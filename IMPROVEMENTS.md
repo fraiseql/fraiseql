@@ -669,7 +669,7 @@ XL  (> one week)
 - **Verification:** After (A), `grep -rn "FraiseQLError::Storage" crates/ --include="*.rs"` returns zero hits.
 - **Risk:** 60+ call sites need updating; mechanical.
 - **Confidence:** High
-- **Status:** Deferred to Wave 2 in 686322bd6 — see `FOLLOW_UPS.md` F050 for the full Wave-2 plan. 118 sites with non-trivial semantics (the `code: Option<String>` discriminator field is routed by `storage_error_response`) exceeded the Wave-1 scope budget per the IMPROVEMENTS.md hard constraint ("STOP after 10–20 sites with thorny semantics"). Variant rustdoc upgraded with full ownership info; zero sites migrated to avoid a half-converted state.
+- **Status:** Closed in 4c86d2e0d..cedf7d927 (7 commits on `feat/error-taxonomy-consolidation`, Wave 4). `FraiseQLError::Storage` deleted; 118 call sites migrated to `FraiseQLError::File(FileError::*)` via eight new typed backend variants (`PermissionDenied`, `IoError`, `InvalidKey`, `NotImplemented`, `Unsupported`, `SizeLimitExceeded`, `MimeTypeNotAllowed`, `Backend`) plus the pre-existing `NotFound`. `storage_error_response` now pattern-matches on typed variants (404 for `NotFound`, 403 for `PermissionDenied`, 500 elsewhere) instead of `code: Option<String>` strings. Source chains (reqwest, AWS SDK, sqlx, std::io) preserved via `source: Some(Box::new(e))` on every previously-stringified site. Only deliberate behavior change: `FraiseQLError::File(FileError::NotFound)` returns 404 globally (was 400 outside storage routes) — see CHANGELOG.
 
 #### F051 — `FraiseQLError::Storage` variant has no documented owner after the file/storage split
 - **Severity:** 🟡 Medium
