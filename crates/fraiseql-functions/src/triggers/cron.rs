@@ -434,9 +434,15 @@ async fn cron_scheduler_task(
                                 tracing::debug!(function = %fn_name, "Cron function completed");
                             }
                             Err(e) => {
+                                // F047: walk the source chain and concatenate the
+                                // causes so the log carries the whole `std::error::Error`
+                                // hierarchy, not just the top-level Display.
+                                let chain = error_source_chain(&e);
                                 tracing::error!(
                                     function = %fn_name,
                                     error = %e,
+                                    error.debug = ?e,
+                                    error.chain = %chain,
                                     "Cron function invocation failed"
                                 );
                             }
@@ -449,6 +455,27 @@ async fn cron_scheduler_task(
                 break;
             }
         }
+    }
+}
+
+/// Walk an `std::error::Error`'s source chain and concatenate the causes
+/// into a single string. Used by the cron-task error log so that wrapped
+/// transport / WASM / engine errors keep their context in observability
+/// (F047).
+fn error_source_chain(err: &(dyn std::error::Error + 'static)) -> String {
+    let mut chain = String::new();
+    let mut current: Option<&dyn std::error::Error> = err.source();
+    while let Some(source) = current {
+        if !chain.is_empty() {
+            chain.push_str(" → ");
+        }
+        chain.push_str(&format!("{source}"));
+        current = source.source();
+    }
+    if chain.is_empty() {
+        "<no source>".to_string()
+    } else {
+        chain
     }
 }
 
