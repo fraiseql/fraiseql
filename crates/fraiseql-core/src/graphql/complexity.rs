@@ -193,7 +193,7 @@ impl RequestValidator {
     /// expensive AST parse can be skipped entirely.
     ///
     /// A validator is "fully disabled" only when depth, complexity, AND alias
-    /// checks are all off. The alias-amplification check is a distinct DoS
+    /// checks are all off. The alias-amplification check is a distinct `DoS`
     /// vector — `max_aliases_per_query == 0` disables it, any other value
     /// keeps it active even when depth/complexity validation are turned off.
     #[must_use]

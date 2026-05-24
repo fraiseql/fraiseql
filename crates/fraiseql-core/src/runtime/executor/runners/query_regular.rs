@@ -394,9 +394,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Hash arguments (sorted keys for determinism)
         let mut keys: Vec<&String> = query_match.arguments.keys().collect();
         keys.sort();
+        // F044: stream the serialized JSON straight into the hasher via a
+        // scratch buffer; this avoids the intermediate `String` allocation
+        // *and* satisfies clippy's `collection_is_never_read` lint (the prior
+        // `let serialized = ...; serialized.hash(...)` shape was flagged).
+        let mut scratch: Vec<u8> = Vec::new();
         for key in keys {
             key.hash(&mut hasher);
-            let serialized = serde_json::to_string(&query_match.arguments[key]).map_err(|e| {
+            scratch.clear();
+            serde_json::to_writer(&mut scratch, &query_match.arguments[key]).map_err(|e| {
                 FraiseQLError::Validation {
                     message: format!(
                         "failed to serialize argument '{key}' for response cache key: {e}"
@@ -404,7 +410,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     path:    Some(format!("arguments.{key}")),
                 }
             })?;
-            serialized.hash(&mut hasher);
+            scratch.hash(&mut hasher);
         }
         Ok(hasher.finish())
     }

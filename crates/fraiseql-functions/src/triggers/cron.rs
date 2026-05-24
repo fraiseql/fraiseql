@@ -463,13 +463,15 @@ async fn cron_scheduler_task(
 /// transport / WASM / engine errors keep their context in observability
 /// (F047).
 fn error_source_chain(err: &(dyn std::error::Error + 'static)) -> String {
+    use std::fmt::Write as _;
     let mut chain = String::new();
     let mut current: Option<&dyn std::error::Error> = err.source();
     while let Some(source) = current {
         if !chain.is_empty() {
             chain.push_str(" → ");
         }
-        chain.push_str(&format!("{source}"));
+        // `write!` into a `String` is infallible.
+        let _ = write!(chain, "{source}");
         current = source.source();
     }
     if chain.is_empty() {
