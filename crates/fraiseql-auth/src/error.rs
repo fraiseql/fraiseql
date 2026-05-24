@@ -1,9 +1,12 @@
-//! Internal OIDC/JWT/session errors — NOT the same as `fraiseql_error::AuthError`.
+//! Internal OIDC/JWT/session errors for the auth subsystem.
 //!
 //! This `AuthError` carries diagnostic detail for the middleware/handler layer
-//! (JWT parse reasons, OIDC metadata failures, PKCE state errors). It is
-//! never exposed directly to clients — it gets mapped to the domain-level
-//! `fraiseql_error::AuthError` before reaching the HTTP response.
+//! (JWT parse reasons, OIDC metadata failures, PKCE state errors). It is never
+//! exposed directly to clients — the `IntoResponse` impl in `middleware.rs`
+//! always returns a generic user-facing message and logs the internal reason.
+//! It composes into the canonical
+//! [`fraiseql_error::FraiseQLError::Auth`] via the `From` impl at the
+//! bottom of this file (sqlx pattern).
 use thiserror::Error;
 
 /// All errors that can arise in the authentication and authorization layer.

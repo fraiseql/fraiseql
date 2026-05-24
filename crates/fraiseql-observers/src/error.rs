@@ -1,8 +1,9 @@
-//! Operational observer errors with OB-codes — NOT the same as `fraiseql_error::ObserverError`.
+//! Operational observer errors with structured OB-codes.
 //!
 //! This `ObserverError` carries structured error codes (OB001-OB014+) for
-//! logging, retry decisions, and dead-letter queue routing. The domain-level
-//! `fraiseql_error::ObserverError` is a simpler aggregator for HTTP responses.
+//! logging, retry decisions, and dead-letter queue routing. It composes
+//! into the canonical [`fraiseql_error::FraiseQLError::Observer`] via the
+//! `From` impl at the bottom of this file (sqlx pattern).
 
 use thiserror::Error;
 
