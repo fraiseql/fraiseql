@@ -189,6 +189,18 @@ impl RequestValidator {
         })
     }
 
+    /// Returns true when every configured validation knob is disabled and the
+    /// expensive AST parse can be skipped entirely.
+    ///
+    /// A validator is "fully disabled" only when depth, complexity, AND alias
+    /// checks are all off. The alias-amplification check is a distinct DoS
+    /// vector — `max_aliases_per_query == 0` disables it, any other value
+    /// keeps it active even when depth/complexity validation are turned off.
+    #[must_use]
+    pub const fn is_no_op(&self) -> bool {
+        !self.validate_depth && !self.validate_complexity && self.max_aliases_per_query == 0
+    }
+
     /// Validate a GraphQL query string, enforcing configured limits.
     ///
     /// # Errors
@@ -199,10 +211,7 @@ impl RequestValidator {
             return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
         }
 
-        // Skip AST parsing only when depth, complexity, AND alias checks are all disabled.
-        // The alias amplification check is a distinct DoS vector: it must run even when
-        // depth and complexity validation are both turned off.
-        if !self.validate_depth && !self.validate_complexity && self.max_aliases_per_query == 0 {
+        if self.is_no_op() {
             return Ok(());
         }
 
