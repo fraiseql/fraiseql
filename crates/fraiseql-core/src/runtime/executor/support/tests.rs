@@ -277,13 +277,15 @@ mod pipeline_tests {
     #[test]
     fn test_extract_root_field_names_single() {
         let p = parsed("{ users { id } }");
-        assert_eq!(extract_root_field_names(&p), vec!["users"]);
+        let names: Vec<&str> = extract_root_field_names(&p).collect();
+        assert_eq!(names, vec!["users"], "single root selection should yield one name");
     }
 
     #[test]
     fn test_extract_root_field_names_two() {
         let p = parsed("{ users { id } posts { id } }");
-        assert_eq!(extract_root_field_names(&p), vec!["users", "posts"]);
+        let names: Vec<&str> = extract_root_field_names(&p).collect();
+        assert_eq!(names, vec!["users", "posts"], "two root selections should yield both names in order");
     }
 
     // ── serializer tests ──────────────────────────────────────────────────────
