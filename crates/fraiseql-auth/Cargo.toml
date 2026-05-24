@@ -55,6 +55,7 @@ workspace = true
 [package]
 description = "Authentication, authorization, and session management for FraiseQL"
 name = "fraiseql-auth"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

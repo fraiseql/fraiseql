@@ -1,6 +1,7 @@
 [package]
 description = "Apollo Federation v2 support for FraiseQL — entity resolution, saga orchestration, multi-subgraph composition"
 name = "fraiseql-federation"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

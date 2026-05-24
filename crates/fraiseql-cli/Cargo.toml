@@ -69,6 +69,7 @@ workspace = true
 [package]
 description = "CLI tools for FraiseQL v2 - Schema compilation and development utilities"
 name = "fraiseql-cli"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

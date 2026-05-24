@@ -78,6 +78,7 @@ workspace = true
 [package]
 description = "Observer system for reactive business logic in FraiseQL v2"
 name = "fraiseql-observers"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

@@ -1,6 +1,7 @@
 [package]
 description = "Secrets management and field-level encryption for FraiseQL"
 name = "fraiseql-secrets"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
