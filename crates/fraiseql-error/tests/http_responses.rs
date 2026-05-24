@@ -1,6 +1,7 @@
 #![allow(missing_docs)] // Reason: integration test crate
 #![cfg(feature = "axum-compat")]
 #![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
+#![allow(clippy::indexing_slicing)] // Reason: serde_json::Value `["key"]` indexing is the idiomatic assertion shape in tests; a missing key correctly fails the test.
 
 use axum::{
     http::{HeaderValue, StatusCode},

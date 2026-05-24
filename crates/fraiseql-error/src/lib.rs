@@ -35,6 +35,10 @@
 //! Raw error details are available only in structured server logs.
 
 #![warn(missing_docs)]
+// Wave 9 (Q4): pilot crate for the workspace `clippy::indexing_slicing` rollout.
+// All library code is panic-free w.r.t. slice/vec indexing; the lint is denied
+// here at the crate level. Test files opt out individually with a `Reason:`.
+#![deny(clippy::indexing_slicing)]
 
 mod config;
 pub mod core_error;

@@ -561,36 +561,47 @@ impl FraiseQLError {
     }
 
     fn levenshtein_distance(s1: &str, s2: &str) -> usize {
-        let len1 = s1.chars().count();
-        let len2 = s2.chars().count();
+        let chars2: Vec<char> = s2.chars().collect();
+        let len2 = chars2.len();
 
-        if len1 == 0 {
-            return len2;
-        }
-        if len2 == 0 {
-            return len1;
-        }
-
-        let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
-
-        for (i, row) in matrix.iter_mut().enumerate() {
-            row[0] = i;
-        }
-        for (j, val) in matrix[0].iter_mut().enumerate() {
-            *val = j;
-        }
+        // Two-row rolling buffer eliminates the nested `Vec<Vec<_>>` indexing.
+        // `prev[j]` = distance(s1[..i],   s2[..j])
+        // `curr[j]` = distance(s1[..i+1], s2[..j])
+        // Both rows have `len2 + 1` entries; iteration is bounded by their
+        // length, so every access uses `.get()?` with an `unreachable_or_zero`
+        // saturating fallback (provably unreachable in this control flow).
+        let mut prev: Vec<usize> = (0..=len2).collect();
+        let mut curr: Vec<usize> = vec![0; len2 + 1];
 
         for (i, c1) in s1.chars().enumerate() {
-            for (j, c2) in s2.chars().enumerate() {
-                let cost = usize::from(c1 != c2);
-                matrix[i + 1][j + 1] = std::cmp::min(
-                    std::cmp::min(matrix[i][j + 1] + 1, matrix[i + 1][j] + 1),
-                    matrix[i][j] + cost,
-                );
+            // Initialise the leftmost column for this row.
+            // Reason: `curr` is sized `len2 + 1 >= 1`, so index 0 is always valid.
+            if let Some(slot) = curr.get_mut(0) {
+                *slot = i + 1;
             }
+
+            for (j, &c2) in chars2.iter().enumerate() {
+                let cost = usize::from(c1 != c2);
+                // All four lookups read positions in `[0, len2]`, which are
+                // valid by construction (`prev`/`curr` both have len `len2+1`,
+                // and `j` ranges over `0..len2`). The `.get()` + `unwrap_or(0)`
+                // pattern keeps the function panic-free without changing the
+                // computed result.
+                let deletion = prev.get(j + 1).copied().unwrap_or(0).saturating_add(1);
+                let insertion = curr.get(j).copied().unwrap_or(0).saturating_add(1);
+                let substitution = prev.get(j).copied().unwrap_or(0).saturating_add(cost);
+                let value = deletion.min(insertion).min(substitution);
+                if let Some(slot) = curr.get_mut(j + 1) {
+                    *slot = value;
+                }
+            }
+
+            std::mem::swap(&mut prev, &mut curr);
         }
 
-        matrix[len1][len2]
+        // Final answer sits at `prev[len2]` after the last swap.
+        // Reason: `prev` is always sized `len2 + 1`, so this index is valid.
+        prev.get(len2).copied().unwrap_or(0)
     }
 
     /// Create a database error from PostgreSQL error code.
