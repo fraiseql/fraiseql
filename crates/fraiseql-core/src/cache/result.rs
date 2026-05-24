@@ -39,6 +39,7 @@ use std::{
 };
 
 use dashmap::{DashMap, DashSet};
+use fraiseql_db::ViewName;
 use moka::sync::Cache as MokaCache;
 use serde::{Deserialize, Serialize};
 
@@ -58,11 +59,13 @@ pub struct CachedResult {
 
     /// Which views/tables this query accesses.
     ///
-    /// Format: `vec!["v_user", "v_post"]`
+    /// Format: `[ViewName::from("v_user"), ViewName::from("v_post")]`
     ///
-    /// Stored as a boxed slice (no excess capacity) since views are fixed
-    /// at `put()` time and never modified.
-    pub accessed_views: Box<[String]>,
+    /// Stored as a boxed slice of [`ViewName`] (each backed by `Arc<str>`)
+    /// so cloning a name into the reverse index is a cheap atomic ref-count
+    /// bump rather than a fresh heap allocation. Views are fixed at `put()`
+    /// time and never modified.
+    pub accessed_views: Box<[ViewName]>,
 
     /// When this entry was cached (Unix timestamp in seconds).
     ///
@@ -184,7 +187,11 @@ pub struct QueryResultCache {
     memory_bytes: Arc<AtomicUsize>,
 
     /// Reverse index: view name → set of cache keys accessing that view.
-    view_index: Arc<DashMap<String, DashSet<u64>>>,
+    ///
+    /// Keys are [`ViewName`] (`Arc<str>` inside) so inserts share the same
+    /// allocation as the names stored in [`CachedResult::accessed_views`].
+    /// Lookup by `&str` still works via the `Borrow<str>` impl on `ViewName`.
+    view_index: Arc<DashMap<ViewName, DashSet<u64>>>,
 
     /// Reverse index: entity type → entity id → set of cache keys.
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
@@ -194,7 +201,7 @@ pub struct QueryResultCache {
     /// Populated in `put_arc()` when `result.len() > 1`. Used by
     /// `invalidate_list_queries()` for CREATE-targeted eviction that leaves
     /// point-lookup entries intact.
-    list_index: Arc<DashMap<String, DashSet<u64>>>,
+    list_index: Arc<DashMap<ViewName, DashSet<u64>>>,
 }
 
 /// Cache metrics for monitoring.
@@ -234,9 +241,9 @@ const fn entry_overhead() -> usize {
 fn build_store(
     config: &CacheConfig,
     memory_bytes: Arc<AtomicUsize>,
-    view_index: Arc<DashMap<String, DashSet<u64>>>,
+    view_index: Arc<DashMap<ViewName, DashSet<u64>>>,
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
-    list_index: Arc<DashMap<String, DashSet<u64>>>,
+    list_index: Arc<DashMap<ViewName, DashSet<u64>>>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
@@ -298,10 +305,10 @@ impl QueryResultCache {
         assert!(config.max_entries > 0, "max_entries must be > 0");
 
         let memory_bytes = Arc::new(AtomicUsize::new(0));
-        let view_index: Arc<DashMap<String, DashSet<u64>>> = Arc::new(DashMap::new());
+        let view_index: Arc<DashMap<ViewName, DashSet<u64>>> = Arc::new(DashMap::new());
         let entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>> =
             Arc::new(DashMap::new());
-        let list_index: Arc<DashMap<String, DashSet<u64>>> = Arc::new(DashMap::new());
+        let list_index: Arc<DashMap<ViewName, DashSet<u64>>> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
@@ -431,6 +438,12 @@ impl QueryResultCache {
             Box::default()
         };
 
+        // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
+        // once. The same Arc is then shared by `view_index`, `list_index`,
+        // and `accessed_views` (the slice stored on the cached entry).
+        let accessed_views: Box<[ViewName]> =
+            accessed_views.into_iter().map(ViewName::from).collect();
+
         // Register in view index.
         for view in &accessed_views {
             self.view_index.entry(view.clone()).or_default().insert(cache_key);
@@ -455,7 +468,7 @@ impl QueryResultCache {
 
         let cached = CachedResult {
             result,
-            accessed_views: accessed_views.into_boxed_slice(),
+            accessed_views,
             cached_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_secs()),
@@ -557,7 +570,9 @@ impl QueryResultCache {
         // would deadlock on a non-re-entrant parking_lot::RwLock.
         let mut keys_to_invalidate: HashSet<u64> = HashSet::new();
         for view in views {
-            if let Some(keys) = self.view_index.get(view) {
+            // ViewName implements Borrow<str>, so DashMap lookup by &str works
+            // without materialising a fresh ViewName.
+            if let Some(keys) = self.view_index.get(view.as_str()) {
                 // Dedup: a query accessing multiple views in `views` would
                 // otherwise be counted and invalidated once per view.
                 for key in keys.iter() {
@@ -599,7 +614,7 @@ impl QueryResultCache {
 
         let mut keys_to_invalidate: HashSet<u64> = HashSet::new();
         for view in views {
-            if let Some(keys) = self.list_index.get(view) {
+            if let Some(keys) = self.list_index.get(view.as_str()) {
                 for k in keys.iter() {
                     keys_to_invalidate.insert(*k);
                 }

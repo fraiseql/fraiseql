@@ -29,6 +29,7 @@ use std::{
 };
 
 use dashmap::{DashMap, DashSet};
+use fraiseql_db::ViewName;
 use moka::sync::Cache as MokaCache;
 use serde_json::Value;
 
@@ -66,7 +67,11 @@ struct ResponseEntry {
     response: Arc<Value>,
 
     /// Views accessed by this query (for invalidation).
-    accessed_views: Box<[String]>,
+    ///
+    /// Stored as a boxed slice of [`ViewName`] (each backed by `Arc<str>`)
+    /// so cloning a name into [`Self::view_index`] is a cheap atomic
+    /// ref-count bump rather than a fresh heap allocation.
+    accessed_views: Box<[ViewName]>,
 }
 
 /// Executor-level cache for projected GraphQL responses.
@@ -86,7 +91,9 @@ pub struct ResponseCache {
     ///
     /// Maintained in `put()` and pruned by the moka eviction listener.
     /// Enables O(k) invalidation without scanning the full cache.
-    view_index: Arc<DashMap<String, DashSet<(u64, u64)>>>,
+    /// Keyed by [`ViewName`] so the entry shares its `Arc<str>` allocation
+    /// with the names stored on each cache entry.
+    view_index: Arc<DashMap<ViewName, DashSet<(u64, u64)>>>,
 
     enabled: bool,
     hits:    AtomicU64,
@@ -97,7 +104,7 @@ impl ResponseCache {
     /// Create a new response cache from configuration.
     #[must_use]
     pub fn new(config: ResponseCacheConfig) -> Self {
-        let view_index: Arc<DashMap<String, DashSet<(u64, u64)>>> = Arc::new(DashMap::new());
+        let view_index: Arc<DashMap<ViewName, DashSet<(u64, u64)>>> = Arc::new(DashMap::new());
         let vi = Arc::clone(&view_index);
 
         let mut builder = MokaCache::builder()
@@ -169,16 +176,19 @@ impl ResponseCache {
 
         let key = (query_key, security_hash);
 
+        // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
+        // once; the same Arc is then shared by `view_index` and the cached
+        // entry.
+        let accessed_views: Box<[ViewName]> =
+            accessed_views.into_iter().map(ViewName::from).collect();
+
         // Update view → key reverse index before inserting into the store,
         // so invalidate_views() called concurrently won't miss the key.
         for view in &accessed_views {
             self.view_index.entry(view.clone()).or_default().insert(key);
         }
 
-        let entry = Arc::new(ResponseEntry {
-            response,
-            accessed_views: accessed_views.into_boxed_slice(),
-        });
+        let entry = Arc::new(ResponseEntry { response, accessed_views });
 
         self.store.insert(key, entry);
         Ok(())
@@ -195,7 +205,9 @@ impl ResponseCache {
         let mut total = 0_u64;
 
         for view in views {
-            if let Some(keys) = self.view_index.get(view) {
+            // ViewName: Borrow<str> — look up by &str without allocating a
+            // fresh ViewName.
+            if let Some(keys) = self.view_index.get(view.as_str()) {
                 let to_remove: Vec<(u64, u64)> = keys.iter().map(|k| *k).collect();
                 drop(keys);
                 for key in to_remove {
