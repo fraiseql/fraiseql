@@ -10,6 +10,7 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
+    graphql::parse_graphql_document,
     security::SecurityContext,
 };
 use tracing::{debug, error, warn};
@@ -378,8 +379,23 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Validate request
     let validator = &state.validator;
 
-    // Validate query
-    if let Err(e) = validator.validate_query(&query) {
+    // Parse the GraphQL document exactly once at the handler boundary so the
+    // validator can walk the AST without re-parsing. The matcher's downstream
+    // parse (inside `executor.execute`) is independent and benefits from the
+    // executor's own parse cache (see F001 in IMPROVEMENTS.md).
+    //
+    // We only invoke `parse_graphql_document` when the validator might use the
+    // AST — when it is a no-op the explicit parse here would be wasted work
+    // (the executor will still parse what it needs).
+    let validation_outcome = if validator.is_no_op() {
+        Ok(())
+    } else {
+        match parse_graphql_document(&query) {
+            Ok(doc) => validator.validate_query_doc(&doc),
+            Err(e) => Err(e),
+        }
+    };
+    if let Err(e) = validation_outcome {
         error!(
             error = %e,
             operation_name = ?request.operation_name,

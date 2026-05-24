@@ -8,6 +8,28 @@ use graphql_parser::query::{
     Definition, Document, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
 };
 
+/// Parse a GraphQL query source into a [`graphql_parser`] document.
+///
+/// Exposed so the server's HTTP handler can parse the request exactly once
+/// and reuse the AST for both complexity validation (via
+/// [`RequestValidator::validate_query_doc`]) and the downstream execution path
+/// — replacing the previous "validate then re-parse" pattern. See F001 in
+/// `IMPROVEMENTS.md`.
+///
+/// # Errors
+///
+/// Returns [`ComplexityValidationError::MalformedQuery`] when the source fails
+/// to parse as a GraphQL query document.
+pub fn parse_graphql_document(
+    query: &str,
+) -> Result<Document<'_, String>, ComplexityValidationError> {
+    if query.trim().is_empty() {
+        return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
+    }
+    graphql_parser::parse_query::<String>(query)
+        .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))
+}
+
 /// Default maximum number of aliases per query (alias amplification protection).
 ///
 /// This constant is the single source of truth used by [`ComplexityConfig`],
@@ -217,10 +239,32 @@ impl RequestValidator {
 
         let document = graphql_parser::parse_query::<String>(query)
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
-        let fragments = collect_fragments(&document);
+        self.validate_query_doc(&document)
+    }
+
+    /// Validate an already-parsed GraphQL document, enforcing configured limits.
+    ///
+    /// This is the AST-only entry point used by the server's HTTP handler so the
+    /// document is parsed exactly once per request (rather than once by the
+    /// validator and once by the executor's matcher). See F001 in
+    /// `IMPROVEMENTS.md`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ComplexityValidationError`] if the document violates depth,
+    /// complexity, or alias-amplification limits.
+    pub fn validate_query_doc<'a>(
+        &self,
+        document: &'a Document<'a, String>,
+    ) -> Result<(), ComplexityValidationError> {
+        if self.is_no_op() {
+            return Ok(());
+        }
+
+        let fragments = collect_fragments(document);
 
         if self.validate_depth {
-            let depth = self.calculate_depth_ast(&document, &fragments);
+            let depth = self.calculate_depth_ast(document, &fragments);
             if depth > self.max_depth {
                 return Err(ComplexityValidationError::QueryTooDeep {
                     max_depth:    self.max_depth,
@@ -230,7 +274,7 @@ impl RequestValidator {
         }
 
         if self.validate_complexity {
-            let complexity = self.calculate_complexity_ast(&document, &fragments);
+            let complexity = self.calculate_complexity_ast(document, &fragments);
             if complexity > self.max_complexity {
                 return Err(ComplexityValidationError::QueryTooComplex {
                     max_complexity:    self.max_complexity,
@@ -239,7 +283,7 @@ impl RequestValidator {
             }
         }
 
-        let alias_count = self.count_aliases_ast(&document);
+        let alias_count = self.count_aliases_ast(document);
         if alias_count > self.max_aliases_per_query {
             return Err(ComplexityValidationError::TooManyAliases {
                 max_aliases:    self.max_aliases_per_query,
