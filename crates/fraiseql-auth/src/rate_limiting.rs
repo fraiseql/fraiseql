@@ -26,6 +26,59 @@ use dashmap::{DashMap, mapref::entry::Entry};
 
 use crate::error::{AuthError, Result};
 
+/// Abstraction over the wall-clock used by [`KeyedRateLimiter`].
+///
+/// Implementations must be `Send + Sync` because the limiter is shared across
+/// request-handler threads. The trait is generic over the rate-limiter type
+/// parameter, so production builds inline `SystemClock` without any virtual
+/// dispatch or heap allocation.
+///
+/// A blanket impl exists for `F: Fn() -> u64 + Send + Sync`, so test code can
+/// pass closures and `fn` pointers (such as `|| u64::MAX`) directly.
+pub trait Clock: Send + Sync {
+    /// Return the current time as a Unix timestamp (seconds since the epoch).
+    fn now_unix_secs(&self) -> u64;
+}
+
+impl<F> Clock for F
+where
+    F: Fn() -> u64 + Send + Sync,
+{
+    fn now_unix_secs(&self) -> u64 {
+        self()
+    }
+}
+
+/// Production wall-clock that reads `SystemTime::now()`.
+///
+/// On system time error, returns `0` (fail-closed): a timestamp of `0` is
+/// before any real `window_start`, so existing windows will not expire and
+/// rate limiting continues to be enforced with existing counters. New windows
+/// started while the clock is broken will have `window_start = 0`; when the
+/// clock recovers, those windows will immediately expire (since any real
+/// timestamp ≥ `0 + window_secs`) and reset naturally.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SystemClock;
+
+impl Clock for SystemClock {
+    fn now_unix_secs(&self) -> u64 {
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "System time error in rate limiter — brute-force protection \
+                     continues using frozen timestamps. System clock may have moved \
+                     backward or time source is unavailable."
+                );
+                // Return 0 (not u64::MAX): existing windows will not expire,
+                // so rate limiting remains enforced during the clock failure.
+                0
+            },
+        }
+    }
+}
+
 /// Rate limit configuration for authentication endpoints (sliding-window algorithm).
 ///
 /// Uses a per-key sliding-window counter for brute-force protection on
@@ -138,57 +191,45 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// [`warn_if_single_node_rate_limiting`] during server startup to emit a
 /// reminder when no distributed backend is detected.
 ///
+/// # Type parameter
+///
+/// `C: Clock` selects the time source. Production code uses the default
+/// [`SystemClock`] (a zero-sized type) so the clock is inlined and no virtual
+/// dispatch or heap allocation occurs. Tests can substitute any closure or
+/// custom clock via [`KeyedRateLimiter::with_clock`].
+///
 /// # Constructors
 ///
 /// - [`KeyedRateLimiter::new`] — use the system wall clock (production).
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 /// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
-pub struct KeyedRateLimiter {
+pub struct KeyedRateLimiter<C: Clock = SystemClock> {
     records:     Arc<DashMap<String, RequestRecord>>,
     config:      AuthRateLimitConfig,
     max_entries: usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
     check_count: AtomicU64,
-    /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
-    /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
-    clock:       Box<dyn Fn() -> u64 + Send + Sync>,
+    /// Time source — defaults to [`SystemClock`].
+    clock:       C,
 }
 
-/// Default clock that reads wall-clock time.
-///
-/// On system time error, returns `0` (fail-closed): a timestamp of `0` is
-/// before any real `window_start`, so existing windows will not expire and
-/// rate limiting continues to be enforced with existing counters. New windows
-/// started while the clock is broken will have `window_start = 0`; when the
-/// clock recovers, those windows will immediately expire (since any real
-/// timestamp ≥ 0 + `window_secs`) and reset naturally.
-fn system_clock() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_secs(),
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                "System time error in rate limiter — brute-force protection \
-                 continues using frozen timestamps. System clock may have moved \
-                 backward or time source is unavailable."
-            );
-            // Return 0 (not u64::MAX): existing windows will not expire,
-            // so rate limiting remains enforced during the clock failure.
-            0
-        },
+impl<C: Clock + Clone> Clone for KeyedRateLimiter<C> {
+    fn clone(&self) -> Self {
+        Self {
+            records:     Arc::clone(&self.records),
+            config:      self.config.clone(),
+            max_entries: self.max_entries,
+            check_count: AtomicU64::new(self.check_count.load(Ordering::Relaxed)),
+            clock:       self.clock.clone(),
+        }
     }
 }
 
-impl KeyedRateLimiter {
+impl KeyedRateLimiter<SystemClock> {
     /// Create a new keyed rate limiter using wall-clock time.
+    #[must_use]
     pub fn new(config: AuthRateLimitConfig) -> Self {
-        Self {
-            records: Arc::new(DashMap::new()),
-            config,
-            max_entries: DEFAULT_MAX_ENTRIES,
-            check_count: AtomicU64::new(0),
-            clock: Box::new(system_clock),
-        }
+        Self::with_parts(config, DEFAULT_MAX_ENTRIES, SystemClock)
     }
 
     /// Create a rate limiter with a custom entry cap.
@@ -196,51 +237,41 @@ impl KeyedRateLimiter {
     /// Use this when the deployment context calls for a tighter or looser bound
     /// than `DEFAULT_MAX_ENTRIES`.  Setting `max_entries = 0` disables the cap
     /// (unbounded — not recommended in production).
+    #[must_use]
     pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
-        Self {
-            records: Arc::new(DashMap::new()),
-            config,
-            max_entries,
-            check_count: AtomicU64::new(0),
-            clock: Box::new(system_clock),
-        }
+        Self::with_parts(config, max_entries, SystemClock)
     }
+}
 
+impl<C: Clock> KeyedRateLimiter<C> {
     /// Create a rate limiter with an injectable clock (for testing).
     ///
-    /// The `clock` function is called on every `check()` to obtain the current Unix timestamp.
-    /// Pass `|| u64::MAX` to simulate a broken system clock and verify fail-open behavior.
-    pub fn with_clock<F>(config: AuthRateLimitConfig, clock: F) -> Self
-    where
-        F: Fn() -> u64 + Send + Sync + 'static,
-    {
-        Self {
-            records: Arc::new(DashMap::new()),
-            config,
-            max_entries: DEFAULT_MAX_ENTRIES,
-            check_count: AtomicU64::new(0),
-            clock: Box::new(clock),
-        }
+    /// The `clock`'s `now_unix_secs` method is called on every `check()` to
+    /// obtain the current Unix timestamp. Pass `|| u64::MAX` to simulate a
+    /// broken system clock and verify fail-open behavior.
+    pub fn with_clock(config: AuthRateLimitConfig, clock: C) -> Self {
+        Self::with_parts(config, DEFAULT_MAX_ENTRIES, clock)
     }
 
     /// Create a rate limiter with both a custom clock and a custom entry cap (for testing).
     ///
     /// Combines the benefits of [`KeyedRateLimiter::with_clock`] and
     /// [`KeyedRateLimiter::with_max_entries`] for deterministic eviction tests.
-    pub fn with_clock_and_max_entries<F>(
+    pub fn with_clock_and_max_entries(
         config: AuthRateLimitConfig,
         max_entries: usize,
-        clock: F,
-    ) -> Self
-    where
-        F: Fn() -> u64 + Send + Sync + 'static,
-    {
+        clock: C,
+    ) -> Self {
+        Self::with_parts(config, max_entries, clock)
+    }
+
+    fn with_parts(config: AuthRateLimitConfig, max_entries: usize, clock: C) -> Self {
         Self {
             records: Arc::new(DashMap::new()),
             config,
             max_entries,
             check_count: AtomicU64::new(0),
-            clock: Box::new(clock),
+            clock,
         }
     }
 
@@ -273,7 +304,7 @@ impl KeyedRateLimiter {
             return Ok(());
         }
 
-        let now = (self.clock)();
+        let now = self.clock.now_unix_secs();
 
         // Periodic expiry sweep to bound DashMap growth.
         // Runs every PURGE_INTERVAL calls; overflow wraps silently which is fine.

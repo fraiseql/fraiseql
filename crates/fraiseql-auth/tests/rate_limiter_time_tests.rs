@@ -154,3 +154,35 @@ fn rate_limiter_allows_exactly_max_requests() {
     }
     assert!(limiter.check("key").is_err(), "request 6 must be denied (off-by-one check)");
 }
+
+// ── Cloning ──────────────────────────────────────────────────────
+//
+// `KeyedRateLimiter` historically held a `Box<dyn Fn() -> u64 + Send + Sync>`
+// for its clock, which made the struct un-Cloneable. After F018 the limiter is
+// generic over a `Clock` trait whose default `SystemClock` is `Clone + Copy`,
+// so the limiter itself is now `Clone` and both clones share the same record
+// map via `Arc`.
+
+#[test]
+fn rate_limiter_is_clone_and_shares_records_across_clones() {
+    let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+        enabled:      true,
+        max_requests: 2,
+        window_secs:  60,
+    });
+
+    // Fill the window via the original handle.
+    limiter.check("k").unwrap();
+    limiter.check("k").unwrap();
+
+    // Cloning must produce a handle that shares the underlying record map —
+    // observing the cap immediately rather than starting a fresh window.
+    let cloned = limiter.clone();
+    assert!(
+        cloned.check("k").is_err(),
+        "cloned limiter must observe the original's per-key counter via the shared record map"
+    );
+
+    // The original handle continues to enforce the cap on the same shared state.
+    assert!(limiter.check("k").is_err(), "original handle must observe the same shared counter");
+}

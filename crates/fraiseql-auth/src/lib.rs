@@ -109,7 +109,7 @@ pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
-pub use rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter, RateLimiters};
+pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
     SecurityConfigFromSchema, StateEncryptionSettings,
