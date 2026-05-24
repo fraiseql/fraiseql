@@ -234,3 +234,15 @@ pub enum AuthError {
 
 /// Convenience alias for `Result<T, AuthError>`.
 pub type Result<T> = std::result::Result<T, AuthError>;
+
+/// Lossless composition into the canonical [`fraiseql_error::FraiseQLError`].
+///
+/// The auth subsystem owns this conversion (sqlx pattern) so that
+/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph.
+/// The boxed payload preserves the full [`AuthError`] vocabulary via the
+/// `Display`/`source` chain.
+impl From<AuthError> for fraiseql_error::FraiseQLError {
+    fn from(e: AuthError) -> Self {
+        Self::Auth(Box::new(e))
+    }
+}

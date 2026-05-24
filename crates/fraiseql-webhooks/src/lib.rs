@@ -173,3 +173,15 @@ impl From<serde_json::Error> for WebhookError {
 
 /// Result type for webhook operations
 pub type Result<T> = std::result::Result<T, WebhookError>;
+
+/// Lossless composition into the canonical [`fraiseql_error::FraiseQLError`].
+///
+/// The webhook subsystem owns this conversion (sqlx pattern) so that
+/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph.
+/// The boxed payload preserves the full [`WebhookError`] vocabulary via the
+/// `Display`/`source` chain.
+impl From<WebhookError> for fraiseql_error::FraiseQLError {
+    fn from(e: WebhookError) -> Self {
+        Self::Webhook(Box::new(e))
+    }
+}

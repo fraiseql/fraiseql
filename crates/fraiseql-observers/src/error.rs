@@ -334,3 +334,15 @@ impl ObserverError {
 
 /// Result type alias for observer operations
 pub type Result<T> = std::result::Result<T, ObserverError>;
+
+/// Lossless composition into the canonical [`fraiseql_error::FraiseQLError`].
+///
+/// The observer subsystem owns this conversion (sqlx pattern) so that
+/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph.
+/// The boxed payload preserves the full [`ObserverError`] vocabulary (including
+/// the structured OB-codes) via the `Display`/`source` chain.
+impl From<ObserverError> for fraiseql_error::FraiseQLError {
+    fn from(e: ObserverError) -> Self {
+        Self::Observer(Box::new(e))
+    }
+}
