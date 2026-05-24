@@ -190,7 +190,7 @@ XL  (> one week)
 ### Correctness
 
 #### F006 — `KeyedRateLimiter` serialises every auth request through one mutex
-- **Status:** Re-prioritized — see round-2 update (bundle with F008/F013/F048 into a single "lock-free read-hot maps" PR).
+- **Status:** Closed in c5c946fb3 — `KeyedRateLimiter` switched to `Arc<DashMap<String, RequestRecord>>`. The hot path uses `DashMap::entry()` so the read-modify-write of a `RequestRecord` for a given key remains atomic per shard, while distinct keys never contend. Periodic sweep and capacity eviction run outside any per-key lock and are now documented as best-effort. Poison-recovery code path removed.
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** All auth-related request paths (login, OAuth callback, etc.) contend on a single `Arc<Mutex<HashMap<String, RequestRecord>>>`. Under load every request blocks on the same lock for the duration of HashMap walk and (every PURGE_INTERVAL calls) a full `.retain()` scan.
@@ -202,7 +202,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F008 — In-memory rate-limit buckets use tokio `RwLock<HashMap>` on every request
-- **Status:** Re-prioritized — see round-2 update (bundle with F006/F013/F048).
+- **Status:** Closed in 6f79c711e — all four `Arc<RwLock<HashMap<…, TokenBucket>>>` fields in `InMemoryRateLimiter` (`ip_buckets`, `user_buckets`, `path_ip_buckets`, `tenant_buckets`) switched to `Arc<DashMap<…, TokenBucket>>`. The four `check_*` paths use `DashMap::entry()` for per-key atomicity over `try_consume + token_count` and a best-effort capacity check via `contains_key + len`. No inner `parking_lot::Mutex<TokenBucket>` introduced — DashMap's `entry()` already provides per-key exclusive access. `check_*` methods kept their `async fn` signatures so the dispatch enum (in-memory + Redis variants) stays uniform.
 - **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Every request acquires a tokio `RwLock` across an await (the bucket itself), and the read lock blocks any concurrent write/refill. Under burst load, the read latency on the hot path grows.
@@ -214,7 +214,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F013 — Federation `ConnectionManager` `Mutex<HashMap>` with `.unwrap_or_else(|e| e.into_inner())`
-- **Status:** Re-prioritized — see round-2 update (bundle with F006/F008/F048).
+- **Status:** Closed in 3cda8124f — `ConnectionManager::adapters` switched from `Arc<Mutex<HashMap<String, ArcDatabaseAdapter>>>` to `Arc<DashMap<…>>`. The three `.lock().unwrap_or_else(|e| e.into_inner())` sites are gone (DashMap has no poisoning). Cache-hit path uses a `dashmap::Ref` borrow; close/clear/count all drop their explicit lock guards.
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** Recovering from a poisoned lock by silently using the inner data risks operating on partially-mutated state. The pattern is correct here (HashMap remains structurally valid) but the choice of `std::sync::Mutex` over `parking_lot::Mutex` is what forces the poisoning case at all.
@@ -363,6 +363,7 @@ XL  (> one week)
 - **Verification:** Concurrent bench with 1 000 simultaneous resolves of distinct documents while another task replaces the map.
 - **Risk:** Public return type changes from `String` to `Arc<str>` — caller surface in `handler.rs:325` (`request.query = Some(resolved)`) needs to accept `Arc<str>` or `into_owned()`.
 - **Confidence:** High
+- **Status:** Closed in 4b3e542b3 — `documents` switched to `Arc<DashMap<String, String>>`. The resolve critical section is purely synchronous, so `resolve`, `document_count`, and `replace_documents` dropped their `async fn` signatures entirely (no `.await` suspend point on the hot path). The `Arc<str>` zero-copy optimisation deferred — not necessary to unblock the lock-free goal and would have rippled into `handler.rs` value assignment. 9 unit tests converted from `#[tokio::test] async fn` to `#[test] fn`; production callers in `handler.rs:318` and `initialization.rs:415` dropped their `.await`.
 
 #### F010 — `AuthRequest` derives `Debug` and stores raw `Authorization` header
 - **Severity:** 🔴 Critical
@@ -604,7 +605,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F048 — `entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>` is double-locked
-- **Status:** Re-prioritized — see round-2 update (bundle with F006/F008/F013 into "lock-free read-hot maps" PR).
+- **Status:** Closed in 1ebae1f61 — `entity_type_index` switched to `Arc<DashMap<(String, String), Vec<i64>>>`. Inner `Vec<i64>` kept as plain `Vec` (no `parking_lot::Mutex`) because call-site audit (`rg "entity_type_index" crates/`) confirmed the only writers republish the whole map via `clear` + per-key `insert` in `start` and `reload_observers`; there is no per-key concurrent mutation. The two background-task reader paths drop the outer `RwLock::read().await` and call `.get(...).map(|r| r.value().clone())` directly.
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** Each observer dispatch acquires the outer RwLock and the inner Vec is rebuilt at every reload.
