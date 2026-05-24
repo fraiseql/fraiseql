@@ -630,7 +630,7 @@ mod types_tests {
             selections:     vec![],
             variables:      vec![],
             fragments:      vec![],
-            source:         "{ users { id name } }".to_string(),
+            source:         std::sync::Arc::from("{ users { id name } }"),
         };
 
         assert_eq!(query.signature(), "query::users");
@@ -645,7 +645,7 @@ mod types_tests {
             selections:     vec![],
             variables:      vec![], // No variables = cacheable
             fragments:      vec![],
-            source:         "{ users { id } }".to_string(),
+            source:         std::sync::Arc::from("{ users { id } }"),
         };
 
         assert!(query.is_cacheable());
@@ -669,7 +669,9 @@ mod types_tests {
                 default_value: None,
             }],
             fragments:      vec![],
-            source:         "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
+            source:         std::sync::Arc::from(
+                "query($limit: Int) { users(limit: $limit) { id } }",
+            ),
         };
 
         assert!(!query.is_cacheable());

@@ -64,7 +64,7 @@ impl QueryMatch {
             selections:     Vec::new(),
             variables:      Vec::new(),
             fragments:      Vec::new(),
-            source:         String::new(),
+            source:         std::sync::Arc::from(""),
         };
 
         Ok(Self {

@@ -4,7 +4,9 @@
 //! They are produced by the parser and consumed by fragment resolution
 //! and directive evaluation.
 
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Parsed GraphQL query.
 ///
@@ -30,8 +32,16 @@ pub struct ParsedQuery {
     /// Fragment definitions
     pub fragments: Vec<FragmentDefinition>,
 
-    /// Original query string (for caching key)
-    pub source: String,
+    /// Original query string (preserved for debug/error messages).
+    ///
+    /// Stored behind `Arc<str>` so cloning a `ParsedQuery` (which the
+    /// fragment-resolution and directive-evaluation paths do for nested
+    /// `FieldSelection`s) is a single atomic ref-count bump rather than a
+    /// fresh heap allocation. The serde wire form is identical to a plain
+    /// JSON string — hand-written `Serialize`/`Deserialize` impls keep
+    /// the workspace `serde` declaration off the `rc` feature.
+    #[serde(serialize_with = "serialize_arc_str", deserialize_with = "deserialize_arc_str")]
+    pub source: Arc<str>,
 }
 
 impl ParsedQuery {
@@ -57,9 +67,27 @@ impl Default for ParsedQuery {
             selections:     Vec::new(),
             variables:      Vec::new(),
             fragments:      Vec::new(),
-            source:         String::new(),
+            source:         Arc::from(""),
         }
     }
+}
+
+// Reason: hand-written serde impls keep `source` as a plain JSON string on the
+//         wire (no `serde = ["rc"]` feature dependency) while still letting the
+//         in-memory representation be `Arc<str>` for cheap clones.
+fn serialize_arc_str<S>(value: &Arc<str>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(value)
+}
+
+fn deserialize_arc_str<'de, D>(deserializer: D) -> Result<Arc<str>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    Ok(Arc::from(s.into_boxed_str()))
 }
 
 /// Field selection in GraphQL query.

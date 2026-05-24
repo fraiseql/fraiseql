@@ -2363,7 +2363,7 @@ mod planner_tests {
                 selections:     vec![],
                 variables:      vec![],
                 fragments:      vec![],
-                source:         "{ users { id name } }".to_string(),
+                source:         std::sync::Arc::from("{ users { id name } }"),
             },
         }
     }
