@@ -221,45 +221,6 @@ pub enum FraiseQLError {
         message: String,
     },
 
-    /// A backend-storage-subsystem failure (object store unreachable, presigned
-    /// URL signing failed, S3/GCS/Azure SDK error, local-disk I/O error).
-    ///
-    /// Distinct from [`Self::File`], which carries user-facing file-validation
-    /// errors (size, MIME, virus-scan). `Storage` is for infrastructure
-    /// failures the user cannot fix; `File` is for failures the user can fix
-    /// by changing the upload. The two map to different HTTP categories
-    /// (`storage_error` 500 vs `file_error` 400).
-    ///
-    /// # Owners
-    ///
-    /// Constructed by:
-    /// - `fraiseql-storage` — every backend (S3, GCS, Azure, local) and the
-    ///   metadata layer (`src/backend/**`, `src/metadata/**`,
-    ///   `src/service/**`, `src/routes/**`).
-    /// - `fraiseql-functions/src/host/live/storage.rs` — host-bridge surface
-    ///   into the same storage backends.
-    ///
-    /// The `code` field carries a stable string discriminator used by
-    /// `fraiseql-storage/src/routes/mod.rs::storage_error_response` to route
-    /// `"not_found"` to HTTP 404 and `"permission_denied"` to HTTP 403.
-    ///
-    /// # Future direction
-    ///
-    /// Scheduled for collapse into [`Self::File`] under wave-2 work
-    /// (see `FOLLOW_UPS.md` F050). The collapse requires either extending
-    /// `FileError` with backend-specific variants or accepting that codes
-    /// degrade to a free-form `message` string. Until then this variant is
-    /// the canonical taxonomy for backend storage failures.
-    #[error("Storage error: {message}")]
-    Storage {
-        /// Error message.
-        message: String,
-        /// Optional error code (e.g., `"not_found"`, `"permission_denied"`,
-        /// `"io_error"`, `"size_limit_exceeded"`, `"mime_type_not_allowed"`,
-        /// `"invalid_key"`, `"not_implemented"`, `"not_supported"`).
-        code:    Option<String>,
-    },
-
     /// Unsupported operation error.
     #[error("Unsupported operation: {message}")]
     Unsupported {
@@ -520,7 +481,6 @@ impl FraiseQLError {
             Self::Database { .. }
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
-            | Self::Storage { .. }
             | Self::Internal { .. }
             | Self::Observer(_) => 500,
             Self::Unsupported { .. } => 501,
@@ -564,7 +524,6 @@ impl FraiseQLError {
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
-            Self::Storage { .. } => "STORAGE_ERROR",
             Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
             Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",

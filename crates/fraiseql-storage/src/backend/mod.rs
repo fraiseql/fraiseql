@@ -409,6 +409,14 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
     }
 }
 
+/// Build a `FileError::Backend` for a missing-config or unknown-backend error.
+fn config_err(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
+    fraiseql_error::FraiseQLError::File(FileError::Backend {
+        message: message.into(),
+        source:  None,
+    })
+}
+
 /// Creates a storage backend from a [`StorageConfig`](crate::config::StorageConfig).
 ///
 /// S3-compatible providers (`s3`, `hetzner`, `scaleway`, `ovh`, `exoscale`,
@@ -422,14 +430,6 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
 /// feature is not enabled, or required configuration fields are missing.
 pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<StorageBackend> {
     let backend_name = config.backend.as_str();
-
-    /// Build a `FileError::Backend` for a missing-config or unknown-backend error.
-    fn config_err(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
-        fraiseql_error::FraiseQLError::File(FileError::Backend {
-            message: message.into(),
-            source:  None,
-        })
-    }
 
     match backend_name {
         "local" => {

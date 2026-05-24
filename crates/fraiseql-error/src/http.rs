@@ -137,9 +137,6 @@ impl IntoResponse for FraiseQLError {
             FraiseQLError::Configuration { .. } => {
                 ("configuration_error", "A configuration error occurred".to_string(), None)
             },
-            FraiseQLError::Storage { .. } => {
-                ("storage_error", "A storage error occurred".to_string(), None)
-            },
             FraiseQLError::Observer(_) => {
                 ("observer_error", "Observer processing failed".to_string(), None)
             },

@@ -224,16 +224,17 @@ impl FileError {
         match self {
             Self::NotFound { .. } => 404,
             Self::PermissionDenied { .. } => 403,
-            Self::InvalidKey { .. } => 400,
             Self::IoError { .. }
             | Self::Backend { .. }
             | Self::NotImplemented { .. }
             | Self::Unsupported { .. }
             | Self::SizeLimitExceeded { .. }
             | Self::MimeTypeNotAllowed { .. } => 500,
-            // Pre-F050 variants — preserve the legacy `FraiseQLError::File`
-            // → 400 mapping for backwards-compatibility.
-            Self::TooLarge { .. }
+            // F050 InvalidKey (user-fixable) plus pre-F050 variants — both
+            // map to 400 to preserve the legacy `FraiseQLError::File` → 400
+            // routing for backwards-compatibility.
+            Self::InvalidKey { .. }
+            | Self::TooLarge { .. }
             | Self::InvalidType { .. }
             | Self::MimeMismatch { .. }
             | Self::VirusDetected { .. }
