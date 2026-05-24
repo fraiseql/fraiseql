@@ -417,7 +417,12 @@ impl HttpEntityResolver {
         request: &GraphQLRequest,
     ) -> Result<GraphQLResponse> {
         let mut attempts = 0;
-        let mut last_error = None;
+        // F025: keep the most recent transport error as a boxed source so the
+        // chain (HTTP status, URL, redirect history for reqwest::Error) is
+        // preserved on the final FraiseQLError::Internal. The summary string
+        // remains for log readability.
+        let mut last_summary: Option<String> = None;
+        let mut last_source: Option<Box<dyn std::error::Error + Send + Sync>> = None;
 
         while attempts < self.config.max_retries {
             attempts += 1;
@@ -425,26 +430,35 @@ impl HttpEntityResolver {
             match self.client.post(url).json(request).send().await {
                 Ok(response) if response.status().is_success() => match response.bytes().await {
                     Ok(body) if body.len() > MAX_ENTITY_RESPONSE_BYTES => {
-                        last_error = Some(format!(
+                        last_summary = Some(format!(
                             "Entity response too large ({} bytes, max {MAX_ENTITY_RESPONSE_BYTES})",
                             body.len()
                         ));
+                        last_source = None;
                     },
                     Ok(body) => match serde_json::from_slice::<GraphQLResponse>(&body) {
                         Ok(gql_response) => return Ok(gql_response),
                         Err(e) => {
-                            last_error = Some(format!("Failed to parse response: {}", e));
+                            last_summary = Some(format!("Failed to parse response: {e}"));
+                            last_source = Some(Box::new(e));
                         },
                     },
                     Err(e) => {
-                        last_error = Some(format!("Failed to read response: {}", e));
+                        last_summary = Some(format!("Failed to read response: {e}"));
+                        last_source = Some(Box::new(e));
                     },
                 },
                 Ok(response) => {
-                    last_error = Some(format!("HTTP {}", response.status()));
+                    let status = response.status();
+                    last_summary = Some(format!("HTTP {status}"));
+                    // Non-success HTTP status carries no `reqwest::Error` — the
+                    // status is the only signal, and is already captured in the
+                    // summary string. Leave `last_source` cleared.
+                    last_source = None;
                 },
                 Err(e) => {
-                    last_error = Some(format!("Request failed: {}", e));
+                    last_summary = Some(format!("Request failed: {e}"));
+                    last_source = Some(Box::new(e));
                 },
             }
 
@@ -461,9 +475,9 @@ impl HttpEntityResolver {
             message: format!(
                 "HTTP resolution failed after {} attempts: {}",
                 attempts,
-                last_error.unwrap_or_else(|| "unknown error".to_string())
+                last_summary.unwrap_or_else(|| "unknown error".to_string())
             ),
-            source:  None,
+            source:  last_source,
         })
     }
 
