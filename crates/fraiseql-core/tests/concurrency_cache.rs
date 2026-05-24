@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, ViewName},
     db::{DatabaseAdapter, WhereClause, WhereOperator, types::JsonbValue},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
@@ -90,7 +90,7 @@ async fn test_concurrent_reads_and_invalidation_no_deadlock() {
         let cached = Arc::clone(&cached);
         handles.push(tokio::spawn(async move {
             for _ in 0..10 {
-                let _ = cached.invalidate_views(&["v_user".to_string()]);
+                let _ = cached.invalidate_views(&[ViewName::from("v_user")]);
                 tokio::task::yield_now().await;
             }
         }));
@@ -145,7 +145,7 @@ async fn test_concurrent_queries_different_views_independent() {
     }
 
     // Invalidate v_user only
-    cached.invalidate_views(&["v_user".to_string()]).unwrap();
+    cached.invalidate_views(&[ViewName::from("v_user")]).unwrap();
 
     // v_post should still be cached (no additional DB hit)
     let count_before = cached.inner().query_count();

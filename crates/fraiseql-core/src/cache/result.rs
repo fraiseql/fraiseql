@@ -550,15 +550,16 @@ impl QueryResultCache {
     ///
     /// ```rust
     /// use fraiseql_core::cache::{QueryResultCache, CacheConfig};
+    /// use fraiseql_db::ViewName;
     ///
     /// let cache = QueryResultCache::new(CacheConfig::default());
     ///
     /// // After createUser mutation
-    /// let invalidated = cache.invalidate_views(&["v_user".to_string()])?;
+    /// let invalidated = cache.invalidate_views(&[ViewName::from("v_user")])?;
     /// println!("Invalidated {} cache entries", invalidated);
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
-    pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
         if !self.config.enabled {
             return Ok(0);
         }
@@ -607,7 +608,7 @@ impl QueryResultCache {
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+    pub fn invalidate_list_queries(&self, views: &[ViewName]) -> Result<u64> {
         if !self.config.enabled {
             return Ok(0);
         }

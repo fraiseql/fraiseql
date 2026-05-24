@@ -201,7 +201,7 @@ impl ResponseCache {
     /// # Errors
     ///
     /// This method is infallible with the moka backend and always returns `Ok`.
-    pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+    pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
         let mut total = 0_u64;
 
         for view in views {

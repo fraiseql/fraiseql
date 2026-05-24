@@ -9,7 +9,7 @@
 mod common;
 
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, ViewName},
     db::DatabaseAdapter,
 };
 
@@ -42,7 +42,7 @@ async fn cache_invalidation_forces_refetch() {
     let _ = cached.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
 
     // Invalidate
-    let evicted = cached.invalidate_views(&["test.v_user".to_string()]).unwrap();
+    let evicted = cached.invalidate_views(&[ViewName::from("test.v_user")]).unwrap();
     assert!(evicted > 0, "should have evicted at least one entry");
 
     // Query again — should miss

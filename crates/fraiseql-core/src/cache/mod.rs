@@ -111,7 +111,12 @@
 //!     "createUser",
 //!     vec!["v_user".to_string()]
 //! );
-//! adapter.invalidate_views(&invalidation.modified_views)?;
+//! let views: Vec<fraiseql_db::ViewName> = invalidation
+//!     .modified_views
+//!     .iter()
+//!     .map(fraiseql_db::ViewName::from)
+//!     .collect();
+//! adapter.invalidate_views(&views)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -216,6 +221,12 @@ pub mod uuid_extractor;
 pub mod fact_table_version;
 
 // Public exports
+//
+// Re-export `ViewName` from `fraiseql-db` so consumers of the cache API can
+// import the typed view-name newtype alongside `QueryResultCache` etc. without
+// pulling in `fraiseql-db` directly.
+pub use fraiseql_db::ViewName;
+
 pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;

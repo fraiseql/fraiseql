@@ -686,10 +686,14 @@ pub trait DatabaseAdapter: Send + Sync {
     /// entries reading from modified views are evicted. The default
     /// implementation is a no-op; `CachedDatabaseAdapter` overrides this.
     ///
+    /// View names are passed as `&[ViewName]` so the wrapper's `Arc<str>`
+    /// backing is preserved across the call. Callers that hold a `String`
+    /// can convert in place with `ViewName::from(...)`.
+    ///
     /// # Returns
     ///
     /// The number of cache entries evicted.
-    async fn invalidate_views(&self, _views: &[String]) -> Result<u64> {
+    async fn invalidate_views(&self, _views: &[crate::ViewName]) -> Result<u64> {
         Ok(0)
     }
 
@@ -723,7 +727,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # Returns
     ///
     /// The number of cache entries evicted.
-    async fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+    async fn invalidate_list_queries(&self, views: &[crate::ViewName]) -> Result<u64> {
         self.invalidate_views(views).await
     }
 

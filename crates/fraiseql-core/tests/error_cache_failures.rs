@@ -5,7 +5,7 @@
 //! and verifies cache isolation across schema versions and views.
 
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, ViewName},
     db::{DatabaseAdapter, WhereClause, WhereOperator, types::JsonbValue},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
@@ -139,7 +139,7 @@ async fn test_invalidate_view_forces_cache_miss() {
     assert_eq!(cached.inner().query_count(), 1);
 
     // Invalidate
-    let invalidated = cached.invalidate_views(&["v_user".to_string()]).unwrap();
+    let invalidated = cached.invalidate_views(&[ViewName::from("v_user")]).unwrap();
     assert_eq!(invalidated, 1);
 
     // Must hit adapter again
