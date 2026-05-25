@@ -17,12 +17,12 @@
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use dashmap::{DashMap, mapref::entry::Entry};
+use dashmap::DashMap;
 
 use crate::error::{AuthError, Result};
 
@@ -35,6 +35,37 @@ use crate::error::{AuthError, Result};
 ///
 /// A blanket impl exists for `F: Fn() -> u64 + Send + Sync`, so test code can
 /// pass closures and `fn` pointers (such as `|| u64::MAX`) directly.
+///
+/// # Implementation note — production vs. test divergence
+///
+/// **Production code must use [`SystemClock`]** (the default type parameter on
+/// `KeyedRateLimiter`).  `SystemClock` reads `SystemTime::now()` and is
+/// monotonic-enough for sliding-window rate limiting in practice (it only goes
+/// backwards on explicit time-source failure, which the impl downgrades to a
+/// frozen `0` — see the `SystemClock::now_unix_secs` rustdoc).
+///
+/// The blanket `impl<F: Fn() -> u64 + Send + Sync> Clock for F` exists purely
+/// for **test ergonomics** so a test can write
+/// `KeyedRateLimiter::with_clock(|| 1_000)` without defining a new struct.
+/// Closures carry **none** of `SystemClock`'s implicit guarantees:
+///
+/// - A closure that returns a constant (`|| 0`) freezes the sliding window — counts never expire,
+///   requests stack up until they hit `max_requests`.
+/// - A closure that returns non-monotonic values (`|| rand::random()`) makes window expiry
+///   unpredictable; tests written against it are flaky.
+/// - A closure that returns `u64::MAX` (the canonical "broken clock" test input) deliberately
+///   exercises the saturating-arithmetic branches.
+///
+/// When writing a test that needs to advance time, prefer the
+/// `Arc<AtomicU64>`-backed `move || atomic.load(Ordering::Relaxed)` pattern
+/// used throughout `crates/fraiseql-auth/src/tests.rs` and
+/// `crates/fraiseql-auth/tests/rate_limiter_time_tests.rs`.  It is monotonic
+/// by construction (the test code only stores larger values) and reads like
+/// a `MockClock` without needing a named type.
+///
+/// In short: **closure-as-clock is a documented test seam, not a production
+/// extension point**.  Code review should reject `with_clock(|| ...)` outside
+/// `#[cfg(test)]` modules and integration-test files.
 pub trait Clock: Send + Sync {
     /// Return the current time as a Unix timestamp (seconds since the epoch).
     fn now_unix_secs(&self) -> u64;
@@ -171,15 +202,15 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// The check-and-update sequence for a given key is atomic: no TOCTOU race can
 /// allow more requests than `max_requests` in any single window, even under
 /// high concurrency.  Distinct keys live on different shards and never block
-/// each other.
+/// each other on the update path.
 ///
-/// The map is capped at `DEFAULT_MAX_ENTRIES` keys. When a new key arrives at
-/// capacity the entry with the oldest `window_start` is evicted to make room,
-/// bounding memory growth while still tracking new sources.  Because the
-/// eviction step is performed outside the per-key lock, the LRU choice is
-/// best-effort under heavy concurrent insertion — total entries may oscillate
-/// around the cap by a small amount.  The current LRU-by-window-start was
-/// approximate anyway (`min_by_key` over a snapshot).
+/// The map is capped at `DEFAULT_MAX_ENTRIES` keys: when an insert would push
+/// `len()` past the cap the entry with the oldest `window_start` is evicted
+/// first.  The cap is enforced **strictly** — the check, eviction, and insert
+/// for new keys all run inside a single `insert_guard` critical section, so
+/// `len()` never exceeds `max_entries` at any observable instant.  Updates to
+/// already-present keys take the lock-free fast path and never contend on
+/// `insert_guard`.
 ///
 /// # Deployment note
 ///
@@ -204,23 +235,36 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 /// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
 pub struct KeyedRateLimiter<C: Clock = SystemClock> {
-    records:     Arc<DashMap<String, RequestRecord>>,
-    config:      AuthRateLimitConfig,
-    max_entries: usize,
+    records:      Arc<DashMap<String, RequestRecord>>,
+    config:       AuthRateLimitConfig,
+    max_entries:  usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
-    check_count: AtomicU64,
+    check_count:  AtomicU64,
+    /// Authoritative size counter for `records`, maintained by every code path
+    /// that adds or removes an entry while `insert_guard` is held.  DashMap's
+    /// own `len()` sums per-shard counters without a global lock and can
+    /// momentarily disagree with the actual entry count under concurrent
+    /// writes; this counter is the source of truth for the cap check.
+    record_count: Arc<AtomicUsize>,
+    /// Serialises the (cap-check → evict → insert) sequence for **new** keys.
+    /// Updates to existing keys never acquire this lock; it is held only on
+    /// the slow path that grows `records` so the `max_entries` cap is enforced
+    /// strictly under concurrent insertion.
+    insert_guard: Arc<parking_lot::Mutex<()>>,
     /// Time source — defaults to [`SystemClock`].
-    clock:       C,
+    clock:        C,
 }
 
 impl<C: Clock + Clone> Clone for KeyedRateLimiter<C> {
     fn clone(&self) -> Self {
         Self {
-            records:     Arc::clone(&self.records),
-            config:      self.config.clone(),
-            max_entries: self.max_entries,
-            check_count: AtomicU64::new(self.check_count.load(Ordering::Relaxed)),
-            clock:       self.clock.clone(),
+            records:      Arc::clone(&self.records),
+            config:       self.config.clone(),
+            max_entries:  self.max_entries,
+            check_count:  AtomicU64::new(self.check_count.load(Ordering::Relaxed)),
+            record_count: Arc::clone(&self.record_count),
+            insert_guard: Arc::clone(&self.insert_guard),
+            clock:        self.clock.clone(),
         }
     }
 }
@@ -271,6 +315,8 @@ impl<C: Clock> KeyedRateLimiter<C> {
             config,
             max_entries,
             check_count: AtomicU64::new(0),
+            record_count: Arc::new(AtomicUsize::new(0)),
+            insert_guard: Arc::new(parking_lot::Mutex::new(())),
             clock,
         }
     }
@@ -286,9 +332,18 @@ impl<C: Clock> KeyedRateLimiter<C> {
     /// classic TOCTOU race where multiple threads simultaneously exceed the
     /// rate limit.
     ///
-    /// The periodic sweep and the capacity-eviction step are best-effort
-    /// (they run outside the per-key lock); they may overshoot the entry cap
-    /// by a small amount under heavy concurrent insertion.
+    /// # Capacity cap
+    ///
+    /// When `max_entries > 0` the map's length is enforced **strictly**:
+    /// new-key inserts run under a serialising `insert_guard`, so the
+    /// cap-check, oldest-entry eviction, and insert all occur in a single
+    /// critical section.  `records.len() <= max_entries` therefore holds at
+    /// every observable instant, including under sustained concurrent burst.
+    /// The fast path (updates to keys already present) does not acquire the
+    /// guard and runs lock-free.
+    ///
+    /// The periodic expiry sweep is best-effort and runs outside the guard;
+    /// it only ever shrinks `records`, so it cannot push `len()` over the cap.
     ///
     /// # Returns
     ///
@@ -306,76 +361,130 @@ impl<C: Clock> KeyedRateLimiter<C> {
 
         let now = self.clock.now_unix_secs();
 
-        // Periodic expiry sweep to bound DashMap growth.
-        // Runs every PURGE_INTERVAL calls; overflow wraps silently which is fine.
+        // Periodic expiry sweep to bound DashMap growth.  Runs every
+        // PURGE_INTERVAL calls; overflow wraps silently which is fine.
+        // Held under `insert_guard` so `record_count` updates stay coherent.
         let count = self.check_count.fetch_add(1, Ordering::Relaxed);
         if count.is_multiple_of(PURGE_INTERVAL) {
-            self.records
-                .retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
+            let _sweep_guard = self.insert_guard.lock();
+            let mut removed: usize = 0;
+            self.records.retain(|_, r| {
+                let keep = now < r.window_start.saturating_add(self.config.window_secs);
+                if !keep {
+                    removed = removed.saturating_add(1);
+                }
+                keep
+            });
+            if removed > 0 {
+                self.record_count.fetch_sub(removed, Ordering::Relaxed);
+            }
         }
 
-        // Enforce max-entries cap to prevent unbounded memory growth under distributed attacks.
-        // A cap of 0 disables the limit (opt-in unbounded mode).
-        // When at capacity, evict the entry with the oldest window_start (best-effort LRU)
-        // so new sources can always be tracked without permanently blocking new IPs.
-        if self.max_entries > 0
-            && !self.records.contains_key(key)
-            && self.records.len() >= self.max_entries
-        {
+        // Fast path: if the key is already present, update its record under
+        // the per-shard write lock without touching `insert_guard`.  The fast
+        // path does not change `record_count` (we mutate an existing entry).
+        if let Some(mut record) = self.records.get_mut(key) {
+            return Self::tick_existing(&mut record, &self.config, now);
+        }
+
+        // Slow path: we need to insert.  Serialise (cap-check → evict → insert)
+        // under `insert_guard` so concurrent inserters cannot race past
+        // `max_entries`.  A concurrent thread may have inserted this key while
+        // we waited on the guard — re-check before evicting.
+        let _insert_guard = self.insert_guard.lock();
+
+        // Re-check the fast path under the guard.  This handles the race
+        // where another thread inserted `key` while we waited on the lock.
+        // The `get_mut` guard is dropped at the end of the if-let block, so
+        // we never hold a per-shard lock when calling `iter()` / `insert()`
+        // below — that would deadlock on the shard hosting `key`.
+        if let Some(mut record) = self.records.get_mut(key) {
+            return Self::tick_existing(&mut record, &self.config, now);
+        }
+
+        // Enforce the cap using the authoritative `record_count` counter.
+        // DashMap's own `len()` is non-atomic across shards and can briefly
+        // under-report under concurrent writes, which would silently let the
+        // cap drift upward by a small amount.  `record_count` is updated only
+        // under `insert_guard`, so it is exact at this point.
+        if self.max_entries > 0 && self.record_count.load(Ordering::Relaxed) >= self.max_entries {
             if let Some(oldest_key) = self
                 .records
                 .iter()
                 .min_by_key(|r| r.value().window_start)
                 .map(|r| r.key().clone())
             {
-                self.records.remove(&oldest_key);
-                tracing::debug!(
-                    max_entries = self.max_entries,
-                    "Rate limiter at capacity — evicted oldest entry to make room for new key"
-                );
+                if self.records.remove(&oldest_key).is_some() {
+                    self.record_count.fetch_sub(1, Ordering::Relaxed);
+                    tracing::debug!(
+                        max_entries = self.max_entries,
+                        "Rate limiter at capacity — evicted oldest entry to make room for new key"
+                    );
+                }
             }
         }
 
-        // Get or create record for this key.  `Entry` holds a per-shard write
-        // lock through the closure / match arms, giving us per-key atomicity.
-        match self.records.entry(key.to_string()) {
-            Entry::Occupied(mut occ) => {
-                let record = occ.get_mut();
-                if now >= record.window_start.saturating_add(self.config.window_secs) {
-                    // CASE 1: Window has expired - start a new window
-                    record.count = 1;
-                    record.window_start = now;
-                    Ok(())
-                } else if record.count < self.config.max_requests {
-                    // CASE 2: Window is active and we haven't exceeded the limit
-                    record.count += 1;
-                    Ok(())
-                } else {
-                    // CASE 3: Window is active and we've reached the limit
-                    Err(AuthError::RateLimited {
-                        retry_after_secs: self.config.window_secs,
-                    })
-                }
-            },
-            Entry::Vacant(vac) => {
-                // First request from this key — start a fresh window.
-                vac.insert(RequestRecord {
+        // First request from this key — start a fresh window.  `insert`
+        // returns `None` for a previously-absent key, which we count toward
+        // `record_count`; a `Some` return means we replaced an existing entry
+        // (no count change).
+        if self
+            .records
+            .insert(
+                key.to_string(),
+                RequestRecord {
                     count:        1,
                     window_start: now,
-                });
-                Ok(())
-            },
+                },
+            )
+            .is_none()
+        {
+            self.record_count.fetch_add(1, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
+    /// Update an already-present record for the current window.
+    ///
+    /// Extracted so both the fast (`get_mut`) path and the slow (`entry()`
+    /// under guard) path share identical sliding-window semantics.
+    const fn tick_existing(
+        record: &mut RequestRecord,
+        config: &AuthRateLimitConfig,
+        now: u64,
+    ) -> Result<()> {
+        if now >= record.window_start.saturating_add(config.window_secs) {
+            // CASE 1: Window has expired - start a new window
+            record.count = 1;
+            record.window_start = now;
+            Ok(())
+        } else if record.count < config.max_requests {
+            // CASE 2: Window is active and we haven't exceeded the limit
+            record.count += 1;
+            Ok(())
+        } else {
+            // CASE 3: Window is active and we've reached the limit
+            Err(AuthError::RateLimited {
+                retry_after_secs: config.window_secs,
+            })
         }
     }
 
     /// Get the number of active rate limiters (for monitoring).
+    ///
+    /// Returns the authoritative entry count maintained under `insert_guard`,
+    /// not DashMap's per-shard sum.  Reads are lock-free and reflect the
+    /// post-mutation count at every observable instant.
     pub fn active_limiters(&self) -> usize {
-        self.records.len()
+        self.record_count.load(Ordering::Relaxed)
     }
 
     /// Clear all rate limiters (for testing or reset).
     pub fn clear(&self) {
+        let _guard = self.insert_guard.lock();
         self.records.clear();
+        self.record_count.store(0, Ordering::Relaxed);
     }
 
     /// Create a copy for independent testing

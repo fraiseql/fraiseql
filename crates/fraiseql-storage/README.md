@@ -18,7 +18,7 @@ Storage objects are tracked in a SQL metadata repository (Postgres-only today) w
 
 ```toml
 [dependencies]
-fraiseql-storage = { version = "2.3.0", features = ["aws-s3"] }
+fraiseql-storage = { version = "2.3", features = ["aws-s3"] }
 ```
 
 ```rust

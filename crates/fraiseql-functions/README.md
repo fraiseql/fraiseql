@@ -17,7 +17,7 @@ Functions hook into FraiseQL through the `FunctionObserver` trait, integrating w
 
 ```toml
 [dependencies]
-fraiseql-functions = { version = "2.3.0", features = ["runtime-wasm"] }
+fraiseql-functions = { version = "2.3", features = ["runtime-wasm"] }
 ```
 
 ```rust

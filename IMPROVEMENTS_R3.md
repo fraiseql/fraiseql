@@ -64,54 +64,52 @@ Each below was spot-checked at the cited file:line and confirmed real.
 
 ## Regressions introduced (PASS 2 findings)
 
-### F056 — 🟠 Observer entity_type_index reload weakens atomicity vs. prior RwLock
+### F056 — 🟠 Observer entity_type_index reload weakens atomicity vs. prior RwLock — **CLOSED in v2.3.0**
 
 - **Effort:** S
 - **Location:** `crates/fraiseql-server/src/observers/runtime.rs:298-304, :675-680` (reload sequence: `self.entity_type_index.clear()` followed by per-key `insert` loop).
-- **Finding:** Original `Arc<RwLock<HashMap>>` held a write guard around the entire rebuild so readers observed an atomic transition. The new `DashMap` rebuild does `clear()` then loops `insert(key, ids)` — for the duration of that loop, concurrent CDC-event lookup paths (`crates/fraiseql-server/src/observers/runtime.rs:436,491`) can observe an **empty or partially-populated index**, dispatching no observers for events that should have fired. The field rustdoc (line 130-138) deliberately accepts this on the grounds that "this index drives logging only", but the production read sites at 436/491 use the index to look up `observer_ids` for **action dispatch**, not logging. Verify the read-path is truly best-effort; if any action depends on the lookup succeeding, the reload window is a regression.
-- **Suggested approach:** Either (a) keep the documented best-effort posture but assert that the read-path tolerates an empty lookup (add a test that triggers a reload concurrently with an event), or (b) build the new map locally then atomically swap via `ArcSwap<DashMap>` so readers always see a fully-populated snapshot.
-- **Risk:** Action dispatch silently no-ops during reload — observable only as missing observer invocations under load + reload concurrency.
-- **Confidence:** Medium (read-path side-effects need verification before sizing severity).
+- **Finding:** Original `Arc<RwLock<HashMap>>` held a write guard around the entire rebuild so readers observed an atomic transition. The new `DashMap` rebuild does `clear()` then loops `insert(key, ids)` — for the duration of that loop, concurrent CDC-event lookup paths (`crates/fraiseql-server/src/observers/runtime.rs:436,491`) can observe an **empty or partially-populated index**, dispatching no observers for events that should have fired.
+- **Resolution (H1).** The field changed from `Arc<DashMap<(String, String), Vec<i64>>>` to `Arc<ArcSwap<HashMap<(String, String), Vec<i64>>>>`. The reload path rebuilds the new `HashMap` off-line and publishes it via a single atomic `ArcSwap::store(Arc::new(new_map))` call, replacing the prior `clear()` + per-key `insert()` loop. Concurrent CDC-event lookups now always observe a fully-populated pre-reload or post-reload generation, never a partial state. Two new integration tests (`entity_type_index_swap_is_snapshot_atomic`, `entity_type_index_swap_visibility_is_prompt` in `crates/fraiseql-server/src/observers/tests.rs`) drive 100 000 concurrent lookups against a flipping writer and assert each result matches exactly one of the two known generations.
+- **Status:** Closed in v2.3.0 (H1).
 
-### F057 — 🟡 KeyedRateLimiter capacity-cap eviction race
+### F057 — 🟡 KeyedRateLimiter capacity-cap eviction race — **CLOSED in v2.3.0**
 
 - **Effort:** S
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:321-334`.
-- **Finding:** Capacity check uses `!self.records.contains_key(key) && self.records.len() >= self.max_entries` then iterates to find the oldest and `remove(&oldest_key)`. Between the `contains_key`/`len` snapshot and the `remove`, concurrent threads can observe stale capacity → multiple evictions of distinct oldest keys. The field rustdoc (line 289-291) calls this "best-effort", which is fine, but the eviction loop has no upper bound on how far over capacity the map can grow under sustained concurrent insertion. Under heavy attack the limiter could grow well past `max_entries` before any individual thread observes it. Original `Mutex<HashMap>` serialised this so the cap was a hard upper bound.
-- **Suggested approach:** Either accept and explicitly document the overshoot bound (e.g., "may temporarily exceed `max_entries` by up to N concurrent inserters") or fall back to a slow-path under a stricter lock once `len() >= max_entries * 1.1`.
-- **Risk:** Resource bound becomes soft instead of hard under brute-force attack — degrades the rate-limiter's defensive guarantee under exactly the conditions it exists for.
-- **Confidence:** Medium.
+- **Finding:** Capacity check uses `!self.records.contains_key(key) && self.records.len() >= self.max_entries` then iterates to find the oldest and `remove(&oldest_key)`. Between the `contains_key`/`len` snapshot and the `remove`, concurrent threads can observe stale capacity → multiple evictions of distinct oldest keys. The eviction loop had no upper bound on how far over capacity the map could grow under sustained concurrent insertion. Original `Mutex<HashMap>` serialised this so the cap was a hard upper bound.
+- **Resolution (H2).** Added `insert_guard: Arc<parking_lot::Mutex<()>>` and split `check()` into a fast path (update existing keys via lock-free `get_mut`) and a slow path (acquire `insert_guard` for new-key inserts). The slow path performs cap-check, oldest-entry eviction, and the `entry()`-based insert in a single critical section, so `records.len() <= max_entries` holds at every observable instant — even mid-burst, not just after settling. Updates to keys already present never contend on the guard. Two new tests in `crates/fraiseql-auth/tests/error_rate_limiter_memory.rs` cover the sequential overflow case and a concurrent (`max_entries + 100`) burst with a sampler thread that records the high-water mark — strict-cap invariant is asserted mid-flight, not post-hoc.
+- **Status:** Closed in v2.3.0 (H2).
 
 ---
 
 ## Cross-cutting concerns (PASS 3)
 
-### F058 — 🟡 F031 property tests have weak deterministic assertions
+### F058 — 🟡 F031 property tests have weak deterministic assertions — **CLOSED in v2.3.0**
 
 - **Effort:** XS
 - **Location:** `crates/fraiseql-core/tests/property/property_executor.rs:79-96, :210-222`.
 - **Finding:**
   - `prop_parse_query_never_panics` (line 71) uses regex `.{0,400}` — proptest's `.` excludes newlines, so multi-line queries (the realistic case) are never exercised.
-  - `prop_parse_query_deterministic` asserts only `operation_type`, `root_field`, `selections.len()` are equal across two parses — a parser that non-deterministically reordered selections, fragment expansions, or aliases would still pass.
-  - `prop_match_query_deterministic` asserts only `query_def.name`, `fields`, `operation_name` — but does **not** assert `arguments`, `where_clause` injection, projection plan, or `sql_source` are deterministic. If F005/F024's `extract_arguments` had non-determinism (e.g., HashMap ordering bleeding through), the test would silently pass.
-- **Suggested approach:** Replace `.{0,400}` with `(?s).{0,400}` (or `\\PC{0,400}`); expand the deterministic-check tuples to include `arguments`, `where_clause`, and the full `selections` slice.
-- **Confidence:** High — these are weak-assertion patterns at well-known sites; the tests aren't wrong, just under-protective.
+  - `prop_parse_query_deterministic` asserted only `operation_type`, `root_field`, `selections.len()` across two parses — a parser that non-deterministically reordered selections or expanded fragments differently would still pass.
+  - `prop_match_query_deterministic` asserted only `query_def.name`, `fields`, `operation_name` — silent on `arguments`, `selections`, or `parsed_query`.
+- **Resolution (H4).** Replaced `.{0,400}` / `.{0,200}` with `(?s).{0,400}` / `(?s).{0,200}` in the three string-input tests so newline-bearing queries are exercised. For deterministic checks, `assert_eq!` is now applied to the full `QueryDefinition` (already `PartialEq`), `fields`, `operation_name`, and `arguments`; `selections` and `parsed_query` are compared via `serde_json::to_value` (no public-API change required for `FieldSelection` / `ParsedQuery`). The deeper comparison surfaces any non-determinism in `extract_arguments`, fragment expansion order, or alias resolution that the tuple-subset previously missed. All 9 F031 property tests still pass.
+- **Status:** Closed in v2.3.0 (H4). Diverged from the plan's `PartialEq` suggestion in favour of `serde_json::to_value` to avoid adding `PartialEq` to public types (`FieldSelection`, `ParsedQuery`) — equivalent depth, zero API surface change.
 
-### F059 — 🟡 `KeyedRateLimiter` Clock blanket impl widens production-vs-test divergence
+### F059 — 🟡 `KeyedRateLimiter` Clock blanket impl widens production-vs-test divergence — **CLOSED in v2.3.0**
 
 - **Effort:** XS (docs only)
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:43-50`.
-- **Finding:** The blanket `impl<F: Fn() -> u64 + Send + Sync> Clock for F` is great for test ergonomics but means **any** closure / `fn` pointer silently satisfies the `Clock` bound in production code, including ones that return constants. There's no compile-time signal that "this is a production limiter using SystemClock" vs. "this is a limiter using an ad-hoc closure as a clock". A misuse in production code (e.g. someone passes `|| 0`) is impossible to grep for. The brief asked whether a `MockClock` struct exists — answer: no, the closure pattern is the mock. This is fine, but the policy is worth surfacing.
-- **Suggested approach:** Either rename `SystemClock` constructor sites to make the production-vs-test split self-documenting, or add a `#[must_use]` on `with_clock` so the lint catches dropped limiters. Lowest-cost: document the closure-as-mock policy in the `Clock` trait rustdoc.
-- **Confidence:** High.
+- **Finding:** The blanket `impl<F: Fn() -> u64 + Send + Sync> Clock for F` lets any closure silently satisfy the `Clock` bound in production code. A misuse in production (e.g. someone passes `|| 0`) is impossible to grep for, with no compile-time signal that distinguishes a `SystemClock`-backed limiter from a closure-backed one.
+- **Resolution (H3).** Added an `# Implementation note — production vs. test divergence` block to the `Clock` trait rustdoc explicitly framing the blanket impl as a test-only seam, calling out the three closure-misuse failure modes (constant, non-monotonic, `u64::MAX`), recommending the `Arc<AtomicU64>`-backed monotonic pattern used in `crates/fraiseql-auth/src/tests.rs`, and stating that code review should reject `with_clock(|| ...)` outside `#[cfg(test)]`. Migration guide section 7 mirrors the same callout.
+- **Status:** Closed in v2.3.0 (H3).
 
-### F060 — 🟢 PASS 3 — F032 READMEs are accurate but inconsistent on version pinning
+### F060 — 🟢 PASS 3 — F032 READMEs are accurate but inconsistent on version pinning — **CLOSED in v2.3.0**
 
 - **Effort:** XS
-- **Location:** Spot-checked `crates/fraiseql-storage/README.md` (pins `2.3.0`), `crates/fraiseql-functions/README.md` (pins `2.3.0`).
-- **Finding:** Both READMEs hard-code `version = "2.3.0"` in their TOML example. Future versions will need a sweep across 13+ README files to keep examples current. Compare e.g. `serde`'s `"1"` or `tokio`'s `"1"` shorthand. Not a release blocker, but a maintenance trap.
-- **Suggested approach:** Replace pinned version with `version = "2"` (caret semantics) in usage examples. Single-find-and-replace across 13 READMEs.
-- **Confidence:** High.
+- **Location:** `crates/fraiseql-storage/README.md`, `crates/fraiseql-functions/README.md`.
+- **Finding:** Both READMEs hard-coded `version = "2.3.0"` in their TOML example, forcing adopters to bump the literal string on every patch release.
+- **Resolution (H5).** Replaced `version = "2.3.0"` with `version = "2.3"` in both READMEs. The lower bound stays at 2.3.0 (where the example APIs exist) while the caret semantics allow any 2.3.x patch without README edits. Pre-sed `git grep` confirmed only those two files had matches and both were in `[dependencies]` snippets, not changelog or migration prose.
+- **Status:** Closed in v2.3.0 (H5).
 
 ---
 
@@ -156,19 +154,22 @@ These are the **adopter-facing breaking changes** that downstream patterns will 
 
 ## Headline
 
-3🟠 5🟡 1🟢 across 5 new findings (F056–F060). Round-2 closures (F049, F050, F042, F028, F031, F032 etc.) all verified real and in place. **No 🔴 found** in the round-3 diff.
+**0🔴 / 0🟠 / 0🟡 / 0🟢 open** — all 5 round-3 findings (F056–F060) closed in v2.3.0 via the H1–H5 pre-merge hardening pass. Round-2 closures (F049, F050, F042, F028, F031, F032 etc.) all verified real and in place. **No 🔴 found at any point in the round-3 audit.**
 
-### Top 3 must-fix-before-release
+| F-number | Original severity | Closure |
+|---|---|---|
+| F056 | 🟠 | H1 — `ArcSwap<HashMap>` snapshot swap + 2 integration tests |
+| F057 | 🟡 | H2 — `parking_lot::Mutex<()>` insert guard + 2 tests |
+| F058 | 🟡 | H4 — `(?s)` regex flag + `serde_json::to_value` full-struct equality |
+| F059 | 🟡 | H3 — `Clock` trait rustdoc implementation note + migration-guide callout |
+| F060 | 🟢 | H5 — `version = "2.3"` in the two README dep snippets |
 
-1. **F056** — observer `entity_type_index` reload window. Need to confirm whether read-path tolerates empty lookups; if action dispatch depends on the lookup hitting, the reload is now silently dropping observers. Spend an hour reading `runtime.rs:436,491` against a reload-mid-event test fixture.
-2. **F058** — strengthen the F031 property tests' deterministic-check assertions. Cheap (one tuple expansion per test) and closes a non-trivial blind spot in regression coverage of the `extract_arguments` refactor.
-3. **Migration guide** must explicitly cover items 1–4 above. The Storage→File migration is the highest-risk adopter break, and items 3/4 are silent compile errors that need a sed-friendly recipe.
+### Resolution summary
 
-### Biggest cross-cutting concern
-
-**Documented best-effort lock-free behaviour vs. silent semantic regression** — the F006/F008/F013/F048 DashMap migrations are correct under their stated atomicity rules, but in three places (F056 observer reload, F057 rate-limiter eviction, the documented but unbenched F059 closure-clock pattern) the previous `Mutex`/`RwLock` provided a **stronger** guarantee than the new code admits. Each case is documented in rustdoc with "best-effort", but the adopter who reads the trait signature alone won't see it. A migration-guide section "what 'best-effort' means in 2.3" would surface the contract change.
+The pre-merge hardening pass eliminated every contract-weakening that the round-3 audit surfaced. The DashMap migrations stay (lock-free reads on the request hot path), but the two maps whose previous `Mutex`/`RwLock` provided a stronger guarantee now restore that guarantee: the observer `entity_type_index` swaps atomically via `ArcSwap`, and `KeyedRateLimiter` enforces its capacity cap strictly under a serialising insert guard. The migration guide section 9 reflects the restored contracts and no longer carries "atomicity weakened" callouts. The `Clock` trait blanket-impl divergence is now explicit in the rustdoc and migration guide.
 
 ### Deliverable
 
 - `IMPROVEMENTS_R3.md` (this file).
 - 3 new tests added to `crates/fraiseql-error/src/core_error/tests.rs` covering `Auth`/`Webhook`/`Observer` source-downcast pattern. `cargo test -p fraiseql-error` passes (23 lib + 23 integration + 3 doctests).
+- H1–H5 closure work — see per-F-number "Resolution" lines above.

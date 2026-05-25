@@ -3338,6 +3338,7 @@ dependencies = [
  "hmac 0.12.1",
  "http 1.4.0",
  "jsonwebtoken",
+ "parking_lot",
  "proptest",
  "rand 0.9.4",
  "redis",

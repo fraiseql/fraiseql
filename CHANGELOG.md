@@ -315,19 +315,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Migration:** add `.collect::<Vec<_>>()` at the two call sites that need a `Vec`.
 
 - **`InMemoryRateLimiter`, `TrustedDocumentStore`, `KeyedRateLimiter`, federation
-  `ConnectionManager`, and observer `entity_type_index` switched to `DashMap`** [F006,
-  F007, F008, F013, F048]. All five maps were previously `Arc<Mutex<HashMap>>` or
-  `Arc<RwLock<HashMap>>` on read-hot paths. Read paths are now lock-free; per-key
-  atomicity is preserved via `DashMap::entry()` where the previous code held the outer
-  lock across a read-modify-write. The `TrustedDocumentStore::resolve` /
-  `document_count` / `replace_documents` methods drop their `async` signature (no
-  remaining await suspension). Eviction and reload semantics are now best-effort
-  (documented in rustdoc); under sustained concurrent insertion, the rate-limiter map
-  may temporarily exceed `max_entries` and the observer reload window may briefly
-  observe a partially-populated index. (`c5c946fb3`, `4b3e542b3`, `6f79c711e`,
-  `3cda8124f`, `1ebae1f61`)
-  **Migration:** none for callers; behaviour change is internal but documented under
-  "Known Limitations Update" below.
+  `ConnectionManager`, and observer `entity_type_index` migrated to lock-free reads**
+  [F006, F007, F008, F013, F048]. All five maps were previously `Arc<Mutex<HashMap>>`
+  or `Arc<RwLock<HashMap>>` on read-hot paths and now use `DashMap` (four of them) or
+  `ArcSwap<HashMap>` (the observer index, F056) so request-hot reads no longer block on
+  a central lock. Per-key atomicity is preserved via `DashMap::entry()` where the
+  previous code held the outer lock across a read-modify-write. The
+  `TrustedDocumentStore::resolve` / `document_count` / `replace_documents` methods drop
+  their `async` signature (no remaining await suspension). The two stricter contracts
+  are also restored:
+  - Observer `entity_type_index` (F056) uses `ArcSwap<HashMap>` for **snapshot
+    atomicity** — readers always observe a fully-populated generation, never a
+    partially-rebuilt index during reload.
+  - `KeyedRateLimiter` (F057) enforces its `max_entries` cap **strictly** on the
+    insert path under a serialising guard — `len()` never exceeds the cap at any
+    observable instant, even under sustained concurrent burst.
+
+  The remaining four maps (F006, F007, F008, F013) use plain `DashMap` and document
+  per-key best-effort atomicity in the field rustdoc; these are correct under their
+  stated contracts. (`c5c946fb3`, `4b3e542b3`, `6f79c711e`, `3cda8124f`, `1ebae1f61`)
+  **Migration:** none for callers; behaviour change is internal.
 
 - **`parking_lot::Mutex` replaces `tokio::sync::Mutex` for synchronous critical
   sections** [F019] — `MemoryApqStorage::entries` and
@@ -530,23 +537,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pool Pressure Monitor** — confirmed that neither `deadpool-postgres` nor
   `bb8-postgres` (as of 2026-05) support runtime pool resizing. The
   `PoolPressureMonitor` remains in recommendation-only mode.
-- **Observer `entity_type_index` reload is best-effort** [F056] — the
-  `RwLock<HashMap>` → `DashMap` migration (F048) traded a write-guarded atomic rebuild
-  for a `clear()` + per-key `insert` loop. Concurrent CDC-event lookups during a
-  schema reload can briefly observe a partially-populated index; the contract weakened
-  from "RwLock-strict" to "best-effort". Documented at
-  `crates/fraiseql-server/src/observers/runtime.rs` (field rustdoc). Future work may
-  swap to `ArcSwap<DashMap>` for snapshot-style atomicity if the reload window proves
-  observable in production. See `IMPROVEMENTS_R3.md` F056.
-- **`KeyedRateLimiter` capacity is best-effort under heavy concurrent insertion**
-  [F057] — the `Mutex<HashMap>` → `DashMap` migration (F006) loses serialised
-  capacity-cap enforcement; under sustained burst, the map may temporarily exceed
-  `max_entries` by a small number of concurrent inserters. The rate-limiter's
-  defensive guarantee is now "soft cap" not "hard cap". Documented at
-  `crates/fraiseql-auth/src/rate_limiting.rs`. See `IMPROVEMENTS_R3.md` F057.
-- **`F031` property tests cover no-DB executor entry points only** — the full
-  `Executor::execute` end-to-end pipeline (RLS composition, projection, cache
-  warm/cold) needs a mock `DatabaseAdapter` and is deferred. See `FOLLOW_UPS.md`.
 - **Q4 workspace `indexing_slicing` rollout is in progress** — three pilot crates
   (`fraiseql-error`, `fraiseql-wire`, `fraiseql-storage`) deny the lint at the crate
   root; the remaining 13 crates are scheduled across v2.3.x point releases. See
@@ -554,15 +544,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deferred to v2.4
 
-- **F032 README version pinning** [F060] — crate-level READMEs hard-code
-  `version = "2.3.0"` in their TOML examples. A single-find-and-replace to
-  `version = "2"` (caret semantics) across the 13 published READMEs is queued for a
-  v2.3.x point release.
-- **F058 property-test assertion strengthening** — the F031 property tests use weak
-  deterministic-check tuples (`prop_match_query_deterministic` does not assert
-  `arguments`, `where_clause`, or full `selections`). Expansion queued for v2.3.x.
-- **F059 `Clock` blanket impl divergence documentation** — closure-as-mock policy is
-  not surfaced in the `Clock` trait rustdoc. Queued for v2.3.x.
+- **`F031` property tests cover no-DB executor entry points only** — the full
+  `Executor::execute` end-to-end pipeline (RLS composition, projection, cache
+  warm/cold) needs a mock `DatabaseAdapter` and is deferred. See `FOLLOW_UPS.md`.
 
 ## [2.2.0] - 2026-05-02
 

@@ -67,24 +67,36 @@ proptest! {
 
     /// Invariant: `parse_query` never panics on arbitrary string input.
     /// Either returns `Ok(ParsedQuery)` or a structured `GraphQLParseError`.
+    ///
+    /// Uses `(?s).{0,400}` so the `.` metacharacter matches newlines too —
+    /// the bare `.` form excluded `\n` and never exercised multi-line queries,
+    /// which is the realistic case for any non-toy GraphQL document.
     #[test]
-    fn prop_parse_query_never_panics(input in ".{0,400}") {
+    fn prop_parse_query_never_panics(input in "(?s).{0,400}") {
         let _ = parse_query(&input);
     }
 
     /// Invariant: `parse_query` is deterministic — parsing the same input
-    /// twice produces the same outcome (both Ok or both Err with the same
-    /// error category).
+    /// twice produces the same outcome.  When both calls succeed, every
+    /// observable field of `ParsedQuery` must agree (not just the tuple
+    /// `(operation_type, root_field, selections.len())`).  We compare via
+    /// `serde_json::to_value` so all transitively-owned data — selections,
+    /// variable defaults, fragment spreads, alias maps, directive args —
+    /// participates in the equality check; the previous tuple subset would
+    /// have passed a parser that non-deterministically reordered selections
+    /// or expanded fragments differently across calls.
     #[test]
-    fn prop_parse_query_deterministic(input in ".{0,200}") {
+    fn prop_parse_query_deterministic(input in "(?s).{0,200}") {
         let r1 = parse_query(&input);
         let r2 = parse_query(&input);
 
         match (&r1, &r2) {
             (Ok(p1), Ok(p2)) => {
-                prop_assert_eq!(&p1.operation_type, &p2.operation_type);
-                prop_assert_eq!(&p1.root_field, &p2.root_field);
-                prop_assert_eq!(p1.selections.len(), p2.selections.len());
+                let v1 = serde_json::to_value(p1)
+                    .expect("ParsedQuery serializes infallibly");
+                let v2 = serde_json::to_value(p2)
+                    .expect("ParsedQuery serializes infallibly");
+                prop_assert_eq!(v1, v2, "parse_query is non-deterministic for this input");
             }
             (Err(_), Err(_)) => {
                 // Both errored — that's a consistent outcome.
@@ -106,8 +118,12 @@ proptest! {
     /// Invariant: `match_query` never panics on arbitrary input. Either
     /// returns a valid `QueryMatch` or a structured `FraiseQLError`. This is
     /// the "the security boundary doesn't crash" guarantee.
+    ///
+    /// Uses `(?s).{0,200}` so multi-line query bodies (newlines in the input)
+    /// are also exercised; the bare `.` regex never reached the multi-line
+    /// parser branches.
     #[test]
-    fn prop_match_query_never_panics(input in ".{0,200}") {
+    fn prop_match_query_never_panics(input in "(?s).{0,200}") {
         let matcher = build_matcher();
         let _ = matcher.match_query(&input, None);
     }
@@ -204,8 +220,22 @@ proptest! {
     }
 
     /// Invariant: `match_query` is deterministic — repeating the same call
-    /// with the same input produces a `QueryMatch` with the same shape.
-    /// Cache-key derivation downstream depends on this.
+    /// with the same input produces a fully-equal `QueryMatch`.  Cache-key
+    /// derivation downstream depends on this, so we assert **complete**
+    /// structural equality, not a curated tuple subset.
+    ///
+    /// Each component is compared explicitly so a failure points at the
+    /// non-deterministic field directly:
+    ///
+    /// - `query_def` — derives `PartialEq`, compared directly (covers
+    ///   `name`, `return_type`, `sql_source`, `returns_list`, etc.).
+    /// - `fields`, `operation_name`, `arguments` — equality compares the
+    ///   full `Vec` / `Option` / `HashMap` contents.
+    /// - `selections` and `parsed_query` — neither derives `PartialEq` so
+    ///   we compare via `serde_json::to_value`, which traverses every owned
+    ///   field (selection sub-trees, parsed variables, fragment spreads,
+    ///   directive arguments).  A regression in `extract_arguments` ordering
+    ///   or in `FragmentResolver` expansion order would surface here.
     #[test]
     fn prop_match_query_deterministic(
         root in prop_oneof!["users", "posts"],
@@ -216,9 +246,30 @@ proptest! {
         let r1: QueryMatch = matcher.match_query(&query, None).unwrap();
         let r2: QueryMatch = matcher.match_query(&query, None).unwrap();
 
-        prop_assert_eq!(&r1.query_def.name, &r2.query_def.name);
+        prop_assert_eq!(&r1.query_def, &r2.query_def);
         prop_assert_eq!(&r1.fields, &r2.fields);
         prop_assert_eq!(&r1.operation_name, &r2.operation_name);
+        prop_assert_eq!(&r1.arguments, &r2.arguments);
+
+        let selections_v1 = serde_json::to_value(&r1.selections)
+            .expect("FieldSelection serializes infallibly");
+        let selections_v2 = serde_json::to_value(&r2.selections)
+            .expect("FieldSelection serializes infallibly");
+        prop_assert_eq!(
+            selections_v1,
+            selections_v2,
+            "QueryMatch.selections is non-deterministic for this input"
+        );
+
+        let parsed_v1 = serde_json::to_value(&r1.parsed_query)
+            .expect("ParsedQuery serializes infallibly");
+        let parsed_v2 = serde_json::to_value(&r2.parsed_query)
+            .expect("ParsedQuery serializes infallibly");
+        prop_assert_eq!(
+            parsed_v1,
+            parsed_v2,
+            "QueryMatch.parsed_query is non-deterministic for this input"
+        );
     }
 }
 
