@@ -146,10 +146,9 @@ impl QueryMatcher {
             location: "query".to_string(),
         })?;
 
-        // 2. Build the variables map once. The same map is used for
-        //    `@skip`/`@include` directive evaluation (by reference) and then
-        //    moved onto the returned `QueryMatch` as `arguments`, so we never
-        //    pay for a second clone of the JSON tree.
+        // 2. Build the variables map once. The same map is used for `@skip`/`@include` directive
+        //    evaluation (by reference) and then moved onto the returned `QueryMatch` as
+        //    `arguments`, so we never pay for a second clone of the JSON tree.
         let variables_map = Self::variables_to_map(variables);
 
         // 3. Resolve fragment spreads
@@ -204,9 +203,9 @@ impl QueryMatcher {
         // 6. Extract field names for backward compatibility
         let fields = self.extract_field_names(&final_selections);
 
-        // 7. Take ownership of the variables map for `QueryMatch.arguments`.
-        //    `variables_map` was built once at step 2 and only borrowed by the
-        //    directive evaluator; no additional clone needed.
+        // 7. Take ownership of the variables map for `QueryMatch.arguments`. `variables_map` was
+        //    built once at step 2 and only borrowed by the directive evaluator; no additional clone
+        //    needed.
         let mut arguments = variables_map;
 
         // 8. Merge inline arguments from root field selection (e.g., `posts(limit: 3)`). Variables
@@ -260,7 +259,7 @@ impl QueryMatcher {
     ///
     /// This is the public entry point used by tests; internally the
     /// `match_query` hot path now constructs the same map exactly once
-    /// (see [`Self::variables_to_map`]).
+    /// via a private helper.
     #[must_use]
     pub fn extract_arguments(
         variables: Option<&serde_json::Value>,

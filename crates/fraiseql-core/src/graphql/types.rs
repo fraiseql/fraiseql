@@ -40,7 +40,10 @@ pub struct ParsedQuery {
     /// fresh heap allocation. The serde wire form is identical to a plain
     /// JSON string — hand-written `Serialize`/`Deserialize` impls keep
     /// the workspace `serde` declaration off the `rc` feature.
-    #[serde(serialize_with = "serialize_arc_str", deserialize_with = "deserialize_arc_str")]
+    #[serde(
+        serialize_with = "serialize_arc_str",
+        deserialize_with = "deserialize_arc_str"
+    )]
     pub source: Arc<str>,
 }
 

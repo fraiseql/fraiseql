@@ -204,9 +204,9 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
 
 fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
     let mut cur = Cursor::new(data);
-    let auth_type = cur.read_i32_be().map_err(|_| {
-        io::Error::new(io::ErrorKind::UnexpectedEof, "auth type")
-    })?;
+    let auth_type = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "auth type"))?;
 
     let auth_msg = match auth_type {
         auth::OK => AuthenticationMessage::Ok,
@@ -231,9 +231,7 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
                 let Some(end) = cur.position_of_null() else {
                     break;
                 };
-                let mech_bytes = cur
-                    .read_slice(end)
-                    .unwrap_or(&[]);
+                let mech_bytes = cur.read_slice(end).unwrap_or(&[]);
                 let mechanism = String::from_utf8_lossy(mech_bytes).to_string();
                 // Skip the null terminator we just located.
                 let _ = cur.read_u8();
@@ -270,12 +268,12 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
 
 fn decode_backend_key_data(data: &[u8]) -> io::Result<BackendMessage> {
     let mut cur = Cursor::new(data);
-    let process_id = cur.read_i32_be().map_err(|_| {
-        io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data")
-    })?;
-    let secret_key = cur.read_i32_be().map_err(|_| {
-        io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data")
-    })?;
+    let process_id = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data"))?;
+    let secret_key = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data"))?;
     Ok(BackendMessage::BackendKeyData {
         process_id,
         secret_key,
@@ -475,24 +473,25 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
         let _ = cur.read_u8();
 
         // Read field descriptor (18 bytes: 4+2+4+2+4+2)
-        let table_oid = cur.read_i32_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })?;
-        let column_attr = cur.read_i16_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })?;
-        let type_oid = cur.read_i32_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })? as u32;
-        let type_size = cur.read_i16_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })?;
-        let type_modifier = cur.read_i32_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })?;
-        let format_code = cur.read_i16_be().map_err(|_| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor")
-        })?;
+        let table_oid = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let column_attr = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let type_oid = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?
+            as u32;
+        let type_size = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let type_modifier = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let format_code = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
 
         fields.push(FieldDescription {
             name,

@@ -450,7 +450,6 @@ impl FraiseQLError {
     /// this match still gets a defined (and *safe*) HTTP status — generic
     /// 500 Internal Server Error — rather than leaking implementation
     /// details to the client by returning the wrong code.
-    //
     // Reason: the trailing wildcard arm intentionally duplicates the 500
     // server-error arm above (silencing `match_same_arms`), and is currently
     // unreachable within this crate because the match enumerates every

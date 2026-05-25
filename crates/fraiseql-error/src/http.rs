@@ -83,8 +83,8 @@ impl IntoResponse for FraiseQLError {
     #[allow(clippy::match_same_arms, unreachable_patterns)]
     fn into_response(self) -> Response {
         let error_code = self.error_code();
-        let http_status = StatusCode::from_u16(self.status_code())
-            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let http_status =
+            StatusCode::from_u16(self.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
         // SECURITY: messages here are deliberately generic — raw error
         // details (database messages, config values, provider endpoints,
@@ -94,21 +94,15 @@ impl IntoResponse for FraiseQLError {
             FraiseQLError::Parse { .. }
             | FraiseQLError::Validation { .. }
             | FraiseQLError::UnknownField { .. }
-            | FraiseQLError::UnknownType { .. } => {
-                ("validation_error", self.to_string(), None)
-            },
+            | FraiseQLError::UnknownType { .. } => ("validation_error", self.to_string(), None),
             FraiseQLError::Authentication { .. } | FraiseQLError::Auth(_) => {
                 ("authentication_error", "Authentication failed".to_string(), None)
             },
             FraiseQLError::Authorization { .. } => {
                 ("authorization_error", "Insufficient permissions".to_string(), None)
             },
-            FraiseQLError::NotFound { .. } => {
-                ("not_found", "Resource not found".to_string(), None)
-            },
-            FraiseQLError::Conflict { .. } => {
-                ("conflict", self.to_string(), None)
-            },
+            FraiseQLError::NotFound { .. } => ("not_found", "Resource not found".to_string(), None),
+            FraiseQLError::Conflict { .. } => ("conflict", self.to_string(), None),
             FraiseQLError::RateLimited {
                 retry_after_secs, ..
             } => ("rate_limited", "Rate limit exceeded".to_string(), Some(*retry_after_secs)),
@@ -120,9 +114,7 @@ impl IntoResponse for FraiseQLError {
                 "Service temporarily unavailable".to_string(),
                 *retry_after,
             ),
-            FraiseQLError::Unsupported { .. } => {
-                ("unsupported", self.to_string(), None)
-            },
+            FraiseQLError::Unsupported { .. } => ("unsupported", self.to_string(), None),
             FraiseQLError::Webhook(_) => {
                 ("webhook_error", "Webhook processing failed".to_string(), None)
             },
@@ -193,23 +185,17 @@ fn file_error_response(e: &FileError) -> (&'static str, String, Option<u64>) {
         FileError::VirusDetected { .. } => {
             ("file_error", "File failed security scan".to_string(), None)
         },
-        FileError::QuotaExceeded => {
-            ("file_error", "Storage quota exceeded".to_string(), None)
-        },
+        FileError::QuotaExceeded => ("file_error", "Storage quota exceeded".to_string(), None),
         FileError::Storage { .. } | FileError::Processing { .. } => {
             ("file_error", "File operation failed".to_string(), None)
         },
         // F050 backend-classification variants. Bodies are deliberately generic
         // (the typed status-code routing happens in `FraiseQLError::status_code`).
-        FileError::PermissionDenied { .. } => {
-            ("file_error", "Permission denied".to_string(), None)
-        },
+        FileError::PermissionDenied { .. } => ("file_error", "Permission denied".to_string(), None),
         FileError::IoError { .. } | FileError::Backend { .. } => {
             ("file_error", "Storage backend error".to_string(), None)
         },
-        FileError::InvalidKey { .. } => {
-            ("file_error", "Invalid storage key".to_string(), None)
-        },
+        FileError::InvalidKey { .. } => ("file_error", "Invalid storage key".to_string(), None),
         FileError::NotImplemented { .. } | FileError::Unsupported { .. } => {
             ("file_error", "Operation not supported".to_string(), None)
         },

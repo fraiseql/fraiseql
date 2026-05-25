@@ -188,7 +188,10 @@ impl ResponseCache {
             self.view_index.entry(view.clone()).or_default().insert(key);
         }
 
-        let entry = Arc::new(ResponseEntry { response, accessed_views });
+        let entry = Arc::new(ResponseEntry {
+            response,
+            accessed_views,
+        });
 
         self.store.insert(key, entry);
         Ok(())

@@ -547,8 +547,7 @@ mod response_cache_tests {
             .expect("put");
         cache.run_pending_tasks();
 
-        let invalidated =
-            cache.invalidate_views(&[] as &[ViewName]).expect("invalidate empty");
+        let invalidated = cache.invalidate_views(&[] as &[ViewName]).expect("invalidate empty");
         assert_eq!(invalidated, 0);
         assert!(cache.get(1, 0).expect("still cached").is_some());
     }
@@ -2406,8 +2405,9 @@ mod result_tests {
             .unwrap();
 
         // Invalidate v_user and v_post
-        let invalidated =
-            cache.invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")]).unwrap();
+        let invalidated = cache
+            .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
+            .unwrap();
         assert_eq!(invalidated, 2);
 
         assert!(cache.get(1_u64).unwrap().is_none());

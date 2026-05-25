@@ -71,18 +71,16 @@ impl std::fmt::Display for DatabaseType {
 ///
 /// # Ownership contract (F029)
 ///
-/// - **Adapter-owned**: the database adapter materialises `data` into an owned
-///   `serde_json::Value` before returning. There is no borrow of database
-///   buffers in this type — it is safe to keep across the `await` boundary that
-///   releases the database connection.
+/// - **Adapter-owned**: the database adapter materialises `data` into an owned `serde_json::Value`
+///   before returning. There is no borrow of database buffers in this type — it is safe to keep
+///   across the `await` boundary that releases the database connection.
 /// - **Projector input**: consumers that project into GraphQL responses (see
-///   `fraiseql-core::runtime::projection::ResultProjector::project_results`)
-///   take `&[JsonbValue]` and produce a freshly-allocated `serde_json::Value`
-///   tree. Projection never aliases the input; each field is cloned out.
-/// - **Not part of the wire protocol**: `JsonbValue` is an *internal* shape and
-///   intentionally distinct from `serde_json::Value` so that the boundary
-///   between "raw database row" and "GraphQL response value" is visible in
-///   function signatures.
+///   `fraiseql-core::runtime::projection::ResultProjector::project_results`) take `&[JsonbValue]`
+///   and produce a freshly-allocated `serde_json::Value` tree. Projection never aliases the input;
+///   each field is cloned out.
+/// - **Not part of the wire protocol**: `JsonbValue` is an *internal* shape and intentionally
+///   distinct from `serde_json::Value` so that the boundary between "raw database row" and "GraphQL
+///   response value" is visible in function signatures.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonbValue {
     /// The JSONB data from the database `data` column.

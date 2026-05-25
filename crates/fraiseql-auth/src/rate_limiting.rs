@@ -6,13 +6,13 @@
 // # Threading Model
 //
 // Per-key updates are **atomic** with respect to concurrent access:
-// - check() holds a per-shard write reference through the entire
-//   read-current-time → load-record → update-counter sequence
+// - check() holds a per-shard write reference through the entire read-current-time → load-record →
+//   update-counter sequence
 // - Different keys land on different shards and never contend
-// - This prevents race conditions where multiple threads simultaneously exceed
-//   the limit on the *same* key
-// - Periodic sweeps and capacity eviction are best-effort and run without
-//   holding any other shard's lock
+// - This prevents race conditions where multiple threads simultaneously exceed the limit on the
+//   *same* key
+// - Periodic sweeps and capacity eviction are best-effort and run without holding any other shard's
+//   lock
 
 use std::{
     sync::{
@@ -322,8 +322,11 @@ impl<C: Clock> KeyedRateLimiter<C> {
             && !self.records.contains_key(key)
             && self.records.len() >= self.max_entries
         {
-            if let Some(oldest_key) =
-                self.records.iter().min_by_key(|r| r.value().window_start).map(|r| r.key().clone())
+            if let Some(oldest_key) = self
+                .records
+                .iter()
+                .min_by_key(|r| r.value().window_start)
+                .map(|r| r.key().clone())
             {
                 self.records.remove(&oldest_key);
                 tracing::debug!(

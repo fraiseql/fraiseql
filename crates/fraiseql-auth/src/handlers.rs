@@ -92,10 +92,7 @@ impl fmt::Debug for AuthCallbackResponse {
         // `debug!(?resp)` call. See IMPROVEMENTS.md F045.
         f.debug_struct("AuthCallbackResponse")
             .field("access_token", &"<redacted>")
-            .field(
-                "refresh_token",
-                &self.refresh_token.as_ref().map(|_| "<redacted>"),
-            )
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "<redacted>"))
             .field("token_type", &self.token_type)
             .field("expires_in", &self.expires_in)
             .finish()
@@ -555,10 +552,7 @@ mod debug_redaction_tests {
             !debug_output.contains(SECRET_REFRESH),
             "refresh_token leaked in Debug output: {debug_output}",
         );
-        assert!(
-            debug_output.contains("redacted"),
-            "redaction marker missing: {debug_output}",
-        );
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
         // The non-sensitive fields should still be present for diagnosability.
         assert!(debug_output.contains("Bearer"));
         assert!(debug_output.contains("3600"));
@@ -596,10 +590,7 @@ mod debug_redaction_tests {
             !debug_output.contains(SECRET_ACCESS),
             "access_token leaked in Debug output: {debug_output}",
         );
-        assert!(
-            debug_output.contains("redacted"),
-            "redaction marker missing: {debug_output}",
-        );
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
         assert!(debug_output.contains("Bearer"));
         assert!(debug_output.contains("1800"));
     }

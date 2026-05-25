@@ -65,7 +65,11 @@ fn metrics_collector_arc_shares_state() {
     let clone = std::sync::Arc::clone(&metrics);
 
     metrics.queries_total.fetch_add(5, Ordering::Relaxed);
-    assert_eq!(clone.queries_total.load(Ordering::Relaxed), 5, "Arc<MetricsCollector> clones must share the counter state");
+    assert_eq!(
+        clone.queries_total.load(Ordering::Relaxed),
+        5,
+        "Arc<MetricsCollector> clones must share the counter state"
+    );
 }
 
 #[test]

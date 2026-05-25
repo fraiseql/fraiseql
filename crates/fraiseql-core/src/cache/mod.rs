@@ -225,8 +225,6 @@ pub mod fact_table_version;
 // Re-export `ViewName` from `fraiseql-db` so consumers of the cache API can
 // import the typed view-name newtype alongside `QueryResultCache` etc. without
 // pulling in `fraiseql-db` directly.
-pub use fraiseql_db::ViewName;
-
 pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
@@ -238,6 +236,7 @@ pub use entity_key::EntityKey;
 pub use fact_table_version::{
     FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy, VERSION_TABLE_SCHEMA,
 };
+pub use fraiseql_db::ViewName;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
     extract_accessed_views, generate_cache_key, generate_projection_query_key,

@@ -130,7 +130,10 @@ async fn test_error_classification_timeout_is_retryable() {
         query:      Some("SELECT 1".to_string()),
     };
     assert!(err.is_retryable());
-    assert!(err.is_server_error());
+    // 408 is a 4xx (client-error) status; is_server_error() derives from
+    // status_code() so it returns false here. The retry semantics are what
+    // matter for timeout classification, not the 4xx/5xx category.
+    assert!(err.is_client_error());
     assert_eq!(err.status_code(), 408);
 }
 

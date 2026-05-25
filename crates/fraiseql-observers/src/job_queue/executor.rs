@@ -171,10 +171,7 @@ impl JobExecutor {
     /// on every successful completion; only `JoinError`s carry information.
     /// Panics are routed through the prometheus `job_failed` counter (with the
     /// `panic` error label) when the `metrics` feature is enabled.
-    fn handle_join_outcome(
-        &self,
-        res: std::result::Result<(), tokio::task::JoinError>,
-    ) {
+    fn handle_join_outcome(&self, res: std::result::Result<(), tokio::task::JoinError>) {
         match res {
             Ok(()) => {},
             Err(je) if je.is_panic() => {

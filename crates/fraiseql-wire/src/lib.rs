@@ -38,7 +38,8 @@
 #![allow(clippy::format_push_string)] // Reason: incremental query string building
 #![allow(clippy::needless_continue)] // Reason: explicit continues in wire protocol loops
 #![allow(clippy::iter_with_drain)] // Reason: drain pattern for ownership transfer in buffers
-#![allow(clippy::no_effect_underscore_binding)] // Reason: placeholder bindings for protocol fields
+#![allow(clippy::no_effect_underscore_binding)]
+// Reason: placeholder bindings for protocol fields
 // === Crate-wide style preferences (binary-protocol locality and explicitness) ===
 #![allow(clippy::items_after_statements)] // Reason: helper structs near point of use for clarity
 #![allow(clippy::match_same_arms)] // Reason: explicit arms document each protocol variant

@@ -369,7 +369,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(())
     }
 
-
     /// Start server on an externally created listener.
     ///
     /// Used in tests to discover the bound port before serving.

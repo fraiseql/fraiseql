@@ -178,7 +178,8 @@ mod ir_tests {
             description:      Some("Valid email address".to_string()),
             specified_by_url: Some("https://html.spec.whatwg.org/".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
-                pattern: CompiledPattern::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").expect("valid regex"),
+                pattern: CompiledPattern::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+                    .expect("valid regex"),
                 message: Some("Invalid email format".to_string()),
             }],
             base_type:        Some("String".to_string()),

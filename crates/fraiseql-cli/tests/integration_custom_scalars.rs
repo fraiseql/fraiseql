@@ -33,7 +33,8 @@ fn test_compile_schema_with_single_custom_scalar() {
             description:      Some("Valid email address".to_string()),
             specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
-                pattern: CompiledPattern::new(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$").expect("valid regex"),
+                pattern: CompiledPattern::new(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
+                    .expect("valid regex"),
                 message: Some("Invalid email format".to_string()),
             }],
             base_type:        Some("String".to_string()),

@@ -209,16 +209,14 @@ impl FileError {
     /// - `NotFound` → 404 — backend reports object missing
     /// - `PermissionDenied` → 403 — backend refuses the operation
     /// - `InvalidKey` → 400 — caller supplied a malformed key
-    /// - `IoError`, `Backend`, `NotImplemented`, `Unsupported`,
-    ///   `SizeLimitExceeded`, `MimeTypeNotAllowed` → 500 — preserves the
-    ///   legacy behavior of `FraiseQLError::Storage` (which routed every
-    ///   `code` *except* `not_found`/`permission_denied` to 500 via
+    /// - `IoError`, `Backend`, `NotImplemented`, `Unsupported`, `SizeLimitExceeded`,
+    ///   `MimeTypeNotAllowed` → 500 — preserves the legacy behavior of `FraiseQLError::Storage`
+    ///   (which routed every `code` *except* `not_found`/`permission_denied` to 500 via
     ///   `storage_error_response`)
-    /// - All other (pre-existing) variants — `TooLarge`, `InvalidType`,
-    ///   `MimeMismatch`, `VirusDetected`, `QuotaExceeded`, `Storage`,
-    ///   `Processing` — fall back to the `FraiseQLError::File`-level 400
-    ///   via the wildcard arm so that pre-F050 callers see unchanged HTTP
-    ///   responses.
+    /// - All other (pre-existing) variants — `TooLarge`, `InvalidType`, `MimeMismatch`,
+    ///   `VirusDetected`, `QuotaExceeded`, `Storage`, `Processing` — fall back to the
+    ///   `FraiseQLError::File`-level 400 via the wildcard arm so that pre-F050 callers see
+    ///   unchanged HTTP responses.
     #[must_use]
     pub const fn status_code(&self) -> u16 {
         match self {

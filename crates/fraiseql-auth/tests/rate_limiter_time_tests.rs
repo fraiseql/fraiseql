@@ -184,5 +184,8 @@ fn rate_limiter_is_clone_and_shares_records_across_clones() {
     );
 
     // The original handle continues to enforce the cap on the same shared state.
-    assert!(limiter.check("k").is_err(), "original handle must observe the same shared counter");
+    assert!(
+        limiter.check("k").is_err(),
+        "original handle must observe the same shared counter"
+    );
 }

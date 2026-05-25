@@ -93,19 +93,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key = if self
-            .ctx
-            .response_cache
-            .as_ref()
-            .is_some_and(|rc| rc.is_enabled())
-        {
-            let query_key = Self::compute_response_cache_key(&query_match)?;
-            let sec_hash =
-                crate::cache::response_cache::hash_security_context(Some(security_context));
-            Some((query_key, sec_hash))
-        } else {
-            None
-        };
+        let response_cache_key =
+            if self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled()) {
+                let query_key = Self::compute_response_cache_key(&query_match)?;
+                let sec_hash =
+                    crate::cache::response_cache::hash_security_context(Some(security_context));
+                Some((query_key, sec_hash))
+            } else {
+                None
+            };
 
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
@@ -308,10 +304,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .ctx
             .adapter
             .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view:         sql_source,
-                projection:   projection_hint.as_ref(),
+                view: sql_source,
+                projection: projection_hint.as_ref(),
                 where_clause: combined_where.as_ref(),
-                order_by:     order_by_clauses.as_deref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
             })
@@ -358,12 +354,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         {
             let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
             let cached = Arc::new(response);
-            let _ = rc.put(
-                query_key,
-                sec_hash,
-                Arc::clone(&cached),
-                vec![sql_source.to_string()],
-            );
+            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), vec![sql_source.to_string()]);
             return Ok(Arc::unwrap_or_clone(cached));
         }
 
@@ -557,10 +548,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .ctx
             .adapter
             .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view:         sql_source,
-                projection:   projection_hint.as_ref(),
+                view: sql_source,
+                projection: projection_hint.as_ref(),
                 where_clause: user_where.as_ref(),
-                order_by:     order_by_clauses.as_deref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
             })
@@ -691,10 +682,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .ctx
             .adapter
             .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view:         sql_source,
-                projection:   None,
+                view: sql_source,
+                projection: None,
                 where_clause: composed_where.as_ref(),
-                order_by:     order_by_clauses.as_deref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
             })

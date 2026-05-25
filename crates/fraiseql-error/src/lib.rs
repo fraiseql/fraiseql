@@ -7,13 +7,11 @@
 //! [`FraiseQLError`] is the single root error type for the FraiseQL workspace.
 //! It is built around two layers:
 //!
-//! 1. **Engine variants** (`Parse`, `Validation`, `Database`, `RateLimited`,
-//!    `NotFound`, `ServiceUnavailable`, `Internal`, …) which the core and
-//!    runtime crates raise directly.
-//! 2. **Domain composition variants** (`Auth`, `Webhook`, `Observer`, `File`)
-//!    which wrap subsystem error types via `From` impls owned by each
-//!    subsystem crate (sqlx pattern). This lets `fraiseql-error` stay a leaf
-//!    crate while still exposing one unified taxonomy.
+//! 1. **Engine variants** (`Parse`, `Validation`, `Database`, `RateLimited`, `NotFound`,
+//!    `ServiceUnavailable`, `Internal`, …) which the core and runtime crates raise directly.
+//! 2. **Domain composition variants** (`Auth`, `Webhook`, `Observer`, `File`) which wrap subsystem
+//!    error types via `From` impls owned by each subsystem crate (sqlx pattern). This lets
+//!    `fraiseql-error` stay a leaf crate while still exposing one unified taxonomy.
 //!
 //! With the `axum-compat` feature enabled, [`FraiseQLError`] also implements
 //! [`axum::response::IntoResponse`] so handlers can return

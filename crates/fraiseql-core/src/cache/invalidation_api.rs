@@ -61,8 +61,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 let transitive = guard.cascade_invalidate(view.as_str())?;
                 expanded.extend(transitive);
             }
-            let expanded_views: Vec<ViewName> =
-                expanded.into_iter().map(ViewName::from).collect();
+            let expanded_views: Vec<ViewName> = expanded.into_iter().map(ViewName::from).collect();
             return self.cache.invalidate_views(&expanded_views);
         }
         self.cache.invalidate_views(views)
@@ -145,8 +144,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             views_to_invalidate.insert(view_name);
         }
 
-        let views: Vec<ViewName> =
-            views_to_invalidate.into_iter().map(ViewName::from).collect();
+        let views: Vec<ViewName> = views_to_invalidate.into_iter().map(ViewName::from).collect();
         self.cache.invalidate_views(&views)
     }
 
@@ -182,8 +180,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 let transitive = guard.cascade_invalidate(view.as_str())?;
                 expanded.extend(transitive);
             }
-            let expanded_views: Vec<ViewName> =
-                expanded.into_iter().map(ViewName::from).collect();
+            let expanded_views: Vec<ViewName> = expanded.into_iter().map(ViewName::from).collect();
             return self.cache.invalidate_list_queries(&expanded_views);
         }
         self.cache.invalidate_list_queries(views)

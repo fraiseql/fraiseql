@@ -164,9 +164,7 @@ impl InMemoryRateLimiter {
         let key = tenant_id.map_or_else(|| ip.to_string(), |tid| format!("{}:{}", tid, ip));
 
         // Best-effort capacity check; see `check_path_limit` for why this races safely.
-        if !self.ip_buckets.contains_key(&key)
-            && self.ip_buckets.len() >= self.config.max_buckets
-        {
+        if !self.ip_buckets.contains_key(&key) && self.ip_buckets.len() >= self.config.max_buckets {
             debug!(ip = ip, tenant_id = ?tenant_id, "IP bucket capacity reached — denying unseen IP");
             return CheckResult::deny(1);
         }

@@ -119,9 +119,7 @@ impl std::error::Error for SentinelSubsystemError {}
 
 fn assert_source_downcasts_to_sentinel(err: &FraiseQLError, expected_kind: &str) {
     use std::error::Error as _;
-    let source = err
-        .source()
-        .expect("boxed-payload variants must expose Error::source()");
+    let source = err.source().expect("boxed-payload variants must expose Error::source()");
     let downcast = source
         .downcast_ref::<SentinelSubsystemError>()
         .expect("Error::source() must downcast to the original concrete subsystem type");

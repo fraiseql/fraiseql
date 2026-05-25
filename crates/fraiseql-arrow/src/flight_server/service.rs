@@ -86,9 +86,8 @@ where
     F: FnOnce(mpsc::Sender<std::result::Result<FlightData, Status>>) -> Fut + Send + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
 {
-    let (tx, rx) = mpsc::channel::<std::result::Result<FlightData, Status>>(
-        FLIGHT_DATA_CHANNEL_BUFFER,
-    );
+    let (tx, rx) =
+        mpsc::channel::<std::result::Result<FlightData, Status>>(FLIGHT_DATA_CHANNEL_BUFFER);
     tokio::spawn(producer(tx));
     ReceiverStream::new(rx)
 }
@@ -546,10 +545,8 @@ impl FraiseQLFlightService {
 
             // Encode the schema header eagerly (must precede the batches so the
             // client can decode the rest of the stream).
-            let schema_header = batches
-                .first()
-                .map(|b| schema_to_flight_data(&b.schema()))
-                .transpose()?;
+            let schema_header =
+                batches.first().map(|b| schema_to_flight_data(&b.schema())).transpose()?;
 
             // Stream the batches through a bounded mpsc channel so the encode
             // step pauses when the consumer is slow (F011 backpressure).
@@ -1265,9 +1262,13 @@ mod convert_tests;
 mod backpressure_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
 
     use arrow_flight::FlightData;
     use futures::StreamExt;
