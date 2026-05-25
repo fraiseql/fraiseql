@@ -9,6 +9,7 @@ Decided at commit: 85ac41e60
 **Decision:** Delete `RuntimeError` and its sibling domain re-exports (`AuthError`, `WebhookError`, `FileError`, `NotificationError`, `IntegrationError`, `ObserverError`) before 2.4. Make `FraiseQLError` the single error taxonomy. Re-add domain variants to `FraiseQLError` where genuinely needed (`Auth`, `Webhook`, `File`, `Notification`, `Integration`, `Observer`); collapse the four overlapping HTTP-shaped variants (`Internal`, `NotFound`, `RateLimited`, `ServiceUnavailable`) into the engine enum.
 
 **Rationale:**
+
 - Zero production callers: `grep -rn "Result<.*RuntimeError>" crates/` returns four hits, all in `crates/fraiseql-error/` itself (`http.rs:261-275`, `lib.rs:70`). All other matches are in `crates/fraiseql-error/tests/` (test files). No axum handler in `crates/fraiseql-server/src/routes/` returns `Result<_, RuntimeError>`.
 - No external Rust consumer exists. The Rust SDK client (`sdks/official/fraiseql-rust/fraiseql-client/src/error.rs:10`) defines its **own** `FraiseQLError` enum — a name collision, not a re-export — and does not depend on the server-side `RuntimeError`. The CLAUDE.md vision pins Rust to the server side; Python/TypeScript/Go/Java are authoring-only and cannot consume Rust error types.
 - The prior decision's "stable extension point for downstream" defense assumed a future Rust SDK author would write custom axum handlers and want a hardened HTTP-shaped error type. Under "breaking changes acceptable + industrial," shipping a 150-line published enum for hypothetical consumers is the opposite of industrial; *one canonical error taxonomy* is what serious downstreams want.
@@ -20,6 +21,7 @@ Decided at commit: 85ac41e60
 Directive from user: *Option A — composition via `#[from]` — is the default. Verify per-enum that none are vestigial enough to absorb. "One canonical taxonomy" means one root type, not one enum. Domain modules own their vocabulary. Flatten only when an enum has ≤5 variants used at ≤2 sites.*
 
 Critical evidence found during verification: the 6 `fraiseql-error/src/<name>.rs` enums **are NOT the production vocabulary**. They are shadow re-statements that only `RuntimeError` aggregates and only their own test files import. The real, in-use subsystem error vocabularies live elsewhere:
+
 - `fraiseql_auth::AuthError` at `crates/fraiseql-auth/src/error.rs:17` (26 variants, heavily used inside `fraiseql-auth/src/{rate_limiting,phone_otp,state_store,handlers,oauth,jwt,totp_mfa,…}`).
 - `fraiseql_webhooks::WebhookError` at `crates/fraiseql-webhooks/src/lib.rs:82` (real subsystem enum used by webhooks crate; the `fraiseql-error/src/webhook.rs` copy is unused by any non-test consumer).
 - `fraiseql_observers::ObserverError` at `crates/fraiseql-observers/src/error.rs:12` (12+ variants with OB001–OB012 codes; the `fraiseql-error/src/observer.rs` copy is unused by any non-test consumer).
@@ -61,6 +63,7 @@ pub enum FraiseQLError {
 Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum because it has real callers but no owning subsystem crate, and three (`NotificationError`, `IntegrationError`, `Auth/Webhook/Observer fraiseql-error copies`) are deleted outright as vestigial.
 
 **Action items for round-2:**
+
 - Delete `crates/fraiseql-error/src/lib.rs:74-151` (`RuntimeError` enum + impls).
 - Delete `crates/fraiseql-error/src/{auth,webhook,notification,integration,observer}.rs` (5 of the 6 shadow domain modules). Keep `crates/fraiseql-error/src/file.rs` as-is (production-used).
 - Delete `crates/fraiseql-error/tests/{auth_errors,webhook_errors,notification_errors,integration_errors,observer_errors}.rs`. Keep `tests/file_errors.rs`.
@@ -72,6 +75,7 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 - Round-2 maniac: re-evaluate F017 against the merged taxonomy. The "lossy `From`-conversions" claim is currently false (no conversions exist) — but after the merge, lossy conversions inside `ServerError → FraiseQLError → axum::Response` *will* exist and should be audited.
 
 **Open issues / things the maniac should NOT touch in round-2 until human review:**
+
 - (none for Q1 — per-enum verdicts above resolve the prior open issue; the only remaining design judgement, the dependency-graph direction noted in the action items, is bounded enough for the delete-PR to make and document)
 
 ## Q2 — async_trait removal scope **(UNCHANGED — values-direction considered)**
@@ -79,6 +83,7 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 **Decision:** Freeze the baseline at 180 with the existing `lint-async-trait` gate; do NOT actively migrate. Re-evaluate when RTN-in-`dyn` stabilises (RFC 3425) OR `trait-variant` gains a `dyn`-compat story.
 
 **Rationale (re-derived under industrial framing):**
+
 - Spot-check confirms dyn-dispatch is load-bearing, not ceremonial. Workspace has 84 trait definitions, 64 of which are used as `dyn TraitName`, with 352 call sites (`grep -rno "dyn [A-Z][A-Za-z_0-9]*" crates/*/src/`). Top consumers — `SessionStore` (22), `OAuthProvider` (16), `Clock` (15), `DeadLetterQueue` (14), `CustomScalar` (12), `StateStore` (11), `CheckpointStore` (11), `QueryExecutor` (10), `AccountStore` (10) — are textbook pluggability points where downstream operators supply their own implementations.
 - Verified the prior decision's 3 sampled traits: `ApqStorage` has 2 production impls (memory + redis at `crates/fraiseql-core/src/apq/{memory_storage,redis_storage}.rs`); `FunctionStore` has 1 production impl; `CacheBackend` has 1 production + 1 test. The trait list is **future-proofed** for pluggability; deleting dyn-dispatch closes that door.
 - Under "industrial + breaking changes OK," the breaking change being considered is "force every downstream impl-or onto generic + monomorphisation." That doesn't *modernise* — it *destroys the pluggability architecture* (heterogeneous registries cannot be expressed with generics). The user's lever does not unblock this path; it makes it worse.
@@ -86,11 +91,13 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 - Stable RTN-in-`dyn` (RFC 3425) is the correct *long-term* answer: it lets dyn-dispatch traits drop the async_trait macro without losing object safety. That's the industrial off-ramp — wait for it.
 
 **Action items for round-2:**
+
 - Keep `ASYNC_TRAIT_LIMIT := 180` in `Makefile:286` as the sole enforcement. Do not lower opportunistically.
 - Document the only acceptance criterion for a removal PR (in `docs/architecture/overview.md` or a new `docs/architecture/async-trait-policy.md`): trait must have **zero** matches in `grep -rn "dyn TraitName\b" crates/ tests/ sdks/` AND must pass `cargo semver-checks` (already in CI at `.github/workflows/ci.yml:108-123`) AND must include a criterion bench showing measurable wins.
 - Reject any round-2 "drive-by" migration PR that doesn't satisfy all three criteria.
 
 **Open issues / things the maniac should NOT touch in round-2 until human review:**
+
 - None. Policy is "leave alone, gated, wait for RTN-in-`dyn`."
 
 ## Q3 — Per-crate `#[allow]` budget gates **(REVISED — promotion mechanics added)**
@@ -100,21 +107,25 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 **Tiering (16 crates) — same as prior version, see prior table for LOC/churn data.**
 
 **Promotion criteria (NEW):**
+
 - **tier-3 → tier-2** when a crate exceeds **either** 50 commits in any rolling 3-month window **or** 10,000 LOC. Trigger: `make tier-promote-check` (round-2 maniac to add a Makefile target that prints the next crate due for promotion). At promotion time, set the allow-count gate at `current + 1` slack.
 - **tier-2 → tier-1** when a crate exceeds **either** 100 commits in any rolling 3-month window **or** 20,000 LOC **or** introduces a new public extension trait. At promotion time, add an errors-doc floor sized to current coverage.
 - **Demotion**: never. A gated crate stays gated. Removing a gate is a separate breaking-change decision.
 
 **Rationale (re-derived under industrial framing):**
+
 - "Uniform tier-1 gates everywhere now" was considered. Rejected: enforcing errors-doc floors on crates with 22 commits and 132 LOC (`fraiseql` umbrella) costs more PR friction than it catches regressions. The industrial answer is *graduated* enforcement, not *uniform* enforcement — match the gate cost to the change rate.
 - Without promotion criteria, the 3-tier scheme was static and would silently rot as `fraiseql-functions` (46 commits, 10,892 LOC, tier-2) approaches tier-1 thresholds. Making promotion mechanical fixes this.
 - Cost: ~25 lines of Makefile (5 new gates + 1 promotion-check target), modelled after `lint-gate-core` (`Makefile:301-309`) and `lint-gate-db` (`Makefile:315-329`).
 
 **Action items for round-2:**
+
 - Add `lint-gate-cli` (max 15), `lint-gate-auth` (max 3), `lint-gate-observers`, `lint-gate-federation`, `lint-gate-arrow`, `lint-gate-secrets`, `lint-gate-functions`, `lint-gate-wire` to `Makefile`, each at `current allow count + 1` slack. Wire into `make check` (currently `Makefile:409`).
 - Add `make tier-promote-check`: scans `git log --since=3.months.ago crates/<X>/ | wc -l` and `find crates/<X>/src -name '*.rs' -exec wc -l {} +` for each crate, flags those exceeding next-tier thresholds.
 - Decline maniac PRs that add an errors-doc gate to tier-2/tier-3 crates without first lifting the floor to a meaningful value.
 
 **Open issues / things the maniac should NOT touch in round-2 until human review:**
+
 - `fraiseql-wire` has 19 crate-level allows (mostly cast lints for binary protocol decoders). Capping at 20 is fine, but inverting the gate to a specific *denylist* of lints — instead of a *count* — would be more industrial. Flag for human decision; not blocking round-2.
 
 ## Q4 — `indexing_slicing` phased rollout pilot **(REVISED — refactor confirmed as policy)**
@@ -122,6 +133,7 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 **Decision:** **Refactor**, not annotate. Pilot the refactor mechanics in `fraiseql-error` (7 hits, single function), then apply to `fraiseql-wire` (70+ hits, security-critical). Each pilot ends with `clippy::indexing_slicing = "deny"` added to that crate's `[lints.clippy]` block. Once 3 crates are clean, propagate workspace-wide via a tracking issue with per-crate sub-tasks.
 
 **Rationale (re-derived under industrial framing):**
+
 - Under "industrial + breaking changes OK," `arr.get(i)?` is unambiguously the right answer over `#[allow] // Reason: …` per-function annotations. Annotation defers the panic-risk surface; refactor removes it. The prior "annotation as cheaper fallback" position was a values hedge that the user has now removed.
 - `fraiseql-error` pilot: `crates/fraiseql-error/src/core_error.rs:498-514` is a single `levenshtein_distance` helper with a pre-allocated 2D `Vec<Vec<usize>>` and statically-bounded loop indices. Refactor cost: ~30 min, ~10-line diff, zero API surface change (helper is private). High-confidence dry-run for the mechanic.
 - `fraiseql-wire` is the right second target: statically-bounded length-prefix decoder pattern, security-critical (every variable JSON crosses this boundary on every request), and the workspace-rationale block at `Cargo.toml:217-223` already records the case. Spot-check at `protocol/decode/mod.rs:407-425` shows the pattern: switching to `.get(i)?` requires the surrounding `decode_*` fn signature to propagate `Result<…, WireError>`. That's a signature change, but `WireError` already exists; the change is mechanical.
@@ -129,12 +141,14 @@ Three subsystems compose, one (`File`) survives as a fraiseql-error-owned enum b
 - The workspace-wide enable comes only after **3 crates have completed the refactor** (not 1, as before) AND the average effort per crate is recorded (so the remaining 12 crates have a budget estimate).
 
 **Action items for round-2:**
+
 - Phase 0 (pilot mechanics — `fraiseql-error`): refactor `levenshtein_distance` to use `.get(i).and_then(|row| row.get(j))` or restructure with a flat `Vec<usize>` indexed via `row * width + col` (likely cleaner). Add `clippy::indexing_slicing = "deny"` to `crates/fraiseql-error/Cargo.toml` `[lints.clippy]`. Single PR.
 - Phase 1 (real pilot — `fraiseql-wire`): refactor `protocol/decode/mod.rs` first (most hits), then `protocol/encode/mod.rs`, then `stream/json_stream/mod.rs`. One PR per file. Each PR records its diff stats (lines changed, sig changes, bench delta if any) in the PR body for the budget estimate.
 - Phase 2 (third crate): pick from `fraiseql-secrets` or `fraiseql-storage` (small + low-hit). Cement the pattern.
 - Phase 3 (workspace propagation): open a tracking issue listing the remaining 12 crates with sub-task checkboxes. Set workspace-level `clippy::indexing_slicing = "deny"` in `Cargo.toml` `[workspace.lints.clippy]` *only* when the last crate's PR merges. Update the workspace-rationale block at `Cargo.toml:217-223` to record completion.
 
 **Open issues / things the maniac should NOT touch in round-2 until human review:**
+
 - None. Refactor-by-default policy resolves the prior values call.
 
 ## Cross-cutting note

@@ -8,9 +8,11 @@ Workspace: 16 crates, fraiseql-* + fraiseql umbrella
 ## Round-2 update — 2026-05-24, commit 788320393
 
 ### Closed by execution
+
 - **F017** — error taxonomy consolidation. Resolved by the 7-commit refactor on `feat/error-taxonomy-consolidation` (230d4d238..788320393). `RuntimeError` and 5 shadow domain enums deleted; `FraiseQLError::{Auth, Webhook, Observer, File}` variants added; subsystem crates own their own `From<X> for FraiseQLError` impls (sqlx pattern); `ServerError::RuntimeError` renamed to `Engine`. See follow-up F049, F050, F051 below for industrial gaps the refactor introduced.
 
 ### Re-prioritized under industrial framing
+
 - **F003** — was 🟠 H / S, **upgraded to 🟠 H / S with concrete API change recommended**. Previously hedged "If `ValidationRule` shape changes, that crosses the serde boundary — prefer a runtime-side cache." Industrial answer: change `ValidationRule::Pattern { pattern: String }` to `ValidationRule::Pattern { pattern: CompiledPattern }` with a custom serde impl that compiles at deserialize-time. The validator stops being responsible for caching, and pattern errors surface at schema load.
 - **F006 / F008 / F013 / F048** — Arc<Mutex/RwLock<HashMap>> findings. Previously each carried "internal data structure / surface unchanged" hedges. Under industrial: ship them together as a single PR titled "concurrency: lock-free read-hot maps" using `dashmap` (already a workspace dep) and `arc-swap` for the snapshot-style cases (F007, F048). Per-finding severity unchanged, but bundling raises the joint impact to 🟠 H.
 - **F016** — was 🟡 M / XS, **upgraded to 🟠 H / XS**. The doctest's broken references (`RateLimitExceeded`, `Forbidden`, `FieldExclusion`, `TypeMismatch`) are now strictly more conspicuous because the round-2 refactor added 4 *real* variants (`Auth`, `Webhook`, `Observer`, `File`) to the same match arm without fixing the dead siblings. The contradiction is the documentation. Closing this is a 5-minute edit and unblocks any future doctest enforcement.
@@ -21,6 +23,7 @@ Workspace: 16 crates, fraiseql-* + fraiseql umbrella
 - **F036** — was 🟡 M / M (Box<dyn ToSql> per param), **upgraded to 🟠 H / M**. Previously hedged "matching tokio-postgres lifetime rules". Industrial answer: lifetime rules are a one-time engineering cost and the trait is stable in tokio-postgres 0.7. Allocations on the hot path are uncapped under load.
 
 ### New findings (F049+)
+
 - **F049** — `FraiseQLError::{Auth, Webhook, Observer}` boxed-payload variants drop the `Error::source()` chain.
 - **F050** — `FraiseQLError::Storage` and `FraiseQLError::File` carve the file domain across two variants with divergent HTTP codes.
 - **F051** — `FraiseQLError::Storage` variant has no documented owner after the file/storage split.
@@ -30,6 +33,7 @@ Workspace: 16 crates, fraiseql-* + fraiseql umbrella
 - **F055** — `IntoResponse for FraiseQLError` exhaustive match on `#[non_exhaustive]` enum will silently break on next variant add.
 
 ### Closed without action (no longer applicable / wrong)
+
 - **F026** — `async_trait` removal audit. Q2 policy locked this. Round-2 will not re-flag traits for `async_trait` removal.
 
 ---
@@ -37,12 +41,14 @@ Workspace: 16 crates, fraiseql-* + fraiseql umbrella
 
 
 ## Severity
+
 🔴 Critical — correctness bug, data loss, security, or unbounded resource use
 🟠 High    — measurable perf/ergo win, or risk of regression
 🟡 Medium  — technical debt, future-trap, ergonomic friction
 🟢 Low     — nit, style polish, doc gap
 
 ## Effort
+
 XS  (< 30 min)
 S   (1–2 hours)
 M   (half day to one day)
@@ -77,6 +83,7 @@ XL  (> one week)
 ### Performance
 
 #### F001 — Validator and matcher both parse the query
+
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** Eliminates one `graphql_parser::parse_query` call per request (the parser allocates `Vec<Definition<String>>` and many small Strings for every keyword and identifier).
@@ -89,6 +96,7 @@ XL  (> one week)
 - **Status:** Closed in b94abc592 — `RequestValidator::validate_query_doc(&Document<'_, String>)` accepts the pre-parsed AST and `parse_graphql_document(&str)` exposes the underlying parse. The HTTP handler now parses once at the validator boundary and feeds the same `Document` into `validate_query_doc`. Threading the AST through `Executor::execute` (the matcher's parse) is left as a follow-up.
 
 #### F002 — Response cache hit deep-clones the cached value
+
 - **Severity:** 🟠 High
 - **Effort:** XS
 - **Impact:** A response cache hit currently dereferences `Arc<Value>` and deep-clones the entire JSON tree — defeating the point of storing the response as an `Arc`. For a 50 KB GraphQL response, a single hit allocates ~50 KB.
@@ -101,6 +109,7 @@ XL  (> one week)
 - **Status:** Closed in 15fd10a48 — applied the minimum-effort signature-preserving variant: `Arc::unwrap_or_clone(cached)` on the cache-hit return path and `Arc::new(response)` + `Arc::clone(&cached)` for the put + return on the cache-miss path. The wider signature change (return `Arc<Value>` end-to-end) was deferred — the `execute_with_security` trait method has 3 impls across fraiseql-arrow and fraiseql-server; routing the Arc through them is a follow-up.
 
 #### F003 — Dynamic validators recompile `Regex` per request
+
 - **Status:** Closed in dd4393d06 — `ValidationRule::Pattern { pattern: String, .. }` is now `ValidationRule::Pattern { pattern: CompiledPattern, .. }` where `CompiledPattern` owns a pre-compiled `Regex` plus the original source string for serde round-trip. Compilation happens once at construction (or at `schema.compiled.json` deserialisation); the three hot-path sites (`runtime/input_validator.rs`, `validation/composite.rs`, `validation/custom_type_registry::validate_pattern`) reuse the compiled `Regex` directly. Invalid patterns now surface at schema load instead of degrading silently per request.
 - **Severity:** 🟠 High
 - **Effort:** S
@@ -113,6 +122,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F004 — `compute_response_cache_key` allocates a String per argument
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** For a mutation with N variables, N temporary `String`s are allocated to feed the hasher. On a hot path this is unnecessary.
@@ -124,6 +134,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F005 — `extract_arguments` clones every variable
+
 - **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Every GraphQL request with variables incurs `HashMap::insert(k.clone(), v.clone())` over the entire variables map. For a mutation with a 100 KB JSON input the clone walks the whole tree.
@@ -136,6 +147,7 @@ XL  (> one week)
 - **Status:** Closed in 38c6e705b together with F024 — the matcher used to build the variables map twice (once for directive evaluation, once for `QueryMatch::arguments`). Folded into a single `variables_to_map` conversion that is borrowed by the directive evaluator and then moved onto `QueryMatch.arguments`. The wider "make `QueryMatch` borrow its arguments" change was deferred — the executor's downstream call chain would need a `'a` lifetime in every signature; not necessary to deliver the F005/F024 win.
 
 #### F009 — `MetricsCollector` redundantly wraps every counter in `Arc`
+
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** ~30 individual `Arc<AtomicU64>` fields means the struct is ~30 cache lines wide instead of ~3. Construction performs 30 atomic ref-count bumps. The Arc indirection is pointless since `MetricsCollector` is itself stored behind `Arc` everywhere it is used.
@@ -148,6 +160,7 @@ XL  (> one week)
 - **Status:** Closed in f5ddaa59e — 28 atomic counter fields switched from `Arc<AtomicU64>` to bare `AtomicU64`. `MetricsCollector` no longer derives `Clone` (atomics aren't `Clone`); the production wiring already wraps in `Arc<MetricsCollector>` so the only test affected (`metrics_collector_clone_shares_state`) was rewritten as `metrics_collector_arc_shares_state`. The histograms and `OperationMetricsRegistry` keep their `Arc` wrappers (genuinely shared with export endpoints). Sub-struct regrouping (`GraphqlMetrics`/`FederationMetrics`/`HttpMetrics`) deferred — would touch too many call sites for a single PR.
 
 #### F037 — Cache write allocates a `String` per view and per index key
+
 - **Status:** Closed in 4bf9a58b1 — folded into the F028 commit. By migrating cache internal storage to `Box<[ViewName]>` and indexes to `DashMap<ViewName, …>`, each view name is now promoted from `String` to `ViewName(Arc<str>)` exactly once at the `put`/`put_arc` boundary; that same `Arc<str>` is then shared by the view_index insert, the list_index insert (when applicable), and the cached entry's `accessed_views` slice. Previously each cache write allocated `1 + views.len()` `String`s on the index hot path (one per `view_index.entry(view.clone())` plus the `accessed_views.into_boxed_slice()`); the new path allocates one `Arc<str>` per distinct view name and reuses it for every subsequent reference. The full `ViewInterner` approach (cross-request deduplication via a `DashMap<&'static str, Arc<str>>`) was not built — it would deduplicate the per-request `Arc::from(view_str)` allocation but adds an extra hash + map lookup; without a bench it isn't clear it's faster. `View interner` follow-up only if a DHAT bench shows the per-request `Arc::from(view_str)` is a measurable fraction of cache-write cost.
 - **Severity:** 🟡 Medium
 - **Effort:** L
@@ -160,6 +173,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F042 — `ParsedQuery.source: String` clones the query body
+
 - **Status:** Closed in bab30d351 — `ParsedQuery.source: String` → `Arc<str>`. The construction-time allocation cost is unchanged (`Arc::from(&str)` is one alloc, same as `source.to_string()`), but `ParsedQuery::clone()` — which fires through `Arc<(QueryType, Option<ParsedQuery>)>` in the parse cache and during fragment/directive resolution that clones nested `FieldSelection`s — now drops the deep string copy in favour of an atomic ref-count bump. Audit confirmed the field has exactly one in-tree reader (the `prop_parser_preserves_source` property test); no production code path reads it for caching, error formatting, or display. Custom serde `serialize_with`/`deserialize_with` pair keeps the wire form as a plain JSON string — same trick `ViewName` uses to avoid bumping workspace `serde` to need the `rc` feature. Distinct from F039 (won't-fix-without-bench): F039 needed workspace-wide lifetime threading or a self-referential helper crate; F042 was a mechanical type swap with no signature ripple.
 - **Severity:** 🟡 Medium
 - **Effort:** L
@@ -172,6 +186,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F011 — Arrow Flight `stream::iter(vec![...])` discards backpressure
+
 - **Severity:** 🟡 Medium
 - **Effort:** M
 - **Impact:** Arrow Flight responses materialise the full message list in a `Vec` before wrapping it in `stream::iter` — peak memory equals full response size, no chance for streaming pressure.
@@ -184,6 +199,7 @@ XL  (> one week)
 - **Status:** Closed in 0077a3eb1 — introduced `spawn_flight_data_stream` helper that wires a producer closure to a bounded `mpsc::channel(4)` + `tokio_stream::wrappers::ReceiverStream`. Converted the 4 multi-batch sites (528, 731, 869, 1069) to defer per-batch encoding (`record_batch_to_flight_data` / `BulkExporter::export_batch`) into the producer task; the consumer's `poll_next` exerts backpressure via the bounded channel. The 5 single-element sites (action handlers + observer events) stay on `stream::iter(vec![one])` — no backpressure to gain. Two new tests in `backpressure_tests`: `producer_parks_when_channel_buffer_full` asserts the producer runs ahead by ≤ `BUFFER + 1` (one in-flight `send().await`) when the consumer is idle; `producer_exits_when_consumer_drops` asserts the producer task terminates when the stream is dropped mid-iteration. Eager database query + Arrow conversion (upstream of the channel) is unchanged — addressing those requires a streaming converter (separate work).
 
 #### F019 — `parking_lot::Mutex` would replace tokio `Mutex` for sync critical sections
+
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** `tokio::sync::Mutex` is ~10× slower than `parking_lot::Mutex` for short critical sections that never await. The APQ in-memory storage holds the lock only for a `HashMap::insert/get`.
@@ -198,6 +214,7 @@ XL  (> one week)
 ### Correctness
 
 #### F006 — `KeyedRateLimiter` serialises every auth request through one mutex
+
 - **Status:** Closed in c5c946fb3 — `KeyedRateLimiter` switched to `Arc<DashMap<String, RequestRecord>>`. The hot path uses `DashMap::entry()` so the read-modify-write of a `RequestRecord` for a given key remains atomic per shard, while distinct keys never contend. Periodic sweep and capacity eviction run outside any per-key lock and are now documented as best-effort. Poison-recovery code path removed.
 - **Severity:** 🟠 High
 - **Effort:** S
@@ -210,6 +227,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F008 — In-memory rate-limit buckets use tokio `RwLock<HashMap>` on every request
+
 - **Status:** Closed in 6f79c711e — all four `Arc<RwLock<HashMap<…, TokenBucket>>>` fields in `InMemoryRateLimiter` (`ip_buckets`, `user_buckets`, `path_ip_buckets`, `tenant_buckets`) switched to `Arc<DashMap<…, TokenBucket>>`. The four `check_*` paths use `DashMap::entry()` for per-key atomicity over `try_consume + token_count` and a best-effort capacity check via `contains_key + len`. No inner `parking_lot::Mutex<TokenBucket>` introduced — DashMap's `entry()` already provides per-key exclusive access. `check_*` methods kept their `async fn` signatures so the dispatch enum (in-memory + Redis variants) stays uniform.
 - **Severity:** 🟠 High
 - **Effort:** M
@@ -222,6 +240,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F013 — Federation `ConnectionManager` `Mutex<HashMap>` with `.unwrap_or_else(|e| e.into_inner())`
+
 - **Status:** Closed in 3cda8124f — `ConnectionManager::adapters` switched from `Arc<Mutex<HashMap<String, ArcDatabaseAdapter>>>` to `Arc<DashMap<…>>`. The three `.lock().unwrap_or_else(|e| e.into_inner())` sites are gone (DashMap has no poisoning). Cache-hit path uses a `dashmap::Ref` borrow; close/clear/count all drop their explicit lock guards.
 - **Severity:** 🟡 Medium
 - **Effort:** XS
@@ -234,6 +253,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F014 — `job_queue::executor::execute_batch` silently drops join outcomes
+
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** When a job task panics or returns an error, the outcome is discarded. Failures are invisible to the worker loop and to metrics.
@@ -246,6 +266,7 @@ XL  (> one week)
 - **Status:** Closed in d1c89be6e — extracted `handle_join_outcome` helper that logs panics at `error!` (with `worker` and `error` fields) and cancellations at `warn!`. When the `metrics` feature is enabled, panics increment the prometheus `fraiseql_observer_job_failed_total{error="panic"}` counter (existing `job_failed` API; no new metric field). Unit test for the panic path deferred — would require constructing a fake `JobExecutor` with sufficient scaffolding to drive a panicking task; the change is purely additive observability per the original finding.
 
 #### F023 — `validate_query`'s "skip-if-all-disabled" branch is the wrong shape
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** Misconfiguration where one of the three checks is silently enabled (e.g., `max_aliases_per_query = 1`) but the others are disabled still incurs the full parse. The comment says it's intentional, but reading the boolean logic again shows the parse runs *unless* all three checks are disabled — fine, but the comment swaps "depth and complexity off" semantics in a confusing way.
@@ -257,6 +278,7 @@ XL  (> one week)
 - **Status:** Closed in cf3a24c2e — extracted `ComplexityValidator::is_no_op() -> bool` const helper. Its doc-comment matches the truth-table (alias-amplification *is* gated, not always-on). `validate_query`'s no-op branch is now `if self.is_no_op() { return Ok(()) }`.
 
 #### F024 — `extract_arguments` clones variables, then `build_variables_map` clones them again
+
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** Double-clone of every variable per request.
@@ -270,6 +292,7 @@ XL  (> one week)
 ### API design
 
 #### F018 — `Box<dyn Fn() -> u64 + Send + Sync>` clock in `KeyedRateLimiter` blocks `Clone`
+
 - **Status:** Closed in 3dca6bd67 — `KeyedRateLimiter<C: Clock = SystemClock>` is now generic over a new `Clock` trait. `SystemClock` is a zero-sized type holding the existing fail-closed `SystemTime::now()` semantics; a blanket impl on `F: Fn() -> u64 + Send + Sync` keeps test ergonomics so closures and `fn` pointers (like `|| u64::MAX`) work unchanged through `with_clock`. The limiter is `Clone` whenever `C: Clone` (which `SystemClock` is via `Copy`) — verified by a new regression test in `tests/rate_limiter_time_tests.rs`.
 - **Severity:** 🟠 High
 - **Effort:** S
@@ -281,6 +304,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F020 — `extract_root_field_names` returns `Vec<&str>` for callers that immediately iterate
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** Minor; one allocation removed per call.
@@ -292,6 +316,7 @@ XL  (> one week)
 - **Status:** Closed in dffa25762 — signature changed to `impl Iterator<Item = &str> + '_`. The only non-test callers (the function is re-exported in `runtime/mod.rs` but only test files reference it by name across `crates/`) were the two assertions in `executor/support/tests.rs`, which now `.collect()` into a `Vec` explicitly. Breaking change marked with `!` in the commit.
 
 #### F036 — `to_sql_param` returns `Box<dyn ToSql + Sync + Send>` per parameter
+
 - **Status:** Closed in c9b599e15 — the `to_sql_param` helper was dead code: every hot-path call site already used the borrowing pattern `.iter().map(|p| p as &(dyn ToSql + Sync)).collect()` (PR notes called this out as "already shifted"). Deleted the helper and added `as_sql_param_refs(&[QueryParam]) -> Vec<&(dyn ToSql + Sync)>` to centralise the repeated boilerplate. `QueryParam` already implemented `ToSql` so no per-parameter heap allocation remains on the query path.
 - **Severity:** 🟠 High
 - **Effort:** M
@@ -306,6 +331,7 @@ XL  (> one week)
 ### Error handling
 
 #### F016 — `FraiseQLError` doctest references non-existent variants
+
 - **Severity:** 🟠 High (re-prioritised — see round-2 update)
 - **Effort:** XS
 - **Impact:** A documented compile_fail example references `FraiseQLError::RateLimitExceeded`, `::Forbidden`, `::FieldExclusion`, `::TypeMismatch` — none of which exist in the enum (which has 22 variants ending at `Internal`). The compile_fail attribute hides the broken doc. **Round-2 update**: the refactor added 4 *real* variants (`Auth`, `Webhook`, `Observer`, `File`) to the same match arm without fixing the dead siblings — the doctest now has 4 valid arms and 4 invalid arms intermixed.
@@ -317,6 +343,7 @@ XL  (> one week)
 - **Status:** Closed in bc9df7dc2 — doctest rewritten to enumerate only 3 real variants (`Parse`, `Validation`, `Database`) with an explanatory comment about `#[non_exhaustive]`. All 4 fictional references removed.
 
 #### F017 — `RuntimeError` and `FraiseQLError` overlap on RateLimited / NotFound / Internal / ServiceUnavailable
+
 - **Severity:** 🟡 Medium
 - **Effort:** L
 - **Impact:** Two error hierarchies cover the same conceptual domain. Conversions between them are repeated formatting passes that often drop the underlying `#[source]`.
@@ -329,6 +356,7 @@ XL  (> one week)
 - **Status:** Closed — fixed in 230d4d238..788320393 (7 commits on `feat/error-taxonomy-consolidation`). `RuntimeError` deleted; `FraiseQLError::{Auth, Webhook, Observer, File}` added with subsystem-owned `From` impls. Follow-up issues from the new shape are tracked as F049, F050, F051, F052, F054, F055.
 
 #### F025 — Federation HTTP errors format the source into the message and drop the chain
+
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** When the federation HTTP resolver fails, the error returned is `FraiseQLError::Internal { message: format!("HTTP resolution failed after {} attempts: {}", attempts, last_error), source: None }`. The original `reqwest::Error` (with HTTP status, URL, redirect history) is lost.
@@ -342,6 +370,7 @@ XL  (> one week)
 ### Async patterns
 
 #### F021 — `tokio::spawn` fire-and-forget without `JoinHandle` tracking in lifecycle paths
+
 - **Status:** Closed in 19bfd826c — added `tasks: tokio::task::JoinSet<()>` to `Server<A>`. Threaded a `&mut JoinSet<()>` through `trusted_docs_from_schema`/`spawn_trusted_docs_reload` and extracted a shared `spawn_pkce_cleanup` helper used by both constructor paths. `serve_with_shutdown` adds the SIGUSR1 handler, usage-persistence flush, and Arrow Flight gRPC server spawns onto the same set; after `axum::serve` returns a module-level `drain_lifecycle_tasks` aborts and awaits every task under the configured shutdown timeout. Per-request spawns (subscription event handlers, request middleware) are NOT migrated — they are not lifecycle tasks. New regression tests in `server/tests.rs` exercise the abort+drain path.
 - **Severity:** 🟠 High
 - **Effort:** M
@@ -354,6 +383,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F026 — `async_trait` baseline at 180 is high; several traits could now use return-position `impl Trait`
+
 - **Status:** Closed without action — Q2 policy froze the `async_trait` baseline at 180; pre-existing decision is "wait for RTN-in-`dyn` (RFC 3425) stabilisation". Do not re-flag.
 - **Severity:** 🟢 Low
 - **Effort:** L
@@ -367,6 +397,7 @@ XL  (> one week)
 ### Memory / concurrency
 
 #### F007 — `TrustedDocumentStore` resolves on the request hot path under tokio RwLock
+
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** Every request with a document ID acquires `tokio::sync::RwLock` read and then clones the entire query body (`docs.get(hash).cloned()`). Hot-reload is the only writer.
@@ -379,6 +410,7 @@ XL  (> one week)
 - **Status:** Closed in 4b3e542b3 — `documents` switched to `Arc<DashMap<String, String>>`. The resolve critical section is purely synchronous, so `resolve`, `document_count`, and `replace_documents` dropped their `async fn` signatures entirely (no `.await` suspend point on the hot path). The `Arc<str>` zero-copy optimisation deferred — not necessary to unblock the lock-free goal and would have rippled into `handler.rs` value assignment. 9 unit tests converted from `#[tokio::test] async fn` to `#[test] fn`; production callers in `handler.rs:318` and `initialization.rs:415` dropped their `.await`.
 
 #### F010 — `AuthRequest` derives `Debug` and stores raw `Authorization` header
+
 - **Severity:** 🔴 Critical
 - **Effort:** XS
 - **Impact:** A `tracing::debug!(?req, ...)` anywhere on the auth path would log the bearer token to structured logs.
@@ -391,6 +423,7 @@ XL  (> one week)
 - **Status:** Closed in 1dbf83119 — `derive(Debug)` removed, manual impl emits `Some("<redacted>")`/`None`, regression tests added in `auth_middleware/tests.rs` (`test_auth_request_debug_redacts_bearer_token`, `test_auth_request_debug_with_no_header_shows_none`).
 
 #### F012 — `Secret::Drop` does not zeroize
+
 - **Severity:** 🟠 High
 - **Effort:** XS
 - **Impact:** The `Secret` wrapper redacts Debug/Display but the underlying `String` is freed without scrubbing. Memory-dump or use-after-free reads can recover the plaintext.
@@ -403,6 +436,7 @@ XL  (> one week)
 - **Status:** Closed in eda6db593 — `Drop` impl added using safe `mem::take + into_bytes + Zeroize` pattern (preserves `#![forbid(unsafe_code)]`). `into_exposed` adapted to use `mem::take` to coexist with the Drop. 4 regression tests added covering normal, empty, post-clone, and into_exposed paths.
 
 #### F027 — `OnceLock<Regex>` wrapped in `fn ` instead of `static LazyLock<Regex>`
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** Minor consistency — the rest of the codebase uses `LazyLock<Regex>` (see `validation/rich_scalars.rs:13`). One outlier uses the older `fn uuid_regex() -> &'static Regex { static REGEX: OnceLock<Regex>; ... }` shape.
@@ -415,6 +449,7 @@ XL  (> one week)
 ### Type system / generics
 
 #### F028 — Newtype `ViewName(Arc<str>)` would prevent String/&str confusion at view-name boundaries
+
 - **Status:** Closed (full) in e760033ce — Wave 8 completed the public-API propagation that Wave 7 deferred. `DatabaseAdapter::{invalidate_views, invalidate_list_queries}` trait methods, `QueryResultCache::{invalidate_views, invalidate_list_queries}`, `ResponseCache::invalidate_views`, and `CachedDatabaseAdapter::{invalidate_views, invalidate_list_queries}` all now take `&[ViewName]`. The cascade-invalidator path still walks `&str` (cascade config is keyed by raw view name); promoted in/out at the boundary. Re-exported `ViewName` from `fraiseql_core::cache` so consumers can `use fraiseql_core::cache::{QueryResultCache, ViewName}` without pulling in `fraiseql-db` directly. Production call site in `runtime/executor/runners/mutation/mod.rs` now builds `Vec<ViewName>` once from the mutation definition's `invalidates_views` list and borrows the same slice across the adapter and response-cache invalidation calls. Wave 7 stage at 4bf9a58b1: `ViewName(Arc<str>)` newtype landed in `fraiseql-db` (`crates/fraiseql-db/src/view_name.rs`, 8 unit tests covering construction, `Borrow<str>` lookup, serde round-trip, atomic-refcount sharing). Migrated cache internal storage to it: `CachedResult::accessed_views: Box<[ViewName]>`, `QueryResultCache::view_index/list_index: DashMap<ViewName, …>`, plus the equivalent fields on `ResponseCache`. `Borrow<str>` on `ViewName` keeps `DashMap::get(&str)` working without allocating a fresh wrapper. Hand-written serde `Serialize`/`Deserialize` impls avoid bumping the workspace `serde` declaration to need the `rc` feature.
 - **Severity:** 🟡 Medium
 - **Effort:** L
@@ -426,6 +461,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F029 — `JsonbValue` re-export blurs which side owns the JSON
+
 - **Severity:** 🟢 Low
 - **Effort:** S
 - **Impact:** `JsonbValue` is the adapter-row return type but is also used as the projection input. Whether the projector borrows or owns is unclear from the signature `&[JsonbValue]`.
@@ -439,6 +475,7 @@ XL  (> one week)
 ### Testing
 
 #### F030 — No fuzz target for the JSON validate path used in incoming variables
+
 - **Severity:** 🟡 Medium
 - **Effort:** M
 - **Impact:** `crates/fraiseql-wire/src/json/validate/` has tests but no `cargo fuzz` target. Variables JSON crosses the security boundary on every request; structured fuzzing finds nesting/encoding edge cases that proptest misses.
@@ -449,6 +486,7 @@ XL  (> one week)
 - **Status:** Closed in 2763ca296 — landed `crates/fraiseql-wire/fuzz/fuzz_targets/json_validate.rs` driving `fraiseql_wire::stream::parse_json`. (Round-1 finding pointed at `wire::json::validate`, but that module validates the Postgres `RowDescription` schema — it doesn't touch JSON bytes. The actual JSON parse path for JSONB rows coming off the wire is `stream::parse_json`, which calls `serde_json::from_slice` and is what every variable / row payload eventually traverses.) Target compiles under the existing libfuzzer-sys infra alongside `protocol_decode` and `scram_parse`. Running the fuzzer is a separate effort — the landing is the "wire it in" part.
 
 #### F031 — Property tests cover schema and cache but not the runtime executor flow
+
 - **Status:** Closed (partial) in fcee0374b — added `tests/property/property_executor.rs` with 9 property tests covering the no-DB executor entry points: `parse_query` (never-panics, deterministic), `QueryMatcher::match_query` (never-panics, unknown-root returns Validation, known-root routes to the right `QueryDefinition`, variables threaded onto `arguments` exactly, deterministic across repeated calls), `extract_root_field_names` (count matches selections, alias overrides field name). Workspace already had `proptest = "1.4"` so no new dep was added. Out of scope: the full `Executor::execute` end-to-end pipeline needs a Postgres adapter (testcontainer bootstrap too slow for proptest's case count) or a comprehensive mock adapter (multi-day investment); the 9 tests hit every public no-DB executor entry point but the DB-bound surface stays uncovered. Logged as a Wave 9 candidate in FOLLOW_UPS.md if a future maniac wants to invest in a behaviour-equivalent mock adapter.
 - **Severity:** 🟡 Medium
 - **Effort:** L
@@ -461,6 +499,7 @@ XL  (> one week)
 ### Documentation
 
 #### F032 — Crate-level READMEs missing on most crates
+
 - **Status:** Closed in 7fd709d97..9cb46eccf — landed in 4 commits. 13 of 16 crates already had a README but did NOT declare `readme = "README.md"` in `[package]`, so crates.io / docs.rs never picked them up; commits `494bf086a` / `d69d1fdbc` / `9cb46eccf` wire them in (12 crates touched; `fraiseql-wire` already had the field). Commit `7fd709d97` adds the three missing READMEs: `fraiseql-functions` (serverless runtime, WASM+Deno backends — also got the missing `description` field added), `fraiseql-storage` (object storage abstraction), and `fraiseql-test-utils` (the only `publish = false` crate, README spells out the "internal — not intended for direct use" intent). Style mirrors the existing READMEs (one-sentence description, 2-paragraph overview, features list, minimal usage block, doc/repo/license links). Verified via `cargo package --list -p fraiseql-error` (sample) — README.md is now in the published artifact.
 - **Severity:** 🟠 High
 - **Effort:** M
@@ -473,6 +512,7 @@ XL  (> one week)
 ### Dependencies
 
 #### F015 — `redis = "1"` duplicated across 4 crates instead of `[workspace.dependencies]`
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** Future Redis version bumps require touching four Cargo.toml files. Feature-flag drift is the actual risk (auth pulls `connection-manager`, observers may not, etc. — verified each currently lists "aio, tokio-comp, connection-manager" but nothing enforces it).
@@ -483,6 +523,7 @@ XL  (> one week)
 - **Status:** Closed in 8278defdc — added workspace declaration, switched all 4 consumers to `redis = { workspace = true, optional = true }`. All 4 used identical features so no per-crate override needed.
 
 #### F033 — `chrono`, `dashmap`, `uuid`, `url`, `axum` declared as raw deps in many crates
+
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** Same as F015. `chrono` declared 11 times, `dashmap = "6.1"` declared 4 times outside the workspace block. `dashmap = "6.0"` is in `[workspace.dependencies]` but per-crate overrides pin to `"6.1"` — actual version skew exists right now (resolver picks 6.1).
@@ -493,6 +534,7 @@ XL  (> one week)
 - **Status:** Closed in a0e37c15d — bumped workspace `dashmap` 6.0 → 6.1, added `url = "2"` to workspace, switched all per-crate decls of `chrono`, `dashmap`, `uuid`, `url` to `workspace = true`. `axum` was already using `workspace = true` everywhere (the finding was outdated on that one). No per-crate `features = [...]` overrides were needed: workspace `uuid` declares `["v4", "serde"]` which is a superset of every per-crate usage; `chrono` workspace declares `["serde"]` which matches every per-crate usage; `dashmap`/`url` declare no extra features.
 
 #### F034 — `fraiseql-functions` `reqwest` declaration drops `rustls-tls` workspace settings
+
 - **Severity:** 🟠 High
 - **Effort:** XS
 - **Impact:** Workspace `reqwest` is `default-features = false, features = ["json", "rustls-tls"]`. The functions crate declares `reqwest = { version = "0.12", optional = true }` — falls back to default features which pull in `native-tls`/OpenSSL on Linux. Defeats the workspace's explicit rustls-only policy.
@@ -506,6 +548,7 @@ XL  (> one week)
 ### Build & tooling
 
 #### F022 — `mold` linker block commented out in `.cargo/config.toml`
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** 3-5× faster local link times. The block is already in place, just commented out.
@@ -517,6 +560,7 @@ XL  (> one week)
 - **Status:** Closed in 598231ae4 — added `.cargo/config.linker.example.toml` template documenting the opt-in. The block in `.cargo/config.toml` stays commented to preserve CI compatibility (the inline comment block now lists `pacman -S mold` / `apt install mold` and points at the example file). Mold is installed locally but uncommenting in the committed config would break GitHub Actions.
 
 #### F035 — No `cargo ci` alias for the standard lint+test combo
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** Reduces "what do I run before pushing" friction.
@@ -529,6 +573,7 @@ XL  (> one week)
 ### Database / SQL codegen
 
 #### F038 — `build_where_select_sql_ordered` rebuilds the SQL string per request
+
 - **Status:** **Open — won't fix without bench evidence.** Round-2 analysis (Wave 7): the SQL string built by `build_where_select_sql_ordered` is dominated by the `PostgresWhereGenerator::generate(clause)` call, which already produces a parameterised string keyed on the WHERE clause structure. The non-WHERE work is one `format!("SELECT data FROM {view}")`, one `push_str(" WHERE ")`, one `push_str(where_sql)`, the `append_order_by` call, and two `write!(sql, " LIMIT $N")` / `OFFSET $N` calls — all microsecond-class string ops. A shape cache `DashMap<(ViewName, WhereShapeHash, OrderShape, has_limit, has_offset), Arc<str>>` would have to (a) compute a structural hash of the entire `WhereClause` tree on every query (since the parameter numbering `$1..$N` is determined by the recursive walk through AND/OR/NOT/Field), and (b) take a DashMap lock-free read on every query. Without a measured baseline showing that the current per-request SQL build is a meaningful fraction of `execute_with_projection_arc`'s latency, we cannot say the cache lookup overhead is smaller than what it replaces. Reopen only with a DHAT or criterion bench showing per-request String allocation here is >5% of the end-to-end query cost. Existing `fraiseql-db/benches/sql_generation_bench.rs` already covers the WHERE generator path and could be extended for measurement, but doing so without a hypothesis is premature optimisation under the industrial framing.
 - **Severity:** 🟡 Medium
 - **Effort:** L
@@ -541,6 +586,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F043 — `execute_with_projection_arc` trait method is called from multiple paths but signature is wide
+
 - **Severity:** 🟢 Low
 - **Effort:** S
 - **Impact:** 7 positional arguments. Easy to mis-order.
@@ -553,6 +599,7 @@ XL  (> one week)
 ### GraphQL / wire protocol
 
 #### F039 — `graphql_parser::parse_query::<String>` allocates strings for every identifier
+
 - **Severity:** 🟡 Medium
 - **Effort:** M
 - **Impact:** `parse_query::<String>` requests owned strings from the parser. Using `parse_query::<&str>` would let the AST borrow from the query bytes — substantially fewer allocations.
@@ -567,6 +614,7 @@ XL  (> one week)
 ### Observability
 
 #### F040 — `tracing` spans missing on the cache hit/miss path
+
 - **Severity:** 🟢 Low
 - **Effort:** S
 - **Impact:** Operators cannot tell from logs whether a slow request was caused by a cache miss or by DB latency.
@@ -577,6 +625,7 @@ XL  (> one week)
 - **Status:** Closed in ec9015e26 — `debug!` events emit on the lookup path with structured fields `event` (`hit`/`miss`/`disabled`), `query`, `query_key`, `sec_hash`. Target `fraiseql::cache::response` so operators can isolate them in tracing filters. Miss event fires before the plan/projection work so it timestamps the start of the slow path.
 
 #### F041 — `info!` log per query execution may be excessive
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** Every successful GraphQL request emits an `info!("Executing GraphQL query", ...)` event. At 1 000 RPS with default INFO log level, this is the noisy floor of the logs.
@@ -589,9 +638,10 @@ XL  (> one week)
 
 ### Security
 
-#### F010, F012 covered above.
+#### F010, F012 covered above
 
 #### F044 — `serde_json::to_string(...).unwrap_or_default()` on response-cache key derivation
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** `unwrap_or_default()` substitutes empty string on serialization error, silently producing a different cache key than intended. In theory two distinct argument trees could hash to the same key after one fails to serialize.
@@ -605,6 +655,7 @@ XL  (> one week)
 ### FraiseQL-specific (compiler, cache, federation, observers, functions)
 
 #### F045 — Per-trigger `AuthCallbackResponse`/`AuthRefreshResponse` derives `Debug` with token fields
+
 - **Severity:** 🟠 High
 - **Effort:** XS
 - **Impact:** Same shape as F010 — a stray `?response` log leaks the access/refresh token.
@@ -615,6 +666,7 @@ XL  (> one week)
 - **Status:** Partially closed in 47c478768 — `AuthCallbackResponse` and `AuthRefreshResponse` now have manual `Debug` impls redacting token fields, with 3 regression tests in `handlers::debug_redaction_tests`. **AuthLogoutRequest left for follow-up**: the original finding listed it but the Wave-1 scope (per task instructions) was the two response types only; the request type's `refresh_token: Option<String>` has the same shape and should be covered in a follow-up (tracked separately as the same class of fix). See also `AuthRefreshRequest` at `handlers.rs:122-127` which also derives Debug with a refresh_token field.
 
 #### F046 — Federation `ConnectionManager` `Mutex<HashMap>` is uncached if `unstable` is off
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** `get_or_create_connection` is `#[cfg(feature = "unstable")]`. The `adapters` field exists unconditionally; without the feature, the lock is held only by `close_connection` — dead code in stable builds.
@@ -625,6 +677,7 @@ XL  (> one week)
 - **Status:** Closed in 808b7cf47 — documentation fix. `get_or_create_connection` (the only writer) is genuinely WIP — it currently returns `FraiseQLError::Internal` with an "unstable API" message — so the gate is intentional. Added a "Feature gating" rustdoc section on `ConnectionManager` and a mirrored field comment explaining that the read-only surface (`new`, `close_connection`, `close_all`, `connection_count`) is kept ungated so downstream code can wire the manager into its own types without the `unstable` flag. No code change needed.
 
 #### F047 — Cron scheduler logs swallow the wasm task result
+
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** A cron task that panics or errors inside the wasm runtime emits nothing visible at the scheduler level.
@@ -636,6 +689,7 @@ XL  (> one week)
 - **Status:** Closed in 7f99fe498 (+ clippy follow-up f47445b3d). Cron-task error log now adds `error.debug` (full `Debug`) and `error.chain` (concatenated `std::error::Error::source()` walk) fields alongside the existing `error` (top-level `Display`). Added `error_source_chain` helper that joins causes with ` → `, falls back to `<no source>`. (The finding's claim that errors were entirely swallowed was off — the top-level Display *was* logged; the chain was not.)
 
 #### F048 — `entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>` is double-locked
+
 - **Status:** Closed in 1ebae1f61 — `entity_type_index` switched to `Arc<DashMap<(String, String), Vec<i64>>>`. Inner `Vec<i64>` kept as plain `Vec` (no `parking_lot::Mutex`) because call-site audit (`rg "entity_type_index" crates/`) confirmed the only writers republish the whole map via `clear` + per-key `insert` in `start` and `reload_observers`; there is no per-key concurrent mutation. The two background-task reader paths drop the outer `RwLock::read().await` and call `.get(...).map(|r| r.value().clone())` directly.
 - **Severity:** 🟡 Medium
 - **Effort:** S
@@ -654,6 +708,7 @@ XL  (> one week)
 ### Error handling (post-refactor)
 
 #### F049 — `FraiseQLError::{Auth, Webhook, Observer}` boxed payloads drop `Error::source()` chain
+
 - **Severity:** 🟠 High
 - **Effort:** XS
 - **Impact:** `tracing`, `anyhow::backtrace()`, `miette` and any other chain-walker calling `err.source()` on a `FraiseQLError::Auth(box)` value returns `None` instead of the underlying `fraiseql_auth::AuthError`. The subsystem-error chain (which may include a `reqwest::Error`, `jsonwebtoken::Error`, etc.) is **invisible** to structured logging — only the top-level `"Auth error: …"` Display string remains. The doc comment on the variant promises "preserves subsystem vocabulary via Display/source chain" — Display works; source does not.
@@ -666,10 +721,11 @@ XL  (> one week)
 - **Status:** Closed in bc0ed8e25 — `#[source]` added to `Auth`, `Webhook`, `Observer` tuple payloads; 3 regression tests added in `tests/http_responses.rs` (`auth_variant_preserves_source_chain`, `webhook_variant_preserves_source_chain`, `observer_variant_preserves_source_chain`). The Auth variant also gained the downcast_ref recovery-pattern rustdoc that closes F052.
 
 #### F050 — `FraiseQLError::Storage` and `FraiseQLError::File` carve the file domain across two variants with divergent HTTP codes
+
 - **Severity:** 🟠 High
 - **Effort:** S — revised to **M** after audit found 118 sites, not 60.
 - **Impact:** Storage operations in the `fraiseql-storage` crate produce `FraiseQLError::Storage` (HTTP 500, "storage_error"). Storage operations in `fraiseql-server/src/storage/*` produce `FileError::Storage` → `FraiseQLError::File` (HTTP 400, "file_error"). Identical-named-but-distinct enums (`FraiseQLError::Storage` vs `FileError::Storage`) and identical-conceptual-domain split across two `FraiseQLError` variants. A frontend cannot distinguish "user uploaded a file that failed validation" from "the backend tried to download a managed file and the bucket was unreachable" without backend-internal knowledge of which crate owns the call.
-- **Location:** 
+- **Location:**
   - `FraiseQLError::Storage` definition: `crates/fraiseql-error/src/core_error.rs:234-241`
   - HTTP code mapping: `crates/fraiseql-error/src/core_error.rs:465 (500)` vs `:455 (400 for File)`
   - HTTP shape: `crates/fraiseql-error/src/http.rs:132-134` ("storage_error") vs `:120 file_error_response`
@@ -686,6 +742,7 @@ XL  (> one week)
 - **Status:** Closed in 4c86d2e0d..cedf7d927 (7 commits on `feat/error-taxonomy-consolidation`, Wave 4). `FraiseQLError::Storage` deleted; 118 call sites migrated to `FraiseQLError::File(FileError::*)` via eight new typed backend variants (`PermissionDenied`, `IoError`, `InvalidKey`, `NotImplemented`, `Unsupported`, `SizeLimitExceeded`, `MimeTypeNotAllowed`, `Backend`) plus the pre-existing `NotFound`. `storage_error_response` now pattern-matches on typed variants (404 for `NotFound`, 403 for `PermissionDenied`, 500 elsewhere) instead of `code: Option<String>` strings. Source chains (reqwest, AWS SDK, sqlx, std::io) preserved via `source: Some(Box::new(e))` on every previously-stringified site. Only deliberate behavior change: `FraiseQLError::File(FileError::NotFound)` returns 404 globally (was 400 outside storage routes) — see CHANGELOG.
 
 #### F051 — `FraiseQLError::Storage` variant has no documented owner after the file/storage split
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** The round-2 refactor added explicit rustdoc to `FraiseQLError::{Auth, Webhook, Observer, File}` explaining ownership (subsystem crate vs. fraiseql-error). `FraiseQLError::Storage` (lines 234-241) has the unchanged minimal doc `/// Storage operation error.` with no statement of (a) which crate constructs it, (b) what relationship it has with the new `File` variant, (c) when callers should use one vs. the other. After F050 lands, this entire variant goes away; if F050 is deferred or rejected, this doc gap blocks any new contributor from picking the right variant.
@@ -704,6 +761,7 @@ XL  (> one week)
 - **Status:** Closed in 686322bd6 via option (B) — variant rustdoc upgraded with full owner block (`fraiseql-storage` and `fraiseql-functions/host/live/storage.rs`), distinction from `File`, the `code` field's stable string discriminators enumerated, and a forward reference to `FOLLOW_UPS.md` F050 for the planned collapse.
 
 #### F052 — `FraiseQLError::Auth(Box<dyn Error>)` widens type-erasure and prevents downstream matching on auth-error subclasses
+
 - **Severity:** 🟡 Medium
 - **Effort:** L (alternative shape) / S (documented limitation)
 - **Impact:** Downstream code (an axum middleware, a `match` block in `handler.rs`) cannot match on specific auth-error subclasses like `fraiseql_auth::AuthError::TokenExpired` vs. `::Forbidden` vs. `::OidcDiscoveryFailed`. The information is preserved in `Display` but cannot be pattern-matched. The doc comment on the variant explicitly acknowledges the trade-off ("type-erased here") but does not surface that this is *the* cost of the sqlx pattern.
@@ -721,6 +779,7 @@ XL  (> one week)
 ### Build & tooling
 
 #### F053 — Wire-crate Q3 recommendation: cast denylist + module/test relocation, retire the count gate
+
 - **Status:** Closed in 897a2188a — moved 2 actually-firing test-bleed allows (`unreadable_literal`, `explicit_iter_loop`) into per-module `#![allow]` inside the `mod tests` blocks at `json_stream/tests.rs` and `adaptive_chunking/tests.rs`. Removed 2 no-longer-firing allows (`map_unwrap_or`, `range_plus_one`) from the crate level entirely. Grouped the remaining 15 crate-level allows under two commented headers: "Wire-protocol cast suppressions" (8) and "Crate-wide style preferences" (7). Added `make lint-gate-wire` enforcing both `count ≤ 15` and "none of the 4 test-bleed lints appear at crate level" (matches the existing `lint-gate-db` / `lint-gate-core` mechanic). Allow count post-reorganization: **15** (target).
 - **Severity:** 🟡 Medium
 - **Effort:** S
@@ -730,7 +789,7 @@ XL  (> one week)
   - **Justified protocol-level (8):** `cast_precision_loss`, `cast_possible_truncation`, `cast_sign_loss`, `cast_possible_wrap`, `format_push_string`, `needless_continue`, `iter_with_drain`, `no_effect_underscore_binding`. These encode genuine binary-decoder / wire-protocol patterns. Keep as crate-level.
   - **Style-pref / API-shape (7):** `items_after_statements`, `match_same_arms`, `manual_let_else`, `needless_pass_by_value`, `implicit_hasher`, `doc_link_with_quotes`, `doc_markdown`. Defensible per-module; either move to specific `#[allow]` on the offending functions, or accept as crate-wide style with a rationale comment block. Industrial choice: keep crate-wide but consolidate the rationale into a single 5-line block above the allows.
   - **Test-bleed (4):** `unreadable_literal`, `map_unwrap_or`, `explicit_iter_loop`, `range_plus_one`. These are flagged in test code (assertions, example data, range expressions). Move to `#[cfg(test)] #![allow(...)]` blocks inside the relevant `mod tests` to scope the suppression to the actual locus.
-- **Suggested approach:** 
+- **Suggested approach:**
   1. Move the 4 test-bleed allows into `mod tests { #![allow(...)] }` blocks where they fire.
   2. Group the 8 protocol allows under a single comment header (`// === Wire-protocol cast suppressions (binary decoders, statically bounded) ===`) and the 7 style allows under another (`// === Crate-wide style preferences (rationale: …) ===`).
   3. Reduce wire allow-count from 19 to 15 (8 + 7).
@@ -742,6 +801,7 @@ XL  (> one week)
 ### Error handling (round-1 line shift)
 
 #### F054 — `RateLimited` field renamed `retry_after_secs` (round-1 line refs invalid)
+
 - **Severity:** 🟢 Low
 - **Effort:** XS
 - **Impact:** Round-1 IMPROVEMENTS.md and any external doc that referenced the field as `retry_after` is now wrong. The shape used to be `RateLimited { retry_after: Option<u64> }` but is now `RateLimited { retry_after_secs: u64 }` (no Option, renamed). The `ServiceUnavailable` variant still uses `retry_after: Option<u64>` — confusing asymmetry across two adjacent variants.
@@ -753,6 +813,7 @@ XL  (> one week)
 - **Status:** Closed (doc-audit portion) via this commit. Verified `RateLimited { retry_after_secs: u64 }` is the canonical shape post-refactor and that no stale `retry_after` reference inside an active finding's discussion mis-states the field. The remaining asymmetry between `RateLimited::retry_after_secs` and `ServiceUnavailable::retry_after` is a real code defect tracked here for Wave 2 to harmonise (low priority — observable but not security-relevant).
 
 #### F055 — `IntoResponse for FraiseQLError` exhaustive match on `#[non_exhaustive]` enum will silently break on next variant add
+
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** `FraiseQLError` is `#[non_exhaustive]` (lines 99-100). The `IntoResponse for FraiseQLError` impl in `crates/fraiseql-error/src/http.rs:84-141` matches all 22 variants exhaustively without a `_` wildcard arm. *Within* the same crate this compiles (the `#[non_exhaustive]` attribute only affects downstream crates), but any future variant addition silently passes CI inside `fraiseql-error` itself and only fails downstream. More importantly, the `status_code()` (`:451-468`) and `error_code()` (`:483-491`) match arms have the same shape. Three exhaustive matches that all need to be updated in lockstep for every new variant.

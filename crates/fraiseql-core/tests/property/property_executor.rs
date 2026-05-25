@@ -282,4 +282,3 @@ proptest! {
         prop_assert_eq!(names[0], alias.as_str());
     }
 }
-

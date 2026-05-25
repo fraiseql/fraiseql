@@ -6,6 +6,7 @@ Scope: diff `dev..HEAD` (92 commits, 6,292 insertions / 3,462 deletions across 4
 Mode: targeted spot-check of round-1+2 closures + 4 cross-cutting themes (NOT a full re-audit)
 
 ## Severity legend
+
 - 🔴 Critical — correctness/security regression, blocks release
 - 🟠 High    — functional regression or substantive doc/test gap
 - 🟡 Medium  — technical debt, ergonomic friction
@@ -64,6 +65,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 ## Regressions introduced (PASS 2 findings)
 
 ### F056 — 🟠 Observer entity_type_index reload weakens atomicity vs. prior RwLock
+
 - **Effort:** S
 - **Location:** `crates/fraiseql-server/src/observers/runtime.rs:298-304, :675-680` (reload sequence: `self.entity_type_index.clear()` followed by per-key `insert` loop).
 - **Finding:** Original `Arc<RwLock<HashMap>>` held a write guard around the entire rebuild so readers observed an atomic transition. The new `DashMap` rebuild does `clear()` then loops `insert(key, ids)` — for the duration of that loop, concurrent CDC-event lookup paths (`crates/fraiseql-server/src/observers/runtime.rs:436,491`) can observe an **empty or partially-populated index**, dispatching no observers for events that should have fired. The field rustdoc (line 130-138) deliberately accepts this on the grounds that "this index drives logging only", but the production read sites at 436/491 use the index to look up `observer_ids` for **action dispatch**, not logging. Verify the read-path is truly best-effort; if any action depends on the lookup succeeding, the reload window is a regression.
@@ -72,6 +74,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Confidence:** Medium (read-path side-effects need verification before sizing severity).
 
 ### F057 — 🟡 KeyedRateLimiter capacity-cap eviction race
+
 - **Effort:** S
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:321-334`.
 - **Finding:** Capacity check uses `!self.records.contains_key(key) && self.records.len() >= self.max_entries` then iterates to find the oldest and `remove(&oldest_key)`. Between the `contains_key`/`len` snapshot and the `remove`, concurrent threads can observe stale capacity → multiple evictions of distinct oldest keys. The field rustdoc (line 289-291) calls this "best-effort", which is fine, but the eviction loop has no upper bound on how far over capacity the map can grow under sustained concurrent insertion. Under heavy attack the limiter could grow well past `max_entries` before any individual thread observes it. Original `Mutex<HashMap>` serialised this so the cap was a hard upper bound.
@@ -84,6 +87,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 ## Cross-cutting concerns (PASS 3)
 
 ### F058 — 🟡 F031 property tests have weak deterministic assertions
+
 - **Effort:** XS
 - **Location:** `crates/fraiseql-core/tests/property/property_executor.rs:79-96, :210-222`.
 - **Finding:**
@@ -94,6 +98,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Confidence:** High — these are weak-assertion patterns at well-known sites; the tests aren't wrong, just under-protective.
 
 ### F059 — 🟡 `KeyedRateLimiter` Clock blanket impl widens production-vs-test divergence
+
 - **Effort:** XS (docs only)
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:43-50`.
 - **Finding:** The blanket `impl<F: Fn() -> u64 + Send + Sync> Clock for F` is great for test ergonomics but means **any** closure / `fn` pointer silently satisfies the `Clock` bound in production code, including ones that return constants. There's no compile-time signal that "this is a production limiter using SystemClock" vs. "this is a limiter using an ad-hoc closure as a clock". A misuse in production code (e.g. someone passes `|| 0`) is impossible to grep for. The brief asked whether a `MockClock` struct exists — answer: no, the closure pattern is the mock. This is fine, but the policy is worth surfacing.
@@ -101,6 +106,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Confidence:** High.
 
 ### F060 — 🟢 PASS 3 — F032 READMEs are accurate but inconsistent on version pinning
+
 - **Effort:** XS
 - **Location:** Spot-checked `crates/fraiseql-storage/README.md` (pins `2.3.0`), `crates/fraiseql-functions/README.md` (pins `2.3.0`).
 - **Finding:** Both READMEs hard-code `version = "2.3.0"` in their TOML example. Future versions will need a sweep across 13+ README files to keep examples current. Compare e.g. `serde`'s `"1"` or `tokio`'s `"1"` shorthand. Not a release blocker, but a maintenance trap.
@@ -153,13 +159,16 @@ These are the **adopter-facing breaking changes** that downstream patterns will 
 3🟠 5🟡 1🟢 across 5 new findings (F056–F060). Round-2 closures (F049, F050, F042, F028, F031, F032 etc.) all verified real and in place. **No 🔴 found** in the round-3 diff.
 
 ### Top 3 must-fix-before-release
+
 1. **F056** — observer `entity_type_index` reload window. Need to confirm whether read-path tolerates empty lookups; if action dispatch depends on the lookup hitting, the reload is now silently dropping observers. Spend an hour reading `runtime.rs:436,491` against a reload-mid-event test fixture.
 2. **F058** — strengthen the F031 property tests' deterministic-check assertions. Cheap (one tuple expansion per test) and closes a non-trivial blind spot in regression coverage of the `extract_arguments` refactor.
 3. **Migration guide** must explicitly cover items 1–4 above. The Storage→File migration is the highest-risk adopter break, and items 3/4 are silent compile errors that need a sed-friendly recipe.
 
 ### Biggest cross-cutting concern
+
 **Documented best-effort lock-free behaviour vs. silent semantic regression** — the F006/F008/F013/F048 DashMap migrations are correct under their stated atomicity rules, but in three places (F056 observer reload, F057 rate-limiter eviction, the documented but unbenched F059 closure-clock pattern) the previous `Mutex`/`RwLock` provided a **stronger** guarantee than the new code admits. Each case is documented in rustdoc with "best-effort", but the adopter who reads the trait signature alone won't see it. A migration-guide section "what 'best-effort' means in 2.3" would surface the contract change.
 
 ### Deliverable
+
 - `IMPROVEMENTS_R3.md` (this file).
 - 3 new tests added to `crates/fraiseql-error/src/core_error/tests.rs` covering `Auth`/`Webhook`/`Observer` source-downcast pattern. `cargo test -p fraiseql-error` passes (23 lib + 23 integration + 3 doctests).

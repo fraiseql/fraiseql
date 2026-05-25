@@ -74,7 +74,7 @@ and examples). Two `.expect("...")` calls in `fraiseql-wire`'s `Cursor` carry
 - Audit (`cargo clippy -p <crate> ... -W clippy::indexing_slicing`) → triage
   by file (production vs test/bench/example).
 - Test/bench/example files: file-level `#![allow(clippy::indexing_slicing)]`
-  + `// Reason:` matching the existing `unwrap_used` allow.
+  - `// Reason:` matching the existing `unwrap_used` allow.
 - Production files: apply pattern catalogue items 1–7 above.
 - Final step per crate: `#![deny(clippy::indexing_slicing)]` at the crate
   root in `src/lib.rs`, then `cargo clippy -p <crate> --all-targets
