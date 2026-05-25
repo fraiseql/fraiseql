@@ -55,7 +55,7 @@ base64 = "0.22"
 bytes = "1.0"
 # Time
 chrono = {version = "0.4", features = ["serde"]}
-dashmap = "6.1"
+dashmap = "6.2"
 # Connection pooling
 deadpool = "0.12"
 deadpool-postgres = "0.14"
