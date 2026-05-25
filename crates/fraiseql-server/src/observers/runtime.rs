@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 
-use dashmap::DashMap;
+use arc_swap::ArcSwap;
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig, EventMatcher,
     FailurePolicy, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
@@ -129,14 +129,14 @@ pub struct ObserverRuntime {
     executor:            Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
     /// `(entity_type, event_type)` → list of observer ids that should be logged
     /// for this combination.  Built locally in [`Self::load_observers`] and
-    /// republished via `clear` + `insert` in `start` / `reload_observers`.
+    /// republished by an atomic `ArcSwap` store in `start` / `reload_observers`.
     ///
-    /// `Vec<i64>` is stored without an inner lock because the only writers
-    /// are the two republish paths above, each of which clears the whole
-    /// map and re-inserts a fresh `Vec` per key — there is no per-key
-    /// concurrent mutation.  The brief cross-shard inconsistency during a
-    /// republish is acceptable: this index drives logging only.
-    entity_type_index:   Arc<DashMap<(String, String), Vec<i64>>>,
+    /// The whole map is rebuilt off-line and then swapped in a single atomic
+    /// pointer write, so concurrent CDC-event lookups always observe either
+    /// the fully-populated pre-reload generation or the fully-populated
+    /// post-reload generation — never a partial or empty index.  Readers
+    /// remain lock-free: `load()` returns a cheap snapshot.
+    entity_type_index:   Arc<ArcSwap<HashMap<(String, String), Vec<i64>>>>,
     /// In-memory DLQ shared across reloads and exposed to HTTP handlers.
     dlq:                 Arc<InMemoryDlq>,
     /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
@@ -161,7 +161,7 @@ impl ObserverRuntime {
             last_checkpoint: Arc::new(std::sync::atomic::AtomicI64::new(0)),
             matcher: Arc::new(RwLock::new(None)),
             executor: Arc::new(RwLock::new(None)),
-            entity_type_index: Arc::new(DashMap::new()),
+            entity_type_index: Arc::new(ArcSwap::from_pointee(HashMap::new())),
             dlq: Arc::new(InMemoryDlq::new()),
             event_bridge_sender: None,
         }
@@ -294,13 +294,10 @@ impl ObserverRuntime {
             let mut ex = self.executor.write().await;
             *ex = Some(executor.clone());
         }
-        // Publish the freshly-built index by clearing and re-inserting per key.
-        // Writes only happen here and in `reload_observers`; both clear+rebuild
-        // the whole index, so we do not need a per-`Vec` lock.
-        self.entity_type_index.clear();
-        for (key, ids) in entity_type_index {
-            self.entity_type_index.insert(key, ids);
-        }
+        // Publish the freshly-built index with a single atomic pointer swap.
+        // Concurrent lookup paths see either the empty initial map or this
+        // fully-populated generation — never a half-built state.
+        self.entity_type_index.store(Arc::new(entity_type_index));
 
         // Create change log listener
         let listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
@@ -434,8 +431,9 @@ impl ObserverRuntime {
                                             // Look up observer IDs by (entity_type, event_type) from shared reference
                                             let event_type_str = event.event_type.as_str().to_uppercase();
                                             let observer_ids = entity_type_index_ref
+                                                .load()
                                                 .get(&(event.entity_type.clone(), event_type_str.clone()))
-                                                .map(|r| r.value().clone());
+                                                .cloned();
                                             if let Some(observer_ids) = observer_ids {
                                                 let status = if summary.successful_actions > 0 { "success" } else { "error" };
                                                 let duration_ms = if matching_observers.is_empty() {
@@ -489,8 +487,9 @@ impl ObserverRuntime {
                                             // Write error logs for matched observers
                                             let event_type_str = event.event_type.as_str().to_uppercase();
                                             let observer_ids_err = entity_type_index_ref
+                                                .load()
                                                 .get(&(event.entity_type.clone(), event_type_str))
-                                                .map(|r| r.value().clone());
+                                                .cloned();
                                             if let Some(observer_ids) = observer_ids_err {
                                                 for observer_id in observer_ids {
                                                     let _ = sqlx::query(
@@ -670,12 +669,11 @@ impl ObserverRuntime {
             *ex = Some(new_executor);
         }
 
-        // Republish the new index by clearing and re-inserting per key.  See
-        // the field doc on `entity_type_index` for why this is safe.
-        self.entity_type_index.clear();
-        for (key, ids) in new_entity_type_index {
-            self.entity_type_index.insert(key, ids);
-        }
+        // Republish the new index with a single atomic pointer swap.  See
+        // the field doc on `entity_type_index`: readers always observe a
+        // fully-populated generation (pre-reload or post-reload), never a
+        // partial index.
+        self.entity_type_index.store(Arc::new(new_entity_type_index));
 
         // Update count
         self.observer_count.store(count, Ordering::SeqCst);
