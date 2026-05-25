@@ -73,6 +73,7 @@ pub struct AuthCallbackQuery {
 /// (`"<redacted>"` / `Some("<redacted>")` / `None`) for both fields.
 #[derive(Serialize)]
 #[non_exhaustive]
+#[doc(hidden)] // Internal-pub: HTTP response body for /auth/callback; serialized to JSON for clients. Adopters consume the JSON wire format, not the Rust type.
 pub struct AuthCallbackResponse {
     /// Access token for API requests
     pub access_token:  String,

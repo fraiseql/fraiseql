@@ -37,6 +37,7 @@ impl TenantKeyResolver {
     /// Returns `FraiseQLError::Validation` if the `X-Tenant-ID` header value
     /// contains invalid characters, exceeds `MAX_TENANT_KEY_LEN`, or if
     /// `strict` is true and multiple sources provide conflicting tenant values.
+    #[doc(hidden)] // Internal-pub: dispatched by GraphQL handler/subscription routes; downstream tenancy goes through TenancyConfig, not this fn.
     pub fn resolve(
         security_context: Option<&SecurityContext>,
         headers: &HeaderMap,

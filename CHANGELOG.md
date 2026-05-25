@@ -417,6 +417,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   these denials; if any external code triggers them, hoist the allow to the
   offending function or module with a `// Reason:` comment.
 
+- **`CompiledSchema::from_json` takes a `strict_integrity: bool` second argument** —
+  the canonical schema-load entry point now accepts a strict-integrity flag that
+  rejects schemas whose hash does not match the embedded integrity manifest. Re-exported
+  via `fraiseql::CompiledSchema` and `fraiseql_core::prelude::CompiledSchema`.
+  **Migration:** existing call sites pass `false` for backward-compatible behaviour
+  (`CompiledSchema::from_json(json, false)`); set `true` to opt into the new
+  integrity check. Surfaces under the schema-integrity hardening landed in v2.3.
+
+- **`fraiseql_cli::schema::intermediate::operations::IntermediateSqlSourceDispatch`
+  and `fraiseql_core::schema::SqlSourceDispatch` removed** — both `pub` structs
+  belonged to a schema-shape intermediate that was superseded by the v2.3 dispatch
+  model. Adopters using the CLI-as-library to introspect schema intermediates, or
+  pattern-matching on `QueryDefinition.sql_source_dispatch`, must migrate to the
+  new dispatch types.
+  **Migration:** see the schema-compilation overhaul in `docs/architecture/compiler.md`.
+  If you depended on the removed types, file an issue describing your use case so
+  the equivalent v2.3 entry point can be documented.
+
+- **`fraiseql_core::security::oidc::providers::MeEnrichmentConfig` removed** —
+  this `pub` struct used to configure the OIDC `/auth/me` claim-enrichment behaviour
+  via the Rust API. The OIDC enrichment refactor in v2.3 replaced it with a TOML-driven
+  configuration path; programmatic enrichment configuration is no longer supported.
+  **Migration:** move claim-enrichment configuration into `fraiseql.toml` under
+  `[auth.oidc.providers.<name>.me_enrichment]`. The TOML schema is documented under
+  the Auth extensions Phase 13 entry above.
+
+- **`#[non_exhaustive]` rollout to public DTOs (`RelayPageResult`,
+  `SqlProjectionHint`, `OrderByClause`, `ActionResult`, `CacheStatus`, `EventKind`)**
+  — six public DTOs received `#[non_exhaustive]` so future field additions don't
+  break adopters. Each type also gained a `new(...)` constructor so the struct-literal
+  pattern can be replaced mechanically. `RelayPageResult` and `ActionResult` are
+  returned by public traits (`RelayDatabaseAdapter`, `ActionExecutor`) downstream
+  implementations satisfy — those impls must use the new constructors. (`dbc9e0afc`,
+  `e2b9944d2`, `3d8c4bce6`)
+  **Migration:** replace struct-literal construction with the typed `new()` constructor:
+  `RelayPageResult::new(rows, total_count)`, `SqlProjectionHint::new(database, projection_template, estimated_reduction_percent)`,
+  `OrderByClause::new(field, direction)`, `ActionResult::new(...)`. Existing pattern
+  matches gain a `_` arm.
+
 ### Changed
 
 - **Lock-free read paths across `fraiseql-auth`, `fraiseql-server`,

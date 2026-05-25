@@ -43,6 +43,7 @@ use crate::{
 ///
 /// Returns appropriate HTTP status codes based on error type.
 #[tracing::instrument(skip_all, fields(operation_name))]
+#[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
@@ -92,6 +93,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// not mutations (which should use POST). This handler does not enforce that
 /// restriction but logs a warning for mutation-like queries.
 #[tracing::instrument(skip_all, fields(operation_name))]
+#[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,

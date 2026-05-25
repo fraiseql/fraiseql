@@ -16,6 +16,7 @@ use crate::{FileError, FraiseQLError};
 /// responses compact.
 #[derive(Debug, Serialize)]
 #[non_exhaustive]
+#[doc(hidden)] // Internal-pub: used by fraiseql-error's IntoResponse impl; adopters consume the JSON wire format, not the Rust type. Intentionally NOT re-exported from the umbrella crate.
 pub struct ErrorResponse {
     /// Short machine-readable error category (e.g. `"authentication_error"`).
     pub error:             String,

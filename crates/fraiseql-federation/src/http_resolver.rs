@@ -244,6 +244,7 @@ impl HttpEntityResolver {
     ///
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised
     /// (e.g., invalid TLS configuration).
+    #[doc(hidden)] // Internal-pub: constructed by federation server wiring; downstream uses HttpEntityResolver through the resolver trait, not by calling new() directly.
     pub fn new(
         config: HttpClientConfig,
         mtls: Option<&super::tls::MtlsConfig>,

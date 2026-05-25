@@ -348,6 +348,7 @@ pub async fn compile_to_schema(
 /// - `confiture` is not installed (when `check_migrations` is true)
 /// - Migration drift detected (when `check_migrations` is true)
 #[allow(clippy::too_many_arguments)] // Reason: run() is the CLI entry point that receives individual args from clap; keeping them separate for clarity
+#[doc(hidden)] // Internal-pub: CLI entry point dispatched by runner.rs; not a stable downstream API.
 pub async fn run(
     input: &str,
     types: Option<&str>,
