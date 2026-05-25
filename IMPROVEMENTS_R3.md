@@ -70,7 +70,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Location:** `crates/fraiseql-server/src/observers/runtime.rs:298-304, :675-680` (reload sequence: `self.entity_type_index.clear()` followed by per-key `insert` loop).
 - **Finding:** Original `Arc<RwLock<HashMap>>` held a write guard around the entire rebuild so readers observed an atomic transition. The new `DashMap` rebuild does `clear()` then loops `insert(key, ids)` — for the duration of that loop, concurrent CDC-event lookup paths (`crates/fraiseql-server/src/observers/runtime.rs:436,491`) can observe an **empty or partially-populated index**, dispatching no observers for events that should have fired.
 - **Resolution (H1).** The field changed from `Arc<DashMap<(String, String), Vec<i64>>>` to `Arc<ArcSwap<HashMap<(String, String), Vec<i64>>>>`. The reload path rebuilds the new `HashMap` off-line and publishes it via a single atomic `ArcSwap::store(Arc::new(new_map))` call, replacing the prior `clear()` + per-key `insert()` loop. Concurrent CDC-event lookups now always observe a fully-populated pre-reload or post-reload generation, never a partial state. Two new integration tests (`entity_type_index_swap_is_snapshot_atomic`, `entity_type_index_swap_visibility_is_prompt` in `crates/fraiseql-server/src/observers/tests.rs`) drive 100 000 concurrent lookups against a flipping writer and assert each result matches exactly one of the two known generations.
-- **Status:** Closed in v2.3.0 (H1).
+- **Status:** Closed in v2.3.0 (H1, commit `0428920fe`).
 
 ### F057 — 🟡 KeyedRateLimiter capacity-cap eviction race — **CLOSED in v2.3.0**
 
@@ -78,7 +78,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:321-334`.
 - **Finding:** Capacity check uses `!self.records.contains_key(key) && self.records.len() >= self.max_entries` then iterates to find the oldest and `remove(&oldest_key)`. Between the `contains_key`/`len` snapshot and the `remove`, concurrent threads can observe stale capacity → multiple evictions of distinct oldest keys. The eviction loop had no upper bound on how far over capacity the map could grow under sustained concurrent insertion. Original `Mutex<HashMap>` serialised this so the cap was a hard upper bound.
 - **Resolution (H2).** Added `insert_guard: Arc<parking_lot::Mutex<()>>` and split `check()` into a fast path (update existing keys via lock-free `get_mut`) and a slow path (acquire `insert_guard` for new-key inserts). The slow path performs cap-check, oldest-entry eviction, and the `entry()`-based insert in a single critical section, so `records.len() <= max_entries` holds at every observable instant — even mid-burst, not just after settling. Updates to keys already present never contend on the guard. Two new tests in `crates/fraiseql-auth/tests/error_rate_limiter_memory.rs` cover the sequential overflow case and a concurrent (`max_entries + 100`) burst with a sampler thread that records the high-water mark — strict-cap invariant is asserted mid-flight, not post-hoc.
-- **Status:** Closed in v2.3.0 (H2).
+- **Status:** Closed in v2.3.0 (H2, commit `24b5b451e`).
 
 ---
 
@@ -93,7 +93,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
   - `prop_parse_query_deterministic` asserted only `operation_type`, `root_field`, `selections.len()` across two parses — a parser that non-deterministically reordered selections or expanded fragments differently would still pass.
   - `prop_match_query_deterministic` asserted only `query_def.name`, `fields`, `operation_name` — silent on `arguments`, `selections`, or `parsed_query`.
 - **Resolution (H4).** Replaced `.{0,400}` / `.{0,200}` with `(?s).{0,400}` / `(?s).{0,200}` in the three string-input tests so newline-bearing queries are exercised. For deterministic checks, `assert_eq!` is now applied to the full `QueryDefinition` (already `PartialEq`), `fields`, `operation_name`, and `arguments`; `selections` and `parsed_query` are compared via `serde_json::to_value` (no public-API change required for `FieldSelection` / `ParsedQuery`). The deeper comparison surfaces any non-determinism in `extract_arguments`, fragment expansion order, or alias resolution that the tuple-subset previously missed. All 9 F031 property tests still pass.
-- **Status:** Closed in v2.3.0 (H4). Diverged from the plan's `PartialEq` suggestion in favour of `serde_json::to_value` to avoid adding `PartialEq` to public types (`FieldSelection`, `ParsedQuery`) — equivalent depth, zero API surface change.
+- **Status:** Closed in v2.3.0 (H4, commit `24b5b451e`). Diverged from the plan's `PartialEq` suggestion in favour of `serde_json::to_value` to avoid adding `PartialEq` to public types (`FieldSelection`, `ParsedQuery`) — equivalent depth, zero API surface change.
 
 ### F059 — 🟡 `KeyedRateLimiter` Clock blanket impl widens production-vs-test divergence — **CLOSED in v2.3.0**
 
@@ -101,7 +101,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:43-50`.
 - **Finding:** The blanket `impl<F: Fn() -> u64 + Send + Sync> Clock for F` lets any closure silently satisfy the `Clock` bound in production code. A misuse in production (e.g. someone passes `|| 0`) is impossible to grep for, with no compile-time signal that distinguishes a `SystemClock`-backed limiter from a closure-backed one.
 - **Resolution (H3).** Added an `# Implementation note — production vs. test divergence` block to the `Clock` trait rustdoc explicitly framing the blanket impl as a test-only seam, calling out the three closure-misuse failure modes (constant, non-monotonic, `u64::MAX`), recommending the `Arc<AtomicU64>`-backed monotonic pattern used in `crates/fraiseql-auth/src/tests.rs`, and stating that code review should reject `with_clock(|| ...)` outside `#[cfg(test)]`. Migration guide section 7 mirrors the same callout.
-- **Status:** Closed in v2.3.0 (H3).
+- **Status:** Closed in v2.3.0 (H3, commit `24b5b451e`).
 
 ### F060 — 🟢 PASS 3 — F032 READMEs are accurate but inconsistent on version pinning — **CLOSED in v2.3.0**
 
@@ -109,7 +109,7 @@ Each below was spot-checked at the cited file:line and confirmed real.
 - **Location:** `crates/fraiseql-storage/README.md`, `crates/fraiseql-functions/README.md`.
 - **Finding:** Both READMEs hard-coded `version = "2.3.0"` in their TOML example, forcing adopters to bump the literal string on every patch release.
 - **Resolution (H5).** Replaced `version = "2.3.0"` with `version = "2.3"` in both READMEs. The lower bound stays at 2.3.0 (where the example APIs exist) while the caret semantics allow any 2.3.x patch without README edits. Pre-sed `git grep` confirmed only those two files had matches and both were in `[dependencies]` snippets, not changelog or migration prose.
-- **Status:** Closed in v2.3.0 (H5).
+- **Status:** Closed in v2.3.0 (H5, commit `24b5b451e`).
 
 ---
 
