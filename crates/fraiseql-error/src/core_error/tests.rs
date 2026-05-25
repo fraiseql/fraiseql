@@ -87,3 +87,70 @@ fn test_levenshtein_multibyte_utf8() {
     // Two multi-byte strings: distance should equal number of differing chars
     assert_eq!(FraiseQLError::levenshtein_distance("café", "café"), 0);
 }
+
+// ---------------------------------------------------------------------------
+// F049 round-3 audit: source-chain downcast for boxed-payload variants.
+//
+// Round-2 closed F049 by adding `#[source]` to the three tuple variants and
+// regression tests that asserted `.source().is_some()`. Round-3 strengthens
+// the contract by asserting the boxed payload is also recoverable via
+// `Error::source().and_then(downcast_ref::<T>())` — which is exactly the
+// pattern the variant rustdoc promises to downstream consumers.
+//
+// `fraiseql-error` is a leaf crate (it cannot depend on `fraiseql-auth`,
+// `fraiseql-webhooks`, or `fraiseql-observers`). The test therefore stands
+// in a local sentinel error type that exercises the same dyn-erasure +
+// downcast_ref path the subsystem `From` impls produce. If the variant
+// rustdoc's recovery pattern is correct, this downcast must succeed.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+struct SentinelSubsystemError {
+    kind: &'static str,
+}
+
+impl std::fmt::Display for SentinelSubsystemError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "sentinel-subsystem-error: {}", self.kind)
+    }
+}
+
+impl std::error::Error for SentinelSubsystemError {}
+
+fn assert_source_downcasts_to_sentinel(err: &FraiseQLError, expected_kind: &str) {
+    use std::error::Error as _;
+    let source = err
+        .source()
+        .expect("boxed-payload variants must expose Error::source()");
+    let downcast = source
+        .downcast_ref::<SentinelSubsystemError>()
+        .expect("Error::source() must downcast to the original concrete subsystem type");
+    assert_eq!(downcast.kind, expected_kind);
+}
+
+#[test]
+fn auth_variant_source_downcasts_to_subsystem_type() {
+    let inner = SentinelSubsystemError {
+        kind: "auth-token-expired",
+    };
+    let err = FraiseQLError::Auth(Box::new(inner));
+    assert_source_downcasts_to_sentinel(&err, "auth-token-expired");
+}
+
+#[test]
+fn webhook_variant_source_downcasts_to_subsystem_type() {
+    let inner = SentinelSubsystemError {
+        kind: "webhook-delivery-refused",
+    };
+    let err = FraiseQLError::Webhook(Box::new(inner));
+    assert_source_downcasts_to_sentinel(&err, "webhook-delivery-refused");
+}
+
+#[test]
+fn observer_variant_source_downcasts_to_subsystem_type() {
+    let inner = SentinelSubsystemError {
+        kind: "observer-dispatch-failed",
+    };
+    let err = FraiseQLError::Observer(Box::new(inner));
+    assert_source_downcasts_to_sentinel(&err, "observer-dispatch-failed");
+}
