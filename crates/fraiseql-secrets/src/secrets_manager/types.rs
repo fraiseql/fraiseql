@@ -3,6 +3,7 @@
 use std::fmt;
 
 use chrono::{DateTime, Utc};
+use zeroize::Zeroize;
 
 use super::SecretsError;
 
@@ -46,9 +47,12 @@ pub trait SecretsBackend: Send + Sync {
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError>;
 }
 
-/// Wrapper for secrets that redacts values in logs/debug output
+/// Wrapper for secrets that redacts values in logs/debug output and zeroes
+/// the underlying buffer when dropped.
 ///
-/// Prevents accidental secret exposure through string formatting
+/// Prevents accidental secret exposure through:
+/// - String formatting (`Debug`/`Display` print `***`)
+/// - Memory inspection after free (`Drop` overwrites the byte buffer with zeros)
 ///
 /// # Example
 /// ```rust
@@ -77,10 +81,17 @@ impl Secret {
         &self.0
     }
 
-    /// Convert to owned String (consumes Secret)
+    /// Convert to owned String (consumes Secret).
+    ///
+    /// The caller becomes responsible for any further zeroization of the
+    /// returned `String` — the secret material has moved out of the wrapper.
     #[must_use]
-    pub fn into_exposed(self) -> String {
-        self.0
+    pub fn into_exposed(mut self) -> String {
+        // `Drop` will still run on `self` after we move the inner String out;
+        // by then the inner `String` is the empty husk produced by `mem::take`,
+        // which is a no-op to zeroize. This preserves the no-leak guarantee
+        // for the lifetime the value lives *inside* the wrapper.
+        std::mem::take(&mut self.0)
     }
 
     /// Check if secret is empty
@@ -118,6 +129,28 @@ impl PartialEq for Secret {
 }
 
 impl Eq for Secret {}
+
+/// Zero the underlying secret buffer on drop.
+///
+/// `String` does not implement `Zeroize` directly in `zeroize` 1.x (the
+/// trait would have to write zero bytes through a `&mut [u8]` view of the
+/// string, which could re-expose UTF-8 invariants).  We sidestep the issue
+/// safely: take the inner `String` by value, convert it into the underlying
+/// `Vec<u8>` (a no-op move that reuses the heap allocation), then call
+/// `Zeroize::zeroize` on the byte vector.  The `Vec<u8>` is dropped at the
+/// end of this scope and the buffer is freed with all bytes set to zero.
+///
+/// `#![forbid(unsafe_code)]` is honoured throughout.
+impl Drop for Secret {
+    // Reason: the `bytes` vector exists solely for its `zeroize()` side effect;
+    // it must not be read after the wipe (that's the point — the wipe is what
+    // we want, not the contents).
+    #[allow(clippy::collection_is_never_read)]
+    fn drop(&mut self) {
+        let mut bytes = std::mem::take(&mut self.0).into_bytes();
+        bytes.zeroize();
+    }
+}
 
 #[cfg(test)]
 mod tests;

@@ -1,5 +1,9 @@
 //! Tests for GraphQL schema type generation.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape serde_json values; OOB indices correctly fail the test
+
 use super::StorageSchemaTypes;
 use crate::config::{BucketAccess, BucketConfig};
 

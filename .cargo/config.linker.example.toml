@@ -1,0 +1,14 @@
+# Local linker configuration template — copy/paste into your local
+# `.cargo/config.toml` (or merge into a `.cargo/config.local.toml`).
+#
+# This file is NOT applied automatically; it documents the recommended
+# local-only configuration. The repository's committed `.cargo/config.toml`
+# keeps the mold block commented out so CI runners (which do not have mold
+# installed) keep working.
+#
+# Install: `pacman -S mold` (Arch) / `apt install mold` (Debian/Ubuntu).
+# Expected speed-up: 3-5x faster linking on full rebuilds.
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

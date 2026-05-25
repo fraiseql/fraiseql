@@ -10,6 +10,7 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_server::ServerConfig;
 
 // =============================================================================

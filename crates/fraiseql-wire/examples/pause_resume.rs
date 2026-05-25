@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: example code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: example code, panics acceptable
 #![allow(clippy::cast_sign_loss)] // Reason: example uses small positive integer casts
 #![allow(clippy::literal_string_with_formatting_args)] // Reason: example documentation strings contain format-like syntax
 

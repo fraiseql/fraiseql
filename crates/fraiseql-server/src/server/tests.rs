@@ -76,3 +76,51 @@ mod initialization_tests {
         assert!(!is_manifest_url_ssrf_blocked("http://[2001:db8::1]/manifest.json"));
     }
 }
+
+// ── lifecycle_tests ───────────────────────────────────────────────────────────
+//
+// Drain semantics for the per-server lifecycle [`JoinSet`] introduced by F021.
+// Replaces the previous fire-and-forget `tokio::spawn` calls. A drain after a
+// graceful shutdown must abort and await every long-running lifecycle task so
+// no background work survives the server's `serve_with_shutdown` return.
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use std::time::Duration;
+
+    use super::super::lifecycle::drain_lifecycle_tasks;
+
+    #[tokio::test]
+    async fn drain_lifecycle_tasks_aborts_infinite_loops() {
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+
+        // Spawn three infinite loops — the exact pattern used by PKCE cleanup,
+        // SIGUSR1 reload, and usage flush in lifecycle.rs. None of them would
+        // ever return on their own.
+        for _ in 0..3 {
+            tasks.spawn(async {
+                let mut ticker = tokio::time::interval(Duration::from_secs(60));
+                loop {
+                    ticker.tick().await;
+                }
+            });
+        }
+
+        // The drain helper must abort all three under the configured timeout.
+        let drain =
+            tokio::time::timeout(Duration::from_secs(5), drain_lifecycle_tasks(tasks, 5)).await;
+        assert!(
+            drain.is_ok(),
+            "drain_lifecycle_tasks must abort infinite-loop tasks within the timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn drain_lifecycle_tasks_returns_quickly_for_empty_set() {
+        // No tasks → drain returns immediately, well under the timeout.
+        let tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+        let drain =
+            tokio::time::timeout(Duration::from_secs(1), drain_lifecycle_tasks(tasks, 5)).await;
+        assert!(drain.is_ok(), "drain on an empty JoinSet must be a no-op");
+    }
+}

@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test/bench code, panics are acceptable
 //! Stress tests features
 //!
 //! These tests verify system behavior under high load, long duration,

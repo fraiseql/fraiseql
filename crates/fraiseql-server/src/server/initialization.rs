@@ -283,9 +283,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
     /// compiled schema, if present and `enabled = true`.
+    ///
+    /// Any background hot-reload task spawned for the store is pushed onto
+    /// `tasks` so the server can await its termination during graceful shutdown.
     #[allow(clippy::cognitive_complexity)] // Reason: config parsing with multiple optional fields and validation
     pub(super) fn trusted_docs_from_schema(
         schema: &CompiledSchema,
+        tasks: &mut tokio::task::JoinSet<()>,
     ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {
         let security = schema.security.as_ref()?;
         let td_cfg = security.additional.get("trusted_documents")?;
@@ -333,6 +337,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                 Arc::clone(&store),
                                 url.clone(),
                                 cfg.reload_interval_secs,
+                                tasks,
                             );
                         } else {
                             warn!(
@@ -360,10 +365,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     }
 
     /// Spawn a background task that periodically re-fetches the manifest from a URL.
+    ///
+    /// The spawned task is registered on `tasks` so the server can await its
+    /// termination during graceful shutdown.
     pub(super) fn spawn_trusted_docs_reload(
         store: Arc<crate::trusted_documents::TrustedDocumentStore>,
         url: String,
         interval_secs: u64,
+        tasks: &mut tokio::task::JoinSet<()>,
     ) {
         // SSRF guard: reject URLs that target private/loopback/link-local addresses.
         // The manifest URL is operator-configured, but a tampered compiled schema
@@ -377,7 +386,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return;
         }
 
-        tokio::spawn(async move {
+        tasks.spawn(async move {
             const MANIFEST_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
             /// Maximum byte size accepted for a hot-reloaded trusted-documents manifest.
             /// Matches the cap enforced for file-based manifests in `trusted_documents.rs`.
@@ -412,7 +421,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                         match serde_json::from_slice::<Manifest>(&body_bytes) {
                                             Ok(manifest) => {
                                                 let count = manifest.documents.len();
-                                                store.replace_documents(manifest.documents).await;
+                                                store.replace_documents(manifest.documents);
                                                 info!(count, "Trusted documents manifest reloaded");
                                             },
                                             Err(e) => {

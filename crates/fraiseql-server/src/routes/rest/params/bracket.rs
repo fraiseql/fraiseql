@@ -3,6 +3,7 @@
 //! Handles `?field[op]=value` syntax.
 
 /// Parse a bracket key like `name[icontains]` into `("name", "icontains")`.
+#[must_use]
 pub fn parse_bracket_key(key: &str) -> Option<(String, String)> {
     let open = key.find('[')?;
     let close = key.find(']')?;

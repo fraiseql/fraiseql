@@ -9,6 +9,8 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use fraiseql_db::ViewName;
+
 use super::super::{context::ExecutorContext, resolve_inject_value};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
@@ -310,7 +312,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                     .filter(|t| !t.sql_source.as_str().is_empty())
                     .map(|t| t.sql_source.to_string());
                 if let Some(view) = inferred_view {
-                    let _ = rc.invalidate_views(&[view]);
+                    let _ = rc.invalidate_views(&[ViewName::from(view)]);
                 }
             }
         }
@@ -318,17 +320,19 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         // View-level path: needed when entity_id is absent (CREATE) or when the developer
         // explicitly declared invalidates_views to also refresh list queries.
         if entity_id.is_none() || !mutation_def.invalidates_views.is_empty() {
-            let views_to_invalidate = if mutation_def.invalidates_views.is_empty() {
+            // Promote the schema's `Vec<String>` view list into `Vec<ViewName>`
+            // once — every downstream invalidator borrows the same Arc<str>.
+            let views_to_invalidate: Vec<ViewName> = if mutation_def.invalidates_views.is_empty() {
                 ctx.schema
                     .types
                     .iter()
                     .find(|t| t.name == mutation_def.return_type)
                     .filter(|t| !t.sql_source.as_str().is_empty())
-                    .map(|t| t.sql_source.to_string())
+                    .map(|t| ViewName::from(t.sql_source.as_str()))
                     .into_iter()
-                    .collect::<Vec<_>>()
+                    .collect()
             } else {
-                mutation_def.invalidates_views.clone()
+                mutation_def.invalidates_views.iter().map(ViewName::from).collect()
             };
             if !views_to_invalidate.is_empty() {
                 if entity_id.is_none() {

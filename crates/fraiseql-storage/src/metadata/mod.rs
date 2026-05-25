@@ -7,7 +7,7 @@
 mod tests;
 
 use chrono::{DateTime, Utc};
-use fraiseql_error::FraiseQLError;
+use fraiseql_error::{FileError, FraiseQLError};
 use sqlx::PgPool;
 
 use crate::backend::types::ObjectInfo;
@@ -60,7 +60,7 @@ pub struct StorageMetadataRepo {
 impl StorageMetadataRepo {
     /// Create a new repository wrapping the given connection pool.
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
@@ -68,7 +68,7 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the database query fails
+    /// Returns `FraiseQLError::File` if the database query fails
     /// (e.g. duplicate `(bucket, key)` pair).
     pub async fn insert(&self, row: &NewStorageObject) -> Result<i64, FraiseQLError> {
         let (pk,): (i64,) = sqlx::query_as(
@@ -85,9 +85,11 @@ impl StorageMetadataRepo {
         .bind(&row.owner_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| FraiseQLError::Storage {
-            message: e.to_string(),
-            code:    None,
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
         })?;
 
         Ok(pk)
@@ -97,7 +99,7 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the database query fails.
+    /// Returns `FraiseQLError::File` if the database query fails.
     pub async fn get(
         &self,
         bucket: &str,
@@ -113,9 +115,11 @@ impl StorageMetadataRepo {
         .bind(key)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| FraiseQLError::Storage {
-            message: e.to_string(),
-            code:    None,
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
         })?;
 
         Ok(row.map(Into::into))
@@ -127,7 +131,7 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the database query fails.
+    /// Returns `FraiseQLError::File` if the database query fails.
     pub async fn delete(&self, bucket: &str, key: &str) -> Result<bool, FraiseQLError> {
         let result =
             sqlx::query("DELETE FROM _fraiseql_storage_objects WHERE bucket = $1 AND key = $2")
@@ -135,9 +139,11 @@ impl StorageMetadataRepo {
                 .bind(key)
                 .execute(&self.pool)
                 .await
-                .map_err(|e| FraiseQLError::Storage {
-                    message: e.to_string(),
-                    code:    None,
+                .map_err(|e| {
+                    FraiseQLError::File(FileError::Backend {
+                        message: e.to_string(),
+                        source:  Some(Box::new(e)),
+                    })
                 })?;
 
         Ok(result.rows_affected() > 0)
@@ -149,7 +155,7 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the database query fails.
+    /// Returns `FraiseQLError::File` if the database query fails.
     pub async fn list(
         &self,
         bucket: &str,
@@ -190,9 +196,11 @@ impl StorageMetadataRepo {
                 .await
             },
         }
-        .map_err(|e| FraiseQLError::Storage {
-            message: e.to_string(),
-            code:    None,
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
         })?;
 
         Ok(rows.into_iter().map(Into::into).collect())
@@ -204,7 +212,7 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the database query fails.
+    /// Returns `FraiseQLError::File` if the database query fails.
     pub async fn upsert(&self, row: &NewStorageObject) -> Result<i64, FraiseQLError> {
         let (pk,): (i64,) = sqlx::query_as(
             "INSERT INTO _fraiseql_storage_objects \
@@ -225,9 +233,11 @@ impl StorageMetadataRepo {
         .bind(&row.owner_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| FraiseQLError::Storage {
-            message: e.to_string(),
-            code:    None,
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
         })?;
 
         Ok(pk)
@@ -277,11 +287,14 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
 
 impl From<&StorageMetadataRow> for ObjectInfo {
     fn from(row: &StorageMetadataRow) -> Self {
+        // Reason: size_bytes is non-negative (clamped above by .max(0)); cast to u64 is safe.
+        #[allow(clippy::cast_sign_loss)]
+        let size = row.size_bytes.max(0) as u64;
         Self {
-            key:           row.key.clone(),
-            size:          row.size_bytes.max(0) as u64,
-            content_type:  row.content_type.clone(),
-            etag:          row.etag.clone().unwrap_or_default(),
+            key: row.key.clone(),
+            size,
+            content_type: row.content_type.clone(),
+            etag: row.etag.clone().unwrap_or_default(),
             last_modified: row.updated_at.to_rfc3339(),
         }
     }

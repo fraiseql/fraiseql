@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
@@ -277,7 +280,7 @@ async fn test_mime_type_rejection_returns_415() {
 // Cycle 6: OIDC-Aware Auth Tests
 // ---------------------------------------------------------------------------
 
-/// Anonymous router: no StorageUser extension injected.
+/// Anonymous router: no `StorageUser` extension injected.
 fn anonymous_router(state: StorageState) -> axum::Router {
     storage_router(state)
 }

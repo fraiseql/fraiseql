@@ -363,12 +363,15 @@ impl ResultProjector {
     ///
     /// # Arguments
     ///
-    /// * `results` - Database results as JSONB values
-    /// * `is_list` - Whether the query returns a list
+    /// * `results` - Database results as JSONB values (borrowed; not mutated).
+    /// * `is_list` - Whether the query returns a list.
     ///
     /// # Returns
     ///
-    /// GraphQL-compatible JSON response
+    /// A freshly-allocated GraphQL-compatible JSON response. The projector
+    /// **never aliases the input slice**: each field of every `JsonbValue` is
+    /// cloned out into a new `serde_json::Value` tree (see F029 — ownership
+    /// contract is on `JsonbValue` itself).
     ///
     /// # Errors
     ///

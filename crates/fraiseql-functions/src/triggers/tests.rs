@@ -1,5 +1,6 @@
 //! Integration tests for the trigger system.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use crate::{
     triggers::mutation::{
         AfterMutationTrigger, BeforeMutationTrigger, EntityEvent, EventKind, TriggerMatcher,

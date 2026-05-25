@@ -1,7 +1,7 @@
 //! Tests for `graphql/` modules.
 //! Re-export items not in `crate::graphql::*` so submodules can reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::collections::{HashMap, HashSet};
 
 pub use graphql_parser::query;
@@ -13,6 +13,7 @@ mod fragment_resolver_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
@@ -265,6 +266,7 @@ mod fragments_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -349,6 +351,7 @@ mod parser_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::graphql::parser::{MAX_SERIALIZE_DEPTH, serialize_value};
 
@@ -585,6 +588,7 @@ mod require_permission_directive_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -614,6 +618,7 @@ mod types_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -625,7 +630,7 @@ mod types_tests {
             selections:     vec![],
             variables:      vec![],
             fragments:      vec![],
-            source:         "{ users { id name } }".to_string(),
+            source:         std::sync::Arc::from("{ users { id name } }"),
         };
 
         assert_eq!(query.signature(), "query::users");
@@ -640,7 +645,7 @@ mod types_tests {
             selections:     vec![],
             variables:      vec![], // No variables = cacheable
             fragments:      vec![],
-            source:         "{ users { id } }".to_string(),
+            source:         std::sync::Arc::from("{ users { id } }"),
         };
 
         assert!(query.is_cacheable());
@@ -664,7 +669,9 @@ mod types_tests {
                 default_value: None,
             }],
             fragments:      vec![],
-            source:         "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
+            source:         std::sync::Arc::from(
+                "query($limit: Int) { users(limit: $limit) { id } }",
+            ),
         };
 
         assert!(!query.is_cacheable());
@@ -738,6 +745,7 @@ mod complexity_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // ── Regression tests: operation names and arguments must NOT be counted ──

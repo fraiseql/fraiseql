@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Tests for GraphQL route handlers and helpers.
 
 use fraiseql_core::apq::ApqMetrics;

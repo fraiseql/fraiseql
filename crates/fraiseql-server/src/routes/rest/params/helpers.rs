@@ -13,6 +13,7 @@ pub fn json_depth(value: &serde_json::Value) -> usize {
 }
 
 /// Count the number of field-level entries in a WHERE clause value.
+#[must_use]
 pub fn count_where_fields(value: &serde_json::Value) -> usize {
     match value.as_object() {
         Some(map) => map.len(),
@@ -21,6 +22,7 @@ pub fn count_where_fields(value: &serde_json::Value) -> usize {
 }
 
 /// Get sorted field output names from a `TypeDefinition`.
+#[must_use]
 pub fn field_names(td: &TypeDefinition) -> Vec<&str> {
     let mut names: Vec<&str> = td.fields.iter().map(|f| f.output_name()).collect();
     names.sort_unstable();
@@ -28,6 +30,7 @@ pub fn field_names(td: &TypeDefinition) -> Vec<&str> {
 }
 
 /// Convenience constructor for `FraiseQLError::Validation`.
+#[must_use]
 pub const fn validation_error(message: String) -> FraiseQLError {
     FraiseQLError::Validation {
         message,

@@ -115,7 +115,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
-        let trusted_docs = Self::trusted_docs_from_schema(&schema);
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+        let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
         let cache_config = CacheConfig::from(config.cache_enabled);
         let cache = QueryResultCache::new(cache_config);
@@ -141,6 +142,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             revocation_manager,
             trusted_docs,
             db_pool,
+            tasks,
         )
         .await?;
 
@@ -227,7 +229,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
-        let trusted_docs = Self::trusted_docs_from_schema(&schema);
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+        let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -290,20 +293,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Spawn background PKCE state cleanup task (every 5 minutes).
         #[cfg(feature = "auth")]
-        if let Some(ref store) = pkce_store {
-            use std::time::Duration;
-
-            use tokio::time::MissedTickBehavior;
-            let store_clone = Arc::clone(store);
-            tokio::spawn(async move {
-                let mut ticker = tokio::time::interval(Duration::from_secs(300));
-                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
-                loop {
-                    ticker.tick().await;
-                    store_clone.cleanup_expired().await;
-                }
-            });
-        }
+        Self::spawn_pkce_cleanup(pkce_store.as_ref(), &mut tasks);
 
         let apq_enabled = config.apq_enabled;
 
@@ -365,6 +355,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "functions")]
             function_runtime: None,
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
+            tasks,
         })
     }
 

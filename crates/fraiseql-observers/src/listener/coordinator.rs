@@ -12,6 +12,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use parking_lot::Mutex;
 
 use super::state::{ListenerState, ListenerStateMachine};
 use crate::error::{ObserverError, Result};
@@ -39,8 +40,11 @@ pub struct ListenerHandle {
     pub state_machine:  ListenerStateMachine,
     /// Current checkpoint (last processed event ID)
     pub checkpoint:     Arc<AtomicU64>,
-    /// Last heartbeat timestamp
-    pub last_heartbeat: Arc<tokio::sync::Mutex<Instant>>,
+    /// Last heartbeat timestamp.
+    ///
+    /// Stored in a `parking_lot::Mutex` because the critical section is a single
+    /// `Instant` read/write with no `.await` inside (see F019).
+    pub last_heartbeat: Arc<Mutex<Instant>>,
 }
 
 /// Coordinates multiple listeners
@@ -74,7 +78,7 @@ impl MultiListenerCoordinator {
             listener_id:    listener_id.clone(),
             state_machine:  ListenerStateMachine::new(listener_id.clone()),
             checkpoint:     Arc::new(AtomicU64::new(0)),
-            last_heartbeat: Arc::new(tokio::sync::Mutex::new(Instant::now())),
+            last_heartbeat: Arc::new(Mutex::new(Instant::now())),
         });
 
         self.listeners.insert(listener_id, handle);
@@ -110,12 +114,15 @@ impl MultiListenerCoordinator {
     /// # Errors
     ///
     /// Returns [`ObserverError::InvalidConfig`] if `listener_id` is not registered.
-    pub async fn update_heartbeat(&self, listener_id: &str) -> Result<()> {
+    ///
+    /// Synchronous because the heartbeat update is a `parking_lot::Mutex<Instant>`
+    /// write — no `.await` occurs inside the critical section (see F019).
+    pub fn update_heartbeat(&self, listener_id: &str) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
         })?;
 
-        *handle.last_heartbeat.lock().await = Instant::now();
+        *handle.last_heartbeat.lock() = Instant::now();
         Ok(())
     }
 
@@ -153,7 +160,7 @@ impl MultiListenerCoordinator {
         for entry in self.listeners.iter() {
             let handle = entry.value();
             let state = handle.state_machine.get_state().await;
-            let last_heartbeat = *handle.last_heartbeat.lock().await;
+            let last_heartbeat = *handle.last_heartbeat.lock();
             #[allow(clippy::cast_possible_wrap)]
             // Reason: value is non-negative; wrap cannot occur in practice
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;

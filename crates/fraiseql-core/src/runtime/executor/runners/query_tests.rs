@@ -1,7 +1,6 @@
 //! Tests for the query runner, co-located with `runners/query.rs`.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;

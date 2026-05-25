@@ -15,6 +15,10 @@
 //! - **Routes**: HTTP handlers for `PUT`, `GET`, `DELETE`, `LIST`
 
 #![warn(missing_docs)]
+// Wave 9 (Q4): pilot crate #3 for the workspace `clippy::indexing_slicing`
+// rollout. All library code is panic-free w.r.t. slice/vec indexing; test
+// modules carry per-file `#![allow]` + `// Reason:`.
+#![deny(clippy::indexing_slicing)]
 
 pub mod backend;
 pub mod config;

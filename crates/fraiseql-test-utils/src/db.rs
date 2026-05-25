@@ -1,5 +1,6 @@
 //! Database URL resolution for test infrastructure.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 /// Returns the test database URL from the `DATABASE_URL` environment variable.
 ///
 /// # Panics

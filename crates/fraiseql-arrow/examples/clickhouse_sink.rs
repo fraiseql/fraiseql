@@ -3,7 +3,9 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
-    clippy::items_after_statements
+    clippy::items_after_statements,
+    clippy::print_stdout,
+    clippy::print_stderr
 )]
 //! This example shows how to:
 //! 1. Create test event data

@@ -24,8 +24,8 @@ use std::{
 /// accidental or malicious loading of a gigabyte-sized file at server startup.
 pub(crate) const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 
+use dashmap::DashMap;
 use serde::Deserialize;
-use tokio::sync::RwLock;
 
 /// Enforcement mode for trusted documents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,9 +48,14 @@ struct Manifest {
 }
 
 /// Trusted document lookup store.
+///
+/// Backed by a [`DashMap`]: lookups on the request hot path take only a
+/// per-shard read lock, never an async lock, and hot-reload (the only writer)
+/// replaces entries in place without blocking concurrent readers on other
+/// shards.
 pub struct TrustedDocumentStore {
     /// hash → query body (keys stored WITHOUT "sha256:" prefix).
-    documents: Arc<RwLock<HashMap<String, String>>>,
+    documents: Arc<DashMap<String, String>>,
     mode:      TrustedDocumentMode,
 }
 
@@ -92,9 +97,8 @@ impl TrustedDocumentStore {
                 path.display()
             ))
         })?;
-        let documents = normalize_keys(manifest.documents);
         Ok(Self {
-            documents: Arc::new(RwLock::new(documents)),
+            documents: Arc::new(normalize_keys(manifest.documents)),
             mode,
         })
     }
@@ -102,9 +106,8 @@ impl TrustedDocumentStore {
     /// Create an in-memory store from a pre-built document map (for testing).
     #[must_use]
     pub fn from_documents(documents: HashMap<String, String>, mode: TrustedDocumentMode) -> Self {
-        let documents = normalize_keys(documents);
         Self {
-            documents: Arc::new(RwLock::new(documents)),
+            documents: Arc::new(normalize_keys(documents)),
             mode,
         }
     }
@@ -113,7 +116,7 @@ impl TrustedDocumentStore {
     #[must_use]
     pub fn disabled() -> Self {
         Self {
-            documents: Arc::new(RwLock::new(HashMap::new())),
+            documents: Arc::new(DashMap::new()),
             mode:      TrustedDocumentMode::Permissive,
         }
     }
@@ -125,14 +128,23 @@ impl TrustedDocumentStore {
     }
 
     /// Returns the number of documents in the manifest.
-    pub async fn document_count(&self) -> usize {
-        self.documents.read().await.len()
+    #[must_use]
+    pub fn document_count(&self) -> usize {
+        self.documents.len()
     }
 
-    /// Atomically replace the document map (used by hot-reload).
-    pub async fn replace_documents(&self, documents: HashMap<String, String>) {
-        let documents = normalize_keys(documents);
-        *self.documents.write().await = documents;
+    /// Replace the document map (used by hot-reload).
+    ///
+    /// The swap is per-shard atomic — readers may observe the old or the new
+    /// contents but never a torn entry.  Brief inconsistency across shards
+    /// during a reload is acceptable: a request that resolves a document
+    /// that has just been removed will simply 404 and the client will retry.
+    pub fn replace_documents(&self, documents: HashMap<String, String>) {
+        let new_docs = normalize_keys(documents);
+        self.documents.clear();
+        for entry in new_docs {
+            self.documents.insert(entry.0, entry.1);
+        }
     }
 
     /// Resolve a query from `document_id` and/or `raw_query`.
@@ -147,16 +159,17 @@ impl TrustedDocumentStore {
     /// Returns `TrustedDocumentError::DocumentNotFound` if a `document_id` is given but not in the
     /// store. Returns `TrustedDocumentError::ForbiddenRawQuery` if no `document_id` is provided
     /// in strict mode, or if `raw_query` is also absent in permissive mode.
-    pub async fn resolve(
+    pub fn resolve(
         &self,
         document_id: Option<&str>,
         raw_query: Option<&str>,
     ) -> Result<String, TrustedDocumentError> {
         if let Some(doc_id) = document_id {
             let hash = doc_id.strip_prefix("sha256:").unwrap_or(doc_id);
-            let docs = self.documents.read().await;
-            return docs.get(hash).cloned().ok_or_else(|| TrustedDocumentError::DocumentNotFound {
-                id: doc_id.to_string(),
+            return self.documents.get(hash).map(|r| r.value().clone()).ok_or_else(|| {
+                TrustedDocumentError::DocumentNotFound {
+                    id: doc_id.to_string(),
+                }
             });
         }
         match self.mode {
@@ -169,14 +182,13 @@ impl TrustedDocumentStore {
 }
 
 /// Normalize manifest keys: strip "sha256:" prefix for uniform lookup.
-fn normalize_keys(documents: HashMap<String, String>) -> HashMap<String, String> {
-    documents
-        .into_iter()
-        .map(|(k, v)| {
-            let key = k.strip_prefix("sha256:").unwrap_or(&k).to_string();
-            (key, v)
-        })
-        .collect()
+fn normalize_keys(documents: HashMap<String, String>) -> DashMap<String, String> {
+    let out = DashMap::with_capacity(documents.len());
+    for (k, v) in documents {
+        let key = k.strip_prefix("sha256:").unwrap_or(&k).to_string();
+        out.insert(key, v);
+    }
+    out
 }
 
 /// Errors from trusted document resolution.

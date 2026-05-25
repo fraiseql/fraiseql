@@ -5,6 +5,97 @@ use super::message::{AuthenticationMessage, BackendMessage, ErrorFields, FieldDe
 use bytes::{Bytes, BytesMut};
 use std::io;
 
+/// Bounds-checked read cursor over a byte slice.
+///
+/// All accessors return `io::Result` so this whole file can stay panic-free
+/// under `#![deny(clippy::indexing_slicing)]`. Each method advances `offset`
+/// only on success.
+struct Cursor<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Cursor<'a> {
+    const fn new(data: &'a [u8]) -> Self {
+        Self { data, offset: 0 }
+    }
+
+    fn remaining(&self) -> &'a [u8] {
+        // `self.offset` is monotonically advanced only by successful reads,
+        // each of which ensures the offset stays `<= self.data.len()`.
+        self.data.get(self.offset..).unwrap_or(&[])
+    }
+
+    const fn is_empty(&self) -> bool {
+        self.offset >= self.data.len()
+    }
+
+    fn read_u8(&mut self) -> io::Result<u8> {
+        let byte = *self
+            .data
+            .get(self.offset)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "byte"))?;
+        self.offset += 1;
+        Ok(byte)
+    }
+
+    fn read_i16_be(&mut self) -> io::Result<i16> {
+        let bytes: [u8; 2] = self
+            .data
+            .get(self.offset..self.offset + 2)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "i16"))?
+            .try_into()
+            // Reason: provably-safe — `.get(offset..offset+2)` returned a
+            // 2-byte slice, and `<[u8; 2]>::try_from(&[u8])` cannot fail on
+            // a slice of the exact length.
+            .expect("slice of length 2 always converts to [u8; 2]");
+        self.offset += 2;
+        Ok(i16::from_be_bytes(bytes))
+    }
+
+    fn read_i32_be(&mut self) -> io::Result<i32> {
+        let bytes: [u8; 4] = self
+            .data
+            .get(self.offset..self.offset + 4)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "i32"))?
+            .try_into()
+            // Reason: provably-safe — slice length 4 always converts to [u8; 4].
+            .expect("slice of length 4 always converts to [u8; 4]");
+        self.offset += 4;
+        Ok(i32::from_be_bytes(bytes))
+    }
+
+    fn read_slice(&mut self, n: usize) -> io::Result<&'a [u8]> {
+        let slice = self
+            .data
+            .get(self.offset..self.offset + n)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "slice"))?;
+        self.offset += n;
+        Ok(slice)
+    }
+
+    /// Read until the next `0x00` byte (exclusive), advancing past the null.
+    /// Returns the bytes before the null terminator.
+    fn read_until_null(&mut self) -> io::Result<&'a [u8]> {
+        let tail = self.remaining();
+        let end = tail.iter().position(|&b| b == 0).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "missing null terminator in string",
+            )
+        })?;
+        let bytes = tail.get(..end).unwrap_or(&[]);
+        // Advance past `end` bytes plus the null terminator.
+        self.offset += end + 1;
+        Ok(bytes)
+    }
+
+    /// Find the next `0x00` byte in the remaining slice without advancing.
+    fn position_of_null(&self) -> Option<usize> {
+        self.remaining().iter().position(|&b| b == 0)
+    }
+}
+
 /// Maximum number of fields accepted in a single DataRow or RowDescription message.
 ///
 /// PostgreSQL's protocol allows up to 1600 columns per table (hard limit enforced by
@@ -61,8 +152,9 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
         ));
     }
 
-    let tag = data[0];
-    let len_i32 = i32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+    let mut header = Cursor::new(data);
+    let tag = header.read_u8()?;
+    let len_i32 = header.read_i32_be()?;
 
     // PostgreSQL message length includes the 4 length bytes but not the tag byte.
     // Minimum valid length is 4 (just the length field itself).
@@ -85,7 +177,9 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
     // Create a temporary slice starting after the tag and length
     let msg_start = 5;
     let msg_end = len + 1;
-    let msg_data = &data[msg_start..msg_end];
+    let msg_data = data
+        .get(msg_start..msg_end)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "message body slice"))?;
 
     let msg = match tag {
         tags::AUTHENTICATION => decode_authentication(msg_data)?,
@@ -109,57 +203,56 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
 }
 
 fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
-    if data.len() < 4 {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "auth type"));
-    }
-    let auth_type = i32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+    let mut cur = Cursor::new(data);
+    let auth_type = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "auth type"))?;
 
     let auth_msg = match auth_type {
         auth::OK => AuthenticationMessage::Ok,
         auth::CLEARTEXT_PASSWORD => AuthenticationMessage::CleartextPassword,
         auth::MD5_PASSWORD => {
-            if data.len() < 8 {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "salt data"));
-            }
-            let mut salt = [0u8; 4];
-            salt.copy_from_slice(&data[4..8]);
+            let salt_slice = cur
+                .read_slice(4)
+                .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "salt data"))?;
+            let salt: [u8; 4] = salt_slice
+                .try_into()
+                // Reason: provably-safe — `read_slice(4)` returns a 4-byte slice.
+                .expect("slice of length 4 always converts to [u8; 4]");
             AuthenticationMessage::Md5Password { salt }
         }
         auth::SASL => {
             // SASL: read mechanism list (null-terminated strings)
             let mut mechanisms = Vec::new();
-            let remaining = &data[4..];
-            let mut offset = 0;
             loop {
-                if offset >= remaining.len() {
+                if cur.is_empty() {
                     break;
                 }
-                match remaining[offset..].iter().position(|&b| b == 0) {
-                    Some(end) => {
-                        let mechanism =
-                            String::from_utf8_lossy(&remaining[offset..offset + end]).to_string();
-                        if mechanism.is_empty() {
-                            break;
-                        }
-                        if mechanisms.len() >= MAX_SASL_MECHANISMS {
-                            break;
-                        }
-                        mechanisms.push(mechanism);
-                        offset += end + 1;
-                    }
-                    None => break,
+                let Some(end) = cur.position_of_null() else {
+                    break;
+                };
+                let mech_bytes = cur.read_slice(end).unwrap_or(&[]);
+                let mechanism = String::from_utf8_lossy(mech_bytes).to_string();
+                // Skip the null terminator we just located.
+                let _ = cur.read_u8();
+                if mechanism.is_empty() {
+                    break;
                 }
+                if mechanisms.len() >= MAX_SASL_MECHANISMS {
+                    break;
+                }
+                mechanisms.push(mechanism);
             }
             AuthenticationMessage::Sasl { mechanisms }
         }
         auth::SASL_CONTINUE => {
             // SASL continue: read remaining data as bytes
-            let data_vec = data[4..].to_vec();
+            let data_vec = cur.remaining().to_vec();
             AuthenticationMessage::SaslContinue { data: data_vec }
         }
         auth::SASL_FINAL => {
             // SASL final: read remaining data as bytes
-            let data_vec = data[4..].to_vec();
+            let data_vec = cur.remaining().to_vec();
             AuthenticationMessage::SaslFinal { data: data_vec }
         }
         _ => {
@@ -174,14 +267,13 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
 }
 
 fn decode_backend_key_data(data: &[u8]) -> io::Result<BackendMessage> {
-    if data.len() < 8 {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "backend key data",
-        ));
-    }
-    let process_id = i32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-    let secret_key = i32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+    let mut cur = Cursor::new(data);
+    let process_id = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data"))?;
+    let secret_key = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data"))?;
     Ok(BackendMessage::BackendKeyData {
         process_id,
         secret_key,
@@ -189,21 +281,17 @@ fn decode_backend_key_data(data: &[u8]) -> io::Result<BackendMessage> {
 }
 
 fn decode_command_complete(data: &[u8]) -> io::Result<BackendMessage> {
-    let end = data.iter().position(|&b| b == 0).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "missing null terminator in string",
-        )
-    })?;
-    let tag = String::from_utf8_lossy(&data[..end]).to_string();
+    let mut cur = Cursor::new(data);
+    let tag_bytes = cur.read_until_null()?;
+    let tag = String::from_utf8_lossy(tag_bytes).to_string();
     Ok(BackendMessage::CommandComplete(tag))
 }
 
 fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
-    if data.len() < 2 {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field count"));
-    }
-    let field_count_i16 = i16::from_be_bytes([data[0], data[1]]);
+    let mut cur = Cursor::new(data);
+    let field_count_i16 = cur
+        .read_i16_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field count"))?;
     if field_count_i16 < 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -218,19 +306,11 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
         ));
     }
     let mut fields = Vec::with_capacity(field_count);
-    let mut offset = 2;
 
     for _ in 0..field_count {
-        if offset + 4 > data.len() {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field length"));
-        }
-        let field_len = i32::from_be_bytes([
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        ]);
-        offset += 4;
+        let field_len = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field length"))?;
 
         let field = if field_len == -1 {
             None
@@ -241,12 +321,10 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
             ));
         } else {
             let len = field_len as usize;
-            if offset + len > data.len() {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field data"));
-            }
-            let field_bytes = Bytes::copy_from_slice(&data[offset..offset + len]);
-            offset += len;
-            Some(field_bytes)
+            let field_slice = cur
+                .read_slice(len)
+                .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field data"))?;
+            Some(Bytes::copy_from_slice(field_slice))
         };
         fields.push(field);
     }
@@ -266,19 +344,18 @@ fn decode_notice_response(data: &[u8]) -> io::Result<BackendMessage> {
 
 fn decode_error_fields(data: &[u8]) -> io::Result<ErrorFields> {
     let mut fields = ErrorFields::default();
-    let mut offset = 0;
+    let mut cur = Cursor::new(data);
 
     loop {
-        if offset >= data.len() {
+        if cur.is_empty() {
             break;
         }
-        let field_type = data[offset];
-        offset += 1;
+        let field_type = cur.read_u8()?;
         if field_type == 0 {
             break;
         }
 
-        let end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
+        let end = cur.position_of_null().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 "missing null terminator in error field",
@@ -290,8 +367,10 @@ fn decode_error_fields(data: &[u8]) -> io::Result<ErrorFields> {
                 format!("Error field too large ({end} bytes, max {MAX_ERROR_FIELD_BYTES})"),
             ));
         }
-        let value = String::from_utf8_lossy(&data[offset..offset + end]).to_string();
-        offset += end + 1;
+        let value_bytes = cur.read_slice(end).unwrap_or(&[]);
+        let value = String::from_utf8_lossy(value_bytes).to_string();
+        // Skip the null terminator.
+        let _ = cur.read_u8();
 
         match field_type {
             b'S' => fields.severity = Some(value),
@@ -308,9 +387,9 @@ fn decode_error_fields(data: &[u8]) -> io::Result<ErrorFields> {
 }
 
 fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
-    let mut offset = 0;
+    let mut cur = Cursor::new(data);
 
-    let name_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
+    let name_end = cur.position_of_null().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "missing null terminator in parameter name",
@@ -322,16 +401,18 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
             format!("Parameter name too long ({name_end} bytes, max {MAX_PARAMETER_NAME_BYTES})"),
         ));
     }
-    let name = String::from_utf8_lossy(&data[offset..offset + name_end]).to_string();
-    offset += name_end + 1;
+    let name_bytes = cur.read_slice(name_end).unwrap_or(&[]);
+    let name = String::from_utf8_lossy(name_bytes).to_string();
+    // Skip null terminator.
+    let _ = cur.read_u8();
 
-    if offset >= data.len() {
+    if cur.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "parameter value",
         ));
     }
-    let value_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
+    let value_end = cur.position_of_null().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "missing null terminator in parameter value",
@@ -345,24 +426,24 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
             ),
         ));
     }
-    let value = String::from_utf8_lossy(&data[offset..offset + value_end]).to_string();
+    let value_bytes = cur.read_slice(value_end).unwrap_or(&[]);
+    let value = String::from_utf8_lossy(value_bytes).to_string();
 
     Ok(BackendMessage::ParameterStatus { name, value })
 }
 
 fn decode_ready_for_query(data: &[u8]) -> io::Result<BackendMessage> {
-    if data.is_empty() {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "status byte"));
-    }
-    let status = data[0];
+    let status = *data
+        .first()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "status byte"))?;
     Ok(BackendMessage::ReadyForQuery { status })
 }
 
 fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
-    if data.len() < 2 {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field count"));
-    }
-    let field_count_i16 = i16::from_be_bytes([data[0], data[1]]);
+    let mut cur = Cursor::new(data);
+    let field_count_i16 = cur
+        .read_i16_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field count"))?;
     if field_count_i16 < 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -377,53 +458,40 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
         ));
     }
     let mut fields = Vec::with_capacity(field_count);
-    let mut offset = 2;
 
     for _ in 0..field_count {
         // Read name (null-terminated string)
-        let name_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
+        let name_end = cur.position_of_null().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 "missing null terminator in field name",
             )
         })?;
-        let name = String::from_utf8_lossy(&data[offset..offset + name_end]).to_string();
-        offset += name_end + 1;
+        let name_bytes = cur.read_slice(name_end).unwrap_or(&[]);
+        let name = String::from_utf8_lossy(name_bytes).to_string();
+        // Skip null terminator.
+        let _ = cur.read_u8();
 
-        // Read field descriptor (26 bytes: 4+2+4+2+4+2)
-        if offset + 18 > data.len() {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "field descriptor",
-            ));
-        }
-        let table_oid = i32::from_be_bytes([
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        ]);
-        offset += 4;
-        let column_attr = i16::from_be_bytes([data[offset], data[offset + 1]]);
-        offset += 2;
-        let type_oid = i32::from_be_bytes([
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        ]) as u32;
-        offset += 4;
-        let type_size = i16::from_be_bytes([data[offset], data[offset + 1]]);
-        offset += 2;
-        let type_modifier = i32::from_be_bytes([
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        ]);
-        offset += 4;
-        let format_code = i16::from_be_bytes([data[offset], data[offset + 1]]);
-        offset += 2;
+        // Read field descriptor (18 bytes: 4+2+4+2+4+2)
+        let table_oid = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let column_attr = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let type_oid = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?
+            as u32;
+        let type_size = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let type_modifier = cur
+            .read_i32_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
+        let format_code = cur
+            .read_i16_be()
+            .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"))?;
 
         fields.push(FieldDescription {
             name,

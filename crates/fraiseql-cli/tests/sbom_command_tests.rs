@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Integration tests for `fraiseql sbom`.
 //!
 //! The SBOM command reads Cargo.lock and produces a Software Bill of Materials.

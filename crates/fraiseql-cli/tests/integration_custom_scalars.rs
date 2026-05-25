@@ -5,7 +5,10 @@
 #![allow(clippy::pedantic)]
 
 use fraiseql_cli::schema::{IntermediateScalar, IntermediateSchema, SchemaConverter};
-use fraiseql_core::{schema::NamingConvention, validation::ValidationRule};
+use fraiseql_core::{
+    schema::NamingConvention,
+    validation::{CompiledPattern, ValidationRule},
+};
 
 #[test]
 #[allow(clippy::too_many_lines)] // Reason: integration test exercises full custom scalar pipeline in one flow
@@ -30,7 +33,8 @@ fn test_compile_schema_with_single_custom_scalar() {
             description:      Some("Valid email address".to_string()),
             specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
-                pattern: r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$".to_string(),
+                pattern: CompiledPattern::new(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
+                    .expect("valid regex"),
                 message: Some("Invalid email format".to_string()),
             }],
             base_type:        Some("String".to_string()),
@@ -90,7 +94,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
                 description:      None,
                 specified_by_url: None,
                 validation_rules: vec![ValidationRule::Pattern {
-                    pattern: r"^\+\d{10,14}$".to_string(),
+                    pattern: CompiledPattern::new(r"^\+\d{10,14}$").expect("valid regex"),
                     message: Some("Invalid phone format".to_string()),
                 }],
                 base_type:        Some("String".to_string()),
@@ -148,7 +152,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
                     max: Some(20),
                 },
                 ValidationRule::Pattern {
-                    pattern: r"^[a-zA-Z0-9_]+$".to_string(),
+                    pattern: CompiledPattern::new(r"^[a-zA-Z0-9_]+$").expect("valid regex"),
                     message: Some("Only alphanumeric and underscore allowed".to_string()),
                 },
             ],

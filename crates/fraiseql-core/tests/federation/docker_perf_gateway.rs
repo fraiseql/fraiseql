@@ -4,7 +4,7 @@
 //! batch vs sequential performance, large result sets, complexity scaling,
 //! concurrent queries, mutation impact, and different query patterns.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: perf test latency computations cast u128/usize→f64 for display
 use super::common::*;
 

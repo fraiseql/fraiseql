@@ -36,11 +36,12 @@
 //! **Infrastructure:** none (Tier 1), PostgreSQL (Tier 2), PostgreSQL + `MinIO` (Tier 3)
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test helpers
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code
 #![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::todo)] // Reason: documented #[ignore]d Tier 3 stubs awaiting full-platform infra
 
 // ── Tier 1: Structural Tests ──────────────────────────────────────────────────
 

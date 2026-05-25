@@ -5,7 +5,11 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-05-15
+## [Unreleased]
+
+## [2.3.0] - 2026-05-25
+
+*v2.3.0 supersedes the abandoned 2026-05-14 release attempt — see commit history for the revival. Migration guide for adopters: `docs/migration/v2.2-to-v2.3.md`.*
 
 ### Added
 
@@ -15,116 +19,534 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-table hierarchies via FK semi-joins. Configured via `[hierarchies]` in `fraiseql.toml`
   with `table` and `path_column` settings. Includes field-level `hierarchy` annotation and
   compile-time validation. PostgreSQL-only (MySQL/SQLite/SQL Server return `Unsupported`).
+  (`de05e4252`, `91d92f376`, `b83ca0957`, `8ec7c7617`, `229542276`, `a8d638dc9`, `2be493440`, `3ae032a1d`)
 
 - **JWT nested claims extraction** (#246) — `Claims::email()` and `Claims::name()` accessor
   methods that normalize nested JWT claim formats (Azure AD `{"value": "..."}`, OIDC
   `{"given": "...", "family": "..."}`, arrays) into flat strings. `GET /auth/me` now
   returns top-level `email` and `display_name` fields, and RLS session variables support
   `jwt:email` and `jwt:name`/`jwt:display_name` mappings.
+  (`75fbd24be`, `cccb19fc7`, `f012f2e03`, `06a03ba28`)
 
 - **Partial-period aggregates** — UNION ALL dispatch for aggregate queries spanning period
   boundaries, with `TemporalGrain` and `PartialPeriodConfig` schema model additions and
-  lower-bound date extraction from WHERE clauses.
+  lower-bound date extraction from WHERE clauses. (`727b68829`, `784a09f89`, `773029355`,
+  `bd25bf471`, `6d683dbd8`, `91ac77ab7`)
 
 - **Storage API** (`fraiseql-storage` crate) — S3/local/Azure/GCS storage backends with
   RLS-enforced tenant isolation, file transforms (resize, watermark, format conversion),
-  and access control routes mounted on the server.
+  and access control routes mounted on the server. Ported from the Phase 8 platform
+  integration; see Phase 12 in the roadmap. (`00ddccb83`, `3fb958715`)
 
 - **Functions trigger system** (`fraiseql-functions`) — `after:mutation`, `before:mutation`,
   `after:storage`, cron, and HTTP trigger types with a `TriggerRegistry` for dispatch.
-  WASM host bindings for function execution.
+  WASM host bindings for function execution, WASI support, host op wiring with `SqlExecutor`
+  injection, sandbox + concurrency limiter, function secrets (AES-256-GCM), and WASM module
+  cache for cold-start optimization. (`11d0e3442`, `db0b65166`, `de162ed9d`, `9c6aaecba`,
+  `88d8fc040`, `aa23821d2`, `d36cf1bfb`, `f462fada3`, `37a563fc3`, `6743ad290`, `a76b3e747`,
+  `d228dc05e`, `18a310661`)
 
 - **Realtime subsystem** — WebSocket server with subscription protocol, event delivery
-  with RLS, broadcast observer, and `CronScheduler` for periodic tasks.
+  with RLS, broadcast observer, `CronScheduler` for periodic tasks, presence manager with
+  room tracking and heartbeat eviction, broadcast channels with REST publish endpoint, and
+  CDC `ObserverRuntime` wired into `EventBridge`. Tenant-aware CDC filtering via
+  `fk_customer_org`. (`f6dd7e419`, `8b0e78402`, `ed23497bc`, `6ca949577`, `dde8e41f1`,
+  `aded85a27`, `4d9639fc8`)
 
 - **Subsystems builder** — `ServerSubsystems` builder pattern with `ExtendedCompiledSchema`
-  loader and config validation for composing server capabilities.
+  loader and config validation for composing server capabilities. (`aded85a27`)
 
-- **Auth extensions** (Phase 13) — social login (Google, GitHub, Apple, Microsoft),
-  account linking, magic links / email OTP, TOTP MFA, and anonymous sessions.
+- **Auth extensions** (Phase 13) — unified multi-provider social login (Google, GitHub, Apple,
+  Microsoft), account linking (same email → same user), magic links / email OTP, TOTP MFA
+  with recovery codes, anonymous session signup, and phone-auth SMS OTP. (`b7fb91413`,
+  `cd5c594f4`, `d57036537`, `a88b69a19`, `d4879ca6a`, `97a554b81`, `41791f0a0`)
 
-- **CLI `setup` command** — generates mutation helper functions (mutation_response type,
-  `fn_mutation_success`/`fn_mutation_error` SQL functions).
+- **Tenancy hardening** (Phase 15) — `TenancyConfig` and `TenancyMode` plumbing, compile-time
+  `@tenant_id` row-isolation guard, schema-isolation DDL and `search_path` management,
+  suspend/resume lifecycle with admin scope guard, tenant-aware rate limiting and quotas,
+  tenant audit trail, and tenant cross-source consistency validation. (`aec9753ff`,
+  `6808942ed`, `ed14d8f50`, `c21f78a6f`, `0c2fb55c7`, `9b1fe5c56`, `d1fa0d089`, `8675b43b3`)
 
-- **Observer management** — changelog handlers, DLQ handlers, and shared DLQ state
-  across hot-reload cycles.
+- **Schema migrations CLI** (Phase 14) — schema migrations & evolution support via
+  `fraiseql-cli`. (`1158be090`)
+
+- **Studio admin dashboard** (Phase 18) — SPA shell with embedded assets at `/studio`,
+  admin API schema + health endpoints, data browser backend, auth/storage/realtime/functions/
+  metrics backend endpoints, frontend wired to all admin API endpoints. (`6b66e56ad`,
+  `0768881a6`, `f4838058a`, `84e6cca47`, `3d2039890`, `53ebbd18a`)
 
 - **Studio metrics endpoint** — `GET /admin/v1/metrics/summary` wired to live
   `MetricsCollector` with real-time latency percentiles and cache hit rate.
+
+- **CLI `setup` command** — generates mutation helper functions (`mutation_response` type,
+  `fn_mutation_success` / `fn_mutation_error` SQL functions). (`1c3497e9e`)
+
+- **Observer management** — changelog handlers, DLQ handlers, and shared DLQ state
+  across hot-reload cycles. (`3b04c3241`)
 
 - **`DatabaseAdapter::on_schema_reload()`** — adapters react to schema hot-reload
   events (e.g. clear caches). Default no-op for backwards compatibility.
 
 - **PostgreSQL usage persistence backend** — `UsageAggregator` stores mutation counters
   in `fraiseql_usage_counters` table with automatic background flush lifecycle.
+  (`5bf080663`, `a0ddffa03`)
 
 - **`[usage]` TOML configuration section** — `ServerConfig.usage: Option<UsagePersistenceConfig>`.
 
 - **REST transport wiring** — `[rest]` TOML section now parsed and compiled
   through the full pipeline (merger → intermediate → compiled schema). Server
   mounts read-only REST query router behind `rest` feature flag. Based on
-  PR #229 by @magick93.
+  PR #229 by @magick93. (`bd98715e4`, `d97924802`, `fe6456854`)
 
-- **Admin query-stats endpoints** (issue #268) — cross-database query performance
+- **Admin query-stats endpoints** (#268) — cross-database query performance
   observability via `GET /api/v1/admin/query-stats`, `GET .../query-stats/{queryid}`,
   and `POST .../query-stats/reset`. Backed by `pg_stat_statements` (PostgreSQL),
   `performance_schema` (MySQL), and `sys.dm_exec_query_stats` (SQL Server). Graceful
   no-op on SQLite. Prometheus gauges: `fraiseql_db_query_exec_seconds`,
   `fraiseql_db_query_calls`, `fraiseql_db_query_mean_exec_seconds`,
-  `fraiseql_db_cache_hit_ratio`. Grafana dashboard panel added.
+  `fraiseql_db_cache_hit_ratio`. Grafana dashboard panel added. (`2f6104d99`, `deb586efb`,
+  `396ab5508`, `38562a0d3`, `1cfae166a`)
 
 - **Native aggregation column support** — `native_measures` for flat column
   aggregation without JSONB extraction, and `native_dimension_mapping` for
-  GROUP BY column resolution on views with native SQL columns.
+  GROUP BY column resolution on views with native SQL columns. (`95db4f9b9`, `f7245960e`)
 
 - **Wire protocol network operators** — `isMulticast`, `isLinkLocal`,
-  `isDocumentation`, `isCarrierGrade` network filter operators; `isPrivate`/`isPublic`
-  consolidated into boolean-value pattern.
+  `isDocumentation`, `isCarrierGrade` network filter operators; `isPrivate` / `isPublic`
+  consolidated into boolean-value pattern. (`20bb709f3`, `3f4bcfc63`)
 
 - **camelCase operator normalization** — WHERE clause operator names now accept
-  camelCase form (e.g. `startsWith`) and normalize to snake_case internally.
+  camelCase form (e.g. `startsWith`) and normalize to snake_case internally. (`37dc02312`)
+
+- **Independent admin-route auth toggles** — `metadata_require_auth`,
+  `schema_export_require_auth`, `playground_require_auth`, and `subscription_require_auth`
+  config options decouple each admin/inspection surface from the global `require_auth`
+  default. (`02081b700`, `c3286bb60`, `c2f8304ed`, `fdba1d06c`)
+
+- **Federation mTLS** — defence-in-depth mTLS support for federation subgraph connections.
+  (`0e5175371`)
+
+- **Schema integrity** — SHA-256 content hash wired into `schema.compiled.json` for
+  startup-time integrity verification. (`a27d8f1c5`)
+
+- **Cargo-fuzz target for wire JSON parse path** — covers every variable/row JSON payload
+  reaching the engine. [F030] (`2763ca296`)
+
+- **Property tests for runtime entry points** — 9 property tests covering `parse_query`,
+  `QueryMatcher::match_query`, and `extract_root_field_names`. [F031] (`fcee0374b`)
+
+- **Crate-level READMEs** — 16 workspace crates now declare `readme = "README.md"` so
+  crates.io and docs.rs landing pages render the overview. Three missing READMEs added
+  (`fraiseql-functions`, `fraiseql-storage`, `fraiseql-test-utils`). [F032]
+  (`7fd709d97`, `494bf086a`, `d69d1fdbc`, `9cb46eccf`)
 
 ### Security
 
-- **S43**: IPv6 literal parsing in wire connection strings (RFC 3986 bracket notation)
-- **S44**: Federation saga table double-prefix fix (`tb_tb_` → `tb_`) + `cleanup_all` visibility restriction
-- **S45**: Real peer IP forwarding via `PeerIp` extractor for GraphQL rate limiting
-- **S46**: `AuthorizationDenied` audit event for SOC 2 compliance logging
-- **S47**: Vault backend rotation atomicity with per-secret `DashMap` locks
-- **S48**: Admin bearer token brute-force protection
+- **S33**: auth input caps + `reload_schema` path-traversal guard. (`5f0e76806`)
+- **S34**: resource bounds on auth flows. (`2b11e0371`)
+- **S35**: quality & observability polish on the auth path. (`ff09fd270`)
+- **S36**: session security hardening. (`694b74b56`)
+- **S37**: PKCE hardening. (`2aaf5cd89`)
+- **S38**: SCRAM / auth key-material zeroization. (`6e476c46a`, `4f9fad1e1`)
+- **S39**: redirect URI and auth-code input hardening. (`1059d0368`)
+- **S40**: JWT claims hardening. (`9a8a31c15`)
+- **S41**: JWT algorithm hardening. (`e123528b6`)
+- **S42**: JWT header injection defence. (`b26bfd523`, `5f4265eae`)
+- **S43**: IPv6 literal parsing in wire connection strings (RFC 3986 bracket notation).
+  (`39b625a89`)
+- **S44**: Federation saga table double-prefix fix (`tb_tb_` → `tb_`) + `cleanup_all`
+  visibility restriction. (`57c15b286`)
+- **S45–S48**: real peer-IP forwarding via `PeerIp` extractor for GraphQL rate limiting,
+  `AuthorizationDenied` audit event for SOC 2 compliance logging, Vault backend rotation
+  atomicity with per-secret `DashMap` locks, and admin bearer-token brute-force protection.
+  (`4e3b680c3`)
+- **Vault hardening** — body-size guards and `Debug` redaction on the secrets backend.
+  (`17cf97a96`)
+- **Cache RLS isolation guard** — additional guard ensuring cache lookups cannot
+  cross-leak between security contexts. (`226d0de36`)
+- **Subscription tenant isolation** — WebSocket subscriptions now enforce tenant
+  isolation end-to-end. (`9639fd894`)
+- **HTTP allowlist defaults** — `fraiseql-functions` outbound HTTP now denies by default;
+  hosts must be explicitly allowlisted. (`f49885cbf`)
+- **RLS enforcement on aggregate/window paths** — closes a gap where aggregate and
+  window queries could bypass row-level security. (`f7d5e77a8`)
+- **Redact bearer token in `AuthRequest` Debug output.** [F010] — manual `Debug`
+  emits `Some("<redacted>")` / `None`. (`1dbf83119`)
+- **Redact tokens in `AuthCallbackResponse` / `AuthRefreshResponse` Debug.** [F045]
+  (`47c478768`)
+- **Zeroize `Secret` buffer on drop.** [F012] — `Secret`'s `Drop` impl now scrubs the
+  underlying heap allocation; previously `Debug` was redacted but the plaintext lingered
+  in freed pages. (`eda6db593`)
 
 ### Fixed
 
-- **Hot-reload cache rebind** — query cache cleared on schema reload, resolving stale-cache bug.
-
-- **fraiseql-storage compile errors** — corrected compile-time failures from v2.2.0 federation work.
-
-- **`platform_e2e_test` repaired** — 9 platform E2E tests pass reliably after race condition fix.
-
-- **OIDC enrichment compatibility** — works without observers feature enabled.
-
+- **Hot-reload cache rebind** — query cache cleared on schema reload, resolving a
+  stale-cache bug.
+- **fraiseql-storage compile errors** — corrected compile-time failures from the v2.2.0
+  federation work.
+- **`platform_e2e_test` repaired** — 9 platform E2E tests pass reliably after a race
+  condition fix.
+- **OIDC enrichment compatibility** — works without the observers feature enabled.
 - **CLI SBOM metadata** — falls back to workspace `Cargo.toml` when crate-level
-  metadata is unavailable.
+  metadata is unavailable. (`b7486e794`)
+- **3 broken doctests in `traits.rs` and `PostgresAdapter`** — repaired. (`185822222`)
+- **Federation HTTP retry source chain** — `execute_with_retry` now threads the most recent
+  `reqwest::Error` into `FraiseQLError::Internal { source }` instead of stringifying it
+  away. [F025] (`500859a48`)
+- **Observer job-worker panics propagated** — `execute_batch` now logs panics at `error!`
+  with `worker` and `error` fields and increments `fraiseql_observer_job_failed_total`
+  (when the metrics feature is enabled). [F014] (`d1c89be6e`)
+- **Cron task error chain logged** — cron-task error log now adds `error.debug` and
+  `error.chain` fields walking `std::error::Error::source()`. [F047] (`7f99fe498`)
+- **Response-cache key serialization errors propagated** — `compute_response_cache_key`
+  now returns `Result<u64>` and bubbles serialization failures as `Validation` errors
+  instead of `unwrap_or_default()` colliding distinct argument trees onto the empty-string
+  key. [F044] (`cf3a202cd`)
+- **Per-query execution log demoted from `info` to `debug`.** [F041] (`ef8bc4119`)
+- **`FraiseQLError` doctest references** — rewritten to enumerate three real variants
+  (`Parse`, `Validation`, `Database`) with a `#[non_exhaustive]` explanatory comment.
+  [F016] (`bc9df7dc2`)
+- **`IntoResponse for FraiseQLError` catch-all arm** — `into_response`, `status_code`, and
+  `error_code` matches now carry a documented catch-all arm so a future
+  `#[non_exhaustive]` variant addition defaults to a safe generic 500 rather than failing
+  to compile silently. [F055] (`39078b202`)
+- **`Auth` / `Webhook` / `Observer` source-chain preservation** — `#[source]` annotation
+  added to the three boxed-payload variants so `err.source()` walks the subsystem-error
+  chain instead of returning `None`. [F049] (`bc0ed8e25`)
+- **`FraiseQLError::Storage` ownership rustdoc** (later collapsed by the F050 deletion).
+  [F051] (`686322bd6`)
+- **OAuth/token race conditions in tests** — drain tokio task before cancel in token-refresh
+  and lease-renewal tests. (`379919faa`, `faca53b82`)
 
-- **3 broken doctests in `traits.rs` and `PostgresAdapter`** — repaired.
+### Changed (breaking)
+
+- **Error taxonomy consolidation** — `FraiseQLError` is now the single root error type for
+  the workspace. The parallel HTTP-shaped `RuntimeError` enum has been deleted from
+  `fraiseql-error`, along with five vestigial shadow domain enums
+  (`fraiseql_error::{AuthError, WebhookError, NotificationError, IntegrationError,
+  ObserverError}`) that had zero production call sites. Subsystem error vocabularies
+  (`fraiseql_auth::AuthError`, `fraiseql_webhooks::WebhookError`,
+  `fraiseql_observers::ObserverError`) now compose into the canonical taxonomy via owned
+  `From<X> for FraiseQLError` impls (sqlx pattern); the new variants are
+  `FraiseQLError::{Auth, Webhook, Observer, File}`. `FileError` itself is retained (9
+  production call sites) and is now a `#[from]` variant of `FraiseQLError`. The
+  `impl IntoResponse` in `fraiseql_error::http` now wraps `FraiseQLError` directly
+  (was: `RuntimeError`), and `IntoHttpResponse` bridges `Result<T, FraiseQLError>`. The
+  umbrella crate `fraiseql` no longer re-exports `RuntimeError`, `AuthError`, or
+  `WebhookError`; use `FraiseQLError` (via `fraiseql::FraiseQLError` or
+  `fraiseql::prelude::*`) instead. (`ffd3124e9`, `dd1c9b80f`, `230d4d238`)
+  **Migration:** see `docs/migration/v2.2-to-v2.3.md` and `DEPRECATIONS.md`.
+
+- **`ServerError::RuntimeError` renamed to `ServerError::Engine`** — the variant wraps
+  `fraiseql_core::error::FraiseQLError` (the engine error), not the now-deleted
+  `fraiseql_error::RuntimeError`. The old name was a misnomer. The `#[from]` semantics
+  are unchanged: any `FraiseQLError` bubbles up as `ServerError::Engine` automatically.
+  (`65491c2a9`)
+  **Migration:** `sed -i 's/ServerError::RuntimeError/ServerError::Engine/g' **/*.rs`.
+
+- **`FraiseQLError::Storage` removed; storage failures now use
+  `FraiseQLError::File(FileError::*)`** [F050]. The 118 call sites in `fraiseql-storage`
+  and `fraiseql-functions` that used to construct `FraiseQLError::Storage { message, code }`
+  have been migrated to typed `FileError` variants, eliminating the `code: Option<String>`
+  string-discriminator anti-pattern. Eight new `FileError` variants cover the
+  backend-classification space:
+
+  | New variant | HTTP status | Replaces |
+  |---|---|---|
+  | `FileError::PermissionDenied { message, source }` | 403 | `Storage { code: Some("permission_denied") }` |
+  | `FileError::IoError { message, source }` | 500 | `Storage { code: Some("io_error") }` |
+  | `FileError::InvalidKey { message }` | 400 | `Storage { code: Some("invalid_key") }` |
+  | `FileError::NotImplemented { message }` | 500 | `Storage { code: Some("not_implemented") }` |
+  | `FileError::Unsupported { message }` | 500 | `Storage { code: Some("not_supported"/"unsupported") }` |
+  | `FileError::SizeLimitExceeded { message, limit, actual }` | 500 | `Storage { code: Some("size_limit_exceeded") }` |
+  | `FileError::MimeTypeNotAllowed { message, mime }` | 500 | `Storage { code: Some("mime_type_not_allowed") }` |
+  | `FileError::Backend { message, source }` | 500 | catch-all for `Storage { code: None }` (~67 sites: HTTP / SDK failures, config-validation errors, sqlx database errors) |
+
+  Existing `FileError::NotFound` reused for `Storage { code: Some("not_found") }`.
+  **Observable HTTP changes** (two refinements):
+  1. `FraiseQLError::File(FileError::NotFound)` now returns 404 globally (was 400). This
+     aligns the global status code with what the local `storage_error_response` and
+     `fraiseql-server::file_error_response` routes already returned for backend
+     not-found cases.
+  2. `FraiseQLError::File(FileError::InvalidKey)` returns 400 (was 500 under
+     `Storage { code: Some("invalid_key") }`). The previous 500 was a bug: a
+     caller-supplied bad key is user-fixable and 400 is the semantically correct status.
+
+  Every other status code is preserved: `storage_error_response` still routes
+  `NotFound` → 404, `PermissionDenied` → 403, everything else → 500 exactly as before,
+  only by matching on typed variants instead of the `code` string. Source-chain
+  preservation is a net improvement: reqwest, AWS SDK, sqlx, std::io errors that were
+  previously stringified via `format!("backend error: {e}")` now flow through
+  `source: Some(Box::new(e))` so `Error::source()` chain walkers and `tracing`'s
+  error-chain instrumentation see the underlying type.
+  (`4c86d2e0d`, `ed80df821`, `aa7d59712`, `44432234f`, `acec7e435`, `76288f3ab`)
+  **Migration:** downstream callers that matched on `FraiseQLError::Storage { .. }`
+  must migrate to `FraiseQLError::File(FileError::*)`. See `docs/migration/v2.2-to-v2.3.md`
+  for the `code`-string-to-variant table.
+
+- **`ViewName(Arc<str>)` newtype propagated through cache invalidation APIs** [F028, F037] —
+  `DatabaseAdapter::invalidate_views`, `DatabaseAdapter::invalidate_list_queries`,
+  `QueryResultCache::invalidate_views`, `QueryResultCache::invalidate_list_queries`,
+  `ResponseCache::invalidate_views`, and `CachedDatabaseAdapter::invalidate_views` now
+  take `&[ViewName]` instead of `&[String]`. Cache internal storage (`accessed_views`,
+  `view_index`, `list_index`) migrated accordingly. View names are now promoted from
+  `String` to `Arc<str>` once at the `put` boundary and reused across every reference,
+  reducing per-cache-write allocations. (`4bf9a58b1`, `e760033ce`)
+  **Migration:** adopters with custom adapter impls update the trait method signatures;
+  `ViewName::from(&str)` is a one-line conversion at the call site.
+
+- **`execute_with_projection_arc` takes `&ProjectionRequest<'_>` instead of 6 positional
+  arguments** [F043] — adapter trait method signature consolidated into a borrowed struct
+  with field order mirroring `SELECT … FROM … WHERE … ORDER BY … LIMIT … OFFSET`. The
+  struct is intentionally NOT `#[non_exhaustive]` (a missing field is a hard compile error
+  by design). (`83725aed8`)
+  **Migration:** override the trait method by constructing a struct literal.
+
+- **`KeyedRateLimiter` is generic over `<C: Clock = SystemClock>`** [F018] — the boxed
+  `Box<dyn Fn() -> u64 + Send + Sync>` clock has been replaced with a `Clock` trait. A
+  blanket impl on `F: Fn() -> u64 + Send + Sync` keeps closure ergonomics for tests, and
+  `SystemClock` is a zero-sized type so default-clock production limiters are now `Clone`.
+  (`3dca6bd67`)
+  **Migration:** code naming the type explicitly (`KeyedRateLimiter` in a struct field)
+  may need `KeyedRateLimiter<SystemClock>` to type-check.
+
+- **`extract_root_field_names` returns `impl Iterator<Item = &str>` instead of `Vec<&str>`**
+  [F020]. (`dffa25762`)
+  **Migration:** add `.collect::<Vec<_>>()` at the two call sites that need a `Vec`.
+
+- **`InMemoryRateLimiter`, `TrustedDocumentStore`, `KeyedRateLimiter`, federation
+  `ConnectionManager`, and observer `entity_type_index` migrated to lock-free reads**
+  [F006, F007, F008, F013, F048]. All five maps were previously `Arc<Mutex<HashMap>>`
+  or `Arc<RwLock<HashMap>>` on read-hot paths and now use `DashMap` (four of them) or
+  `ArcSwap<HashMap>` (the observer index, F056) so request-hot reads no longer block on
+  a central lock. Per-key atomicity is preserved via `DashMap::entry()` where the
+  previous code held the outer lock across a read-modify-write. The
+  `TrustedDocumentStore::resolve` / `document_count` / `replace_documents` methods drop
+  their `async` signature (no remaining await suspension). The two stricter contracts
+  are also restored:
+  - Observer `entity_type_index` (F056) uses `ArcSwap<HashMap>` for **snapshot
+    atomicity** — readers always observe a fully-populated generation, never a
+    partially-rebuilt index during reload.
+  - `KeyedRateLimiter` (F057) enforces its `max_entries` cap **strictly** on the
+    insert path under a serialising guard — `len()` never exceeds the cap at any
+    observable instant, even under sustained concurrent burst.
+
+  The remaining four maps (F006, F007, F008, F013) use plain `DashMap` and document
+  per-key best-effort atomicity in the field rustdoc; these are correct under their
+  stated contracts. (`c5c946fb3`, `4b3e542b3`, `6f79c711e`, `3cda8124f`, `1ebae1f61`)
+  **Migration:** none for callers; behaviour change is internal.
+
+- **`parking_lot::Mutex` replaces `tokio::sync::Mutex` for synchronous critical
+  sections** [F019] — `MemoryApqStorage::entries` and
+  `ListenerHandle::last_heartbeat` switched to `parking_lot::Mutex<HashMap<…>>` and
+  `parking_lot::Mutex<Instant>`. `ListenerHandle::update_heartbeat` is no longer
+  `async`. Three sites that hold their lock across `.await` were intentionally left on
+  `tokio::sync::Mutex`. (`bb95ef8e9`)
+  **Migration:** none unless calling `update_heartbeat` directly — drop the `.await`.
+
+- **Lifecycle `tokio::spawn` tracked via `JoinSet`** [F021] — server lifecycle spawns
+  (SIGUSR1 handler, usage-persistence flush, Arrow Flight gRPC server, trusted-docs
+  reloader, PKCE cleanup) are now collected into a per-server `tokio::task::JoinSet`
+  that `serve_with_shutdown` aborts and drains under the configured shutdown timeout.
+  Per-request spawns (subscription event handlers, request middleware) are NOT migrated.
+  (`19bfd826c`)
+  **Migration:** none for downstream callers; shutdown behaviour is observably more
+  graceful.
+
+- **`MetricsCollector` counters flattened to bare `AtomicU64`** [F009] — 28 individual
+  `Arc<AtomicU64>` fields replaced with plain `AtomicU64`. `MetricsCollector` no
+  longer derives `Clone`; production wiring already wraps in `Arc<MetricsCollector>`.
+  Call-site syntax (`metrics.queries_total.fetch_add(…)`) is unchanged. (`f5ddaa59e`)
+  **Migration:** any code holding `Arc::clone(&metrics.queries_total)` becomes a
+  borrow of the parent `Arc<MetricsCollector>`.
+
+- **Arrow Flight multi-batch responses streamed via bounded `mpsc::channel(4)`** [F011]
+  — 4 multi-batch `service.rs` sites converted to a producer task feeding a
+  `tokio_stream::wrappers::ReceiverStream` so the consumer's `poll_next` exerts
+  backpressure on the producer. Single-element response sites stay on
+  `stream::iter(vec![one])`. (`0077a3eb1`)
+  **Migration:** none for callers; output stream shape preserved.
+
+- **`ParsedQuery.source: String` is now `Arc<str>`** [F042] — `ParsedQuery::clone()`
+  drops its deep string copy in favour of an atomic ref-count bump. The wire form of
+  the serde representation is unchanged (custom `serialize_with` / `deserialize_with`
+  preserves backward-compatible JSON). (`bab30d351`)
+  **Migration:** code that reads `parsed.source` and required `&String` semantics may
+  need `&*parsed.source` to get `&str`.
+
+- **`QueryMatcher` builds the variables map once per request** [F005, F024] — the
+  matcher used to convert variables twice (once for directive evaluation, once for
+  `QueryMatch::arguments`). Folded into a single `variables_to_map` conversion.
+  (`38c6e705b`)
+  **Migration:** internal change — the wider `QueryMatch` borrowed-arguments
+  refactor was deferred (lifetime ripple too wide); signatures unchanged.
+
+- **`ValidationRule::Pattern { pattern: String }` → `Pattern { pattern: CompiledPattern }`**
+  [F003] — regex compilation now happens once at construction (or at
+  `schema.compiled.json` deserialisation) rather than on every validation call.
+  Invalid patterns surface at schema load instead of degrading silently per request.
+  (`dd4393d06`)
+  **Migration:** downstream code constructing `ValidationRule::Pattern` directly must
+  build a `CompiledPattern` from the source string; a `From<String>`-style helper is
+  provided.
+
+- **`QueryParam`'s `to_sql_param` helper deleted; `as_sql_param_refs` centralises the
+  borrow pattern** [F036] — `QueryParam` already implemented `ToSql`; the boxed-dyn
+  conversion was redundant. (`c9b599e15`)
+  **Migration:** code calling `to_sql_param(&p)` should use the existing borrowed
+  pattern `.iter().map(|p| p as &(dyn ToSql + Sync)).collect()` or the new helper
+  `as_sql_param_refs(&[QueryParam])`.
+
+- **Wire-crate clippy allows reorganised into groups** [F053] — moved 2 test-bleed
+  allows (`unreadable_literal`, `explicit_iter_loop`) into per-module `#![allow]`
+  inside `mod tests` blocks; removed 2 no-longer-firing allows from the crate level
+  entirely; grouped the remaining 15 crate-level allows under two commented headers
+  ("Wire-protocol cast suppressions" and "Crate-wide style preferences"). Added
+  `make lint-gate-wire` enforcing both the count cap and "no test-bleed lints at
+  crate level". (`897a2188a`)
+  **Migration:** none for callers; build / lint shape only.
+
+- **Workspace clippy strictly denies `panic`, `unreachable`, `print_stdout`,
+  `print_stderr`, `dbg_macro`, `todo`, `unimplemented`, `mem_forget`,
+  `lossy_float_literal`, `semicolon_if_nothing_returned`, `undocumented_unsafe_blocks`,
+  and `missing_assert_message`** at the workspace `[lints.clippy]` level. The
+  `nursery` and `cargo` lint groups are promoted from `warn` to `deny`. Three crates
+  (`fraiseql-error`, `fraiseql-wire`, `fraiseql-storage`) additionally deny
+  `clippy::indexing_slicing` at the crate root as the Q4 pilot. Workspace-wide
+  `indexing_slicing` rollout is planned across v2.3.x; see `FOLLOW_UPS.md` for the
+  per-crate rollout plan (13 crates remaining). Three pilot crates were refactored
+  with no API surface change: `fraiseql-error` (`levenshtein_distance` rolling
+  buffer), `fraiseql-wire` (private `Cursor<'a>` decoder helper), `fraiseql-storage`
+  (`serde_json::Value::get()` + slice-`.get()` patterns). (`bb5347e82`, `ace13741e`,
+  `e6567fb98`, `4d2c5d17b`, `0a829c2ff`, `04154688d`, `f20fc7717`, `280ff100c`,
+  `cfe739c71`, `e514bbf25`, `4a6c94664`, `3c3e16089`)
+  **Migration:** downstream crates that opt into the workspace lint table inherit
+  these denials; if any external code triggers them, hoist the allow to the
+  offending function or module with a `// Reason:` comment.
+
+- **`CompiledSchema::from_json` takes a `strict_integrity: bool` second argument** —
+  the canonical schema-load entry point now accepts a strict-integrity flag that
+  rejects schemas whose hash does not match the embedded integrity manifest. Re-exported
+  via `fraiseql::CompiledSchema` and `fraiseql_core::prelude::CompiledSchema`.
+  **Migration:** existing call sites pass `false` for backward-compatible behaviour
+  (`CompiledSchema::from_json(json, false)`); set `true` to opt into the new
+  integrity check. Surfaces under the schema-integrity hardening landed in v2.3.
+
+- **`fraiseql_cli::schema::intermediate::operations::IntermediateSqlSourceDispatch`
+  and `fraiseql_core::schema::SqlSourceDispatch` removed** — both `pub` structs
+  belonged to a schema-shape intermediate that was superseded by the v2.3 dispatch
+  model. Adopters using the CLI-as-library to introspect schema intermediates, or
+  pattern-matching on `QueryDefinition.sql_source_dispatch`, must migrate to the
+  new dispatch types.
+  **Migration:** see the schema-compilation overhaul in `docs/architecture/compiler.md`.
+  If you depended on the removed types, file an issue describing your use case so
+  the equivalent v2.3 entry point can be documented.
+
+- **`fraiseql_core::security::oidc::providers::MeEnrichmentConfig` removed** —
+  this `pub` struct used to configure the OIDC `/auth/me` claim-enrichment behaviour
+  via the Rust API. The OIDC enrichment refactor in v2.3 replaced it with a TOML-driven
+  configuration path; programmatic enrichment configuration is no longer supported.
+  **Migration:** move claim-enrichment configuration into `fraiseql.toml` under
+  `[auth.oidc.providers.<name>.me_enrichment]`. The TOML schema is documented under
+  the Auth extensions Phase 13 entry above.
+
+- **`#[non_exhaustive]` rollout to public DTOs (`RelayPageResult`,
+  `SqlProjectionHint`, `OrderByClause`, `ActionResult`, `CacheStatus`, `EventKind`)**
+  — six public DTOs received `#[non_exhaustive]` so future field additions don't
+  break adopters. Each type also gained a `new(...)` constructor so the struct-literal
+  pattern can be replaced mechanically. `RelayPageResult` and `ActionResult` are
+  returned by public traits (`RelayDatabaseAdapter`, `ActionExecutor`) downstream
+  implementations satisfy — those impls must use the new constructors. (`dbc9e0afc`,
+  `e2b9944d2`, `3d8c4bce6`)
+  **Migration:** replace struct-literal construction with the typed `new()` constructor:
+  `RelayPageResult::new(rows, total_count)`, `SqlProjectionHint::new(database, projection_template, estimated_reduction_percent)`,
+  `OrderByClause::new(field, direction)`, `ActionResult::new(...)`. Existing pattern
+  matches gain a `_` arm.
 
 ### Changed
 
-- **Cargo production dependencies** — 12 non-breaking bumps (batch update).
+- **Lock-free read paths across `fraiseql-auth`, `fraiseql-server`,
+  `fraiseql-federation`, `fraiseql-core`** — five rate-limiter / store / index maps
+  migrated to `DashMap`, removing serialised reads on the request hot path (see the
+  five-finding bullet under "Changed (breaking)" for breakdown). Hot-path reads no
+  longer block on a central lock under concurrent load. [F006, F007, F008, F013, F048]
+
+- **GraphQL parsing on the request hot path** — the validator no longer re-parses the
+  query body; `parse_graphql_document(&str)` is exposed and `RequestValidator::validate_query_doc`
+  accepts a pre-parsed `Document<'_, String>`. The HTTP handler parses once and feeds
+  the same AST into validation and matching. [F001] (`b94abc592`)
+
+- **Response cache hit returns an `Arc::unwrap_or_clone` instead of a deep clone** of
+  the cached JSON value. [F002] (`15fd10a48`)
+
+- **`compute_response_cache_key` uses a reused scratch `Vec<u8>` and
+  `serde_json::to_writer`** — per-argument `String` allocations on the cache-key path
+  removed; errors propagate as `Validation` instead of silently colliding. [F044, F004]
+  (`cf3a202cd`)
+
+- **`extract_root_field_names` returns `impl Iterator`** — one allocation removed per
+  call. [F020] (see "Changed (breaking)" entry above for the API shape change)
+
+- **Federation HTTP retry preserves the source chain** on the final error rather than
+  stringifying it. [F025] (`500859a48`)
+
+- **Tracing on the response-cache lookup path** — `event = "hit"|"miss"|"disabled"`
+  structured fields under target `fraiseql::cache::response`. [F040] (`ec9015e26`)
+
+- **`OnceLock<Regex>` replaced with `LazyLock<Regex>`** in `cache/uuid_extractor.rs`.
+  [F027] (`ccd25ee97`)
+
+- **`compute_response_cache_key` and `validate_query` extracted helpers** — pure
+  refactors that do not change behaviour but reduce duplication. [F023] (`cf3a24c2e`)
+
+- **Workspace dependency consolidation** — `redis`, `chrono`, `dashmap`, `uuid`, `url`
+  moved to `[workspace.dependencies]`; the four per-crate `redis` declarations and
+  multiple per-crate raw declarations replaced with `workspace = true`. `dashmap`
+  workspace version bumped from `6.0` to `6.1` to match the version the resolver was
+  already picking. `fraiseql-functions` `reqwest` declaration aligned with the
+  workspace rustls-tls posture (drops native-tls / openssl-sys from the dependency
+  tree). [F015, F033, F034] (`8278defdc`, `a0e37c15d`, `23d4a18ea`)
+
+- **`cargo ci` alias and `make ci` target** — chains the strict workspace clippy gate
+  with `nextest run --workspace --all-features`. [F035] (`d04068d34`)
+
+- **`mold` linker opt-in documented** — `.cargo/config.linker.example.toml` template
+  added; the in-tree `.cargo/config.toml` stays commented for CI compatibility.
+  [F022] (`598231ae4`)
+
+- **Cargo production dependencies** — non-breaking bumps across the workspace.
 - **GitHub Actions** — checkout v4→v6, setup-java v4→v5, setup-go v5→v6,
   upload-artifact v6→v7, setup-uv v5→v7 across 35 workflow files.
 - **Pre-commit hooks** — markdownlint-cli v0.48.0, actionlint v1.7.12,
   `stages: [push]` → `stages: [pre-push]` for pre-commit v4.
-- **`UsageAggregator.backend`** upgraded to `RwLock<Arc<dyn UsageBackend>>`
-  for runtime backend swapping.
+- **`UsageAggregator.backend`** upgraded to `RwLock<Arc<dyn UsageBackend>>` for
+  runtime backend swapping.
 - **`UNSUPPORTED_OPERATION` API error code** now maps to HTTP 501 (Not Implemented)
   instead of 500.
+- **CVE-related dependency bumps** — `rmcp` 0.16→1.4 (CVE-2026-42559), fuzz
+  `jsonwebtoken` 9→10 (CVE-2026-25537), `thrift` removed from default Parquet build
+  (CVE-2026-43868 feature-gated). (`cd81b00b4`, `1ab380f58`, `dc9c88bbe`)
+- **Newtype wrappers for domain identifiers** — additional newtypes introduced and
+  prelude unified to chain exports across crates. (`e70162117`, `158a46a0d`)
+- **Construction patterns standardised** — public DTOs gain `new()` constructors with
+  builder support; `#[non_exhaustive]` added to `CacheStatus` and `EventKind`.
+  (`dbc9e0afc`, `e2b9944d2`, `3d8c4bce6`)
 
 ### Known Limitations Update
 
 - **Pool Pressure Monitor** — confirmed that neither `deadpool-postgres` nor
-  `bb8-postgres` (as of 2026-05) support runtime pool resizing. The `PoolPressureMonitor`
-  remains in recommendation-only mode.
+  `bb8-postgres` (as of 2026-05) support runtime pool resizing. The
+  `PoolPressureMonitor` remains in recommendation-only mode.
+- **Q4 workspace `indexing_slicing` rollout is in progress** — three pilot crates
+  (`fraiseql-error`, `fraiseql-wire`, `fraiseql-storage`) deny the lint at the crate
+  root; the remaining 13 crates are scheduled across v2.3.x point releases. See
+  `FOLLOW_UPS.md` for the per-crate hit-count table and rollout order.
+
+### Deferred to v2.4
+
+- **`F031` property tests cover no-DB executor entry points only** — the full
+  `Executor::execute` end-to-end pipeline (RLS composition, projection, cache
+  warm/cold) needs a mock `DatabaseAdapter` and is deferred. See `FOLLOW_UPS.md`.
 
 ## [2.2.0] - 2026-05-02
 

@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_possible_wrap)] // Reason: test data uses small integers that cannot wrap
 
 use arrow::{array::Array, datatypes::Field};

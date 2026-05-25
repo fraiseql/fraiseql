@@ -1,3 +1,5 @@
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
+
 //! Typed streaming integration tests
 //!
 //! Tests for typed streaming API.

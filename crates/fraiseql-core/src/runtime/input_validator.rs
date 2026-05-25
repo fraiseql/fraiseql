@@ -159,9 +159,7 @@ pub(crate) fn validate_string_field(
             Ok(())
         },
         ValidationRule::Pattern { pattern, message } => {
-            let regex = regex::Regex::new(pattern)
-                .map_err(|e| FraiseQLError::validation(format!("Invalid regex pattern: {}", e)))?;
-            if regex.is_match(value) {
+            if pattern.is_match(value) {
                 Ok(())
             } else {
                 let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());

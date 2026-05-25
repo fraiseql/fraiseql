@@ -3,6 +3,7 @@
 //! Tests validate per-subgraph federation query performance, mutation
 //! performance, composite key performance, and batch resolution.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::common::*;
 
 // ============================================================================

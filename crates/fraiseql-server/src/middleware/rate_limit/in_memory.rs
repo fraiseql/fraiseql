@@ -1,8 +1,8 @@
 //! In-memory token-bucket rate limiter backend.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 use tracing::debug;
 
 use super::{
@@ -12,18 +12,24 @@ use super::{
 };
 
 /// In-memory token-bucket rate limiter.
+///
+/// Each bucket map is a [`DashMap`]: lookups/refills on the request hot path
+/// take only a per-shard write reference, never an async lock, so unrelated
+/// keys (different IPs / users / paths / tenants) never contend.  Capacity
+/// checks against `max_buckets` are best-effort under heavy concurrent
+/// insertion — total entries may oscillate around the cap by a small amount.
 pub struct InMemoryRateLimiter {
     pub(super) config:          RateLimitConfig,
     // IP -> TokenBucket (global limit)
-    pub(super) ip_buckets:      Arc<RwLock<HashMap<String, TokenBucket>>>,
+    pub(super) ip_buckets:      Arc<DashMap<String, TokenBucket>>,
     // User ID -> TokenBucket
-    pub(super) user_buckets:    Arc<RwLock<HashMap<String, TokenBucket>>>,
+    pub(super) user_buckets:    Arc<DashMap<String, TokenBucket>>,
     // Per-path rules (from [security.rate_limiting] auth endpoint fields)
     pub(super) path_rules:      Vec<PathRateLimit>,
     // (path_prefix, ip) -> TokenBucket
-    pub(super) path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
+    pub(super) path_ip_buckets: Arc<DashMap<(String, String), TokenBucket>>,
     // tenant_key -> TokenBucket (per-tenant rate limit)
-    pub(super) tenant_buckets:  Arc<RwLock<HashMap<String, TokenBucket>>>,
+    pub(super) tenant_buckets:  Arc<DashMap<String, TokenBucket>>,
 }
 
 impl InMemoryRateLimiter {
@@ -31,11 +37,11 @@ impl InMemoryRateLimiter {
     pub(super) fn new(config: RateLimitConfig) -> Self {
         Self {
             config,
-            ip_buckets: Arc::new(RwLock::new(HashMap::new())),
-            user_buckets: Arc::new(RwLock::new(HashMap::new())),
+            ip_buckets: Arc::new(DashMap::new()),
+            user_buckets: Arc::new(DashMap::new()),
             path_rules: Vec::new(),
-            path_ip_buckets: Arc::new(RwLock::new(HashMap::new())),
-            tenant_buckets: Arc::new(RwLock::new(HashMap::new())),
+            path_ip_buckets: Arc::new(DashMap::new()),
+            tenant_buckets: Arc::new(DashMap::new()),
         }
     }
 
@@ -98,8 +104,11 @@ impl InMemoryRateLimiter {
         let key = (rule.path_prefix.clone(), ip.to_string());
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
 
-        let mut buckets = self.path_ip_buckets.write().await;
-        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+        // Best-effort capacity check: a parallel inserter racing past this point
+        // may push us slightly above max_buckets, but never unboundedly.
+        if !self.path_ip_buckets.contains_key(&key)
+            && self.path_ip_buckets.len() >= self.config.max_buckets
+        {
             debug!(
                 ip = ip,
                 path = path,
@@ -114,11 +123,17 @@ impl InMemoryRateLimiter {
             };
             return CheckResult::deny(retry);
         }
-        let bucket = buckets.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
-        let allowed = bucket.try_consume(1.0);
-        let remaining = bucket.token_count();
-        drop(buckets);
+        let (allowed, remaining) = {
+            let mut bucket_ref = self
+                .path_ip_buckets
+                .entry(key)
+                .or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
+            let bucket = bucket_ref.value_mut();
+            let allowed = bucket.try_consume(1.0);
+            let remaining = bucket.token_count();
+            (allowed, remaining)
+        };
 
         if allowed {
             CheckResult::allow(remaining)
@@ -147,19 +162,25 @@ impl InMemoryRateLimiter {
         }
 
         let key = tenant_id.map_or_else(|| ip.to_string(), |tid| format!("{}:{}", tid, ip));
-        let mut buckets = self.ip_buckets.write().await;
-        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+
+        // Best-effort capacity check; see `check_path_limit` for why this races safely.
+        if !self.ip_buckets.contains_key(&key) && self.ip_buckets.len() >= self.config.max_buckets {
             debug!(ip = ip, tenant_id = ?tenant_id, "IP bucket capacity reached — denying unseen IP");
             return CheckResult::deny(1);
         }
 
-        let bucket = buckets.entry(key).or_insert_with(|| {
-            TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_ip))
-        });
-
-        let allowed = bucket.try_consume(1.0);
-        let remaining = bucket.token_count();
-        drop(buckets);
+        let (allowed, remaining) = {
+            let mut bucket_ref = self.ip_buckets.entry(key).or_insert_with(|| {
+                TokenBucket::new(
+                    f64::from(self.config.burst_size),
+                    f64::from(self.config.rps_per_ip),
+                )
+            });
+            let bucket = bucket_ref.value_mut();
+            let allowed = bucket.try_consume(1.0);
+            let remaining = bucket.token_count();
+            (allowed, remaining)
+        };
 
         if allowed {
             CheckResult::allow(remaining)
@@ -189,19 +210,27 @@ impl InMemoryRateLimiter {
 
         let key =
             tenant_id.map_or_else(|| user_id.to_string(), |tid| format!("{}:{}", tid, user_id));
-        let mut buckets = self.user_buckets.write().await;
-        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+
+        // Best-effort capacity check; see `check_path_limit` for why this races safely.
+        if !self.user_buckets.contains_key(&key)
+            && self.user_buckets.len() >= self.config.max_buckets
+        {
             debug!(user_id = user_id, tenant_id = ?tenant_id, "User bucket capacity reached — denying unseen user");
             return CheckResult::deny(1);
         }
 
-        let bucket = buckets.entry(key).or_insert_with(|| {
-            TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_user))
-        });
-
-        let allowed = bucket.try_consume(1.0);
-        let remaining = bucket.token_count();
-        drop(buckets);
+        let (allowed, remaining) = {
+            let mut bucket_ref = self.user_buckets.entry(key).or_insert_with(|| {
+                TokenBucket::new(
+                    f64::from(self.config.burst_size),
+                    f64::from(self.config.rps_per_user),
+                )
+            });
+            let bucket = bucket_ref.value_mut();
+            let allowed = bucket.try_consume(1.0);
+            let remaining = bucket.token_count();
+            (allowed, remaining)
+        };
 
         if allowed {
             CheckResult::allow(remaining)
@@ -234,21 +263,28 @@ impl InMemoryRateLimiter {
         burst: u32,
     ) -> CheckResult {
         let bucket_key = format!("tenant:{tenant_key}");
-        let mut buckets = self.tenant_buckets.write().await;
-        if !buckets.contains_key(&bucket_key) && buckets.len() >= self.config.max_buckets {
+
+        // Best-effort capacity check; see `check_path_limit` for why this races safely.
+        if !self.tenant_buckets.contains_key(&bucket_key)
+            && self.tenant_buckets.len() >= self.config.max_buckets
+        {
             debug!(
                 tenant_key = tenant_key,
                 "Tenant bucket capacity reached — denying unseen tenant"
             );
             return CheckResult::deny(1);
         }
-        let bucket = buckets
-            .entry(bucket_key)
-            .or_insert_with(|| TokenBucket::new(f64::from(burst), f64::from(rps)));
 
-        let allowed = bucket.try_consume(1.0);
-        let remaining = bucket.token_count();
-        drop(buckets);
+        let (allowed, remaining) = {
+            let mut bucket_ref = self
+                .tenant_buckets
+                .entry(bucket_key)
+                .or_insert_with(|| TokenBucket::new(f64::from(burst), f64::from(rps)));
+            let bucket = bucket_ref.value_mut();
+            let allowed = bucket.try_consume(1.0);
+            let remaining = bucket.token_count();
+            (allowed, remaining)
+        };
 
         if allowed {
             CheckResult::allow(remaining)
@@ -292,25 +328,16 @@ impl InMemoryRateLimiter {
             .checked_sub(std::time::Duration::from_secs_f64(user_refill_secs))
             .unwrap_or(now);
 
-        let mut ip_buckets = self.ip_buckets.write().await;
-        let before_ip = ip_buckets.len();
-        ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        let evicted_ip = before_ip - ip_buckets.len();
-        drop(ip_buckets);
+        let before_ip = self.ip_buckets.len();
+        self.ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
+        let evicted_ip = before_ip.saturating_sub(self.ip_buckets.len());
 
-        let mut user_buckets = self.user_buckets.write().await;
-        let before_user = user_buckets.len();
-        user_buckets.retain(|_, b| b.last_refill >= user_threshold);
-        let evicted_user = before_user - user_buckets.len();
-        drop(user_buckets);
+        let before_user = self.user_buckets.len();
+        self.user_buckets.retain(|_, b| b.last_refill >= user_threshold);
+        let evicted_user = before_user.saturating_sub(self.user_buckets.len());
 
-        let mut path_buckets = self.path_ip_buckets.write().await;
-        path_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        drop(path_buckets);
-
-        let mut tenant_buckets = self.tenant_buckets.write().await;
-        tenant_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        drop(tenant_buckets);
+        self.path_ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
+        self.tenant_buckets.retain(|_, b| b.last_refill >= ip_threshold);
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }

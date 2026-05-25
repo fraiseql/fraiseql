@@ -3,6 +3,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use serde_json::json;
 use tokio::time::Instant;
 
@@ -34,7 +35,7 @@ impl StoredQuery {
 /// and time-to-live. When capacity is reached, expired entries are
 /// purged first, then the least-recently-accessed entry is evicted.
 pub struct InMemoryApqStorage {
-    entries:     tokio::sync::Mutex<HashMap<String, StoredQuery>>,
+    entries:     Mutex<HashMap<String, StoredQuery>>,
     max_entries: usize,
     ttl:         Duration,
 }
@@ -44,7 +45,7 @@ impl InMemoryApqStorage {
     #[must_use]
     pub fn new(max_entries: usize) -> Self {
         Self {
-            entries: tokio::sync::Mutex::new(HashMap::new()),
+            entries: Mutex::new(HashMap::new()),
             max_entries,
             ttl: DEFAULT_TTL,
         }
@@ -54,7 +55,7 @@ impl InMemoryApqStorage {
     #[must_use]
     pub fn with_ttl(max_entries: usize, ttl: Duration) -> Self {
         Self {
-            entries: tokio::sync::Mutex::new(HashMap::new()),
+            entries: Mutex::new(HashMap::new()),
             max_entries,
             ttl,
         }
@@ -73,7 +74,7 @@ impl Default for InMemoryApqStorage {
 #[async_trait]
 impl ApqStorage for InMemoryApqStorage {
     async fn get(&self, hash: &str) -> Result<Option<String>, ApqError> {
-        let mut map = self.entries.lock().await;
+        let mut map = self.entries.lock();
 
         // Check if the entry exists and is not expired.
         if let Some(entry) = map.get_mut(hash) {
@@ -89,7 +90,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn set(&self, hash: String, query: String) -> Result<(), ApqError> {
-        let mut map = self.entries.lock().await;
+        let mut map = self.entries.lock();
 
         let now = Instant::now();
 
@@ -119,7 +120,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn exists(&self, hash: &str) -> Result<bool, ApqError> {
-        let mut map = self.entries.lock().await;
+        let mut map = self.entries.lock();
 
         if let Some(entry) = map.get(hash) {
             if entry.is_expired() {
@@ -133,13 +134,13 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn remove(&self, hash: &str) -> Result<(), ApqError> {
-        let mut map = self.entries.lock().await;
+        let mut map = self.entries.lock();
         map.remove(hash);
         Ok(())
     }
 
     async fn stats(&self) -> Result<ApqStats, ApqError> {
-        let map = self.entries.lock().await;
+        let map = self.entries.lock();
 
         let total = map.len();
         let expired = map.values().filter(|v| v.is_expired()).count();
@@ -156,7 +157,7 @@ impl ApqStorage for InMemoryApqStorage {
     }
 
     async fn clear(&self) -> Result<(), ApqError> {
-        let mut map = self.entries.lock().await;
+        let mut map = self.entries.lock();
         map.clear();
         Ok(())
     }

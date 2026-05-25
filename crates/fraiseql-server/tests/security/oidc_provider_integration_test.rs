@@ -12,7 +12,7 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::future_not_send)] // Reason: wiremock futures are not Send; tests run single-threaded
 
 use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};

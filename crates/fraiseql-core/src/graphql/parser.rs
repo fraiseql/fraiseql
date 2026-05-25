@@ -86,7 +86,11 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery, GraphQLParseError> {
         selections,
         variables,
         fragments,
-        source: source.to_string(),
+        // `Arc<str>` is the same one-allocation cost as `String::from(&str)` at
+        // construction time, but downstream clones of `ParsedQuery` (notably in
+        // the parse cache and during fragment resolution) become atomic
+        // ref-count bumps instead of full string copies.
+        source: std::sync::Arc::from(source),
     })
 }
 

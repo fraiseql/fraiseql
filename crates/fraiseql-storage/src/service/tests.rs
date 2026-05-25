@@ -1,3 +1,7 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+
+use fraiseql_error::FileError;
 use tempfile::TempDir;
 
 use super::*;
@@ -26,10 +30,17 @@ async fn test_size_limit_rejected() {
     let result = service.upload("test.bin", &[0u8; 150], "application/octet-stream").await;
 
     let err = result.expect_err("should reject oversized upload");
-    assert!(matches!(err, FraiseQLError::Storage { .. }), "should be a Storage error");
-    if let FraiseQLError::Storage { code, .. } = err {
-        assert_eq!(code, Some("size_limit_exceeded".to_string()));
-    }
+    assert!(
+        matches!(
+            err,
+            FraiseQLError::File(FileError::SizeLimitExceeded {
+                limit: Some(100),
+                actual: Some(150),
+                ..
+            })
+        ),
+        "should be FileError::SizeLimitExceeded with the configured limit / actual size; got {err:?}"
+    );
 }
 
 #[tokio::test]
@@ -48,9 +59,16 @@ async fn test_mime_type_rejected() {
     let result = service.upload("test.txt", b"text", "text/plain").await;
 
     let err = result.expect_err("should reject disallowed MIME type");
-    if let FraiseQLError::Storage { code, .. } = err {
-        assert_eq!(code, Some("mime_type_not_allowed".to_string()));
-    }
+    assert!(
+        matches!(
+            err,
+            FraiseQLError::File(FileError::MimeTypeNotAllowed {
+                ref mime,
+                ..
+            }) if mime.as_deref() == Some("text/plain")
+        ),
+        "should be FileError::MimeTypeNotAllowed with the rejected MIME; got {err:?}"
+    );
 }
 
 #[tokio::test]

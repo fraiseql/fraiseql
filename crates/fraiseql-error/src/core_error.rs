@@ -65,29 +65,23 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 /// }
 /// ```
 ///
-/// The following would **not** compile (missing wildcard arm):
+/// The following would **not** compile, because the `#[non_exhaustive]`
+/// attribute forces downstream crates to handle the possibility of new
+/// variants — a wildcard arm is required even when every currently-defined
+/// variant is enumerated:
 ///
 /// ```compile_fail
 /// use fraiseql_error::FraiseQLError;
 ///
 /// fn describe(e: &FraiseQLError) -> &'static str {
+///     // Missing wildcard arm: rejected by rustc even though it lists
+///     // a few real variants — the `#[non_exhaustive]` attribute makes
+///     // the enum effectively open from any downstream crate's point
+///     // of view.
 ///     match e {
 ///         FraiseQLError::Parse { .. } => "parse",
 ///         FraiseQLError::Validation { .. } => "validation",
 ///         FraiseQLError::Database { .. } => "database",
-///         FraiseQLError::Network { .. } => "network",
-///         FraiseQLError::Authorization { .. } => "authorization",
-///         FraiseQLError::NotFound { .. } => "not found",
-///         FraiseQLError::Conflict { .. } => "conflict",
-///         FraiseQLError::Configuration { .. } => "configuration",
-///         FraiseQLError::Unsupported { .. } => "unsupported",
-///         FraiseQLError::Internal { .. } => "internal",
-///         FraiseQLError::UnknownField { .. } => "unknown field",
-///         FraiseQLError::UnknownType { .. } => "unknown type",
-///         FraiseQLError::FieldExclusion { .. } => "field exclusion",
-///         FraiseQLError::TypeMismatch { .. } => "type mismatch",
-///         FraiseQLError::RateLimitExceeded { .. } => "rate limit",
-///         FraiseQLError::Forbidden { .. } => "forbidden",
 ///     }
 /// }
 /// ```
@@ -227,15 +221,6 @@ pub enum FraiseQLError {
         message: String,
     },
 
-    /// Storage operation error.
-    #[error("Storage error: {message}")]
-    Storage {
-        /// Error message.
-        message: String,
-        /// Optional error code (e.g., `"not_found"`, `"permission_denied"`).
-        code:    Option<String>,
-    },
-
     /// Unsupported operation error.
     #[error("Unsupported operation: {message}")]
     Unsupported {
@@ -253,6 +238,70 @@ pub enum FraiseQLError {
         /// Number of seconds to wait before retrying, if known.
         retry_after: Option<u64>,
     },
+
+    // ========================================================================
+    // Domain Subsystem Errors (composed via `From` impls in subsystem crates)
+    // ========================================================================
+    /// An authentication or authorisation error originating from the auth subsystem.
+    ///
+    /// The boxed source is the subsystem-specific error type (e.g.
+    /// `fraiseql_auth::AuthError`). To preserve subsystem vocabulary while
+    /// keeping `fraiseql-error` a leaf crate, the boxed payload is
+    /// type-erased here; subsystem crates provide their own
+    /// `impl From<SubsystemError> for FraiseQLError` (the sqlx pattern).
+    ///
+    /// `#[source]` is explicit: `thiserror` 2.x does not auto-detect a single
+    /// tuple field as the source, and downstream chain-walkers (`tracing`,
+    /// `miette`, `anyhow`) rely on `Error::source()` returning the underlying
+    /// subsystem error rather than `None`.
+    ///
+    /// # Pattern-matching on the inner error
+    ///
+    /// Because the payload is boxed and `dyn`-erased, downstream `match`
+    /// statements cannot bind on subsystem variants directly. Recover the
+    /// concrete type via [`std::error::Error::source`] + `downcast_ref`:
+    ///
+    /// ```ignore
+    /// use std::error::Error;
+    /// use fraiseql_error::FraiseQLError;
+    /// use fraiseql_auth::AuthError;
+    ///
+    /// if let FraiseQLError::Auth(_) = &err {
+    ///     if let Some(inner) = err.source().and_then(|s| s.downcast_ref::<AuthError>()) {
+    ///         match inner {
+    ///             AuthError::TokenExpired => {/* handle */},
+    ///             _ => {},
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    #[error("Auth error: {0}")]
+    Auth(#[source] Box<dyn std::error::Error + Send + Sync>),
+
+    /// A webhook-processing error originating from the webhook subsystem.
+    ///
+    /// `#[source]` is explicit for the same reason as [`Self::Auth`]; see
+    /// that variant for the `downcast_ref` recovery pattern on the boxed
+    /// `fraiseql_webhooks::WebhookError`.
+    #[error("Webhook error: {0}")]
+    Webhook(#[source] Box<dyn std::error::Error + Send + Sync>),
+
+    /// An observer subsystem error (event dispatch, action execution, retry exhaustion).
+    ///
+    /// `#[source]` is explicit for the same reason as [`Self::Auth`]; see
+    /// that variant for the `downcast_ref` recovery pattern on the boxed
+    /// `fraiseql_observers::ObserverError`.
+    #[error("Observer error: {0}")]
+    Observer(#[source] Box<dyn std::error::Error + Send + Sync>),
+
+    /// A file-handling error (size limit, unsupported type, virus scan, quota).
+    ///
+    /// Unlike `Auth`, `Webhook`, and `Observer`, the file-domain vocabulary
+    /// lives inside `fraiseql-error` itself ([`crate::FileError`]) because no
+    /// subsystem crate owns it — file operations are spread across
+    /// `fraiseql-storage` and `fraiseql-server/storage`.
+    #[error("File error: {0}")]
+    File(#[from] crate::FileError),
 
     // ========================================================================
     // Internal Errors
@@ -360,37 +409,24 @@ impl FraiseQLError {
     }
 
     /// Check if this is a client error (4xx equivalent).
+    ///
+    /// Derived from [`Self::status_code`] so the answer stays consistent
+    /// with the variant's actual HTTP routing (notably for `File(_)`, which
+    /// straddles 4xx and 5xx after F050).
     #[must_use]
     pub const fn is_client_error(&self) -> bool {
-        matches!(
-            self,
-            Self::Parse { .. }
-                | Self::Validation { .. }
-                | Self::UnknownField { .. }
-                | Self::UnknownType { .. }
-                | Self::Authorization { .. }
-                | Self::Authentication { .. }
-                | Self::NotFound { .. }
-                | Self::Conflict { .. }
-                | Self::RateLimited { .. }
-        )
+        let code = self.status_code();
+        code >= 400 && code < 500
     }
 
     /// Check if this is a server error (5xx equivalent).
+    ///
+    /// Derived from [`Self::status_code`] for the same consistency reason
+    /// as [`Self::is_client_error`].
     #[must_use]
     pub const fn is_server_error(&self) -> bool {
-        matches!(
-            self,
-            Self::Database { .. }
-                | Self::ConnectionPool { .. }
-                | Self::Timeout { .. }
-                | Self::Cancelled { .. }
-                | Self::Configuration { .. }
-                | Self::Storage { .. }
-                | Self::Unsupported { .. }
-                | Self::ServiceUnavailable { .. }
-                | Self::Internal { .. }
-        )
+        let code = self.status_code();
+        code >= 500 && code < 600
     }
 
     /// Check if this error is retryable.
@@ -406,14 +442,36 @@ impl FraiseQLError {
     }
 
     /// Get HTTP status code equivalent.
+    ///
+    /// # Future variants
+    ///
+    /// `FraiseQLError` is `#[non_exhaustive]`. The trailing `_ => 500` arm
+    /// is a deliberate safety net so a new variant added without updating
+    /// this match still gets a defined (and *safe*) HTTP status — generic
+    /// 500 Internal Server Error — rather than leaking implementation
+    /// details to the client by returning the wrong code.
+    // Reason: the trailing wildcard arm intentionally duplicates the 500
+    // server-error arm above (silencing `match_same_arms`), and is currently
+    // unreachable within this crate because the match enumerates every
+    // existing variant (silencing `unreachable_patterns`). The duplication is
+    // the security guarantee: when a future variant is added to this
+    // `#[non_exhaustive]` enum, the wildcard becomes reachable and prevents a
+    // wrong-status leak. See IMPROVEMENTS.md F055.
+    #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn status_code(&self) -> u16 {
         match self {
             Self::Parse { .. }
             | Self::Validation { .. }
             | Self::UnknownField { .. }
-            | Self::UnknownType { .. } => 400,
-            Self::Authentication { .. } => 401,
+            | Self::UnknownType { .. }
+            | Self::Webhook(_) => 400,
+            // File is per-variant: validation failures stay 400, backend
+            // failures escalate to 5xx, NotFound → 404, PermissionDenied →
+            // 403 (matches the legacy `storage_error_response` routing of
+            // `FraiseQLError::Storage` which F050 replaces).
+            Self::File(e) => e.status_code(),
+            Self::Authentication { .. } | Self::Auth(_) => 401,
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
@@ -422,14 +480,28 @@ impl FraiseQLError {
             Self::Database { .. }
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
-            | Self::Storage { .. }
-            | Self::Internal { .. } => 500,
+            | Self::Internal { .. }
+            | Self::Observer(_) => 500,
             Self::Unsupported { .. } => 501,
             Self::ServiceUnavailable { .. } => 503,
+            // SECURITY: any future variant defaults to 500 Internal Server
+            // Error until explicitly mapped, so we never accidentally return
+            // an inappropriate status (e.g. 200, 401) to clients.
+            _ => 500,
         }
     }
 
     /// Get error code for GraphQL response.
+    ///
+    /// # Future variants
+    ///
+    /// `FraiseQLError` is `#[non_exhaustive]`. The trailing `_` arm returns
+    /// `"INTERNAL_SERVER_ERROR"` so a new variant added without updating
+    /// this match still receives a stable (if generic) error code.
+    // Reason: see `status_code` — same security-defence rationale; same two
+    // lints (`match_same_arms` for the duplicated arm body, `unreachable_patterns`
+    // because the in-crate match currently covers every variant).
+    #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn error_code(&self) -> &'static str {
         match self {
@@ -443,14 +515,20 @@ impl FraiseQLError {
             Self::Cancelled { .. } => "CANCELLED",
             Self::Authorization { .. } => "FORBIDDEN",
             Self::Authentication { .. } => "UNAUTHENTICATED",
+            Self::Auth(_) => "AUTH_ERROR",
+            Self::Webhook(_) => "WEBHOOK_ERROR",
+            Self::Observer(_) => "OBSERVER_ERROR",
+            Self::File(_) => "FILE_ERROR",
             Self::RateLimited { .. } => "RATE_LIMITED",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
-            Self::Storage { .. } => "STORAGE_ERROR",
             Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
             Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
+            // SECURITY: see `status_code` — fallback to the safe generic
+            // category until the new variant is explicitly classified.
+            _ => "INTERNAL_SERVER_ERROR",
         }
     }
 
@@ -482,36 +560,47 @@ impl FraiseQLError {
     }
 
     fn levenshtein_distance(s1: &str, s2: &str) -> usize {
-        let len1 = s1.chars().count();
-        let len2 = s2.chars().count();
+        let chars2: Vec<char> = s2.chars().collect();
+        let len2 = chars2.len();
 
-        if len1 == 0 {
-            return len2;
-        }
-        if len2 == 0 {
-            return len1;
-        }
-
-        let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
-
-        for (i, row) in matrix.iter_mut().enumerate() {
-            row[0] = i;
-        }
-        for (j, val) in matrix[0].iter_mut().enumerate() {
-            *val = j;
-        }
+        // Two-row rolling buffer eliminates the nested `Vec<Vec<_>>` indexing.
+        // `prev[j]` = distance(s1[..i],   s2[..j])
+        // `curr[j]` = distance(s1[..i+1], s2[..j])
+        // Both rows have `len2 + 1` entries; iteration is bounded by their
+        // length, so every access uses `.get()?` with an `unreachable_or_zero`
+        // saturating fallback (provably unreachable in this control flow).
+        let mut prev: Vec<usize> = (0..=len2).collect();
+        let mut curr: Vec<usize> = vec![0; len2 + 1];
 
         for (i, c1) in s1.chars().enumerate() {
-            for (j, c2) in s2.chars().enumerate() {
-                let cost = usize::from(c1 != c2);
-                matrix[i + 1][j + 1] = std::cmp::min(
-                    std::cmp::min(matrix[i][j + 1] + 1, matrix[i + 1][j] + 1),
-                    matrix[i][j] + cost,
-                );
+            // Initialise the leftmost column for this row.
+            // Reason: `curr` is sized `len2 + 1 >= 1`, so index 0 is always valid.
+            if let Some(slot) = curr.get_mut(0) {
+                *slot = i + 1;
             }
+
+            for (j, &c2) in chars2.iter().enumerate() {
+                let cost = usize::from(c1 != c2);
+                // All four lookups read positions in `[0, len2]`, which are
+                // valid by construction (`prev`/`curr` both have len `len2+1`,
+                // and `j` ranges over `0..len2`). The `.get()` + `unwrap_or(0)`
+                // pattern keeps the function panic-free without changing the
+                // computed result.
+                let deletion = prev.get(j + 1).copied().unwrap_or(0).saturating_add(1);
+                let insertion = curr.get(j).copied().unwrap_or(0).saturating_add(1);
+                let substitution = prev.get(j).copied().unwrap_or(0).saturating_add(cost);
+                let value = deletion.min(insertion).min(substitution);
+                if let Some(slot) = curr.get_mut(j + 1) {
+                    *slot = value;
+                }
+            }
+
+            std::mem::swap(&mut prev, &mut curr);
         }
 
-        matrix[len1][len2]
+        // Final answer sits at `prev[len2]` after the last swap.
+        // Reason: `prev` is always sized `len2 + 1`, so this index is valid.
+        prev.get(len2).copied().unwrap_or(0)
     }
 
     /// Create a database error from PostgreSQL error code.
@@ -595,15 +684,6 @@ impl From<std::env::VarError> for FraiseQLError {
     fn from(e: std::env::VarError) -> Self {
         Self::Configuration {
             message: format!("Environment variable error: {e}"),
-        }
-    }
-}
-
-impl From<crate::FileError> for FraiseQLError {
-    fn from(e: crate::FileError) -> Self {
-        Self::Storage {
-            message: e.to_string(),
-            code:    Some(e.error_code().to_owned()),
         }
     }
 }

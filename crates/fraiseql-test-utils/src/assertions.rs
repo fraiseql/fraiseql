@@ -1,6 +1,7 @@
 //! Common test assertions for FraiseQL testing
 //!
 //! Provides helper macros and functions for asserting common test conditions.
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 
 /// Assert that a JSON value has a specific key at the given path and matches the expected value.
 ///

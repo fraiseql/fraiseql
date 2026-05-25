@@ -59,6 +59,7 @@ workspace = true
 [package]
 description = "Database abstraction layer for FraiseQL v2"
 name = "fraiseql-db"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

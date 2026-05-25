@@ -1,8 +1,9 @@
-//! Operational observer errors with OB-codes — NOT the same as `fraiseql_error::ObserverError`.
+//! Operational observer errors with structured OB-codes.
 //!
 //! This `ObserverError` carries structured error codes (OB001-OB014+) for
-//! logging, retry decisions, and dead-letter queue routing. The domain-level
-//! `fraiseql_error::ObserverError` is a simpler aggregator for HTTP responses.
+//! logging, retry decisions, and dead-letter queue routing. It composes
+//! into the canonical [`fraiseql_error::FraiseQLError::Observer`] via the
+//! `From` impl at the bottom of this file (sqlx pattern).
 
 use thiserror::Error;
 
@@ -334,3 +335,15 @@ impl ObserverError {
 
 /// Result type alias for observer operations
 pub type Result<T> = std::result::Result<T, ObserverError>;
+
+/// Lossless composition into the canonical [`fraiseql_error::FraiseQLError`].
+///
+/// The observer subsystem owns this conversion (sqlx pattern) so that
+/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph.
+/// The boxed payload preserves the full [`ObserverError`] vocabulary (including
+/// the structured OB-codes) via the `Display`/`source` chain.
+impl From<ObserverError> for fraiseql_error::FraiseQLError {
+    fn from(e: ObserverError) -> Self {
+        Self::Observer(Box::new(e))
+    }
+}

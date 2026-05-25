@@ -3,7 +3,7 @@
 //! These tests verify that RLS policies are correctly applied during query execution,
 //! enforcing access control based on `SecurityContext`.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::collections::HashMap;
 

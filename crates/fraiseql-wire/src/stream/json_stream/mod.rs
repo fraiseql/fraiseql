@@ -527,19 +527,15 @@ impl Stream for JsonStream {
 /// have exactly one field, or the field value is null.
 pub fn extract_json_bytes(msg: &BackendMessage) -> Result<Bytes> {
     match msg {
-        BackendMessage::DataRow(fields) => {
-            if fields.len() != 1 {
-                return Err(WireError::Protocol(format!(
-                    "expected 1 field, got {}",
-                    fields.len()
-                )));
-            }
-
-            let field = &fields[0];
-            field
+        BackendMessage::DataRow(fields) => match fields.as_slice() {
+            [only] => only
                 .clone()
-                .ok_or_else(|| WireError::Protocol("null data field".into()))
-        }
+                .ok_or_else(|| WireError::Protocol("null data field".into())),
+            _ => Err(WireError::Protocol(format!(
+                "expected 1 field, got {}",
+                fields.len()
+            ))),
+        },
         _ => Err(WireError::Protocol("expected DataRow".into())),
     }
 }

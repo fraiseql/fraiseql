@@ -71,7 +71,7 @@ impl StorageSchemaTypes {
     /// Generate a storage object type for a bucket.
     ///
     /// Creates a `TypeDefinition` JSON object representing files in the bucket
-    /// with fields for metadata (key, size, content_type, created_at, updated_at).
+    /// with fields for metadata (`key`, `size`, `content_type`, `created_at`, `updated_at`).
     ///
     /// # Example
     ///
@@ -199,7 +199,7 @@ impl StorageSchemaTypes {
 
     /// Convert a bucket name to a valid GraphQL type name.
     ///
-    /// Converts snake_case or kebab-case bucket names to `PascalCase` for use in
+    /// Converts `snake_case` or kebab-case bucket names to `PascalCase` for use in
     /// GraphQL type names.
     ///
     /// # Examples

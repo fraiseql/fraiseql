@@ -108,6 +108,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// # Errors
     ///
     /// Returns `RestError` if the execution result cannot be parsed as JSON.
+    #[doc(hidden)] // Internal-pub: REST response formatter helper used by route handlers; not part of the downstream Server contract.
     pub fn format_collection(
         &self,
         result: &serde_json::Value,
@@ -319,6 +320,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// Format a method not allowed (405) error response.
     ///
     /// Returns 405 with `Allow` header listing valid methods.
+    #[must_use]
     pub fn format_method_not_allowed(
         &self,
         allowed_methods: &[HttpMethod],

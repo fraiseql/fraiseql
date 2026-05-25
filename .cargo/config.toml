@@ -10,6 +10,10 @@ bloat = "bloat --release --crates"
 br = "build --release"
 c = "check"
 check-all = "check --all-targets --all-features"
+# Reason (F035): `ci` is a single-subcommand alias that runs the strict workspace
+# lint gate. Cargo aliases cannot chain commands with `&&`; for the full
+# lint + test combo use `make ci` (see top-level Makefile).
+ci = "clippy --workspace --all-targets --all-features -- -D warnings"
 clippy-all = "clippy --all-targets --all-features -- -D warnings"
 cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
 doc-open = "doc --all-features --no-deps --open"
@@ -46,9 +50,15 @@ color = "always"
 verbose = false
 
 # Enable mold linker for faster linking on Linux
-# Provides 3-5x speedup on full rebuilds
-# NOTE: Disabled for CI/GitHub Actions compatibility (mold not available in runner)
-# Uncomment locally if you have mold installed for faster builds
+# Provides 3-5x speedup on full rebuilds.
+#
+# NOTE: Disabled in the committed config for CI/GitHub Actions compatibility
+# (mold not available in the GitHub runner). To enable locally:
+#
+# 1. Install mold: `pacman -S mold` (Arch) / `apt install mold` (Debian/Ubuntu).
+# 2. Copy `.cargo/config.linker.example.toml` to `.cargo/config.local.toml`
+# (gitignored), OR uncomment the block below in your local checkout.
+#
 # [target.x86_64-unknown-linux-gnu]
 # linker = "clang"
 # rustflags = ["-C", "link-arg=-fuse-ld=mold"]

@@ -9,17 +9,25 @@
 //! # Examples
 //!
 //! ```
-//! use fraiseql_core::validation::ValidationRule;
+//! use fraiseql_core::validation::{CompiledPattern, ValidationRule};
 //!
 //! // All validators must pass: required AND pattern
 //! let _rule = ValidationRule::All(vec![
 //!     ValidationRule::Required,
-//!     ValidationRule::Pattern { pattern: "^[a-z]+$".to_string(), message: None },
+//!     ValidationRule::Pattern {
+//!         pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
+//!         message: None,
+//!     },
 //! ]);
 //!
-//! // At least one must pass: complex password OR long password
+//! // At least one must pass: alphanumeric short word OR long password
+//! // (Note: the `regex` crate does not support look-ahead, so we use a plain
+//! // anchored pattern instead of the `(?=.*[A-Z])(?=.*[0-9])` form.)
 //! let _rule = ValidationRule::Any(vec![
-//!     ValidationRule::Pattern { pattern: r"^(?=.*[A-Z])(?=.*[0-9]).+$".to_string(), message: None },
+//!     ValidationRule::Pattern {
+//!         pattern: CompiledPattern::new(r"^[A-Za-z0-9]+$").expect("valid regex"),
+//!         message: None,
+//!     },
 //!     ValidationRule::Length { min: Some(20), max: None },
 //! ]);
 //! ```
@@ -244,15 +252,13 @@ pub(crate) fn validate_single_rule(
             Ok(())
         },
         ValidationRule::Pattern { pattern, message } => {
-            if let Ok(regex) = regex::Regex::new(pattern) {
-                if !regex.is_match(field_value) {
-                    return Err(FraiseQLError::Validation {
-                        message: message.clone().unwrap_or_else(|| {
-                            format!("'{}' must match pattern: {}", field_name, pattern)
-                        }),
-                        path:    Some(field_name.to_string()),
-                    });
-                }
+            if !pattern.is_match(field_value) {
+                return Err(FraiseQLError::Validation {
+                    message: message.clone().unwrap_or_else(|| {
+                        format!("'{}' must match pattern: {}", field_name, pattern)
+                    }),
+                    path:    Some(field_name.to_string()),
+                });
             }
             Ok(())
         },

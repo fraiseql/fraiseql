@@ -17,7 +17,7 @@
 //! ```
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use fraiseql_core::cache::{CacheConfig, QueryResultCache};
+use fraiseql_core::cache::{CacheConfig, QueryResultCache, ViewName};
 use fraiseql_db::JsonbValue;
 
 fn make_result() -> Vec<JsonbValue> {
@@ -74,7 +74,7 @@ fn bench_cache_put_get(c: &mut Criterion) {
             for i in 0..100_u64 {
                 cache.put(i, result.clone(), vec!["v_user".to_string()], None, None).unwrap();
             }
-            cache.invalidate_views(&["v_user".to_string()]).unwrap();
+            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         });
     });
 

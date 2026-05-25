@@ -73,9 +73,11 @@ pub const fn is_multi_root(parsed: &ParsedQuery) -> bool {
 }
 
 /// Returns the response key (alias or field name) for every root-level selection.
-#[must_use]
-pub fn extract_root_field_names(parsed: &ParsedQuery) -> Vec<&str> {
-    parsed.selections.iter().map(|s| s.response_key()).collect()
+///
+/// Returns an iterator borrowing from `parsed` so callers that immediately
+/// iterate avoid the intermediate `Vec` allocation.
+pub fn extract_root_field_names(parsed: &ParsedQuery) -> impl Iterator<Item = &str> + '_ {
+    parsed.selections.iter().map(|s| s.response_key())
 }
 
 // ── Query-string serializer ───────────────────────────────────────────────────

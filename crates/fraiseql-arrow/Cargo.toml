@@ -15,11 +15,11 @@ arrow-schema = "57"
 async-stream = "0.3"
 async-trait = "0.1"
 # Date/time parsing
-chrono = {version = "0.4", features = ["serde"]}
+chrono = {workspace = true}
 # ClickHouse client (optional)
 clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
-dashmap = "6.1"
+dashmap = {workspace = true}
 # FraiseQL core (for Executor and query execution)
 fraiseql-core = {workspace = true}
 futures = "0.3"
@@ -42,7 +42,7 @@ tonic = "0.14"
 # Logging
 tracing = "0.1"
 # UUID generation (used in handshake for session tokens)
-uuid = {version = "1", features = ["v4"]}
+uuid = {workspace = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
@@ -54,7 +54,7 @@ tempfile = "3"
 tokio-stream = "0.1"
 tokio-test = "0.4"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
-uuid = {version = "1", features = ["v4"]}
+uuid = {workspace = true}
 
 [features]
 clickhouse = ["dep:clickhouse"]
@@ -74,6 +74,7 @@ workspace = true
 [package]
 description = "Apache Arrow Flight integration for FraiseQL"
 name = "fraiseql-arrow"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

@@ -13,7 +13,7 @@
 //! column, matching the fraiseql adapter contract.
 
 #![cfg(all(feature = "test-postgres", feature = "test-mysql"))]
-#![allow(clippy::unwrap_used)] // Reason: test setup code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test setup code, panics are acceptable
 
 use fraiseql_core::db::{
     WhereClause, WhereOperator, mysql::MySqlAdapter, postgres::PostgresAdapter,

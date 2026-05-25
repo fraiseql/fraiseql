@@ -13,6 +13,7 @@
 #![allow(clippy::struct_excessive_bools)] // Reason: schema config structs use bool flags by design (per CLAUDE.md)
 #![allow(clippy::derive_partial_eq_without_eq)] // Reason: Eq not derivable for all schema structs (contain f64 fields)
 #![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used here
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: this is the CLI crate; user-facing output is the contract
 
 pub mod cli;
 pub mod codegen;

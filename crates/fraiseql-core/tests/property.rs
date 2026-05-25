@@ -7,6 +7,7 @@ mod property {
     mod property_cache_invalidation;
     mod property_error_handling;
     mod property_error_sanitization;
+    mod property_executor;
     mod property_graphql;
     mod property_schema;
     mod property_sql_generation;

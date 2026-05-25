@@ -254,6 +254,10 @@ pub(crate) fn generate_view_sql(
     // Main view definition.
     // `validate_view_name` guarantees the prefix is one of va_/tv_/ta_ before
     // this function is called, so the wildcard arm is unreachable.
+    #[allow(clippy::unreachable)]
+    // Reason: `validate_view_name` (called upstream of this function) restricts
+    // the prefix to `va`/`tv`/`ta`; any other value would be a programmer
+    // error, not user input.
     match view_name.split('_').next() {
         Some("va") => {
             generate_vector_arrow_view(&mut sql, entity, sql_source, view_name);

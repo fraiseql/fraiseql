@@ -4,7 +4,7 @@
 //! `DynamicGrpcService` → exercise gRPC requests via `tower::ServiceExt::oneshot`
 //! against a `FailingAdapter` with canned row-shaped responses.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic, clippy::missing_assert_message)] // Reason: test code, panics acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test code
 #![allow(clippy::missing_errors_doc)] // Reason: test code
 

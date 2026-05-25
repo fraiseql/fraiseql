@@ -10,9 +10,10 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
+    graphql::parse_graphql_document,
     security::SecurityContext,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use super::{
     app_state::AppState,
@@ -42,6 +43,7 @@ use crate::{
 ///
 /// Returns appropriate HTTP status codes based on error type.
 #[tracing::instrument(skip_all, fields(operation_name))]
+#[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
@@ -91,6 +93,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// not mutations (which should use POST). This handler does not enforce that
 /// restriction but logs a warning for mutation-like queries.
 #[tracing::instrument(skip_all, fields(operation_name))]
+#[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
@@ -315,7 +318,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // If a trusted document store is configured, resolve the document ID first.
     if let Some(ref td_store) = state.trusted_docs {
         let doc_id = extract_document_id(&request);
-        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()).await {
+        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()) {
             Ok(resolved) => {
                 if doc_id.is_some() {
                     crate::trusted_documents::record_hit();
@@ -365,7 +368,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Increment total queries counter
     metrics.queries_total.fetch_add(1, Ordering::Relaxed);
 
-    info!(
+    // Reason (F041): per-request execution log moved to `debug!`. At >100 RPS
+    // this event drowns the operator's `info!`-level signal-to-noise ratio.
+    // `info!` is reserved for startup/shutdown/schema-reload events.
+    debug!(
         query_length = query.len(),
         has_variables = request.variables.is_some(),
         operation_name = ?request.operation_name,
@@ -375,8 +381,23 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Validate request
     let validator = &state.validator;
 
-    // Validate query
-    if let Err(e) = validator.validate_query(&query) {
+    // Parse the GraphQL document exactly once at the handler boundary so the
+    // validator can walk the AST without re-parsing. The matcher's downstream
+    // parse (inside `executor.execute`) is independent and benefits from the
+    // executor's own parse cache (see F001 in IMPROVEMENTS.md).
+    //
+    // We only invoke `parse_graphql_document` when the validator might use the
+    // AST — when it is a no-op the explicit parse here would be wasted work
+    // (the executor will still parse what it needs).
+    let validation_outcome = if validator.is_no_op() {
+        Ok(())
+    } else {
+        match parse_graphql_document(&query) {
+            Ok(doc) => validator.validate_query_doc(&doc),
+            Err(e) => Err(e),
+        }
+    };
+    if let Err(e) = validation_outcome {
         error!(
             error = %e,
             operation_name = ?request.operation_name,

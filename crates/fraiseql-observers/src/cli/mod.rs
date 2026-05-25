@@ -6,6 +6,7 @@
 //! - Dead letter queue management
 //! - Configuration validation
 //! - Prometheus metrics inspection
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: this is the observers CLI submodule (gated on the `cli` feature); user-facing terminal output is the contract.
 
 use std::path::PathBuf;
 

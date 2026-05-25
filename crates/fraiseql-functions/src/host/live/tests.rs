@@ -1,6 +1,6 @@
 //! Tests for `LiveHostContext` `GraphQL` query execution.
 
-#![allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::field_reassign_with_default)] // Reason: test setup is clearer with explicit field assignments
 #![allow(clippy::match_same_arms)] // Reason: test match arms with distinct comments serve as documentation
 
@@ -674,10 +674,10 @@ async fn test_host_storage_get_nonexistent_returns_not_found() {
 
     assert!(result.is_err());
     match result {
-        Err(fraiseql_error::FraiseQLError::Storage { message, .. }) => {
-            assert!(message.contains("not found") || message.contains("does not exist"));
+        Err(fraiseql_error::FraiseQLError::File(fraiseql_error::FileError::NotFound { id })) => {
+            assert!(id.contains("nonexistent.txt"), "expected key in NotFound id, got {id}");
         },
-        other => panic!("expected Storage error, got {:?}", other),
+        other => panic!("expected FileError::NotFound, got {other:?}"),
     }
 }
 

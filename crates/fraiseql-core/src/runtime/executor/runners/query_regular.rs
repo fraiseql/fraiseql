@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use tracing::debug;
+
 use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
@@ -92,19 +94,54 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
         let response_cache_key =
-            self.ctx.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
-                let query_key = Self::compute_response_cache_key(&query_match);
+            if self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled()) {
+                let query_key = Self::compute_response_cache_key(&query_match)?;
                 let sec_hash =
                     crate::cache::response_cache::hash_security_context(Some(security_context));
-                (query_key, sec_hash)
-            });
+                Some((query_key, sec_hash))
+            } else {
+                None
+            };
 
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
             if let Some(cached) = rc.get(query_key, sec_hash)? {
-                return Ok((*cached).clone());
+                // F040: explicit hit event so operators can correlate slow
+                // requests with cache state from logs alone.
+                debug!(
+                    target: "fraiseql::cache::response",
+                    event = "hit",
+                    query = %query_match.query_def.name,
+                    query_key,
+                    sec_hash,
+                    "response cache hit"
+                );
+                // F002: `Arc::unwrap_or_clone` takes ownership when the cache
+                // entry is uniquely held (the common case once moka has
+                // returned an `Arc::clone`), avoiding the recursive deep
+                // clone of every JSON node. The fallback clone only fires
+                // when another reader is racing on the same key.
+                return Ok(Arc::unwrap_or_clone(cached));
             }
+            // F040: miss → DB execution will run below. Emit before the
+            // expensive plan/projection work so the event timestamps the
+            // start of the slow path.
+            debug!(
+                target: "fraiseql::cache::response",
+                event = "miss",
+                query = %query_match.query_def.name,
+                query_key,
+                sec_hash,
+                "response cache miss"
+            );
+        } else {
+            debug!(
+                target: "fraiseql::cache::response",
+                event = "disabled",
+                query = %query_match.query_def.name,
+                "response cache disabled or no key available"
+            );
         }
 
         // 3. Create execution plan
@@ -266,14 +303,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                projection_hint.as_ref(),
-                combined_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view: sql_source,
+                projection: projection_hint.as_ref(),
+                where_clause: combined_where.as_ref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // 10. Apply field-level RBAC filtering (reject / mask / allow)
@@ -304,17 +341,21 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        // 13. Store in response cache (if enabled) and return value
+        // 13. Store in response cache (if enabled) and return value.
+        //
+        // F002: wrap once in `Arc`, hand the `Arc` to the cache, and
+        // `unwrap_or_clone` for the return path. When no other reader has
+        // touched the entry yet, the unwrap is free and the only cost is
+        // the original `Arc::new` heap allocation — replacing the previous
+        // pattern that deep-cloned the projected JSON to satisfy both the
+        // cache and the return type.
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
             let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
-            let _ = rc.put(
-                query_key,
-                sec_hash,
-                Arc::new(response.clone()),
-                vec![sql_source.to_string()],
-            );
+            let cached = Arc::new(response);
+            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), vec![sql_source.to_string()]);
+            return Ok(Arc::unwrap_or_clone(cached));
         }
 
         Ok(response)
@@ -325,7 +366,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Hashes the query name, matched fields, and arguments to produce
     /// a u64 key. Combined with the security context hash, this forms
     /// the full response cache key.
-    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when any argument value fails
+    /// JSON serialization. The previous implementation silently collapsed
+    /// failures to an empty string, which could cause two distinct argument
+    /// trees to map to the same cache key (F044).
+    fn compute_response_cache_key(
+        query_match: &crate::runtime::matcher::QueryMatch,
+    ) -> Result<u64> {
         use std::hash::{Hash, Hasher};
         let mut hasher = ahash::AHasher::default();
         query_match.query_def.name.hash(&mut hasher);
@@ -335,13 +385,25 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Hash arguments (sorted keys for determinism)
         let mut keys: Vec<&String> = query_match.arguments.keys().collect();
         keys.sort();
+        // F044: stream the serialized JSON straight into the hasher via a
+        // scratch buffer; this avoids the intermediate `String` allocation
+        // *and* satisfies clippy's `collection_is_never_read` lint (the prior
+        // `let serialized = ...; serialized.hash(...)` shape was flagged).
+        let mut scratch: Vec<u8> = Vec::new();
         for key in keys {
             key.hash(&mut hasher);
-            serde_json::to_string(&query_match.arguments[key])
-                .unwrap_or_default()
-                .hash(&mut hasher);
+            scratch.clear();
+            serde_json::to_writer(&mut scratch, &query_match.arguments[key]).map_err(|e| {
+                FraiseQLError::Validation {
+                    message: format!(
+                        "failed to serialize argument '{key}' for response cache key: {e}"
+                    ),
+                    path:    Some(format!("arguments.{key}")),
+                }
+            })?;
+            scratch.hash(&mut hasher);
         }
-        hasher.finish()
+        Ok(hasher.finish())
     }
 
     /// Execute a regular (non-aggregate, non-relay) GraphQL query.
@@ -485,14 +547,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                projection_hint.as_ref(),
-                user_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view: sql_source,
+                projection: projection_hint.as_ref(),
+                where_clause: user_where.as_ref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // 4. Project results
@@ -619,14 +681,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                None,
-                composed_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view: sql_source,
+                projection: None,
+                where_clause: composed_where.as_ref(),
+                order_by: order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // Project results.

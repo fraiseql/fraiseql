@@ -3,11 +3,9 @@
 //! Manages database connections to remote FraiseQL instances,
 //! enabling direct database queries without HTTP overhead.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::Arc;
 
+use dashmap::DashMap;
 use fraiseql_db::ArcDatabaseAdapter;
 #[cfg(feature = "unstable")]
 use fraiseql_error::{FraiseQLError, Result};
@@ -126,10 +124,40 @@ impl RemoteDatabaseConfig {
     }
 }
 
-/// Manages connections to remote databases
+/// Manages connections to remote databases.
+///
+/// Adapters are cached in a [`DashMap`] keyed by connection string.  Reads
+/// (the common case after warm-up) take only a per-shard lock and never
+/// contend with other readers on different shards; writes likewise lock a
+/// single shard.  `DashMap` has no poisoning, so the cache survives panics
+/// in unrelated code.
+///
+/// # Feature gating
+///
+/// The only writer that populates `adapters` is [`get_or_create_connection`],
+/// which is gated behind the `unstable` Cargo feature because direct
+/// remote-database federation is still WIP (the method currently always
+/// returns `FraiseQLError::Internal` with an "unstable API" message).
+///
+/// Without the `unstable` feature the manager is effectively a write-never
+/// store: [`new`], [`close_connection`], [`close_all`], and
+/// [`connection_count`] all compile and operate on an empty cache. The field
+/// itself is left ungated so the read-only surface of the API stays
+/// available — downstream code that needs to wire a `ConnectionManager`
+/// into its own type can do so without depending on the `unstable` feature.
+///
+/// [`get_or_create_connection`]: ConnectionManager::get_or_create_connection
+/// [`new`]: ConnectionManager::new
+/// [`close_connection`]: ConnectionManager::close_connection
+/// [`close_all`]: ConnectionManager::close_all
+/// [`connection_count`]: ConnectionManager::connection_count
 pub struct ConnectionManager {
-    /// Cached adapters keyed by connection string
-    adapters: Arc<Mutex<HashMap<String, ArcDatabaseAdapter>>>,
+    /// Cached adapters keyed by connection string.
+    ///
+    /// Populated only by the `unstable`-gated `get_or_create_connection`;
+    /// without that feature this map stays empty for the lifetime of the
+    /// manager. See the struct-level docs for the design rationale.
+    adapters: Arc<DashMap<String, ArcDatabaseAdapter>>,
 }
 
 impl ConnectionManager {
@@ -137,7 +165,7 @@ impl ConnectionManager {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            adapters: Arc::new(Mutex::new(HashMap::new())),
+            adapters: Arc::new(DashMap::new()),
         }
     }
 
@@ -168,13 +196,9 @@ impl ConnectionManager {
         &self,
         config: RemoteDatabaseConfig,
     ) -> Result<ArcDatabaseAdapter> {
-        // Check cache first
-        {
-            let adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
-
-            if let Some(adapter) = adapters.get(config.connection_string()) {
-                return Ok(Arc::clone(adapter));
-            }
+        // Check cache first.  Holding a `dashmap::Ref` only locks one shard.
+        if let Some(adapter) = self.adapters.get(config.connection_string()) {
+            return Ok(Arc::clone(adapter.value()));
         }
 
         // Creating a real database adapter requires a database-specific
@@ -190,21 +214,18 @@ impl ConnectionManager {
 
     /// Close a specific connection by connection string.
     pub fn close_connection(&self, connection_string: &str) {
-        let mut adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
-        adapters.remove(connection_string);
+        self.adapters.remove(connection_string);
     }
 
     /// Close all cached connections.
     pub fn close_all(&self) {
-        let mut adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
-        adapters.clear();
+        self.adapters.clear();
     }
 
     /// Get number of cached connections.
     #[must_use]
     pub fn connection_count(&self) -> usize {
-        let adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
-        adapters.len()
+        self.adapters.len()
     }
 }
 

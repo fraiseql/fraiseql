@@ -18,6 +18,7 @@
 //! cargo run --example elasticsearch_sink
 //! ```
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use fraiseql_observers::{ElasticsearchSink, ElasticsearchSinkConfig, EntityEvent, EventKind};
 use serde_json::json;
 use tokio::sync::mpsc;

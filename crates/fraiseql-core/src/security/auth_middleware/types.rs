@@ -85,10 +85,31 @@ impl AuthenticatedUser {
 /// Request context for authentication validation
 ///
 /// Contains information extracted from an HTTP request.
-#[derive(Debug, Clone)]
+///
+/// # Debug redaction
+///
+/// `Debug` is implemented manually so the raw `Authorization` header — which
+/// carries the bearer token — is never written to logs.  Calling `{:?}` on an
+/// `AuthRequest` yields `AuthRequest { authorization_header: Some("<redacted>") }`
+/// (or `None`) instead of the bearer credentials.  Tracing instrumentation that
+/// captures `?req` is therefore safe by construction.
+#[derive(Clone)]
 pub struct AuthRequest {
     /// Raw Authorization header value (e.g., "Bearer eyJhbG...")
     pub authorization_header: Option<String>,
+}
+
+impl fmt::Debug for AuthRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // SECURITY: never write the raw Authorization header to Debug output —
+        // it carries the bearer token.  Surface only the presence/absence.
+        f.debug_struct("AuthRequest")
+            .field(
+                "authorization_header",
+                &self.authorization_header.as_ref().map(|_| "<redacted>"),
+            )
+            .finish()
+    }
 }
 
 impl AuthRequest {

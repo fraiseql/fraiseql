@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Integration tests for `fraiseql analyze`.
 //!
 //! Invokes the real CLI binary and inspects exit codes and JSON output.

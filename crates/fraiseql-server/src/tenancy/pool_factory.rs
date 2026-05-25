@@ -83,6 +83,7 @@ pub trait FromPoolConfig: DatabaseAdapter + Sized {
 /// or the tenant key would produce an invalid PostgreSQL schema name.
 /// Returns `FraiseQLError::ConnectionPool` / `FraiseQLError::Database` if the pool
 /// cannot be created or schema DDL fails.
+#[doc(hidden)] // Internal-pub: tenant pool builder used by TenantExecutorRegistry; downstream wires tenants via TenancyConfig, not this fn directly.
 pub async fn create_tenant_executor<A: FromPoolConfig>(
     tenant_key: &str,
     schema_json: &str,

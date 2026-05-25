@@ -98,6 +98,7 @@ impl VinValidator {
 }
 
 /// Country code validator (ISO 3166-1 alpha-2).
+#[doc(hidden)] // Internal-pub: validation helper used by fraiseql-core's rich-scalars module; shape may change as the ISO table is reorganised.
 pub struct CountryCodeValidator {
     valid_codes: std::collections::HashSet<&'static str>,
 }

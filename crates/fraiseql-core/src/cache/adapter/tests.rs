@@ -2,6 +2,7 @@
 #![allow(clippy::iter_on_single_items)] // Reason: test uses single-element iter for clarity
 
 use async_trait::async_trait;
+use fraiseql_db::ViewName;
 use serde_json::json;
 
 use super::*;
@@ -216,7 +217,7 @@ async fn test_invalidation_clears_cache() {
 
     // Invalidate
     let invalidated = adapter
-        .invalidate_views(&["v_user".to_string()])
+        .invalidate_views(&[ViewName::from("v_user")])
         .expect("invalidate_views must succeed");
     assert_eq!(invalidated, 1);
 
@@ -794,7 +795,7 @@ async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
         .unwrap();
 
     let invalidated_views = adapter2
-        .invalidate_views(&["v_user".to_string(), "v_post".to_string()])
+        .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
         .unwrap();
 
     // Both approaches should invalidate the same number of views
@@ -1101,7 +1102,7 @@ async fn test_cascade_invalidator_expands_transitive_views() {
     assert_eq!(adapter.inner().call_count(), 3);
 
     // Invalidate only the base view; cascade should evict dependents too
-    let count = adapter.invalidate_views(&["v_user".to_string()]).unwrap();
+    let count = adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
     assert_eq!(count, 3, "All three views should be invalidated via cascade");
 
     // All three should now be cache misses
@@ -1148,7 +1149,7 @@ async fn test_no_cascade_invalidator_only_direct_views() {
     assert_eq!(adapter.inner().call_count(), 2);
 
     // Only v_user is invalidated — v_user_stats remains cached
-    let count = adapter.invalidate_views(&["v_user".to_string()]).unwrap();
+    let count = adapter.invalidate_views(&[ViewName::from("v_user")]).unwrap();
     assert_eq!(count, 1);
 
     adapter

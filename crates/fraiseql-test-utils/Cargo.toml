@@ -13,6 +13,7 @@ workspace = true
 
 [package]
 name = "fraiseql-test-utils"
+readme = "README.md"
 publish = false
 authors.workspace = true
 categories.workspace = true

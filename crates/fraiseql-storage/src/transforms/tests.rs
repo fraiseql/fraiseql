@@ -1,4 +1,12 @@
 #![cfg(all(test, feature = "transforms"))]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
+#![allow(clippy::cast_precision_loss)] // Reason: u32→f64 math on image dimensions in test assertions
+#![allow(clippy::cast_possible_truncation)] // Reason: rounding image dimensions back to integer in test assertions
+#![allow(clippy::cast_sign_loss)] // Reason: rounding image dimensions back to unsigned in test assertions
+#![allow(missing_docs)] // Reason: test functions are self-describing
+
+use std::io::Cursor;
 
 use image::{ImageBuffer, ImageFormat, RgbImage, Rgba, RgbaImage};
 
@@ -16,7 +24,6 @@ fn create_test_image_1000x800() -> Vec<u8> {
 
     let dyn_img = image::DynamicImage::ImageRgb8(img);
     let mut bytes = Vec::new();
-    use std::io::Cursor;
     dyn_img
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Jpeg)
         .expect("Failed to encode test JPEG");
@@ -37,7 +44,6 @@ fn create_test_png_with_alpha() -> Vec<u8> {
 
     let dyn_img = image::DynamicImage::ImageRgba8(img);
     let mut bytes = Vec::new();
-    use std::io::Cursor;
     dyn_img
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
         .expect("Failed to encode test PNG");

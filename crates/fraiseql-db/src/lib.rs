@@ -54,6 +54,7 @@ pub mod order_by;
 pub mod path_escape;
 pub mod projection_generator;
 pub mod traits;
+pub mod view_name;
 pub mod where_clause;
 pub mod where_sql_generator;
 
@@ -106,13 +107,14 @@ pub use sqlite::{SqliteAdapter, SqliteIntrospector};
 pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    DirectMutationContext, DirectMutationOp, MutationStrategy, RelayDatabaseAdapter,
-    RelayPageResult, SupportsMutations,
+    DirectMutationContext, DirectMutationOp, MutationStrategy, ProjectionRequest,
+    RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
     sql_hints::{OrderByClause, OrderByFieldType, OrderDirection, SqlProjectionHint},
 };
+pub use view_name::ViewName;
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;
 pub use where_sql_generator::WhereSqlGenerator;

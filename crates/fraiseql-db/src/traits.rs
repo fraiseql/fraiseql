@@ -414,21 +414,26 @@ pub trait DatabaseAdapter: Send + Sync {
     /// directly — eliminating the full `Vec<JsonbValue>` clone that the non-`Arc`
     /// path requires on every cache hit.
     ///
+    /// Parameters are passed in a `ProjectionRequest` struct (F043) so adapters
+    /// and callers cannot misorder them.
+    ///
     /// # Errors
     ///
     /// Same errors as `execute_with_projection`.
     async fn execute_with_projection_arc(
         &self,
-        view: &str,
-        projection: Option<&SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        order_by: Option<&[OrderByClause]>,
+        request: &ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection(view, projection, where_clause, limit, offset, order_by)
-            .await
-            .map(Arc::new)
+        self.execute_with_projection(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
+        .map(Arc::new)
     }
 
     /// Get database type (for logging/metrics).
@@ -681,10 +686,14 @@ pub trait DatabaseAdapter: Send + Sync {
     /// entries reading from modified views are evicted. The default
     /// implementation is a no-op; `CachedDatabaseAdapter` overrides this.
     ///
+    /// View names are passed as `&[ViewName]` so the wrapper's `Arc<str>`
+    /// backing is preserved across the call. Callers that hold a `String`
+    /// can convert in place with `ViewName::from(...)`.
+    ///
     /// # Returns
     ///
     /// The number of cache entries evicted.
-    async fn invalidate_views(&self, _views: &[String]) -> Result<u64> {
+    async fn invalidate_views(&self, _views: &[crate::ViewName]) -> Result<u64> {
         Ok(0)
     }
 
@@ -718,7 +727,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # Returns
     ///
     /// The number of cache entries evicted.
-    async fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+    async fn invalidate_list_queries(&self, views: &[crate::ViewName]) -> Result<u64> {
         self.invalidate_views(views).await
     }
 

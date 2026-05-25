@@ -4,7 +4,7 @@
 //! `JoinHandle::abort`) does not corrupt adapter state or deadlock subsequent
 //! operations.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::match_same_arms)] // Reason: test match arms are intentionally explicit
 use std::{sync::Arc, time::Duration};
 

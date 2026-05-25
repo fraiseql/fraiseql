@@ -55,7 +55,7 @@ base64 = "0.22"
 bytes = "1.0"
 # Time
 chrono = {version = "0.4", features = ["serde"]}
-dashmap = "6.0"
+dashmap = "6.1"
 # Connection pooling
 deadpool = "0.12"
 deadpool-postgres = "0.14"
@@ -97,6 +97,8 @@ rand = "0.9"
 # Kafka
 rdkafka = {version = "0.39", features = ["tokio"]}
 regex = "1.10"
+# Redis client (consolidated across auth/core/observers/server — F015)
+redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"]}
 # HTTP client — rustls only, no OpenSSL dependency
 reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls"]}
 # SQLite
@@ -129,6 +131,8 @@ tower-http = {version = "0.5", features = ["cors", "compression-gzip"]}
 # Logging
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+# URL parsing (consolidated — F033)
+url = "2"
 # UUID
 uuid = {version = "1.21", features = ["v4", "serde"]}
 # Hashing
@@ -138,9 +142,12 @@ xxhash-rust = {version = "0.8", features = ["xxh3"]}
 # ── Global levels ────────────────────────────────────────────────────────────
 # priority = -1 lets individual lint entries below override the group level.
 all = {level = "deny", priority = -1}
-# Reason: crates.io metadata (description, keywords, categories) is missing on
-# some internal crates; this is non-blocking for a private workspace.
-cargo = {level = "warn", priority = -1}
+# Reason: the only two `cargo` lints with known false positives in this
+# workspace (`cargo_common_metadata` — internal crates lack crates.io fields;
+# `multiple_crate_versions` — transitive dependency duplicates) are
+# individually allowed below. Promote the group to `deny` so any newly-added
+# cargo lint (e.g. wildcard versions, dep-in-features mistakes) fails fast.
+cargo = {level = "deny", priority = -1}
 # Reason: internal crates don't need all crates.io metadata fields.
 cargo_common_metadata = "allow"
 # Reason: negative-first guard clauses are sometimes more readable than positive-first.
@@ -159,9 +166,13 @@ multiple_crate_versions = "allow"
 # Reason: all public functions returning values must be annotated with #[must_use].
 # Enforced since AR-1 audit remediation (2026-05-18).
 must_use_candidate = "deny"
-# Reason: nursery lints are experimental and may have false positives; keep as warn
-# so they surface in CI without blocking builds.
-nursery = {level = "warn", priority = -1}
+# Reason: nursery lints are experimental and may have false positives; the four
+# nursery rules with known false positives in this codebase (`use_self`,
+# `significant_drop_tightening`, `option_if_let_else`, `or_fun_call`) are
+# individually allowed below with a documented reason. Everything else in the
+# nursery group fails the build, so newly-stabilizing lints get caught the
+# same day they appear instead of accumulating as silent warnings.
+nursery = {level = "deny", priority = -1}
 # Reason: explicit match is sometimes clearer than map_or_else for multi-line branches.
 option_if_let_else = "allow"
 # Reason: `.unwrap_or(default_fn())` is sometimes clearer than `.unwrap_or_else(|| ...)`.
@@ -192,6 +203,98 @@ unused_async = "allow"
 unused_enumerate_index = "allow"
 # Reason: some trait implementations accept self for API uniformity even when unused.
 unused_self = "allow"
+# ── Restriction lints (opt-in) ───────────────────────────────────────────────
+# The clippy `restriction` group is not enabled wholesale because most of it
+# bans valid Rust on principle (e.g. `arithmetic_side_effects`,
+# `float_arithmetic`, `shadow_reuse`, `single_call_fn`, `pub_use`). The few
+# rules below catch real bugs without producing noise.
+#
+# Deliberately NOT enforced — re-evaluating these is wasted work unless the
+# codebase changes substantially. See chore/tighten-clippy for the probe data:
+#   - expect_used: contradicts the project policy of using
+#     `.expect("reason")` to document assumptions (see unwrap_used above).
+#     A workspace probe surfaced 3,104 instances; the vast majority are
+#     intentional documented asserts. Do not enable.
+#   - indexing_slicing: round-2 probe surfaced 1,015 production hits across
+#     14 crates (top: observers 194, core 177, wire 140, auth 114, server
+#     100). Cleaning up requires per-crate refactoring to `.get(i)?` (which
+#     changes return types) or per-crate `#![allow]` followed by gradual
+#     cleanup. Both approaches are out of scope for a single PR. Production
+#     indexing in this codebase is concentrated in SQL codegen paths and
+#     wire/protocol decoders where indices are statically bounded by the
+#     schema or pre-validated lengths; real out-of-bounds bugs are caught
+#     by tests. Re-evaluate once a single crate is volunteered to lead the
+#     phased migration.
+#   - use_debug: 60 instances; mostly in trace/debug logs and tests. Skipped
+#     because `{:?}` is the standard `tracing` event payload pattern.
+#   - clone_on_ref_ptr: round-2 probe surfaced 329 hits across 78 files
+#     (server 166, core 71). Forcing `Arc::clone(&x)` over `.clone()` is
+#     a readability improvement but would touch ownership patterns
+#     throughout async code. Skipped; revisit per-crate.
+#   - map_err_ignore: round-2 probe surfaced 264 hits across 50 files
+#     (auth 68, server 66). Real signal — `.map_err(|_| ...)` often
+#     drops error context — but too noisy to enable in a single pass.
+#     Skipped; revisit per-crate.
+#   - str_to_string: round-2 probe surfaced 17,528 hits. Stylistic
+#     noise (flags `.to_string()` on already-`String` or `&'static
+#     str`). Skipped.
+#   - unseparated_literal_suffix: round-2 probe surfaced 311 hits.
+#     Stylistic preference for `100_u64` over `100u64`; the codebase is
+#     mixed and consistency is not currently enforced. Skipped.
+#
+# Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
+dbg_macro = "deny"
+# Reason: `f32`/`f64` literals that lose precision under their target type
+# silently change behavior; require an explicit cast or different literal.
+lossy_float_literal = "deny"
+# Reason: `std::mem::forget` leaks resources and almost always indicates a
+# misuse of `ManuallyDrop` or a missing `Drop` impl. Force an explicit allow.
+mem_forget = "deny"
+# Reason: `todo!()` is a WIP marker; allowed in feature branches but must be
+# cleared (or explicitly per-file allowed with a Reason for documented stubs)
+# before merging to `dev`.
+todo = "deny"
+# Reason: `unimplemented!()` is a "never reached / never planned" panic. Real
+# unimplemented surfaces should return `FraiseQLError::Unsupported` or a
+# trait-defined error variant instead of panicking.
+unimplemented = "deny"
+# Reason: `unreachable!()` is a documented invariant marker; every remaining
+# instance carries an explanatory message proving the case cannot occur.
+# Enforcing the lint means new `unreachable!()` calls must add a per-site
+# `#[allow(clippy::unreachable)]` + `// Reason:` sibling.
+unreachable = "deny"
+# Reason: naked `panic!()` in production code crashes the worker on
+# unexpected state. Real failures should return `FraiseQLError::*`. The two
+# remaining call sites are documented `// Reason:` allows (fail-fast on
+# missing required configuration at startup, and a trait-default panic for
+# dialects that forget to override an optional method). Tests get a
+# crate/module-level allow alongside `unwrap_used`.
+panic = "deny"
+# Reason: `println!`/`print!` and `eprintln!`/`eprint!` should not appear in
+# production library/server code (which uses `tracing` for structured logs).
+# The legitimate CLI surfaces (`fraiseql-cli` lib, `fraiseql-observers`
+# `cli` submodule, `fraiseql-server` binary) carry a crate/module-level
+# allow with `// Reason:`. Tests, examples, build scripts, and benches
+# print directly and carry module-level allows.
+print_stdout = "deny"
+print_stderr = "deny"
+# Reason: probed at 0 hits; `;` after expression-statement bodies. Cheap
+# insurance against future regressions where someone writes
+# `fn foo() { other_fn() }` instead of `fn foo() { other_fn(); }`.
+semicolon_if_nothing_returned = "deny"
+# Reason: `clippy::string_to_string` was renamed to `clippy::implicit_clone`
+# (which is part of the `pedantic` group and already enforced). Leaving as
+# a documented note here so a future probe does not re-add it.
+# Reason: probed at 0 hits; requires `// SAFETY:` on every `unsafe {}`
+# block. The workspace already has `unsafe_code = "deny"` (rustc-level),
+# so only the `fraiseql-functions` `wasmtime::component::bindgen!`
+# generated glue can have unsafe. Cheap insurance.
+undocumented_unsafe_blocks = "deny"
+# Reason: every `assert!` / `assert_eq!` in production code must carry a
+# message. Failure messages without context are hard to debug from log
+# output alone. Test files where the assertion expression IS the message
+# (e.g. `assert_eq!(types[0]["name"], "Author")`) get a module-level allow.
+missing_assert_message = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.

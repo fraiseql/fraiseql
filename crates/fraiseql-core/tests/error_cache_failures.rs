@@ -1,12 +1,11 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Cache failure and edge case tests.
 //!
 //! Tests cache behavior when the underlying database adapter fails,
 //! and verifies cache isolation across schema versions and views.
 
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, ViewName},
     db::{DatabaseAdapter, WhereClause, WhereOperator, types::JsonbValue},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
@@ -140,7 +139,7 @@ async fn test_invalidate_view_forces_cache_miss() {
     assert_eq!(cached.inner().query_count(), 1);
 
     // Invalidate
-    let invalidated = cached.invalidate_views(&["v_user".to_string()]).unwrap();
+    let invalidated = cached.invalidate_views(&[ViewName::from("v_user")]).unwrap();
     assert_eq!(invalidated, 1);
 
     // Must hit adapter again

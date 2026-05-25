@@ -14,7 +14,12 @@
 //!   2. Run tests: cargo test -p fraiseql-core --features test-postgres --test
 //!      `aggregation_integration`
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr
+)] // Reason: test code, panics acceptable
 #![allow(clippy::match_wildcard_for_single_variants)] // Reason: test match uses wildcard arm for forward-compatibility
 use fraiseql_core::{
     compiler::{

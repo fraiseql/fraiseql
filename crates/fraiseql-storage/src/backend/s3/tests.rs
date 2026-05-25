@@ -1,7 +1,7 @@
-//! Tests for S3Backend.
+//! Tests for `S3Backend`.
 //!
-//! Note: These tests require a running S3-compatible service (S3, MinIO, etc.).
-//! To run with MinIO locally:
+//! Note: These tests require a running S3-compatible service (S3, `MinIO`, etc.).
+//! To run with `MinIO` locally:
 //!
 //! ```bash
 //! docker run -d -p 9000:9000 -p 9001:9001 minio/minio server /data
@@ -9,6 +9,10 @@
 //! export AWS_SECRET_ACCESS_KEY=minioadmin
 //! cargo test -p fraiseql-storage --lib --features aws-s3 s3::tests
 //! ```
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
 use crate::backend::S3Backend;
 
@@ -20,7 +24,7 @@ fn skip_if_no_s3() -> Option<()> {
     Some(())
 }
 
-/// Helper to create an S3Backend for testing.
+/// Helper to create an `S3Backend` for testing.
 fn create_test_backend() -> S3Backend {
     let endpoint = std::env::var("S3_ENDPOINT").or_else(|_| std::env::var("AWS_ENDPOINT_URL")).ok();
 
@@ -40,7 +44,7 @@ fn test_s3_backend_struct_creation() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_put_and_get_roundtrip() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -67,7 +71,7 @@ fn test_s3_put_and_get_roundtrip() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_get_nonexistent_returns_not_found() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -91,7 +95,7 @@ fn test_s3_get_nonexistent_returns_not_found() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_delete_removes_object() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -122,7 +126,7 @@ fn test_s3_delete_removes_object() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_list_with_prefix() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -162,7 +166,7 @@ fn test_s3_list_with_prefix() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_list_pagination() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -206,7 +210,7 @@ fn test_s3_list_pagination() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_exists_true_and_false() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -239,7 +243,7 @@ fn test_s3_exists_true_and_false() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_large_object_streaming() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -293,7 +297,7 @@ fn test_s3_key_validation() {
 // ============================================================================
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_presign_upload_returns_valid_url() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -324,7 +328,7 @@ fn test_s3_presign_upload_returns_valid_url() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_presign_download_returns_valid_url() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -355,7 +359,7 @@ fn test_s3_presign_download_returns_valid_url() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_presign_url_expires() {
     let Some(()) = skip_if_no_s3() else {
         return;
@@ -407,7 +411,7 @@ fn test_s3_presign_rejects_invalid_keys() {
 }
 
 #[test]
-#[ignore] // Requires MinIO to be running
+#[ignore = "requires MinIO to be running"]
 fn test_s3_presign_respects_expiry() {
     let Some(()) = skip_if_no_s3() else {
         return;

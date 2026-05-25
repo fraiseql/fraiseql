@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::{FileError, FraiseQLError, Result};
 
 use super::backend::validate_key;
 use crate::{
@@ -25,13 +25,13 @@ pub struct BucketService {
 impl BucketService {
     /// Creates a new bucket service.
     #[must_use]
-    pub fn new(backend: StorageBackend, config: BucketConfig) -> Self {
+    pub const fn new(backend: StorageBackend, config: BucketConfig) -> Self {
         Self { backend, config }
     }
 
     /// Returns a reference to the bucket configuration.
     #[must_use]
-    pub fn config(&self) -> &BucketConfig {
+    pub const fn config(&self) -> &BucketConfig {
         &self.config
     }
 
@@ -44,17 +44,22 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if validation fails or upload fails.
+    /// Returns `FraiseQLError::File` if validation fails or upload fails.
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
 
         // Validate size limit
         if let Some(max_bytes) = self.config.max_object_bytes {
-            if data.len() as u64 > max_bytes {
-                return Err(FraiseQLError::Storage {
-                    message: format!("Upload exceeds maximum object size of {} bytes", max_bytes),
-                    code:    Some("size_limit_exceeded".to_string()),
-                });
+            // Reason: data.len() is bounded by axum body limits + this check; the cast to
+            // u64 is wider than usize on all supported targets, so no truncation can occur.
+            #[allow(clippy::cast_possible_truncation)]
+            let actual = data.len() as u64;
+            if actual > max_bytes {
+                return Err(FraiseQLError::File(FileError::SizeLimitExceeded {
+                    message: format!("Upload exceeds maximum object size of {max_bytes} bytes"),
+                    limit:   Some(max_bytes),
+                    actual:  Some(actual),
+                }));
             }
         }
 
@@ -62,13 +67,12 @@ impl BucketService {
         if let Some(ref allowed) = self.config.allowed_mime_types {
             let is_allowed = allowed.iter().any(|m| m == content_type || m == "*/*");
             if !is_allowed {
-                return Err(FraiseQLError::Storage {
+                return Err(FraiseQLError::File(FileError::MimeTypeNotAllowed {
                     message: format!(
-                        "Content type '{}' is not allowed for this bucket",
-                        content_type
+                        "Content type '{content_type}' is not allowed for this bucket"
                     ),
-                    code:    Some("mime_type_not_allowed".to_string()),
-                });
+                    mime:    Some(content_type.to_string()),
+                }));
             }
         }
 
@@ -79,7 +83,7 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if download fails.
+    /// Returns `FraiseQLError::File` if download fails.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         self.backend.download(key).await
     }
@@ -88,7 +92,7 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if deletion fails.
+    /// Returns `FraiseQLError::File` if deletion fails.
     pub async fn delete(&self, key: &str) -> Result<()> {
         self.backend.delete(key).await
     }
@@ -97,7 +101,7 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend communication errors.
+    /// Returns `FraiseQLError::File` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         self.backend.exists(key).await
     }
@@ -106,7 +110,7 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if listing fails.
+    /// Returns `FraiseQLError::File` if listing fails.
     pub async fn list(
         &self,
         prefix: &str,
@@ -120,7 +124,7 @@ impl BucketService {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if presigned URLs are not supported
+    /// Returns `FraiseQLError::File` if presigned URLs are not supported
     /// by the backend or if generation fails.
     pub async fn presigned_url(&self, key: &str, expiry: Duration) -> Result<String> {
         self.backend.presigned_url(key, expiry).await

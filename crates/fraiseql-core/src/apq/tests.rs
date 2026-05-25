@@ -1,7 +1,7 @@
 //! Tests for `apq/` modules.
 //! Re-export items not in `crate::apq::*` so submodules reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::time::Duration;
 
 pub use serde_json::json;
@@ -10,6 +10,7 @@ mod hasher_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -366,6 +367,7 @@ mod memory_storage_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[tokio::test]
@@ -458,6 +460,7 @@ mod metrics_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -586,6 +589,7 @@ mod redis_storage_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     /// These tests require a running Redis instance at `REDIS_URL`.

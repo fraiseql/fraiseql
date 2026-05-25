@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashMap;
 
 use chrono::Utc;
@@ -412,7 +411,10 @@ mod context {
         assert_eq!(err.status_code(), 408);
         assert_eq!(err.error_code(), "CANCELLED");
         assert!(err.is_retryable());
-        assert!(err.is_server_error());
+        // 408 is a 4xx (client-error) status; is_server_error() derives from
+        // status_code() so it returns false. Retry semantics are the
+        // load-bearing assertion for cancellation classification.
+        assert!(err.is_client_error());
     }
 }
 

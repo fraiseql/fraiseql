@@ -28,7 +28,7 @@ fn changelog_list_response_serializes() {
     };
     let json = serde_json::to_value(&response).expect("serialize");
     assert!(json["next_cursor"].is_null());
-    assert_eq!(json["entries"].as_array().unwrap().len(), 0);
+    assert_eq!(json["entries"].as_array().expect("entries array").len(), 0);
 }
 
 #[test]

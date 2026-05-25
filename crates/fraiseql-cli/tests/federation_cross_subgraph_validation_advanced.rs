@@ -6,6 +6,7 @@
 //! - Field consistency validation
 //! - Circular type references
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashSet;
 
 use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};

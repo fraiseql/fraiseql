@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::items_after_statements)] // Reason: test helper structs defined near use site
 
 //! Integration tests for Arrow Flight authenticated query execution.

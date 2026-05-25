@@ -20,7 +20,7 @@
 //! ```bash
 //! DATABASE_URL="postgresql://localhost/postgres" cargo bench --package fraiseql-arrow --bench arrow_vs_json_serialization
 //! ```
-#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: benchmark setup code, panics acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses usize→f64 for human-readable output; precision loss is irrelevant
 #![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 

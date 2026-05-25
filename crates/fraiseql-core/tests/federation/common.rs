@@ -1,6 +1,11 @@
 //! Shared fixtures and helpers for federation tests.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::missing_assert_message
+)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 #![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::{collections::HashMap, sync::Arc, time::Duration};

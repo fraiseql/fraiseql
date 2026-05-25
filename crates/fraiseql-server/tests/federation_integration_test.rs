@@ -17,6 +17,7 @@
 //! **Infrastructure:** PostgreSQL
 //! **Parallelism:** safe
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod common;
 
 use std::sync::Arc;

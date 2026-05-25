@@ -76,7 +76,7 @@ rand = {workspace = true}
 # Kafka (optional)
 rdkafka = {workspace = true, optional = true}
 # Redis APQ backend (optional)
-redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+redis = {workspace = true, optional = true}
 regex = {workspace = true}
 reqwest = {workspace = true}
 # Workspace dependencies
@@ -238,6 +238,7 @@ workspace = true
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
 name = "fraiseql-core"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

@@ -73,11 +73,14 @@ jobs:
         # Correct pattern: sibling tests.rs declared via `#[cfg(test)] mod tests;`.
 
       - name: Run Clippy
-        # --all-features is avoided because test-postgres/test-mysql/test-sqlserver
-        # compile database integration test code that requires infrastructure not
-        # available on CI lint runners.
-        # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
-        run: cargo clippy --all-targets --features "arrow,federation,grpc,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend" -- -D warnings
+        # --workspace --all-features --all-targets is intentional: the test-*
+        # gate code only requires infrastructure at runtime (env vars like
+        # DATABASE_URL are read via std::env::var, not at compile time), so
+        # clippy can lint every feature path without spinning up databases.
+        # Linting the narrower SYNC:CORE_FEATURES set leaves warnings dormant
+        # in rest/auth/observers/secrets/webhooks/redis-*/mcp/metrics/aws-s3/
+        # functions/etc. until someone runs --all-features locally.
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
       - name: Check unwrap allow drift
         run: make lint-unwrap UNWRAP_ALLOW_LIMIT=3

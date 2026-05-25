@@ -10,6 +10,7 @@
 //!
 //! Requires a running Postgres instance with a test database.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
 

@@ -6,7 +6,7 @@
 //! - Introspection: `node` field appears in Query type when relay types exist
 //! - Introspection: `PageInfo` / `XxxEdge` / `XxxConnection` types are visible
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity without extra imports
 use std::{collections::HashMap, sync::Arc};
 

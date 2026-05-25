@@ -6,7 +6,7 @@
 //! - Resource utilization tracking
 //! - Query result correctness under load
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 #![allow(clippy::format_push_string)] // Reason: test report builders use push_str(&format!()) for readability
 #![allow(clippy::cast_precision_loss)] // Reason: test latency percentile computations cast usize→f64 for display
 use std::{

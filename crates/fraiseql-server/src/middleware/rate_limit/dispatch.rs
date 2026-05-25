@@ -88,6 +88,7 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `ip` is within the global IP rate limit.
+    #[doc(hidden)] // Internal-pub: invoked by rate_limit_middleware; downstream configures rate limiting via TOML, not by calling this directly.
     pub async fn check_ip_limit(&self, ip: &str, tenant_id: Option<&str>) -> CheckResult {
         match self {
             Self::InMemory(rl) => rl.check_ip_limit(ip, tenant_id).await,
@@ -97,6 +98,7 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `user_id` is within the per-user limit.
+    #[doc(hidden)] // Internal-pub: invoked by rate_limit_middleware; downstream configures rate limiting via TOML, not by calling this directly.
     pub async fn check_user_limit(&self, user_id: &str, tenant_id: Option<&str>) -> CheckResult {
         match self {
             Self::InMemory(rl) => rl.check_user_limit(user_id, tenant_id).await,

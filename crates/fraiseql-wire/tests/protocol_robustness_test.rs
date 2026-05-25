@@ -1,6 +1,7 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_possible_truncation)] // Reason: test buffer protocol encoding
 #![allow(clippy::cast_possible_wrap)] // Reason: test data values within positive range
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape buffers; OOB indices correctly fail the test
 
 //! Wire Protocol Robustness Tests
 //!

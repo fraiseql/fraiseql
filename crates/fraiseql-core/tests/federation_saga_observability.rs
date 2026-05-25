@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Federation Saga Observability Tests
 //!
 //! Validates that tracing instrumentation is present and correct across the three

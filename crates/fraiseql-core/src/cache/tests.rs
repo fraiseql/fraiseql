@@ -1,6 +1,6 @@
 //! Tests for the `cache` module.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
 mod config_tests {
     use crate::cache::*;
@@ -394,7 +394,7 @@ mod response_cache_tests {
         // Flush pending moka writes before invalidation
         cache.run_pending_tasks();
 
-        let invalidated = cache.invalidate_views(&["v_user".to_string()]).expect("invalidate");
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).expect("invalidate");
         assert_eq!(invalidated, 1);
 
         // Flush invalidations
@@ -547,7 +547,7 @@ mod response_cache_tests {
             .expect("put");
         cache.run_pending_tasks();
 
-        let invalidated = cache.invalidate_views(&[]).expect("invalidate empty");
+        let invalidated = cache.invalidate_views(&[] as &[ViewName]).expect("invalidate empty");
         assert_eq!(invalidated, 0);
         assert!(cache.get(1, 0).expect("still cached").is_some());
     }
@@ -561,7 +561,7 @@ mod response_cache_tests {
         cache.run_pending_tasks();
 
         let invalidated = cache
-            .invalidate_views(&["v_nonexistent".to_string()])
+            .invalidate_views(&[ViewName::from("v_nonexistent")])
             .expect("invalidate nonexistent");
         assert_eq!(invalidated, 0);
         assert!(cache.get(1, 0).expect("still cached").is_some());
@@ -583,7 +583,7 @@ mod response_cache_tests {
             .expect("put anon");
         cache.run_pending_tasks();
 
-        let invalidated = cache.invalidate_views(&["v_user".to_string()]).expect("invalidate");
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).expect("invalidate");
         assert_eq!(invalidated, 3, "All entries for the view must be invalidated");
 
         cache.run_pending_tasks();
@@ -609,7 +609,7 @@ mod response_cache_tests {
         cache.run_pending_tasks();
 
         let invalidated = cache
-            .invalidate_views(&["v_user".to_string(), "v_post".to_string()])
+            .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
             .expect("invalidate");
         assert_eq!(invalidated, 2);
 
@@ -636,7 +636,7 @@ mod response_cache_tests {
         cache.run_pending_tasks();
 
         // Invalidating either view should remove the entry
-        let invalidated = cache.invalidate_views(&["v_post".to_string()]).expect("invalidate");
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_post")]).expect("invalidate");
         assert_eq!(invalidated, 1);
 
         cache.run_pending_tasks();
@@ -2386,7 +2386,7 @@ mod result_tests {
         cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
 
         // Invalidate v_user
-        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         assert_eq!(invalidated, 1);
 
         // v_user entry gone, v_post remains
@@ -2405,8 +2405,9 @@ mod result_tests {
             .unwrap();
 
         // Invalidate v_user and v_post
-        let invalidated =
-            cache.invalidate_views(&["v_user".to_string(), "v_post".to_string()]).unwrap();
+        let invalidated = cache
+            .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
+            .unwrap();
         assert_eq!(invalidated, 2);
 
         assert!(cache.get(1_u64).unwrap().is_none());
@@ -2430,7 +2431,7 @@ mod result_tests {
             .unwrap();
 
         // Invalidating either view should remove the entry
-        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         assert_eq!(invalidated, 1);
 
         assert!(cache.get(1_u64).unwrap().is_none());
@@ -2443,7 +2444,7 @@ mod result_tests {
         cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
 
         // Invalidate view that doesn't exist
-        let invalidated = cache.invalidate_views(&["v_nonexistent".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_nonexistent")]).unwrap();
         assert_eq!(invalidated, 0);
 
         // Entry should remain
@@ -2716,7 +2717,7 @@ mod result_tests {
         cache.put(0x002, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
 
         // CREATE fires invalidate_list_queries
-        let evicted = cache.invalidate_list_queries(&["v_user".to_string()]).unwrap();
+        let evicted = cache.invalidate_list_queries(&[ViewName::from("v_user")]).unwrap();
         assert_eq!(evicted, 1, "only the list entry should be evicted");
         assert!(cache.get(0x001).unwrap().is_some(), "point lookup must survive");
         assert!(cache.get(0x002).unwrap().is_none(), "list entry must be evicted");
@@ -2737,7 +2738,7 @@ mod result_tests {
         cache.put(0x001, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
 
         // Force eviction via invalidate_views
-        cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         // Flush moka's async eviction pipeline
         cache.run_pending_tasks();
 
@@ -2905,7 +2906,7 @@ mod result_tests {
         }
 
         // Invalidate v_user — should remove exactly 100 entries
-        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         assert_eq!(invalidated, 100);
 
         // All v_user entries gone, all v_post entries remain

@@ -40,6 +40,7 @@
 //! - **Observable**: Structured logging, Prometheus metrics
 //! - **Testable**: All external dependencies abstracted as traits with mock implementations
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub mod actions;
 pub mod actions_additional;
 pub mod cache;

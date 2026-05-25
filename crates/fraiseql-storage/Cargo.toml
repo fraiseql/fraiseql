@@ -8,6 +8,7 @@ repository = "https://github.com/richer-xyz/fraiseql"
 homepage = "https://fraiseql.dev"
 documentation = "https://docs.rs/fraiseql-storage"
 description = "Object storage backends and HTTP handlers for FraiseQL"
+readme = "README.md"
 keywords = ["graphql", "storage", "s3", "object-store"]
 categories = ["api-bindings", "web-programming"]
 publish = true
@@ -26,7 +27,7 @@ hex = "0.4"
 thiserror = "1"
 tracing = "0.1"
 async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true }
 walkdir = "2"
 
 # Storage backends (feature-gated)
@@ -56,12 +57,15 @@ tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
 testcontainers = { version = "0.27", features = ["watchdog"] }
 testcontainers-modules = { version = "0.15", features = ["postgres"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { workspace = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
 
 [[bench]]
 name = "storage_bench"
 harness = false
+
+[lints]
+workspace = true
 
 [features]
 default = ["postgres"]

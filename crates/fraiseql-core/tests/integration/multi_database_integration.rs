@@ -1,5 +1,5 @@
 //! Multi-database integration tests for FraiseQL adapters.
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 //! These tests validate that each database adapter works correctly against
 //! real database instances. Tests are gated by feature flags and require
 //! Docker containers to be running.

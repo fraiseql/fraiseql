@@ -132,7 +132,7 @@ proptest! {
 
         if let Ok(parsed) = result {
             prop_assert_eq!(
-                &parsed.source, &query,
+                parsed.source.as_ref(), query.as_str(),
                 "Source should be preserved"
             );
         }

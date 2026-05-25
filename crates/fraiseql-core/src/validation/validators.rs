@@ -49,6 +49,19 @@ impl PatternValidator {
         Self::new(pattern_str.clone(), format!("Value must match pattern: {}", pattern_str))
     }
 
+    /// Build a pattern validator from an already-compiled regex.
+    ///
+    /// Used by `create_validator_from_rule` when the [`ValidationRule::Pattern`]
+    /// variant has already compiled the pattern at construction time, so we
+    /// avoid a redundant `Regex::new` call here.
+    #[must_use]
+    pub fn from_compiled(regex: Regex, message: impl Into<String>) -> Self {
+        Self {
+            regex,
+            message: message.into(),
+        }
+    }
+
     /// Validate that a value matches the pattern.
     #[must_use]
     pub fn validate_pattern(&self, value: &str) -> bool {
@@ -249,23 +262,19 @@ const PHONE_E164_PATTERN: &str = r"^\+[1-9]\d{6,14}$";
 /// Create a validator from a `ValidationRule`.
 ///
 /// Returns `None` for rule types that are handled elsewhere (e.g. cross-field,
-/// composite, or async validators). Logs a warning if a `Pattern` rule
-/// contains an invalid regex instead of silently discarding the validator.
+/// composite, or async validators). The `Pattern` variant carries an
+/// already-compiled `Regex`, so this function does not re-invoke the regex
+/// engine.
+#[must_use]
 pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Validator>> {
     match rule {
         ValidationRule::Pattern { pattern, message } => {
+            // The pattern was already compiled into a `Regex` at rule
+            // construction time, so we can build the validator directly
+            // without re-invoking the regex engine.
             let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
-            match PatternValidator::new(pattern.clone(), msg) {
-                Ok(v) => Some(Box::new(v) as Box<dyn Validator>),
-                Err(e) => {
-                    tracing::warn!(
-                        pattern = %pattern,
-                        error = %e,
-                        "Invalid regex in ValidationRule::Pattern — validator skipped"
-                    );
-                    None
-                },
-            }
+            Some(Box::new(PatternValidator::from_compiled(pattern.regex().clone(), msg))
+                as Box<dyn Validator>)
         },
         ValidationRule::Length { min, max } => {
             Some(Box::new(LengthValidator::new(*min, *max)) as Box<dyn Validator>)

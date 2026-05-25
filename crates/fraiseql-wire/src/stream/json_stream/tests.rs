@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unreadable_literal)] // Reason: byte-count constants in fixture assertions read more naturally without separators
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 use super::*;
 
 #[test]

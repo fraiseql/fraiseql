@@ -186,4 +186,13 @@ pub struct Server<A: DatabaseAdapter> {
     /// [`MutationAuditLayer`]: crate::usage::layer::MutationAuditLayer
     /// [`AppState::usage`]: crate::routes::graphql::AppState::usage
     pub(super) usage: Arc<crate::usage::aggregator::UsageAggregator>,
+
+    /// Background lifecycle tasks owned by the server.
+    ///
+    /// Long-running tasks spawned during server construction or `serve_with_shutdown`
+    /// (e.g. SIGUSR1 schema reload, PKCE state cleanup, trusted-documents manifest
+    /// reload, usage persistence flush, Arrow Flight gRPC server) are tracked on
+    /// this [`tokio::task::JoinSet`]. On graceful shutdown the server aborts and
+    /// awaits the set so per-process state is not abandoned mid-flight.
+    pub(super) tasks: tokio::task::JoinSet<()>,
 }

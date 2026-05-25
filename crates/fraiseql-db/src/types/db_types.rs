@@ -62,9 +62,25 @@ impl std::fmt::Display for DatabaseType {
     }
 }
 
-/// JSONB value from database view.
+/// JSONB value returned from a database `data` column.
 ///
-/// Wraps `serde_json::Value` for type safety.
+/// Wraps `serde_json::Value` for type-safety at the **SQL → application
+/// boundary**: every adapter (`postgres`, `mysql`, `sqlite`, `sqlserver`) emits
+/// `Vec<JsonbValue>` so that downstream consumers do not have to discriminate
+/// between native database JSON columns and string-encoded JSON.
+///
+/// # Ownership contract (F029)
+///
+/// - **Adapter-owned**: the database adapter materialises `data` into an owned `serde_json::Value`
+///   before returning. There is no borrow of database buffers in this type — it is safe to keep
+///   across the `await` boundary that releases the database connection.
+/// - **Projector input**: consumers that project into GraphQL responses (see
+///   `fraiseql-core::runtime::projection::ResultProjector::project_results`) take `&[JsonbValue]`
+///   and produce a freshly-allocated `serde_json::Value` tree. Projection never aliases the input;
+///   each field is cloned out.
+/// - **Not part of the wire protocol**: `JsonbValue` is an *internal* shape and intentionally
+///   distinct from `serde_json::Value` so that the boundary between "raw database row" and "GraphQL
+///   response value" is visible in function signatures.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonbValue {
     /// The JSONB data from the database `data` column.
@@ -161,39 +177,6 @@ impl ToSql for QueryParam {
     }
 }
 
-/// Convert QueryParam to boxed ToSql trait object, preserving native types.
-///
-/// This function uses the boxing pattern to convert typed parameters into a form
-/// that tokio-postgres can serialize to PostgreSQL's wire protocol format.
-///
-/// # Example
-///
-/// ```rust
-/// # #[cfg(feature = "postgres")]
-/// # {
-/// use fraiseql_db::types::db_types::{QueryParam, to_sql_param};
-///
-/// let param = QueryParam::BigInt(42);
-/// let boxed = to_sql_param(&param);
-/// // boxed can be passed to tokio-postgres query methods
-/// drop(boxed);
-/// # }
-/// ```
-#[cfg(feature = "postgres")]
-#[must_use]
-pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
-    match param {
-        QueryParam::Null => Box::new(None::<String>),
-        QueryParam::Bool(b) => Box::new(*b),
-        QueryParam::Int(i) => Box::new(*i),
-        QueryParam::BigInt(i) => Box::new(*i),
-        QueryParam::Float(f) => Box::new(*f),
-        QueryParam::Double(f) => Box::new(*f),
-        QueryParam::Text(s) => Box::new(s.clone()),
-        QueryParam::Json(v) => Box::new(v.clone()),
-    }
-}
-
 /// Connection pool metrics.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PoolMetrics {
@@ -222,6 +205,20 @@ impl PoolMetrics {
     pub const fn is_exhausted(&self) -> bool {
         self.idle_connections == 0 && self.waiting_requests > 0
     }
+}
+
+/// Borrow a slice of [`QueryParam`]s as the `&[&(dyn ToSql + Sync)]` shape
+/// expected by `tokio_postgres::Client::query` and `::execute`.
+///
+/// `QueryParam` already implements [`ToSql`] (see the `impl` above), so each
+/// element can be passed by reference without boxing. This helper centralises
+/// the repeated `.iter().map(|p| p as &(dyn ToSql + Sync)).collect()` pattern
+/// used by the PostgreSQL adapter call sites and removes the last remaining
+/// per-parameter heap allocation in the query hot path.
+#[cfg(feature = "postgres")]
+#[must_use]
+pub fn as_sql_param_refs(params: &[QueryParam]) -> Vec<&(dyn ToSql + Sync)> {
+    params.iter().map(|p| p as &(dyn ToSql + Sync)).collect()
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
-#![allow(clippy::doc_markdown)] // Reason: test runner instructions
+#![allow(clippy::doc_markdown, clippy::print_stdout, clippy::print_stderr)] // Reason: test runner instructions
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
 //! Comprehensive integration tests
 //!

@@ -1,6 +1,6 @@
 //! Mutation response format and return selection.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::federation::mutation_executor::FederationMutationExecutor;
 use serde_json::json;
 

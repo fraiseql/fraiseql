@@ -134,7 +134,7 @@ pub(super) fn build_validation_rule(
         },
         ValidationRule::Pattern { pattern, message } => IntrospectionValidationRule {
             rule_type:       "pattern".to_string(),
-            pattern:         Some(pattern.clone()),
+            pattern:         Some(pattern.as_str().to_string()),
             pattern_message: message.clone(),
             min:             None,
             max:             None,

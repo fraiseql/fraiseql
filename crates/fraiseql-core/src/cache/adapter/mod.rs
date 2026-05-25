@@ -113,6 +113,7 @@ pub use query::view_name_to_entity_type;
 /// ```no_run
 /// use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
 /// use fraiseql_core::db::{postgres::PostgresAdapter, DatabaseAdapter};
+/// use fraiseql_db::ViewName;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let db = PostgresAdapter::new("postgresql://localhost/db").await?;
@@ -125,12 +126,19 @@ pub use query::view_name_to_entity_type;
 /// // Second query - cache hit (fast!)
 /// let users2 = adapter.execute_where_query("v_user", None, None, None, None).await?;
 ///
-/// // After mutation, invalidate
+/// // After mutation, invalidate. `InvalidationContext` keeps its `Vec<String>`
+/// // shape for compatibility with the audit-logging facade; callers convert at
+/// // the adapter boundary.
 /// let invalidation = InvalidationContext::for_mutation(
 ///     "createUser",
-///     vec!["v_user".to_string()]
+///     vec!["v_user".to_string()],
 /// );
-/// adapter.invalidate_views(&invalidation.modified_views)?;
+/// let views: Vec<ViewName> = invalidation
+///     .modified_views
+///     .iter()
+///     .map(ViewName::from)
+///     .collect();
+/// adapter.invalidate_views(&views)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -640,15 +648,17 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn execute_with_projection_arc(
         &self,
-        view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        order_by: Option<&[OrderByClause]>,
+        request: &crate::db::ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
-            .await
+        self.execute_with_projection_impl(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
     }
 
     async fn execute_where_query_arc(
@@ -703,7 +713,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_function_call(function_name, args).await
     }
 
-    async fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+    async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.
         CachedDatabaseAdapter::invalidate_views(self, views)
@@ -713,7 +723,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
     }
 
-    async fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+    async fn invalidate_list_queries(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
         CachedDatabaseAdapter::invalidate_list_queries(self, views)
     }
 

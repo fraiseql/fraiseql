@@ -27,7 +27,7 @@ pub struct StorageRlsEvaluator;
 impl StorageRlsEvaluator {
     /// Create a new evaluator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 
@@ -53,7 +53,7 @@ impl StorageRlsEvaluator {
     /// Check if the user can write (upload) to the bucket.
     ///
     /// Rules:
-    /// - Must be authenticated (user_id present)
+    /// - Must be authenticated (`user_id` present)
     /// - Admin role always allowed
     #[must_use]
     pub fn can_write(

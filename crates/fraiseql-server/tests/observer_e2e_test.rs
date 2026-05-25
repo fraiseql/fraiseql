@@ -38,7 +38,7 @@
 //! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
-
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod observer_test_helpers;
 
 use std::time::Duration;

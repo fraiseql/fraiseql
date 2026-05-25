@@ -1,3 +1,4 @@
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use super::*;
 
 #[tokio::test]

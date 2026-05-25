@@ -13,7 +13,12 @@
 //! **Execution engine:** none
 //! **Infrastructure:** PostgreSQL
 //! **Parallelism:** safe
-#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr
+)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
 #![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded

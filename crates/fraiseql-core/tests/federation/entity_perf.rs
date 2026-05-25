@@ -3,7 +3,7 @@
 //! Tests validate single entity resolution latency, batch resolution
 //! latency, and concurrent entity resolution.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use fraiseql_core::federation::{

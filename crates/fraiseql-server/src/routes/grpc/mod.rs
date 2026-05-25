@@ -307,8 +307,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                 )
             },
             handler::RpcKind::ServerStream { .. } => {
-                // Handled above — unreachable.
-                unreachable!("ServerStream handled above");
+                // Defense in depth: streaming RPCs are routed through a
+                // separate handler upstream of this match. If a refactor ever
+                // breaks that invariant, fail closed with an error response
+                // instead of panicking the worker.
+                return grpc_error_response(
+                    tonic::Code::Internal,
+                    "ServerStream RPC reached unary handler",
+                );
             },
             handler::RpcKind::Mutation { function_name } => {
                 let result = match handler::execute_grpc_mutation(

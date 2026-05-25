@@ -559,10 +559,7 @@ impl PostgresAdapter {
         tracing::debug!("SQL with projection = {}", sql);
         tracing::debug!("typed_params = {:?}", typed_params);
 
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
         self.execute_raw(&sql, &param_refs).await
     }

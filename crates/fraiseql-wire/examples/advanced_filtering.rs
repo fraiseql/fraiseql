@@ -3,6 +3,7 @@
 //! Demonstrates hybrid filtering: SQL predicates reduce data over the wire,
 //! Rust predicates provide application-level filtering.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use fraiseql_wire::Result;
 
 #[tokio::main]

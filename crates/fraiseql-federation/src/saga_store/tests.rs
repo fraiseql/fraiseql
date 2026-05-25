@@ -1,12 +1,11 @@
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::*;
 
 /// S44b: `cleanup_all` must be crate-private; only `cleanup_all_for_testing` is pub.
 /// This test confirms the testing wrapper exists and is callable from within the crate.
 #[test]
 fn test_cleanup_all_for_testing_is_accessible() {
-    // Static check: if cleanup_all_for_testing doesn't exist or isn't pub,
-    // this inner async fn won't compile. We never call it (avoids DB requirement).
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: static-existence check for cleanup_all_for_testing; never called to avoid DB requirement
     async fn _check(store: &PostgresSagaStore) {
         let _ = store.cleanup_all_for_testing().await;
     }

@@ -1,7 +1,6 @@
 //! Tests for the `runtime` module.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 mod aggregate_parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use serde_json::json;
@@ -1222,7 +1221,7 @@ mod input_validator_tests {
     use crate::{
         error::{FraiseQLError, ValidationFieldError},
         runtime::input_validator::*,
-        validation::ValidationRule,
+        validation::{CompiledPattern, ValidationRule},
     };
 
     #[test]
@@ -1260,7 +1259,7 @@ mod input_validator_tests {
     #[test]
     fn test_validate_pattern() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         };
 
@@ -1336,7 +1335,7 @@ mod input_validator_tests {
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
-                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
@@ -1364,7 +1363,7 @@ mod input_validator_tests {
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
-                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
@@ -1396,7 +1395,7 @@ mod input_validator_tests {
             let mut def = CustomTypeDef::new("StudentID".to_string());
             def.validation_rules = vec![
                 ValidationRule::Pattern {
-                    pattern: r"^STU-[0-9]{4}-[0-9]{3}$".to_string(),
+                    pattern: CompiledPattern::new(r"^STU-[0-9]{4}-[0-9]{3}$").expect("valid regex"),
                     message: None,
                 },
                 ValidationRule::Length {
@@ -1777,24 +1776,22 @@ mod matcher_tests {
 
     #[test]
     fn test_extract_arguments_none() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
+        let _schema = test_schema();
 
-        let args = matcher.extract_arguments(None);
+        let args = QueryMatcher::extract_arguments(None);
         assert!(args.is_empty());
     }
 
     #[test]
     fn test_extract_arguments_some() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
+        let _schema = test_schema();
 
         let variables = serde_json::json!({
             "id": "123",
             "limit": 10
         });
 
-        let args = matcher.extract_arguments(Some(&variables));
+        let args = QueryMatcher::extract_arguments(Some(&variables));
         assert_eq!(args.len(), 2);
         assert_eq!(args.get("id"), Some(&serde_json::json!("123")));
         assert_eq!(args.get("limit"), Some(&serde_json::json!(10)));
@@ -2366,7 +2363,7 @@ mod planner_tests {
                 selections:     vec![],
                 variables:      vec![],
                 fragments:      vec![],
-                source:         "{ users { id name } }".to_string(),
+                source:         std::sync::Arc::from("{ users { id name } }"),
             },
         }
     }

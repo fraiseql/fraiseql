@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Real integration tests for the [`SagaCoordinator`], [`SagaExecutor`], and [`SagaCompensator`].
 //!
 //! All tests operate against the production API from [`fraiseql_core::federation`].

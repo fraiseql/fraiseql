@@ -11,6 +11,7 @@
 //! - Configuration file at `fraiseql.toml`
 //! - PostgreSQL database running
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 fn main() {
     println!("FraiseQL server example");
     println!();

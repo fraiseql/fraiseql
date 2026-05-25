@@ -30,7 +30,7 @@
 //! RUST_LOG=debug cargo test --test query_optimization_validation_test -r -- --nocapture
 //! ```
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::useless_let_if_seq)] // Reason: test uses let+if pattern for clarity
 use std::time::Instant;
 

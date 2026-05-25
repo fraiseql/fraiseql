@@ -32,7 +32,7 @@ mod tests;
 /// assert!(sql.contains("_fraiseql_storage_objects"));
 /// ```
 #[must_use]
-pub fn storage_migration_sql() -> &'static str {
+pub const fn storage_migration_sql() -> &'static str {
     "\
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
     pk_storage_object BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -22,7 +22,7 @@ use axum::{
     routing::{get, post, put},
 };
 use bytes::Bytes;
-use fraiseql_error::FraiseQLError;
+use fraiseql_error::{FileError, FraiseQLError};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-s3")]
@@ -68,7 +68,7 @@ pub struct PresignRequest {
     pub expires_in_secs: u64,
 }
 
-fn default_expiry_secs() -> u64 {
+const fn default_expiry_secs() -> u64 {
     3600
 }
 
@@ -207,7 +207,7 @@ async fn put_handler(
     // Upload to backend
     let etag = match state.backend.upload(&key, &body, content_type).await {
         Ok(etag) => etag,
-        Err(e) => return storage_error_response(e),
+        Err(e) => return storage_error_response(&e),
     };
 
     // Record metadata
@@ -215,12 +215,15 @@ async fn put_handler(
         bucket: bucket_name,
         key,
         content_type: content_type.to_string(),
+        // Reason: body length is bounded by max_object_bytes config (set elsewhere); i64
+        // capacity is 9.2 EB so wrap is unreachable.
+        #[allow(clippy::cast_possible_wrap)]
         size_bytes: body.len() as i64,
         etag: Some(etag.clone()),
         owner_id: user.user_id,
     };
     if let Err(e) = state.metadata.upsert(&new_obj).await {
-        return storage_error_response(e);
+        return storage_error_response(&e);
     }
 
     let mut headers = HeaderMap::new();
@@ -245,7 +248,7 @@ async fn get_handler(
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
         Ok(None) => return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
-        Err(e) => return storage_error_response(e),
+        Err(e) => return storage_error_response(&e),
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
@@ -271,10 +274,15 @@ async fn get_handler(
                     headers.insert(header::ETAG, val);
                 }
             }
-            headers.insert(header::CACHE_CONTROL, "public, max-age=3600".parse().unwrap());
+            headers.insert(
+                header::CACHE_CONTROL,
+                "public, max-age=3600"
+                    .parse()
+                    .expect("static ASCII header value parses as HeaderValue"),
+            );
             (StatusCode::OK, headers, Body::from(data)).into_response()
         },
-        Err(e) => storage_error_response(e),
+        Err(e) => storage_error_response(&e),
     }
 }
 
@@ -293,7 +301,7 @@ async fn delete_handler(
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
         Ok(None) => return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
-        Err(e) => return storage_error_response(e),
+        Err(e) => return storage_error_response(&e),
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
@@ -309,12 +317,12 @@ async fn delete_handler(
 
     // Delete from backend
     if let Err(e) = state.backend.delete(&key).await {
-        return storage_error_response(e);
+        return storage_error_response(&e);
     }
 
     // Remove metadata
     if let Err(e) = state.metadata.delete(&bucket_name, &key).await {
-        return storage_error_response(e);
+        return storage_error_response(&e);
     }
 
     StatusCode::NO_CONTENT.into_response()
@@ -351,7 +359,7 @@ async fn list_handler(
     let rows = match state.metadata.list(&bucket_name, query.prefix.as_deref(), limit, offset).await
     {
         Ok(rows) => rows,
-        Err(e) => return storage_error_response(e),
+        Err(e) => return storage_error_response(&e),
     };
 
     // Apply RLS filtering
@@ -396,15 +404,12 @@ async fn presign_handler(
         let expires_in = Duration::from_secs(request.expires_in_secs);
 
         let result = if operation == "upload" {
-            let content_type = match request.content_type {
-                Some(ct) => ct,
-                None => {
-                    return error_response(
-                        StatusCode::BAD_REQUEST,
-                        "missing_content_type",
-                        "content_type required for upload",
-                    );
-                },
+            let Some(content_type) = request.content_type else {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "missing_content_type",
+                    "content_type required for upload",
+                );
             };
             state.backend.presign_put(&key, &content_type, expires_in).await
         } else {
@@ -413,7 +418,7 @@ async fn presign_handler(
 
         match result {
             Ok(url) => axum::Json(PresignResponse::from(url)).into_response(),
-            Err(e) => storage_error_response(e),
+            Err(e) => storage_error_response(&e),
         }
     }
 
@@ -468,27 +473,65 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
 }
 
 /// Convert a `FraiseQLError` to an appropriate HTTP response.
-fn storage_error_response(err: FraiseQLError) -> Response {
-    match &err {
-        FraiseQLError::Storage { code, message } => {
-            let status = match code.as_deref() {
-                Some("not_found") => StatusCode::NOT_FOUND,
-                Some("permission_denied") => StatusCode::FORBIDDEN,
-                _ => {
-                    tracing::error!(
-                        error_code = ?code,
-                        error_message = %message,
-                        "Storage backend error"
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                },
-            };
-            error_response(status, code.as_deref().unwrap_or("storage_error"), message)
-        },
-        _ => {
-            tracing::error!(error = %err, "Unexpected storage error");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &err.to_string())
-        },
+///
+/// After F050 (typed `FileError` migration), backend storage failures arrive
+/// as `FraiseQLError::File(FileError::*)` rather than `FraiseQLError::Storage`.
+/// The routing here matches the previous behaviour of
+/// `Storage { code: Some("...") }`:
+///
+/// - `FileError::NotFound` → 404
+/// - `FileError::PermissionDenied` → 403
+/// - other backend variants (`IoError`, `Backend`, `NotImplemented`, `Unsupported`,
+///   `SizeLimitExceeded`, `MimeTypeNotAllowed`) → 500
+/// - `FileError::InvalidKey` → 400
+fn storage_error_response(err: &FraiseQLError) -> Response {
+    if let FraiseQLError::File(file_err) = err {
+        let (status, code) = match file_err {
+            FileError::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
+            FileError::PermissionDenied { .. } => (StatusCode::FORBIDDEN, "permission_denied"),
+            FileError::InvalidKey { .. } => (StatusCode::BAD_REQUEST, "invalid_key"),
+            FileError::IoError { .. } => {
+                tracing::error!(error = %err, "Storage I/O error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "io_error")
+            },
+            FileError::NotImplemented { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "not_implemented")
+            },
+            FileError::Unsupported { .. } => (StatusCode::INTERNAL_SERVER_ERROR, "not_supported"),
+            FileError::SizeLimitExceeded { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "size_limit_exceeded")
+            },
+            FileError::MimeTypeNotAllowed { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "mime_type_not_allowed")
+            },
+            FileError::Backend { .. } => {
+                tracing::error!(error = %err, "Storage backend error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "storage_error")
+            },
+            // Pre-F050 FileError variants — unlikely to reach the storage
+            // routes but handled for completeness.
+            FileError::TooLarge { .. } => (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large"),
+            FileError::QuotaExceeded => (StatusCode::PAYLOAD_TOO_LARGE, "quota_exceeded"),
+            FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
+                (StatusCode::UNSUPPORTED_MEDIA_TYPE, "invalid_type")
+            },
+            FileError::VirusDetected { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "virus_detected"),
+            FileError::Storage { .. } | FileError::Processing { .. } => {
+                tracing::error!(error = %err, "Storage backend error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "storage_error")
+            },
+            // SECURITY: `FileError` is `#[non_exhaustive]`. Any future variant
+            // added without updating this match falls through to a generic
+            // 500 response rather than silently leaking the wrong status.
+            _ => {
+                tracing::error!(error = %err, "Unhandled FileError variant");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
+            },
+        };
+        error_response(status, code, &file_err.to_string())
+    } else {
+        tracing::error!(error = %err, "Unexpected storage error");
+        error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &err.to_string())
     }
 }
 

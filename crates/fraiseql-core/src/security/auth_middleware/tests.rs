@@ -1,5 +1,6 @@
 //! Tests for `security/auth_middleware/` modules.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod middleware_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
@@ -799,5 +800,44 @@ mod middleware_tests {
         let result = middleware.validate_request(&req);
         // Should still be valid due to clock skew tolerance
         assert!(result.is_ok(), "Expected valid token within clock skew, got: {:?}", result);
+    }
+
+    // ------------------------------------------------------------------
+    // F010 regression: AuthRequest Debug must redact the bearer token.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_auth_request_debug_redacts_bearer_token() {
+        // SECURITY: AuthRequest must never expose the raw Authorization header
+        // in its Debug output, or `debug!(?req)` calls will leak bearer tokens
+        // to structured logs. See IMPROVEMENTS.md F010.
+        let secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.SUPERSECRET.signature";
+        let req = AuthRequest::new(Some(format!("Bearer {secret_token}")));
+
+        let debug_output = format!("{req:?}");
+
+        assert!(
+            !debug_output.contains(secret_token),
+            "bearer token leaked in Debug output: {debug_output}",
+        );
+        assert!(
+            !debug_output.contains("Bearer "),
+            "Authorization header value leaked in Debug output: {debug_output}",
+        );
+        assert!(
+            debug_output.contains("redacted"),
+            "redaction marker missing from Debug output: {debug_output}",
+        );
+    }
+
+    #[test]
+    fn test_auth_request_debug_with_no_header_shows_none() {
+        let req = AuthRequest::new(None);
+        let debug_output = format!("{req:?}");
+        // Sanity: absence is still conveyed.
+        assert!(
+            debug_output.contains("None"),
+            "expected None in Debug output, got: {debug_output}",
+        );
     }
 }

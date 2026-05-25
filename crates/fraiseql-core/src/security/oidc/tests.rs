@@ -1,7 +1,6 @@
 //! Integration tests for the OIDC module covering providers and token validation logic.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::{
     sync::Arc,
     time::{Duration, Instant},

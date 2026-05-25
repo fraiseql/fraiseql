@@ -1,5 +1,6 @@
 // Rate limiting integration tests
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 #[cfg(test)]
 use crate::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 

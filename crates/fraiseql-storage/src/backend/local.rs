@@ -2,7 +2,7 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::{FileError, FraiseQLError, Result};
 
 use super::{
     types::{ListResult, ObjectInfo},
@@ -32,18 +32,22 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the upload fails.
+    /// Returns `FraiseQLError::File(FileError::IoError)` if the upload fails.
     pub async fn upload(&self, key: &str, data: &[u8], _content_type: &str) -> Result<String> {
         let path = self.key_path(key)?;
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| FraiseQLError::Storage {
-                message: format!("Failed to create directory: {e}"),
-                code:    Some("io_error".to_string()),
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to create directory: {e}"),
+                    source:  Some(Box::new(e)),
+                })
             })?;
         }
-        tokio::fs::write(&path, data).await.map_err(|e| FraiseQLError::Storage {
-            message: format!("Failed to write file: {e}"),
-            code:    Some("io_error".to_string()),
+        tokio::fs::write(&path, data).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to write file: {e}"),
+                source:  Some(Box::new(e)),
+            })
         })?;
         Ok(key.to_string())
     }
@@ -52,21 +56,20 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
-    /// or other error codes on backend failures.
+    /// Returns `FraiseQLError::File(FileError::NotFound)` if the key does not exist,
+    /// or `FileError::IoError` on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         let path = self.key_path(key)?;
         tokio::fs::read(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                FraiseQLError::Storage {
-                    message: format!("File not found: {key}"),
-                    code:    Some("not_found".to_string()),
-                }
+                FraiseQLError::File(FileError::NotFound {
+                    id: key.to_string(),
+                })
             } else {
-                FraiseQLError::Storage {
+                FraiseQLError::File(FileError::IoError {
                     message: format!("Failed to read file: {e}"),
-                    code:    Some("io_error".to_string()),
-                }
+                    source:  Some(Box::new(e)),
+                })
             }
         })
     }
@@ -75,20 +78,19 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend failures.
+    /// Returns `FraiseQLError::File` on backend failures.
     pub async fn delete(&self, key: &str) -> Result<()> {
         let path = self.key_path(key)?;
         tokio::fs::remove_file(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                FraiseQLError::Storage {
-                    message: format!("File not found: {key}"),
-                    code:    Some("not_found".to_string()),
-                }
+                FraiseQLError::File(FileError::NotFound {
+                    id: key.to_string(),
+                })
             } else {
-                FraiseQLError::Storage {
+                FraiseQLError::File(FileError::IoError {
                     message: format!("Failed to delete file: {e}"),
-                    code:    Some("io_error".to_string()),
-                }
+                    source:  Some(Box::new(e)),
+                })
             }
         })
     }
@@ -97,16 +99,16 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend communication errors.
+    /// Returns `FraiseQLError::File(FileError::IoError)` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         let path = self.key_path(key)?;
         match tokio::fs::metadata(&path).await {
             Ok(_) => Ok(true),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(e) => Err(FraiseQLError::Storage {
+            Err(e) => Err(FraiseQLError::File(FileError::IoError {
                 message: format!("Failed to check file existence: {e}"),
-                code:    Some("io_error".to_string()),
-            }),
+                source:  Some(Box::new(e)),
+            })),
         }
     }
 
@@ -114,24 +116,19 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if presigned URLs are not supported by the backend.
+    /// Returns `FraiseQLError::File(FileError::Unsupported)` because presigned URLs
+    /// are not supported by the local backend.
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
-        Err(FraiseQLError::Storage {
+        Err(FraiseQLError::File(FileError::Unsupported {
             message: "Presigned URLs are not supported for local storage".to_string(),
-            code:    Some("unsupported".to_string()),
-        })
+        }))
     }
 
     /// Lists objects in the bucket by prefix with pagination.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on I/O failures.
-    /// Lists objects in the bucket by prefix with pagination.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Storage` on I/O failures.
+    /// Returns `FraiseQLError::File(FileError::IoError)` on I/O failures.
     pub async fn list(
         &self,
         prefix: &str,
@@ -159,9 +156,11 @@ impl LocalBackend {
             let full_path = entry.path();
             let relative_path = full_path
                 .strip_prefix(&self.root)
-                .map_err(|_| FraiseQLError::Storage {
-                    message: "Failed to compute relative path".to_string(),
-                    code:    Some("io_error".to_string()),
+                .map_err(|_| {
+                    FraiseQLError::File(FileError::IoError {
+                        message: "Failed to compute relative path".to_string(),
+                        source:  None,
+                    })
                 })?
                 .to_string_lossy()
                 .into_owned();
@@ -170,11 +169,12 @@ impl LocalBackend {
             let key = relative_path.replace('\\', "/");
 
             // Get file metadata
-            let metadata =
-                tokio::fs::metadata(full_path).await.map_err(|e| FraiseQLError::Storage {
+            let metadata = tokio::fs::metadata(full_path).await.map_err(|e| {
+                FraiseQLError::File(FileError::IoError {
                     message: format!("Failed to read file metadata: {e}"),
-                    code:    Some("io_error".to_string()),
-                })?;
+                    source:  Some(Box::new(e)),
+                })
+            })?;
 
             let size = metadata.len();
             let last_modified = metadata
@@ -182,16 +182,16 @@ impl LocalBackend {
                 .ok()
                 .and_then(|t| {
                     let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
-                    chrono::DateTime::from_timestamp(
-                        duration.as_secs() as i64,
-                        duration.subsec_nanos(),
-                    )
+                    // Reason: u64→i64 cast for chrono timestamp; only wraps after year
+                    // 292277026596.
+                    #[allow(clippy::cast_possible_wrap)]
+                    let secs = duration.as_secs() as i64;
+                    chrono::DateTime::from_timestamp(secs, duration.subsec_nanos())
                 })
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             // Generate simple etag from size and mtime
-            let etag = format!("{:x}", fnv1a_hash(&format!("{}-{}", size, last_modified)));
+            let etag = format!("{:x}", fnv1a_hash(&format!("{size}-{last_modified}")));
 
             objects.push((
                 key.clone(),
@@ -211,14 +211,22 @@ impl LocalBackend {
 
         // Apply cursor pagination
         let start_idx = if let Some(c) = cursor {
-            objects.iter().position(|(k, _)| k == c).map(|i| i + 1).unwrap_or(0)
+            objects.iter().position(|(k, _)| k == c).map_or(0, |i| i + 1)
         } else {
             0
         };
 
         let end_idx = (start_idx + limit).min(objects.len());
-        let page: Vec<ObjectInfo> =
-            objects[start_idx..end_idx].iter().map(|(_, info)| info.clone()).collect();
+        // `start_idx <= objects.len()` (sourced from `.position()` or `0`) and
+        // `end_idx <= objects.len()` by the `.min()` above, so this slice is
+        // always in-bounds; fall back to an empty page if the invariant ever
+        // breaks rather than panicking.
+        let page: Vec<ObjectInfo> = objects
+            .get(start_idx..end_idx)
+            .unwrap_or(&[])
+            .iter()
+            .map(|(_, info)| info.clone())
+            .collect();
 
         let next_cursor = if end_idx < objects.len() {
             page.last().map(|o| o.key.clone())
@@ -235,12 +243,12 @@ impl LocalBackend {
 
 /// Simple FNV-1a hash function
 fn fnv1a_hash(data: &str) -> u64 {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x100000001b3;
+    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
     let mut hash = FNV_OFFSET_BASIS;
     for byte in data.bytes() {
-        hash ^= byte as u64;
+        hash ^= u64::from(byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash

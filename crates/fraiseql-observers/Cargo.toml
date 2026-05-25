@@ -6,17 +6,19 @@ async-trait = "0.1"
 base64 = "0.22"
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
-chrono = {version = "0.4", features = ["serde"]}
+chrono = {workspace = true}
 clap = {version = "4.5", features = ["derive"], optional = true}
 colored = {version = "2.1", optional = true}
-dashmap = "6.1"
+dashmap = {workspace = true}
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
+fraiseql-error = {workspace = true}
 futures = "0.3"
 http = "1.1"
+parking_lot = {workspace = true}
 prometheus = {version = "0.14", optional = true}
 rand = "0.9"
-redis = {version = "1", features = ["aio", "connection-manager", "tokio-comp"], optional = true}
+redis = {workspace = true, optional = true}
 reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
@@ -31,7 +33,7 @@ tiberius = {version = "0.12", default-features = false, features = ["native-tls"
 tokio = {workspace = true}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
 tracing = "0.1"
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {workspace = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
@@ -76,6 +78,7 @@ workspace = true
 [package]
 description = "Observer system for reactive business logic in FraiseQL v2"
 name = "fraiseql-observers"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

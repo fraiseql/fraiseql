@@ -32,7 +32,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
     #[allow(clippy::cognitive_complexity)] // Reason: server lifecycle with TLS/non-TLS binding, signal handling, and graceful shutdown
-    pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    pub async fn serve_with_shutdown<F>(mut self, shutdown: F) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
@@ -77,10 +77,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             } else {
                                 info!("Usage persistence: loaded counters from PostgreSQL");
                             }
-                            // Spawn background flush task.
+                            // Spawn background flush task on the server's JoinSet
+                            // so graceful shutdown can await its termination.
                             let flush_interval = Duration::from_secs(usage_cfg.flush_interval_secs);
                             let agg = std::sync::Arc::clone(global_aggregator());
-                            tokio::spawn(async move {
+                            self.tasks.spawn(async move {
                                 let mut ticker = tokio::time::interval(flush_interval);
                                 ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
                                 ticker.tick().await; // skip immediate first tick
@@ -119,12 +120,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Spawn SIGUSR1 schema reload handler when running on Unix.
         // The handler loops forever, reloading on each signal, until the
-        // server process exits.
+        // server process exits — tracked on the server's JoinSet so graceful
+        // shutdown awaits its termination.
         #[cfg(unix)]
         if let Some(ref schema_path) = app_state.schema_path {
             let reload_state = app_state.clone();
             let reload_path = schema_path.clone();
-            tokio::spawn(async move {
+            self.tasks.spawn(async move {
                 let mut sigusr1 = match tokio::signal::unix::signal(
                     tokio::signal::unix::SignalKind::user_defined1(),
                 ) {
@@ -276,16 +278,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
         #[cfg(feature = "arrow")]
-        if let Some(flight_service) = self.flight_service {
+        if let Some(flight_service) = self.flight_service.take() {
             let flight_addr = self.config.flight_bind_addr;
             info!("Arrow Flight server listening on grpc://{}", flight_addr);
 
-            // Spawn Flight server in background
-            let flight_server = tokio::spawn(async move {
-                tonic::transport::Server::builder()
+            // Spawn Flight server in background, registered on the server's
+            // JoinSet. The set's `shutdown` step abort-then-awaits the gRPC
+            // server when the HTTP server exits.
+            self.tasks.spawn(async move {
+                if let Err(e) = tonic::transport::Server::builder()
                     .add_service(flight_service.into_server())
                     .serve(flight_addr)
                     .await
+                {
+                    error!(error = %e, "Arrow Flight server terminated with error");
+                }
             });
 
             // Wrap the user-supplied shutdown future so we can also stop observer runtime
@@ -313,8 +320,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
-            // Abort Flight server after HTTP server exits
-            flight_server.abort();
+            // Abort and await every lifecycle task (Flight server, SIGUSR1
+            // handler, PKCE cleanup, trusted-docs reload, usage flush, …).
+            drain_lifecycle_tasks(self.tasks, self.config.shutdown_timeout_secs).await;
         }
 
         // HTTP-only server (when arrow feature not enabled)
@@ -352,6 +360,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 info!("Graceful shutdown complete");
             }
+
+            // Abort and await every lifecycle task (SIGUSR1 handler, PKCE
+            // cleanup, trusted-docs reload, usage flush, …).
+            drain_lifecycle_tasks(self.tasks, self.config.shutdown_timeout_secs).await;
         }
 
         Ok(())
@@ -374,6 +386,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_graceful_shutdown(shutdown)
             .await
             .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+        // Abort and await any lifecycle tasks spawned during construction
+        // (e.g. PKCE cleanup, trusted-docs reload) so the test path doesn't
+        // leak background work into the next test.
+        drain_lifecycle_tasks(self.tasks, self.config.shutdown_timeout_secs).await;
         Ok(())
     }
 
@@ -411,5 +427,42 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             () = ctrl_c => info!("Received Ctrl+C"),
             () = terminate => info!("Received SIGTERM"),
         }
+    }
+}
+
+/// Abort every lifecycle task on the supplied [`tokio::task::JoinSet`] and await
+/// the resulting `JoinError`s so the runtime is fully drained before
+/// `serve_with_shutdown` returns.
+///
+/// Tasks are awaited under an outer timeout so a stuck task cannot prevent
+/// process exit. A `JoinError::is_cancelled()` after `JoinSet::abort_all` is
+/// the expected case — only unexpected panics are logged.
+pub(super) async fn drain_lifecycle_tasks(
+    mut tasks: tokio::task::JoinSet<()>,
+    shutdown_timeout_secs: u64,
+) {
+    if tasks.is_empty() {
+        return;
+    }
+
+    tasks.abort_all();
+    let timeout = std::time::Duration::from_secs(shutdown_timeout_secs);
+    let drained = tokio::time::timeout(timeout, async {
+        while let Some(res) = tasks.join_next().await {
+            if let Err(e) = res {
+                if !e.is_cancelled() {
+                    warn!(error = %e, "Lifecycle task terminated with a non-cancellation error");
+                }
+            }
+        }
+    })
+    .await;
+    if drained.is_err() {
+        warn!(
+            timeout_secs = shutdown_timeout_secs,
+            "Lifecycle task drain timed out; some background tasks did not stop in time"
+        );
+    } else {
+        info!("All lifecycle background tasks drained");
     }
 }

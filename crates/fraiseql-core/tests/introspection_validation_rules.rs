@@ -9,7 +9,7 @@ mod tests {
             CompiledSchema, InputFieldDefinition, InputObjectDefinition, IntrospectionBuilder,
             TypeKind,
         },
-        validation::rules::ValidationRule,
+        validation::rules::{CompiledPattern, ValidationRule},
     };
 
     fn create_test_schema_with_validation() -> CompiledSchema {
@@ -26,7 +26,7 @@ mod tests {
         // Pattern validation
         let mut email_field = InputFieldDefinition::new("email", "String".to_string());
         email_field = email_field.with_validation_rule(ValidationRule::Pattern {
-            pattern: r"^[^\s@]+@[^\s@]+\.[^\s@]+$".to_string(),
+            pattern: CompiledPattern::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("valid regex"),
             message: Some("Invalid email format".to_string()),
         });
         fields.push(email_field);

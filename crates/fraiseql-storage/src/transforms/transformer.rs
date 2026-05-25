@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 /// Output format for transformed images
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {
-    /// WebP format (modern, efficient)
+    /// `WebP` format (modern, efficient)
     Webp,
     /// JPEG format (lossy, widely supported)
     Jpeg,
@@ -24,24 +24,25 @@ pub enum OutputFormat {
 
 impl OutputFormat {
     /// Get the MIME type for this format
-    pub fn mime_type(&self) -> &'static str {
+    #[must_use]
+    pub const fn mime_type(self) -> &'static str {
         match self {
-            OutputFormat::Webp => "image/webp",
-            OutputFormat::Jpeg => "image/jpeg",
-            OutputFormat::Png => "image/png",
-            OutputFormat::Avif => "image/avif",
-            OutputFormat::Bmp => "image/bmp",
+            Self::Webp => "image/webp",
+            Self::Jpeg => "image/jpeg",
+            Self::Png => "image/png",
+            Self::Avif => "image/avif",
+            Self::Bmp => "image/bmp",
         }
     }
 
     /// Get the image format for encoding
-    fn as_image_format(&self) -> Option<image::ImageFormat> {
+    const fn as_image_format(self) -> Option<image::ImageFormat> {
         match self {
-            OutputFormat::Webp => Some(image::ImageFormat::WebP),
-            OutputFormat::Jpeg => Some(image::ImageFormat::Jpeg),
-            OutputFormat::Png => Some(image::ImageFormat::Png),
-            OutputFormat::Avif => Some(image::ImageFormat::Avif),
-            OutputFormat::Bmp => None, // Unsupported
+            Self::Webp => Some(image::ImageFormat::WebP),
+            Self::Jpeg => Some(image::ImageFormat::Jpeg),
+            Self::Png => Some(image::ImageFormat::Png),
+            Self::Avif => Some(image::ImageFormat::Avif),
+            Self::Bmp => None, // Unsupported
         }
     }
 }
@@ -70,7 +71,7 @@ pub struct TransformOutput {
     pub width:         u32,
     /// Actual output height in pixels
     pub height:        u32,
-    /// ETag for cache validation (SHA256 hash of transformed bytes)
+    /// `ETag` for cache validation (SHA256 hash of transformed bytes)
     #[serde(default)]
     pub etag:          Option<String>,
     /// Cache control header value for HTTP response
@@ -205,8 +206,14 @@ impl ImageTransformer {
                     })?;
             },
             OutputFormat::Bmp => {
-                // Already validated as unsupported above
-                unreachable!()
+                // Defense in depth: BMP is rejected by the validation block
+                // above. If we somehow reach here, return an error rather than
+                // panic so production cannot be crashed by a missed validation
+                // path.
+                return Err(FraiseQLError::Validation {
+                    message: "BMP format is not supported for transforms".to_string(),
+                    path:    Some("format".to_string()),
+                });
             },
         }
 
@@ -229,7 +236,15 @@ impl ImageTransformer {
         })
     }
 
-    /// Calculate output dimensions preserving aspect ratio
+    /// Calculate output dimensions preserving aspect ratio.
+    // Reason: image dimensions are u32 but always ≤ ~32k in practice (max texture size),
+    // so u32→f32 precision loss and f32→u32 truncation/sign loss are bounded; zero-result
+    // is checked and rejected at the end of the function.
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     fn calculate_dimensions(
         orig_width: u32,
         orig_height: u32,
@@ -277,7 +292,9 @@ impl ImageTransformer {
     }
 
     /// Infer output format from the decoded image format
-    fn infer_format_from_image_format(format: Option<image::ImageFormat>) -> Option<OutputFormat> {
+    const fn infer_format_from_image_format(
+        format: Option<image::ImageFormat>,
+    ) -> Option<OutputFormat> {
         match format {
             Some(image::ImageFormat::WebP) => Some(OutputFormat::Webp),
             Some(image::ImageFormat::Jpeg) => Some(OutputFormat::Jpeg),
@@ -295,18 +312,19 @@ impl std::fmt::Display for OutputFormat {
 }
 
 impl ImageTransformer {
-    /// Apply a transform preset to get a TransformParams
+    /// Apply a transform preset to get a `TransformParams`
     ///
     /// Presets are named sets of transform parameters that can be defined in bucket configuration.
-    /// This helper converts a preset into TransformParams for use with the transform method.
+    /// This helper converts a preset into `TransformParams` for use with the transform method.
     ///
     /// # Arguments
     /// - `preset_name` - Name of the preset to look up
-    /// - `presets` - Available presets (typically from BucketConfig.transform_presets)
+    /// - `presets` - Available presets (typically from `BucketConfig.transform_presets`)
     ///
     /// # Returns
     /// - `Some(TransformParams)` if preset is found
     /// - `None` if preset is not found
+    #[must_use]
     pub fn apply_preset(
         preset_name: &str,
         presets: Option<&[crate::config::TransformPreset]>,

@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use arrow::datatypes::Field;
 use serde_json::json;
 

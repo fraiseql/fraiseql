@@ -1,6 +1,6 @@
 //! HTTP handlers for the built-in authentication endpoints (`/auth/start`,
 //! `/auth/callback`, `/auth/refresh`, `/auth/logout`).
-use std::{net::SocketAddr, sync::Arc};
+use std::{fmt, net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
@@ -65,8 +65,15 @@ pub struct AuthCallbackQuery {
 /// In a production browser-facing flow, the server would instead redirect
 /// the user agent to the frontend application with tokens in a URL fragment;
 /// this JSON form is suitable for API clients and testing.
-#[derive(Debug, Serialize)]
+///
+/// # Debug redaction
+///
+/// `Debug` is implemented manually so the `access_token` and `refresh_token`
+/// fields are never written to logs. Calling `{:?}` yields placeholders
+/// (`"<redacted>"` / `Some("<redacted>")` / `None`) for both fields.
+#[derive(Serialize)]
 #[non_exhaustive]
+#[doc(hidden)] // Internal-pub: HTTP response body for /auth/callback; serialized to JSON for clients. Adopters consume the JSON wire format, not the Rust type.
 pub struct AuthCallbackResponse {
     /// Access token for API requests
     pub access_token:  String,
@@ -76,6 +83,20 @@ pub struct AuthCallbackResponse {
     pub token_type:    String,
     /// Time in seconds until token expires
     pub expires_in:    u64,
+}
+
+impl fmt::Debug for AuthCallbackResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // SECURITY: never write the raw access_token/refresh_token to Debug
+        // output — they would otherwise leak into structured logs via any
+        // `debug!(?resp)` call. See IMPROVEMENTS.md F045.
+        f.debug_struct("AuthCallbackResponse")
+            .field("access_token", &"<redacted>")
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "<redacted>"))
+            .field("token_type", &self.token_type)
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
 }
 
 impl AuthCallbackResponse {
@@ -104,7 +125,12 @@ pub struct AuthRefreshRequest {
 }
 
 /// Response body for the `POST /auth/refresh` endpoint.
-#[derive(Debug, Serialize)]
+///
+/// # Debug redaction
+///
+/// `Debug` is implemented manually so the `access_token` field is never
+/// written to logs. Calling `{:?}` yields `"<redacted>"` for the token value.
+#[derive(Serialize)]
 pub struct AuthRefreshResponse {
     /// New access token
     pub access_token: String,
@@ -112,6 +138,18 @@ pub struct AuthRefreshResponse {
     pub token_type:   String,
     /// Time in seconds until token expires
     pub expires_in:   u64,
+}
+
+impl fmt::Debug for AuthRefreshResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // SECURITY: never write the raw access_token to Debug output. See
+        // IMPROVEMENTS.md F045.
+        f.debug_struct("AuthRefreshResponse")
+            .field("access_token", &"<redacted>")
+            .field("token_type", &self.token_type)
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
 }
 
 /// Request body for auth/logout endpoint
@@ -483,4 +521,77 @@ pub fn validate_auth_input_len(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod debug_redaction_tests {
+    //! F045 regression — token fields in auth response types must be redacted
+    //! from `Debug` output so they never reach structured logs via `?resp`.
+
+    use super::*;
+
+    const SECRET_ACCESS: &str = "eyJhbGciOiJIUzI1NiJ9.SUPER-SECRET-ACCESS-TOKEN.sig";
+    const SECRET_REFRESH: &str = "RT-SUPER-SECRET-REFRESH-TOKEN-do-not-leak";
+
+    #[test]
+    fn auth_callback_response_debug_redacts_access_and_refresh_tokens() {
+        let resp = AuthCallbackResponse {
+            access_token:  SECRET_ACCESS.to_string(),
+            refresh_token: Some(SECRET_REFRESH.to_string()),
+            token_type:    "Bearer".to_string(),
+            expires_in:    3600,
+        };
+
+        let debug_output = format!("{resp:?}");
+
+        assert!(
+            !debug_output.contains(SECRET_ACCESS),
+            "access_token leaked in Debug output: {debug_output}",
+        );
+        assert!(
+            !debug_output.contains(SECRET_REFRESH),
+            "refresh_token leaked in Debug output: {debug_output}",
+        );
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
+        // The non-sensitive fields should still be present for diagnosability.
+        assert!(debug_output.contains("Bearer"));
+        assert!(debug_output.contains("3600"));
+    }
+
+    #[test]
+    fn auth_callback_response_debug_with_no_refresh_token_shows_none() {
+        let resp = AuthCallbackResponse {
+            access_token:  SECRET_ACCESS.to_string(),
+            refresh_token: None,
+            token_type:    "Bearer".to_string(),
+            expires_in:    900,
+        };
+
+        let debug_output = format!("{resp:?}");
+
+        assert!(!debug_output.contains(SECRET_ACCESS));
+        assert!(
+            debug_output.contains("None"),
+            "expected None to appear when refresh_token absent, got: {debug_output}",
+        );
+    }
+
+    #[test]
+    fn auth_refresh_response_debug_redacts_access_token() {
+        let resp = AuthRefreshResponse {
+            access_token: SECRET_ACCESS.to_string(),
+            token_type:   "Bearer".to_string(),
+            expires_in:   1800,
+        };
+
+        let debug_output = format!("{resp:?}");
+
+        assert!(
+            !debug_output.contains(SECRET_ACCESS),
+            "access_token leaked in Debug output: {debug_output}",
+        );
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
+        assert!(debug_output.contains("Bearer"));
+        assert!(debug_output.contains("1800"));
+    }
 }

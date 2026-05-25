@@ -1,5 +1,7 @@
 //! Integration tests for Rust predicates
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 mod common;
 
 use common::connect_test_client;

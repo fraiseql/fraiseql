@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: example code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: example code, panics acceptable
 #![allow(clippy::needless_collect)] // Reason: intermediate collect needed for example clarity
 #![allow(clippy::cast_sign_loss)] // Reason: example uses small positive integer casts
 #![allow(missing_docs)] // Reason: example code, documentation not required
