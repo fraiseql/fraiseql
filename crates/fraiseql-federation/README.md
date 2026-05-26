@@ -15,7 +15,7 @@ Apollo Federation v2 support for FraiseQL, providing entity resolution, saga orc
 
 ```toml
 [dependencies]
-fraiseql-federation = "2.1.0"
+fraiseql-federation = "2.3"
 ```
 
 ## Documentation

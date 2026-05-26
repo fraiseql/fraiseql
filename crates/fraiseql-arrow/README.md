@@ -14,7 +14,7 @@ Apache Arrow Flight integration for FraiseQL. This crate bridges the FraiseQL qu
 
 ```toml
 [dependencies]
-fraiseql-arrow = "2.1.0"
+fraiseql-arrow = "2.3"
 ```
 
 ## Documentation

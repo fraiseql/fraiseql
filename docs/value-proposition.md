@@ -1,7 +1,7 @@
 # FraiseQL Value Proposition
 
-**Status**: v2.2.0 | Production-Ready
-**Last Updated**: May 2, 2026
+**Status**: v2.3.0 | Production-Ready
+**Last Updated**: May 25, 2026
 
 ---
 
@@ -64,10 +64,6 @@ As a result, applications built with FraiseQL achieve significantly faster query
 ## What FraiseQL Does NOT Do
 
 FraiseQL is deliberately specialized. These anti-patterns are out of scope:
-
-### Not a REST API Builder
-
-FraiseQL generates GraphQL servers only. If you need REST endpoints, use a separate REST framework. We do not generate OpenAPI specs or RESTful operations.
 
 ### Not a Code Generator
 
@@ -231,7 +227,6 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 
 ### Not Supported: GraphQL Features
 
-- **Subscriptions over WebSocket**: Subscriptions are defined in schema but require separate WebSocket infrastructure. Not included in core server.
 - **Live Queries / Streaming**: GraphQL spec lacks formal semantics for streaming. Arrow Flight handles analytics; GraphQL subscriptions do not stream arbitrarily.
 - **Custom Directives with Runtime Logic**: Directives are compile-time annotations only. Runtime directive execution is not supported (use field resolvers instead).
 - **Union Type Lazy Loading**: Unions are resolved at query time; lazy field loading is not supported.
@@ -415,42 +410,34 @@ This enables:
 
 ## Maturity & Production Readiness
 
-**FraiseQL v2.0.0-beta** is production-ready:
+**FraiseQL v2.3.0** is production-ready:
 
-- 4,773+ tests across unit, integration, and E2E scenarios
-- Zero unsafe code blocks (forbidden by compile-time checks)
-- All Clippy warnings treated as errors
+- Comprehensive test coverage across unit, integration, and E2E scenarios
+- Zero unsafe code blocks (`unsafe_code = "forbid"` workspace-wide)
+- All Clippy `pedantic` warnings treated as errors
 - Comprehensive security audit (SECURITY.md with documented risk assessment)
-- 487-page production documentation with runbooks and disaster recovery
+- Production documentation with 15 operational runbooks and disaster recovery procedures
 - Enterprise SLA documentation with uptime targets and incident response procedures
 
-**Not beta in capability, only in marketing maturity.** All core features are stable; API surface is fixed. v2.0.0 release will maintain backward compatibility with this beta.
+API surface is stable under semantic versioning; breaking changes are reserved for major releases.
 
 ---
 
 ## Roadmap & Future Direction
 
-### Planned (v2.1.0 - Q2 2026)
+See [`roadmap.md`](../roadmap.md) for the authoritative roadmap. Highlights of recently shipped work:
 
-- Fragment and introspection query optimization
-- Distributed query execution for federated deployments
-- Enhanced analytics with time-series functions
-- Automated schema migration tooling
-
-### Considering (v2.2.0 - Q3 2026)
-
-- Native GraphQL subscriptions over WebSocket (separate service)
-- Additional language SDKs (JavaScript/Node.js, C#)
-- Custom scalar support with database mapping
-- GraphQL directives for schema-level validation
+- GraphQL subscriptions over WebSocket (`graphql-ws` / `graphql-transport-ws`) — shipped in `fraiseql-server`
+- REST transport with auto-generated OpenAPI 3.0 spec — shipped (`features = ["rest"]`)
+- Apollo Federation v2 (full directive set + federated subscriptions) — shipped in v2.2.0
+- Error taxonomy consolidation, ArcSwap observer reload, strict rate-limit insert guard — shipped in v2.3.0
+- C# and JavaScript/Node.js SDKs — functional
 
 ### Explicitly Not Planned
 
-- REST API generation
-- NoSQL database support
-- Serverless / AWS Lambda support
-- Managed cloud service
-- Real-time subscriptions via WebSocket (not in GraphQL spec)
+- NoSQL database support (fundamentally incompatible with SQL compilation model)
+- Serverless / AWS Lambda support (incompatible with persistent connection pooling)
+- Managed cloud service (FraiseQL is self-hosted only)
 
 ---
 

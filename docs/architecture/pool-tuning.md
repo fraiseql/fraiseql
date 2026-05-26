@@ -4,23 +4,24 @@
 
 FraiseQL includes a `PoolSizingAdvisor` that monitors database connection pool health and emits scaling recommendations. It operates in **advisory mode only** — it does not resize the pool at runtime.
 
-## Why Advisory-Only (v2.1.0)
+## Why Advisory-Only
 
-The `deadpool-postgres` library (v0.14) does not expose a `resize()` or `set_max_size()` API on `Pool`. The auto-tuner infrastructure includes a `resize_fn: Option<Arc<dyn Fn(usize)>>` callback parameter, but it is always passed as `None`.
+The `deadpool-postgres` library does not expose a `resize()` or `set_max_size()` API on `Pool`. The auto-tuner infrastructure includes a `resize_fn: Option<Arc<dyn Fn(usize)>>` callback parameter, but it is always passed as `None`.
 
 **Alternatives considered:**
 
 | Option | Description | Trade-off |
 |--------|------------|-----------|
 | `ArcSwap<Pool>` | Create new pool with new size, swap atomically | Active connections on old pool may leak |
-| Migrate to `bb8` | `bb8` supports `set_max_size()` | Large migration effort for one feature |
+| Migrate to `bb8` | Investigated — neither `bb8-postgres` nor `deadpool-postgres` supports runtime pool resizing | No clear upstream path |
 | **Advisory-only** | Log recommendations, expose metrics | Requires operator restart to apply |
 
-Advisory-only was chosen for v2.1.0 because:
+Advisory-only is the chosen approach because:
 
 - The auto-tuner already provides actionable metrics and log recommendations
 - Graceful restart is a well-understood operational pattern
 - Pool sizing changes are infrequent in practice (typically at deploy time)
+- Upstream investigation confirmed no current Rust pool implementation supports runtime resizing
 
 ## How It Works
 
@@ -75,4 +76,4 @@ scale_down_idle_ratio = 0.5
 
 ## Future Work
 
-Runtime resize support is tracked for v2.2.0. The most likely path is adding a `resize()` method upstream to `deadpool-postgres`, or implementing a pool wrapper that can drain-and-swap transparently.
+Runtime resize support remains out of scope until an upstream Rust pool implementation grows a `resize()` API, or a robust drain-and-swap pool wrapper is implemented. The advisory-only path is expected to remain the supported approach for the foreseeable future.

@@ -1,4 +1,4 @@
-# FraiseQL v2.1.0 Configuration Template
+# FraiseQL v2.3.0 Configuration Template
 #
 # Copy to fraiseql.toml in your project root and customize for your environment.
 # All fields support ${ENV_VAR} interpolation (expanded before parsing).

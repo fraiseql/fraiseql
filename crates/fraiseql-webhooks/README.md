@@ -13,7 +13,7 @@ Webhook signature verification and event processing for FraiseQL. This crate han
 
 ```toml
 [dependencies]
-fraiseql-webhooks = "2.1.0"
+fraiseql-webhooks = "2.3"
 ```
 
 ## Documentation

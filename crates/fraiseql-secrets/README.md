@@ -15,7 +15,7 @@ Secrets management and field-level encryption for FraiseQL. This crate provides 
 
 ```toml
 [dependencies]
-fraiseql-secrets = "2.1.0"
+fraiseql-secrets = "2.3"
 ```
 
 ## Documentation

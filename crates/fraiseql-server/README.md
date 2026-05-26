@@ -1,11 +1,11 @@
 # fraiseql-server
 
-HTTP server for the FraiseQL v2 GraphQL engine. This crate provides a production-ready server that loads a compiled schema and serves GraphQL queries over REST and gRPC transports, with built-in security and observability.
+HTTP server for the FraiseQL v2 compiled-query engine. Loads a `schema.compiled.json` artifact and exposes the same compiled query surface over three transports: GraphQL (`POST /graphql` + WebSocket subscriptions), REST (auto-generated from the schema, with OpenAPI 3.0 spec), and Arrow Flight gRPC (analytical bulk delivery, optional). Auth, rate limiting, sanitisation, metrics, and APQ are shared across all three transports.
 
 ## Features
 
 - Generic `Server<DatabaseAdapter>` for type-safe database swapping and testing
-- REST and gRPC transports
+- Three transports on the same query surface: GraphQL, REST (with OpenAPI), and Arrow Flight gRPC (optional)
 - PKCE OAuth and OIDC/JWKS authentication
 - Configurable rate limiting with sliding window enforcement
 - Audit logging for compliance and access tracking
@@ -17,7 +17,7 @@ HTTP server for the FraiseQL v2 GraphQL engine. This crate provides a production
 
 ```toml
 [dependencies]
-fraiseql-server = "2.1.0"
+fraiseql-server = "2.3"
 ```
 
 ## Documentation

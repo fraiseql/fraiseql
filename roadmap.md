@@ -258,13 +258,12 @@ All public API functions with `Result` returns should document the error variant
 they can produce in a `# Errors` section; public functions that can panic should have
 `# Panics`.
 
-**Effort**: Large (300+ functions). Recommend a dedicated sprint in v2.2.0.
+**Effort**: Large (300+ functions). Ongoing — picked up incrementally rather than as a single dedicated sprint.
 
 **Tracking**: CI gate `make lint-gate-errors-doc` counts `# Errors` sections in
-`crates/fraiseql-core/src/runtime/` and enforces a minimum floor (currently ≥35,
-targeting ≥60 by v2.2.0). The critical execution path (`Executor::execute()`,
-`execute_internal()`) is already documented. Remove the crate-level allows once
-coverage reaches 100%.
+`crates/fraiseql-core/src/runtime/` and enforces a minimum floor; the floor is raised
+each release. The critical execution path (`Executor::execute()`, `execute_internal()`)
+is already documented. Remove the crate-level allows once coverage reaches 100%.
 
 ---
 
@@ -311,7 +310,7 @@ See `releasing.md` for the full cadence policy.
 ### Version Support
 
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
-- **Current stable**: v2.1.0 (released March 2026)
+- **Current stable**: v2.3.0 (released May 2026)
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes

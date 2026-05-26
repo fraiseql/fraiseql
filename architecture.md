@@ -4,7 +4,7 @@
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════════════╗
 ║                        FRAISEQL FRAMEWORK — ARCHITECTURE MAP                             ║
-║                        (v2.1.0 — guide for quality domain scans)                         ║
+║                        (v2.3.0 — guide for quality domain scans)                         ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════╝
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -155,8 +155,8 @@
   │    require_permission_directive
   │    types.rs           GraphQL AST types
   │
-  ├─ cache/               Result caching (64-shard LRU)
-  │    result.rs          Per-entry TTL cache shards
+  ├─ cache/               Result caching (moka W-TinyLFU, lock-free reads, DashMap reverse indexes)
+  │    result.rs          Per-entry TTL, view/entity reverse indexes
   │    adapter/           CachedDatabaseAdapter (wraps DatabaseAdapter)
   │      query.rs         Cache-aware SELECT path
   │      mutation.rs      Invalidation-triggering mutation path
@@ -516,7 +516,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   fraiseql-server:
-    default = [auth, secrets, webhooks]
+    default = [auth, cli]
     auth              fraiseql-auth (JWT/OAuth/OIDC)
     secrets           fraiseql-secrets (Vault, encryption)
     webhooks          fraiseql-webhooks

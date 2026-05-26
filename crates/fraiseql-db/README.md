@@ -19,7 +19,7 @@ Database abstraction layer for FraiseQL v2. This crate provides runtime SQL gene
 
 ```toml
 [dependencies]
-fraiseql-db = { version = "2.1.0", features = ["postgres"] }
+fraiseql-db = { version = "2.3", features = ["postgres"] }
 ```
 
 ## Documentation

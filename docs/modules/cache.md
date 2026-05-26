@@ -3,7 +3,7 @@
 **Source files**:
 
 - `crates/fraiseql-core/src/cache/adapter/` — `CachedDatabaseAdapter`, the main entry point (split into `mod.rs`, `query.rs`, `mutation.rs`, `tests.rs`)
-- `crates/fraiseql-core/src/cache/result.rs` (~1,177 lines) — `QueryResultCache` (single-Mutex LRU) and `CachedResult`
+- `crates/fraiseql-core/src/cache/result.rs` — `QueryResultCache` (`moka::sync::Cache`, W-TinyLFU eviction, lock-free reads) and `CachedResult`
 - `crates/fraiseql-core/src/cache/key.rs` (~632 lines) — cache key construction and security model
 - `crates/fraiseql-core/src/cache/cascade_invalidator.rs` — view dependency graph and cascade invalidation
 - Supporting: `invalidation_api.rs`, `fact_table_cache.rs`, `relay_cache.rs`, `config.rs`
@@ -19,16 +19,19 @@ cargo nextest run -p fraiseql-core --lib cache
 ## Overview
 
 The cache module wraps `DatabaseAdapter` in a `CachedDatabaseAdapter` that stores query
-results in an in-process LRU cache. The design has three critical properties:
+results in an in-process `moka::sync::Cache` (W-TinyLFU). The design has three critical
+properties:
 
 1. **RLS isolation** — the cache key includes the user's Row-Level Security WHERE clause,
    ensuring that two users with different RLS policies never share cached data.
 2. **View-based invalidation** — invalidation is coarse-grained (per-view, not per-row),
-   which is fast but causes over-invalidation on write-heavy workloads.
-3. **Single-lock LRU** — `Arc<Mutex<LruCache>>` with `AtomicU64`/`AtomicUsize` counters
-   for metrics (no second lock in the hot path). If single-Mutex contention becomes
-   measurable under profiling, a sharded structure (e.g., 64 shards with `DashMap`) can
-   be introduced without changing the public API.
+   which is fast but causes over-invalidation on write-heavy workloads. View-to-key
+   reverse indexes are `DashMap`-based and updated on `put()` and via moka's eviction
+   listener.
+3. **Lock-free reads, W-TinyLFU eviction** — `moka::sync::Cache` performs frequency
+   tracking via thread-local ring buffers; cache hits acquire no shared lock. Metrics
+   counters are `AtomicU64`/`AtomicUsize`. This replaces an earlier 64-shard
+   `parking_lot::Mutex<LruCache>` design that was the hot-key serialisation bottleneck.
 
 ---
 
@@ -123,7 +126,7 @@ your view dependency graph conservatively.
 **Memory estimation**:
 
 ```
-LRU capacity × average entry size
+cache capacity × average entry size
 Example: 10,000 × 10KB = ~100MB
 ```
 

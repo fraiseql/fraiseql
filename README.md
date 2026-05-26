@@ -168,7 +168,7 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 - Zero unsafe code (forbidden at compile time)
 - Clippy pedantic as deny with justified suppressions
 - Load testing infrastructure (k6)
-- 12 operational runbooks
+- 15 operational runbooks
 
 ## Repository Layout
 

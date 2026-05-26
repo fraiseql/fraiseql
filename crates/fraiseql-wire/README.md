@@ -192,7 +192,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-fraiseql-wire = "0.1"
+fraiseql-wire = "2.3"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"
 serde_json = "1"
@@ -269,7 +269,7 @@ For detailed error diagnosis, see [troubleshooting.md](troubleshooting.md).
 * 🔄 Server I/O and client processing overlap
 * 📦 JSON decoding is incremental
 
-### Benchmarked Performance (v0.1.0)
+### Benchmarked Performance
 
 **Memory Efficiency**: The key advantage
 

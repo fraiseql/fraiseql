@@ -6,7 +6,7 @@ Core execution engine for FraiseQL v2. This crate implements compiled GraphQL-ov
 
 - GraphQL-to-SQL compilation with per-database dialect output
 - Schema parsing, validation, and compiled schema format
-- Query execution with multi-shard LRU caching and per-entry TTL
+- Query execution with W-TinyLFU result caching (moka, lock-free reads) and per-entry TTL
 - Mutation support with cascade cache invalidation
 - Subscription support with topic-based routing
 - Row-level security integrated into query generation
@@ -16,7 +16,7 @@ Core execution engine for FraiseQL v2. This crate implements compiled GraphQL-ov
 
 ```toml
 [dependencies]
-fraiseql-core = "2.1.0"
+fraiseql-core = "2.3"
 ```
 
 ## Documentation

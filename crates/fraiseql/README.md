@@ -6,7 +6,7 @@ FraiseQL v2 - Compiled GraphQL execution engine for relational databases.
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.0.0-alpha.5", features = ["server"] }
+fraiseql = { version = "2.3", features = ["server"] }
 ```
 
 ## Quick Start
@@ -35,10 +35,13 @@ async fn main() -> Result<()> {
 - `postgres` (default) - PostgreSQL support
 - `mysql` - MySQL support
 - `sqlite` - SQLite support
+- `sqlserver` - SQL Server support
 - `server` - HTTP server
 - `observers` - Reactive business logic
 - `arrow` - Apache Arrow Flight
-- `wire` - Streaming queries
+- `wire` - Streaming queries (PostgreSQL wire protocol)
+- `federation` - Apollo Federation v2 directives
+- `cli` - `fraiseql-cli` (compile, lint, validate, generate)
 - `full` - All features
 
 ## Documentation

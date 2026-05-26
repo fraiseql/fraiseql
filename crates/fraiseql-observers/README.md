@@ -362,10 +362,10 @@ println!("Success rate: {}/{}",
 
 ## Error Handling
 
-All errors implement the `FraiseQLError` trait:
+All errors are variants of `ObserverError` (defined in `crates/fraiseql-observers/src/error.rs`):
 
 ```rust
-pub enum FraiseQLError {
+pub enum ObserverError {
     InvalidConfig { message: String },
     NoMatchingObservers { event_type: String },
     InvalidCondition { reason: String },
@@ -381,6 +381,11 @@ pub enum FraiseQLError {
     RetriesExhausted { reason: String },
 }
 ```
+
+`ObserverError` composes into `FraiseQLError::Observer(_)` via a `From` impl, so observer
+errors propagate cleanly through the workspace-wide `FraiseQLError` taxonomy. See
+[`docs/architecture/error-hierarchy.md`](../../docs/architecture/error-hierarchy.md) for
+the full hierarchy.
 
 Error classification:
 

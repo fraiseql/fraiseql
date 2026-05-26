@@ -298,7 +298,7 @@ fraiseql-cli compile schema.json \
 
 ```toml
 [fraiseql]
-version = "2.0.0"
+version = "1.0.0"  # Config schema version (independent of the FraiseQL package version)
 
 [fraiseql.security.rate_limiting]
 enabled = true

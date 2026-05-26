@@ -7,9 +7,9 @@
 | Understand the system at a glance | [`architecture.md`](../architecture.md) — framework map (crates, modules, data flow) |
 | Read the conceptual architecture | [`docs/architecture/overview.md`](architecture/overview.md) |
 | Understand the SQL compiler | [`docs/architecture/compiler.md`](architecture/compiler.md) |
-| Read why design decisions were made | [`docs/adr/`](adr/) — 9 Architecture Decision Records |
+| Read why design decisions were made | [`docs/adr/`](adr/) — 12 Architecture Decision Records |
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
-| Run the server in production | [`docs/runbooks/`](runbooks/) — 12 incident response runbooks |
+| Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
@@ -24,7 +24,7 @@
 ```
 docs/
 ├── README.md                    ← this file
-├── adr/                         ← Architecture Decision Records (9 ADRs)
+├── adr/                         ← Architecture Decision Records (12 ADRs)
 │   ├── 0001-three-layer-architecture.md
 │   ├── 0002-database-driver-choices.md
 │   ├── 0003-feature-flag-strategy.md
@@ -33,7 +33,10 @@ docs/
 │   ├── 0006-wire-protocol-justification.md
 │   ├── 0007-crypto-algorithm-choices.md
 │   ├── 0008-clippy-pedantic-strategy.md
-│   └── 0009-database-feature-parity.md
+│   ├── 0009-database-feature-parity.md
+│   ├── 0010-async-mutation-handlers.md
+│   ├── 0012-async-trait-retention.md
+│   └── 0013-mutation-response-v2-schema.md
 ├── architecture/                ← Conceptual architecture docs
 │   ├── README.md                ← Navigation guide
 │   ├── overview.md              ← 3-layer model, security, error handling
@@ -44,7 +47,7 @@ docs/
 │   ├── window-functions.md      ← 3-stage pipeline, dialect table
 │   └── fact-table.md            ← tf_* pattern, introspection flow
 ├── operations/                  ← Schema lifecycle, observer idempotency
-├── runbooks/                    ← 12 incident response runbooks
+├── runbooks/                    ← 15 incident response runbooks
 ├── security/                    ← Threat model, complexity limits
 ├── database-compatibility.md    ← Feature matrix by database backend
 ├── fuzzing.md                   ← Fuzzing setup and targets

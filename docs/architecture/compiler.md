@@ -436,38 +436,39 @@ At runtime, placeholders are substituted when building the actual SQL.
 ✅ **Configuration Driven**: Developer controls behavior via TOML
 ✅ **v2 Philosophy**: Clear separation of Authoring → Compilation → Runtime
 
-## Implementation Phases
+## Implementation Status
 
-### Phase 1: Current
+All pipeline phases below are implemented and shipping. They are documented here in
+roughly the order they were built; the entire pipeline runs on every `fraiseql-cli
+compile` invocation.
 
-- ✅ ExtendedOperator enum defined
+### Foundation
+
+- ✅ ExtendedOperator enum (single source of truth in `crates/fraiseql-core/src/filters/operators.rs`)
 - ✅ Validation framework built (ValidationRule, ChecksumType)
 - ✅ Default rules created (70+ for all operators)
-- ✅ SQL generation patterns established (6 operators, all 4 DBs)
+- ✅ SQL generation patterns established across all 4 databases
 
-### Phase 2: Next (Compiler)
+### Compiler (`fraiseql-cli compile`)
 
-- [ ] Build fraiseql-cli compile command
-- [ ] Parse schema.json
-- [ ] Parse fraiseql.toml
-- [ ] Build type→operators mapping
-- [ ] Generate GraphQL WhereInput types
-- [ ] Extract SQL templates from database handlers
-- [ ] Embed validation rules from config
-- [ ] Output schema.compiled.json
+- ✅ `fraiseql-cli compile` command (`crates/fraiseql-cli/src/commands/compile.rs`)
+- ✅ Parse `schema.json` and `fraiseql.toml`
+- ✅ Build type→operators mapping; generate GraphQL `WhereInput` types
+- ✅ Extract SQL templates from database handlers
+- ✅ Embed validation rules from config
+- ✅ Emit `schema.compiled.json`
 
-### Phase 3: Runtime Integration
+### Runtime Integration
 
-- [ ] Load schema.compiled.json at server startup
-- [ ] Wire validation into query execution path
-- [ ] Use embedded SQL templates
-- [ ] Apply validation rules before SQL generation
+- ✅ Load `schema.compiled.json` at server startup
+- ✅ Validation wired into the query execution path
+- ✅ Embedded SQL templates used at runtime
+- ✅ Validation rules applied before SQL generation
 
-### Phase 4: Complete SQL Generation
+### SQL Generation Coverage
 
-- [ ] Implement remaining 38 operators across all 4 databases
-- [ ] Test all operators end-to-end
-- [ ] Document operator semantics
+- ✅ Comparison, equality, set membership, range, pattern, null operators across PostgreSQL, MySQL, SQLite, SQL Server
+- See [`database-compatibility.md`](../database-compatibility.md) for the per-dialect operator matrix
 
 ## Files Involved
 

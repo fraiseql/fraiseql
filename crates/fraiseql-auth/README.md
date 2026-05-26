@@ -15,7 +15,7 @@ Authentication, authorization, and session management for FraiseQL. This crate p
 
 ```toml
 [dependencies]
-fraiseql-auth = "2.1.0"
+fraiseql-auth = "2.3"
 ```
 
 ## Documentation

@@ -13,7 +13,7 @@ Error types and result aliases for the FraiseQL v2 ecosystem. This crate provide
 
 ```toml
 [dependencies]
-fraiseql-error = "2.1.0"
+fraiseql-error = "2.3"
 ```
 
 ## Documentation
