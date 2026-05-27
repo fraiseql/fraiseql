@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-05-27
+
+### Fixed
+
+- **Server panic at startup on observer router mount** (#316, #317) — the axum 0.7 → 0.8 migration left one path-capture literal at the old `:listener_id` syntax (`crates/fraiseql-server/src/observers/routes.rs:128`, `/checkpoint/:listener_id`). axum 0.8 hard-panics at `Router::route` build time on the old syntax, so any deployment that mounted the observer changelog router crashed before binding the listener. The literal is now `{listener_id}` and the panic site is gone.
+
+### Added
+
+- **Router-construction tests** (#317) — `observer_routes`, `observer_runtime_routes`, `observer_dlq_routes`, `observer_changelog_routes`, and `rbac_management_router` each have a `#[tokio::test]` that constructs the router (see `crates/fraiseql-server/src/observers/tests.rs::router_construction` and `crates/fraiseql-server/src/api/rbac_management/tests.rs::router_construction`). axum's path-capture validation runs inside `Router::route`, so the same bug class would now surface in `cargo test`, not at first server boot.
+
+- **`axum-route-syntax-check` CI gate** (#317) — `tools/check-route-syntax.sh` greps for `:param` literals inside `.route(...)` calls across `crates/` and `examples/`. Combines a single-line regex with a load-bearing multi-line `awk` pass that catches `.route(\n  "...",\n  handler\n)` calls (the v2.3.0 bug literal was invisible to a single-line regex). Wired as a job in `.github/workflows/ci.yml`; `make lint-routes` runs it locally.
+
+- **`release-smoke` workflow** (#317) — `.github/workflows/release-smoke.yml` boots `fraiseql-server` (release profile) against the `docker/e2e/` fixtures on `release/*` branches and `v*` tags and asserts `/health` responds within ~30s. Catch-all for the "code compiles, server panics on boot" bug class — covers every router constructor the binary actually mounts, not just the ones unit-tested individually.
+
 ## [2.3.0] - 2026-05-25
 
 *v2.3.0 supersedes the abandoned 2026-05-14 release attempt — see commit history for the revival. Migration guide for adopters: `docs/migration/v2.2-to-v2.3.md`.*
