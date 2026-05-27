@@ -8,9 +8,10 @@ use serde_json::json;
 
 use super::{RestError, RestResponse, StatusCode};
 
-/// Convert a base path and route path to an Axum-compatible path pattern.
+/// Join a base path and route path into an Axum-compatible path pattern.
 ///
-/// Converts `{id}` path parameters to Axum's `:id` syntax.
+/// Path parameters in `route_path` (axum 0.8 `{id}` syntax) are passed through
+/// unchanged.
 pub(super) fn to_axum_path(base_path: &str, route_path: &str) -> String {
     let base = base_path.trim_end_matches('/');
     format!("{base}{route_path}")

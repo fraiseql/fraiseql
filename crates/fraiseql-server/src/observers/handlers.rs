@@ -52,7 +52,7 @@ pub async fn list_observers(
 
 /// Get a single observer by ID.
 ///
-/// GET /api/observers/:id
+/// GET /api/observers/{id}
 pub async fn get_observer(
     State(state): State<ObserverState>,
     Path(id): Path<Uuid>,
@@ -137,7 +137,7 @@ pub async fn create_observer(
 
 /// Update an existing observer.
 ///
-/// PATCH /api/observers/:id
+/// PATCH /api/observers/{id}
 pub async fn update_observer(
     State(state): State<ObserverState>,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
@@ -182,7 +182,7 @@ pub async fn update_observer(
 
 /// Delete an observer (soft delete).
 ///
-/// DELETE /api/observers/:id
+/// DELETE /api/observers/{id}
 pub async fn delete_observer(
     State(state): State<ObserverState>,
     Path(id): Path<Uuid>,
@@ -211,7 +211,7 @@ pub async fn delete_observer(
 /// Get observer statistics.
 ///
 /// GET /api/observers/stats
-/// GET /api/observers/:id/stats
+/// GET /api/observers/{id}/stats
 pub async fn get_observer_stats(
     State(state): State<ObserverState>,
     observer_id: Option<Path<Uuid>>,
@@ -236,7 +236,7 @@ pub async fn get_observer_stats(
 /// List observer execution logs.
 ///
 /// GET /api/observers/logs
-/// GET /api/observers/:id/logs
+/// GET /api/observers/{id}/logs
 pub async fn list_observer_logs(
     State(state): State<ObserverState>,
     Path(observer_id): Path<Option<Uuid>>,
@@ -268,7 +268,7 @@ pub async fn list_observer_logs(
 
 /// Enable an observer.
 ///
-/// POST /api/observers/:id/enable
+/// POST /api/observers/{id}/enable
 pub async fn enable_observer(
     State(state): State<ObserverState>,
     Path(id): Path<Uuid>,
@@ -302,7 +302,7 @@ pub async fn enable_observer(
 
 /// Disable an observer.
 ///
-/// POST /api/observers/:id/disable
+/// POST /api/observers/{id}/disable
 pub async fn disable_observer(
     State(state): State<ObserverState>,
     Path(id): Path<Uuid>,

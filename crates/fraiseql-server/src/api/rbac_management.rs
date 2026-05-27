@@ -118,13 +118,16 @@ pub fn rbac_management_router(state: RbacManagementState) -> Router {
     Router::new()
         // Role endpoints
         .route("/api/roles", post(create_role).get(list_roles))
-        .route("/api/roles/:role_id", get(get_role).put(update_role).delete(delete_role))
+        .route("/api/roles/{role_id}", get(get_role).put(update_role).delete(delete_role))
         // Permission endpoints
         .route("/api/permissions", post(create_permission).get(list_permissions))
-        .route("/api/permissions/:permission_id", get(get_permission).delete(delete_permission))
+        .route(
+            "/api/permissions/{permission_id}",
+            get(get_permission).delete(delete_permission),
+        )
         // User-role assignment endpoints
         .route("/api/user-roles", post(assign_role).get(list_user_roles))
-        .route("/api/user-roles/:user_id/:role_id", delete(revoke_role))
+        .route("/api/user-roles/{user_id}/{role_id}", delete(revoke_role))
         // Audit endpoints
         .route("/api/audit/permissions", get(query_permission_audit))
         .with_state(Arc::new(state))

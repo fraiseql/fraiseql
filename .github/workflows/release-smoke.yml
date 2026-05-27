@@ -1,0 +1,100 @@
+name: Release Smoke
+
+# Purpose: catch any startup-only panic before crates.io publish.
+# This is the explicit safety net for router-constructor sites that aren't
+# unit-tested individually (see `crates/fraiseql-server/src/server/routing/`
+# auth/admin/graphql sub-routers). Issue #316 — an axum 0.7 `:param` capture
+# missed by the 0.7 → 0.8 migration — only surfaced because a user ran the
+# published binary; the bug class is "code compiles, server panics on boot."
+#
+# Boots `fraiseql-server` against the existing e2e fixture (docker/e2e/) and
+# asserts the default health endpoint responds within ~30s. Mirrors the
+# `integration-http-e2e` job in ci.yml but is wired to release-track events
+# so a failure blocks the release.
+
+on:
+  push:
+    branches:
+      - 'release/*'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'release/*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Server boot smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Apply E2E database schema
+        run: |
+          PGPASSWORD=fraiseql_test_password psql \
+            -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
+            -f docker/e2e/init-postgres.sql
+
+      - name: Build fraiseql-server (release profile)
+        run: cargo build --release -p fraiseql-server
+
+      - name: Start fraiseql-server
+        run: |
+          ./target/release/fraiseql-server &
+          echo $! > /tmp/fraiseql-server.pid
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_BIND_ADDR: 127.0.0.1:8815
+          FRAISEQL_INTROSPECTION_ENABLED: "true"
+          FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Wait for /health to respond
+        run: |
+          set -eu
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8815/health; then
+              echo
+              echo "Server is up after ~$((i * 1)) attempt(s)."
+              exit 0
+            fi
+            # If the process already died, surface that instead of waiting 30s.
+            if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
+              echo "::error::fraiseql-server process exited before /health responded — likely a startup panic." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Timed out waiting for /health after 30s." >&2
+          exit 1
+
+      - name: Stop server
+        if: always()
+        run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true

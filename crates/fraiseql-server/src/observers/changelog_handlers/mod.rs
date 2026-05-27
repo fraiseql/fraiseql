@@ -96,7 +96,7 @@ pub struct CheckpointResponse {
     pub updated_at:  Option<String>,
 }
 
-/// Request body for `PUT /api/observers/checkpoint/:listener_id`.
+/// Request body for `PUT /api/observers/checkpoint/{listener_id}`.
 #[derive(Debug, Deserialize)]
 pub struct SaveCheckpointRequest {
     /// The cursor value to persist.
@@ -213,7 +213,7 @@ pub async fn changelog_list_handler(
     }
 }
 
-/// `GET /api/observers/checkpoint/:listener_id`
+/// `GET /api/observers/checkpoint/{listener_id}`
 ///
 /// Read the current checkpoint for a given listener.
 pub async fn checkpoint_get_handler(
@@ -257,7 +257,7 @@ pub async fn checkpoint_get_handler(
     }
 }
 
-/// `PUT /api/observers/checkpoint/:listener_id`
+/// `PUT /api/observers/checkpoint/{listener_id}`
 ///
 /// Create or update a checkpoint. Uses `ON CONFLICT … DO UPDATE` (upsert).
 pub async fn checkpoint_save_handler(

@@ -53,6 +53,18 @@ jobs:
       - name: Check test imports
         run: bash tools/check-test-imports.sh
 
+  # Static gate against axum 0.7-style `:param` path captures.
+  # axum 0.8 panics at Router::route build time on the old syntax — see issue #316.
+  axum-route-syntax-check:
+    name: Axum Route Syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Check axum route capture syntax
+        run: bash tools/check-route-syntax.sh
+
   # Lint with Clippy
   clippy:
     name: Clippy Lints

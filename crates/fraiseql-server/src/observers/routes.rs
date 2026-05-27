@@ -28,13 +28,13 @@ use super::{
 /// - `POST   /`           - Create a new observer
 /// - `GET    /stats`      - Get statistics for all observers
 /// - `GET    /logs`       - List execution logs for all observers
-/// - `GET    /:id`        - Get a specific observer
-/// - `PATCH  /:id`        - Update a specific observer
-/// - `DELETE /:id`        - Delete a specific observer (soft delete)
-/// - `POST   /:id/enable` - Enable a specific observer
-/// - `POST   /:id/disable`- Disable a specific observer
-/// - `GET    /:id/stats`  - Get statistics for a specific observer
-/// - `GET    /:id/logs`   - List execution logs for a specific observer
+/// - `GET    /{id}`        - Get a specific observer
+/// - `PATCH  /{id}`        - Update a specific observer
+/// - `DELETE /{id}`        - Delete a specific observer (soft delete)
+/// - `POST   /{id}/enable` - Enable a specific observer
+/// - `POST   /{id}/disable`- Disable a specific observer
+/// - `GET    /{id}/stats`  - Get statistics for a specific observer
+/// - `GET    /{id}/logs`   - List execution logs for a specific observer
 pub fn observer_routes(state: ObserverState) -> Router {
     Router::new()
         // Collection routes
@@ -42,11 +42,11 @@ pub fn observer_routes(state: ObserverState) -> Router {
         .route("/stats", get(get_all_stats))
         .route("/logs", get(list_all_logs))
         // Individual observer routes
-        .route("/:id", get(get_observer).patch(update_observer).delete(delete_observer))
-        .route("/:id/enable", post(enable_observer))
-        .route("/:id/disable", post(disable_observer))
-        .route("/:id/stats", get(get_single_stats))
-        .route("/:id/logs", get(list_single_logs))
+        .route("/{id}", get(get_observer).patch(update_observer).delete(delete_observer))
+        .route("/{id}/enable", post(enable_observer))
+        .route("/{id}/disable", post(disable_observer))
+        .route("/{id}/stats", get(get_single_stats))
+        .route("/{id}/logs", get(list_single_logs))
         .with_state(state)
 }
 
@@ -101,16 +101,16 @@ pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
 ///
 /// - `GET  /delivery/health`       - Observer delivery health summary
 /// - `GET  /dlq`                   - List DLQ items (paginated, filterable)
-/// - `GET  /dlq/:id`               - Get a single DLQ item
-/// - `POST /dlq/:id/retry`         - Re-process a single DLQ item
+/// - `GET  /dlq/{id}`              - Get a single DLQ item
+/// - `POST /dlq/{id}/retry`        - Re-process a single DLQ item
 /// - `POST /dlq/retry-all`         - Re-process all DLQ items
 pub fn observer_dlq_routes(state: DlqState) -> Router {
     Router::new()
         .route("/delivery/health", get(delivery_health_handler))
         .route("/dlq", get(dlq_list_handler))
         .route("/dlq/retry-all", post(dlq_retry_all_handler))
-        .route("/dlq/:id", get(dlq_get_handler))
-        .route("/dlq/:id/retry", post(dlq_retry_handler))
+        .route("/dlq/{id}", get(dlq_get_handler))
+        .route("/dlq/{id}/retry", post(dlq_retry_handler))
         .with_state(state)
 }
 
@@ -119,13 +119,13 @@ pub fn observer_dlq_routes(state: DlqState) -> Router {
 /// # Routes
 ///
 /// - `GET /changelog`                  - Poll changelog entries (paginated, filterable)
-/// - `GET /checkpoint/:listener_id`    - Read a listener's checkpoint
-/// - `PUT /checkpoint/:listener_id`    - Save / update a listener's checkpoint
+/// - `GET /checkpoint/{listener_id}`   - Read a listener's checkpoint
+/// - `PUT /checkpoint/{listener_id}`   - Save / update a listener's checkpoint
 pub fn observer_changelog_routes(state: ChangelogState) -> Router {
     Router::new()
         .route("/changelog", get(changelog_list_handler))
         .route(
-            "/checkpoint/:listener_id",
+            "/checkpoint/{listener_id}",
             get(checkpoint_get_handler).put(checkpoint_save_handler),
         )
         .with_state(state)
