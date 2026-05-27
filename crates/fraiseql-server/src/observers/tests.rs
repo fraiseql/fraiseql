@@ -291,3 +291,67 @@ mod runtime_index_atomicity_tests {
         }
     }
 }
+
+mod router_construction {
+    //! Router-construction tests.
+    //!
+    //! Each test calls a router constructor and lets the returned `Router`
+    //! drop. Axum validates path-capture syntax inside `Router::route`, so any
+    //! lingering axum-0.7 `:param` literal panics here at build time — this is
+    //! exactly the bug class behind issue #316.
+    //!
+    //! The platform E2E suite is gated behind `FRAISEQL_PLATFORM_E2E=1` and
+    //! never mounts these routers in default `cargo test` runs, so without
+    //! these tests the panic only surfaces at first server boot.
+
+    #![allow(clippy::unwrap_used)] // Reason: test code; pool ctor errors must panic to surface test setup failures
+
+    use std::sync::Arc;
+
+    use sqlx::PgPool;
+    use tokio::sync::RwLock;
+
+    use crate::observers::{
+        ChangelogState, DlqState, ObserverRepository, ObserverState, RuntimeHealthState,
+        observer_changelog_routes, observer_dlq_routes, observer_routes, observer_runtime_routes,
+        runtime::{ObserverRuntime, ObserverRuntimeConfig},
+    };
+
+    fn lazy_pool() -> PgPool {
+        PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap()
+    }
+
+    fn stub_runtime() -> Arc<RwLock<ObserverRuntime>> {
+        Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(lazy_pool()))))
+    }
+
+    #[tokio::test]
+    async fn observer_routes_constructs() {
+        let state = ObserverState {
+            repository: ObserverRepository::new(lazy_pool()),
+        };
+        let _ = observer_routes(state);
+    }
+
+    #[tokio::test]
+    async fn observer_runtime_routes_constructs() {
+        let state = RuntimeHealthState {
+            runtime: stub_runtime(),
+        };
+        let _ = observer_runtime_routes(state);
+    }
+
+    #[tokio::test]
+    async fn observer_dlq_routes_constructs() {
+        let state = DlqState {
+            runtime: stub_runtime(),
+        };
+        let _ = observer_dlq_routes(state);
+    }
+
+    #[tokio::test]
+    async fn observer_changelog_routes_constructs() {
+        let state = ChangelogState { pool: lazy_pool() };
+        let _ = observer_changelog_routes(state);
+    }
+}

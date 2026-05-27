@@ -439,6 +439,18 @@ RUST_LOG=debug cargo test
 
 ---
 
+## Bumping axum
+
+axum's major releases periodically rework path-capture syntax (0.7 → 0.8 swapped `:param` for `{param}` and made the old form a build-time panic). Issue #316 shipped because a single literal slipped through the migration. Three gates exist now — run all three on any future axum bump:
+
+1. **Static gate.** `make lint-routes` (`tools/check-route-syntax.sh`) greps for the old `:param` form across `crates/` and `examples/`, including a load-bearing multi-line `awk` pass that catches `.route(\n  "...",\n  ...)` calls the single-line grep misses. The CI job is `axum-route-syntax-check` in `.github/workflows/ci.yml`.
+
+2. **Construction tests.** Five `*_constructs` tests in `crates/fraiseql-server/src/observers/tests.rs::router_construction` and `crates/fraiseql-server/src/api/rbac_management/tests.rs::router_construction` call each public `Router` constructor under `#[tokio::test]`. axum validates path-capture syntax inside `Router::route`, so any lingering bad literal panics in `cargo test`, not at first server boot. Extend the pattern to any new router constructor.
+
+3. **Release smoke.** `.github/workflows/release-smoke.yml` boots the server against a fixture schema on `release/*` branches and `v*` tags and asserts the health endpoint responds within ~10s. This is the catch-all for the broader "code compiles but server panics on boot" class — covers route syntax, missing env vars, lazy-init failures, etc., across every constructor the binary actually mounts.
+
+---
+
 ## Next Steps
 
 See `roadmap.md` (repository root) for detailed feature implementation status and priority order. Current focus areas:

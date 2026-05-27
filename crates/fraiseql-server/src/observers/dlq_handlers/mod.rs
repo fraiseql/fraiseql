@@ -203,7 +203,7 @@ pub async fn dlq_list_handler(
     (StatusCode::OK, Json(response))
 }
 
-/// `GET /api/observers/dlq/:id`
+/// `GET /api/observers/dlq/{id}`
 ///
 /// Returns a single DLQ item by ID.
 pub async fn dlq_get_handler(
@@ -225,7 +225,7 @@ pub async fn dlq_get_handler(
     }
 }
 
-/// `POST /api/observers/dlq/:id/retry`
+/// `POST /api/observers/dlq/{id}/retry`
 ///
 /// Re-processes a single DLQ item through the observer executor, then
 /// removes it from the DLQ on success.

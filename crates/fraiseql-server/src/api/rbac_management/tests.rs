@@ -400,3 +400,31 @@ mod db_backend_tests {
         assert_eq!(format!("{}", RbacDbError::RoleDuplicate), "Role already exists");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code; pool ctor errors must panic to surface test setup failures
+mod router_construction {
+    //! See `crates/fraiseql-server/src/observers/routes.rs::tests` for context:
+    //! axum validates path-capture syntax inside `Router::route`, so any
+    //! lingering `:param` literal panics here at build time (issue #316).
+
+    use std::sync::Arc;
+
+    use sqlx::PgPool;
+
+    use crate::api::rbac_management::{
+        RbacManagementState, db_backend::RbacDbBackend, rbac_management_router,
+    };
+
+    fn lazy_pool() -> PgPool {
+        PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap()
+    }
+
+    #[tokio::test]
+    async fn rbac_router_constructs() {
+        let state = RbacManagementState {
+            db: Arc::new(RbacDbBackend::new(lazy_pool())),
+        };
+        let _ = rbac_management_router(state);
+    }
+}

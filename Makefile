@@ -419,6 +419,12 @@ lint-tests-layout:
 	fi; \
 	echo "OK: no inline test blocks in workspace src/"
 
+# Gate: ensure no axum 0.7-style `:param` captures slip back into `.route()` calls.
+# Issue #316 prevention — see `tools/check-route-syntax.sh` for the load-bearing multi-line awk.
+.PHONY: lint-routes
+lint-routes:
+	@bash tools/check-route-syntax.sh
+
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
 	cargo +nightly fmt --all
