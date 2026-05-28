@@ -23,7 +23,7 @@ jobs:
     name: Validate Release Prerequisites
     environment: release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       RUSTC_WRAPPER: ""
     steps:
@@ -60,11 +60,39 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
-      - name: Dry-run publish to crates.io
+      # Upstream gate that catches packaging-rules regressions (e.g.
+      # gitignored files or build.rs side effects swept into the .crate
+      # tarball) before they reach the actual publish step. Added after
+      # v2.3.0 / v2.3.1 shipped tags but failed to publish fraiseql-server
+      # (the previous version of this step only dry-ran fraiseql-error).
+      - name: Dry-run publish for every publishable crate
+        shell: bash
         run: |
-          echo "Testing crates.io token validity with dry-run..."
-          cargo publish --dry-run --token ${{ secrets.CARGO_TOKEN }} -p fraiseql-error 2>&1 | head -20 || exit 1
-          echo "✅ crates.io token is valid"
+          set -uo pipefail
+          CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+                  fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
+                  fraiseql-arrow fraiseql-secrets fraiseql-observers \
+                  fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
+          FAILED=0
+          for c in $CRATES; do
+            echo "::group::dry-run publish: $c"
+            log="/tmp/dryrun-$c.log"
+            cargo publish --dry-run --token "${{ secrets.CARGO_TOKEN }}" -p "$c" > "$log" 2>&1
+            status=$?
+            tail -30 "$log"
+            if [ "$status" -eq 0 ]; then
+              echo "OK: $c dry-run passed"
+            else
+              echo "FAIL: $c dry-run exited $status"
+              FAILED=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::One or more crates failed dry-run publish — see expanded groups above"
+            exit 1
+          fi
+          echo "All crates passed dry-run publish"
 
   # Create GitHub release using gh CLI
   create-github-release:
@@ -284,10 +312,20 @@ jobs:
             cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
           fi
 
+      - name: Publish fraiseql-storage
+        id: publish-storage
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-storage/$VERSION")" = "200" ]; then
+            echo "fraiseql-storage $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-storage --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
       - name: Wait for crates.io indexing (Tier 2)
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-db; do
+          for crate in fraiseql-db fraiseql-storage; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
               if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
@@ -408,7 +446,32 @@ jobs:
             done
           done
 
-      # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
+      # Tier 6.5: Depends on fraiseql-error, fraiseql-observers (+ optional core/db/storage)
+      - name: Publish fraiseql-functions
+        id: publish-functions
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-functions/$VERSION")" = "200" ]; then
+            echo "fraiseql-functions $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-functions --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
+      - name: Wait for crates.io indexing (Tier 6.5)
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-functions; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
+
+      # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-functions, fraiseql-observers, fraiseql-secrets, fraiseql-storage, fraiseql-webhooks
       - name: Publish fraiseql-server
         id: publish-server
         run: |
@@ -479,11 +542,13 @@ jobs:
             "${{ steps.publish-webhooks.outcome }}" \
             "${{ steps.publish-wire.outcome }}" \
             "${{ steps.publish-db.outcome }}" \
+            "${{ steps.publish-storage.outcome }}" \
             "${{ steps.publish-federation.outcome }}" \
             "${{ steps.publish-core.outcome }}" \
             "${{ steps.publish-arrow.outcome }}" \
             "${{ steps.publish-secrets.outcome }}" \
             "${{ steps.publish-observers.outcome }}" \
+            "${{ steps.publish-functions.outcome }}" \
             "${{ steps.publish-server.outcome }}" \
             "${{ steps.publish-cli.outcome }}" \
             "${{ steps.publish-root.outcome }}"; do
@@ -508,11 +573,13 @@ jobs:
           [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-db" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-storage" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-federation" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-functions.outcome }}" = "success" ] && echo "- ✅ fraiseql-functions" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-functions" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-server" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-cli" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-root.outcome }}" = "success" ] && echo "- ✅ fraiseql (root)" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql (root)" >> $GITHUB_STEP_SUMMARY

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-05-28
+
+### Fixed
+
+- **`cargo publish` for `fraiseql-server`, `fraiseql-cli`, and `fraiseql` (umbrella)** — `crates/fraiseql-server/build.rs` ran `npm install` and `npm run build` inside `crates/fraiseql-server/studio/`, populating `studio/node_modules/` (~45 MB) and `studio/dist/` during cargo's verify step. Cargo correctly flagged this as `Source directory was modified by build.rs during cargo publish` and refused to publish on the v2.3.1 release run (CI run 26516845920). `build.rs` now stages the Studio package into `$OUT_DIR/studio/` and runs npm/esbuild there, so the source tree is no longer touched. The `[package].exclude` for `studio/{node_modules,dist,.cache,.npm,*.log}` is added as defensive insurance against stale on-disk copies leaking into the `.crate` tarball. **This is the first v2.3.x release where `cargo install fraiseql-server` actually works** — v2.3.0 and v2.3.1 were tagged but never published successfully via automation. (Crates.io's `fraiseql-server@2.3.0` was published manually outside the workflow.)
+
+- **`fraiseql-functions` and `fraiseql-storage` missing from release automation** — both crates are publishable (`publish = true` / unset) and `fraiseql-functions` is a mandatory dep of `fraiseql-server`, but neither appeared in `release.yml`'s publish job. Both are now published alongside the other 13 crates on tag push, in correct topological position (`fraiseql-storage` in Tier 2, `fraiseql-functions` in a new Tier 6.5 between observers and server).
+
+### Changed
+
+- **`release.yml` validate-release dry-run now covers every publishable crate** (15 total) instead of only `fraiseql-error`. The packaging-rules failure that blocked v2.3.0 and v2.3.1 publish for `fraiseql-server` would have been caught here. Timeout bumped to 30 minutes to accommodate the longer loop.
+
+### Migration
+
+Consumers currently pinned to `fraiseql-server = "2.3.1"`, `fraiseql-cli = "2.3.1"`, or `fraiseql = "2.3.1"` will get a `cargo install` failure (those versions are not on crates.io). Upgrade to `2.3.2`. Pins to `fraiseql-server = "2.3.0"` continue to resolve but are missing the #316 axum-0.8 startup-panic fix.
+
 ## [2.3.1] - 2026-05-27
 
 ### Fixed
