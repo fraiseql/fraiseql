@@ -211,6 +211,13 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+exclude = [
+    "studio/node_modules/**",
+    "studio/dist/**",
+    "studio/.cache/**",
+    "studio/.npm/**",
+    "studio/*.log",
+]
 
 [[test]]
 name = "secrets_manager_integration_test"
