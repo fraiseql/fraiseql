@@ -67,6 +67,14 @@ impl OpenApiGenerator<'_> {
                             "schema": { "type": "string", "format": "binary" }
                         }),
                     );
+                    #[cfg(feature = "export-xlsx")]
+                    content.insert(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string(),
+                        json!({
+                            "description": "Office Open XML workbook (.xlsx). Header row + one row per record. Capped at the server-configured xlsx_max_rows (default 100_000); larger exports must use text/csv.",
+                            "schema": { "type": "string", "format": "binary" }
+                        }),
+                    );
                     responses.insert(
                         "200".to_string(),
                         json!({

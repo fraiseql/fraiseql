@@ -711,3 +711,45 @@ fn single_resource_endpoint_does_not_advertise_text_csv() {
         "text/csv is a list-only response — single resource endpoints should not advertise it",
     );
 }
+
+// ---------------------------------------------------------------------------
+// XLSX advertising (gated on the `export-xlsx` feature)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "export-xlsx")]
+#[test]
+fn list_endpoint_advertises_xlsx_when_export_xlsx_enabled() {
+    const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    let spec = generate(&rest_schema());
+    let content = &spec["paths"]["/users"]["get"]["responses"]["200"]["content"];
+    assert!(
+        content[XLSX_MIME].is_object(),
+        "expected XLSX MIME in list response content map"
+    );
+    assert_eq!(content[XLSX_MIME]["schema"]["type"], "string");
+    assert_eq!(content[XLSX_MIME]["schema"]["format"], "binary");
+}
+
+#[cfg(not(feature = "export-xlsx"))]
+#[test]
+fn list_endpoint_omits_xlsx_when_export_xlsx_disabled() {
+    const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    let spec = generate(&rest_schema());
+    let content = &spec["paths"]["/users"]["get"]["responses"]["200"]["content"];
+    assert!(
+        content.get(XLSX_MIME).is_none(),
+        "XLSX MIME should not be advertised when export-xlsx feature is off",
+    );
+}
+
+#[cfg(feature = "export-xlsx")]
+#[test]
+fn single_resource_endpoint_does_not_advertise_xlsx() {
+    const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    let spec = generate(&rest_schema());
+    let content = &spec["paths"]["/users/{id}"]["get"]["responses"]["200"]["content"];
+    assert!(
+        content.get(XLSX_MIME).is_none(),
+        "XLSX MIME is a list-only response — single resource endpoints should not advertise it",
+    );
+}
