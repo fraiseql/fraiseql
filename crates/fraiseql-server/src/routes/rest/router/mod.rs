@@ -404,6 +404,25 @@ where
     // workbook format when explicitly requested.
     #[cfg(feature = "export-xlsx")]
     if super::streaming::xlsx::accepts_xlsx(&parts.headers) {
+        // Bound concurrent workbook builds. `try_acquire_owned` is
+        // non-blocking; over-the-cap requests get an immediate 503 with a
+        // `Retry-After: 1` hint rather than queueing.
+        let Ok(_permit) = Arc::clone(&rest.xlsx_semaphore).try_acquire_owned() else {
+            return Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header("retry-after", "1")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"error":{"code":"XLSX_BUSY","message":"max concurrent XLSX exports reached; try again shortly"}}"#,
+                ))
+                .unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::SERVICE_UNAVAILABLE)
+                        .body(Body::empty())
+                        .expect("fallback response: Response::builder() with SERVICE_UNAVAILABLE status and empty body is infallible")
+                });
+        };
+
         let schema = rest.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
         let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
@@ -411,7 +430,6 @@ where
         let result = super::streaming::xlsx::handle_xlsx_get(
             &handler,
             &export_config,
-            &rest.xlsx_semaphore,
             &relative_path,
             &query_refs,
             &parts.headers,
