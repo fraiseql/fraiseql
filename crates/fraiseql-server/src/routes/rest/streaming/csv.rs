@@ -334,21 +334,45 @@ fn serialize_batch<A: DatabaseAdapter>(
     let columns = state
         .columns
         .as_ref()
-        .ok_or_else(|| error_csv_line("internal error: columns not initialised"))?
-        .clone();
+        .ok_or_else(|| error_csv_line("internal error: columns not initialised"))?;
 
+    let payload = write_csv_payload(
+        columns,
+        rows,
+        state.delimiter,
+        state.include_bom && !state.header_emitted,
+        !state.header_emitted,
+    )?;
+    state.header_emitted = true;
+    Ok(payload)
+}
+
+/// Stateless CSV chunk writer. Shared by [`serialize_batch`] and the unit
+/// tests.
+///
+/// - `emit_bom`: prepend the UTF-8 BOM bytes.
+/// - `emit_header`: write the column header row before any data rows.
+///
+/// csv-writer errors are converted into the same `# error:` line format used
+/// for mid-stream failures, so the caller can pass them through the stream.
+fn write_csv_payload(
+    columns: &[String],
+    rows: &[serde_json::Value],
+    delimiter: u8,
+    emit_bom: bool,
+    emit_header: bool,
+) -> Result<Bytes, Bytes> {
     let mut buf: Vec<u8> = Vec::new();
-    if state.include_bom && !state.header_emitted {
+    if emit_bom {
         buf.extend_from_slice("\u{FEFF}".as_bytes());
     }
 
     {
-        let mut wtr = csv::WriterBuilder::new().delimiter(state.delimiter).from_writer(&mut buf);
+        let mut wtr = csv::WriterBuilder::new().delimiter(delimiter).from_writer(&mut buf);
 
-        if !state.header_emitted {
+        if emit_header {
             wtr.write_record(columns.iter().map(String::as_str))
                 .map_err(|e| error_csv_line(&e.to_string()))?;
-            state.header_emitted = true;
         }
 
         for row in rows {
@@ -879,5 +903,92 @@ mod tests {
         let s = String::from_utf8(body).unwrap();
         // The embedded JSON contains a comma, so it must be quoted.
         assert!(s.contains(r#""[{""id"":10,""title"":""Hi""}]""#));
+    }
+
+    // -----------------------------------------------------------------
+    // Cycle 5: edge cases via the stateless `write_csv_payload` helper
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn empty_rows_with_columns_emits_header_only() {
+        let cols = vec!["id".to_string(), "name".to_string()];
+        let payload = write_csv_payload(&cols, &[], b',', false, true).unwrap();
+        let s = String::from_utf8(payload.to_vec()).unwrap();
+        assert_eq!(s, "id,name\n");
+    }
+
+    #[test]
+    fn empty_rows_with_columns_and_bom_emits_bom_then_header() {
+        let cols = vec!["id".to_string()];
+        let payload = write_csv_payload(&cols, &[], b',', true, true).unwrap();
+        assert_eq!(&payload[..3], b"\xEF\xBB\xBF");
+        let s = std::str::from_utf8(&payload[3..]).unwrap();
+        assert_eq!(s, "id\n");
+    }
+
+    #[test]
+    fn subsequent_batch_emits_only_data_no_header_no_bom() {
+        // First batch: BOM + header + 1 row.
+        let cols = vec!["id".to_string()];
+        let first = write_csv_payload(&cols, &[json!({"id": 1})], b',', true, true).unwrap();
+        assert!(first.starts_with(b"\xEF\xBB\xBF"));
+
+        // Second batch: no BOM, no header, just the row.
+        let second = write_csv_payload(&cols, &[json!({"id": 2})], b',', false, false).unwrap();
+        let s = std::str::from_utf8(&second).unwrap();
+        assert_eq!(s, "2\n");
+        assert!(!s.contains("id"));
+    }
+
+    #[test]
+    fn fully_empty_payload_when_no_header_no_bom_no_rows() {
+        let cols = vec!["id".to_string()];
+        let payload = write_csv_payload(&cols, &[], b',', false, false).unwrap();
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn write_csv_payload_honors_custom_delimiter_for_header() {
+        let cols = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let payload = write_csv_payload(&cols, &[], b'\t', false, true).unwrap();
+        let s = String::from_utf8(payload.to_vec()).unwrap();
+        assert_eq!(s, "a\tb\tc\n");
+    }
+
+    #[test]
+    fn select_columns_drive_order_when_present() {
+        // ?select=email,id,name → header is "email,id,name" regardless of
+        // serde_json::Map iteration order.
+        let rows = vec![json!({"id": 1, "email": "a@b", "name": "Alice"})];
+        let select = vec!["email".to_string(), "id".to_string(), "name".to_string()];
+        let cols = determine_columns(Some(&select), &rows);
+        let payload = write_csv_payload(&cols, &rows, b',', false, true).unwrap();
+        let s = String::from_utf8(payload.to_vec()).unwrap();
+        assert!(s.starts_with("email,id,name\n"));
+        assert!(s.contains("a@b,1,Alice"));
+    }
+
+    #[test]
+    fn no_select_falls_back_to_sorted_first_row_keys() {
+        // Without ?select=, the column order comes from serde_json::Map
+        // iteration which the workspace's default serde_json build sorts
+        // alphabetically — deterministic and assertable.
+        let rows = vec![json!({"name": "Alice", "email": "a@b", "id": 1})];
+        let cols = determine_columns(None, &rows);
+        let payload = write_csv_payload(&cols, &rows, b',', false, true).unwrap();
+        let s = String::from_utf8(payload.to_vec()).unwrap();
+        assert!(s.starts_with("email,id,name\n"));
+    }
+
+    #[test]
+    fn error_line_is_distinct_from_real_data() {
+        // Mid-stream error: leading `# error:`, single line.
+        let err = error_csv_line("connection reset by peer");
+        let s = String::from_utf8(err.to_vec()).unwrap();
+        // No comma-delimiter inside the marker, so a CSV reader won't
+        // confuse it with a data row that happens to start with #.
+        let first_field = s.split(',').next().unwrap_or("");
+        assert!(first_field.starts_with("# error: "));
+        assert!(first_field.contains("connection reset"));
     }
 }
