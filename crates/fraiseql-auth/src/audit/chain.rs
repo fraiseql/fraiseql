@@ -24,7 +24,7 @@
 //! chain_seed_env = "AUDIT_CHAIN_SEED"  # 32-byte hex-encoded value
 //! ```
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;

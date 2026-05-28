@@ -89,7 +89,7 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
         }
 
         // Compute SHA-256 of the query body and compare
-        let computed = format!("{:x}", Sha256::digest(body.as_bytes()));
+        let computed = hex::encode(Sha256::digest(body.as_bytes()));
         if computed == hash_hex {
             results.push(EntryResult {
                 key:   key.clone(),

@@ -79,7 +79,7 @@ pub async fn invoke_function_handler(
     // Convert the stored record into an executable module.
     let module = FunctionModule {
         name:        record.name.clone(),
-        source_hash: format!("{:x}", sha2::Sha256::digest(&record.bytecode)),
+        source_hash: hex::encode(sha2::Sha256::digest(&record.bytecode)),
         bytecode:    record.bytecode,
         runtime:     record.runtime,
     };

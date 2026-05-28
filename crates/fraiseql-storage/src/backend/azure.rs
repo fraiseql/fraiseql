@@ -8,7 +8,7 @@ use std::time::Duration;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use fraiseql_error::{FileError, FraiseQLError, Result};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::validate_key;

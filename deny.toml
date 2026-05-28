@@ -133,6 +133,11 @@ reason = "transitive via windows-sys 0.52"
 version = "=0.52.6"
 
 [[bans.skip]]
+name = "sha1"
+reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11"
+version = "=0.10.6"
+
+[[bans.skip]]
 name = "thiserror"
 reason = "graphql-parser and other deps not yet migrated to thiserror 2.x"
 version = "=1.0.69"

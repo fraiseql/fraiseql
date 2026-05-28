@@ -14,7 +14,7 @@
 use fraiseql_webhooks::{
     SignatureError, signature::slack::SlackVerifier, traits::SignatureVerifier as _,
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 const SIGNING_SECRET: &str = "8f742231b10e8888abcd99yyyzzz85a5";

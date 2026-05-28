@@ -98,7 +98,7 @@ impl TransformCache {
         // Compute source data hash for cache validation
         let mut hasher = Sha256::new();
         hasher.update(source_data);
-        let source_hash = format!("{:x}", hasher.finalize());
+        let source_hash = hex::encode(hasher.finalize());
 
         // Try to get from cache
         if let Ok(cached_data) = self.backend.download(&cache_key).await {

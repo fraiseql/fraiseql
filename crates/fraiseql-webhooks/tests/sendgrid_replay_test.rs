@@ -83,7 +83,7 @@ fn valid_ecdsa_p256_signature_over_timestamp_and_payload_verifies() {
 /// a forged HMAC signature does NOT pass the ECDSA verifier.
 #[test]
 fn hmac_sha256_forged_signature_is_rejected_by_ecdsa_verifier() {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
 
     let (_signing_key, pem_public_key) = generate_p256_key();
