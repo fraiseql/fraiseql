@@ -21,43 +21,57 @@ impl OpenApiGenerator<'_> {
                         .is_some_and(|q| q.returns_list));
 
                 if is_list {
+                    let mut content = Map::new();
+                    content.insert(
+                        "application/json".to_string(),
+                        json!({
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": { "$ref": type_ref }
+                                    },
+                                    "meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "total": { "type": "integer" },
+                                            "limit": { "type": "integer" },
+                                            "offset": { "type": "integer" }
+                                        }
+                                    },
+                                    "links": {
+                                        "type": "object",
+                                        "properties": {
+                                            "self": { "type": "string" },
+                                            "next": { "type": "string" },
+                                            "prev": { "type": "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        }),
+                    );
+                    content.insert(
+                        "application/x-ndjson".to_string(),
+                        json!({
+                            "description": "Newline-delimited JSON stream (one object per line, no envelope)",
+                            "schema": { "$ref": type_ref }
+                        }),
+                    );
+                    #[cfg(feature = "export-csv")]
+                    content.insert(
+                        "text/csv".to_string(),
+                        json!({
+                            "description": "RFC 4180 CSV. Header row + one row per record. Embedded relationships are serialised as JSON inside a single cell.",
+                            "schema": { "type": "string", "format": "binary" }
+                        }),
+                    );
                     responses.insert(
                         "200".to_string(),
                         json!({
                             "description": format!("List of {}", resource.name),
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "data": {
-                                                "type": "array",
-                                                "items": { "$ref": type_ref }
-                                            },
-                                            "meta": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "total": { "type": "integer" },
-                                                    "limit": { "type": "integer" },
-                                                    "offset": { "type": "integer" }
-                                                }
-                                            },
-                                            "links": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "self": { "type": "string" },
-                                                    "next": { "type": "string" },
-                                                    "prev": { "type": "string" }
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "application/x-ndjson": {
-                                    "description": "Newline-delimited JSON stream (one object per line, no envelope)",
-                                    "schema": { "$ref": type_ref }
-                                }
-                            }
+                            "content": Value::Object(content),
                         }),
                     );
                 } else {
