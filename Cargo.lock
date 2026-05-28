@@ -3658,6 +3658,7 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
+ "csv",
  "dashmap",
  "dirs",
  "fraiseql-arrow",

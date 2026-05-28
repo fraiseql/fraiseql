@@ -32,6 +32,9 @@ base64 = "0.22"
 bytes = "1"
 # AEAD encryption for state protection (PKCE)
 chacha20poly1305 = "0.10"
+# CSV writer (gated by `export-csv` feature). Already a transitive dep via
+# arrow-csv; declaring it explicitly here gives us a stable surface.
+csv = {version = "1.4", optional = true}
 # Date/time handling
 chrono = {workspace = true}
 dashmap = {workspace = true}
@@ -181,7 +184,7 @@ redis-idempotency = ["redis", "rmp-serde"]
 rest = []
 # REST export formats — fine-grained flags compose into the `export` umbrella.
 # Deps are wired in their respective phases (CSV phase 2, XLSX phase 4, Parquet phase 5).
-export-csv = []
+export-csv = ["dep:csv"]
 export-xlsx = []
 export-parquet = []
 export = ["export-csv", "export-xlsx", "export-parquet"]

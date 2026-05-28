@@ -395,8 +395,13 @@ where
         let schema = rest.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
         let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        // TOML-driven `ExportConfig` loading is a later phase; defaults match
+        // the spec from Cycle 1 (`,` delimiter, BOM on, batched via
+        // `ndjson_batch_size`).
+        let export_config = super::export_config::ExportConfig::default();
         let result = super::streaming::csv::handle_csv_get(
             &handler,
+            &export_config,
             &relative_path,
             &query_refs,
             &parts.headers,
