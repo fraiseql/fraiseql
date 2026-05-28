@@ -1,0 +1,47 @@
+# SPIKE — release-please evaluation for issue #319.
+#
+# This workflow is part of the spike branch `spike/release-please-evaluation`
+# and is NOT active on dev. To activate after spike approval, merge this branch
+# and (optionally) gate behind a feature-flag input or a branch-protection
+# adjustment to allow the release-please-bot to open PRs.
+#
+# What this workflow does:
+#   1. On push to dev, runs release-please, which inspects every commit since
+#      the previous tag, decides whether a release is warranted, and either
+#      opens/updates the "Release PR" or no-ops.
+#   2. When the Release PR is merged into dev, release-please tags the merge
+#      commit (e.g. v2.3.3), creates a GitHub Release with the auto-generated
+#      CHANGELOG entry, and the existing tag-triggered `release.yml` takes
+#      over from there (cargo publish, npm publish, PyPI publish).
+#
+# What this workflow does NOT do:
+#   - It does not run `cargo publish`. That stays in release.yml (triggered on
+#     the v* tag that release-please creates).
+#   - It does not bump the SDK versions (Python, TypeScript, Ruby) — those are
+#     on independent cadence (currently at 2.1.6 while Rust is at 2.3.2), so
+#     adding them to the linked-versions group would force-bump them with
+#     every Rust release. Out of scope for this spike.
+
+name: Release Please
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # The token must have permission to open PRs and create tags.
+          # A repo-scoped PAT is required if branch protection blocks
+          # GITHUB_TOKEN-authored PRs from passing required-status-checks.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

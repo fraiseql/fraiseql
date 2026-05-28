@@ -1,0 +1,14 @@
+{
+  ".": "2.3.2",
+  "crates/fraiseql-storage": "2.3.2",
+  "crates/fraiseql-server/fuzz": "2.3.2",
+  "crates/fraiseql-auth/fuzz": "2.3.2",
+  "crates/fraiseql-arrow/fuzz": "2.3.2",
+  "crates/fraiseql-core/fuzz": "2.3.2",
+  "crates/fraiseql-db/fuzz": "2.3.2",
+  "crates/fraiseql-federation/fuzz": "2.3.2",
+  "crates/fraiseql-secrets/fuzz": "2.3.2",
+  "crates/fraiseql-wire/fuzz": "2.3.2",
+  "sdks/official/fraiseql-rust": "2.3.2",
+  "sdks/official/fraiseql-rust/fraiseql-client": "2.3.2"
+}

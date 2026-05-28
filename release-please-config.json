@@ -1,0 +1,113 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "rust",
+  "bump-minor-pre-major": false,
+  "bump-patch-for-minor-pre-major": false,
+  "draft": false,
+  "prerelease": false,
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "pull-request-title-pattern": "chore(release): prepare v${version}",
+  "separate-pull-requests": false,
+  "changelog-sections": [
+    {"type": "feat",     "section": "Added"},
+    {"type": "fix",      "section": "Fixed"},
+    {"type": "perf",     "section": "Changed"},
+    {"type": "refactor", "section": "Changed"},
+    {"type": "security", "section": "Security"},
+    {"type": "docs",     "section": "Changed", "hidden": true},
+    {"type": "test",     "section": "Changed", "hidden": true},
+    {"type": "ci",       "section": "Changed", "hidden": true},
+    {"type": "build",    "section": "Changed", "hidden": true},
+    {"type": "chore",    "section": "Changed", "hidden": true}
+  ],
+  "packages": {
+    ".": {
+      "package-name": "fraiseql",
+      "release-type": "rust",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        "README.md"
+      ]
+    },
+    "crates/fraiseql-storage": {
+      "package-name": "fraiseql-storage",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-server/fuzz": {
+      "package-name": "fraiseql-server-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-auth/fuzz": {
+      "package-name": "fraiseql-auth-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-arrow/fuzz": {
+      "package-name": "fraiseql-arrow-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-core/fuzz": {
+      "package-name": "fraiseql-core-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-db/fuzz": {
+      "package-name": "fraiseql-db-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-federation/fuzz": {
+      "package-name": "fraiseql-federation-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-secrets/fuzz": {
+      "package-name": "fraiseql-secrets-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "crates/fraiseql-wire/fuzz": {
+      "package-name": "fraiseql-wire-fuzz",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "sdks/official/fraiseql-rust": {
+      "package-name": "fraiseql-rust-sdk-workspace",
+      "release-type": "rust",
+      "skip-github-release": true
+    },
+    "sdks/official/fraiseql-rust/fraiseql-client": {
+      "package-name": "fraiseql-client",
+      "release-type": "rust",
+      "skip-github-release": true
+    }
+  },
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "fraiseql-rust-workspace",
+      "components": [
+        "fraiseql",
+        "fraiseql-storage",
+        "fraiseql-server-fuzz",
+        "fraiseql-auth-fuzz",
+        "fraiseql-arrow-fuzz",
+        "fraiseql-core-fuzz",
+        "fraiseql-db-fuzz",
+        "fraiseql-federation-fuzz",
+        "fraiseql-secrets-fuzz",
+        "fraiseql-wire-fuzz",
+        "fraiseql-rust-sdk-workspace",
+        "fraiseql-client"
+      ]
+    },
+    {
+      "type": "cargo-workspace",
+      "merge": false
+    }
+  ]
+}
