@@ -25,7 +25,7 @@ That's 12 standalone-versioned Cargo.toml files including the workspace root.
 releases where some sub-crates are stale until somebody notices and pushes a
 fixup commit.
 
-#319 asked whether release-please can take this over.
+# 319 asked whether release-please can take this over.
 
 ## What this spike produces
 
@@ -80,6 +80,7 @@ to release. The earliest meaningful preview happens after the next
 
 To make the dry-run actually executable as part of CI validation later,
 either:
+
 - Push the spike branch and let GitHub Actions run release-please in
   `workflow_dispatch` debug mode against the spike branch, or
 - Use [release-please-action's `output-only` mode](https://github.com/googleapis/release-please-action#outputs)
@@ -113,6 +114,7 @@ that's the main risk to test before going live.
 release-please does not run `cargo update -p fraiseql --precise X.Y.Z` to
 keep `Cargo.lock` in sync. The Release PR will fail CI on `--locked` builds
 unless one of:
+
 - Add a `cargo-workspace` plugin step (the spike config includes
   `plugins: [{type: "cargo-workspace"}]` — this is supposed to regen the
   lockfile, but I have NOT verified it works as advertised for our
