@@ -89,6 +89,8 @@ async fn run_once(
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
+    fraiseql_server::url_guard::validate_postgres_url(db_url)?;
+
     let schema = compile_schema(input_path).await?;
     let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
@@ -126,6 +128,8 @@ async fn run_watch_loop(
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
+    fraiseql_server::url_guard::validate_postgres_url(db_url)?;
+
     loop {
         let schema = compile_schema(input_path).await?;
         let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);

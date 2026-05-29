@@ -240,6 +240,11 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
 /// Create the database adapter — PostgreSQL (default) or FraiseQL Wire (`wire-backend`).
 #[cfg(not(feature = "wire-backend"))]
 async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
+    // Fail fast on non-PostgreSQL URLs with a clear diagnostic, instead
+    // of letting tokio-postgres surface an opaque error several stack
+    // frames deep. See `url_guard` for the operator-facing message.
+    fraiseql_server::url_guard::validate_postgres_url(&config.database_url)?;
+
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
