@@ -1,10 +1,10 @@
 [package]
 name = "fraiseql-storage"
-version = "2.3.2"
+version.workspace = true
 edition = "2021"
 rust-version = "1.75"
 license = "Apache-2.0"
-repository = "https://github.com/richer-xyz/fraiseql"
+repository.workspace = true
 homepage = "https://fraiseql.dev"
 documentation = "https://docs.rs/fraiseql-storage"
 description = "Object storage backends and HTTP handlers for FraiseQL"
