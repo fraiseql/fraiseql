@@ -1684,7 +1684,15 @@ mod changelog_validation_tests {
         );
         let compiled = SchemaConverter::convert(intermediate).expect("should convert");
         assert!(compiled.changelog.is_some());
-        assert!(compiled.changelog.unwrap().expose);
+        assert!(compiled.changelog.as_ref().unwrap().expose);
+
+        // The injection ran (after rich filters, before validate) and validate()
+        // accepted the schema-qualified view sql_source + the generated operations.
+        assert!(compiled.types.iter().any(|t| t.name == "EntityChangeLog"));
+        assert!(compiled.types.iter().any(|t| t.name == "TransportCheckpoint"));
+        assert!(compiled.queries.iter().any(|q| q.name == "entity_change_logs"));
+        assert!(compiled.queries.iter().any(|q| q.name == "transport_checkpoint"));
+        assert!(compiled.mutations.iter().any(|m| m.name == "upsert_transport_checkpoint"));
     }
 
     #[test]

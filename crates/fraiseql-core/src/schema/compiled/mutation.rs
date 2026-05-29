@@ -109,6 +109,15 @@ pub struct MutationDefinition {
     /// PostgreSQL upsert function name for `PUT` semantics (insert-or-update).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub upsert_function: Option<String>,
+
+    /// Role required to execute this mutation and see it in introspection.
+    ///
+    /// When set, only users whose `SecurityContext.roles` contains this role can
+    /// discover and execute the mutation. Others receive `"Unknown mutation"`
+    /// (not `FORBIDDEN`) to prevent role enumeration — mirroring
+    /// [`QueryDefinition::requires_role`](super::query::QueryDefinition).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
 }
 
 impl MutationDefinition {
@@ -129,6 +138,7 @@ impl MutationDefinition {
             rest_path:               None,
             rest_method:             None,
             upsert_function:         None,
+            requires_role:           None,
         }
     }
 

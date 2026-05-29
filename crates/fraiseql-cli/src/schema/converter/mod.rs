@@ -207,6 +207,10 @@ impl SchemaConverter {
         compile_rich_filters(&mut compiled, &rich_filter_config)
             .context("Failed to compile rich filter types")?;
 
+        // Inject the changelog GraphQL surface (EntityChangeLog / TransportCheckpoint
+        // types + cursor query + point lookup + upsert mutation) when opted in.
+        fraiseql_core::schema::inject_changelog(&mut compiled);
+
         // Validate the compiled schema
         Self::validate(&compiled)?;
 

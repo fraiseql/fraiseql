@@ -104,6 +104,18 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     })?;
 
+    // 1b. Enforce requires_role — return "not found" (not "forbidden") to prevent
+    //     enumeration, mirroring the query-level check in query_regular.rs.
+    if let Some(required_role) = mutation_def.requires_role.as_deref() {
+        let has_role = security_ctx.is_some_and(|c| c.roles.iter().any(|r| r == required_role));
+        if !has_role {
+            return Err(FraiseQLError::Validation {
+                message: format!("Mutation '{mutation_name}' not found in schema"),
+                path:    None,
+            });
+        }
+    }
+
     // 2. Require a sql_source (PostgreSQL function name).
     //
     // Fall back to the operation's table field when sql_source is absent.

@@ -42,6 +42,7 @@
 //! # }
 //! ```
 
+mod changelog;
 mod compiled;
 mod config_types;
 mod dependency_graph;
@@ -57,6 +58,7 @@ mod scalar_types;
 pub mod security_config;
 mod subscription_types;
 
+pub use changelog::inject_changelog;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
