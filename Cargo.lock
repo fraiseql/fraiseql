@@ -3405,6 +3405,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-codegen"
+version = "2.3.2"
+dependencies = [
+ "fraiseql-core",
+ "fraiseql-error",
+ "hex",
+ "insta",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+]
+
+[[package]]
 name = "fraiseql-core"
 version = "2.3.2"
 dependencies = [
