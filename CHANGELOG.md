@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Entity change log over GraphQL — opt-in pull-based event consumption (#149).**
+  Set `[changelog] expose = true` (requires `[observers]`) and the compiler injects
+  read-only `EntityChangeLog` / `TransportCheckpoint` types, a cursor-paginated
+  `entity_change_logs` query, a `transport_checkpoint` point lookup, and an
+  idempotent `upsert_transport_checkpoint` mutation — all backed by views the new
+  migration `07_create_changelog_views.sql` installs. Sidecar consumers (AI
+  scoring, search-index sync, audit dashboards) can now poll the observer
+  change-log over the same GraphQL endpoint as the rest of the API — same auth,
+  audit logging, and rate limiting — instead of opening a side-channel PostgreSQL
+  connection. Cursor pagination uses the standard generic filter machinery
+  (`where: { pk_entity_change_log: { gt: $cursor } } orderBy limit`), numeric and
+  gap-free. Access is gated by configurable `read_role` / `write_role`; denied
+  callers receive `"not found in schema"` (enumeration-prevention). This also adds
+  `MutationDefinition.requires_role` with runtime enforcement. See
+  `docs/guides/changelog-graphql.md` and `examples/changelog-sidecar/`.
 - **`fraiseql generate-client typescript` — typed TypeScript clients from a
   compiled schema (#291).** A new `fraiseql-codegen` crate turns a
   `schema.compiled.json` into a consumer-side client that *calls* a FraiseQL API:

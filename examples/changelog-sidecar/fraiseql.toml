@@ -1,0 +1,18 @@
+# Example server configuration enabling changelog GraphQL exposure (#149).
+# Merge the [observers] and [changelog] sections into your own fraiseql.toml.
+
+[schema]
+name = "changelog-sidecar-demo"
+
+[observers]
+# The changelog tables (tb_entity_change_log, tb_transport_checkpoint) live in
+# the observer system, so it must be enabled. The compiler rejects
+# `[changelog] expose = true` without this.
+enabled = true
+
+[changelog]
+expose     = true
+schema     = "core"               # PG schema holding the source tables (default)
+read_role  = "changelog_reader"   # role required for entity_change_logs / transport_checkpoint
+write_role = "changelog_writer"   # role required for upsert_transport_checkpoint
+max_limit  = 1000                 # documented page ceiling
