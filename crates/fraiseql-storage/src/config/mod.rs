@@ -73,7 +73,8 @@ pub struct StorageConfig {
     /// AWS region for S3 backend
     pub region: Option<String>,
 
-    /// Custom endpoint for S3-compatible services
+    /// Custom endpoint URL for S3-compatible services (`MinIO`, etc.) and the
+    /// Azure Blob / GCS local-development emulators (Azurite, fake-gcs-server).
     pub endpoint: Option<String>,
 
     /// GCP project ID for GCS backend
