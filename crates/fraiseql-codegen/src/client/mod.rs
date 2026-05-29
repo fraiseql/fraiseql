@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{FraiseQLError, Result};
 
+pub mod typescript;
+
 /// Compute the canonical schema hash used to stamp generated files.
 ///
 /// The hash is `sha256` over a **canonical** JSON encoding of the schema:

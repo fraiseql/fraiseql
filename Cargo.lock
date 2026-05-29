@@ -3411,10 +3411,10 @@ dependencies = [
  "fraiseql-core",
  "fraiseql-error",
  "hex",
- "insta",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "tempfile",
 ]
 
 [[package]]

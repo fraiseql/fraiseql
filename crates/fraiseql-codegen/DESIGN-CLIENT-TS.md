@@ -165,11 +165,16 @@ not typed in v1. Documented follow-up.
 one relay query exists. Argument object:
 
 - built from explicit `arguments` (typed via the `FieldType` path).
-- `auto_params` add the well-defined optional args: `limit?: number`,
-  `offset?: number`, `orderBy?: string`, and (if `has_where`) `where?: Record<string, unknown>`.
-- relay queries add `first?/after?/last?/before?`.
-- if every argument is optional the arg object is optional (`variables?: {...}`);
-  if any is required it is required.
+- relay queries add `first?: number` / `after?: string` (spec-standard forward
+  pagination, which FraiseQL's keyset relay implements). Backward pagination
+  (`last`/`before`) is a follow-up, gated on confirming the server accepts them.
+- **`auto_params` are not rendered in v1.** The auto-wired arg names
+  (`where`/`orderBy`/`limit`/`offset`) depend on the schema's `naming_convention`
+  and are not reliably derivable from the compiled schema, so emitting them would
+  risk invalid documents (and GraphQL rejects unused/unknown variables). Documented
+  follow-up. Only declared `arguments` (and relay `first`/`after`) become variables.
+- if every argument is optional the arg object is optional with a `= {}` default;
+  if any is required it is required; if there are no arguments the param is omitted.
 
 Each operation embeds its document and unwraps the root field:
 

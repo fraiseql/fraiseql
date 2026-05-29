@@ -7,7 +7,7 @@ serde_json = {workspace = true}
 sha2 = {workspace = true}
 
 [dev-dependencies]
-insta = {workspace = true}
+tempfile = {workspace = true}
 
 [lints]
 workspace = true
