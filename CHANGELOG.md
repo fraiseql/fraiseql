@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-database runtime support for `fraiseql-server` and `fraiseql run`
+  (#327).** The server binary and the CLI's `run` command now dispatch on the
+  `database_url` scheme at startup and construct the matching adapter:
+  `postgresql://` (always available), `mysql://`, `sqlite://`, or
+  `sqlserver://`. Non-PostgreSQL adapters are gated behind new Cargo features
+  on `fraiseql-server` (`mysql`, `sqlite`, `sqlserver`) and `fraiseql-cli`
+  (which cascade-enable them on `fraiseql-server` when `run-server` is also
+  on). Build with e.g. `cargo install fraiseql-server --features mysql,sqlite`.
+  Pointing the binary at a URL whose scheme matches an adapter that was not
+  compiled in fails fast at startup with a clear `--features <name>` rebuild
+  hint, instead of producing an opaque driver error from inside `tokio-postgres`.
+  Two intentional constraints:
+  1. **SQLite is read-only.** `SqliteAdapter` deliberately does not implement
+     `SupportsMutations`. Starting the server against a `sqlite://` URL with a
+     schema that declares any mutations fails at startup with a diagnostic
+     naming the first three offending mutations.
+  2. **Observers (LISTEN/NOTIFY) remain PostgreSQL-only.** Arrow Flight, the
+     observer-pool initialisation, and relay-pagination auto-detection are
+     skipped for the non-PostgreSQL adapter paths and are tracked as separate
+     follow-ups. The `arrow` Cargo feature is silently no-op on non-PG paths.
+  A new module `fraiseql_server::url_guard` exposes the `DatabaseScheme` enum,
+  `parse_database_url`, and `guard_sqlite_mutations` for downstream tooling
+  that needs to mirror the dispatch logic.
 - **Entity change log over GraphQL — opt-in pull-based event consumption (#149).**
   Set `[changelog] expose = true` (requires `[observers]`) and the compiler injects
   read-only `EntityChangeLog` / `TransportCheckpoint` types, a cursor-paginated
