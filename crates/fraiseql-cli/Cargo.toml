@@ -59,9 +59,18 @@ tower = {workspace = true}
 [features]
 default = []
 federation = ["fraiseql-core/federation"]
-mysql = ["fraiseql-core/mysql", "dep:sqlx", "sqlx/mysql"]
-sqlite = ["fraiseql-core/sqlite", "dep:sqlx", "sqlx/sqlite"]
-sqlserver = ["fraiseql-core/sqlserver", "dep:bb8", "dep:bb8-tiberius", "dep:tiberius"]
+# Database adapter features. The `fraiseql-server?/mysql` syntax cascades into
+# the server crate iff `run-server` is also enabled — required so that
+# `fraiseql run mysql://…` dispatches into the matching adapter (#327).
+mysql = ["fraiseql-core/mysql", "dep:sqlx", "sqlx/mysql", "fraiseql-server?/mysql"]
+sqlite = ["fraiseql-core/sqlite", "dep:sqlx", "sqlx/sqlite", "fraiseql-server?/sqlite"]
+sqlserver = [
+    "fraiseql-core/sqlserver",
+    "dep:bb8",
+    "dep:bb8-tiberius",
+    "dep:tiberius",
+    "fraiseql-server?/sqlserver",
+]
 run-server = ["dep:fraiseql-server", "dep:axum"]
 
 [lints]

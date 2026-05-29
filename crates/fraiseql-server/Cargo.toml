@@ -175,6 +175,21 @@ default = ["auth", "cli"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
+# Multi-database runtime support (#327).
+# Each flag enables the matching adapter in fraiseql-core / fraiseql-db so that
+# the server binary can dispatch on the URL scheme at startup. PostgreSQL is
+# always on via the default feature.
+#
+# Constraints:
+# - SQLite is read-only (SqliteAdapter does not implement SupportsMutations).
+#   Starting the server against a sqlite:// URL with a schema that declares
+#   mutations fails fast at startup.
+# - The observer subsystem (LISTEN/NOTIFY) is PostgreSQL-only. With MySQL /
+#   SQLite / SQL Server, observer routes are skipped even if the `observers`
+#   feature is enabled.
+mysql = ["fraiseql-core/mysql"]
+sqlite = ["fraiseql-core/sqlite"]
+sqlserver = ["fraiseql-core/sqlserver"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]
 # observers-enterprise: high-availability features for multi-instance deployments.
