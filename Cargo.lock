@@ -3374,6 +3374,7 @@ dependencies = [
  "bb8-tiberius",
  "clap",
  "deadpool-postgres",
+ "fraiseql-codegen",
  "fraiseql-core",
  "fraiseql-server",
  "glob",

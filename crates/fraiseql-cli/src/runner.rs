@@ -6,8 +6,8 @@ use clap::{CommandFactory, Parser};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::cli::{
-    Cli, Commands, FederationCommands, IntrospectCommands, MigrateCommands, SchemaCommands,
-    ValidateCommands,
+    Cli, Commands, FederationCommands, GenerateClientCommands, IntrospectCommands, MigrateCommands,
+    SchemaCommands, ValidateCommands,
 };
 
 /// Run the FraiseQL CLI. Called from both the `fraiseql-cli` and `fraiseql` binary entry points.
@@ -268,6 +268,17 @@ pub async fn run() {
         } => match commands::init::Language::from_str(&language) {
             Ok(lang) => commands::generate::run(&input, lang, output.as_deref()),
             Err(e) => Err(anyhow::anyhow!(e)),
+        },
+
+        Commands::GenerateClient { language } => match language {
+            GenerateClientCommands::Typescript { schema, out, force } => {
+                commands::generate_client::run(
+                    commands::generate_client::ClientLanguage::TypeScript,
+                    schema.as_deref(),
+                    &out,
+                    force,
+                )
+            },
         },
 
         Commands::Init {

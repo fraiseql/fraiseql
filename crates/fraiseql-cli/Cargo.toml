@@ -17,6 +17,7 @@ sqlx = {workspace = true, optional = true}
 # SQL Server TDS driver (optional, for sqlserver feature)
 tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 # Workspace dependencies
+fraiseql-codegen = {workspace = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-server = {workspace = true, optional = true, features = ["cli"]}
 axum = {workspace = true, optional = true}

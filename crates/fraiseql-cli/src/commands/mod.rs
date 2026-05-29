@@ -11,6 +11,7 @@ pub mod federation;
 #[cfg(feature = "run-server")]
 pub mod gateway;
 pub mod generate;
+pub mod generate_client;
 pub mod generate_proto;
 pub mod generate_views;
 pub mod init;
