@@ -24,8 +24,16 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::{cache::CachedDatabaseAdapter, db::postgres::PostgresAdapter};
-use fraiseql_server::{Server, ServerConfig, server_config::TlsServerConfig};
+use fraiseql_core::{
+    cache::CachedDatabaseAdapter,
+    db::{DatabaseAdapter, postgres::PostgresAdapter},
+    schema::CompiledSchema,
+};
+use fraiseql_server::{
+    Server, ServerConfig,
+    server_config::TlsServerConfig,
+    url_guard::{DatabaseScheme, parse_database_url},
+};
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
@@ -71,10 +79,22 @@ pub async fn run(
     println!("   Server: http://{bind_addr}/graphql");
     println!();
 
+    // Box::pin both branches: each holds the per-adapter init futures the
+    // dispatch helper splits into. Heap-allocating once per `fraiseql run`
+    // invocation keeps clippy's `large_futures` lint satisfied.
     if watch {
-        run_watch_loop(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
+        Box::pin(run_watch_loop(
+            &input_path,
+            &db_url,
+            bind_addr,
+            introspection,
+            &server_cfg,
+            &db_cfg,
+        ))
+        .await
     } else {
-        run_once(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
+        Box::pin(run_once(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg))
+            .await
     }
 }
 
@@ -89,34 +109,15 @@ async fn run_once(
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
-    fraiseql_server::url_guard::validate_postgres_url(db_url)?;
-
+    let scheme = parse_database_url(db_url)?;
     let schema = compile_schema(input_path).await?;
     let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
-
-    let adapter = Arc::new(
-        PostgresAdapter::with_pool_config(
-            db_url,
-            fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:     config.pool_min_size,
-                max_size:     config.pool_max_size,
-                timeout_secs: Some(config.pool_timeout_secs),
-            },
-        )
-        .await
-        .context("Failed to connect to database")?,
-    );
 
     println!("Server ready at http://{bind_addr}/graphql");
     println!("   Press Ctrl+C to stop");
     println!();
 
-    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
-        Server::new(config, schema, adapter, None)
-            .await
-            .context("Failed to initialize server")?;
-
-    server.serve().await.context("Server error")
+    Box::pin(dispatch_serve(scheme, config, schema, None)).await
 }
 
 /// Watch-loop: compile -> serve -> detect file change -> restart.
@@ -128,33 +129,15 @@ async fn run_watch_loop(
     server_cfg: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
-    fraiseql_server::url_guard::validate_postgres_url(db_url)?;
+    let scheme = parse_database_url(db_url)?;
 
     loop {
         let schema = compile_schema(input_path).await?;
         let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
-        let adapter = Arc::new(
-            PostgresAdapter::with_pool_config(
-                db_url,
-                fraiseql_core::db::postgres::PoolPrewarmConfig {
-                    min_size:     config.pool_min_size,
-                    max_size:     config.pool_max_size,
-                    timeout_secs: Some(config.pool_timeout_secs),
-                },
-            )
-            .await
-            .context("Failed to connect to database")?,
-        );
-
         println!("Server ready at http://{bind_addr}/graphql");
         println!("   Watching {} for changes...  (Ctrl+C to stop)", input_path.display());
         println!();
-
-        let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
-            Server::new(config, schema, adapter, None)
-                .await
-                .context("Failed to initialize server")?;
 
         // oneshot channel: file watcher signals server to shut down
         let (change_tx, change_rx) = tokio::sync::oneshot::channel::<()>();
@@ -170,19 +153,22 @@ async fn run_watch_loop(
             let _ = change_tx.send(());
         })?;
 
-        server
-            .serve_with_shutdown(async move {
+        Box::pin(dispatch_serve(
+            scheme,
+            config,
+            schema,
+            Some(Box::pin(async move {
                 tokio::select! {
-                    () = Server::<CachedDatabaseAdapter<PostgresAdapter>>::shutdown_signal() => {},
+                    () = sigint_signal() => {},
                     result = change_rx => {
                         if result.is_err() {
                             // Sender dropped without sending — treat as OS signal
                         }
                     },
                 }
-            })
-            .await
-            .context("Server error")?;
+            })),
+        ))
+        .await?;
 
         if !restarting.load(Ordering::SeqCst) {
             // Shutdown was triggered by Ctrl+C / SIGTERM — exit cleanly
@@ -195,6 +181,168 @@ async fn run_watch_loop(
     }
 
     Ok(())
+}
+
+/// Wait for the OS-level shutdown signal (SIGINT / Ctrl-C), wrapped so that
+/// each [`dispatch_serve`] call can wire it into a `serve_with_shutdown`
+/// future without taking a turbofish on the concrete `Server<…>` type.
+async fn sigint_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
+/// Type alias for the per-loop shutdown future passed to
+/// [`dispatch_serve`]. `None` means "use the default `serve()` shutdown
+/// handling"; `Some(fut)` is forwarded to `serve_with_shutdown(fut)`.
+type ShutdownFuture =
+    Option<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>>;
+
+/// Dispatch the configured database URL scheme to the matching adapter and
+/// hand the resulting `Server` to either `serve()` or `serve_with_shutdown()`.
+async fn dispatch_serve(
+    scheme: DatabaseScheme,
+    config: ServerConfig,
+    schema: CompiledSchema,
+    shutdown: ShutdownFuture,
+) -> Result<()> {
+    // Box::pin each arm: the adapter-init futures (SQLite in particular) exceed
+    // clippy's `large_futures` 16-KiB stack threshold. Heap-allocating once at
+    // server startup is free; boxing uniformly keeps the arms symmetric.
+    match scheme {
+        DatabaseScheme::Postgres => Box::pin(serve_postgres(config, schema, shutdown)).await,
+        DatabaseScheme::MySql => Box::pin(serve_mysql(config, schema, shutdown)).await,
+        DatabaseScheme::Sqlite => Box::pin(serve_sqlite(config, schema, shutdown)).await,
+        DatabaseScheme::SqlServer => Box::pin(serve_sqlserver(config, schema, shutdown)).await,
+    }
+}
+
+async fn serve_postgres(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    shutdown: ShutdownFuture,
+) -> Result<()> {
+    let adapter = Arc::new(
+        PostgresAdapter::with_pool_config(
+            &config.database_url,
+            fraiseql_core::db::postgres::PoolPrewarmConfig {
+                min_size:     config.pool_min_size,
+                max_size:     config.pool_max_size,
+                timeout_secs: Some(config.pool_timeout_secs),
+            },
+        )
+        .await
+        .context("Failed to connect to database")?,
+    );
+    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
+        Server::new(config, schema, adapter, None)
+            .await
+            .context("Failed to initialize server")?;
+    finish_serve(server, shutdown).await
+}
+
+#[cfg(feature = "mysql")]
+async fn serve_mysql(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    shutdown: ShutdownFuture,
+) -> Result<()> {
+    let adapter = Arc::new(
+        fraiseql_core::db::mysql::MySqlAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await
+        .context("Failed to connect to MySQL")?,
+    );
+    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::mysql::MySqlAdapter>> =
+        Server::new(config, schema, adapter, None)
+            .await
+            .context("Failed to initialize server")?;
+    finish_serve(server, shutdown).await
+}
+
+#[cfg(not(feature = "mysql"))]
+async fn serve_mysql(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
+    anyhow::bail!(scheme_feature_off("mysql"))
+}
+
+#[cfg(feature = "sqlite")]
+async fn serve_sqlite(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    shutdown: ShutdownFuture,
+) -> Result<()> {
+    fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
+    let adapter = Arc::new(
+        fraiseql_core::db::sqlite::SqliteAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await
+        .context("Failed to connect to SQLite")?,
+    );
+    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlite::SqliteAdapter>> =
+        Server::new(config, schema, adapter, None)
+            .await
+            .context("Failed to initialize server")?;
+    finish_serve(server, shutdown).await
+}
+
+#[cfg(not(feature = "sqlite"))]
+async fn serve_sqlite(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
+    anyhow::bail!(scheme_feature_off("sqlite"))
+}
+
+#[cfg(feature = "sqlserver")]
+async fn serve_sqlserver(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    shutdown: ShutdownFuture,
+) -> Result<()> {
+    let adapter = Arc::new(
+        fraiseql_core::db::sqlserver::SqlServerAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await
+        .context("Failed to connect to SQL Server")?,
+    );
+    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlserver::SqlServerAdapter>> =
+        Server::new(config, schema, adapter, None)
+            .await
+            .context("Failed to initialize server")?;
+    finish_serve(server, shutdown).await
+}
+
+#[cfg(not(feature = "sqlserver"))]
+async fn serve_sqlserver(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
+    anyhow::bail!(scheme_feature_off("sqlserver"))
+}
+
+async fn finish_serve<X>(server: Server<X>, shutdown: ShutdownFuture) -> Result<()>
+where
+    X: DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    if let Some(shutdown) = shutdown {
+        server.serve_with_shutdown(shutdown).await.context("Server error")
+    } else {
+        server.serve().await.context("Server error")
+    }
+}
+
+#[cfg(any(
+    not(feature = "mysql"),
+    not(feature = "sqlite"),
+    not(feature = "sqlserver"),
+))]
+fn scheme_feature_off(feature: &str) -> String {
+    format!(
+        "fraiseql run: {feature}:// URL provided but the CLI was built without the `{feature}` \
+         feature. Rebuild with `cargo install fraiseql --features {feature}` (or enable both \
+         `run-server` and `{feature}` in your downstream crate)."
+    )
 }
 
 /// Resolve all runtime configuration, applying the override precedence chain.

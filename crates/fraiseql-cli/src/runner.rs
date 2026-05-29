@@ -393,7 +393,20 @@ pub async fn run() {
             bind,
             watch,
             introspection,
-        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
+        } => {
+            // Box::pin: `run` dispatches across up to 4 adapter init futures,
+            // pushing the combined future past clippy's `large_futures` 16-KiB
+            // stack threshold. Heap-allocating once per CLI invocation is fine.
+            Box::pin(commands::run::run(
+                input.as_deref(),
+                database,
+                port,
+                bind,
+                watch,
+                introspection,
+            ))
+            .await
+        },
 
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
