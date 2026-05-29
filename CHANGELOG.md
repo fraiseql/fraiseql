@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`fraiseql generate-client typescript` — typed TypeScript clients from a
+  compiled schema (#291).** A new `fraiseql-codegen` crate turns a
+  `schema.compiled.json` into a consumer-side client that *calls* a FraiseQL API:
+  interfaces for every type, typed query/mutation functions, a relay
+  `Connection<T>`, relationship metadata, and a tiny `fetch`-based runtime client
+  with zero dependencies. This is distinct from `fraiseql generate <language>`,
+  which emits server-side *authoring* code fed back into the compiler. Two
+  deliberate, GraphQL-correct design choices set it apart from naive schema-to-TS
+  tools: (1) result types are **selection-scoped** — each type contains exactly
+  the leaf fields (scalars, enums, `__typename`) the generated default document
+  fetches, so the type never claims relationship fields it did not retrieve; and
+  (2) mutations are typed as **result unions discriminated by `__typename`** (with
+  an `isErrorResult` type guard and a `status` field on `@fraiseql.error` types),
+  matching the actual wire contract rather than a synthetic response wrapper.
+  Every generated file carries a `schema-hash` header for CI staleness detection.
+  The `fraiseql-codegen` crate also exposes the generator programmatically
+  (`fraiseql_codegen::client::typescript::generate`) for IDE extensions,
+  scaffolders, and build plugins. See `docs/guides/typed-clients.md` and
+  `examples/typescript-client/`.
+
 - **FreeBSD (`x86_64-unknown-freebsd`) is now a CI-enforced compile target (#148).**
   A new `freebsd-cross-check` job cross-compiles the workspace (default
   features) and the full `fraiseql-server` feature surface for FreeBSD on

@@ -1,0 +1,204 @@
+{
+  "interfaces": [
+    {
+      "name": "Node",
+      "description": "An object with a globally unique ID.",
+      "fields": [
+        {"name": "id", "field_type": "ID"}
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "UserRole",
+      "description": "Authorization role granted to a user.",
+      "values": [
+        {"name": "ADMIN", "description": "Full administrative access."},
+        {"name": "EDITOR"},
+        {"name": "VIEWER"}
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "Tenant",
+      "sql_source": "v_tenant",
+      "jsonb_column": "data",
+      "description": "A billing/isolation boundary that owns users and posts.",
+      "implements": ["Node"],
+      "fields": [
+        {"name": "id", "field_type": "ID"},
+        {"name": "name", "field_type": "String"}
+      ]
+    },
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "description": "A person who can author posts.",
+      "implements": ["Node"],
+      "fields": [
+        {"name": "id", "field_type": "ID"},
+        {"name": "email", "field_type": "String"},
+        {"name": "displayName", "field_type": "String", "nullable": true, "description": "Optional human-friendly name."},
+        {"name": "role", "field_type": {"Enum": "UserRole"}},
+        {"name": "createdAt", "field_type": "DateTime"},
+        {"name": "tenant", "field_type": {"Object": "Tenant"}},
+        {"name": "posts", "field_type": {"List": {"Object": "Post"}}}
+      ],
+      "relationships": [
+        {"name": "tenant", "target_type": "Tenant", "cardinality": "ManyToOne", "foreign_key": "fk_tenant", "referenced_key": "id"},
+        {"name": "posts", "target_type": "Post", "cardinality": "OneToMany", "foreign_key": "fk_author", "referenced_key": "id"}
+      ]
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "jsonb_column": "data",
+      "description": "A piece of content authored by a user.",
+      "implements": ["Node"],
+      "fields": [
+        {"name": "id", "field_type": "ID"},
+        {"name": "title", "field_type": "String"},
+        {"name": "body", "field_type": "String"},
+        {"name": "published", "field_type": "Boolean"},
+        {"name": "viewCount", "field_type": "Int"},
+        {"name": "score", "field_type": "Float", "nullable": true},
+        {"name": "metadata", "field_type": "Json", "nullable": true},
+        {"name": "author", "field_type": {"Object": "User"}},
+        {"name": "comments", "field_type": {"List": {"Object": "Comment"}}}
+      ],
+      "relationships": [
+        {"name": "author", "target_type": "User", "cardinality": "ManyToOne", "foreign_key": "fk_author", "referenced_key": "id"},
+        {"name": "comments", "target_type": "Comment", "cardinality": "OneToMany", "foreign_key": "fk_post", "referenced_key": "id"}
+      ]
+    },
+    {
+      "name": "Comment",
+      "sql_source": "v_comment",
+      "jsonb_column": "data",
+      "description": "A reader's comment on a post.",
+      "fields": [
+        {"name": "id", "field_type": "ID"},
+        {"name": "body", "field_type": "String"},
+        {"name": "author", "field_type": {"Object": "User"}}
+      ]
+    },
+    {
+      "name": "EmailTakenError",
+      "sql_source": "",
+      "jsonb_column": "data",
+      "is_error": true,
+      "description": "Returned when a mutation is rejected because the email is already in use.",
+      "fields": [
+        {"name": "message", "field_type": "String"},
+        {"name": "attemptedEmail", "field_type": "String"},
+        {"name": "existingUserId", "field_type": "ID"}
+      ]
+    }
+  ],
+  "unions": [
+    {
+      "name": "CreateUserResult",
+      "description": "Either the created user or a typed error.",
+      "member_types": ["User", "EmailTakenError"]
+    }
+  ],
+  "input_types": [
+    {
+      "name": "CreateUserInput",
+      "description": "Fields required to create a user.",
+      "fields": [
+        {"name": "email", "field_type": "String!"},
+        {"name": "displayName", "field_type": "String"},
+        {"name": "role", "field_type": "UserRole!"}
+      ]
+    },
+    {
+      "name": "UpdateUserInput",
+      "fields": [
+        {"name": "displayName", "field_type": "String"},
+        {"name": "role", "field_type": "UserRole"}
+      ]
+    },
+    {
+      "name": "UserFilter",
+      "description": "Filter criteria for listing users.",
+      "fields": [
+        {"name": "email", "field_type": "String"},
+        {"name": "role", "field_type": "UserRole"},
+        {"name": "tags", "field_type": "[String!]"}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "getUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "description": "Fetch a single user by id.",
+      "sql_source": "v_user",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    },
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "description": "List users, optionally filtered.",
+      "sql_source": "v_user",
+      "arguments": [
+        {"name": "filter", "arg_type": {"Input": "UserFilter"}, "nullable": true}
+      ],
+      "auto_params": {"has_where": false, "has_order_by": true, "has_limit": true, "has_offset": true}
+    },
+    {
+      "name": "postsConnection",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "description": "Relay-style paginated posts.",
+      "sql_source": "v_post",
+      "relay": true,
+      "relay_cursor_column": "pk_post",
+      "arguments": []
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createUser",
+      "return_type": "CreateUserResult",
+      "description": "Create a user; returns the user or a typed error.",
+      "operation": "Custom",
+      "sql_source": "create_user",
+      "arguments": [
+        {"name": "input", "arg_type": {"Input": "CreateUserInput"}, "nullable": false}
+      ]
+    },
+    {
+      "name": "updateUser",
+      "return_type": "User",
+      "description": "Update a user's mutable fields.",
+      "operation": "Custom",
+      "sql_source": "update_user",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false},
+        {"name": "input", "arg_type": {"Input": "UpdateUserInput"}, "nullable": false}
+      ]
+    },
+    {
+      "name": "deleteUser",
+      "return_type": "User",
+      "description": "Delete a user by id.",
+      "operation": {"Delete": {"table": "tb_user"}},
+      "sql_source": "delete_user",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "subscriptions": []
+}
