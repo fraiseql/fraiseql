@@ -237,14 +237,9 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Create the database adapter — PostgreSQL (default) or FraiseQL Wire (`wire-backend`).
+/// Create the PostgreSQL adapter.
 #[cfg(not(feature = "wire-backend"))]
-async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
-    // Fail fast on non-PostgreSQL URLs with a clear diagnostic, instead
-    // of letting tokio-postgres surface an opaque error several stack
-    // frames deep. See `url_guard` for the operator-facing message.
-    fraiseql_server::url_guard::validate_postgres_url(&config.database_url)?;
-
+async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
@@ -264,8 +259,9 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdap
     Ok(Arc::new(adapter))
 }
 
+/// Create the FraiseQL Wire adapter (when the `wire-backend` feature is enabled).
 #[cfg(feature = "wire-backend")]
-async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAdapter>> {
+async fn build_wire_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAdapter>> {
     tracing::info!(
         database_url = %config.database_url,
         "Initializing FraiseQL Wire database adapter (low-memory streaming)"
@@ -284,7 +280,11 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAd
 /// The observer pool is configured independently via `[observers.pool]` in
 /// `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
 /// than the application pool — observers need far fewer connections).
-#[cfg(feature = "observers")]
+// Gated on `not(wire-backend)` to match its sole caller `run_postgres`: with
+// `wire-backend` the wire dispatch path is compiled instead and never builds an
+// observer pool, so an unconditional `observers` gate would leave this dead
+// under `--all-features` (which enables both).
+#[cfg(all(not(feature = "wire-backend"), feature = "observers"))]
 async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     use std::time::Duration;
 
@@ -309,7 +309,7 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sql
     Ok(Some(pool))
 }
 
-#[cfg(not(feature = "observers"))]
+#[cfg(all(not(feature = "wire-backend"), not(feature = "observers")))]
 async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     Ok(None)
 }
@@ -379,31 +379,190 @@ async fn main() -> anyhow::Result<()> {
     let schema = load_schema(&config).await?;
     init_security(&schema)?;
 
-    let adapter = build_adapter(&config).await?;
+    // Box::pin: the per-scheme dispatch holds adapter init futures for all
+    // enabled adapters, which combined exceeds clippy's `large_futures`
+    // 16-KiB stack threshold. Heap-allocating once at startup is fine.
+    Box::pin(dispatch_server(config, schema, &cli)).await
+}
+
+/// Dispatch on the configured database URL scheme and run the matching
+/// adapter-specific server entry point.
+///
+/// The `wire-backend` feature short-circuits the URL-scheme dispatch entirely
+/// because `FraiseWireAdapter` accepts its own URL formats.
+#[cfg(feature = "wire-backend")]
+async fn dispatch_server(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    cli: &Cli,
+) -> anyhow::Result<()> {
+    let adapter = build_wire_adapter(&config).await?;
+    let server = Server::new(config, schema, adapter, None).await?;
+    finish_server(server, cli, /* with_arrow = */ false).await
+}
+
+#[cfg(not(feature = "wire-backend"))]
+async fn dispatch_server(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    cli: &Cli,
+) -> anyhow::Result<()> {
+    use fraiseql_server::url_guard::{DatabaseScheme, parse_database_url};
+
+    match parse_database_url(&config.database_url)? {
+        DatabaseScheme::Postgres => run_postgres(config, schema, cli).await,
+        DatabaseScheme::MySql => run_mysql(config, schema, cli).await,
+        DatabaseScheme::Sqlite => run_sqlite(config, schema, cli).await,
+        DatabaseScheme::SqlServer => run_sqlserver(config, schema, cli).await,
+    }
+}
+
+/// PostgreSQL entry point — preserves the existing observer-pool, Arrow
+/// Flight, and relay-detection behaviour.
+#[cfg(not(feature = "wire-backend"))]
+async fn run_postgres(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    cli: &Cli,
+) -> anyhow::Result<()> {
+    let adapter = build_postgres_adapter(&config).await?;
     let db_pool = build_observer_pool(&config).await?;
 
-    // Create server — arrow path adds an Arrow Flight gRPC endpoint.
+    // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
-    let server = {
+    {
         use fraiseql_server::arrow::create_flight_service;
         let flight_service = create_flight_service(adapter.clone());
         tracing::info!("Arrow Flight service initialized with real database adapter");
-        Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service)).await?
-    };
-    // Use relay-capable server when the schema has relay queries (fraiseql/fraiseql#191).
-    // wire-backend uses FraiseWireAdapter which does not implement RelayDatabaseAdapter,
-    // so relay auto-detection is skipped and Server::new is used unconditionally there.
-    #[cfg(not(any(feature = "arrow", feature = "wire-backend")))]
-    let has_relay_queries = schema.queries.iter().any(|q| q.relay);
-    #[cfg(not(any(feature = "arrow", feature = "wire-backend")))]
-    let server = if has_relay_queries {
-        Server::with_relay_pagination(config, schema, adapter, db_pool).await?
-    } else {
-        Server::new(config, schema, adapter, db_pool).await?
-    };
-    #[cfg(all(not(feature = "arrow"), feature = "wire-backend"))]
-    let server = Server::new(config, schema, adapter, db_pool).await?;
+        let server =
+            Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
+                .await?;
+        return finish_server(server, cli, /* with_arrow = */ true).await;
+    }
 
+    // Non-arrow PG path: pick the relay-capable constructor when the schema
+    // declares relay queries (fraiseql/fraiseql#191).
+    #[cfg(not(feature = "arrow"))]
+    {
+        let has_relay_queries = schema.queries.iter().any(|q| q.relay);
+        let server = if has_relay_queries {
+            Server::with_relay_pagination(config, schema, adapter, db_pool).await?
+        } else {
+            Server::new(config, schema, adapter, db_pool).await?
+        };
+        finish_server(server, cli, /* with_arrow = */ false).await
+    }
+}
+
+/// MySQL entry point. Observer pool, Arrow Flight, and relay-aware
+/// construction are not wired for non-PG adapters today; observers in
+/// particular rely on PostgreSQL LISTEN/NOTIFY and have no MySQL equivalent.
+#[cfg(all(not(feature = "wire-backend"), feature = "mysql"))]
+async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
+    tracing::info!(
+        pool_min_size = config.pool_min_size,
+        pool_max_size = config.pool_max_size,
+        "Initializing MySQL connection pool"
+    );
+    let adapter = Arc::new(
+        fraiseql_core::db::mysql::MySqlAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await?,
+    );
+    tracing::info!("MySQL adapter ready");
+    let server = Server::new(config, schema, adapter, None).await?;
+    finish_server(server, cli, /* with_arrow = */ false).await
+}
+
+#[cfg(all(not(feature = "wire-backend"), not(feature = "mysql")))]
+async fn run_mysql(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
+    anyhow::bail!(feature_off_message("mysql", "mysql"))
+}
+
+/// SQLite entry point — read-only.
+#[cfg(all(not(feature = "wire-backend"), feature = "sqlite"))]
+async fn run_sqlite(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
+    fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
+    tracing::info!(
+        pool_min_size = config.pool_min_size,
+        pool_max_size = config.pool_max_size,
+        "Initializing SQLite connection pool"
+    );
+    let adapter = Arc::new(
+        fraiseql_core::db::sqlite::SqliteAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await?,
+    );
+    tracing::info!("SQLite adapter ready (read-only)");
+    let server = Server::new(config, schema, adapter, None).await?;
+    finish_server(server, cli, /* with_arrow = */ false).await
+}
+
+#[cfg(all(not(feature = "wire-backend"), not(feature = "sqlite")))]
+async fn run_sqlite(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
+    anyhow::bail!(feature_off_message("sqlite", "sqlite"))
+}
+
+/// SQL Server entry point.
+#[cfg(all(not(feature = "wire-backend"), feature = "sqlserver"))]
+async fn run_sqlserver(
+    config: ServerConfig,
+    schema: CompiledSchema,
+    cli: &Cli,
+) -> anyhow::Result<()> {
+    tracing::info!(
+        pool_min_size = config.pool_min_size,
+        pool_max_size = config.pool_max_size,
+        "Initializing SQL Server connection pool"
+    );
+    let adapter = Arc::new(
+        fraiseql_core::db::sqlserver::SqlServerAdapter::with_pool_config(
+            &config.database_url,
+            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
+            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
+        )
+        .await?,
+    );
+    tracing::info!("SQL Server adapter ready");
+    let server = Server::new(config, schema, adapter, None).await?;
+    finish_server(server, cli, /* with_arrow = */ false).await
+}
+
+#[cfg(all(not(feature = "wire-backend"), not(feature = "sqlserver")))]
+async fn run_sqlserver(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
+    anyhow::bail!(feature_off_message("sqlserver", "sqlserver"))
+}
+
+#[cfg(all(
+    not(feature = "wire-backend"),
+    any(
+        not(feature = "mysql"),
+        not(feature = "sqlite"),
+        not(feature = "sqlserver")
+    )
+))]
+fn feature_off_message(scheme: &str, feature: &str) -> String {
+    format!(
+        "fraiseql-server: {scheme}:// URL provided but the binary was built without the \
+         `{feature}` Cargo feature. Rebuild with `cargo install fraiseql-server --features \
+         {feature}` (or enable the feature in your downstream crate) and retry."
+    )
+}
+
+/// Finalize startup for any constructed `Server<X>`: attach the secrets
+/// manager if configured, dispatch to MCP-stdio mode if requested, otherwise
+/// start the HTTP server.
+#[cfg_attr(not(feature = "mcp"), allow(unused_variables))]
+async fn finish_server<X>(server: Server<X>, cli: &Cli, with_arrow: bool) -> anyhow::Result<()>
+where
+    X: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
+{
     // Attach secrets manager if configured.
     #[cfg(feature = "secrets")]
     let mut server = server;
@@ -422,10 +581,14 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    #[cfg(feature = "arrow")]
-    tracing::info!("FraiseQL Server {} starting (HTTP + Arrow Flight)", env!("CARGO_PKG_VERSION"));
-    #[cfg(not(feature = "arrow"))]
-    tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
+    if with_arrow {
+        tracing::info!(
+            "FraiseQL Server {} starting (HTTP + Arrow Flight)",
+            env!("CARGO_PKG_VERSION")
+        );
+    } else {
+        tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
+    }
 
     server.serve().await?;
     Ok(())
