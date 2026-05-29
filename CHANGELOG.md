@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **FreeBSD (`x86_64-unknown-freebsd`) is now a CI-enforced compile target (#148).**
+  A new `freebsd-cross-check` job cross-compiles the workspace (default
+  features) and the full `fraiseql-server` feature surface for FreeBSD on
+  every PR, using a FreeBSD `base.txz` sysroot + `clang` on the existing Linux
+  runners — no FreeBSD VM or extra infrastructure. A dependency audit confirmed
+  no Linux-specific source assumptions (the one `/proc/self/limits` read is
+  already `#[cfg(target_os = "linux")]`-gated; `notify` selects its kqueue
+  backend on BSD). Two optional features are intentionally out of cross-check
+  scope because they have no Linux→FreeBSD cross path and must be built natively
+  on FreeBSD: the Deno edge-functions runtime (`fraiseql-functions/runtime-deno`
+  → `v8`) and the SQL Server backend (`tiberius` → `openssl-sys`). Compile-time
+  only — runtime testing on a real FreeBSD host remains deferred pending user
+  signal. No engine changes.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,
@@ -73,6 +89,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Token revocation requires `[auth]` to be configured.** If `[security.token_revocation] enabled = true` but no OIDC validator is present, the revocation routes are skipped at startup (with a `WARN` log) rather than mounted open. Configure `[auth]` in `fraiseql.toml` to restore the routes.
 
 - **Observer admin HTTP API requires `[auth]` to be configured.** If `[auth]` is absent, `/api/observers/*`, `/runtime/health`, and `/runtime/reload` are not mounted (with a `WARN` log at startup) rather than mounted open. Any internal tooling that called these endpoints unauthenticated must now present a valid bearer token. Reverse-proxy auth (mTLS or a bearer-token gate) is no longer the only line of defence.
+
+### Documentation
+
+- **Added a FreeBSD deployment guide (#148):** `docs/guides/freebsd-deployment.md`
+  walks operators through the Jails + ZFS + Caddy stack — building or
+  cross-compiling the binary, a two-Jail (API + network-isolated DB) layout
+  with a nullfs-mounted Postgres Unix socket, ZFS-clone multi-tenancy, and a
+  per-feature FreeBSD support/limitations table.
 
 ## [2.3.2] - 2026-05-28
 
