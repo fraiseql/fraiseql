@@ -749,7 +749,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // No session variables => preserve the cached read path unchanged.
         if session_vars.is_empty() {
-            return self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await;
+            return self
+                .execute_where_query_impl(view, where_clause, limit, offset, order_by)
+                .await;
         }
         // Security: the result-cache key is NOT session-variable-aware, so a
         // tenant-scoped read (RLS via current_setting) could otherwise leak

@@ -95,15 +95,18 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // the connection-affine adapter call below, so PostgreSQL RLS policies
         // that read `current_setting()` (e.g. `app.tenant_id`) are effective.
         let resolved_session_vars = self.resolve_session_vars(Some(security_context));
-        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
             return self
-                .execute_relay_query(&query_match, variables, Some(security_context), &session_pairs)
+                .execute_relay_query(
+                    &query_match,
+                    variables,
+                    Some(security_context),
+                    &session_pairs,
+                )
                 .await;
         }
 
@@ -314,8 +317,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
-        // 9. Execute query with combined WHERE clause filter, pinning session
-        //    variables to the read's connection (fixes #329 for RLS).
+        // 9. Execute query with combined WHERE clause filter, pinning session variables to the
+        //    read's connection (fixes #329 for RLS).
         let results = self
             .ctx
             .adapter
@@ -702,10 +705,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Execute, pinning session variables to the read's connection (#329).
         let resolved_session_vars = self.resolve_session_vars(security_context);
-        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let results = self
             .ctx
             .adapter
@@ -829,13 +830,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             combined_where
         };
 
-        // 4. Execute COUNT query via adapter, pinning session variables to the
-        //    read's connection so RLS counts match the filtered rows (#329).
+        // 4. Execute COUNT query via adapter, pinning session variables to the read's connection so
+        //    RLS counts match the filtered rows (#329).
         let resolved_session_vars = self.resolve_session_vars(security_context);
-        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter

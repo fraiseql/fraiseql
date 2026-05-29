@@ -59,10 +59,7 @@ async fn legacy_set_session_variables_is_invisible_to_function() {
         .set_session_variables(&[("app.tenant_id_legacy", "tenant-abc")])
         .await
         .unwrap();
-    let rows = adapter
-        .execute_function_call("fn_show_tenant_legacy", &[])
-        .await
-        .unwrap();
+    let rows = adapter.execute_function_call("fn_show_tenant_legacy", &[]).await.unwrap();
 
     let value = rows[0].get("fn_show_tenant_legacy").and_then(|v| v.as_str());
 
@@ -108,7 +105,9 @@ async fn setup_widget_view(key: &str) -> PostgresAdapter {
              (id bigint primary key, tenant text not null)"
         ),
         format!("TRUNCATE tb_widget_{key}"),
-        format!("INSERT INTO tb_widget_{key} VALUES (1, 'tenant-a'), (2, 'tenant-b'), (3, 'tenant-a')"),
+        format!(
+            "INSERT INTO tb_widget_{key} VALUES (1, 'tenant-a'), (2, 'tenant-b'), (3, 'tenant-a')"
+        ),
         format!(
             "CREATE OR REPLACE VIEW v_widget_{key} AS \
              SELECT id, jsonb_build_object('id', id, 'tenant', tenant) AS data \
@@ -180,7 +179,16 @@ async fn relay_page_with_session_applies_rls_setting() {
     // Sanity: without the session variable the view filters everything out.
     let empty = adapter
         .execute_relay_page_with_session(
-            "v_widget_relay", "id", None, None, 10, true, None, None, false, &[],
+            "v_widget_relay",
+            "id",
+            None,
+            None,
+            10,
+            true,
+            None,
+            None,
+            false,
+            &[],
         )
         .await
         .unwrap();

@@ -349,10 +349,11 @@ impl DatabaseAdapter for PostgresAdapter {
         let param_refs = crate::types::as_sql_param_refs(&typed);
 
         let mut client = self.acquire_connection_with_retry().await?;
-        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to start session-var transaction: {e}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
         apply_session_vars(&txn, session_vars).await?;
         let rows: Vec<Row> =
             txn.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
@@ -494,10 +495,11 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect();
 
         let mut client = self.acquire_connection_with_retry().await?;
-        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to start session-var transaction: {e}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
 
         // Apply session variables FIRST so the function body sees them.
         apply_session_vars(&txn, session_vars).await?;

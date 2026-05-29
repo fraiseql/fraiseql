@@ -390,18 +390,18 @@ impl PostgresAdapter {
         session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         let mut client = self.acquire_connection_with_retry().await?;
-        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to start session-var transaction: {e}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
 
         database::apply_session_vars(&txn, session_vars).await?;
 
-        let rows: Vec<Row> =
-            txn.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Query execution failed: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Query execution failed: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
 
         txn.commit().await.map_err(|e| FraiseQLError::Database {
             message:   format!("Failed to commit session-var transaction: {e}"),

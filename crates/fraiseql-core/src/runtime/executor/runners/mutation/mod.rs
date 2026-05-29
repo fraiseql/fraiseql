@@ -255,10 +255,8 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             _ => Vec::new(),
         }
     };
-    let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
+    let session_pairs: Vec<(&str, &str)> =
+        resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
     // 4. Call the database function (session variables pinned to its connection).
     let rows = ctx

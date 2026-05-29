@@ -107,10 +107,11 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         // Apply set_config and run BOTH the page and count queries inside one
         // transaction on one connection so RLS sees the session variables.
         let mut client = self.acquire_connection_with_retry().await?;
-        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to start relay session-var transaction: {e}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start relay session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
         super::database::apply_session_vars(&txn, session_vars).await?;
         let result = self
             .run_relay_page(

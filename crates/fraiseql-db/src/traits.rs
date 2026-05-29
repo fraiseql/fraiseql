@@ -823,7 +823,8 @@ pub trait DatabaseAdapter: Send + Sync {
         MutationStrategy::FunctionCall
     }
 
-    /// **Deprecated**: use [`execute_function_call_with_session`](Self::execute_function_call_with_session),
+    /// **Deprecated**: use
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session),
     /// [`execute_where_query_arc_with_session`](Self::execute_where_query_arc_with_session),
     /// or [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session)
     /// instead.
@@ -868,9 +869,9 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// * `function_name` - Fully-qualified function name
     /// * `args` - Positional JSON arguments passed as `$1, $2, …`
-    /// * `session_vars` - `(setting_name, value)` pairs applied with
-    ///   `SELECT set_config(name, value, true)` before the function call. Pass
-    ///   `&[]` when no session variables are configured.
+    /// * `session_vars` - `(setting_name, value)` pairs applied with `SELECT set_config(name,
+    ///   value, true)` before the function call. Pass `&[]` when no session variables are
+    ///   configured.
     ///
     /// # Errors
     ///
@@ -908,8 +909,7 @@ pub trait DatabaseAdapter: Send + Sync {
         order_by: Option<&[OrderByClause]>,
         _session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_arc(view, where_clause, limit, offset, order_by)
-            .await
+        self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await
     }
 
     /// Connection-affine variant of [`execute_with_projection_arc`].

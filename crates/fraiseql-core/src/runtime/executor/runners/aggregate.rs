@@ -234,13 +234,11 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
             crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
-        // 5. Execute with bind parameters (eliminates escape-based injection risk),
-        //    pinning session variables to the connection for current_setting() RLS (#329).
+        // 5. Execute with bind parameters (eliminates escape-based injection risk), pinning session
+        //    variables to the connection for current_setting() RLS (#329).
         let resolved_session_vars = self.resolve_session_vars(security_context);
-        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
@@ -412,13 +410,11 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
-        //    values are passed as prepared-statement parameters, not inlined.
-        //    Session variables are pinned to the connection for current_setting() RLS (#329).
+        //    values are passed as prepared-statement parameters, not inlined. Session variables are
+        //    pinned to the connection for current_setting() RLS (#329).
         let resolved_session_vars = self.resolve_session_vars(security_context);
-        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
