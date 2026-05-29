@@ -42,7 +42,7 @@ pub struct FunctionModule {
 impl FunctionModule {
     /// Create a new WASM module from compiled bytecode.
     pub fn from_bytecode(name: String, bytecode: bytes::Bytes) -> Self {
-        let source_hash = format!("{:x}", sha2::Sha256::digest(&bytecode));
+        let source_hash = hex::encode(sha2::Sha256::digest(&bytecode));
         Self {
             name,
             source_hash,
@@ -55,7 +55,7 @@ impl FunctionModule {
     #[must_use]
     pub fn from_source(name: String, source: String, runtime: RuntimeType) -> Self {
         let bytecode = bytes::Bytes::from(source);
-        let source_hash = format!("{:x}", sha2::Sha256::digest(&bytecode));
+        let source_hash = hex::encode(sha2::Sha256::digest(&bytecode));
         Self {
             name,
             source_hash,

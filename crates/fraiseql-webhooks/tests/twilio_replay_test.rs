@@ -14,7 +14,7 @@
 
 use base64::{Engine as _, engine::general_purpose};
 use fraiseql_webhooks::{signature::twilio::TwilioVerifier, traits::SignatureVerifier as _};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 
 // ---------------------------------------------------------------------------

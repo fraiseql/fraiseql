@@ -2682,7 +2682,7 @@ mod validate_documents_tests {
         let path = dir.path().join("manifest.json");
 
         let query = "{ users { id } }";
-        let hash = format!("{:x}", Sha256::digest(query.as_bytes()));
+        let hash = hex::encode(Sha256::digest(query.as_bytes()));
         let manifest = serde_json::json!({
             "version": 1,
             "documents": {

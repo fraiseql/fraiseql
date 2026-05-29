@@ -22,10 +22,10 @@ base64 = "0.22"  # Base64 encoding/decoding
 # Bytes manipulation
 bytes = "1"
 futures = "0.3"
-hmac = "0.12"  # HMAC-SHA256
+hmac = "0.13"  # HMAC-SHA256
 # Metrics for observability
 metrics = "0.22"  # Metrics collection framework
-pbkdf2 = "0.12"  # Key derivation for SCRAM
+pbkdf2 = "0.13"  # Key derivation for SCRAM
 rand = "0.9"  # Random nonce generation
 # TLS support
 rustls = {version = "0.23", features = ["ring"]}
@@ -36,7 +36,7 @@ rustls-pki-types = "1"
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 # Cryptography for SCRAM authentication
-sha2 = "0.10"  # HMAC-SHA256 for SCRAM
+sha2 = "0.11"  # HMAC-SHA256 for SCRAM
 socket2 = {version = "0.6", features = ["all"]}
 subtle = "2"  # Constant-time comparison for SCRAM
 # Error handling

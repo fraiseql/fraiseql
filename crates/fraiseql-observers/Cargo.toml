@@ -22,7 +22,7 @@ redis = {workspace = true, optional = true}
 reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 # sqlx with multiple database backends (features enabled conditionally)
 sqlx = {version = "0.8", features = ["runtime-tokio", "uuid", "chrono"]}
 tabwriter = {version = "1.4", optional = true}

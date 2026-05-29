@@ -3,7 +3,7 @@
 //! Format: Base64 encoded HMAC-SHA256
 
 use base64::{Engine as _, engine::general_purpose};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{

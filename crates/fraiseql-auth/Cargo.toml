@@ -10,7 +10,7 @@ chrono = {workspace = true}
 dashmap = {workspace = true}
 fraiseql-error = {workspace = true}
 hex = "0.4"
-hmac = {version = "0.12", features = ["std"]}
+hmac = "0.13"
 http = "1"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 parking_lot = {workspace = true}
@@ -20,8 +20,8 @@ redis = {workspace = true, optional = true}
 reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-sha1 = "0.10"
-sha2 = "0.10"
+sha1 = "0.11"
+sha2 = "0.11"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 subtle = "2.5"
 totp-rs = {version = "5", features = ["gen_secret", "otpauth"]}

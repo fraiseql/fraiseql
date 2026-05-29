@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use fraiseql_error::FileError;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::{StorageBackend, StorageResult, validate_key};
