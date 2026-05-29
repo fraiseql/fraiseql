@@ -601,6 +601,27 @@ pub trait DatabaseAdapter: Send + Sync {
         params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
+    /// Connection-affine variant of [`execute_parameterized_aggregate`].
+    ///
+    /// Applies `session_vars` transaction-locally on the same connection that
+    /// runs the aggregate, so aggregate views backed by `current_setting()` RLS
+    /// observe the configured values (fixes #329 for the aggregate path). See
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
+    /// for the non-PostgreSQL default behaviour.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`execute_parameterized_aggregate`]; additionally returns
+    /// `FraiseQLError::Database` if `set_config` fails.
+    async fn execute_parameterized_aggregate_with_session(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        self.execute_parameterized_aggregate(sql, params).await
+    }
+
     /// Execute a database function call and return all columns as rows.
     ///
     /// Builds `SELECT * FROM {function_name}($1, $2, ...)` with one positional placeholder per
@@ -802,31 +823,109 @@ pub trait DatabaseAdapter: Send + Sync {
         MutationStrategy::FunctionCall
     }
 
-    /// Set transaction-scoped session variables before query/mutation execution.
+    /// **Deprecated**: use [`execute_function_call_with_session`](Self::execute_function_call_with_session),
+    /// [`execute_where_query_arc_with_session`](Self::execute_where_query_arc_with_session),
+    /// or [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session)
+    /// instead.
     ///
-    /// Called at the start of each mutation request when `SessionVariablesConfig`
-    /// is populated.  Each `(name, value)` pair is applied via
-    /// `SELECT set_config($1, $2, true)` (transaction-local, auto-reset on
-    /// commit/rollback).
+    /// This method applies `set_config(..., true)` on a connection that is then
+    /// returned to the pool. The setting is transaction-local, so it is
+    /// discarded when the `SELECT set_config` statement's implicit transaction
+    /// commits — and even setting that aside, the subsequent operation may
+    /// acquire a *different* pooled connection, making the GUC invisible to it
+    /// (bug #329). It is retained for one release for source compatibility and
+    /// is **no longer called by the executor**.
     ///
-    /// SQL functions and views can then read these settings via
-    /// `current_setting('app.tenant_id', true)`.
-    ///
-    /// # Arguments
-    ///
-    /// * `variables` - Slice of `(setting_name, value)` pairs to inject. Names must be safe
-    ///   PostgreSQL setting names (e.g. `"app.tenant_id"`).
-    ///
-    /// # Default
-    ///
-    /// No-op.  Only `PostgresAdapter` overrides this with `set_config()` calls.
-    /// MySQL, SQLite, and SQL Server adapters inherit the no-op default.
+    /// Will be removed in 2.4.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Database` if the underlying `set_config()` call fails.
+    /// The default implementation is a no-op and never errors.
+    #[deprecated(
+        since = "2.3.3",
+        note = "session variables are now applied on the same connection as the operation; use the *_with_session adapter methods"
+    )]
     async fn set_session_variables(&self, _variables: &[(&str, &str)]) -> Result<()> {
         Ok(())
+    }
+
+    /// Execute a database function call after pinning session variables on the
+    /// **same connection** within the **same transaction** as the call.
+    ///
+    /// This is the connection-affine variant of [`execute_function_call`].
+    /// Unlike the legacy two-call pattern (`set_session_variables` followed by
+    /// `execute_function_call`), the `set_config(..., true)` calls and the
+    /// `SELECT * FROM fn(...)` call share one pooled connection inside one
+    /// transaction, so transaction-local GUCs are visible to the function body
+    /// (fixes #329).
+    ///
+    /// Adapters that do not support session variables (MySQL, SQLite, SQL
+    /// Server, mocks) inherit the default implementation, which silently drops
+    /// `session_vars` and delegates to [`execute_function_call`] — safe,
+    /// because their `set_session_variables` is also a no-op.
+    ///
+    /// # Arguments
+    ///
+    /// * `function_name` - Fully-qualified function name
+    /// * `args` - Positional JSON arguments passed as `$1, $2, …`
+    /// * `session_vars` - `(setting_name, value)` pairs applied with
+    ///   `SELECT set_config(name, value, true)` before the function call. Pass
+    ///   `&[]` when no session variables are configured.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`execute_function_call`]; additionally returns
+    /// `FraiseQLError::Database` if `set_config` fails on any pair.
+    async fn execute_function_call_with_session(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Default: ignore session_vars and delegate. Safe for non-PostgreSQL
+        // adapters because their `set_session_variables` is also a no-op.
+        self.execute_function_call(function_name, args).await
+    }
+
+    /// Connection-affine variant of [`execute_where_query_arc`].
+    ///
+    /// Applies `session_vars` transaction-locally on the same connection that
+    /// runs the read, so PostgreSQL Row-Level-Security policies backed by
+    /// `current_setting()` see the configured values (fixes #329). See
+    /// [`execute_function_call_with_session`] for the rationale and the
+    /// non-PostgreSQL default behaviour.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`execute_where_query_arc`]; additionally returns
+    /// `FraiseQLError::Database` if `set_config` fails on any pair.
+    async fn execute_where_query_arc_with_session(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_where_query_arc(view, where_clause, limit, offset, order_by)
+            .await
+    }
+
+    /// Connection-affine variant of [`execute_with_projection_arc`].
+    ///
+    /// See [`execute_where_query_arc_with_session`] for the rationale.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`execute_with_projection_arc`]; additionally returns
+    /// `FraiseQLError::Database` if `set_config` fails on any pair.
+    async fn execute_with_projection_arc_with_session(
+        &self,
+        request: &ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_with_projection_arc(request).await
     }
 
     /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the

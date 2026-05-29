@@ -21,6 +21,30 @@ use crate::{
 };
 
 impl<A: DatabaseAdapter> QueryRunner<A> {
+    /// Resolve configured session variables for `security_context` into owned
+    /// `(name, value)` pairs.
+    ///
+    /// The caller borrows these into a `&[(&str, &str)]` slice for the
+    /// connection-affine `*_with_session` adapter methods, which apply them
+    /// transaction-locally on the same connection as the read (fixes #329 for
+    /// RLS policies backed by `current_setting()`).
+    ///
+    /// Returns an empty vec when there is no security context or no session
+    /// variables are configured; the adapter treats an empty slice as "no
+    /// session variables" with zero overhead.
+    fn resolve_session_vars(
+        &self,
+        security_context: Option<&SecurityContext>,
+    ) -> Vec<(String, String)> {
+        let sv = &self.ctx.schema.session_variables;
+        match security_context {
+            Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
+                crate::runtime::executor::security::resolve_session_variables(sv, sec)
+            },
+            _ => Vec::new(),
+        }
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -66,30 +90,21 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         }
 
-        // Inject session variables (transaction-scoped set_config) when configured.
-        //
-        // Must run before any DB execution (including the relay branch below) so that
-        // PostgreSQL-native Row Level Security policies that rely on `current_setting()`
-        // values (e.g. `app.tenant_id`) are effective for read queries, matching the
-        // behaviour already in place for mutations.
-        {
-            let sv = &self.ctx.schema.session_variables;
-            if !sv.variables.is_empty() || sv.inject_started_at {
-                let vars = crate::runtime::executor::security::resolve_session_variables(
-                    sv,
-                    security_context,
-                );
-                if !vars.is_empty() {
-                    let pairs: Vec<(&str, &str)> =
-                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.ctx.adapter.set_session_variables(&pairs).await?;
-                }
-            }
-        }
+        // Resolve session variables once. They are applied transaction-locally
+        // on the same connection as the read (fixes #329) by passing them into
+        // the connection-affine adapter call below, so PostgreSQL RLS policies
+        // that read `current_setting()` (e.g. `app.tenant_id`) are effective.
+        let resolved_session_vars = self.resolve_session_vars(Some(security_context));
+        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables, Some(security_context)).await;
+            return self
+                .execute_relay_query(&query_match, variables, Some(security_context), &session_pairs)
+                .await;
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
@@ -299,18 +314,22 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
-        // 9. Execute query with combined WHERE clause filter
+        // 9. Execute query with combined WHERE clause filter, pinning session
+        //    variables to the read's connection (fixes #329 for RLS).
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view: sql_source,
-                projection: projection_hint.as_ref(),
-                where_clause: combined_where.as_ref(),
-                order_by: order_by_clauses.as_deref(),
-                limit,
-                offset,
-            })
+            .execute_with_projection_arc_with_session(
+                &crate::db::ProjectionRequest {
+                    view: sql_source,
+                    projection: projection_hint.as_ref(),
+                    where_clause: combined_where.as_ref(),
+                    order_by: order_by_clauses.as_deref(),
+                    limit,
+                    offset,
+                },
+                &session_pairs,
+            )
             .await?;
 
         // 10. Apply field-level RBAC filtering (reject / mask / allow)
@@ -441,8 +460,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
 
         // Route relay queries to dedicated handler.
+        // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables, None).await;
+            return self.execute_relay_query(&query_match, variables, None, &[]).await;
         }
 
         // 2. Create execution plan
@@ -544,6 +564,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
+        // No session vars: this is the unauthenticated entrypoint (no
+        // SecurityContext), so there is nothing to resolve session variables
+        // from. See #329 / resolve_session_vars.
         let results = self
             .ctx
             .adapter
@@ -677,18 +700,26 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         }
 
-        // Execute.
+        // Execute, pinning session variables to the read's connection (#329).
+        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view: sql_source,
-                projection: None,
-                where_clause: composed_where.as_ref(),
-                order_by: order_by_clauses.as_deref(),
-                limit,
-                offset,
-            })
+            .execute_with_projection_arc_with_session(
+                &crate::db::ProjectionRequest {
+                    view: sql_source,
+                    projection: None,
+                    where_clause: composed_where.as_ref(),
+                    order_by: order_by_clauses.as_deref(),
+                    limit,
+                    offset,
+                },
+                &session_pairs,
+            )
             .await?;
 
         // Project results.
@@ -798,11 +829,24 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             combined_where
         };
 
-        // 4. Execute COUNT query via adapter
+        // 4. Execute COUNT query via adapter, pinning session variables to the
+        //    read's connection so RLS counts match the filtered rows (#329).
+        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let session_pairs: Vec<(&str, &str)> = resolved_session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
         let rows = self
             .ctx
             .adapter
-            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
+            .execute_where_query_arc_with_session(
+                sql_source,
+                combined_where.as_ref(),
+                None,
+                None,
+                None,
+                &session_pairs,
+            )
             .await?;
 
         // Return the row count

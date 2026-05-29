@@ -52,6 +52,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        session_vars: &[(&str, &str)],
     ) -> Result<serde_json::Value> {
         use crate::{
             compiler::aggregation::OrderByClause,
@@ -272,8 +273,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let had_after = after_pk.is_some();
         let had_before = before_pk.is_some();
 
+        // Pin session variables to the page/count queries' connection so
+        // RLS-protected relay pagination returns the correct tenant's rows (#329).
         let result = relay
-            .execute_relay_page(
+            .execute_relay_page_with_session(
                 sql_source,
                 cursor_column,
                 after_pk,
@@ -283,6 +286,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 combined_where.as_ref(),
                 order_by.as_deref(),
                 include_total_count,
+                session_vars,
             )
             .await?;
 
@@ -449,6 +453,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         };
 
         // 6. Execute the query (limit 1) with projection.
+        // No session vars: the Relay `node(id:)` lookup is a separate entrypoint
+        // that does not receive a SecurityContext, so session variables cannot be
+        // resolved here. Threading a SecurityContext through node resolution to
+        // enable current_setting()-backed RLS is a follow-up (#329).
         let rows = self
             .ctx
             .adapter

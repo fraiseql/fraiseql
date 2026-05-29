@@ -1,14 +1,19 @@
 //! `DatabaseAdapter` and `SupportsMutations` implementations for `PostgresAdapter`.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::BufMut as _;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use super::{PostgresAdapter, build_where_select_sql, build_where_select_sql_ordered};
+use super::{
+    PostgresAdapter, build_projection_select_sql, build_where_select_sql,
+    build_where_select_sql_ordered,
+};
 use crate::{
     identifier::quote_postgres_identifier,
-    traits::{DatabaseAdapter, SupportsMutations},
+    traits::{DatabaseAdapter, ProjectionRequest, SupportsMutations},
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam,
         sql_hints::{OrderByClause, SqlProjectionHint},
@@ -158,6 +163,26 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
         map.insert(column_name, value);
     }
     map
+}
+
+/// Apply transaction-local session variables on an in-progress transaction.
+///
+/// Each `(name, value)` pair is set with `SELECT set_config($1, $2, true)`, so
+/// the values are scoped to `txn` and visible to every statement run on it
+/// (fixes #329). The caller is responsible for committing or rolling back.
+pub(super) async fn apply_session_vars(
+    txn: &tokio_postgres::Transaction<'_>,
+    session_vars: &[(&str, &str)],
+) -> Result<()> {
+    for (name, value) in session_vars {
+        txn.execute("SELECT set_config($1, $2, true)", &[name, value])
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("set_config({name:?}) failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+    }
+    Ok(())
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -310,6 +335,38 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(results)
     }
 
+    async fn execute_parameterized_aggregate_with_session(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        if session_vars.is_empty() {
+            return self.execute_parameterized_aggregate(sql, params).await;
+        }
+
+        let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
+        let param_refs = crate::types::as_sql_param_refs(&typed);
+
+        let mut client = self.acquire_connection_with_retry().await?;
+        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to start session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+        apply_session_vars(&txn, session_vars).await?;
+        let rows: Vec<Row> =
+            txn.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Parameterized aggregate query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows.iter().map(row_to_map).collect())
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -400,21 +457,140 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
-    async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
-        if variables.is_empty() {
-            return Ok(());
+    // Note: `set_session_variables` is intentionally NOT overridden here. The
+    // trait default (a deprecated no-op) stands in; PostgreSQL session variables
+    // are applied connection-affinely by the `*_with_session` methods below
+    // (fixes #329).
+
+    async fn execute_function_call_with_session(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Fast path: no session variables and no mutation timing => behave
+        // exactly like execute_function_call (no transaction overhead, and
+        // execute_function_call already opens its own txn when timing is on).
+        if session_vars.is_empty() && !self.mutation_timing_enabled {
+            return self.execute_function_call(function_name, args).await;
         }
-        let client = self.acquire_connection_with_retry().await?;
-        for (name, value) in variables {
-            client
-                .execute("SELECT set_config($1, $2, true)", &[name, value])
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("set_config({name:?}) failed: {e}"),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
+
+        let quoted_fn = quote_postgres_identifier(function_name);
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
+        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
+
+        // See execute_function_call for why FlexParam is required here.
+        let flex_args: Vec<FlexParam> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => FlexParam::Null,
+                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                _ => FlexParam::Text(v.to_string()),
+            })
+            .collect();
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let mut client = self.acquire_connection_with_retry().await?;
+        let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to start session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        // Apply session variables FIRST so the function body sees them.
+        apply_session_vars(&txn, session_vars).await?;
+
+        // If mutation timing is on, stamp the timing variable in the same txn.
+        if self.mutation_timing_enabled {
+            txn.execute(
+                "SELECT set_config($1, clock_timestamp()::text, true)",
+                &[&self.timing_variable_name],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to set mutation timing variable: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
         }
-        Ok(())
+
+        let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+            let detail = e.as_db_error().map_or("", |d| d.message());
+            FraiseQLError::Database {
+                message:   format!("Function call {function_name} failed: {e}: {detail}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows.iter().map(row_to_map).collect())
+    }
+
+    async fn execute_where_query_arc_with_session(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        if session_vars.is_empty() {
+            return self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await;
+        }
+
+        let (sql, typed_params) =
+            build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+
+        self.execute_raw_with_session(&sql, &param_refs, session_vars)
+            .await
+            .map(Arc::new)
+            .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
+    }
+
+    async fn execute_with_projection_arc_with_session(
+        &self,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        if session_vars.is_empty() {
+            return self.execute_with_projection_arc(request).await;
+        }
+
+        // No projection => behave like a plain WHERE query, matching
+        // execute_with_projection_impl's fallback.
+        let Some(projection) = request.projection else {
+            return self
+                .execute_where_query_arc_with_session(
+                    request.view,
+                    request.where_clause,
+                    request.limit,
+                    request.offset,
+                    request.order_by,
+                    session_vars,
+                )
+                .await;
+        };
+
+        let (sql, typed_params) = build_projection_select_sql(
+            projection,
+            request.view,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )?;
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+
+        self.execute_raw_with_session(&sql, &param_refs, session_vars)
+            .await
+            .map(Arc::new)
     }
 
     async fn explain_query(

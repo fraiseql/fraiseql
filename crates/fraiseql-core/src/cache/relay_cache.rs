@@ -37,4 +37,36 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
             )
             .await
     }
+
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
+    async fn execute_relay_page_with_session(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<crate::db::traits::CursorValue>,
+        before: Option<crate::db::traits::CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&crate::db::where_clause::WhereClause>,
+        order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
+        include_total_count: bool,
+        session_vars: &[(&str, &str)],
+    ) -> Result<crate::db::traits::RelayPageResult> {
+        // Relay results are not cached; forward with session affinity so RLS
+        // pagination sees the configured session variables (#329).
+        self.adapter
+            .execute_relay_page_with_session(
+                view,
+                cursor_column,
+                after,
+                before,
+                limit,
+                forward,
+                where_clause,
+                order_by,
+                include_total_count,
+                session_vars,
+            )
+            .await
+    }
 }

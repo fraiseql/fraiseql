@@ -25,8 +25,8 @@ use crate::{
 pub(in crate::runtime::executor) trait RelayDispatch:
     Send + Sync
 {
-    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
-    fn execute_relay_page<'a>(
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
+    fn execute_relay_page_with_session<'a>(
         &'a self,
         view: &'a str,
         cursor_column: &'a str,
@@ -37,6 +37,7 @@ pub(in crate::runtime::executor) trait RelayDispatch:
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
+        session_vars: &'a [(&'a str, &'a str)],
     ) -> BoxFuture<'a, Result<RelayPageResult>>;
 }
 
@@ -45,8 +46,8 @@ pub(in crate::runtime::executor) struct RelayDispatchImpl<A: RelayDatabaseAdapte
 );
 
 impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDispatchImpl<A> {
-    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
-    fn execute_relay_page<'a>(
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
+    fn execute_relay_page_with_session<'a>(
         &'a self,
         view: &'a str,
         cursor_column: &'a str,
@@ -57,8 +58,9 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
+        session_vars: &'a [(&'a str, &'a str)],
     ) -> BoxFuture<'a, Result<RelayPageResult>> {
-        Box::pin(self.0.execute_relay_page(
+        Box::pin(self.0.execute_relay_page_with_session(
             view,
             cursor_column,
             after,
@@ -68,6 +70,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
             where_clause,
             order_by,
             include_total_count,
+            session_vars,
         ))
     }
 }
