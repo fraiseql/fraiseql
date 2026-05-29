@@ -167,7 +167,8 @@ impl SchemaConverter {
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
             hierarchies_config: intermediate.hierarchies_config,
-            schema_sdl: None,                              // Raw GraphQL SDL
+            changelog: intermediate.changelog_config, // Changelog exposure config from TOML
+            schema_sdl: None,                         // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
             ..Default::default()
@@ -181,6 +182,20 @@ impl SchemaConverter {
                     .custom_scalars
                     .register(custom_type.name.clone(), custom_type)
                     .context("Failed to register custom scalar")?;
+            }
+        }
+
+        // Changelog exposure requires the observer system: the views it exposes read
+        // from tables (`tb_entity_change_log`, `tb_transport_checkpoint`) that the
+        // observer install convention supplies. Emitting GraphQL types over absent
+        // tables would only fail later, at runtime — reject it here instead.
+        if let Some(ref cl) = compiled.changelog {
+            if cl.expose && !compiled.observers_config.as_ref().is_some_and(|o| o.enabled) {
+                anyhow::bail!(
+                    "[changelog] expose = true requires [observers] to be enabled: the tables \
+                     it exposes (tb_entity_change_log, tb_transport_checkpoint) are installed by \
+                     the observer system."
+                );
             }
         }
 

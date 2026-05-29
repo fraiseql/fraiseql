@@ -33,7 +33,7 @@ pub use federation::{
     FederationCircuitBreakerConfig, FederationConfig, FederationEntity,
     PerDatabaseCircuitBreakerOverride,
 };
-use fraiseql_core::schema::{CrudNamingConfig, NamingConvention};
+use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig, NamingConvention};
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{MutationDefinition, QueryDefaults, QueryDefinition, SchemaMetadata};
@@ -155,6 +155,15 @@ pub struct TomlSchema {
     /// REST transport configuration.
     #[serde(default)]
     pub rest: RestTomlConfig,
+
+    /// Changelog GraphQL-exposure configuration.
+    ///
+    /// When `[changelog] expose = true`, the compiler injects the observer
+    /// entity-change-log (`EntityChangeLog` / `TransportCheckpoint`) types plus
+    /// their cursor query, point-lookup query, and checkpoint upsert mutation.
+    /// Requires `[observers]` to be enabled. Absent by default.
+    #[serde(default)]
+    pub changelog: Option<ChangelogConfig>,
 
     /// Naming convention for GraphQL operation names.
     ///

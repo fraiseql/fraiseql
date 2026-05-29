@@ -44,6 +44,7 @@ fn test_rich_filter_compilation_pipeline() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     // 2. Compile to schema
@@ -125,6 +126,7 @@ fn test_all_rich_types_generate_where_input() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -190,6 +192,7 @@ fn test_where_input_fields_include_standard_operators() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -250,6 +253,7 @@ fn test_sql_templates_cover_all_databases() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -321,6 +325,7 @@ fn test_lookup_data_integrity() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -393,6 +398,7 @@ fn test_compiled_schema_is_valid() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

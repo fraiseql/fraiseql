@@ -63,7 +63,7 @@ pub use compiled::{
     QueryDefinition, canonicalize_json, is_safe_sql_identifier,
 };
 pub use config_types::{
-    AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
+    AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,
     CompiledSecurityConfig, CrudNamingConfig, CrudNamingPreset, DebugConfig, DeleteResponse,
     EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,
     FederationEntity, FieldAuthRule, GrpcConfig, McpConfig, NamingConvention, ObserversConfig,

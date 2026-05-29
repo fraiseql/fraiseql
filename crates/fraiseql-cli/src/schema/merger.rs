@@ -665,6 +665,12 @@ impl SchemaMerger {
         merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
             .context("Failed to serialize naming_convention")?;
 
+        // Embed changelog GraphQL-exposure config (gating + injection happen in the converter)
+        if let Some(ref changelog) = toml_schema.changelog {
+            merged["changelog_config"] =
+                serde_json::to_value(changelog).context("Failed to serialize changelog config")?;
+        }
+
         // Embed hierarchy definitions for ID-based ltree operators
         if let Some(ref hierarchies) = toml_schema.hierarchies {
             merged["hierarchies_config"] = serde_json::to_value(hierarchies)

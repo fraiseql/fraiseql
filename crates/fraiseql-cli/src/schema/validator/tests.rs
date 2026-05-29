@@ -37,6 +37,7 @@ fn test_validate_empty_schema() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -90,6 +91,7 @@ fn test_detect_unknown_return_type() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -173,6 +175,7 @@ fn test_detect_duplicate_query_names() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -235,6 +238,7 @@ fn test_warning_for_query_without_sql_source() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -300,6 +304,7 @@ fn test_valid_observer() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -353,6 +358,7 @@ fn test_observer_with_unknown_entity() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -414,6 +420,7 @@ fn test_observer_with_invalid_event() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -475,6 +482,7 @@ fn test_observer_with_invalid_action_type() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -536,6 +544,7 @@ fn test_observer_with_invalid_retry_config() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -598,6 +607,7 @@ fn test_query_injection_in_sql_source_rejected() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -660,6 +670,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();

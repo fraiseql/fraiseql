@@ -190,6 +190,14 @@ pub struct IntermediateSchema {
     /// to table/path_column pairs for subquery generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchies_config: Option<fraiseql_core::schema::HierarchiesConfig>,
+
+    /// Changelog GraphQL-exposure configuration.
+    ///
+    /// Compiled from the `[changelog]` TOML section by the merger. Drives the
+    /// converter's injection of the `EntityChangeLog` / `TransportCheckpoint`
+    /// types and their operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog_config: Option<fraiseql_core::schema::ChangelogConfig>,
 }
 
 fn default_version() -> String {
