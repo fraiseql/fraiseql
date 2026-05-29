@@ -12,15 +12,18 @@ use parking_lot::RwLock;
 
 use super::validate_key;
 
-const GCS_API_BASE: &str = "https://storage.googleapis.com";
+const GCS_DEFAULT_API_BASE: &str = "https://storage.googleapis.com";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const SCOPE: &str = "https://www.googleapis.com/auth/devstorage.full_control";
 
 /// Stores files in a Google Cloud Storage bucket.
 pub struct GcsBackend {
-    bucket: String,
-    auth:   GcsAuth,
-    client: reqwest::Client,
+    bucket:   String,
+    auth:     GcsAuth,
+    /// API base override (e.g. a fake-gcs-server emulator URL). `None` means
+    /// the production `https://storage.googleapis.com` host is used.
+    endpoint: Option<String>,
+    client:   reqwest::Client,
 }
 
 enum GcsAuth {
@@ -43,6 +46,32 @@ impl GcsBackend {
     /// `GOOGLE_CLOUD_TOKEN` nor `GOOGLE_APPLICATION_CREDENTIALS` is set, or
     /// if the credentials file is unreadable or malformed.
     pub fn new(bucket: &str) -> Result<Self> {
+        Self::new_with_endpoint(bucket, None)
+    }
+
+    /// Creates a new GCS backend with an optional API base override.
+    ///
+    /// When `endpoint` is `None`, the production GCS host is used:
+    /// `https://storage.googleapis.com`. When set, it is used as the API base
+    /// for object operations — for the fake-gcs-server emulator this is
+    /// typically `http://127.0.0.1:4443`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File(FileError::Backend)` if neither
+    /// `GOOGLE_CLOUD_TOKEN` nor `GOOGLE_APPLICATION_CREDENTIALS` is set, if the
+    /// credentials file is unreadable or malformed, or if `endpoint` is set but
+    /// is not a valid URL.
+    pub fn new_with_endpoint(bucket: &str, endpoint: Option<&str>) -> Result<Self> {
+        if let Some(ep) = endpoint {
+            reqwest::Url::parse(ep).map_err(|e| {
+                FraiseQLError::File(FileError::Backend {
+                    message: format!("GCS endpoint is not a valid URL: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            })?;
+        }
+
         let auth = if let Ok(token) = std::env::var("GOOGLE_CLOUD_TOKEN") {
             GcsAuth::BearerToken(token)
         } else if let Ok(creds_path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
@@ -95,8 +124,17 @@ impl GcsBackend {
         Ok(Self {
             bucket: bucket.to_owned(),
             auth,
+            endpoint: endpoint.map(str::to_owned),
             client: reqwest::Client::new(),
         })
+    }
+
+    /// Returns the API base URL for object operations, honouring the
+    /// configured `endpoint` override and falling back to the production host.
+    fn api_base(&self) -> &str {
+        self.endpoint
+            .as_deref()
+            .map_or(GCS_DEFAULT_API_BASE, |ep| ep.trim_end_matches('/'))
     }
 
     /// Returns a valid access token, refreshing via JWT exchange if needed.
@@ -235,8 +273,9 @@ impl GcsBackend {
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let token = self.get_token().await?;
+        let base = self.api_base();
         let url = format!(
-            "{GCS_API_BASE}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
+            "{base}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.bucket,
             urlencoding::encode(key)
         );
@@ -267,11 +306,9 @@ impl GcsBackend {
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let token = self.get_token().await?;
-        let url = format!(
-            "{GCS_API_BASE}/storage/v1/b/{}/o/{}?alt=media",
-            self.bucket,
-            urlencoding::encode(key)
-        );
+        let base = self.api_base();
+        let url =
+            format!("{base}/storage/v1/b/{}/o/{}?alt=media", self.bucket, urlencoding::encode(key));
 
         let resp = self
             .client
@@ -306,8 +343,8 @@ impl GcsBackend {
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let token = self.get_token().await?;
-        let url =
-            format!("{GCS_API_BASE}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
+        let base = self.api_base();
+        let url = format!("{base}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
 
         let resp = self
             .client
@@ -339,9 +376,9 @@ impl GcsBackend {
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let token = self.get_token().await?;
+        let base = self.api_base();
         // Metadata-only request (no ?alt=media) to check existence.
-        let url =
-            format!("{GCS_API_BASE}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
+        let url = format!("{base}/storage/v1/b/{}/o/{}", self.bucket, urlencoding::encode(key));
 
         let resp = self
             .client
