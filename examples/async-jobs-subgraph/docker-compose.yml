@@ -1,0 +1,68 @@
+# Async-jobs federation example.
+#
+# Architecture:
+#
+#   client ──► router (:4000)  ── Apollo Federation v2 supergraph
+#                 │
+#                 ├─► fraiseql  (:8080)  SQL-backed subgraph  ── postgres
+#                 └─► subgraph  (:4001)  async-jobs subgraph (async-graphql)
+#
+# The router serves ONE GraphQL endpoint that composes both subgraphs. SQL
+# types (User) come from FraiseQL; the non-SQL async mutation (enqueueJob) /
+# polling query (jobStatus) come from the Rust subgraph.
+#
+# NOTE: the router needs a composed supergraph schema. Run `make supergraph`
+# (which calls `rover supergraph compose`) once the subgraphs are up, before
+# starting the router. `make run` does this in order.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: jobs
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./fraiseql-side/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Non-SQL async-jobs subgraph (Rust + async-graphql). No FraiseQL dependency.
+  subgraph:
+    build:
+      context: ./subgraph
+    environment:
+      PORT: "4001"
+    ports:
+      - "4001:4001"
+
+  # SQL-backed FraiseQL subgraph. Build context is the repository root.
+  fraiseql:
+    build:
+      context: ../..
+      dockerfile: examples/async-jobs-subgraph/fraiseql-side/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:devpass@postgres:5432/jobs
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Apollo Router: serves the composed supergraph on :4000.
+  router:
+    image: ghcr.io/apollographql/router:v1.59.0
+    command: ["--config", "/config/router.yaml", "--supergraph", "/config/supergraph.graphql"]
+    volumes:
+      - ./router/router.yaml:/config/router.yaml:ro
+      - ./router/supergraph.graphql:/config/supergraph.graphql:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      - subgraph
+      - fraiseql

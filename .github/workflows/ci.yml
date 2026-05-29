@@ -65,6 +65,25 @@ jobs:
       - name: Check axum route capture syntax
         run: bash tools/check-route-syntax.sh
 
+  # Guard against silent rot in the async-jobs federation example. The subgraph
+  # is a standalone crate (detached from the workspace), so it is not covered by
+  # the workspace clippy job above — check + lint it on its own here.
+  example-async-jobs-subgraph:
+    name: Example — async-jobs subgraph
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          components: clippy
+
+      - name: Clippy (example subgraph)
+        working-directory: examples/async-jobs-subgraph/subgraph
+        run: cargo clippy --all-targets -- -D warnings
+
   # Lint with Clippy
   clippy:
     name: Clippy Lints
@@ -1244,6 +1263,7 @@ jobs:
     needs:
       - fmt
       - clippy
+      - example-async-jobs-subgraph
       - test
       - integration-postgres
       - integration-mysql
