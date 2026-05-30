@@ -370,15 +370,43 @@ async fn list_handler(
 }
 
 /// Generate a presigned URL.
-#[tracing::instrument(skip(state, request), fields(bucket = %bucket_name, key = %key))]
+///
+/// Pre-v2.4.0 this handler bypassed [`StorageRlsEvaluator`] entirely: any
+/// anonymous client could presign GET / PUT against any bucket+key,
+/// returning a 24-hour-valid URL for objects in `BucketAccess::Private`
+/// buckets owned by other users (#335).  The handler now mirrors the
+/// access-control shape of [`put_handler`] / [`get_handler`]:
+///
+/// - For `operation = "download"`: the metadata row is loaded and `state.rls.can_read` is consulted
+///   before signing. Missing objects yield `404`; objects the caller may not read yield `403`.
+/// - For `operation = "upload"`: `state.rls.can_write(bucket)` is consulted before signing. No
+///   metadata lookup happens because the object may not yet exist; the bucket-level write
+///   permission is sufficient.
+///
+/// # Caveat — bucket constraints are NOT enforced via S3 presigned PUT.
+///
+/// The S3 presigned PUT URL gives the holder the same effective
+/// authority as the FraiseQL server for the bucket+key window: any
+/// `Content-Type` and any body size accepted by S3 itself goes through.
+/// FraiseQL's bucket-level `max_object_bytes` and `allowed_mime_types`
+/// checks live in [`put_handler`] and cannot be encoded in a vanilla S3
+/// presigned PUT.  Operators who need those constraints enforced for
+/// presigned uploads must (a) restrict presigned uploads to trusted
+/// users via RLS, (b) re-validate after the upload via metadata
+/// inspection + cleanup, or (c) route uploads through `PUT /storage/v1/{bucket}/{*key}`
+/// instead.  This is documented as a known limitation in CHANGELOG.
+#[tracing::instrument(skip(state, user, request), fields(bucket = %bucket_name, key = %key))]
 async fn presign_handler(
     State(state): State<StorageState>,
+    user: Option<Extension<StorageUser>>,
     Path((bucket_name, key)): Path<(String, String)>,
     axum::Json(request): axum::Json<PresignRequest>,
 ) -> Response {
-    let Some(_bucket) = state.buckets.get(&bucket_name) else {
+    let Some(bucket) = state.buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
+
+    let user = user.map(|Extension(u)| u).unwrap_or_default();
 
     // Validate operation
     let operation = request.operation.to_lowercase();
@@ -396,6 +424,42 @@ async fn presign_handler(
             "invalid_expiry",
             "expires_in_secs must be between 1 and 86400",
         );
+    }
+
+    // RLS gate.  Mirrors put_handler / get_handler.  Done before any S3 work
+    // so unauthorised callers cannot observe whether the object exists.
+    if operation == "upload" {
+        if !state.rls.can_write(user.user_id.as_deref(), &user.roles, bucket) {
+            tracing::warn!(
+                bucket = %bucket_name,
+                key = %key,
+                user_id = ?user.user_id,
+                "Storage presign(upload) denied: authentication required"
+            );
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "Authentication required",
+            );
+        }
+    } else {
+        // download: look up metadata so can_read can apply per-row policy.
+        let row = match state.metadata.get(&bucket_name, &key).await {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found");
+            },
+            Err(e) => return storage_error_response(&e),
+        };
+        if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
+            tracing::warn!(
+                bucket = %bucket_name,
+                key = %key,
+                user_id = ?user.user_id,
+                "Storage presign(download) denied by RLS"
+            );
+            return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
+        }
     }
 
     #[cfg(feature = "aws-s3")]
