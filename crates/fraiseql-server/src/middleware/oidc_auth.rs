@@ -36,6 +36,28 @@ impl OidcAuthState {
 #[derive(Clone, Debug)]
 pub struct AuthUser(pub AuthenticatedUser);
 
+/// Request extension containing the `jti` claim of the validated bearer token.
+///
+/// Populated by [`oidc_auth_middleware`] immediately after `validate_token`
+/// succeeds — at that point the token's signature, expiry, audience, and
+/// (when enabled) replay-cache check have all been verified, so re-decoding
+/// the payload to extract `jti` carries no integrity risk.
+///
+/// `None` indicates the token had no `jti` claim. Handlers that must revoke
+/// the caller's current session (e.g. `POST /auth/revoke`) should treat
+/// `Some(jti)` as the only valid input — there is no per-request identifier
+/// to revoke without it.
+#[derive(Clone, Debug)]
+pub struct SessionJti(pub Option<String>);
+
+/// Minimal JWT payload deserializer used to extract `jti` from an
+/// already-validated bearer token. The validator has performed the heavy
+/// integrity checks; this struct only pulls out the per-token identifier.
+#[derive(serde::Deserialize)]
+struct JtiOnlyClaims {
+    jti: Option<String>,
+}
+
 /// Extract the bearer token from a raw `Cookie` header value.
 ///
 /// Looks for `__Host-access_token=<value>` in the semicolon-separated cookie
@@ -140,8 +162,17 @@ pub async fn oidc_auth_middleware(
                         scopes = ?user.scopes,
                         "User authenticated successfully"
                     );
-                    // Add authenticated user to request extensions
+                    // Re-decode the (already-validated) token payload to surface
+                    // the `jti` claim for downstream handlers that need to
+                    // revoke the caller's current session.  `insecure_decode`
+                    // is safe here because `validate_token` above has already
+                    // checked signature, expiry, audience, and (when enabled)
+                    // replay-cache state.
+                    let jti = jsonwebtoken::dangerous::insecure_decode::<JtiOnlyClaims>(&token)
+                        .ok()
+                        .and_then(|d| d.claims.jti);
                     request.extensions_mut().insert(AuthUser(user));
+                    request.extensions_mut().insert(SessionJti(jti));
                     next.run(request).await
                 },
                 Err(e) => {

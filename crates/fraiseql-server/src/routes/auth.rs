@@ -22,14 +22,17 @@
 use std::sync::Arc;
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{OidcServerClient, PkceStateStore};
+use crate::{
+    auth::{OidcServerClient, PkceStateStore},
+    middleware::{AuthUser, SessionJti},
+};
 
 /// Shared state injected into both PKCE route handlers.
 pub struct AuthPkceState {
@@ -266,10 +269,18 @@ pub async fn auth_callback(
 // ---------------------------------------------------------------------------
 
 /// Request body for token revocation.
+///
+/// As of v2.4.0, the route revokes the caller's currently-authenticated
+/// session — identified by the `jti` of the validated bearer token, not by
+/// any token submitted in the request body. The `token` field is accepted
+/// for wire-shape backwards compatibility but is ignored by the handler.
 #[derive(Deserialize)]
 pub struct RevokeTokenRequest {
-    /// The JWT to revoke (we extract `jti` and `exp` from it).
-    pub token: String,
+    /// Legacy field; ignored as of v2.4.0. The route revokes the caller's
+    /// own session, identified by the `jti` of the bearer token used to
+    /// authenticate the request.
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 /// Response body for token revocation.
@@ -288,59 +299,51 @@ pub struct RevocationRouteState {
     pub revocation_manager: std::sync::Arc<crate::token_revocation::TokenRevocationManager>,
 }
 
-/// Revoke a single JWT by its `jti` claim.
+/// Revoke the caller's currently-authenticated session.
 ///
-/// The token is decoded (without verification — we only need the claims) to
-/// extract `jti` and `exp`.  The revocation entry TTL is set to the remaining
-/// token lifetime so the store auto-cleans.
+/// The route is mounted behind `oidc_auth_middleware`, so the bearer token has
+/// been validated by the time this handler runs.  The `jti` of that validated
+/// token is what gets revoked — never an attacker-supplied token from the
+/// body.  This closes the FW-21 class anonymous-revocation primitive
+/// (issue #358) as well as the authenticated-spoof primitive that the
+/// previous `insecure_decode(body.token)` design left open.
 ///
 /// # Responses
 ///
 /// - `200` — token revoked successfully.
-/// - `400` — token is missing or has no `jti` claim.
+/// - `401` — no valid session (enforced by `oidc_auth_middleware` before this handler is called).
+/// - `409` — the validated token has no `jti` claim, so there is no per-token identifier the
+///   revocation store can record.
 pub async fn revoke_token(
     State(state): State<std::sync::Arc<RevocationRouteState>>,
-    Json(body): Json<RevokeTokenRequest>,
+    Extension(auth_user): Extension<AuthUser>,
+    Extension(session_jti): Extension<SessionJti>,
+    Json(_body): Json<RevokeTokenRequest>,
 ) -> Response {
-    #[derive(serde::Deserialize)]
-    struct MinimalClaims {
-        jti: Option<String>,
-        exp: Option<u64>,
-    }
-
-    // Decode without signature verification — we only need the claims for revocation.
-    let claims = match jsonwebtoken::dangerous::insecure_decode::<MinimalClaims>(&body.token) {
-        Ok(data) => data.claims,
-        Err(e) => {
-            return auth_error(StatusCode::BAD_REQUEST, &format!("Invalid token: {e}"));
-        },
-    };
-
-    let jti = match claims.jti {
+    let jti = match session_jti.0 {
         Some(j) if !j.is_empty() => j,
         _ => {
-            return auth_error(StatusCode::BAD_REQUEST, "Token has no jti claim");
+            return auth_error(
+                StatusCode::CONFLICT,
+                "Bearer token has no jti claim; cannot revoke",
+            );
         },
     };
 
-    // TTL = remaining token lifetime, or 24h if no exp.
-    let ttl_secs = claims
-        .exp
-        .and_then(|exp| {
-            let now = chrono::Utc::now().timestamp().cast_unsigned();
-            exp.checked_sub(now)
-        })
-        .unwrap_or(86400);
+    // TTL = remaining token lifetime, clamped to >= 0. If the token were
+    // already expired, the auth middleware would have rejected the request,
+    // so a positive TTL is the only path that reaches this point.
+    let ttl_secs = {
+        let remaining = (auth_user.0.expires_at - chrono::Utc::now()).num_seconds();
+        u64::try_from(remaining).unwrap_or(0)
+    };
 
     if let Err(e) = state.revocation_manager.revoke(&jti, ttl_secs).await {
         tracing::error!(error = %e, "Failed to revoke token");
         return auth_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke token");
     }
 
-    let expires_at = claims.exp.map(|exp| {
-        chrono::DateTime::from_timestamp(exp.cast_signed(), 0)
-            .map_or_else(|| exp.to_string(), |dt| dt.to_rfc3339())
-    });
+    let expires_at = Some(auth_user.0.expires_at.to_rfc3339());
 
     Json(RevokeTokenResponse {
         revoked: true,
@@ -367,18 +370,41 @@ pub struct RevokeAllResponse {
     pub revoked_count: u64,
 }
 
+/// Scope name that grants the bearer permission to revoke other users'
+/// sessions via `POST /auth/revoke-all`.
+const REVOKE_ALL_ADMIN_SCOPE: &str = "admin";
+
 /// Revoke all tokens for a user.
+///
+/// The route is mounted behind `oidc_auth_middleware`. The caller may only
+/// revoke sessions for their own `sub` unless they hold the
+/// `REVOKE_ALL_ADMIN_SCOPE` scope. This closes the FW-21 class
+/// anonymous-revocation primitive (issue #358) as well as cross-user
+/// revocation via authenticated requests.
 ///
 /// # Responses
 ///
 /// - `200` — tokens revoked.
 /// - `400` — `sub` is missing or empty.
+/// - `401` — no valid session (enforced by `oidc_auth_middleware`).
+/// - `403` — caller's `sub` does not match `body.sub` and caller lacks the admin scope.
 pub async fn revoke_all_tokens(
     State(state): State<std::sync::Arc<RevocationRouteState>>,
+    Extension(auth_user): Extension<AuthUser>,
     Json(body): Json<RevokeAllRequest>,
 ) -> Response {
     if body.sub.is_empty() {
         return auth_error(StatusCode::BAD_REQUEST, "sub is required");
+    }
+
+    let caller_sub = auth_user.0.user_id.as_str();
+    if caller_sub != body.sub && !auth_user.0.has_scope(REVOKE_ALL_ADMIN_SCOPE) {
+        tracing::warn!(
+            caller_sub = %caller_sub,
+            target_sub = %body.sub,
+            "Cross-user revoke-all rejected: caller is not admin"
+        );
+        return auth_error(StatusCode::FORBIDDEN, "Cannot revoke another user's sessions");
     }
 
     match state.revocation_manager.revoke_all_for_user(&body.sub).await {
