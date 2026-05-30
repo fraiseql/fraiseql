@@ -32,6 +32,15 @@ base64 = "0.22"
 bytes = "1"
 # AEAD encryption for state protection (PKCE)
 chacha20poly1305 = "0.10"
+# CSV writer (gated by `export-csv` feature). Already a transitive dep via
+# arrow-csv; declaring it explicitly here gives us a stable surface.
+csv = {version = "1.4", optional = true}
+# XLSX writer (gated by `export-xlsx` feature). `constant_memory` spills
+# in-progress worksheet data to a tempfile so peak heap stays bounded for
+# the 100_000-row cap.
+rust_xlsxwriter = {version = "0.95", features = ["constant_memory"], optional = true}
+# Temp-file management for XLSX response buffering (gated by `export-xlsx`).
+tempfile = {workspace = true, optional = true}
 # Date/time handling
 chrono = {workspace = true}
 dashmap = {workspace = true}
@@ -179,6 +188,12 @@ redis-apq = ["fraiseql-core/redis-apq"]
 redis-idempotency = ["redis", "rmp-serde"]
 # REST transport
 rest = []
+# REST export formats — fine-grained flags compose into the `export` umbrella.
+# Deps are wired in their respective phases (CSV phase 2, XLSX phase 4, Parquet phase 5).
+export-csv = ["dep:csv"]
+export-xlsx = ["dep:rust_xlsxwriter", "dep:tempfile"]
+export-parquet = []
+export = ["export-csv", "export-xlsx", "export-parquet"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
 # Persist usage counters to Redis so they survive process restarts

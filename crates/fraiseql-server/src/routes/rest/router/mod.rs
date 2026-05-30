@@ -103,6 +103,10 @@ where
         idempotency_store,
         #[cfg(feature = "observers")]
         event_transport: None,
+        #[cfg(feature = "export-xlsx")]
+        xlsx_semaphore: Arc::new(tokio::sync::Semaphore::new(
+            super::export_config::ExportConfig::default().max_concurrent_xlsx,
+        )),
     };
 
     Some((base_path, route_table, rest_state))
@@ -331,6 +335,10 @@ struct RestState<A: DatabaseAdapter> {
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
     event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
+    /// Concurrency cap for in-flight XLSX workbook builds. Sized at startup
+    /// from [`super::export_config::ExportConfig::max_concurrent_xlsx`].
+    #[cfg(feature = "export-xlsx")]
+    xlsx_semaphore:    Arc<tokio::sync::Semaphore>,
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +349,9 @@ struct RestState<A: DatabaseAdapter> {
 ///
 /// Content negotiation:
 /// - `Accept: application/x-ndjson` → NDJSON streaming (one JSON object per line)
+/// - `Accept: text/csv` → CSV streaming (with `export-csv` feature)
+/// - `Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` → XLSX workbook
+///   (with `export-xlsx` feature)
 /// - `Accept: application/json` (default) → standard envelope response
 async fn rest_get_handler<A>(
     State(rest): State<RestState<A>>,
@@ -378,6 +389,98 @@ where
                     builder = builder.header(key, value);
                 }
                 builder.body(ndjson.body.into_body()).unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
+                })
+            },
+            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+        };
+    }
+
+    // XLSX content negotiation (gated by `export-xlsx` feature). Checked
+    // before CSV so a client that sends both still gets the more specific
+    // workbook format when explicitly requested.
+    #[cfg(feature = "export-xlsx")]
+    if super::streaming::xlsx::accepts_xlsx(&parts.headers) {
+        // Bound concurrent workbook builds. `try_acquire_owned` is
+        // non-blocking; over-the-cap requests get an immediate 503 with a
+        // `Retry-After: 1` hint rather than queueing.
+        let Ok(_permit) = Arc::clone(&rest.xlsx_semaphore).try_acquire_owned() else {
+            return Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header("retry-after", "1")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"error":{"code":"XLSX_BUSY","message":"max concurrent XLSX exports reached; try again shortly"}}"#,
+                ))
+                .unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::SERVICE_UNAVAILABLE)
+                        .body(Body::empty())
+                        .expect("fallback response: Response::builder() with SERVICE_UNAVAILABLE status and empty body is infallible")
+                });
+        };
+
+        let schema = rest.executor.schema();
+        let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
+        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        let export_config = super::export_config::ExportConfig::default();
+        let result = super::streaming::xlsx::handle_xlsx_get(
+            &handler,
+            &export_config,
+            &relative_path,
+            &query_refs,
+            &parts.headers,
+            security_ctx.as_ref(),
+        )
+        .await;
+
+        return match result {
+            Ok(xlsx) => {
+                let mut builder = Response::builder().status(StatusCode::OK);
+                for (key, value) in &xlsx.headers {
+                    builder = builder.header(key, value);
+                }
+                builder.body(xlsx.body.into_body()).unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
+                })
+            },
+            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+        };
+    }
+
+    // CSV content negotiation (gated by `export-csv` feature).
+    #[cfg(feature = "export-csv")]
+    if super::streaming::csv::accepts_csv(&parts.headers) {
+        let schema = rest.executor.schema();
+        let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
+        let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
+        // TOML-driven `ExportConfig` loading is a later phase; defaults match
+        // the spec from Cycle 1 (`,` delimiter, BOM on, batched via
+        // `ndjson_batch_size`).
+        let export_config = super::export_config::ExportConfig::default();
+        let result = super::streaming::csv::handle_csv_get(
+            &handler,
+            &export_config,
+            &relative_path,
+            &query_refs,
+            &parts.headers,
+            security_ctx.as_ref(),
+        )
+        .await;
+
+        return match result {
+            Ok(csv) => {
+                let mut builder = Response::builder().status(StatusCode::OK);
+                for (key, value) in &csv.headers {
+                    builder = builder.header(key, value);
+                }
+                builder.body(csv.body.into_body()).unwrap_or_else(|_| {
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body(Body::empty())

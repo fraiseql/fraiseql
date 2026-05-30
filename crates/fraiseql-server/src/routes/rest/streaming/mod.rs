@@ -12,6 +12,12 @@
 
 pub mod helpers;
 
+#[cfg(feature = "export-csv")]
+pub mod csv;
+
+#[cfg(feature = "export-xlsx")]
+pub mod xlsx;
+
 #[cfg(test)]
 mod tests;
 
