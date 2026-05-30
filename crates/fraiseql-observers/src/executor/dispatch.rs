@@ -96,12 +96,10 @@ pub(super) fn resolve_url(
 /// a connect-time check at the HTTP client level and is beyond the scope of
 /// this static validation.
 fn validate_url_ssrf(url: &str) -> Result<()> {
-    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // Intended for local development and integration testing only.
-    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
+    // The `FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is honored only in
+    // development environments; refused when any production marker is set.
+    // See `crate::insecure_guard` for the full policy.
+    if crate::insecure_guard::is_outbound_insecure_allowed() {
         return Ok(());
     }
 

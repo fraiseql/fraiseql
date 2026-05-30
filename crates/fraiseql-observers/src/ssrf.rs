@@ -14,13 +14,10 @@ use crate::error::ObserverError;
 /// Returns `ObserverError::InvalidConfig` if the URL is unparseable or targets
 /// a forbidden host.
 pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
-    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // This is intended for local development and integration testing only —
-    // never set in production.
-    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
+    // The `FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is honored only in
+    // development environments; refused when any production marker is set.
+    // See `crate::insecure_guard` for the full policy.
+    if crate::insecure_guard::is_outbound_insecure_allowed() {
         return Ok(());
     }
 
@@ -70,12 +67,10 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
 /// Returns `ObserverError::InvalidConfig` if DNS resolution fails, returns no
 /// addresses, or any resolved address is in a private/reserved range.
 pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
-    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // Intended for local development and integration testing only.
-    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
+    // The `FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is honored only in
+    // development environments; refused when any production marker is set.
+    // See `crate::insecure_guard` for the full policy.
+    if crate::insecure_guard::is_outbound_insecure_allowed() {
         return Ok(());
     }
 
