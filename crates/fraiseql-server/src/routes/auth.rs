@@ -311,10 +311,9 @@ pub struct RevocationRouteState {
 /// # Responses
 ///
 /// - `200` — token revoked successfully.
-/// - `401` — no valid session (enforced by `oidc_auth_middleware` before this
-///   handler is called).
-/// - `409` — the validated token has no `jti` claim, so there is no per-token
-///   identifier the revocation store can record.
+/// - `401` — no valid session (enforced by `oidc_auth_middleware` before this handler is called).
+/// - `409` — the validated token has no `jti` claim, so there is no per-token identifier the
+///   revocation store can record.
 pub async fn revoke_token(
     State(state): State<std::sync::Arc<RevocationRouteState>>,
     Extension(auth_user): Extension<AuthUser>,
@@ -388,8 +387,7 @@ const REVOKE_ALL_ADMIN_SCOPE: &str = "admin";
 /// - `200` — tokens revoked.
 /// - `400` — `sub` is missing or empty.
 /// - `401` — no valid session (enforced by `oidc_auth_middleware`).
-/// - `403` — caller's `sub` does not match `body.sub` and caller lacks the
-///   admin scope.
+/// - `403` — caller's `sub` does not match `body.sub` and caller lacks the admin scope.
 pub async fn revoke_all_tokens(
     State(state): State<std::sync::Arc<RevocationRouteState>>,
     Extension(auth_user): Extension<AuthUser>,
@@ -406,10 +404,7 @@ pub async fn revoke_all_tokens(
             target_sub = %body.sub,
             "Cross-user revoke-all rejected: caller is not admin"
         );
-        return auth_error(
-            StatusCode::FORBIDDEN,
-            "Cannot revoke another user's sessions",
-        );
+        return auth_error(StatusCode::FORBIDDEN, "Cannot revoke another user's sessions");
     }
 
     match state.revocation_manager.revoke_all_for_user(&body.sub).await {

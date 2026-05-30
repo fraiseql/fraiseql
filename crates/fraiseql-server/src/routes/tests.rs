@@ -406,10 +406,9 @@ mod revoke_tests {
     //! behind `oidc_auth_middleware` in `server/routing/auth.rs`; the
     //! handler tests below cover the additional in-handler checks:
     //!
-    //! - `revoke_token` revokes the bearer-token's own `jti` (not an
-    //!   attacker-supplied body token).
-    //! - `revoke_all_tokens` enforces caller-`sub` == `body.sub` unless the
-    //!   caller holds the `admin` scope.
+    //! - `revoke_token` revokes the bearer-token's own `jti` (not an attacker-supplied body token).
+    //! - `revoke_all_tokens` enforces caller-`sub` == `body.sub` unless the caller holds the
+    //!   `admin` scope.
 
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
