@@ -86,6 +86,46 @@ pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Names whose values are likely to carry secrets and so must be masked
+/// before any debug-level logging.  Case-insensitive substring match —
+/// catches `Authorization`, `X-API-Key`, `x-api-key`, `Cookie`,
+/// `X-Auth-Secret`, etc.  Intentionally broad: false-positives (masking a
+/// non-sensitive header) are acceptable; false-negatives (printing a real
+/// bearer token) are not (#346).
+const SECRET_HEADER_NEEDLES: &[&str] = &["authorization", "api-key", "cookie", "secret", "token"];
+
+/// Returns a copy of `headers` with the values of any name matching
+/// [`SECRET_HEADER_NEEDLES`] (case-insensitive substring) replaced with
+/// `"<redacted>"`.  Used by the webhook dispatch debug-logging path so
+/// bearer tokens and API keys do not leak to log aggregation.
+pub(crate) fn redact_secret_headers(headers: &HashMap<String, String>) -> HashMap<String, String> {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            let lower = name.to_ascii_lowercase();
+            let masked = SECRET_HEADER_NEEDLES.iter().any(|needle| lower.contains(needle));
+            let safe_value = if masked {
+                "<redacted>".to_owned()
+            } else {
+                value.clone()
+            };
+            (name.clone(), safe_value)
+        })
+        .collect()
+}
+
+/// Extracts the host portion of a URL for INFO-level logging.  Strips
+/// scheme, userinfo, port, path, query, and fragment so the INFO line
+/// carries only the destination host — not embedded credentials or
+/// per-request query-string secrets (#346).  Falls back to `"<invalid>"`
+/// when the URL cannot be parsed by `reqwest::Url`.
+pub(crate) fn url_host_only(url: &str) -> String {
+    reqwest::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_owned))
+        .unwrap_or_else(|| "<invalid>".to_owned())
+}
+
 /// Returns `true` for hostnames and literal IPs that are blocked as SSRF targets.
 fn is_ssrf_blocked_host_obs(host: &str) -> bool {
     let lower = host.to_ascii_lowercase();
@@ -245,10 +285,21 @@ impl WebhookAction {
     ) -> Result<WebhookResponse> {
         let start = std::time::Instant::now();
 
-        debug!("WebhookAction.execute() called");
-        info!("  URL: {}", url);
-        info!("  Headers: {:?}", headers);
-        info!("  Body template: {:?}", body_template);
+        // INFO emits delivery METADATA only — host, event id, dispatch lifecycle.
+        // Full URL (may carry credentials in query string), headers (may carry
+        // bearer tokens / API keys), and body (may carry PII rows) are demoted
+        // to DEBUG and TRACE so the default INFO log level no longer leaks
+        // secrets or PII into log aggregation (#346).  Headers are redacted
+        // even at DEBUG: bearer-style values are replaced with `<redacted>`.
+        let host = url_host_only(url);
+        let event_id = event.id;
+        debug!(
+            "WebhookAction.execute() called: host={host}, event_id={event_id}, body_template_present={}",
+            body_template.is_some()
+        );
+        debug!("  URL (full): {}", url);
+        debug!("  Headers (redacted): {:?}", redact_secret_headers(headers));
+        debug!("  Body template: {:?}", body_template);
 
         // SECURITY: Reject URLs that target private/loopback addresses (SSRF protection).
         validate_outbound_url(url)?;
@@ -266,7 +317,12 @@ impl WebhookAction {
             event.data.clone()
         };
 
-        info!(
+        // Rendered body MAY contain PII (entity rows).  Reserved for TRACE so a
+        // production INFO log stream never carries customer data even from a
+        // valid event.
+        tracing::trace!(
+            event_id = %event_id,
+            host = %host,
             "  Body: {}",
             serde_json::to_string(&body).unwrap_or_else(|_| "<invalid json>".to_string())
         );
@@ -279,7 +335,12 @@ impl WebhookAction {
             request = request.header(key, value);
         }
 
-        info!("  Sending HTTP POST...");
+        info!(
+            action_type = "webhook",
+            event_id = %event_id,
+            host = %host,
+            "Webhook dispatch starting"
+        );
 
         // Send request
         let response =
@@ -293,6 +354,15 @@ impl WebhookAction {
 
         let status = response.status();
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+        info!(
+            action_type = "webhook",
+            event_id = %event_id,
+            host = %host,
+            status_code = status.as_u16(),
+            duration_ms = duration_ms,
+            "Webhook dispatch complete"
+        );
 
         classify_http_status(status, duration_ms)
     }

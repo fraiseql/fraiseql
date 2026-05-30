@@ -319,6 +319,97 @@ mod actions_tests {
         // SlackAction::new() must succeed — no panics allowed from Client::builder().
         let _slack = SlackAction::new();
     }
+
+    // -----------------------------------------------------------------------
+    // #346 — secret-header redaction + URL host-only extraction
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn redact_secret_headers_masks_authorization() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_owned(), "Bearer abc123".to_owned());
+        headers.insert("Content-Type".to_owned(), "application/json".to_owned());
+
+        let redacted = redact_secret_headers(&headers);
+        assert_eq!(redacted.get("Authorization").map(String::as_str), Some("<redacted>"));
+        assert_eq!(
+            redacted.get("Content-Type").map(String::as_str),
+            Some("application/json"),
+            "non-secret headers must pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn redact_secret_headers_is_case_insensitive() {
+        let mut headers = HashMap::new();
+        headers.insert("authorization".to_owned(), "Bearer abc123".to_owned());
+        headers.insert("AUTHORIZATION".to_owned(), "Bearer xyz789".to_owned());
+        headers.insert("X-Api-Key".to_owned(), "key-1".to_owned());
+        headers.insert("x-api-key".to_owned(), "key-2".to_owned());
+        headers.insert("Cookie".to_owned(), "session=foo".to_owned());
+
+        let redacted = redact_secret_headers(&headers);
+        for name in [
+            "authorization",
+            "AUTHORIZATION",
+            "X-Api-Key",
+            "x-api-key",
+            "Cookie",
+        ] {
+            assert_eq!(
+                redacted.get(name).map(String::as_str),
+                Some("<redacted>"),
+                "header {name:?} must be redacted"
+            );
+        }
+    }
+
+    #[test]
+    fn redact_secret_headers_masks_substring_matches() {
+        // Names containing one of the needles anywhere in the (lowercased) name
+        // are redacted — false-positives (over-masking) are acceptable per the
+        // helper's doc; false-negatives (printing a bearer) are not.
+        let mut headers = HashMap::new();
+        headers.insert("X-Auth-Secret".to_owned(), "shh".to_owned());
+        headers.insert("Custom-Token-Header".to_owned(), "tok".to_owned());
+        headers.insert("X-Cookie-Whatever".to_owned(), "yum".to_owned());
+
+        let redacted = redact_secret_headers(&headers);
+        for name in ["X-Auth-Secret", "Custom-Token-Header", "X-Cookie-Whatever"] {
+            assert_eq!(redacted.get(name).map(String::as_str), Some("<redacted>"));
+        }
+    }
+
+    #[test]
+    fn redact_secret_headers_does_not_mask_safe_headers() {
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_owned(), "application/json".to_owned());
+        headers.insert("Accept".to_owned(), "*/*".to_owned());
+        headers.insert("User-Agent".to_owned(), "fraiseql/2.4.0".to_owned());
+
+        let redacted = redact_secret_headers(&headers);
+        assert_eq!(redacted, headers);
+    }
+
+    #[test]
+    fn url_host_only_strips_scheme_userinfo_path_query_and_fragment() {
+        assert_eq!(
+            url_host_only("https://user:pass@example.com:8443/path?secret=abc#frag"),
+            "example.com"
+        );
+        assert_eq!(url_host_only("https://api.example.com/webhooks/123"), "api.example.com");
+        assert_eq!(
+            url_host_only("https://example.com/?token=sensitive"),
+            "example.com",
+            "query string with sensitive tokens must not appear in INFO log"
+        );
+    }
+
+    #[test]
+    fn url_host_only_returns_invalid_on_garbage_input() {
+        assert_eq!(url_host_only(""), "<invalid>");
+        assert_eq!(url_host_only("not a url"), "<invalid>");
+    }
 }
 
 #[cfg(test)]
