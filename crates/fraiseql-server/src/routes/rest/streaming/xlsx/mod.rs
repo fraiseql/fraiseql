@@ -379,6 +379,19 @@ fn write_cell(
     col: u16,
     value: &serde_json::Value,
 ) -> Result<(), RestError> {
+    // String cells in XLSX are stored as `<inlineStr><t>...</t>` which
+    // Excel treats as a literal value (no formula evaluation).  We still
+    // apply the formula-injection guard as belt-and-suspenders against:
+    //
+    // 1. CSV-import paths that paste an XLSX cell into a different sheet, where the leading `=`
+    //    *would* be parsed as a formula.
+    // 2. Older Excel / LibreOffice versions that occasionally promote string cells starting with a
+    //    sentinel to formula cells on save.
+    // 3. Downstream tooling that round-trips through CSV (a common export chain for analytics
+    //    pipelines).
+    //
+    // See `super::csv::guard_formula_injection` for the threat model.
+    use super::csv::guard_formula_injection;
     match value {
         serde_json::Value::Null => Ok(()),
         serde_json::Value::Bool(b) => worksheet.write_boolean(row, col, *b).map(|_| ()),
@@ -387,16 +400,20 @@ fn write_cell(
             // Integers above f64 range fall back to a string cell so we
             // don't silently lose precision (Excel itself can't represent
             // 64-bit integers as numbers).
-            None => worksheet.write_string(row, col, truncate_for_xlsx(&n.to_string())).map(|_| ()),
+            None => worksheet
+                .write_string(row, col, truncate_for_xlsx(&guard_formula_injection(&n.to_string())))
+                .map(|_| ()),
         },
-        serde_json::Value::String(s) => {
-            worksheet.write_string(row, col, truncate_for_xlsx(s)).map(|_| ())
-        },
+        serde_json::Value::String(s) => worksheet
+            .write_string(row, col, truncate_for_xlsx(&guard_formula_injection(s)))
+            .map(|_| ()),
         other => worksheet
             .write_string(
                 row,
                 col,
-                truncate_for_xlsx(&serde_json::to_string(other).unwrap_or_default()),
+                truncate_for_xlsx(&guard_formula_injection(
+                    &serde_json::to_string(other).unwrap_or_default(),
+                )),
             )
             .map(|_| ()),
     }
