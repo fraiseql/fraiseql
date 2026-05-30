@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   3. `POST /auth/revoke-all` now requires the caller's authenticated `sub` to match `body.sub`, unless the caller holds the `admin` scope. Cross-user revocation requests return `403 Forbidden` with a `caller_sub`/`target_sub` warning logged for incident response.
 
+- **`[auth_hs256]` now requires `audience` to be set** (#359). The HS256 shared-secret testing path is the most likely place for two services to share a signing key (test fixtures, internal service meshes, monorepo CI); pre-v2.4.0 it accepted any token whose `aud` matched the unset (`None`) configuration — i.e., any token from any service. A token minted for service A was accepted by service B, exactly the cross-service token-confusion attack the v2.3 S40 OIDC hardening closes for the OIDC path. `Hs256Config::validate` now returns an error when `audience` is `None`, called from `build_hs256_auth` at server startup with a clear actionable message. Mirrors `OidcConfig::validate` exactly.
+
 - **`FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is refused in production environments** (#347). Pre-v2.4.0 the env var disabled every outbound SSRF guard (scheme allowlist, private-IP blocklist, DNS-rebinding defence) in observer dispatch — `validate_outbound_url`, `dns_resolve_and_check`, `executor::dispatch::validate_url_ssrf` — with a `std::sync::Once` warn-on-first-use that was easy to miss in streaming log aggregators. Combined with #348 (anonymous observer install), this was a one-step path to AWS metadata-service credential exfiltration: install an observer pointing at `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`, wait for the next mutation.
 
   The fix centralises the bypass policy in a new `fraiseql_observers::insecure_guard` module. The check now refuses the bypass when ANY production-marker env var is set:
@@ -45,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`POST /auth/revoke` request body changed.** The `token` field is now `Option<String>` and ignored. Clients that previously submitted a body token will continue to receive `200 OK`, but the revocation now targets the *authentication* token, not the body token. Update any flow that depended on revoking an arbitrary harvested token via this endpoint — there is no longer such a primitive.
 
 - **`POST /auth/revoke` and `POST /auth/revoke-all` now require a valid bearer token.** Anonymous calls return `401 Unauthorized`. Update any internal tooling that called these endpoints unauthenticated.
+
+- **`[auth_hs256]` refuses to boot without `audience`.** Deployments using HS256 auth with no `audience` will fail startup with an actionable error message. Set `audience = "..."` in the `[auth_hs256]` section of `fraiseql.toml` to your API identifier. There is no compatibility shim — the cross-service token-confusion attack the fix closes (#359) is not acceptable in a "warn-and-continue" mode.
 
 - **Token revocation requires `[auth]` to be configured.** If `[security.token_revocation] enabled = true` but no OIDC validator is present, the revocation routes are skipped at startup (with a `WARN` log) rather than mounted open. Configure `[auth]` in `fraiseql.toml` to restore the routes.
 

@@ -20,6 +20,12 @@ pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthM
     let Some(ref hs) = config.auth_hs256 else {
         return Ok(None);
     };
+    // Reject incompatible config shapes *before* loading the secret, so a
+    // dev environment with a real secret env-var but missing audience still
+    // surfaces the audience error rather than silently booting.  Closes the
+    // cross-service token-confusion gap for the HS256 path (#359).
+    hs.validate()
+        .map_err(|e| ServerError::ConfigError(format!("Failed to initialize HS256 auth: {e}")))?;
     let secret = hs
         .load_secret()
         .map_err(|e| ServerError::ConfigError(format!("Failed to initialize HS256 auth: {e}")))?;
