@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,
+  `sha2 0.10 → 0.11`, `hmac 0.12 → 0.13`, and `pbkdf2 0.12 → 0.13` (the latter
+  forced by the wire SCRAM PRF). These all ride `digest 0.11` / `crypto-common
+  0.2` and cannot be mixed with the `digest 0.10` generation, so they move in
+  lockstep. Call sites were updated to the new API: `KeyInit` is now imported
+  for `Hmac::new_from_slice`, and digest outputs are hex-encoded via
+  `hex::encode` (the new `hybrid-array` `Output` no longer implements
+  `LowerHex`). No public API changed. The `cargo deny` skip for the transitive
+  `sha1 0.10.6` (pinned by `sqlx-mysql`) was re-added.
+
 ### Security
 
 - **`POST /auth/revoke` and `POST /auth/revoke-all` are now authenticated** (#358, FW-21 class). In v2.3.x and earlier, both routes were mounted with no auth middleware, so any unauthenticated client could revoke any harvested JWT (by `jti`) or wipe every active session for any user (by `sub`). The handlers used `jsonwebtoken::dangerous::insecure_decode` to extract the `jti` from a body-supplied token without any proof-of-possession, so the attack required nothing beyond a network path to the server. Affected anyone running `[security.token_revocation] enabled = true`.

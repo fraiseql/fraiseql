@@ -48,6 +48,11 @@ multiple-versions = "deny"
 wildcards = "allow"
 
 [[bans.skip]]
+name = "sha1"
+reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11 (#300)"
+version = "=0.10.6"
+
+[[bans.skip]]
 name = "aws-smithy-http"
 reason = "aws-sdk-s3 transitively depends on two smithy-http versions"
 version = "=0.62.6"

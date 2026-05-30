@@ -30,7 +30,7 @@ fn write_manifest(dir: &tempfile::TempDir, content: &serde_json::Value) -> Strin
 
 /// Compute the `sha256:` prefixed key for a query body.
 fn sha256_key(query: &str) -> String {
-    let hash = format!("{:x}", Sha256::digest(query.as_bytes()));
+    let hash = hex::encode(Sha256::digest(query.as_bytes()));
     format!("sha256:{hash}")
 }
 
@@ -158,7 +158,7 @@ fn validate_documents_partial_mismatch_exits_nonzero() {
 fn validate_documents_hash_without_prefix_is_accepted() {
     let dir = tempfile::tempdir().unwrap();
     let query = "query GetOrders { orders { id status } }";
-    let hash = format!("{:x}", Sha256::digest(query.as_bytes()));
+    let hash = hex::encode(Sha256::digest(query.as_bytes()));
     // Key without `sha256:` prefix
     let manifest = serde_json::json!({
         "version": 1,

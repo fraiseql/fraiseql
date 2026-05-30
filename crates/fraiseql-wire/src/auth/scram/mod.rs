@@ -4,7 +4,7 @@
 //! as defined in RFC 5802 for PostgreSQL authentication (Postgres 10+).
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use pbkdf2::pbkdf2;
 use rand::Rng;
 use sha2::{Digest, Sha256};

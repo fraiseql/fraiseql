@@ -176,7 +176,7 @@ impl WebhookAdapter {
 
     /// Compute HMAC-SHA256 signature for payload.
     fn compute_signature(&self, payload: &str) -> Option<String> {
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         let secret = self.config.secret.as_ref()?;

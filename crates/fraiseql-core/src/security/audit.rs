@@ -121,7 +121,7 @@ impl AuditEntry {
             hasher.update(prev.as_bytes());
         }
 
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     }
 
     /// Verify integrity of this entry against its stored hash
