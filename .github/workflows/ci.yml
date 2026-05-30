@@ -68,7 +68,11 @@ jobs:
   # Lint with Clippy
   clippy:
     name: Clippy Lints
-    runs-on: ubuntu-latest
+    # CPU-bound: full workspace compile + all-features lint pass.
+    # Routed to fraiseql-8core (8 vCPU / 32 GB) to roughly halve wall time.
+    # Org-level larger runner is capped at maximum_runners: 2 — confirm only
+    # one other job on this PR also routes here before adding a third.
+    runs-on: fraiseql-8core
     # Full workspace compilation + linting
     timeout-minutes: 25
     steps:
@@ -541,7 +545,12 @@ jobs:
   # Integration tests for Redis (APQ storage, observer queue and lease)
   integration-redis:
     name: Integration Tests (Redis)
-    runs-on: ubuntu-latest
+    # Longest-pole job at the v2.3.2 frozen-SHA snapshot (~11.6 min).
+    # Mixed I/O + CPU: Redis container fixed startup ~10s, then parallel
+    # cargo test threads dominate. Routed to fraiseql-8core for the test-
+    # thread parallelism. Cap is maximum_runners: 2 org-wide; ensure no
+    # third concurrent job lands on this label.
+    runs-on: fraiseql-8core
     timeout-minutes: 45
 
     services:
