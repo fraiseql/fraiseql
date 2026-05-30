@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`POST /auth/revoke` and `POST /auth/revoke-all` are now authenticated** (#358, FW-21 class). In v2.3.x and earlier, both routes were mounted with no auth middleware, so any unauthenticated client could revoke any harvested JWT (by `jti`) or wipe every active session for any user (by `sub`). The handlers used `jsonwebtoken::dangerous::insecure_decode` to extract the `jti` from a body-supplied token without any proof-of-possession, so the attack required nothing beyond a network path to the server. Affected anyone running `[security.token_revocation] enabled = true`.
+
+  The fix has three parts:
+
+  1. The revocation router is now mounted behind `oidc_auth_middleware` — unauthenticated requests get `401 Unauthorized` before reaching the handler. If `[security.token_revocation]` is configured without a corresponding `[auth]` OIDC validator, the routes are *not* mounted at all and a startup warning is emitted, rather than mounting them open.
+
+  2. `POST /auth/revoke` no longer trusts a token submitted in the body. It revokes the `jti` of the bearer token used to authenticate the request — surfaced as a new `SessionJti` request extension populated by the auth middleware. The body's `token` field is still accepted on the wire for compatibility but is ignored. This closes the residual attack where an authenticated alice could `insecure_decode` a body token claiming `sub: "alice"` but carrying a victim's `jti`.
+
+  3. `POST /auth/revoke-all` now requires the caller's authenticated `sub` to match `body.sub`, unless the caller holds the `admin` scope. Cross-user revocation requests return `403 Forbidden` with a `caller_sub`/`target_sub` warning logged for incident response.
+
+### Breaking changes
+
+- **`POST /auth/revoke` request body changed.** The `token` field is now `Option<String>` and ignored. Clients that previously submitted a body token will continue to receive `200 OK`, but the revocation now targets the *authentication* token, not the body token. Update any flow that depended on revoking an arbitrary harvested token via this endpoint — there is no longer such a primitive.
+
+- **`POST /auth/revoke` and `POST /auth/revoke-all` now require a valid bearer token.** Anonymous calls return `401 Unauthorized`. Update any internal tooling that called these endpoints unauthenticated.
+
+- **Token revocation requires `[auth]` to be configured.** If `[security.token_revocation] enabled = true` but no OIDC validator is present, the revocation routes are skipped at startup (with a `WARN` log) rather than mounted open. Configure `[auth]` in `fraiseql.toml` to restore the routes.
+
 ## [2.3.2] - 2026-05-28
 
 ### Fixed

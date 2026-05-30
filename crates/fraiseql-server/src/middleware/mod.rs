@@ -18,7 +18,7 @@ pub use cors::{cors_layer, cors_layer_restricted, security_headers_middleware};
 pub use header_limits::header_limits_middleware;
 pub use hs256_auth::{Hs256AuthState, hs256_auth_middleware};
 pub use metrics::metrics_middleware;
-pub use oidc_auth::{AuthUser, OidcAuthState, oidc_auth_middleware};
+pub use oidc_auth::{AuthUser, OidcAuthState, SessionJti, oidc_auth_middleware};
 pub use rate_limit::{
     RateLimitConfig, RateLimiter, RateLimitingSecurityConfig, rate_limit_middleware,
 };

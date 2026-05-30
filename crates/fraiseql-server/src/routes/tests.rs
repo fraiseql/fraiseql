@@ -398,6 +398,186 @@ mod auth_tests {
     }
 }
 
+mod revoke_tests {
+    //! Handler-level authorization tests for `POST /auth/revoke` and
+    //! `POST /auth/revoke-all` (issue #358).
+    //!
+    //! Routing-level "401 without auth" is enforced by mounting the routes
+    //! behind `oidc_auth_middleware` in `server/routing/auth.rs`; the
+    //! handler tests below cover the additional in-handler checks:
+    //!
+    //! - `revoke_token` revokes the bearer-token's own `jti` (not an
+    //!   attacker-supplied body token).
+    //! - `revoke_all_tokens` enforces caller-`sub` == `body.sub` unless the
+    //!   caller holds the `admin` scope.
+
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use std::sync::Arc;
+
+    use axum::{
+        Extension, Router,
+        body::Body,
+        http::{Request, StatusCode, header},
+        routing::post,
+    };
+    use chrono::Utc;
+    use tower::ServiceExt as _;
+
+    use super::super::auth::{RevocationRouteState, revoke_all_tokens, revoke_token};
+    use crate::{
+        middleware::{AuthUser, SessionJti},
+        token_revocation::{InMemoryRevocationStore, TokenRevocationManager},
+    };
+
+    fn make_manager() -> Arc<TokenRevocationManager> {
+        Arc::new(TokenRevocationManager::new(
+            Arc::new(InMemoryRevocationStore::new()),
+            true,
+            false,
+        ))
+    }
+
+    fn make_auth_user(sub: &str, scopes: Vec<&str>) -> AuthUser {
+        AuthUser(fraiseql_core::security::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new(sub),
+            scopes:       scopes.into_iter().map(str::to_owned).collect(),
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: std::collections::HashMap::new(),
+        })
+    }
+
+    fn revoke_app(manager: Arc<TokenRevocationManager>) -> Router {
+        let state = Arc::new(RevocationRouteState {
+            revocation_manager: manager,
+        });
+        Router::new()
+            .route("/auth/revoke", post(revoke_token))
+            .route("/auth/revoke-all", post(revoke_all_tokens))
+            .with_state(state)
+    }
+
+    fn post_json(uri: &str, body: &str) -> Request<Body> {
+        Request::builder()
+            .uri(uri)
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_owned()))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn revoke_token_uses_session_jti_not_body() {
+        let manager = make_manager();
+        let app = revoke_app(Arc::clone(&manager));
+
+        // Authenticated as "alice" with jti "alice-jti-1". The request body's
+        // token field carries an attacker-controlled stub that would have
+        // revoked "victim-jti" under the old insecure_decode design.
+        let attacker_body = r#"{"token":"eyJhbGciOiJub25lIn0.eyJqdGkiOiJ2aWN0aW0tanRpIn0."}"#;
+        let req = post_json("/auth/revoke", attacker_body);
+
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec![])))
+            .layer(Extension(SessionJti(Some("alice-jti-1".to_string()))))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK, "revoke should succeed");
+        assert!(
+            manager.check_token(Some("alice-jti-1")).await.is_err(),
+            "alice's bearer-token jti must be the one revoked"
+        );
+        assert!(
+            manager.check_token(Some("victim-jti")).await.is_ok(),
+            "attacker-supplied body.token jti must NOT be revoked"
+        );
+    }
+
+    #[tokio::test]
+    async fn revoke_token_returns_409_when_token_has_no_jti() {
+        let manager = make_manager();
+        let app = revoke_app(manager);
+
+        let req = post_json("/auth/revoke", r"{}");
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec![])))
+            .layer(Extension(SessionJti(None)))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn revoke_all_self_succeeds() {
+        let manager = make_manager();
+        let app = revoke_app(Arc::clone(&manager));
+
+        let req = post_json("/auth/revoke-all", r#"{"sub":"alice"}"#);
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec![])))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn revoke_all_cross_user_without_admin_scope_returns_403() {
+        let manager = make_manager();
+        let app = revoke_app(Arc::clone(&manager));
+
+        let req = post_json("/auth/revoke-all", r#"{"sub":"bob"}"#);
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec!["read", "write"])))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "alice without admin scope must not revoke bob's sessions"
+        );
+    }
+
+    #[tokio::test]
+    async fn revoke_all_cross_user_with_admin_scope_succeeds() {
+        let manager = make_manager();
+        let app = revoke_app(Arc::clone(&manager));
+
+        let req = post_json("/auth/revoke-all", r#"{"sub":"bob"}"#);
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec!["admin"])))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn revoke_all_empty_body_sub_returns_400() {
+        let manager = make_manager();
+        let app = revoke_app(manager);
+
+        let req = post_json("/auth/revoke-all", r#"{"sub":""}"#);
+        let resp = app
+            .layer(Extension(make_auth_user("alice", vec!["admin"])))
+            .oneshot(req)
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+}
+
 mod health_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
     #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting

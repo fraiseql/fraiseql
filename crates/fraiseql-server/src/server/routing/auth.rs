@@ -100,17 +100,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
-        // Token revocation routes — mounted only when revocation is configured.
+        // Token revocation routes — mounted only when revocation is configured
+        // AND an OIDC validator is available to gate the requests. Without an
+        // OIDC validator, these routes would be reachable unauthenticated —
+        // an anonymous force-logout primitive (#358). Skipping the mount with
+        // a loud warning is safer than silently mounting them open.
         if let Some(ref rev_mgr) = self.revocation_manager {
-            let rev_state = Arc::new(crate::routes::RevocationRouteState {
-                revocation_manager: Arc::clone(rev_mgr),
-            });
-            let rev_router = Router::new()
-                .route("/auth/revoke", post(crate::routes::revoke_token))
-                .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
-                .with_state(rev_state);
-            app = app.merge(rev_router);
-            info!("Token revocation routes mounted: POST /auth/revoke, POST /auth/revoke-all");
+            if let Some(ref validator) = self.oidc_validator {
+                let rev_state = Arc::new(crate::routes::RevocationRouteState {
+                    revocation_manager: Arc::clone(rev_mgr),
+                });
+                let auth_state = OidcAuthState::new(Arc::clone(validator));
+                let rev_router = Router::new()
+                    .route("/auth/revoke", post(crate::routes::revoke_token))
+                    .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .with_state(rev_state);
+                app = app.merge(rev_router);
+                info!(
+                    "Token revocation routes mounted (auth-gated): POST /auth/revoke, POST /auth/revoke-all"
+                );
+            } else {
+                tracing::warn!(
+                    "Token revocation is configured but no OIDC validator is available; \
+                     refusing to mount /auth/revoke and /auth/revoke-all unauthenticated. \
+                     Configure [auth] in fraiseql.toml to enable token revocation."
+                );
+            }
         }
 
         app
