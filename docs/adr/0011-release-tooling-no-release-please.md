@@ -77,14 +77,15 @@ in the Release PR body.
 
 ### Crux 3 — Combined-release / version-freeze fit: **partial friction**
 
-The "long-lived Release PR" model maps onto FraiseQL's "accumulate fixes
-until ready" pattern (e.g. the `fix/329-…` branch stacking issues `#329
-- #300 + #326 + #170 + #148 + #319 + #149 + #291`). The friction:
-release-please *computes* the next version from conventional-commit
-types (`feat` ⇒ minor, `fix` ⇒ patch). FraiseQL deliberately freezes
-the version on these combined branches and ships everything under
-`[Unreleased]`. We would be fighting the auto-computed version on most
-releases with `Release-As:` footers.
+The "long-lived Release PR" model maps onto FraiseQL's "accumulate
+fixes until ready" pattern — e.g. the `fix/329-…` branch was a single
+stack of eight issues (`#329`, `#300`, `#326`, `#170`, `#148`, `#319`,
+`#149`, `#291`). The friction: release-please *computes* the next
+version from conventional-commit types (`feat` ⇒ minor, `fix` ⇒
+patch). FraiseQL deliberately freezes the version on these combined
+branches and ships everything under `[Unreleased]`. We would be
+fighting the auto-computed version on most releases with `Release-As:`
+footers.
 
 ### Crux 4 — Tag/publish composition: **the one clean fit**
 
