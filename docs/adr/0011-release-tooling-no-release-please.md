@@ -79,7 +79,7 @@ in the Release PR body.
 
 The "long-lived Release PR" model maps onto FraiseQL's "accumulate fixes
 until ready" pattern (e.g. the `fix/329-…` branch stacking issues `#329
-+ #300 + #326 + #170 + #148 + #319 + #149 + #291`). The friction:
+- #300 + #326 + #170 + #148 + #319 + #149 + #291`). The friction:
 release-please *computes* the next version from conventional-commit
 types (`feat` ⇒ minor, `fix` ⇒ patch). FraiseQL deliberately freezes
 the version on these combined branches and ships everything under
