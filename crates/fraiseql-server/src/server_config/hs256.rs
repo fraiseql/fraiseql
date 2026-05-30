@@ -54,4 +54,44 @@ impl Hs256Config {
         }
         Ok(value)
     }
+
+    /// Validate the `[auth_hs256]` config shape at startup.
+    ///
+    /// `audience` is required.  When two HS256-protected services share a
+    /// signing secret (common in test fixtures, internal service meshes,
+    /// monorepo CI), a token minted for service A is accepted by service
+    /// B if B leaves `audience` unset — exactly the cross-service
+    /// token-confusion attack the v2.3 S40 OIDC hardening closes for the
+    /// OIDC path.  Mirroring that guard here closes the same gap for the
+    /// shared-secret testing path.
+    ///
+    /// `secret_env` is required to be non-empty so configuration errors
+    /// surface at validation time rather than at first auth request.
+    ///
+    /// `issuer` remains optional — `OidcConfig::validate` also treats
+    /// the matching field as optional.
+    ///
+    /// # Errors
+    ///
+    /// Returns a human-readable error string when:
+    /// - `secret_env` is empty.
+    /// - `audience` is `None`.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.secret_env.is_empty() {
+            return Err("auth_hs256: `secret_env` is required and must name the \
+                        environment variable holding the shared secret"
+                .to_owned());
+        }
+        if self.audience.is_none() {
+            return Err("auth_hs256: `audience` is REQUIRED for security. Set it to your API \
+                 identifier to prevent cross-service token-confusion attacks where a \
+                 token minted by one service is accepted by another. \
+                 Example: audience = \"my-api\" or audience = \"https://api.example.com\""
+                .to_owned());
+        }
+        Ok(())
+    }
 }
+
+#[cfg(test)]
+mod tests;
