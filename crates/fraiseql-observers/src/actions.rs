@@ -7,11 +7,11 @@
 //!
 //! Each action handles template rendering, retry logic, and error handling.
 
-use std::{collections::HashMap, sync::Once, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use reqwest::Client;
 use serde_json::{Value, json};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::{
     error::{ObserverError, Result},
@@ -24,9 +24,6 @@ use crate::{
 /// indefinitely.  Operators can override this by constructing the client
 /// manually via [`WebhookAction::with_timeout`].
 pub(crate) const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
-
-/// Warn once when insecure mode is enabled.
-static INSECURE_WARN_ONCE: Once = Once::new();
 
 /// Validate an outbound URL for SSRF risk before sending a request.
 ///
@@ -45,15 +42,11 @@ static INSECURE_WARN_ONCE: Once = Once::new();
 /// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
 /// non-HTTP(S) scheme or resolves to a blocked address range.
 pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
-    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // Intended for local development and integration testing only.
-    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
-        INSECURE_WARN_ONCE.call_once(|| {
-            warn!("FRAISEQL_OBSERVERS_ALLOW_INSECURE=true — HTTPS enforcement disabled for outbound webhook delivery");
-        });
+    // The `FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is honored only in
+    // development environments; the centralised guard refuses it when any
+    // production marker is set (KUBERNETES_SERVICE_HOST, FRAISEQL_ENV=production,
+    // FRAISEQL_PROFILE=production).  See `insecure_guard` module docs.
+    if crate::insecure_guard::is_outbound_insecure_allowed() {
         return Ok(());
     }
 

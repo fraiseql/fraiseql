@@ -56,6 +56,7 @@ pub mod config;
 pub mod dedup;
 #[cfg(feature = "dedup")]
 pub mod deduped_executor;
+pub mod insecure_guard;
 
 #[cfg(feature = "arrow")]
 pub mod arrow_bridge;

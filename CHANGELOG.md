@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   3. `POST /auth/revoke-all` now requires the caller's authenticated `sub` to match `body.sub`, unless the caller holds the `admin` scope. Cross-user revocation requests return `403 Forbidden` with a `caller_sub`/`target_sub` warning logged for incident response.
 
+- **`FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is refused in production environments** (#347). Pre-v2.4.0 the env var disabled every outbound SSRF guard (scheme allowlist, private-IP blocklist, DNS-rebinding defence) in observer dispatch — `validate_outbound_url`, `dns_resolve_and_check`, `executor::dispatch::validate_url_ssrf` — with a `std::sync::Once` warn-on-first-use that was easy to miss in streaming log aggregators. Combined with #348 (anonymous observer install), this was a one-step path to AWS metadata-service credential exfiltration: install an observer pointing at `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`, wait for the next mutation.
+
+  The fix centralises the bypass policy in a new `fraiseql_observers::insecure_guard` module. The check now refuses the bypass when ANY production-marker env var is set:
+
+  - `KUBERNETES_SERVICE_HOST` (automatic in any K8s pod).
+  - `FRAISEQL_ENV=production` (case-insensitive, also accepts `prod`).
+  - `FRAISEQL_PROFILE=production` (case-insensitive, also accepts `prod`).
+
+  When the bypass is refused in production, a structured `ERROR` is logged once per process and a `WARN` is emitted at every outbound dispatch (so operators see the bypass-attempt at every dispatch, not just once at startup). When the bypass is honored in dev, a `WARN` is emitted on every dispatch — the `std::sync::Once` warn-once is gone.
+
 - **Observer admin API now requires authentication** (#348, FW-21 class). All four observer HTTP routers — `observer_routes` (CRUD), `observer_changelog_routes`, `observer_runtime_routes` (`/runtime/health`, `/runtime/reload`), and `observer_dlq_routes` (`/api/observers/dlq/*`) — were previously mounted with no auth middleware. Handlers used `OptionalSecurityContext` (which returns `None` on anonymous calls) or no auth extractor at all, so any unauthenticated client could:
 
   - `POST /api/observers` — install an attacker-controlled webhook observer pointing at any URL (combined with #347, a one-step path to AWS metadata-service credential exfiltration).
