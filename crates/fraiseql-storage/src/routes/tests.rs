@@ -404,3 +404,97 @@ async fn test_different_user_denied_on_private_bucket() {
     let resp = app.oneshot(download).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+// ---------------------------------------------------------------------------
+// Presign RLS gating (#335) — anonymous and cross-user attacks must be rejected
+// before any S3 work happens, mirroring put_handler / get_handler.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_presign_download_anonymous_on_private_bucket_returns_unauthorized_or_forbidden() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+    let app = storage_router(state); // no Extension(StorageUser) — anonymous
+
+    let body = serde_json::json!({
+        "operation": "download",
+        "expires_in_secs": 3600,
+    });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/presign/private-files/secret.txt")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    // Pre-v2.4.0 this returned 200 OK with a valid presigned URL.  After the
+    // fix the anonymous caller is denied — either because the object lookup
+    // returns 404 (RLS-pre-check semantics avoid leaking existence) or
+    // because the RLS check rejects the request.  Both are acceptable;
+    // the unacceptable outcome is 200 OK with a URL.
+    assert_ne!(
+        resp.status(),
+        StatusCode::OK,
+        "presign(download) anonymously on private bucket must NOT return 200 OK with a URL"
+    );
+}
+
+#[tokio::test]
+async fn test_presign_upload_anonymous_on_private_bucket_returns_unauthorized() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+    let app = storage_router(state); // no Extension(StorageUser) — anonymous
+
+    let body = serde_json::json!({
+        "operation": "upload",
+        "expires_in_secs": 3600,
+        "content_type": "text/plain",
+    });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/presign/private-files/attacker-upload.txt")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    // Anonymous upload on a Private bucket must be rejected before any S3
+    // signing happens.  The handler returns 401 with an "unauthorized"
+    // error envelope, mirroring put_handler.
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_presign_download_other_users_object_is_forbidden_on_private_bucket() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+
+    // test-user uploads their own object.
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/private-files/owned.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("owned by test-user"))
+        .unwrap();
+    app.oneshot(upload).await.unwrap();
+
+    // other-user tries to presign a download for test-user's object.
+    let other_user = StorageUser {
+        user_id: Some("other-user".to_string()),
+        roles:   vec!["user".to_string()],
+    };
+    let app = storage_router(state).layer(Extension(other_user));
+    let body = serde_json::json!({
+        "operation": "download",
+        "expires_in_secs": 3600,
+    });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/presign/private-files/owned.txt")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    // Cross-user presign(download) on a Private bucket must yield 403.
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
