@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   3. `POST /auth/revoke-all` now requires the caller's authenticated `sub` to match `body.sub`, unless the caller holds the `admin` scope. Cross-user revocation requests return `403 Forbidden` with a `caller_sub`/`target_sub` warning logged for incident response.
 
+- **Observer admin API now requires authentication** (#348, FW-21 class). All four observer HTTP routers — `observer_routes` (CRUD), `observer_changelog_routes`, `observer_runtime_routes` (`/runtime/health`, `/runtime/reload`), and `observer_dlq_routes` (`/api/observers/dlq/*`) — were previously mounted with no auth middleware. Handlers used `OptionalSecurityContext` (which returns `None` on anonymous calls) or no auth extractor at all, so any unauthenticated client could:
+
+  - `POST /api/observers` — install an attacker-controlled webhook observer pointing at any URL (combined with #347, a one-step path to AWS metadata-service credential exfiltration).
+  - `PATCH /api/observers/{id}` — silently re-route an existing observer to an attacker URL.
+  - `DELETE /api/observers/{id}` — wipe an observer.
+  - `POST /runtime/reload` — denial-of-service against the observer runtime.
+  - `GET /api/observers/{id}` — read bearer-token secrets stored in `actions[].headers`.
+  - `POST /api/observers/dlq/retry-all` — replay queued events through whatever URL the (now attacker-controlled) observer points at.
+
+  All four router nests now mount behind `oidc_auth_middleware` via `route_layer`. If the `observers` feature is enabled but `[auth]` is not configured (no OIDC validator available), the HTTP admin API is *not* mounted and a `WARN` is logged at startup. The in-process observer runtime — triggers, dispatch, DLQ retention — is unaffected; only the HTTP control plane is gated. Affected anyone running the `observers` feature.
+
 ### Breaking changes
 
 - **`POST /auth/revoke` request body changed.** The `token` field is now `Option<String>` and ignored. Clients that previously submitted a body token will continue to receive `200 OK`, but the revocation now targets the *authentication* token, not the body token. Update any flow that depended on revoking an arbitrary harvested token via this endpoint — there is no longer such a primitive.
@@ -26,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`POST /auth/revoke` and `POST /auth/revoke-all` now require a valid bearer token.** Anonymous calls return `401 Unauthorized`. Update any internal tooling that called these endpoints unauthenticated.
 
 - **Token revocation requires `[auth]` to be configured.** If `[security.token_revocation] enabled = true` but no OIDC validator is present, the revocation routes are skipped at startup (with a `WARN` log) rather than mounted open. Configure `[auth]` in `fraiseql.toml` to restore the routes.
+
+- **Observer admin HTTP API requires `[auth]` to be configured.** If `[auth]` is absent, `/api/observers/*`, `/runtime/health`, and `/runtime/reload` are not mounted (with a `WARN` log at startup) rather than mounted open. Any internal tooling that called these endpoints unauthenticated must now present a valid bearer token. Reverse-proxy auth (mTLS or a bearer-token gate) is no longer the only line of defence.
 
 ## [2.3.2] - 2026-05-28
 
