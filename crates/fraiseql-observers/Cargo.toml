@@ -14,7 +14,7 @@ dashmap = {workspace = true}
 fraiseql-arrow = {workspace = true, optional = true}
 fraiseql-error = {workspace = true}
 futures = "0.3"
-http = "1.1"
+http = "1.4"
 parking_lot = {workspace = true}
 prometheus = {version = "0.14", optional = true}
 rand = "0.9"
