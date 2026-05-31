@@ -167,7 +167,8 @@ impl SchemaConverter {
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
             hierarchies_config: intermediate.hierarchies_config,
-            schema_sdl: None,                              // Raw GraphQL SDL
+            changelog: intermediate.changelog_config, // Changelog exposure config from TOML
+            schema_sdl: None,                         // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
             ..Default::default()
@@ -184,6 +185,20 @@ impl SchemaConverter {
             }
         }
 
+        // Changelog exposure requires the observer system: the views it exposes read
+        // from tables (`tb_entity_change_log`, `tb_transport_checkpoint`) that the
+        // observer install convention supplies. Emitting GraphQL types over absent
+        // tables would only fail later, at runtime — reject it here instead.
+        if let Some(ref cl) = compiled.changelog {
+            if cl.expose && !compiled.observers_config.as_ref().is_some_and(|o| o.enabled) {
+                anyhow::bail!(
+                    "[changelog] expose = true requires [observers] to be enabled: the tables \
+                     it exposes (tb_entity_change_log, tb_transport_checkpoint) are installed by \
+                     the observer system."
+                );
+            }
+        }
+
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
         relay::inject_relay_types(&mut compiled);
 
@@ -191,6 +206,10 @@ impl SchemaConverter {
         let rich_filter_config = RichFilterConfig::default();
         compile_rich_filters(&mut compiled, &rich_filter_config)
             .context("Failed to compile rich filter types")?;
+
+        // Inject the changelog GraphQL surface (EntityChangeLog / TransportCheckpoint
+        // types + cursor query + point lookup + upsert mutation) when opted in.
+        fraiseql_core::schema::inject_changelog(&mut compiled);
 
         // Validate the compiled schema
         Self::validate(&compiled)?;

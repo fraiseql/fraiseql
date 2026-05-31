@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Entity change log over GraphQL — opt-in pull-based event consumption (#149).**
+  Set `[changelog] expose = true` (requires `[observers]`) and the compiler injects
+  read-only `EntityChangeLog` / `TransportCheckpoint` types, a cursor-paginated
+  `entity_change_logs` query, a `transport_checkpoint` point lookup, and an
+  idempotent `upsert_transport_checkpoint` mutation — all backed by views the new
+  migration `07_create_changelog_views.sql` installs. Sidecar consumers (AI
+  scoring, search-index sync, audit dashboards) can now poll the observer
+  change-log over the same GraphQL endpoint as the rest of the API — same auth,
+  audit logging, and rate limiting — instead of opening a side-channel PostgreSQL
+  connection. Cursor pagination uses the standard generic filter machinery
+  (`where: { pk_entity_change_log: { gt: $cursor } } orderBy limit`), numeric and
+  gap-free. Access is gated by configurable `read_role` / `write_role`; denied
+  callers receive `"not found in schema"` (enumeration-prevention). This also adds
+  `MutationDefinition.requires_role` with runtime enforcement. See
+  `docs/guides/changelog-graphql.md` and `examples/changelog-sidecar/`.
 - **`fraiseql generate-client typescript` — typed TypeScript clients from a
   compiled schema (#291).** A new `fraiseql-codegen` crate turns a
   `schema.compiled.json` into a consumer-side client that *calls* a FraiseQL API:
@@ -141,6 +156,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   neither; and a runnable example (`examples/async-jobs-subgraph/`) ships a
   self-contained Rust + `async-graphql` subgraph composed alongside a FraiseQL
   schema. Docs and a new example crate only — no engine changes.
+
+### Known limitations
+
+The docs-overhaul audit on 2026-05-29/30 surfaced the following issues
+that are **NOT fixed** in this release and remain open for triage. Pin
+your usage accordingly:
+
+**Silent-no-op TOML wiring (config looks honored but isn't):**
+
+- #330 — multi-tenant runtime not wired into the `fraiseql-server` binary
+- #334 — `[storage.<name>]` / `[files.<name>]` not auto-wired by the binary
+- #340 — observer `/runtime/*` mounted at root instead of `/api/observers/runtime/*`
+- #341 — DLQ subcommands return hard-coded mock JSON instead of reading the runtime DLQ
+- #342 — `[observers]` TOML schema diverges between `fraiseql-cli` and `fraiseql-server`
+- #350 — `FRAISEQL_OBSERVER_TRANSPORT` ignored even with `observers-nats`
+- #356 — `failed_login_max_attempts` / `failed_login_lockout_secs` dropped by server runtime
+- #357 — `[security.token_revocation] backend = "postgres"` silently downgraded to in-memory
+- #360 — PKCE routes mount without `[security.state_encryption]` (warn-and-continue, not refuse)
+- #361 — JWKS hot-rotate stolen-key replay window: `detect_key_rotation` only warns
+
+**Functional bugs:**
+
+- #331 — WebSocket subscription endpoint drops JWT `tenant_id`
+- #332 — suspended tenant returns 403, not 503 + `Retry-After: 60`
+- #333 — tenancy header validator and schema-mode validator disagree on tenant-key shape
+- #336 — storage bucket name dropped before backend call — cross-bucket key collisions
+- #337 — storage stored XSS surface (uploads with attacker `Content-Type`, no `nosniff`)
+- #338 — global 1 MB `DefaultBodyLimit` silently caps every storage upload
+- #339 — LIKE-pattern injection in `StorageMetadataRepo::list` prefix arg
+- #343 — `InMemoryDlq` is unbounded; documented `max_dlq_size` cap silently ignored
+- #344 — DLQ retry handlers race; concurrent retries double-fire the webhook
+- #345 — webhook payloads are not signed; receivers cannot detect forged events
+- #349 — `ActionConfig::Email` observers report success without sending email
+- #270 — additional follow-up tracking (see GitHub for details)
+
+These will be addressed in 2.4.x / 2.5.0; tracking on GitHub.
+A follow-up runbook with per-issue fix shapes lives at
+`/tmp/fraiseql-deferred-bugs-2026-05-30/runbook.md` (local) for the
+next agent to pick up cold.
 
 ## [2.3.2] - 2026-05-28
 

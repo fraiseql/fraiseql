@@ -150,6 +150,12 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, bool>(idx) {
             serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
+            // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
+            // this branch a non-null text array falls through to Null and a parser
+            // expecting a sequence fails. Must precede the jsonb branch (a jsonb
+            // column never deserializes as Vec<String>, so ordering is safe).
+            serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
             v
         } else {

@@ -42,6 +42,7 @@
 //! # }
 //! ```
 
+mod changelog;
 mod compiled;
 mod config_types;
 mod dependency_graph;
@@ -57,13 +58,14 @@ mod scalar_types;
 pub mod security_config;
 mod subscription_types;
 
+pub use changelog::inject_changelog;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
     QueryDefinition, canonicalize_json, is_safe_sql_identifier,
 };
 pub use config_types::{
-    AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
+    AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,
     CompiledSecurityConfig, CrudNamingConfig, CrudNamingPreset, DebugConfig, DeleteResponse,
     EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,
     FederationEntity, FieldAuthRule, GrpcConfig, McpConfig, NamingConvention, ObserversConfig,

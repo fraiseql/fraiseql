@@ -40,6 +40,7 @@ fn test_convert_minimal_schema() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -107,6 +108,7 @@ fn test_convert_type_with_fields() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -164,6 +166,7 @@ fn test_validate_unknown_type_reference() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -237,6 +240,7 @@ fn test_convert_query_with_arguments() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -301,6 +305,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -366,6 +371,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -440,6 +446,7 @@ fn test_convert_field_with_deprecated_directive() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -515,6 +522,7 @@ fn test_convert_enum() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -603,6 +611,7 @@ fn test_convert_input_object() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -661,6 +670,7 @@ fn test_rich_filter_types_generated() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -723,6 +733,7 @@ fn test_rich_filter_types_have_sql_templates() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -797,6 +808,7 @@ fn test_lookup_data_embedded_in_schema() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -895,6 +907,7 @@ fn test_convert_interface() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -982,6 +995,7 @@ fn test_convert_type_implements_interface() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1044,6 +1058,7 @@ fn test_validate_unknown_interface() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1116,6 +1131,7 @@ fn test_validate_missing_interface_field() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1196,6 +1212,7 @@ fn test_convert_union() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1289,6 +1306,7 @@ fn test_convert_field_requires_scope() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1606,5 +1624,87 @@ mod types_tests {
     #[test]
     fn test_is_safe_sql_identifier_special_chars_rejected() {
         assert!(!SchemaConverter::is_safe_sql_identifier("v_user; DROP TABLE"));
+    }
+}
+
+mod changelog_validation_tests {
+    use fraiseql_core::schema::ChangelogConfig;
+    use serde_json::json;
+
+    use crate::schema::{converter::SchemaConverter, intermediate::IntermediateSchema};
+
+    fn intermediate_with(
+        changelog: Option<ChangelogConfig>,
+        observers_config: Option<serde_json::Value>,
+    ) -> IntermediateSchema {
+        IntermediateSchema {
+            version: "2.0.0".to_string(),
+            changelog_config: changelog,
+            observers_config,
+            ..IntermediateSchema::default()
+        }
+    }
+
+    #[test]
+    fn changelog_expose_without_observers_is_rejected() {
+        let intermediate = intermediate_with(
+            Some(ChangelogConfig {
+                expose: true,
+                ..Default::default()
+            }),
+            None,
+        );
+        let err = SchemaConverter::convert(intermediate).unwrap_err();
+        assert!(
+            err.to_string().contains("[observers]"),
+            "error should explain the observers prerequisite, got: {err}"
+        );
+    }
+
+    #[test]
+    fn changelog_expose_with_disabled_observers_is_rejected() {
+        let intermediate = intermediate_with(
+            Some(ChangelogConfig {
+                expose: true,
+                ..Default::default()
+            }),
+            Some(json!({ "enabled": false, "backend": "redis" })),
+        );
+        assert!(SchemaConverter::convert(intermediate).is_err());
+    }
+
+    #[test]
+    fn changelog_expose_with_enabled_observers_is_allowed() {
+        let intermediate = intermediate_with(
+            Some(ChangelogConfig {
+                expose: true,
+                ..Default::default()
+            }),
+            Some(json!({ "enabled": true, "backend": "redis" })),
+        );
+        let compiled = SchemaConverter::convert(intermediate).expect("should convert");
+        assert!(compiled.changelog.is_some());
+        assert!(compiled.changelog.as_ref().unwrap().expose);
+
+        // The injection ran (after rich filters, before validate) and validate()
+        // accepted the schema-qualified view sql_source + the generated operations.
+        assert!(compiled.types.iter().any(|t| t.name == "EntityChangeLog"));
+        assert!(compiled.types.iter().any(|t| t.name == "TransportCheckpoint"));
+        assert!(compiled.queries.iter().any(|q| q.name == "entity_change_logs"));
+        assert!(compiled.queries.iter().any(|q| q.name == "transport_checkpoint"));
+        assert!(compiled.mutations.iter().any(|m| m.name == "upsert_transport_checkpoint"));
+    }
+
+    #[test]
+    fn changelog_disabled_does_not_require_observers() {
+        // expose = false must never trip the observers gate.
+        let intermediate = intermediate_with(
+            Some(ChangelogConfig {
+                expose: false,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert!(SchemaConverter::convert(intermediate).is_ok());
     }
 }

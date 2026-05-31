@@ -48,6 +48,7 @@ fn test_e2e_complete_compilation_pipeline() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -105,6 +106,7 @@ fn test_e2e_sql_templates_all_databases() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -168,6 +170,7 @@ fn test_e2e_lookup_data_comprehensive() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -228,6 +231,7 @@ fn test_e2e_all_operators_generated() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -296,6 +300,7 @@ fn test_e2e_compilation_deterministic() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled1 =
@@ -358,6 +363,7 @@ fn test_e2e_all_49_types_valid() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -489,6 +495,7 @@ fn test_e2e_full_field_assertion() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let schema = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

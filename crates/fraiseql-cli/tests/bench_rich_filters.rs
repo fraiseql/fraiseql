@@ -46,6 +46,7 @@ fn bench_compile_empty_schema_rich_types() {
             naming_convention:    NamingConvention::default(),
             session_variables:    None,
             hierarchies_config:   None,
+            changelog_config:     None,
         };
 
         let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -97,6 +98,7 @@ fn bench_metadata_access_performance() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -154,6 +156,7 @@ fn bench_operator_metadata_parsing() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -215,6 +218,7 @@ fn bench_database_template_access() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -282,6 +286,7 @@ fn bench_lookup_data_access() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -343,6 +348,7 @@ fn bench_full_operator_traversal() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
+        changelog_config:     None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

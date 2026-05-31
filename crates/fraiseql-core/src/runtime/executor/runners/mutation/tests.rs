@@ -908,3 +908,106 @@ mod mutation_audit {
         );
     }
 }
+
+// ── mod mutation_rbac: requires_role enforcement on mutations (#149) ───────
+mod mutation_rbac {
+    use std::collections::HashMap;
+
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{schema::MutationDefinition, security::SecurityContext};
+
+    fn schema_with_gated_mutation() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        let mut m = MutationDefinition::new("upsert_transport_checkpoint", "TransportCheckpoint");
+        m.sql_source = Some("core.fn_upsert_transport_checkpoint".to_string());
+        m.requires_role = Some("changelog_writer".to_string());
+        schema.mutations.push(m);
+        schema.build_indexes();
+        schema
+    }
+
+    fn ctx_with_roles(roles: &[&str]) -> SecurityContext {
+        SecurityContext {
+            user_id:          "sidecar".into(),
+            roles:            roles.iter().map(ToString::to_string).collect(),
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    #[tokio::test]
+    async fn mutation_denied_without_role_reports_not_found() {
+        let executor =
+            Executor::new(schema_with_gated_mutation(), Arc::new(MockAdapter::new(vec![])));
+        let ctx = ctx_with_roles(&["viewer"]);
+
+        let err = executor
+            .execute_with_security(
+                r#"mutation { upsert_transport_checkpoint(transport_name: "s1", last_pk: 1) { last_pk } }"#,
+                None,
+                &ctx,
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(
+            err.contains("not found in schema"),
+            "enumeration-prevention message, got: {err}"
+        );
+        assert!(
+            !err.to_lowercase().contains("forbidden"),
+            "must not reveal the gate, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mutation_with_no_security_context_reports_not_found() {
+        let executor =
+            Executor::new(schema_with_gated_mutation(), Arc::new(MockAdapter::new(vec![])));
+        let err = executor
+            .execute(
+                r#"mutation { upsert_transport_checkpoint(transport_name: "s1", last_pk: 1) { last_pk } }"#,
+                None,
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("not found in schema"), "no roles → not found, got: {err}");
+    }
+
+    #[tokio::test]
+    async fn mutation_allowed_with_role_passes_rbac_gate() {
+        let executor =
+            Executor::new(schema_with_gated_mutation(), Arc::new(MockAdapter::new(vec![])));
+        let ctx = ctx_with_roles(&["changelog_writer"]);
+
+        let err = executor
+            .execute_with_security(
+                r#"mutation { upsert_transport_checkpoint(transport_name: "s1", last_pk: 1) { last_pk } }"#,
+                None,
+                &ctx,
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+
+        // The RBAC gate is passed; execution proceeds and fails only because the
+        // mock adapter returns no rows — NOT because of the role check.
+        assert!(
+            !err.contains("not found in schema"),
+            "role holder must pass the gate (error should be downstream), got: {err}"
+        );
+    }
+}

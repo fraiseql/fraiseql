@@ -22,9 +22,9 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, GrpcConfig, McpConfig, NamingConvention,
-            ObserversConfig, RestConfig, SessionVariablesConfig, SubscriptionsConfig,
-            ValidationConfig,
+            ChangelogConfig, DebugConfig, FederationConfig, GrpcConfig, McpConfig,
+            NamingConvention, ObserversConfig, RestConfig, SessionVariablesConfig,
+            SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -157,6 +157,15 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grpc_config: Option<GrpcConfig>,
 
+    /// Changelog GraphQL-exposure configuration.
+    ///
+    /// Compiled from the `[changelog]` TOML section. When present with
+    /// `expose = true`, the compiler injects the `EntityChangeLog` /
+    /// `TransportCheckpoint` types plus their cursor query, point-lookup query, and
+    /// checkpoint upsert mutation. `None` when the block is absent (the default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<ChangelogConfig>,
+
     /// Session variable injection configuration.
     ///
     /// When populated, the executor calls PostgreSQL `set_config()` before each
@@ -247,6 +256,7 @@ impl PartialEq for CompiledSchema {
             && self.validation_config == other.validation_config
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
+            && self.changelog == other.changelog
             && self.naming_convention == other.naming_convention
             && self.schema_sdl == other.schema_sdl
     }

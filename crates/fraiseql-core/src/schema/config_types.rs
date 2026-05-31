@@ -293,6 +293,54 @@ pub struct EventHandler {
     pub rate_limit:       Option<u32>,
 }
 
+/// Configuration for exposing the observer entity-change log as queryable GraphQL types.
+///
+/// When `expose = true`, the compiler injects two read-only object types
+/// (`EntityChangeLog`, `TransportCheckpoint`), a cursor-paginated list query, a
+/// point-lookup query, and a checkpoint upsert mutation, all backed by the views the
+/// changelog migration installs. Sidecar consumers can then poll the changelog over the
+/// same GraphQL endpoint they use for everything else — same auth, audit, rate limiting.
+///
+/// The generated operations are gated by `read_role` / `write_role` (RBAC). The views
+/// read from `tb_entity_change_log` / `tb_transport_checkpoint`, which the observer
+/// system installs (or which the operator supplies as a documented prerequisite).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ChangelogConfig {
+    /// Master switch. When `false`, no changelog types are registered (default).
+    pub expose:     bool,
+    /// PostgreSQL schema holding `tb_entity_change_log` and `tb_transport_checkpoint`.
+    /// Default `"core"` (the observer install convention).
+    pub schema:     String,
+    /// Role required to query the changelog (`entity_change_logs`, `transport_checkpoint`).
+    ///
+    /// Matched against `SecurityContext.roles`. `None` disables the read gate (not
+    /// recommended for production). Default `Some("changelog_reader")`.
+    pub read_role:  Option<String>,
+    /// Role required to upsert checkpoints (`upsert_transport_checkpoint`).
+    ///
+    /// Matched against `SecurityContext.roles`. `None` disables the write gate.
+    /// Default `Some("changelog_writer")`.
+    pub write_role: Option<String>,
+    /// Maximum rows a single `entity_change_logs` page should return.
+    ///
+    /// Enforced as a documented/runtime clamp rather than a GraphQL argument
+    /// constraint (the argument system has no max). Default `1000`.
+    pub max_limit:  u32,
+}
+
+impl Default for ChangelogConfig {
+    fn default() -> Self {
+        Self {
+            expose:     false,
+            schema:     "core".to_string(),
+            read_role:  Some("changelog_reader".to_string()),
+            write_role: Some("changelog_writer".to_string()),
+            max_limit:  1_000,
+        }
+    }
+}
+
 /// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -687,5 +735,54 @@ impl Default for GrpcConfig {
             reflection:        true,
             stream_batch_size: 500,
         }
+    }
+}
+
+#[cfg(test)]
+mod changelog_config_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+
+    #[test]
+    fn changelog_defaults_to_disabled_with_secure_roles() {
+        let cfg = ChangelogConfig::default();
+        assert!(!cfg.expose, "exposure must be opt-in");
+        assert_eq!(cfg.schema, "core");
+        assert_eq!(cfg.read_role.as_deref(), Some("changelog_reader"));
+        assert_eq!(cfg.write_role.as_deref(), Some("changelog_writer"));
+        assert_eq!(cfg.max_limit, 1_000);
+    }
+
+    #[test]
+    fn changelog_partial_toml_fills_defaults() {
+        // A block that only flips `expose` must inherit every other default,
+        // including the secure-by-default RBAC roles.
+        let cfg: ChangelogConfig = serde_json::from_str(r#"{"expose": true}"#).unwrap();
+        assert!(cfg.expose);
+        assert_eq!(cfg.schema, "core");
+        assert_eq!(cfg.read_role.as_deref(), Some("changelog_reader"));
+        assert_eq!(cfg.max_limit, 1_000);
+    }
+
+    #[test]
+    fn changelog_explicit_null_role_disables_gate() {
+        let cfg: ChangelogConfig =
+            serde_json::from_str(r#"{"expose": true, "read_role": null}"#).unwrap();
+        assert!(cfg.read_role.is_none(), "null read_role disables the read gate");
+    }
+
+    #[test]
+    fn changelog_round_trips_through_json() {
+        let cfg = ChangelogConfig {
+            expose:     true,
+            schema:     "audit".to_string(),
+            read_role:  Some("ops".to_string()),
+            write_role: None,
+            max_limit:  250,
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: ChangelogConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(cfg, back);
     }
 }

@@ -1,11 +1,17 @@
 name: semver-checks
 
-# Detects accidental breaking API changes on PRs targeting dev.
-# Skipped on release-prep branches where version bumps are intentional.
+# Detects accidental breaking API changes against the latest published baseline.
+#
+# Triggered on `workflow_dispatch` only — the workspace-wide
+# `cargo semver-checks check-release --workspace` takes >60 min on the default
+# 2-vCPU runner and consistently cancels on the per-PR path, so it ran for cost
+# with no actionable signal. The focused `API Semver Compatibility` job in
+# `ci.yml` (5 named crates, --baseline-rev v<latest>) still runs on every PR and
+# is the gate that matters. Run this workflow manually before a release tag, or
+# weekly via the GitHub Actions UI.
 
 on:
-  pull_request:
-    branches: [dev]
+  workflow_dispatch:
 
 jobs:
   semver:

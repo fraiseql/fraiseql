@@ -75,6 +75,7 @@ impl SchemaConverter {
             rest_path: None,
             rest_method: None,
             upsert_function: None,
+            requires_role: None,
         })
     }
 
