@@ -538,7 +538,7 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
                 .bucket
                 .as_deref()
                 .ok_or_else(|| config_err("GCS storage backend requires 'bucket' configuration"))?;
-            let backend = GcsBackend::new(bucket)?;
+            let backend = GcsBackend::new_with_endpoint(bucket, config.endpoint.as_deref())?;
             Ok(StorageBackend::Gcs(backend))
         },
         #[cfg(feature = "azure-blob")]
@@ -549,7 +549,8 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
             let account = config.account_name.as_deref().ok_or_else(|| {
                 config_err("Azure Blob storage requires 'account_name' configuration")
             })?;
-            let backend = AzureBackend::new(account, container)?;
+            let backend =
+                AzureBackend::new_with_endpoint(account, container, config.endpoint.as_deref())?;
             Ok(StorageBackend::Azure(backend))
         },
         #[cfg(not(feature = "aws-s3"))]

@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only — runtime testing on a real FreeBSD host remains deferred pending user
   signal. No engine changes.
 
+### Fixed
+
+- **Azure Blob (`azure-blob`) and Google Cloud Storage (`gcs`) backends now
+  honour the configured `endpoint` URL (#326).** Previously the `endpoint`
+  field on `StorageConfig` was silently ignored for these two backends, which
+  hardcoded `*.blob.core.windows.net` / `storage.googleapis.com` into every
+  request — so the Azurite and fake-gcs-server emulators could not be used for
+  local development or CI. Both backends now route through the configured
+  endpoint (matching the existing S3 behaviour), enabling emulator round-trips.
+  Real-cloud Azure/GCS deployments are unaffected: the endpoint defaults to the
+  production hostname when not specified. `AzureBackend` and `GcsBackend` gain
+  additive `new_with_endpoint` constructors (and `AzureBackend` an additive
+  `create_container_if_missing`); the existing `new` constructors are unchanged.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,

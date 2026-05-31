@@ -57,6 +57,32 @@ region = "us-east-1"
 endpoint = "${AWS_ENDPOINT_URL}"  # For MinIO compatibility
 ```
 
+## Local development with emulators
+
+All three cloud backends honour the `endpoint` field, so the standard
+emulators can be used for local development and CI:
+
+| Backend | Emulator | Example `endpoint` |
+|---------|----------|--------------------|
+| S3 | [MinIO](https://min.io/) | `http://localhost:9000` |
+| Azure Blob | [Azurite](https://github.com/Azure/Azurite) | `http://127.0.0.1:10000/devstoreaccount1` |
+| GCS | [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) | `http://localhost:4443` |
+
+For Azure Blob the endpoint is the account-level base (Azurite serves the
+account as a path segment, e.g. `devstoreaccount1`). Example:
+
+```toml
+[storage]
+backend = "azure"
+account_name = "devstoreaccount1"
+bucket = "uploads"           # container name
+endpoint = "http://127.0.0.1:10000/devstoreaccount1"
+```
+
+When `endpoint` is omitted the backends target the production hostnames
+(`*.blob.core.windows.net`, `storage.googleapis.com`), so real-cloud
+deployments need no change.
+
 ## API
 
 Storage endpoints are mounted under `/storage/v1/`:

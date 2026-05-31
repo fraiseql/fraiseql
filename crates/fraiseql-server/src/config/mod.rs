@@ -406,7 +406,8 @@ pub struct StorageConfig {
     /// Cloud region (e.g. `"eu-west-1"` for AWS, `"fr-par"` for Scaleway).
     #[serde(default)]
     pub region:           Option<String>,
-    /// Custom endpoint URL (for S3-compatible providers or local development).
+    /// Custom endpoint URL (for S3-compatible providers, Azurite, and
+    /// fake-gcs-server local-development emulators).
     #[serde(default)]
     pub endpoint:         Option<String>,
     /// GCP project ID (used by the `"gcs"` backend).
