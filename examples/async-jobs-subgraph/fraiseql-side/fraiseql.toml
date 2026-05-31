@@ -5,23 +5,23 @@
 # owns. Composition with the async-jobs subgraph happens at the router (see
 # ../router/), not here — FraiseQL is a subgraph, not a gateway.
 
-[schema]
-name = "async-jobs-fraiseql-side"
-version = "0.1.0"
-database_target = "postgresql"
-description = "SQL-backed half of the async-jobs federation example (issue #170)"
-
 [database]
-url = "${DATABASE_URL}"
 pool_size = 5
+url = "${DATABASE_URL}"
 
 # Federation: this service participates as a subgraph named "users".
 [federation]
 enabled = true
-version = "v2"
 service_name = "users"
+version = "v2"
 
 # Entities this subgraph owns and their key fields.
 [[federation.entities]]
-name = "User"
 key_fields = ["id"]
+name = "User"
+
+[schema]
+database_target = "postgresql"
+description = "SQL-backed half of the async-jobs federation example (issue #170)"
+name = "async-jobs-fraiseql-side"
+version = "0.1.0"
