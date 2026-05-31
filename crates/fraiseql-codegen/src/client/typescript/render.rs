@@ -58,7 +58,11 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
 /// nullability is not expressible here (documented v1 simplification).
 pub(super) fn field_type_ts_nullable(ft: &FieldType, nullable: bool) -> String {
     let base = field_type_ts(ft);
-    if nullable { format!("{base} | null") } else { base }
+    if nullable {
+        format!("{base} | null")
+    } else {
+        base
+    }
 }
 
 /// Whether `ft` represents a custom/rich scalar — used to attach a `// TODO: brand`
@@ -94,7 +98,7 @@ pub(super) fn arg_graphql_type(ft: &FieldType, nullable: bool) -> String {
 /// A parsed input-field `GraphQL` type string, rendered to `TypeScript`.
 pub(super) struct ParsedInputType {
     /// `TypeScript` type expression (e.g. `string`, `(string | null)[]`).
-    pub ts: String,
+    pub ts:       String,
     /// Whether the outermost type is non-null (`!`) — drives `?` on the field.
     pub required: bool,
 }
@@ -115,7 +119,10 @@ pub(super) fn parse_input_type(type_str: &str) -> ParsedInputType {
         } else {
             format!("({} | null)", inner_parsed.ts)
         };
-        return ParsedInputType { ts: format!("{element}[]"), required };
+        return ParsedInputType {
+            ts: format!("{element}[]"),
+            required,
+        };
     }
 
     let ts = named_scalar_ts(s).map_or_else(|| s.to_string(), str::to_string);

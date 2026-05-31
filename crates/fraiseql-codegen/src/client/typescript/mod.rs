@@ -9,9 +9,11 @@ mod emit;
 mod render;
 mod runtime;
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
-use std::path::PathBuf;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    path::PathBuf,
+};
 
 use fraiseql_core::schema::{
     CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, TypeDefinition,
@@ -37,7 +39,10 @@ pub fn generate(schema: &CompiledSchema) -> Result<Generated> {
 
     let mut files = Generated::new();
     let mut modules: Vec<&str> = Vec::new();
-    let add = |files: &mut Generated, modules: &mut Vec<&'static str>, name: &'static str, body: String| {
+    let add = |files: &mut Generated,
+               modules: &mut Vec<&'static str>,
+               name: &'static str,
+               body: String| {
         files.insert(PathBuf::from(format!("{name}.ts")), stamp(&body, &hash));
         modules.push(name);
     };
@@ -77,14 +82,14 @@ fn stamp(body: &str, hash: &str) -> String {
 
 /// Resolved lookups over a [`CompiledSchema`], shared by the emitters.
 pub(super) struct Ctx<'a> {
-    schema:           &'a CompiledSchema,
-    object_types:     BTreeMap<&'a str, &'a TypeDefinition>,
-    interfaces:       BTreeMap<&'a str, &'a InterfaceDefinition>,
-    unions:           BTreeMap<&'a str, &'a UnionDefinition>,
-    enum_names:       BTreeSet<&'a str>,
-    input_names:      BTreeSet<&'a str>,
-    error_typenames:  BTreeSet<&'a str>,
-    has_relay:        bool,
+    schema:            &'a CompiledSchema,
+    object_types:      BTreeMap<&'a str, &'a TypeDefinition>,
+    interfaces:        BTreeMap<&'a str, &'a InterfaceDefinition>,
+    unions:            BTreeMap<&'a str, &'a UnionDefinition>,
+    enum_names:        BTreeSet<&'a str>,
+    input_names:       BTreeSet<&'a str>,
+    error_typenames:   BTreeSet<&'a str>,
+    has_relay:         bool,
     has_relationships: bool,
 }
 

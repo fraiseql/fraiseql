@@ -32,8 +32,9 @@ pub mod typescript;
 /// Returns [`FraiseQLError::Internal`] if the schema cannot be serialized to JSON
 /// (not expected for a well-formed [`CompiledSchema`]).
 pub fn schema_hash(schema: &CompiledSchema) -> Result<String> {
-    let value = serde_json::to_value(schema)
-        .map_err(|e| FraiseQLError::internal(format!("failed to serialize schema for hashing: {e}")))?;
+    let value = serde_json::to_value(schema).map_err(|e| {
+        FraiseQLError::internal(format!("failed to serialize schema for hashing: {e}"))
+    })?;
     let canonical = canonicalize(&value);
     let encoded = serde_json::to_string(&canonical)
         .map_err(|e| FraiseQLError::internal(format!("failed to encode canonical schema: {e}")))?;
@@ -52,10 +53,7 @@ fn canonicalize(value: &serde_json::Value) -> serde_json::Value {
         serde_json::Value::Object(map) => {
             let mut entries: Vec<(&String, &serde_json::Value)> = map.iter().collect();
             entries.sort_by(|a, b| a.0.cmp(b.0));
-            let sorted = entries
-                .into_iter()
-                .map(|(k, v)| (k.clone(), canonicalize(v)))
-                .collect();
+            let sorted = entries.into_iter().map(|(k, v)| (k.clone(), canonicalize(v))).collect();
             serde_json::Value::Object(sorted)
         },
         serde_json::Value::Array(items) => {

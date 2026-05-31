@@ -1,19 +1,21 @@
 //! Per-file `TypeScript` emitters. Each `pub(super)` function returns the body of
 //! one generated module; orchestration and header stamping live in the parent.
 
-use std::collections::BTreeSet;
-use std::fmt::Write as _;
+use std::{collections::BTreeSet, fmt::Write as _};
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, FieldDefinition, InputObjectDefinition,
     InterfaceDefinition, MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
 };
 
-use super::render::{
-    arg_graphql_type, custom_scalar_name, field_type_ts, field_type_ts_nullable, named_scalar_ts,
-    parse_input_type,
+use super::{
+    Ctx, input_base_name, leaf_fields, referenced_named_type,
+    render::{
+        arg_graphql_type, custom_scalar_name, field_type_ts, field_type_ts_nullable,
+        named_scalar_ts, parse_input_type,
+    },
+    render_imports,
 };
-use super::{Ctx, input_base_name, leaf_fields, referenced_named_type, render_imports};
 
 const RELAY_HELPERS: &str = "export interface PageInfo {\n  hasNextPage: boolean;\n  hasPreviousPage: boolean;\n  startCursor: string | null;\n  endCursor: string | null;\n}\n\nexport interface Edge<T> {\n  cursor: string;\n  node: T;\n}\n\nexport interface Connection<T> {\n  edges: Edge<T>[];\n  pageInfo: PageInfo;\n  totalCount?: number;\n}\n";
 
@@ -82,7 +84,9 @@ fn emit_object(out: &mut String, ctx: &Ctx, ty: &TypeDefinition) {
     let _ = writeln!(out, "export interface {name}{extends} {{");
     let _ = writeln!(out, "  __typename: \"{name}\";");
     if ctx.error_typenames.contains(name) {
-        out.push_str("  /** Error class injected by the mutation runtime (the `error_class`). */\n");
+        out.push_str(
+            "  /** Error class injected by the mutation runtime (the `error_class`). */\n",
+        );
         out.push_str("  status: string;\n");
     }
     for field in leaf_fields(&ty.fields) {
@@ -102,8 +106,11 @@ fn emit_field_line(out: &mut String, field: &FieldDefinition) {
 
 fn emit_union(out: &mut String, union: &UnionDefinition) {
     push_doc(out, "", union.description.as_deref());
-    let members =
-        if union.member_types.is_empty() { "never".to_string() } else { union.member_types.join(" | ") };
+    let members = if union.member_types.is_empty() {
+        "never".to_string()
+    } else {
+        union.member_types.join(" | ")
+    };
     let _ = writeln!(out, "export type {} = {members};", union.name);
 }
 
@@ -125,7 +132,11 @@ fn emit_enum(out: &mut String, def: &EnumDefinition) {
     let members = if def.values.is_empty() {
         "never".to_string()
     } else {
-        def.values.iter().map(|v| format!("\"{}\"", v.name)).collect::<Vec<_>>().join(" | ")
+        def.values
+            .iter()
+            .map(|v| format!("\"{}\"", v.name))
+            .collect::<Vec<_>>()
+            .join(" | ")
     };
     let _ = writeln!(out, "export type {} = {members};", def.name);
 }
@@ -140,7 +151,9 @@ pub(super) fn inputs(ctx: &Ctx) -> String {
     for input in &schema.input_types {
         for field in &input.fields {
             let base = input_base_name(&field.field_type);
-            if let Some(name) = schema.enums.iter().find(|e| e.name == base).map(|e| e.name.as_str()) {
+            if let Some(name) =
+                schema.enums.iter().find(|e| e.name == base).map(|e| e.name.as_str())
+            {
                 refs.insert(name);
             }
         }
@@ -216,8 +229,16 @@ fn query_result_ts(_ctx: &Ctx, q: &QueryDefinition) -> String {
     if q.relay {
         return format!("Connection<{node}>");
     }
-    let base = if q.returns_list { format!("{node}[]") } else { node };
-    if q.nullable { format!("{base} | null") } else { base }
+    let base = if q.returns_list {
+        format!("{node}[]")
+    } else {
+        node
+    };
+    if q.nullable {
+        format!("{base} | null")
+    } else {
+        base
+    }
 }
 
 // =============================================================================
@@ -253,10 +274,18 @@ fn emit_error_guard(out: &mut String, ctx: &Ctx) {
     if ctx.error_typenames.is_empty() {
         return;
     }
-    let literals =
-        ctx.error_typenames.iter().map(|n| format!("\"{n}\"")).collect::<Vec<_>>().join(" | ");
-    let set_items =
-        ctx.error_typenames.iter().map(|n| format!("\"{n}\"")).collect::<Vec<_>>().join(", ");
+    let literals = ctx
+        .error_typenames
+        .iter()
+        .map(|n| format!("\"{n}\""))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let set_items = ctx
+        .error_typenames
+        .iter()
+        .map(|n| format!("\"{n}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
     let _ = writeln!(out, "export type ErrorTypename = {literals};\n");
     let _ = writeln!(
         out,
@@ -287,7 +316,9 @@ fn emit_mutation(out: &mut String, ctx: &Ctx, m: &MutationDefinition) {
 
 pub(super) fn relationships(schema: &CompiledSchema) -> String {
     let mut out = String::new();
-    out.push_str("export type RelationshipCardinality = \"oneToMany\" | \"manyToOne\" | \"oneToOne\";\n\n");
+    out.push_str(
+        "export type RelationshipCardinality = \"oneToMany\" | \"manyToOne\" | \"oneToOne\";\n\n",
+    );
     out.push_str("export interface RelationshipMeta {\n");
     out.push_str("  targetType: string;\n");
     out.push_str("  cardinality: RelationshipCardinality;\n");
@@ -345,9 +376,9 @@ pub(super) fn index(modules: &[&str]) -> String {
 /// A built operation: `GraphQL` variable declarations, the field-call arguments,
 /// and the `TypeScript` `variables` object fields.
 struct Operation {
-    var_decls:  Vec<String>, // e.g. "$id: ID!"
-    call_args:  Vec<String>, // e.g. "id: $id"
-    ts_fields:  Vec<String>, // e.g. "id: string" / "first?: number"
+    var_decls:    Vec<String>, // e.g. "$id: ID!"
+    call_args:    Vec<String>, // e.g. "id: $id"
+    ts_fields:    Vec<String>, // e.g. "id: string" / "first?: number"
     all_optional: bool,
 }
 
@@ -380,15 +411,26 @@ fn build_operation(arguments: &[ArgumentDefinition], relay: bool) -> Operation {
         ts_fields.push("after?: string".to_string());
     }
 
-    Operation { var_decls, call_args, ts_fields, all_optional }
+    Operation {
+        var_decls,
+        call_args,
+        ts_fields,
+        all_optional,
+    }
 }
 
 /// Build the `query`/`mutation` document string (a backtick template literal).
 fn render_document(kind: &str, name: &str, op: &Operation, selection: &str) -> String {
-    let var_sig =
-        if op.var_decls.is_empty() { String::new() } else { format!("({})", op.var_decls.join(", ")) };
-    let call_sig =
-        if op.call_args.is_empty() { String::new() } else { format!("({})", op.call_args.join(", ")) };
+    let var_sig = if op.var_decls.is_empty() {
+        String::new()
+    } else {
+        format!("({})", op.var_decls.join(", "))
+    };
+    let call_sig = if op.call_args.is_empty() {
+        String::new()
+    } else {
+        format!("({})", op.call_args.join(", "))
+    };
 
     let mut doc = format!("`{kind} {name}{var_sig} {{\n  {name}{call_sig} {{\n");
     doc.push_str(selection);

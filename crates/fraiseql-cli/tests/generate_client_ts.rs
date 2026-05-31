@@ -56,7 +56,13 @@ fn generate_client_typescript_writes_expected_files() {
         .assert()
         .success();
 
-    for f in ["types.ts", "enums.ts", "queries.ts", "client.ts", "index.ts"] {
+    for f in [
+        "types.ts",
+        "enums.ts",
+        "queries.ts",
+        "client.ts",
+        "index.ts",
+    ] {
         assert!(out.join(f).exists(), "expected generated file {f}");
     }
     // No mutations in this schema → mutations.ts must be skipped, not emitted empty.

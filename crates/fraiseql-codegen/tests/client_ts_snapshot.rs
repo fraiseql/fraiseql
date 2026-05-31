@@ -9,8 +9,10 @@
 //! ```
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use fraiseql_codegen::client::typescript;
 use fraiseql_core::schema::CompiledSchema;

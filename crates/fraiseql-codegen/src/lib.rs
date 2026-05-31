@@ -23,8 +23,7 @@
 //! the inverse direction. Keeping the two apart avoids coupling a
 //! `CompiledSchema`-based crate to the compiler's internal IR.
 
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 pub use fraiseql_error::FraiseQLError;
 

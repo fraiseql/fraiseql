@@ -88,8 +88,11 @@ fn contains_generated_client(out_dir: &Path) -> bool {
 
 /// Search conventional locations for a `schema.compiled.json`.
 fn auto_detect_compiled_schema() -> Result<PathBuf> {
-    let candidates =
-        ["schema.compiled.json", "target/fraiseql/schema.compiled.json", "build/schema.compiled.json"];
+    let candidates = [
+        "schema.compiled.json",
+        "target/fraiseql/schema.compiled.json",
+        "build/schema.compiled.json",
+    ];
     for candidate in candidates {
         let path = PathBuf::from(candidate);
         if path.exists() {
