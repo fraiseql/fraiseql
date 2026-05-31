@@ -92,8 +92,11 @@ fn rbac_roles_propagate_from_config() {
     assert_eq!(list.requires_role.as_deref(), Some("ops_reader"));
     let ty = schema.types.iter().find(|t| t.name == ENTITY_CHANGE_LOG).unwrap();
     assert_eq!(ty.requires_role.as_deref(), Some("ops_reader"));
-    let upsert =
-        schema.mutations.iter().find(|m| m.name == "upsert_transport_checkpoint").unwrap();
+    let upsert = schema
+        .mutations
+        .iter()
+        .find(|m| m.name == "upsert_transport_checkpoint")
+        .unwrap();
     assert_eq!(upsert.requires_role.as_deref(), Some("ops_writer"));
 }
 
@@ -107,7 +110,10 @@ fn schema_name_parameterizes_sql_sources() {
     let schema = exposed_schema(cfg);
     let ty = schema.types.iter().find(|t| t.name == ENTITY_CHANGE_LOG).unwrap();
     assert_eq!(ty.sql_source.as_str(), "audit.v_entity_change_log");
-    let upsert =
-        schema.mutations.iter().find(|m| m.name == "upsert_transport_checkpoint").unwrap();
+    let upsert = schema
+        .mutations
+        .iter()
+        .find(|m| m.name == "upsert_transport_checkpoint")
+        .unwrap();
     assert_eq!(upsert.sql_source.as_deref(), Some("audit.fn_upsert_transport_checkpoint"));
 }
