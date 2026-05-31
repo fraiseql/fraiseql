@@ -55,7 +55,12 @@ else
     echo "      Updated root Cargo.toml"
 fi
 
-# Update [package] version in each crate's Cargo.toml (not [dependencies] lines)
+# Update [package] version in every standalone-versioned manifest (not
+# [dependencies] lines). Members of the main workspace inherit the version via
+# `version.workspace = true` and are bumped by the root edit above, so the awk
+# below is a no-op for them. It only rewrites manifests that carry a literal
+# `[package].version`: the 8 fuzz crates (their own workspaces) and the Rust
+# SDK manifests under sdks/official/fraiseql-rust/ (also their own workspace).
 while IFS= read -r crate_toml; do
     if grep -q "^version = \"${VERSION}\"" "$crate_toml"; then
         continue
@@ -68,7 +73,7 @@ while IFS= read -r crate_toml; do
         in_package && /^version = / { sub(/"[^"]*"/, "\"" ver "\""); in_package=0 }
         { print }
     ' "$crate_toml" > "${crate_toml}.tmp" && mv "${crate_toml}.tmp" "$crate_toml"
-done < <(find crates -name "Cargo.toml" -not -path "*/target/*")
+done < <(find crates sdks/official/fraiseql-rust -name "Cargo.toml" -not -path "*/target/*")
 
 echo "      Done."
 
@@ -115,10 +120,24 @@ echo "      cargo check passed."
 echo "[5/6] Committing..."
 COMMIT_MSG="chore(release): prepare v${VERSION}"
 
-if git diff --cached --quiet && git diff --quiet -- Cargo.toml crates/*/Cargo.toml "$CHANGELOG" "$README"; then
+# Stage every manifest the bump step can touch: the root, all workspace
+# members, the 8 fuzz crates, and the Rust SDK manifests — plus Cargo.lock,
+# CHANGELOG, and README. The fuzz/SDK globs were previously omitted, which left
+# their bumped versions unstaged and forced a manual `git add` each release.
+RELEASE_FILES=(
+    Cargo.toml
+    crates/*/Cargo.toml
+    crates/*/fuzz/Cargo.toml
+    sdks/official/fraiseql-rust/Cargo.toml
+    sdks/official/fraiseql-rust/*/Cargo.toml
+    "$CHANGELOG"
+    "$README"
+)
+
+if git diff --cached --quiet && git diff --quiet -- "${RELEASE_FILES[@]}"; then
     echo "      Nothing to commit — release files already up to date."
 else
-    git add Cargo.toml Cargo.lock crates/*/Cargo.toml "$CHANGELOG" "$README"
+    git add Cargo.lock "${RELEASE_FILES[@]}"
     git commit -m "$COMMIT_MSG"
     echo "      Committed: ${COMMIT_MSG}"
 fi
