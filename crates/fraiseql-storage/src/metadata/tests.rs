@@ -2,11 +2,23 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test functions
 #![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
+use std::sync::LazyLock;
+
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
+use tokio::sync::Mutex;
 
 use super::{NewStorageObject, StorageMetadataRepo};
+
+// Serializes `Postgres::default().start()` across the test binary.
+//
+// testcontainers 0.27 pulls in `conquer-once` for its docker-client OnceCell.
+// When multiple `#[tokio::test]`s race the first init, conquer-once panics.
+// The cell only races on cold start — once one caller has initialized it the
+// rest are race-free, so holding this mutex across `start()` collapses the
+// race to a single ordered init. Drop when testcontainers drops conquer-once.
+static STARTUP_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// DDL for the metadata table, used by tests and later exposed as migration SQL.
 const CREATE_TABLE_DDL: &str = r"
@@ -26,7 +38,9 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
 
 /// Start a throw-away PostgreSQL container and return a pool with the schema created.
 async fn setup_pg() -> (PgPool, impl std::any::Any) {
+    let startup_guard = STARTUP_LOCK.lock().await;
     let container = Postgres::default().start().await.unwrap();
+    drop(startup_guard);
     let port = container.get_host_port_ipv4(5432).await.unwrap();
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
