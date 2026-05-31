@@ -1,0 +1,88 @@
+//! The `client.ts` runtime template.
+//!
+//! This is identical for every generated client and has zero dependencies beyond
+//! the platform `fetch`. The generator prepends the schema-hash header; this
+//! constant is the body.
+
+/// Contents of the generated `client.ts` (without the auto-generated header).
+pub(super) const CLIENT_TS: &str = r#"/**
+ * Minimal GraphQL client over `fetch`. The only runtime dependency of the
+ * generated client is the platform `fetch` implementation.
+ */
+
+export interface GraphQLResponseError {
+  message: string;
+  path?: ReadonlyArray<string | number>;
+  locations?: ReadonlyArray<{ line: number; column: number }>;
+  extensions?: Record<string, unknown>;
+}
+
+/** Thrown when a GraphQL request fails at the HTTP or GraphQL-errors layer. */
+export class FraiseqlError extends Error {
+  readonly errors: ReadonlyArray<GraphQLResponseError>;
+
+  constructor(message: string, errors: ReadonlyArray<GraphQLResponseError> = []) {
+    super(message);
+    this.name = "FraiseqlError";
+    this.errors = errors;
+  }
+}
+
+export interface FraiseqlClientOptions {
+  /** GraphQL endpoint URL, e.g. "https://api.example.com/graphql". */
+  endpoint: string;
+  /** Custom `fetch` implementation (defaults to the global `fetch`). */
+  fetch?: typeof fetch;
+  /** Static headers, or a function returning headers (e.g. for auth tokens). */
+  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
+}
+
+interface GraphQLHttpResponse<TData> {
+  data?: TData | null;
+  errors?: ReadonlyArray<GraphQLResponseError>;
+}
+
+/**
+ * Executes GraphQL documents against a FraiseQL endpoint. The generated
+ * operation functions wrap `request` and unwrap their single root field.
+ */
+export class FraiseqlClient {
+  private readonly endpoint: string;
+  private readonly fetchImpl: typeof fetch;
+  private readonly headers: FraiseqlClientOptions["headers"];
+
+  constructor(options: FraiseqlClientOptions) {
+    this.endpoint = options.endpoint;
+    this.fetchImpl = options.fetch ?? fetch;
+    this.headers = options.headers;
+  }
+
+  /**
+   * Execute a GraphQL document and return its `data` payload.
+   *
+   * @throws {FraiseqlError} when the response carries GraphQL errors, a non-2xx
+   * HTTP status, or no `data`.
+   */
+  async request<TData>(document: string, variables?: Record<string, unknown>): Promise<TData> {
+    const extra = typeof this.headers === "function" ? await this.headers() : (this.headers ?? {});
+    const response = await this.fetchImpl(this.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", ...extra },
+      body: JSON.stringify({ query: document, variables: variables ?? {} }),
+    });
+
+    if (!response.ok) {
+      throw new FraiseqlError(`GraphQL request failed with HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const body = (await response.json()) as GraphQLHttpResponse<TData>;
+    if (body.errors && body.errors.length > 0) {
+      throw new FraiseqlError(body.errors[0]?.message ?? "GraphQL error", body.errors);
+    }
+    if (body.data === undefined || body.data === null) {
+      throw new FraiseqlError("GraphQL response contained no data");
+    }
+    return body.data;
+  }
+}
+"#;

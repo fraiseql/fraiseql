@@ -1,0 +1,13 @@
+{
+  "name": "fraiseql-typescript-client-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Example consumer of a FraiseQL-generated TypeScript client.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

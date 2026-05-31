@@ -379,6 +379,21 @@ EXAMPLES:
         output: Option<String>,
     },
 
+    /// Generate consumer-side typed clients from a compiled schema
+    ///
+    /// Distinct from `generate`: `generate` emits server-side authoring code (write
+    /// FraiseQL types in another language, fed back into the compiler), whereas
+    /// `generate-client` emits a typed client for callers of a FraiseQL API
+    /// (interfaces + query/mutation functions) from a compiled schema.compiled.json.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate-client typescript --out ./src/generated
+    fraiseql generate-client typescript --schema ./schema.compiled.json --out ./gen --force")]
+    GenerateClient {
+        #[command(subcommand)]
+        language: GenerateClientCommands,
+    },
+
     /// Initialize a new FraiseQL project
     ///
     /// Creates project directory with fraiseql.toml, schema.json,
@@ -600,6 +615,25 @@ pub(crate) enum ValidateCommands {
         /// Database connection string
         #[arg(short, long, value_name = "DATABASE_URL")]
         database: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum GenerateClientCommands {
+    /// Generate a TypeScript client (interfaces + typed query/mutation functions).
+    Typescript {
+        /// Path to schema.compiled.json (auto-detected from conventional
+        /// locations if omitted).
+        #[arg(long, value_name = "SCHEMA")]
+        schema: Option<std::path::PathBuf>,
+
+        /// Output directory for the generated client.
+        #[arg(long, value_name = "DIR")]
+        out: std::path::PathBuf,
+
+        /// Overwrite an existing generated client in the output directory.
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
 }
 

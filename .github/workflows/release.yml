@@ -71,7 +71,7 @@ jobs:
           set -uo pipefail
           CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
-                  fraiseql-arrow fraiseql-secrets fraiseql-observers \
+                  fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
           FAILED=0
           for c in $CRATES; do
@@ -386,6 +386,31 @@ jobs:
             done
           done
 
+      # Tier 4.5: Depends on fraiseql-core, fraiseql-error
+      - name: Publish fraiseql-codegen
+        id: publish-codegen
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-codegen/$VERSION")" = "200" ]; then
+            echo "fraiseql-codegen $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-codegen --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
+      - name: Wait for crates.io indexing (Tier 4.5)
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-codegen; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
+
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
         id: publish-arrow
@@ -545,6 +570,7 @@ jobs:
             "${{ steps.publish-storage.outcome }}" \
             "${{ steps.publish-federation.outcome }}" \
             "${{ steps.publish-core.outcome }}" \
+            "${{ steps.publish-codegen.outcome }}" \
             "${{ steps.publish-arrow.outcome }}" \
             "${{ steps.publish-secrets.outcome }}" \
             "${{ steps.publish-observers.outcome }}" \
@@ -576,6 +602,7 @@ jobs:
           [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-storage" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-federation" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-codegen.outcome }}" = "success" ] && echo "- ✅ fraiseql-codegen" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-codegen" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers" >> $GITHUB_STEP_SUMMARY
