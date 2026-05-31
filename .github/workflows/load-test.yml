@@ -1,8 +1,8 @@
 name: Load Tests
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). schedule trigger
+# stripped; workflow_dispatch (with inputs) retained as porting spec. See .phases/dagger-adoption/.
 on:
-  schedule:
-    - cron: "0 3 * * *" # Nightly at 03:00 UTC
   workflow_dispatch:
     inputs:
       scenario:

@@ -1,18 +1,8 @@
 name: Mutation Testing
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). schedule/PR triggers
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  schedule:
-    - cron: '0 2 * * 1'  # Weekly, Monday 02:00 UTC
-  pull_request:
-    paths:
-      - 'crates/fraiseql-auth/src/pkce.rs'
-      - 'crates/fraiseql-auth/src/jwks.rs'
-      - 'crates/fraiseql-db/src/where_sql_generator.rs'
-      - 'crates/fraiseql-core/src/cache/key.rs'
-      - 'crates/fraiseql-core/src/security/query_validator.rs'
-      - 'crates/fraiseql-core/src/compiler/aggregation.rs'
-      - 'crates/fraiseql-core/src/cache/adapter/query.rs'
-      - 'crates/fraiseql-federation/src/http_resolver.rs'
   workflow_dispatch:
 
 # Cancel in-progress runs for the same PR

@@ -1,14 +1,9 @@
 name: Security & Compliance
 
 # Comprehensive security and compliance checks
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR/schedule
+# triggers stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  push:
-    branches: [ main, dev ]
-  pull_request:
-    branches: [ main, dev ]
-  schedule:
-    # Run weekly security scans
-    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
   workflow_dispatch:
 
 concurrency:

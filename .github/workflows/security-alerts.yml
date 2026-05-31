@@ -1,9 +1,9 @@
 name: Security Alerts
 
 # Weekly monitoring for new HIGH/CRITICAL vulnerabilities
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). schedule trigger
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  schedule:
-    - cron: '0 6 * * 1'  # Monday 6 AM UTC
   workflow_dispatch:
 
 permissions:

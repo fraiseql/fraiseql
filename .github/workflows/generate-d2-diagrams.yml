@@ -1,15 +1,9 @@
 name: Generate D2 Diagrams
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  push:
-    branches: [main, dev, feature/**]
-    paths:
-      - 'docs/**/*.md'
-      - '.github/workflows/generate-d2-diagrams.yml'
-  pull_request:
-    branches: [main, dev]
-    paths:
-      - 'docs/**/*.md'
+  workflow_dispatch:
 
 jobs:
   generate-diagrams:

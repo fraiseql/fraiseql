@@ -1,10 +1,9 @@
 name: CI
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
+# stripped; workflow_dispatch retained so the YAML stays runnable as the porting
+# spec. See .phases/dagger-adoption/.
 on:
-  push:
-    branches: [dev]
-  pull_request:
-    branches: [dev]
   workflow_dispatch:
     inputs:
       run_ignored_tests:

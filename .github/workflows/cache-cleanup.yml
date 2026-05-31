@@ -5,11 +5,9 @@ name: Cache Cleanup
 #   - Nightly (06:00 UTC) → delete caches older than 7 days, except dev/main
 # Manual dispatch is also supported via the Actions tab.
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). PR/schedule triggers
+# stripped; workflow_dispatch (with inputs) retained as porting spec. See .phases/dagger-adoption/.
 on:
-  pull_request:
-    types: [closed]
-  schedule:
-    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       max_age_days:

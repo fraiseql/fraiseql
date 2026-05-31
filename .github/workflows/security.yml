@@ -1,8 +1,11 @@
 name: Security Audit (PR Gate)
 
 # Lightweight PR gate — full audit/deny runs in security-compliance.yml
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). pull_request trigger
+# stripped; workflow_dispatch added so the YAML stays runnable as porting spec.
+# See .phases/dagger-adoption/.
 on:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   dependency-review:

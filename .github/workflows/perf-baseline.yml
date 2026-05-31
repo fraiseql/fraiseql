@@ -12,12 +12,10 @@ name: Performance Baseline
 #   cargo run --release -p fraiseql-cli -- run schema.compiled.json &
 #   k6 run benchmarks/load/basic.js
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
-    types: [labeled]  # Only run on PRs labeled "perf"
+  workflow_dispatch:
 
 env:
   SCCACHE_GHA_ENABLED: "true"

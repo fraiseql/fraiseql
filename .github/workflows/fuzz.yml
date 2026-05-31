@@ -1,8 +1,8 @@
 name: Fuzz Testing
 
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). schedule trigger
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  schedule:
-    - cron: '0 3 * * 0'  # Weekly, Sunday 3am UTC
   workflow_dispatch:       # Manual trigger
 
 env:

@@ -1,17 +1,12 @@
 name: Build and Push Docker Images
 
+# Per-branch/PR image builds disabled 2026-05-31 — Dagger CI migration (Track 0).
+# Release tag builds (v*) RETAINED — load-bearing ship path until Dagger Ph06
+# reproduces image-build. push-to-branches + PR stripped. See .phases/dagger-adoption/.
 on:
   push:
-    branches:
-      - main
-      - dev
-      - feature/phase-*
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
-      - dev
   workflow_dispatch:
 
 concurrency:

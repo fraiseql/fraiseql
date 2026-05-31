@@ -1,12 +1,8 @@
 name: Helm Chart Validation
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
+# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
 on:
-  pull_request:
-    paths:
-      - 'deploy/kubernetes/helm/**'
-  push:
-    branches: [dev, main]
-    paths:
-      - 'deploy/kubernetes/helm/**'
+  workflow_dispatch:
 
 jobs:
   helm-lint:
