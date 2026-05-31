@@ -1,0 +1,19 @@
+# Rover supergraph composition config.
+#
+# `rover supergraph compose --config router/supergraph.yaml > router/supergraph.graphql`
+# pulls each subgraph's SDL (via introspection of its running service) and
+# composes them into a single supergraph schema the Apollo Router serves.
+#
+# The two subgraphs:
+#   - users : the FraiseQL (SQL-backed) service  -> owns User
+#   - jobs  : the async-graphql service          -> owns enqueueJob / jobStatus
+federation_version: =2.7.0
+subgraphs:
+  users:
+    routing_url: http://fraiseql:8080/graphql
+    schema:
+      subgraph_url: http://fraiseql:8080/graphql
+  jobs:
+    routing_url: http://subgraph:4001/graphql
+    schema:
+      subgraph_url: http://subgraph:4001/graphql

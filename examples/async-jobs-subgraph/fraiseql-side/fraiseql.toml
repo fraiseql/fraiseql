@@ -1,0 +1,27 @@
+# FraiseQL-side configuration for the async-jobs federation example.
+#
+# This makes the FraiseQL service an Apollo Federation v2 *subgraph*: it exposes
+# its own subgraph SDL (at /__subgraph_schema) and declares the entities it
+# owns. Composition with the async-jobs subgraph happens at the router (see
+# ../router/), not here — FraiseQL is a subgraph, not a gateway.
+
+[database]
+pool_size = 5
+url = "${DATABASE_URL}"
+
+# Federation: this service participates as a subgraph named "users".
+[federation]
+enabled = true
+service_name = "users"
+version = "v2"
+
+# Entities this subgraph owns and their key fields.
+[[federation.entities]]
+key_fields = ["id"]
+name = "User"
+
+[schema]
+database_target = "postgresql"
+description = "SQL-backed half of the async-jobs federation example (issue #170)"
+name = "async-jobs-fraiseql-side"
+version = "0.1.0"

@@ -98,6 +98,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a nullfs-mounted Postgres Unix socket, ZFS-clone multi-tenancy, and a
   per-feature FreeBSD support/limitations table.
 
+- **Documented the federation-subgraph pattern for non-SQL mutations (#170).**
+  Operations that can't be expressed as PL/pgSQL (AI/ML, payments, external
+  services, long-running jobs) are handled with a federation subgraph rather
+  than runtime async handlers in core. ADR-0010 is marked **Rejected** with the
+  rationale and alternatives considered; a decision guide
+  (`docs/guides/non-sql-mutations.md`) covers when to use SQL vs federation vs
+  neither; and a runnable example (`examples/async-jobs-subgraph/`) ships a
+  self-contained Rust + `async-graphql` subgraph composed alongside a FraiseQL
+  schema. Docs and a new example crate only — no engine changes.
+
 ## [2.3.2] - 2026-05-28
 
 ### Fixed

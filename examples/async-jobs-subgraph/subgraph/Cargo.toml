@@ -1,0 +1,31 @@
+# Async-jobs federation subgraph.
+#
+# This is a *standalone* crate, intentionally detached from the FraiseQL
+# workspace (note the empty `[workspace]` table below). It demonstrates that
+# the subgraph that handles non-SQL mutations is an ordinary external GraphQL
+# service — it does not depend on FraiseQL at all and could equally be written
+# in Python, TypeScript, Go, or any other language with a GraphQL library.
+#
+# Keeping it out of the FraiseQL workspace avoids pulling async-graphql into
+# the engine's dependency graph and the pedantic-clippy gate; this example is
+# illustrative, not part of the shipped engine.
+
+[package]
+name = "async-jobs-subgraph"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Example Apollo Federation v2 subgraph handling non-SQL async mutations (FraiseQL issue #170)"
+
+# Detach from the parent FraiseQL workspace.
+[workspace]
+
+[[bin]]
+name = "async-jobs-subgraph"
+path = "src/main.rs"
+
+[dependencies]
+async-graphql = "7"
+async-graphql-axum = "7"
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net", "signal"] }
