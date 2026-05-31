@@ -2,9 +2,13 @@ name: Benchmarks
 
 on:
   push:
-    branches: [dev, main]
+    branches: [main]
   pull_request:
-    branches: [dev]
+    branches: [main]
+    paths:
+      - 'crates/**/benches/**'
+      - 'crates/**/Cargo.toml'
+  workflow_dispatch:
 
 jobs:
   bench:

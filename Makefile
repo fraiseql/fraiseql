@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help preflight build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -424,6 +424,31 @@ lint-tests-layout:
 .PHONY: lint-routes
 lint-routes:
 	@bash tools/check-route-syntax.sh
+
+# Run all gating checks locally before `git push` to avoid paid CI rerun cycles.
+#
+# Covers the failure modes that have triggered reruns in the v2.4.0 release
+# cycle: rustfmt drift, clippy `-D warnings`, the workspace-wide inline-tests
+# policy, rustdoc broken intra-doc links (with `-D warnings`), and the
+# workspace test suite. Add `make preflight` to your pre-push hook to catch
+# them locally for free instead of paying ~$2 per CI rerun.
+#
+# Excluded from preflight (run in CI only): integration tests that need
+# external services (Postgres/Redis/Vault/NATS), Trivy/Container Security
+# scans on the standard image, and the FreeBSD cross-check that needs a
+# 3 GB sysroot.
+.PHONY: preflight
+preflight: lint-routes lint-tests-layout
+	@echo "=== Preflight: nightly rustfmt --check ==="
+	cargo +nightly fmt --all -- --check
+	@echo "=== Preflight: clippy --workspace --all-targets -D warnings ==="
+	cargo clippy --workspace --all-targets -- -D warnings
+	@echo "=== Preflight: rustdoc with -D warnings ==="
+	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
+	@echo "=== Preflight: cargo nextest run (workspace lib) ==="
+	cargo nextest run --workspace --lib --no-fail-fast
+	@echo ""
+	@echo "✅ Preflight passed. Safe to push."
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:

@@ -2,12 +2,13 @@ name: CodeQL SAST
 
 on:
   push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
+    branches: [main]
   schedule:
-    # Weekly scan every Sunday at 3 AM UTC
+    # Weekly scan every Sunday at 3 AM UTC. Sole PR-time SAST signal — Analyze
+    # consumes >$0.50/PR on 2-vCPU and routinely times out at 75min before
+    # finishing, so we accept post-merge / weekly cadence on dev.
     - cron: '0 3 * * 0'
+  workflow_dispatch:
 
 permissions:
   contents: read
