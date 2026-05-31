@@ -1166,6 +1166,78 @@ jobs:
             echo "::warning::fraiseql CLI binary exceeds 100 MB ($CLI_SIZE bytes)"
           fi
 
+  # FreeBSD cross-compile gate (issue #148).
+  #
+  # Catches compile-time regressions for x86_64-unknown-freebsd on every PR
+  # using the existing Linux runners — no FreeBSD VM, no Cirrus, no ongoing
+  # infra cost. Runtime testing on a real FreeBSD host is deliberately out of
+  # scope (deferred; see docs/guides/freebsd-deployment.md).
+  #
+  # Why a sysroot + clang: several non-optional deps compile C
+  # (aws-lc-sys / ring via rustls, zstd-sys). Cross-compiling that C from a
+  # Linux host needs FreeBSD libc + headers, so we unpack a FreeBSD base.txz
+  # as a sysroot and point clang at it. Pure-Rust crates need none of this.
+  #
+  # Scope: a default-feature workspace check plus the full fraiseql-server
+  # feature surface. Two optional features are intentionally NOT cross-checked
+  # because they have no Linux->FreeBSD cross path (build them natively on
+  # FreeBSD instead):
+  #   - fraiseql-functions/runtime-deno -> deno_core -> v8 (per-target native V8)
+  #   - SQL Server backends -> tiberius (native-tls) -> openssl-sys
+  # Neither is enabled by default or reachable through fraiseql-server's flags.
+  # See docs/guides/freebsd-deployment.md for the dependency audit + caveats.
+  freebsd-cross-check:
+    name: FreeBSD x86_64 cross-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Keep the clang target major (--target=...freebsdNN below) in sync with
+      # the major version of this base set.
+      FREEBSD_VERSION: 14.3-RELEASE
+      SYSROOT: ${{ github.workspace }}/freebsd-sysroot
+      CC_x86_64_unknown_freebsd: clang
+      CXX_x86_64_unknown_freebsd: clang++
+      AR_x86_64_unknown_freebsd: llvm-ar
+      RANLIB_x86_64_unknown_freebsd: llvm-ranlib
+      CFLAGS_x86_64_unknown_freebsd: --target=x86_64-unknown-freebsd14 --sysroot=${{ github.workspace }}/freebsd-sysroot
+      CXXFLAGS_x86_64_unknown_freebsd: --target=x86_64-unknown-freebsd14 --sysroot=${{ github.workspace }}/freebsd-sysroot
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust + clang/llvm cross toolchain
+        uses: ./.github/actions/setup-rust
+        with:
+          extra-packages: clang llvm
+
+      - name: Add x86_64-unknown-freebsd target
+        run: rustup target add x86_64-unknown-freebsd
+
+      - name: Cache FreeBSD sysroot
+        id: sysroot-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
+        with:
+          path: ${{ env.SYSROOT }}
+          key: freebsd-sysroot-${{ env.FREEBSD_VERSION }}
+
+      - name: Fetch FreeBSD sysroot (libc + libs + headers)
+        if: steps.sysroot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$SYSROOT"
+          curl -sSL -o /tmp/base.txz \
+            "https://download.freebsd.org/releases/amd64/amd64/${FREEBSD_VERSION}/base.txz"
+          # `cargo check` compiles C but never links the final binary, so only
+          # libc, the shared/static libs and headers are needed from base.txz.
+          tar -xf /tmp/base.txz -C "$SYSROOT" ./lib ./usr/lib ./usr/include
+
+      - name: cargo check (workspace, default features)
+        run: cargo check --workspace --target x86_64-unknown-freebsd
+
+      - name: cargo check (fraiseql-server, all features)
+        # Full deployable feature surface. Excludes runtime-deno and sqlserver
+        # by construction (fraiseql-server enables neither), so this needs no
+        # target OpenSSL and no native V8 — see the job header comment.
+        run: cargo check -p fraiseql-server --all-features --target x86_64-unknown-freebsd
+
   # All checks passed
   ci-success:
     name: CI Success
@@ -1191,6 +1263,7 @@ jobs:
       - sdk-parity
       - binary-size
       - bench
+      - freebsd-cross-check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

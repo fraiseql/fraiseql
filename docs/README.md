@@ -10,6 +10,7 @@
 | Read why design decisions were made | [`docs/adr/`](adr/) — 12 Architecture Decision Records |
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
+| Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
