@@ -4,7 +4,9 @@ description: Poll-based event consumption via the FraiseQL GraphQL endpoint, wit
 sidebar_position: 18
 ---
 
-# Entity change log over GraphQL
+<!-- The Docusaurus front-matter `title:` field is the canonical H1; the
+     body intentionally starts with prose to keep markdownlint MD025 happy.
+     If you add an H1 here, set the front-matter `title:` to empty first. -->
 
 The observer system writes every entity mutation to `core.tb_entity_change_log`.
 When `[changelog] expose = true`, FraiseQL surfaces that log as queryable GraphQL
