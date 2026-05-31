@@ -164,6 +164,7 @@ that are **NOT fixed** in this release and remain open for triage. Pin
 your usage accordingly:
 
 **Silent-no-op TOML wiring (config looks honored but isn't):**
+
 - #330 — multi-tenant runtime not wired into the `fraiseql-server` binary
 - #334 — `[storage.<name>]` / `[files.<name>]` not auto-wired by the binary
 - #340 — observer `/runtime/*` mounted at root instead of `/api/observers/runtime/*`
@@ -176,6 +177,7 @@ your usage accordingly:
 - #361 — JWKS hot-rotate stolen-key replay window: `detect_key_rotation` only warns
 
 **Functional bugs:**
+
 - #331 — WebSocket subscription endpoint drops JWT `tenant_id`
 - #332 — suspended tenant returns 403, not 503 + `Retry-After: 60`
 - #333 — tenancy header validator and schema-mode validator disagree on tenant-key shape
