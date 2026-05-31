@@ -3,7 +3,7 @@
 //! `generate(&CompiledSchema)` returns a [`Generated`] map of `TypeScript` files
 //! implementing a typed, `fetch`-based client. See `DESIGN-CLIENT-TS.md` for the
 //! full specification; this module owns orchestration and the schema-walking
-//! helpers, while [`emit`] owns the per-file rendering.
+//! helpers, while `emit` owns the per-file rendering.
 
 mod emit;
 mod render;
