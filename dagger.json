@@ -1,0 +1,8 @@
+{
+  "name": "fraiseql-ci",
+  "engineVersion": "v0.21.3",
+  "sdk": {
+    "source": "go"
+  },
+  "source": ".dagger"
+}

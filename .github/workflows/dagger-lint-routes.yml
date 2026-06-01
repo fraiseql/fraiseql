@@ -1,0 +1,34 @@
+name: Dagger — lint-routes
+
+# First Dagger CI gate (Track 0, Phase 01). Runs on the self-hosted runner
+# (fraiseql-8core) at ~$0/min and shells the host `dagger` binary, replacing the
+# GitHub-hosted `axum-route-syntax-check` job from ci.yml. See .phases/dagger-adoption/.
+#
+# Pre-written 2026-05-31 while the Dagger engine was down (host kernel 7.0.3 lost
+# its module tree → reboot into 7.0.9 required before `dagger call` works). DO NOT
+# push until `dagger call lint-routes` is verified locally + the .dagger module exists.
+# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
+# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+# Pre-merge remote verification uses workflow_dispatch against the working branch.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: dagger-lint-routes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-routes:
+    name: lint-routes (axum :param gate)
+    runs-on: [self-hosted, fraiseql-8core]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: dagger call lint-routes
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call lint-routes --source=.
