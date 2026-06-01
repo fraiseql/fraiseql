@@ -1,0 +1,40 @@
+name: Dagger — test
+
+# Phase 03 workspace test suite (Track 0). Runs the ci.yml `test` job (Linux path)
+# on the self-hosted runner (fraiseql-8core) at ~$0/min, for both the MSRV (1.92)
+# and latest-stable toolchains. `dagger call test --rust=<tc>` does the full
+# cargo build --all-features + the feature-scoped cargo test invocations + doctests,
+# reusing the box's cargo/target/sccache cache volumes (warm = fast).
+#
+# Testcontainers-backed tests (storage/functions lib + fraiseql-wire tests/*) are
+# skipped here — the engine has no Docker socket; they're restored in Phase 04 via
+# Dagger-native service bindings. See .phases/dagger-adoption/parity-notes.md.
+#
+# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
+# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: dagger-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.rust }})
+    runs-on: [self-hosted, fraiseql-8core]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, msrv]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: dagger call test --rust=${{ matrix.rust }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call test --source=. --rust=${{ matrix.rust }}

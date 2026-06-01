@@ -25,6 +25,14 @@ const (
 	unwrapAllowLimit = "3"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
 	sccacheVersion = "v0.8.2"
+	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
+	rustMsrv = "1.92"
+
+	// SYNC:* feature sets lifted verbatim from ci.yml's Test Suite job — keep in
+	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
+	coreTestFeatures   = "arrow,federation,grpc,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
+	dbTestFeatures     = "grpc,mysql,postgres,sqlite,sqlserver,wire-backend"
+	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
 )
 
 // LintRoutes fails if any axum 0.7-style `:param` route capture remains in the
@@ -289,4 +297,114 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 			"apt-get", "install", "-y", "--no-install-recommends",
 			"make", "git", "gawk", "findutils", "grep", "ca-certificates",
 		})
+}
+
+// ── Phase 03: Workspace Test Suite ────────────────────────────────────────────
+//
+// Ports ci.yml's `test` job (Linux path): a full `cargo build --all-features`
+// followed by the feature-scoped `cargo test -p …` invocations (the SYNC:* lists)
+// and the doctest pass. Parameterized by toolchain (stable | MSRV 1.92).
+
+// Test runs the workspace test suite for the given toolchain. `rust` is "msrv"
+// (default — the pinned floor, == rust-toolchain.toml) or "stable" (latest stable).
+//
+// Testcontainers-backed tests are SKIPPED here: the Dagger engine has no Docker
+// socket, so tests that boot their own Postgres container (storage metadata/
+// migrations/routes, functions migrations, all of fraiseql-wire's tests/* binaries)
+// cannot run. They fail cleanly (no container leak), and are restored in Phase 04
+// via Dagger-native service bindings. The skip is logged explicitly. See
+// parity-notes.md Phase 03/04.
+func (m *FraiseqlCi) Test(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// +optional
+	// +default="msrv"
+	rust string,
+) (string, error) {
+	toolchain := resolveToolchain(rust)
+	// Per-toolchain target cache: stable and 1.92 produce incompatible artifacts,
+	// so they must not share a target dir (kept separate from the Phase-02 gates'
+	// `fraiseql-rust-target`, which holds clippy/rustdoc check artifacts).
+	targetVol := "fraiseql-rust-target-test-" + strings.ReplaceAll(toolchain, ".", "-")
+
+	// Skip patterns for the testcontainers lib tests (storage + functions); wire's
+	// container tests live in tests/*, so we run only its lib unit tests.
+	skip := "-- --skip metadata::tests --skip migrations::tests --skip routes::tests"
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### cargo build --all-features'",
+		// No: on a cold run the verbose stream + telemetry can back up the
+		// dagger client session and time out the return value ("client session
+		// attachables: context deadline exceeded"). Failures still surface (cargo
+		// prints them regardless), and warm runs are short.
+		"cargo build --all-features",
+		"echo '### skipped in-engine (env-incompatible; restored in a later phase):'",
+		"echo '###   testcontainers (need Docker): storage metadata/migrations/routes::tests, functions migrations::tests, fraiseql-wire tests/*'",
+		"echo '###   runtime-deno (v8 SIGSEGVs in exec sandbox): functions deno tests, excluded by feature'",
+		"echo '### cargo test --workspace (non-DB crates; wire+functions run separately below)'",
+		"cargo test --workspace" +
+			" --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow" +
+			" --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire" +
+			" --exclude fraiseql-functions" +
+			" --all-features " + skip,
+		"echo '### cargo test -p fraiseql-wire --lib (tests/* skipped: testcontainers)'",
+		"cargo test -p fraiseql-wire --lib --all-features",
+		// fraiseql-functions runs with all features EXCEPT runtime-deno. Every v8
+		// path (the 23 runtime::deno tests + observer::tests::*dispatches_ts_to_deno)
+		// is #[cfg(feature = "runtime-deno")], and embedded V8 SIGSEGVs inside the
+		// engine's exec sandbox even single-threaded (it works on the bare-metal
+		// runner). Dropping the feature cfgs those tests out cleanly; the build
+		// --all-features step above still compiles the deno path. migrations::tests
+		// skipped (testcontainers). v8-in-sandbox is a follow-up (host-run or a
+		// relaxed exec sandbox) — see parity-notes.md.
+		"echo '### cargo test -p fraiseql-functions (all features except runtime-deno: v8 SIGSEGVs in-engine; migrations::tests skipped: testcontainers)'",
+		"cargo test -p fraiseql-functions --features 'runtime-wasm,host-live,host-storage' -- --skip migrations::tests",
+		// core/db: --lib only. Their src/ unit tests are Docker-free, but their
+		// tests/* integration binaries boot Postgres via tests/common/testcontainer.rs
+		// (and the federation/* docker tests) — those belong to Phase 04's integration
+		// matrix (Dagger services), not the unit-test phase. server (step below) is
+		// already --lib for the same reason.
+		"echo '### cargo test -p fraiseql-core --lib (SYNC:CORE_FEATURES; tests/* = testcontainer integration → Phase 04)'",
+		"cargo test -p fraiseql-core --lib --features '" + coreTestFeatures + "'",
+		"echo '### cargo test -p fraiseql-db --lib (SYNC:DB_FEATURES; tests/* = testcontainer integration → Phase 04)'",
+		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + "'",
+		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES)'",
+		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "'",
+		"echo '### cargo test --doc --all-features'",
+		"cargo test --doc --all-features",
+		"echo \"test OK: workspace suite passed (toolchain " + toolchain + ", testcontainers tests skipped)\"",
+	}, "\n")
+
+	return m.rustBaseFor(toolchain).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// resolveToolchain maps the user-facing --rust value to a rustup toolchain name.
+func resolveToolchain(rust string) string {
+	switch rust {
+	case "", "msrv", rustMsrv:
+		return rustMsrv
+	case "stable":
+		return "stable"
+	default:
+		return rust
+	}
+}
+
+// rustBaseFor returns rustBase pinned to a specific toolchain via RUSTUP_TOOLCHAIN,
+// which overrides the repo's rust-toolchain.toml (pinned to the MSRV). "stable" is
+// installed on demand; the MSRV toolchain ships in the base image.
+func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
+	base := m.rustBase()
+	if toolchain != rustMsrv {
+		base = base.WithExec([]string{"rustup", "toolchain", "install", toolchain, "--profile", "minimal"})
+	}
+	return base.WithEnvVariable("RUSTUP_TOOLCHAIN", toolchain)
 }
