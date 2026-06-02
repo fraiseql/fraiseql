@@ -38,6 +38,7 @@ uuid = {workspace = true}
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
 temp-env = {workspace = true}
 tokio-test = "0.4"

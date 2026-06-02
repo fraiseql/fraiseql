@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
+#![allow(clippy::print_stderr)] // Reason: skip messages print to stderr by design
 
 #[cfg(test)]
 mod queue_tests {
@@ -167,21 +168,27 @@ mod redis_tests {
         queue::{Job, JobQueue, JobResult, redis::*},
     };
 
-    async fn setup_test_queue() -> RedisJobQueue {
-        let client = Client::open("redis://localhost:6379").expect("Failed to create client");
+    // Returns None when no Redis is available (caller skips). The harness yields the
+    // bound REDIS_URL (Dagger) or a locally spawned instance; no hardcoded host.
+    async fn setup_test_queue() -> Option<RedisJobQueue> {
+        let redis = fraiseql_test_support::redis().await?;
+        let client = Client::open(redis.url()).expect("Failed to create client");
         let conn = client.get_connection_manager().await.expect("Failed to connect to Redis");
 
         // Clear test data
         let mut c = conn.clone();
         let _: () = redis::cmd("FLUSHDB").query_async(&mut c).await.expect("Failed to flush DB");
 
-        RedisJobQueue::new(conn)
+        Some(RedisJobQueue::new(conn))
     }
 
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_enqueue() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let job = Job {
             id:            "job-1".to_string(),
@@ -212,7 +219,10 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_dequeue() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let job = Job {
             id:            "job-1".to_string(),
@@ -250,7 +260,10 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_mark_success() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let job = Job {
             id:            "job-1".to_string(),
@@ -298,7 +311,10 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_mark_retry() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let job = Job {
             id:            "job-1".to_string(),
@@ -334,7 +350,10 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_mark_deadletter() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let job = Job {
             id:            "job-1".to_string(),
@@ -372,7 +391,10 @@ mod redis_tests {
     #[tokio::test]
     #[ignore = "requires Redis running"]
     async fn test_redis_get_stats() {
-        let queue = setup_test_queue().await;
+        let Some(queue) = setup_test_queue().await else {
+            eprintln!("SKIP: no redis (set REDIS_URL)");
+            return;
+        };
 
         let stats = queue.get_stats().await.expect("Failed to get stats");
 

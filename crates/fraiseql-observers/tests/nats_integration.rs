@@ -36,6 +36,15 @@ mod nats_tests {
 
     use super::*;
 
+    /// Override the NATS url with the canonical `NATS_URL` (Dagger injects it; a
+    /// local run exports it). Replaces the old reliance on the `localhost:4222`
+    /// default for the `#[ignore]`d integration tests.
+    fn with_nats_url(mut config: NatsConfig) -> NatsConfig {
+        config.url = std::env::var("NATS_URL")
+            .expect("NATS_URL must be set (e.g. via `dagger call test-integration --suite=nats`)");
+        config
+    }
+
     /// Test `NatsConfig` default values
     #[test]
     fn test_nats_config_defaults() {
@@ -90,7 +99,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         assert_eq!(transport.transport_type(), TransportType::Nats);
     }
@@ -106,7 +117,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         let health = transport.health_check().await.expect("Health check should succeed");
         assert_eq!(health.status, HealthStatus::Healthy);
@@ -127,7 +140,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         // Create test event using the builder pattern
         let event = EntityEvent::new(
@@ -173,7 +188,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         // Subscribe with filter for "Product" only
         let filter = EventFilter {
@@ -226,7 +243,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         // Subscribe with filter for UPDATE operations only
         let filter = EventFilter {
@@ -301,7 +320,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         let filter = EventFilter::default();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
@@ -356,8 +377,9 @@ mod nats_tests {
                 ..Default::default()
             };
 
-            let transport =
-                NatsTransport::new(config).await.expect("Should connect to NATS server");
+            let transport = NatsTransport::new(with_nats_url(config))
+                .await
+                .expect("Should connect to NATS server");
 
             let event = EntityEvent::new(
                 EventKind::Created,
@@ -382,8 +404,9 @@ mod nats_tests {
                 ..Default::default()
             };
 
-            let transport =
-                NatsTransport::new(config).await.expect("Should reconnect to NATS server");
+            let transport = NatsTransport::new(with_nats_url(config))
+                .await
+                .expect("Should reconnect to NATS server");
 
             let filter = EventFilter::default();
             let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
@@ -412,7 +435,9 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
 
         let filter = EventFilter::default();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
