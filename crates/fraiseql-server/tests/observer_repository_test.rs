@@ -31,7 +31,7 @@ use uuid::Uuid;
 // ---------------------------------------------------------------------------
 
 /// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
-/// `local-testcontainers` feature), create the observer schema, and TRUNCATE the
+/// `local-testcontainers` feature), create the observer schema, and truncate the
 /// observer tables so each test starts clean. The server suite runs these with
 /// --test-threads=1, so the shared bound database gives per-test isolation without
 /// per-test DBs. Returns the pool plus the service guard, held for the test lifetime.

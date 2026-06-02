@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
 ";
 
 /// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
-/// `local-testcontainers` feature), create the schema, and TRUNCATE it so each test
+/// `local-testcontainers` feature), create the schema, and truncate it so each test
 /// starts from a clean table. The storage suite runs these with --test-threads=1, so
 /// the shared bound database gives each test an isolated table without per-test DBs.
 /// Returns the pool plus the service guard, which the caller holds for the test.

@@ -21,7 +21,7 @@ use crate::{
 /// Create a test state with a local backend and real metadata repo.
 ///
 /// The Postgres is the harness service (Dagger-bound in CI; a local spawn with the
-/// `local-testcontainers` feature). The metadata table is created and TRUNCATEd so each
+/// `local-testcontainers` feature). The metadata table is created and truncated so each
 /// test starts clean — the storage suite runs these with --test-threads=1, so the shared
 /// bound database gives per-test isolation without per-test DBs.
 async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, impl std::any::Any) {

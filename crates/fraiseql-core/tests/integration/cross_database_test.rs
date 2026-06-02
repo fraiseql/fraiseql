@@ -3,8 +3,8 @@
 //! Validates that equivalent queries produce semantically equivalent results
 //! across the PostgreSQL and MySQL adapters using the harness-provided services.
 //!
-//! They skip automatically unless `FEDERATION_TESTS` is set, and read DATABASE_URL /
-//! MYSQL_URL via the harness:
+//! They skip automatically unless `FEDERATION_TESTS` is set, and read `DATABASE_URL` /
+//! `MYSQL_URL` via the harness:
 //! ```bash
 //! dagger call test-integration --suite=cross-db
 //! ```
