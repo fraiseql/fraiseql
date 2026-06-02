@@ -7,32 +7,28 @@
 //! including NULL values, by spinning up a real Postgres database via testcontainers.
 
 use serde_json::json;
-use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
-#[tokio::test]
-#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
-async fn row_to_map_handles_text_array_columns() {
-    let container = Postgres::default()
-        .with_user("postgres")
-        .with_password("postgres")
-        .with_db_name("test")
-        .start()
+/// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn with
+/// the `local-testcontainers` feature). Returns the client plus the service guard,
+/// which the caller holds so a locally-spawned container outlives the test.
+async fn connect_pg() -> (tokio_postgres::Client, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
         .await
-        .expect("failed to start postgres container");
-
-    let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string =
-        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
-
-    let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let (client, connection) = tokio_postgres::connect(svc.url(), tokio_postgres::NoTls)
         .await
         .expect("failed to connect");
-
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("Connection error: {e}");
         }
     });
+    (client, svc)
+}
+
+#[tokio::test]
+async fn row_to_map_handles_text_array_columns() {
+    let (client, _svc) = connect_pg().await;
 
     // Create table with TEXT[] column
     client
@@ -87,29 +83,8 @@ async fn row_to_map_handles_text_array_columns() {
 }
 
 #[tokio::test]
-#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
 async fn row_to_map_handles_enum_columns() {
-    let container = Postgres::default()
-        .with_user("postgres")
-        .with_password("postgres")
-        .with_db_name("test")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string =
-        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
-
-    let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
-        .await
-        .expect("failed to connect");
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Connection error: {e}");
-        }
-    });
+    let (client, _svc) = connect_pg().await;
 
     // Create ENUM type and table
     client
@@ -155,29 +130,8 @@ async fn row_to_map_handles_enum_columns() {
 }
 
 #[tokio::test]
-#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
 async fn row_to_map_handles_mixed_types_with_nulls() {
-    let container = Postgres::default()
-        .with_user("postgres")
-        .with_password("postgres")
-        .with_db_name("test")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string =
-        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
-
-    let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
-        .await
-        .expect("failed to connect");
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Connection error: {e}");
-        }
-    });
+    let (client, _svc) = connect_pg().await;
 
     // Create test table with multiple types
     client
