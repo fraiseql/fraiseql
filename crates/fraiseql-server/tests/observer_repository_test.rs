@@ -24,25 +24,31 @@ mod observer_test_helpers;
 use fraiseql_server::observers::{ListObserverLogsQuery, ListObserversQuery, ObserverRepository};
 use observer_test_helpers::setup_observer_schema;
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
-// Container-backed pool setup
+// Harness-backed pool setup
 // ---------------------------------------------------------------------------
 
-/// Start a throw-away PostgreSQL container and return a connection pool.
-///
-/// The returned container must be bound to a local variable for its entire
-/// lifetime — dropping it stops the container and closes the pool connections.
-async fn setup_pg() -> (PgPool, impl std::any::Any) {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+/// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
+/// `local-testcontainers` feature), create the observer schema, and TRUNCATE the
+/// observer tables so each test starts clean. The server suite runs these with
+/// --test-threads=1, so the shared bound database gives per-test isolation without
+/// per-test DBs. Returns the pool plus the service guard, held for the test lifetime.
+async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
     setup_observer_schema(&pool).await.unwrap();
-    (pool, container)
+    sqlx::query(
+        "TRUNCATE tb_observer_log, tb_observer, observer_checkpoints, core.tb_entity_change_log \
+         RESTART IDENTITY CASCADE",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    (pool, svc)
 }
 
 // ---------------------------------------------------------------------------

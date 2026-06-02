@@ -485,6 +485,14 @@ const (
 	// -external-url must match so the emulator's media links point back at the alias.
 	fakeGcsImage    = "fsouza/fake-gcs-server:latest"
 	fakeGcsBindHost = "fake-gcs"
+
+	// minioImage / minioBindHost / minioUser / minioPass — the S3-compatible MinIO
+	// service for fraiseql-server's storage_minio integration test. The test reads
+	// MINIO_ENDPOINT (http://<alias>:9000) and authenticates with the constants below.
+	minioImage    = "minio/minio:latest"
+	minioBindHost = "minio"
+	minioUser     = "minioadmin"
+	minioPass     = "minioadmin"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -525,8 +533,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationWire(ctx, source)
 	case "storage":
 		return m.integrationStorage(ctx, source)
+	case "server-storage":
+		return m.integrationServerStorage(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage)", suite)
 	}
 }
 
@@ -644,12 +654,18 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: server database (Dagger-bound postgres)'",
 		"cargo test -p fraiseql-server --test database_query_test -- --test-threads=1",
+		// Tier-C migrated (each helper creates + TRUNCATE/DROP its tables for shared-DB isolation).
+		"cargo test -p fraiseql-server --test usage_postgres_backend_test -- --test-threads=1",
+		"cargo test -p fraiseql-server --features observers --test observer_repository_test -- --test-threads=1",
+		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
+		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("FRAISEQL_PIPELINE_E2E", "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -764,6 +780,48 @@ func (m *FraiseqlCi) fakeGcsService() *dagger.Service {
 		AsService(dagger.ContainerAsServiceOpts{
 			UseEntrypoint: true,
 			Args:          []string{"-scheme", "http", "-backend", "memory", "-external-url", "http://" + fakeGcsBindHost + ":4443"},
+		})
+}
+
+// integrationServerStorage binds a MinIO (S3-compatible) service and runs
+// fraiseql-server's storage_minio integration test (Tier-C migrated off the MinIO
+// testcontainer). The test reads MINIO_ENDPOINT via the harness and authenticates
+// with the minioadmin/minioadmin dev credentials; it creates the bucket idempotently
+// so the three tests share one bound MinIO under --test-threads=1.
+func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagger.Directory) (string, error) {
+	minioEndpoint := fmt.Sprintf("http://%s:9000", minioBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: server-storage (Dagger-bound MinIO; tests read MINIO_ENDPOINT)'",
+		"cargo test -p fraiseql-server --features aws-s3 --test storage_minio_integration_test -- --test-threads=1",
+		"echo 'test-integration OK: server-storage suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(minioBindHost, m.minioService()).
+		WithEnvVariable("MINIO_ENDPOINT", minioEndpoint).
+		// The S3 backend resolves credentials from the AWS env chain at request time
+		// (not just when constructed), so inject them as real process env, not only via
+		// the test's temp_env scope.
+		WithEnvVariable("AWS_ACCESS_KEY_ID", minioUser).
+		WithEnvVariable("AWS_SECRET_ACCESS_KEY", minioPass).
+		WithEnvVariable("AWS_DEFAULT_REGION", "us-east-1").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// minioService runs MinIO bound on 0.0.0.0:9000 with dev root credentials.
+func (m *FraiseqlCi) minioService() *dagger.Service {
+	return dag.Container().
+		From(minioImage).
+		WithEnvVariable("MINIO_ROOT_USER", minioUser).
+		WithEnvVariable("MINIO_ROOT_PASSWORD", minioPass).
+		WithExposedPort(9000).
+		AsService(dagger.ContainerAsServiceOpts{
+			UseEntrypoint: true,
+			Args:          []string{"server", "/data", "--address", "0.0.0.0:9000"},
 		})
 }
 

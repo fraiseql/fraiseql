@@ -1,20 +1,17 @@
 //! MinIO integration tests for the storage REST API.
 //!
 //! Validates the S3-compatible storage backend and HTTP route layer against a real
-//! MinIO instance started via testcontainers.  These tests cover the full
-//! upload → download → presigned URL → delete round-trip.
+//! MinIO instance provided by the test-support harness (a Dagger-bound service in CI
+//! via `MINIO_ENDPOINT`; a local spawn with the `local-testcontainers` feature). These
+//! tests cover the full upload → download → presigned URL → delete round-trip and skip
+//! cleanly when no MinIO endpoint is available.
 //!
 //! ## Running Tests
 //!
 //! ```bash
-//! # Requires Docker and the aws-s3 feature
-//! cargo test --test storage_minio_integration_test --features aws-s3 -- --ignored
-//! ```
-//!
-//! Set `FRAISEQL_MINIO_TEST=1` to opt in from CI without passing `--ignored`:
-//!
-//! ```bash
-//! FRAISEQL_MINIO_TEST=1 cargo test --test storage_minio_integration_test --features aws-s3
+//! # Requires the aws-s3 feature and a MinIO endpoint (MINIO_ENDPOINT, or
+//! # `dagger call test-integration --suite=server-storage`).
+//! cargo test --test storage_minio_integration_test --features aws-s3
 //! ```
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -23,7 +20,8 @@
 #![allow(missing_docs)] // Reason: test code
 #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 #![allow(clippy::doc_markdown)] // Reason: MinIO is a proper name, not a code item
-#![allow(clippy::future_not_send)] // Reason: testcontainers futures are not Send; tests run single-threaded
+#![allow(clippy::print_stderr)] // Reason: skip message when no MinIO endpoint is available
+#![allow(clippy::future_not_send)] // Reason: AWS SDK / reqwest futures are not Send; tests run single-threaded
 #![allow(clippy::large_futures)] // Reason: AWS SDK futures are inherently large; boxing would obscure test logic
 
 #[cfg(feature = "aws-s3")]
@@ -33,12 +31,23 @@ mod minio_tests {
     use aws_config::BehaviorVersion;
     use aws_sdk_s3::{Client, config::Credentials};
     use fraiseql_server::storage::{S3StorageBackend, StorageBackend as _};
-    use testcontainers_modules::{minio::MinIO, testcontainers::runners::AsyncRunner};
 
     const BUCKET: &str = "fraiseql-test";
     const MINIO_USER: &str = "minioadmin";
     const MINIO_PASS: &str = "minioadmin";
     const REGION: &str = "us-east-1";
+
+    /// Create the test bucket, tolerating "already exists" so the three MinIO tests can
+    /// share one Dagger-bound MinIO service (they run with --test-threads=1).
+    async fn ensure_bucket(s3: &Client) {
+        if let Err(e) = s3.create_bucket().bucket(BUCKET).send().await {
+            let msg = format!("{e:?}").to_lowercase();
+            assert!(
+                msg.contains("alreadyexists") || msg.contains("alreadyowned"),
+                "create test bucket failed: {e:?}"
+            );
+        }
+    }
 
     /// Build an AWS SDK S3 client pointed at the given MinIO endpoint.
     async fn build_s3_client(endpoint: &str) -> Client {
@@ -77,17 +86,18 @@ mod minio_tests {
 
     /// Full round-trip: upload → download → exists → delete → gone.
     #[tokio::test]
-    #[ignore = "requires Docker; set FRAISEQL_MINIO_TEST=1 to run in CI"]
     async fn minio_upload_download_delete_roundtrip() {
-        let node = MinIO::default().start().await.expect("start MinIO container");
-        let port = node.get_host_port_ipv4(9000).await.expect("get port 9000");
-        let endpoint = format!("http://127.0.0.1:{port}");
+        let Some(svc) = fraiseql_test_support::minio().await else {
+            eprintln!("SKIP minio_upload_download_delete_roundtrip: no MINIO_ENDPOINT");
+            return;
+        };
+        let endpoint = svc.url();
 
         // Create the test bucket via the SDK client
-        let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
+        let s3 = build_s3_client(endpoint).await;
+        ensure_bucket(&s3).await;
 
-        let backend = build_backend(&endpoint).await;
+        let backend = build_backend(endpoint).await;
 
         // --- upload ---
         let key = "test/hello.txt";
@@ -114,16 +124,17 @@ mod minio_tests {
 
     /// Presigned URL: generate URL then fetch the object directly via HTTP.
     #[tokio::test]
-    #[ignore = "requires Docker; set FRAISEQL_MINIO_TEST=1 to run in CI"]
     async fn minio_presigned_url_roundtrip() {
-        let node = MinIO::default().start().await.expect("start MinIO container");
-        let port = node.get_host_port_ipv4(9000).await.expect("get port 9000");
-        let endpoint = format!("http://127.0.0.1:{port}");
+        let Some(svc) = fraiseql_test_support::minio().await else {
+            eprintln!("SKIP minio_presigned_url_roundtrip: no MINIO_ENDPOINT");
+            return;
+        };
+        let endpoint = svc.url();
 
-        let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
+        let s3 = build_s3_client(endpoint).await;
+        ensure_bucket(&s3).await;
 
-        let backend = build_backend(&endpoint).await;
+        let backend = build_backend(endpoint).await;
 
         let key = "presigned/photo.bin";
         let payload = b"\x89PNG\r\nfake-png-bytes";
@@ -152,16 +163,17 @@ mod minio_tests {
 
     /// Tenant isolation: key prefixes separate two tenants' namespaces.
     #[tokio::test]
-    #[ignore = "requires Docker; set FRAISEQL_MINIO_TEST=1 to run in CI"]
     async fn minio_tenant_isolation() {
-        let node = MinIO::default().start().await.expect("start MinIO container");
-        let port = node.get_host_port_ipv4(9000).await.expect("get port 9000");
-        let endpoint = format!("http://127.0.0.1:{port}");
+        let Some(svc) = fraiseql_test_support::minio().await else {
+            eprintln!("SKIP minio_tenant_isolation: no MINIO_ENDPOINT");
+            return;
+        };
+        let endpoint = svc.url();
 
-        let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
+        let s3 = build_s3_client(endpoint).await;
+        ensure_bucket(&s3).await;
 
-        let backend = build_backend(&endpoint).await;
+        let backend = build_backend(endpoint).await;
 
         // Tenant A and B upload the same relative path but under different prefixes
         let tenant_a_key = "tenantA/report.pdf";

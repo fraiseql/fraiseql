@@ -16,6 +16,8 @@ const REDIS_URL_ENV: &str = "REDIS_URL";
 const SQLSERVER_URL_ENV: &str = "SQLSERVER_URL";
 /// `nats()` env var.
 const NATS_URL_ENV: &str = "NATS_URL";
+/// `minio()` endpoint env var.
+const MINIO_ENDPOINT_ENV: &str = "MINIO_ENDPOINT";
 /// `azure_blob()` endpoint env var.
 const AZURE_BLOB_ENDPOINT_ENV: &str = "AZURE_BLOB_ENDPOINT";
 /// `gcs()` endpoint env var.
@@ -107,13 +109,19 @@ pub async fn nats() -> Option<Service> {
     resolve_env(NATS_URL_ENV).await
 }
 
+/// `MinIO` (`S3`-compatible). Env: `MINIO_ENDPOINT` (the endpoint URL, e.g.
+/// `http://minio:9000`). Credentials are supplied separately by the caller.
+pub async fn minio() -> Option<Service> {
+    resolve_env(MINIO_ENDPOINT_ENV).await
+}
+
 /// Azure Blob (Azurite emulator). Env: `AZURE_BLOB_ENDPOINT` (the blob service URL,
 /// including the account path, e.g. `http://azurite:10000/devstoreaccount1`).
 pub async fn azure_blob() -> Option<Service> {
     resolve_env(AZURE_BLOB_ENDPOINT_ENV).await
 }
 
-/// Google Cloud Storage (fake-gcs-server emulator). Env: `GCS_ENDPOINT` (the base
+/// Google Cloud Storage (`fake-gcs-server` emulator). Env: `GCS_ENDPOINT` (the base
 /// URL, e.g. `http://fake-gcs:4443`).
 pub async fn gcs() -> Option<Service> {
     resolve_env(GCS_ENDPOINT_ENV).await

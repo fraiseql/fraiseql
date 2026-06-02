@@ -37,5 +37,5 @@ pub mod services;
 
 pub use db::{database_url, try_database_url};
 pub use services::{
-    Service, Vault, azure_blob, gcs, mysql, nats, postgres, redis, sqlserver, vault,
+    Service, Vault, azure_blob, gcs, minio, mysql, nats, postgres, redis, sqlserver, vault,
 };

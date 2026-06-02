@@ -111,8 +111,13 @@ impl StorageBackend for S3StorageBackend {
         match self.client.head_object().bucket(&self.bucket).key(key).send().await {
             Ok(_) => Ok(true),
             Err(err) => {
-                let msg = err.to_string();
-                if msg.contains("NotFound") || msg.contains("NoSuchKey") || msg.contains("404") {
+                // A missing object is a typed `NotFound` on the head_object error.
+                // The `SdkError` Display is just "service error" (the status lives in
+                // the typed error), so detect it structurally rather than by string.
+                if err
+                    .as_service_error()
+                    .is_some_and(aws_sdk_s3::operation::head_object::HeadObjectError::is_not_found)
+                {
                     Ok(false)
                 } else {
                     Err(storage_err("head_object", err))

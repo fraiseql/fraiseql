@@ -116,7 +116,9 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             fk_entity_change_log BIGINT,
             event_id UUID NOT NULL,
             entity_type VARCHAR(255) NOT NULL,
-            entity_id VARCHAR(255) NOT NULL,
+            -- entity_id is a UUID: ObserverLog.entity_id is `Uuid` and list_logs decodes
+            -- it as UUID (a VARCHAR column makes the decode fail). Matches production.
+            entity_id UUID NOT NULL,
             event_type VARCHAR(50) NOT NULL,
             status VARCHAR(50) NOT NULL,
             action_index INTEGER,

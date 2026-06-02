@@ -5,7 +5,7 @@
 //!
 //! 1. Generate fixture files in a temp directory (fraiseql.toml + TOML-only type/query definitions)
 //! 2. Compile via `fraiseql_cli::commands::compile::compile_to_schema()`
-//! 3. Spin up testcontainers PostgreSQL
+//! 3. Connect to the harness PostgreSQL (Dagger-bound, or a local spawn)
 //! 4. Apply DDL (table + JSONB view matching `sql_source`)
 //! 5. Construct `PostgresAdapter` → `Server::new()`
 //! 6. Bind to port 0, spawn as background task
@@ -14,9 +14,11 @@
 //!
 //! # Running
 //!
+//! Env-gated by `FRAISEQL_PIPELINE_E2E` (skips when unset):
+//!
 //! ```bash
-//! FRAISEQL_PIPELINE_E2E=1 cargo test -p fraiseql-server \
-//!     --test pipeline_e2e_test -- --ignored
+//! FRAISEQL_PIPELINE_E2E=1 DATABASE_URL=... cargo test -p fraiseql-server \
+//!     --test pipeline_e2e_test
 //! ```
 
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code — panics are acceptable
@@ -32,7 +34,6 @@ use fraiseql_server::{Server, ServerConfig};
 use reqwest::Client;
 use serde_json::Value;
 use tempfile::TempDir;
-use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 use tokio::{net::TcpListener, sync::oneshot};
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
@@ -40,8 +41,9 @@ use tokio::{net::TcpListener, sync::oneshot};
 /// Minimal `fraiseql.toml` defining a `User` type and `users` list query.
 ///
 /// Uses TOML-only mode (no separate type/query JSON files) so the test has a
-/// single file to create.  The `sql_source = "v_users"` view is created by
-/// `apply_ddl()` below.
+/// single file to create.  The `sql_source = "v_user"` view is created by
+/// `apply_ddl()` below. Entity tables/views follow the singular convention
+/// (`tb_user` / `v_user`).
 const FRAISEQL_TOML: &str = r#"
 [schema]
 name = "pipeline-e2e-test"
@@ -49,7 +51,7 @@ version = "1.0.0"
 database_target = "postgresql"
 
 [types.User]
-sql_source = "v_users"
+sql_source = "v_user"
 
 [types.User.fields.id]
 type = "Int"
@@ -62,7 +64,7 @@ nullable = false
 [queries.users]
 return_type = "User"
 return_array = true
-sql_source = "v_users"
+sql_source = "v_user"
 "#;
 
 /// Write fixture files to `dir` and return the absolute path to `fraiseql.toml`.
@@ -77,36 +79,38 @@ fn write_fixtures(dir: &TempDir) -> String {
 /// Apply DDL to the running PostgreSQL container.
 ///
 /// Creates:
-/// - `tb_users` — source table with `id` and `name` columns
-/// - `v_users` — JSONB view (matching `sql_source = "v_users"`) that FraiseQL's executor queries
-///   via `SELECT data FROM "v_users"`
+/// - `tb_user` — source table with `id` and `name` columns
+/// - `v_user` — JSONB view (matching `sql_source = "v_user"`) that FraiseQL's executor queries via
+///   `SELECT data FROM "v_user"`
 /// - One seeded row `(name = 'Alice')`
-async fn apply_ddl(port: u16) {
-    let (client, conn) = tokio_postgres::connect(
-        &format!("host=127.0.0.1 port={port} user=testuser password=testpw dbname=testdb"),
-        tokio_postgres::NoTls,
-    )
-    .await
-    .expect("connect to testcontainers postgres");
+async fn apply_ddl(db_url: &str) {
+    let (client, conn) = tokio_postgres::connect(db_url, tokio_postgres::NoTls)
+        .await
+        .expect("connect to harness postgres");
 
     tokio::spawn(async move { conn.await.ok() });
 
+    // Idempotent: the harness database is shared across runs, so drop and recreate so
+    // the test starts from a single seeded row.
     client
         .batch_execute(
             r"
-            CREATE TABLE tb_users (
+            DROP VIEW IF EXISTS v_user;
+            DROP TABLE IF EXISTS tb_user;
+
+            CREATE TABLE tb_user (
                 id   SERIAL PRIMARY KEY,
                 name TEXT NOT NULL
             );
 
-            INSERT INTO tb_users (name) VALUES ('Alice');
+            INSERT INTO tb_user (name) VALUES ('Alice');
 
-            CREATE VIEW v_users AS
+            CREATE VIEW v_user AS
             SELECT jsonb_build_object(
                 'id',   id,
                 'name', name
             ) AS data
-            FROM tb_users;
+            FROM tb_user;
             ",
         )
         .await
@@ -174,14 +178,13 @@ impl TestPipeline {
 
 /// Full compile → PostgreSQL → HTTP round-trip.
 ///
-/// Gated behind `#[ignore]` so it is skipped by default.  Enable with:
+/// Env-gated by `FRAISEQL_PIPELINE_E2E` so it is skipped by default.  Enable with:
 ///
 /// ```bash
-/// FRAISEQL_PIPELINE_E2E=1 cargo test -p fraiseql-server \
-///     --test pipeline_e2e_test -- --ignored
+/// FRAISEQL_PIPELINE_E2E=1 DATABASE_URL=... cargo test -p fraiseql-server \
+///     --test pipeline_e2e_test
 /// ```
 #[tokio::test]
-#[ignore = "requires Docker + FRAISEQL_PIPELINE_E2E=1"]
 async fn pipeline_e2e_compile_to_http_query() {
     if std::env::var("FRAISEQL_PIPELINE_E2E").is_err() {
         eprintln!("Skipping pipeline_e2e_compile_to_http_query: FRAISEQL_PIPELINE_E2E not set");
@@ -192,19 +195,13 @@ async fn pipeline_e2e_compile_to_http_query() {
     let fixtures = TempDir::new().expect("create temp dir");
     let toml_path = write_fixtures(&fixtures);
 
-    // ── PostgreSQL via testcontainers ──────────────────────────────────────
-    let pg = Postgres::default()
-        .with_user("testuser")
-        .with_password("testpw")
-        .with_db_name("testdb")
-        .start()
+    // ── PostgreSQL via the test-support harness ────────────────────────────
+    let pg = fraiseql_test_support::postgres()
         .await
-        .expect("start postgres testcontainer");
-    let pg_port = pg.get_host_port_ipv4(5432).await.expect("postgres port");
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let db_url = pg.url().to_string();
 
-    apply_ddl(pg_port).await;
-
-    let db_url = format!("postgresql://testuser:testpw@127.0.0.1:{pg_port}/testdb");
+    apply_ddl(&db_url).await;
 
     // ── Start server ───────────────────────────────────────────────────────
     let pipeline = TestPipeline::start(fixtures, &toml_path, &db_url).await;

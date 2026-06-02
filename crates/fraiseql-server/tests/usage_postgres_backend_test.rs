@@ -20,20 +20,24 @@ use fraiseql_server::usage::{
     events::MutationAuditEvent,
 };
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
 
-// ── Container setup ──────────────────────────────────────────────────────────
+// ── Harness setup ────────────────────────────────────────────────────────────
 
-/// Start a throw-away PostgreSQL container and return a pool.
-///
-/// The returned container must be kept alive for the test duration.
-async fn setup_pg() -> (PgPool, impl std::any::Any) {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
-    (pool, container)
+/// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
+/// `local-testcontainers` feature) and DROP the usage-counter table so the
+/// `PostgresBackend::new` CREATE-IF-NOT-EXISTS recreates it empty for each test. The
+/// server suite runs these with --test-threads=1, so the shared bound database gives
+/// per-test isolation without per-test DBs. Returns the pool plus the service guard.
+async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let pool = PgPool::connect(svc.url()).await.unwrap();
+    sqlx::query("DROP TABLE IF EXISTS fraiseql_usage_counters CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
+    (pool, svc)
 }
 
 fn event(tenant: &str, period: &str, entity: &str) -> MutationAuditEvent {
