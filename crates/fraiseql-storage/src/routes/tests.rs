@@ -19,15 +19,18 @@ use crate::{
 };
 
 /// Create a test state with a local backend and real metadata repo.
+///
+/// The Postgres is the harness service (Dagger-bound in CI; a local spawn with the
+/// `local-testcontainers` feature). The metadata table is created and TRUNCATEd so each
+/// test starts clean — the storage suite runs these with --test-threads=1, so the shared
+/// bound database gives per-test isolation without per-test DBs.
 async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, impl std::any::Any) {
     use sqlx::PgPool;
-    use testcontainers::runners::AsyncRunner;
-    use testcontainers_modules::postgres::Postgres;
 
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let pool = PgPool::connect(svc.url()).await.unwrap();
 
     // Create metadata table
     let ddl = crate::migrations::storage_migration_sql();
@@ -37,6 +40,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
             sqlx::query(trimmed).execute(&pool).await.unwrap();
         }
     }
+    sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
 
     // Create temp dir for local backend
     let tmp = tempfile::tempdir().unwrap();
@@ -61,7 +65,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
         buckets:  Arc::new(buckets),
     };
 
-    (state, (container, tmp))
+    (state, (svc, tmp))
 }
 
 /// Build router with an authenticated test user injected as an extension.

@@ -1,10 +1,19 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
 
 use super::storage_migration_sql;
+
+/// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
+/// `local-testcontainers` feature). Returns the pool plus the service guard, which the
+/// caller holds for the test.
+async fn connect_pool() -> (PgPool, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let pool = PgPool::connect(svc.url()).await.unwrap();
+    (pool, svc)
+}
 
 /// Execute multi-statement DDL by splitting on semicolons.
 async fn execute_ddl(pool: &PgPool, ddl: &str) {
@@ -60,10 +69,7 @@ fn test_migration_ddl_is_valid_sql() {
 
 #[tokio::test]
 async fn test_migration_creates_table() {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
+    let (pool, _svc) = connect_pool().await;
 
     let ddl = storage_migration_sql();
     execute_ddl(&pool, ddl).await;
@@ -83,10 +89,7 @@ async fn test_migration_creates_table() {
 
 #[tokio::test]
 async fn test_migration_is_idempotent() {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
+    let (pool, _svc) = connect_pool().await;
 
     let ddl = storage_migration_sql();
 

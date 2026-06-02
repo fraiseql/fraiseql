@@ -1,38 +1,28 @@
 //! Integration test: GCS backend honours a configured `endpoint`.
 //!
-//! Boots a fake-gcs-server emulator via testcontainers, points a `GcsBackend`
-//! at it through `new_with_endpoint`, and round-trips an upload/download.
-//! Before the #326 fix the backend hardcoded `storage.googleapis.com` and
-//! ignored the endpoint, so this could not reach the emulator.
+//! Points a `GcsBackend` at a harness-provided fake-gcs-server emulator (a Dagger-bound
+//! service in CI via `GCS_ENDPOINT`; a local spawn with the `local-testcontainers`
+//! feature) through `new_with_endpoint`, and round-trips an upload/download. Before the
+//! #326 fix the backend hardcoded `storage.googleapis.com` and ignored the endpoint, so
+//! this could not reach the emulator.
 //!
-//! Requires Docker; gated behind `#[ignore]` so default CI is unaffected.
+//! Skips cleanly when no GCS endpoint is available.
 #![cfg(feature = "gcs")]
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: test diagnostics
 
 use fraiseql_storage::GcsBackend;
-use testcontainers::{
-    GenericImage, ImageExt as _,
-    core::{IntoContainerPort as _, WaitFor},
-    runners::AsyncRunner as _,
-};
 
 #[tokio::test]
-#[ignore = "requires Docker (fake-gcs-server emulator)"]
 async fn gcs_endpoint_override_round_trip() {
+    let Some(svc) = fraiseql_test_support::gcs().await else {
+        eprintln!("SKIP gcs_endpoint_override_round_trip: no GCS_ENDPOINT");
+        return;
+    };
     // SAFETY: edition 2021 set_var; nextest runs each test in its own process.
     // fake-gcs-server ignores the token value but the backend requires one.
     std::env::set_var("GOOGLE_CLOUD_TOKEN", "fake-gcs-token");
 
-    let container = GenericImage::new("fsouza/fake-gcs-server", "latest")
-        .with_exposed_port(4443.tcp())
-        .with_wait_for(WaitFor::message_on_stderr("server started at"))
-        .with_cmd(["-scheme", "http", "-backend", "memory"])
-        .start()
-        .await
-        .expect("start fake-gcs-server container");
-
-    let port = container.get_host_port_ipv4(4443).await.expect("fake-gcs port");
-    let endpoint = format!("http://127.0.0.1:{port}");
+    let endpoint = svc.url().to_string();
 
     // fake-gcs-server starts with no buckets; create the target bucket through
     // its standard JSON API (no auth required on the emulator).

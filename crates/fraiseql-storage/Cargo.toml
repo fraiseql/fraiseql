@@ -55,8 +55,9 @@ tokio-test = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
-testcontainers = { version = "0.27", features = ["watchdog"] }
-testcontainers-modules = { version = "0.15", features = ["postgres"] }
+# Integration tests connect through the test-support harness (env-URL first; optional
+# local-testcontainers spawn). Dagger provides Postgres + the Azurite/fake-gcs emulators.
+fraiseql-test-support = { path = "../fraiseql-test-support" }
 uuid = { workspace = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
 

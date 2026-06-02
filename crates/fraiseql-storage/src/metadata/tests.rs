@@ -3,8 +3,6 @@
 #![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
 
 use super::{NewStorageObject, StorageMetadataRepo};
 
@@ -24,14 +22,19 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
 );
 ";
 
-/// Start a throw-away PostgreSQL container and return a pool with the schema created.
-async fn setup_pg() -> (PgPool, impl std::any::Any) {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+/// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
+/// `local-testcontainers` feature), create the schema, and TRUNCATE it so each test
+/// starts from a clean table. The storage suite runs these with --test-threads=1, so
+/// the shared bound database gives each test an isolated table without per-test DBs.
+/// Returns the pool plus the service guard, which the caller holds for the test.
+async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
     sqlx::query(CREATE_TABLE_DDL).execute(&pool).await.unwrap();
-    (pool, container)
+    sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
+    (pool, svc)
 }
 
 fn sample_object(bucket: &str, key: &str) -> NewStorageObject {

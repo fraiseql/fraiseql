@@ -474,6 +474,17 @@ const (
 	sqlserverImage      = "mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04"
 	sqlserverBindHost   = "sqlserver"
 	sqlserverSaPassword = "FraiseQL_Test1234"
+
+	// azuriteImage / azuriteBindHost — the Azure Blob emulator for the fraiseql-storage
+	// azure_emulator test (ci.yml integration-storage). The backend reaches it at
+	// http://<alias>:10000/devstoreaccount1 via AZURE_BLOB_ENDPOINT.
+	azuriteImage    = "mcr.microsoft.com/azure-storage/azurite:latest"
+	azuriteBindHost = "azurite"
+	// fakeGcsImage / fakeGcsBindHost — the GCS emulator for the fraiseql-storage
+	// gcs_emulator test. The backend reaches it at http://<alias>:4443 via GCS_ENDPOINT;
+	// -external-url must match so the emulator's media links point back at the alias.
+	fakeGcsImage    = "fsouza/fake-gcs-server:latest"
+	fakeGcsBindHost = "fake-gcs"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -512,8 +523,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationVault(ctx, source)
 	case "wire":
 		return m.integrationWire(ctx, source)
+	case "storage":
+		return m.integrationStorage(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage)", suite)
 	}
 }
 
@@ -694,6 +707,64 @@ func (m *FraiseqlCi) wirePgService() *dagger.Service {
 		WithEnvVariable("POSTGRES_INITDB_ARGS", "--auth-host=scram-sha-256").
 		WithExposedPort(5432).
 		AsService()
+}
+
+// integrationStorage binds Postgres + an Azurite (Azure Blob) emulator + a
+// fake-gcs-server (GCS) emulator and runs fraiseql-storage's Tier-C tests:
+//   - lib metadata/migrations/routes tests (Postgres; create + TRUNCATE the metadata
+//     table per test, --test-threads=1 for shared-DB isolation),
+//   - the azure_emulator round-trip (feature azure-blob; reads AZURE_BLOB_ENDPOINT),
+//   - the gcs_emulator round-trip (feature gcs; reads GCS_ENDPOINT).
+// The routes tests use a local-filesystem backend (no S3/minio needed here).
+func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	azureEndpoint := fmt.Sprintf("http://%s:10000/devstoreaccount1", azuriteBindHost)
+	gcsEndpoint := fmt.Sprintf("http://%s:4443", fakeGcsBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: storage (Dagger-bound postgres + azurite + fake-gcs)'",
+		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests --test-threads=1",
+		"cargo test -p fraiseql-storage --features azure-blob --test azure_emulator -- --test-threads=1",
+		"cargo test -p fraiseql-storage --features gcs --test gcs_emulator -- --test-threads=1",
+		"echo 'test-integration OK: storage suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(azuriteBindHost, m.azuriteService()).
+		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("AZURE_BLOB_ENDPOINT", azureEndpoint).
+		WithEnvVariable("GCS_ENDPOINT", gcsEndpoint).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// azuriteService runs the Azurite blob emulator bound to 0.0.0.0:10000 (the default
+// binds 127.0.0.1, unreachable from a client container). Data lives under /tmp (the
+// default workdir is not writable).
+func (m *FraiseqlCi) azuriteService() *dagger.Service {
+	return dag.Container().
+		From(azuriteImage).
+		WithExposedPort(10000).
+		AsService(dagger.ContainerAsServiceOpts{
+			Args: []string{"azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "-l", "/tmp"},
+		})
+}
+
+// fakeGcsService runs fake-gcs-server over plain HTTP with an in-memory backend.
+// -external-url is the bind alias so the emulator's generated media links resolve from
+// the test container.
+func (m *FraiseqlCi) fakeGcsService() *dagger.Service {
+	return dag.Container().
+		From(fakeGcsImage).
+		WithExposedPort(4443).
+		AsService(dagger.ContainerAsServiceOpts{
+			UseEntrypoint: true,
+			Args:          []string{"-scheme", "http", "-backend", "memory", "-external-url", "http://" + fakeGcsBindHost + ":4443"},
+		})
 }
 
 // integrationRedis binds Redis + a seeded Postgres and runs the Redis-backed
