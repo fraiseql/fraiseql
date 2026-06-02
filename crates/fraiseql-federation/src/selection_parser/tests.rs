@@ -21,6 +21,27 @@ fn test_parse_simple_field_selection() {
 }
 
 #[test]
+fn test_parse_inline_fragment_selection() {
+    // `_entities` selections use `... on TypeName { fields }`. The spread (`...`), the
+    // `on` keyword, and the type condition must not be treated as selectable fields —
+    // otherwise they leak into the generated SQL SELECT list and break the query.
+    let query = r"
+        query($representations: [_Any!]!) {
+            _entities(representations: $representations) {
+                ... on User { id name }
+            }
+        }
+    ";
+
+    let selection = parse_field_selection(query).unwrap();
+    assert!(selection.contains("id"), "id should be selected: {selection:?}");
+    assert!(selection.contains("name"), "name should be selected: {selection:?}");
+    assert!(!selection.contains("on"), "the `on` keyword is not a field: {selection:?}");
+    assert!(!selection.contains("User"), "the type condition is not a field: {selection:?}");
+    assert!(!selection.contains("..."), "the spread is not a field: {selection:?}");
+}
+
+#[test]
 fn test_field_selection_without_whitespace() {
     let query = "{ _entities(representations: [...]) { id name email } }";
 

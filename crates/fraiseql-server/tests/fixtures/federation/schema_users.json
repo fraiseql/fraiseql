@@ -1,0 +1,37 @@
+{
+    "types": [
+        {
+            "name": "User",
+            "table": "\"user\"",
+            "sql_source": "v_user",
+            "fields": [
+                {"name": "id",   "field_type": "ID",     "nullable": false},
+                {"name": "name", "field_type": "String", "nullable": false}
+            ]
+        }
+    ],
+    "queries": [
+        {
+            "name": "user",
+            "return_type": "User",
+            "returns_list": false,
+            "nullable": true,
+            "sql_source": "v_user",
+            "jsonb_column": "data",
+            "arguments": [
+                {"name": "id", "arg_type": "ID", "nullable": false}
+            ]
+        }
+    ],
+    "mutations": [],
+    "subscriptions": [],
+    "federation": {
+        "enabled": true,
+        "version": "v2",
+        "service_name": "users",
+        "entities": [
+            {"name": "User", "key_fields": ["id"]}
+        ]
+    },
+    "schema_sdl": "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}\n"
+}

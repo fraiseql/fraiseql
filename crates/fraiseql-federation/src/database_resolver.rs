@@ -123,11 +123,14 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // in the database. The project_results() function injects it into each entity.
         select_fields.retain(|f| f != "__typename");
 
-        // Execute query
+        // Execute query. The table identifier is quoted so entity type names that map
+        // to a reserved word (e.g. `User` -> `user`) produce valid SQL; `table_name` is
+        // already validated as a safe identifier above, and any embedded `"` is doubled.
+        let quoted_table = format!("\"{}\"", table_name.replace('"', "\"\""));
         let sql = format!(
             "SELECT {} FROM {} WHERE {}",
             select_fields.join(", "),
-            table_name,
+            quoted_table,
             where_clause
         );
 

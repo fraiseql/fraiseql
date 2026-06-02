@@ -104,13 +104,34 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
         }
     }
 
-    // Filter out empty and invalid field names
-    let fields: Vec<String> = fields
-        .into_iter()
-        .filter(|f| !f.is_empty() && !f.contains('(') && !f.contains(':'))
-        .collect();
+    // Filter out empty/invalid names and inline-fragment syntax. For
+    // `_entities` the selection is `... on TypeName { field … }`; the char scanner
+    // emits the spread (`...`), the `on` keyword, and the type condition as separate
+    // tokens, so drop them and keep only the leaf field names.
+    let mut result = Vec::new();
+    let mut skip_type_after_on = false;
+    for field in fields {
+        let field = field.trim();
+        if field.is_empty() || field.contains('(') || field.contains(':') {
+            continue;
+        }
+        if field.starts_with("...") {
+            // Inline-fragment spread or named-fragment spread — not a field.
+            continue;
+        }
+        if field == "on" {
+            // The `on` keyword introduces a type condition; skip the type name next.
+            skip_type_after_on = true;
+            continue;
+        }
+        if skip_type_after_on {
+            skip_type_after_on = false;
+            continue;
+        }
+        result.push(field.to_string());
+    }
 
-    Ok(fields)
+    Ok(result)
 }
 
 #[cfg(test)]

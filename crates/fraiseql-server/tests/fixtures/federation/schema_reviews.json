@@ -1,0 +1,25 @@
+{
+    "types": [
+        {
+            "name": "User",
+            "table": "\"user\"",
+            "sql_source": "\"user\"",
+            "fields": [
+                {"name": "id",          "field_type": "ID",  "nullable": false},
+                {"name": "reviewcount", "field_type": "Int", "nullable": false}
+            ]
+        }
+    ],
+    "queries": [],
+    "mutations": [],
+    "subscriptions": [],
+    "federation": {
+        "enabled": true,
+        "version": "v2",
+        "service_name": "reviews",
+        "entities": [
+            {"name": "User", "key_fields": ["id"]}
+        ]
+    },
+    "schema_sdl": "extend type User @key(fields: \"id\") {\n  id: ID! @external\n  reviewcount: Int!\n}\n"
+}

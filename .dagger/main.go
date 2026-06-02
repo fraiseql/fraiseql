@@ -493,6 +493,19 @@ const (
 	minioBindHost = "minio"
 	minioUser     = "minioadmin"
 	minioPass     = "minioadmin"
+
+	// Federation suite: two FraiseQL subgraph servers (users + reviews) behind an
+	// Apollo Router, each bound to its own seeded Postgres. The fraiseql-server binary
+	// is built with the federation feature and run as a bound service.
+	fedUsersBindHost     = "fed-pg-users"
+	fedReviewsBindHost   = "fed-pg-reviews"
+	fedSubgraphABindHost = "fed-subgraph-a"
+	fedSubgraphBBindHost = "fed-subgraph-b"
+	apolloRouterBindHost = "apollo-router"
+	apolloRouterImage    = "ghcr.io/apollographql/router:v1.45.0"
+	// Dedicated target cache for the federation-feature build (the subgraph binary +
+	// the test compile both link `--features federation`, a distinct artifact set).
+	fedTargetVol = "fraiseql-rust-target-fed-1-92"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -535,8 +548,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationStorage(ctx, source)
 	case "server-storage":
 		return m.integrationServerStorage(ctx, source)
+	case "federation":
+		return m.integrationFederation(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation)", suite)
 	}
 }
 
@@ -810,6 +825,135 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 		WithEnvVariable("AWS_DEFAULT_REGION", "us-east-1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// integrationFederation runs fraiseql-server's federation integration tests as a real
+// enforcing gate. The in-process tests (SDL, _entities by id, missing-entity null) run
+// against a seeded Postgres bound as DATABASE_URL with FEDERATION_TESTS=1. The
+// service-backed tests drive two FraiseQL subgraph servers (users + reviews) and an
+// Apollo Router routing to subgraph A — all built from the same federation-feature
+// binary and bound as Dagger services. A dedicated target cache volume keeps the
+// federation-feature artifacts apart from the default integration build.
+func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.Directory) (string, error) {
+	usersURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, fedUsersBindHost, pgDatabase)
+	routerURL := fmt.Sprintf("http://%s:4000", apolloRouterBindHost)
+	subgraphAURL := fmt.Sprintf("http://%s:8815", fedSubgraphABindHost)
+	subgraphBURL := fmt.Sprintf("http://%s:8816", fedSubgraphBBindHost)
+
+	binary := m.fedServerBinary(source)
+	pgUsers := m.fedPgService(source, "init_users.sql")
+	pgReviews := m.fedPgService(source, "init_reviews.sql")
+	subgraphA := m.fedSubgraphService(source, binary, "schema_users.json", pgUsers, fedUsersBindHost, "0.0.0.0:8815", 8815)
+	subgraphB := m.fedSubgraphService(source, binary, "schema_reviews.json", pgReviews, fedReviewsBindHost, "0.0.0.0:8816", 8816)
+
+	supergraph, err := source.
+		File("crates/fraiseql-core/tests/federation/fixtures/supergraph_single.graphql").
+		Contents(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read supergraph fixture: %w", err)
+	}
+	supergraph = strings.ReplaceAll(supergraph, "__SUBGRAPH_URL__", subgraphAURL+"/graphql")
+	router := m.apolloRouterService(supergraph, subgraphA)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: federation (in-process _entities + Apollo Router + cross-subgraph)'",
+		"cargo test -p fraiseql-server --features federation --test federation_integration_test -- --test-threads=1",
+		"echo 'test-integration OK: federation suite passed'",
+	}, "\n")
+
+	return m.fedBase(source).
+		WithServiceBinding(fedUsersBindHost, pgUsers).
+		WithServiceBinding(fedSubgraphABindHost, subgraphA).
+		WithServiceBinding(fedSubgraphBBindHost, subgraphB).
+		WithServiceBinding(apolloRouterBindHost, router).
+		WithEnvVariable("DATABASE_URL", usersURL).
+		WithEnvVariable("FEDERATION_TESTS", "1").
+		WithEnvVariable("ROUTER_URL", routerURL).
+		WithEnvVariable("SUBGRAPH_A_URL", subgraphAURL).
+		WithEnvVariable("SUBGRAPH_B_URL", subgraphBURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// fedBase mounts the source on a dedicated federation-feature target cache volume.
+func (m *FraiseqlCi) fedBase(source *dagger.Directory) *dagger.Container {
+	return m.rustBaseFor(rustMsrv).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithMountedCache("/src/target", dag.CacheVolume(fedTargetVol)).
+		WithEnvVariable("RUST_LOG", "debug")
+}
+
+// fedServerBinary builds the fraiseql-server binary with the federation feature and
+// returns it as a File (extracted from the cache-mounted target dir to a plain path).
+func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory) *dagger.File {
+	built := m.rustBaseFor(rustMsrv).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithMountedCache("/src/target", dag.CacheVolume(fedTargetVol)).
+		WithExec([]string{
+			"bash", "-c",
+			"cargo build -p fraiseql-server --features federation && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
+		})
+	return built.File("/usr/local/bin/fraiseql-server")
+}
+
+// fedSubgraphService runs the federation-feature server binary as a bound subgraph
+// service: it loads the given compiled schema and binds its own seeded Postgres.
+func (m *FraiseqlCi) fedSubgraphService(source *dagger.Directory, binary *dagger.File, schemaFile string, pgSvc *dagger.Service, pgAlias string, bindAddr string, port int) *dagger.Service {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgAlias, pgDatabase)
+	schema := source.File("crates/fraiseql-server/tests/fixtures/federation/" + schemaFile)
+
+	return m.rustBase().
+		WithFile("/usr/local/bin/fraiseql-server", binary).
+		WithFile("/schema.compiled.json", schema).
+		WithServiceBinding(pgAlias, pgSvc).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("FRAISEQL_SCHEMA_PATH", "/schema.compiled.json").
+		WithEnvVariable("FRAISEQL_BIND_ADDR", bindAddr).
+		WithEnvVariable("FRAISEQL_INTROSPECTION_ENABLED", "true").
+		WithEnvVariable("FRAISEQL_INTROSPECTION_REQUIRE_AUTH", "false").
+		WithEnvVariable("FRAISEQL_ENV", "development").
+		WithEnvVariable("RUST_LOG", "info").
+		WithExposedPort(port).
+		AsService(dagger.ContainerAsServiceOpts{Args: []string{"/usr/local/bin/fraiseql-server"}})
+}
+
+// apolloRouterService runs Apollo Router with the given (placeholder-substituted)
+// supergraph, serving GraphQL at /graphql on 0.0.0.0:4000. Subgraph A is bound so the
+// router can resolve its alias when fetching from the subgraph.
+func (m *FraiseqlCi) apolloRouterService(supergraph string, subgraphA *dagger.Service) *dagger.Service {
+	const routerConfig = "include_subgraph_errors:\n  all: true\nsupergraph:\n  listen: 0.0.0.0:4000\n  path: /graphql\n"
+
+	return dag.Container().
+		From(apolloRouterImage).
+		WithServiceBinding(fedSubgraphABindHost, subgraphA).
+		WithNewFile("/supergraph.graphql", supergraph).
+		WithNewFile("/router.yaml", routerConfig).
+		WithEnvVariable("APOLLO_TELEMETRY_DISABLED", "true").
+		WithExposedPort(4000).
+		AsService(dagger.ContainerAsServiceOpts{
+			UseEntrypoint: true,
+			Args:          []string{"--config", "/router.yaml", "--supergraph", "/supergraph.graphql"},
+		})
+}
+
+// fedPgService returns a postgres:16 seeded with a federation fixture
+// (tests/fixtures/federation/<initSQL>) mounted into the initdb directory.
+func (m *FraiseqlCi) fedPgService(source *dagger.Directory, initSQL string) *dagger.Service {
+	initDir := dag.Directory().
+		WithFile("00-"+initSQL, source.File("crates/fraiseql-server/tests/fixtures/federation/"+initSQL))
+
+	return dag.Container().
+		From(pgImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithDirectory("/docker-entrypoint-initdb.d", initDir).
+		WithExposedPort(5432).
+		AsService()
 }
 
 // minioService runs MinIO bound on 0.0.0.0:9000 with dev root credentials.

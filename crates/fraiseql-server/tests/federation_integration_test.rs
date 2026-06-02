@@ -1,20 +1,18 @@
 //! Federation integration tests — FraiseQL as a real Apollo Federation subgraph.
 //!
-//! These tests exercise the full HTTP stack: a live FraiseQL server started on an
-//! ephemeral port via `TestServer`, queried with `reqwest`.
-//!
-//! # Running
-//!
-//! Tests requiring Docker are guarded by the `FEDERATION_TESTS` environment
-//! variable and skip automatically when it is not set.
+//! These tests exercise the full HTTP stack. The in-process tests (SDL, `_entities` by
+//! id) start a live FraiseQL server via `TestServer` against the harness Postgres
+//! (`DATABASE_URL`, gated by `FEDERATION_TESTS`). The service-backed tests drive an
+//! Apollo Router (`ROUTER_URL`) and two FraiseQL subgraphs (`SUBGRAPH_A_URL` /
+//! `SUBGRAPH_B_URL`) that the Dagger `federation` suite provisions as bound services;
+//! each skips cleanly when its env var is unset.
 //!
 //! ```sh
-//! # Run all federation integration tests (Docker must be available):
-//! FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server --test federation_integration_test
+//! dagger call test-integration --suite=federation
 //! ```
 //!
 //! **Execution engine:** real FraiseQL executor
-//! **Infrastructure:** PostgreSQL
+//! **Infrastructure:** PostgreSQL + Apollo Router
 //! **Parallelism:** safe
 
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
@@ -26,65 +24,43 @@ use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use reqwest::Client;
 use serde_json::{Value, json};
-use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
 use crate::common::server_harness::TestServer;
 
+/// Read an env var, returning `None` (so the caller skips) when unset or blank.
+fn env_opt(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+}
+
+/// POST a GraphQL body to `{base}/graphql` and parse the JSON response.
+async fn post_gql(http: &Client, base: &str, body: Value) -> Value {
+    http.post(format!("{base}/graphql"))
+        .json(&body)
+        .send()
+        .await
+        .expect("graphql request failed")
+        .json::<Value>()
+        .await
+        .expect("json parse failed")
+}
+
 // ─── Schema helpers ─────────────────────────────────────────────────────────
 
-/// Compiled schema representing a federation-enabled `User` subgraph.
+/// Compiled schema representing a federation-enabled `User` subgraph (id, name).
 ///
-/// SDL stored in `schema_sdl` so `raw_schema()` returns proper SDL.
+/// Shared with the Dagger `federation` suite's subgraph-A service via the same
+/// fixture file, so the in-process test and the bound subgraph run identical schemas.
 fn user_schema_with_federation() -> CompiledSchema {
-    // Build via JSON deserialization — avoids coupling to every struct field.
-    let json = r#"{
-        "types": [
-            {
-                "name": "User",
-                "table": "\"user\"",
-                "sql_source": "v_user",
-                "fields": [
-                    {"name": "id",   "field_type": "ID",     "nullable": false},
-                    {"name": "name", "field_type": "String", "nullable": false}
-                ]
-            }
-        ],
-        "queries": [
-            {
-                "name": "user",
-                "return_type": "User",
-                "returns_list": false,
-                "nullable": true,
-                "arguments": [
-                    {"name": "id", "arg_type": "ID", "nullable": false}
-                ]
-            }
-        ],
-        "mutations": [],
-        "subscriptions": [],
-        "federation": {
-            "enabled": true,
-            "version": "v2",
-            "service_name": "users",
-            "entities": [
-                {"name": "User", "key_fields": ["id"]}
-            ]
-        },
-        "schema_sdl": "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}\n"
-    }"#;
-
+    let json = include_str!("fixtures/federation/schema_users.json");
     CompiledSchema::from_json(json, false).expect("test schema must be valid")
 }
 
 // ─── PostgreSQL helpers ──────────────────────────────────────────────────────
 
-async fn setup_users_table(port: u16) -> tokio_postgres::Client {
-    let (client, conn) = tokio_postgres::connect(
-        &format!("host=127.0.0.1 port={port} user=testuser password=testpw dbname=testdb"),
-        tokio_postgres::NoTls,
-    )
-    .await
-    .expect("connect to test postgres");
+async fn setup_users_table(db_url: &str) -> tokio_postgres::Client {
+    let (client, conn) = tokio_postgres::connect(db_url, tokio_postgres::NoTls)
+        .await
+        .expect("connect to harness postgres");
     tokio::spawn(async move { conn.await.ok() });
 
     client
@@ -146,16 +122,13 @@ async fn entities_resolves_user_by_id() {
         eprintln!("Skipping: FEDERATION_TESTS not set");
         return;
     }
-    let pg = Postgres::default()
-        .with_user("testuser")
-        .with_password("testpw")
-        .with_db_name("testdb")
-        .start()
-        .await
-        .expect("start postgres container");
-    let pg_port = pg.get_host_port_ipv4(5432).await.expect("postgres port");
+    let Some(pg) = fraiseql_test_support::postgres().await else {
+        eprintln!("Skipping: no DATABASE_URL (or local-testcontainers)");
+        return;
+    };
+    let db_url = pg.url();
 
-    let pg_client = setup_users_table(pg_port).await;
+    let pg_client = setup_users_table(db_url).await;
     pg_client
         .execute(
             r#"INSERT INTO "user" (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
@@ -164,8 +137,7 @@ async fn entities_resolves_user_by_id() {
         .await
         .expect("insert test user");
 
-    let db_url = format!("postgresql://testuser:testpw@127.0.0.1:{pg_port}/testdb");
-    let adapter = Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
+    let adapter = Arc::new(PostgresAdapter::new(db_url).await.expect("postgres adapter"));
 
     let schema = user_schema_with_federation();
     let server = TestServer::start(schema, adapter).await;
@@ -174,9 +146,9 @@ async fn entities_resolves_user_by_id() {
     let resp = http
         .post(format!("{}/graphql", server.url))
         .json(&json!({
-            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id name } } }",
+            "query": "query($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { id name } } }",
             "variables": {
-                "repr": [{"__typename": "User", "id": "user-alice"}]
+                "representations": [{"__typename": "User", "id": "user-alice"}]
             }
         }))
         .send()
@@ -192,70 +164,22 @@ async fn entities_resolves_user_by_id() {
 
 // ─── Test 3: Apollo Router routes through FraiseQL ───────────────────────────
 
-/// Apollo Router, configured with a supergraph pointing at FraiseQL, routes a
-/// query through to PostgreSQL.
+/// Apollo Router, configured with a supergraph pointing at a FraiseQL subgraph,
+/// routes a `user(id)` query through to PostgreSQL.
 ///
-/// Requires Docker with `ghcr.io/apollographql/router:v1.45.0` available.
-/// Uses Linux host networking (`--network host`) so the Router container can
-/// reach the FraiseQL server on 127.0.0.1.
+/// The Router and the FraiseQL subgraph are provisioned by Dagger as bound services
+/// (see the `federation` integration suite); this test drives the Router over HTTP via
+/// `ROUTER_URL`. It skips cleanly when that is unset.
 #[tokio::test]
 async fn apollo_router_routes_query_to_fraiseql_subgraph() {
-    use testcontainers::{GenericImage, ImageExt as _, core::WaitFor};
-
-    if std::env::var("FEDERATION_TESTS").is_err() {
-        eprintln!("Skipping: FEDERATION_TESTS not set");
+    let Some(router_url) = env_opt("ROUTER_URL") else {
+        eprintln!("Skipping: ROUTER_URL not set (Apollo Router endpoint)");
         return;
-    }
-
-    // Start PostgreSQL
-    let pg = Postgres::default()
-        .with_user("testuser")
-        .with_password("testpw")
-        .with_db_name("testdb")
-        .start()
-        .await
-        .expect("start postgres container");
-    let pg_port = pg.get_host_port_ipv4(5432).await.expect("postgres port");
-
-    let pg_client = setup_users_table(pg_port).await;
-    pg_client
-        .execute(
-            r#"INSERT INTO "user" (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
-            &[&"user-bob", &"Bob"],
-        )
-        .await
-        .expect("insert test user");
-
-    let db_url = format!("postgresql://testuser:testpw@127.0.0.1:{pg_port}/testdb");
-    let adapter = Arc::new(PostgresAdapter::new(&db_url).await.expect("postgres adapter"));
-
-    let schema = user_schema_with_federation();
-    let server = TestServer::start(schema, adapter).await;
-
-    // Build supergraph SDL: replace the __SUBGRAPH_URL__ placeholder with the
-    // real server URL so Apollo Router knows where to send subgraph requests.
-    let supergraph =
-        include_str!("../../fraiseql-core/tests/federation/fixtures/supergraph_single.graphql")
-            .replace("__SUBGRAPH_URL__", &format!("{}/graphql", server.url));
-
-    let supergraph_file = tempfile::NamedTempFile::new().expect("tmpfile");
-    std::fs::write(supergraph_file.path(), &supergraph).expect("write supergraph");
-
-    // Apollo Router on host network so it can reach the FraiseQL server on 127.0.0.1.
-    // The wait condition checks stderr for "GraphQL endpoint exposed".
-    let _router = GenericImage::new("ghcr.io/apollographql/router", "v1.45.0")
-        .with_wait_for(WaitFor::message_on_stderr("GraphQL endpoint exposed"))
-        .with_network("host")
-        .with_env_var("APOLLO_ROUTER_SUPERGRAPH_PATH", "/supergraph.graphql")
-        .start()
-        .await
-        .expect("start Apollo Router container");
-
-    let _ = supergraph_file; // keep alive until router is done
+    };
 
     let http = Client::new();
     let resp = http
-        .post("http://127.0.0.1:4000/graphql")
+        .post(format!("{router_url}/graphql"))
         .json(&json!({"query": "{ user(id: \"user-bob\") { id name } }"}))
         .send()
         .await
@@ -270,153 +194,40 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
 
 // ─── Test 4: Cross-subgraph entity resolution (E2E) ────────────────────────
 
-/// Cross-subgraph entity resolution: two FraiseQL subgraphs resolve User data
-/// from different perspectives and an internal fan-out validates the plan.
+/// Cross-subgraph entity resolution: two FraiseQL subgraphs (provisioned by Dagger as
+/// bound services) resolve User data from different perspectives and an internal fan-out
+/// validates the plan.
 ///
 /// - Subgraph A owns `User { id, name }` with `@key(fields: "id")`
-/// - Subgraph B extends `User { id (external), reviewCount }` with `extend type User @key(fields:
+/// - Subgraph B extends `User { id (external), reviewcount }` with `extend type User @key(fields:
 ///   "id")`
 ///
 /// This test validates:
-/// - Both subgraphs start and respond to `_service { sdl }`
+/// - Both subgraphs respond to `_service { sdl }`
 /// - Subgraph A resolves `_entities` for User by ID (returns name)
-/// - Subgraph B resolves `_entities` for User by ID (returns reviewCount)
+/// - Subgraph B resolves `_entities` for User by ID (returns reviewcount)
 /// - The two responses can be merged on the `id` key (mini gateway fan-out)
 ///
-/// Run with: `FRAISEQL_FEDERATION_E2E=1 FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server
-/// --test federation_integration_test -- cross_subgraph`
+/// Drives `SUBGRAPH_A_URL` / `SUBGRAPH_B_URL` over HTTP; skips cleanly when unset.
 #[tokio::test]
-#[ignore = "requires Docker + PostgreSQL (FRAISEQL_FEDERATION_E2E=1)"]
 async fn cross_subgraph_entity_resolution_e2e() {
-    if std::env::var("FRAISEQL_FEDERATION_E2E").is_err() {
-        eprintln!("Skipping: FRAISEQL_FEDERATION_E2E not set");
+    let (Some(subgraph_a), Some(subgraph_b)) =
+        (env_opt("SUBGRAPH_A_URL"), env_opt("SUBGRAPH_B_URL"))
+    else {
+        eprintln!("Skipping: SUBGRAPH_A_URL / SUBGRAPH_B_URL not set");
         return;
-    }
-
-    // ── Subgraph A: User(id, name) ──────────────────────────────────────────
-
-    let pg_a = Postgres::default()
-        .with_user("testuser")
-        .with_password("testpw")
-        .with_db_name("testdb")
-        .start()
-        .await
-        .expect("start postgres A");
-    let pg_a_port = pg_a.get_host_port_ipv4(5432).await.expect("pg A port");
-
-    let pg_a_client = setup_users_table(pg_a_port).await;
-    pg_a_client
-        .execute(
-            r#"INSERT INTO "user" (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
-            &[&"user-1", &"Alice"],
-        )
-        .await
-        .expect("insert user into subgraph A");
-
-    let db_url_a = format!("postgresql://testuser:testpw@127.0.0.1:{pg_a_port}/testdb");
-    let adapter_a = Arc::new(PostgresAdapter::new(&db_url_a).await.expect("pg adapter A"));
-    let schema_a = user_schema_with_federation();
-    let server_a = TestServer::start(schema_a, adapter_a).await;
-
-    // ── Subgraph B: User(id @external, reviewCount) ─────────────────────────
-
-    let pg_b = Postgres::default()
-        .with_user("testuser")
-        .with_password("testpw")
-        .with_db_name("testdb")
-        .start()
-        .await
-        .expect("start postgres B");
-    let pg_b_port = pg_b.get_host_port_ipv4(5432).await.expect("pg B port");
-
-    // Subgraph B stores review counts in its own user table
-    let pg_b_client = {
-        let (client, conn) = tokio_postgres::connect(
-            &format!("host=127.0.0.1 port={pg_b_port} user=testuser password=testpw dbname=testdb"),
-            tokio_postgres::NoTls,
-        )
-        .await
-        .expect("connect to pg B");
-        tokio::spawn(async move { conn.await.ok() });
-        client
     };
-
-    pg_b_client
-        .batch_execute(
-            r#"CREATE TABLE IF NOT EXISTS "user" (
-               id TEXT PRIMARY KEY,
-               name TEXT NOT NULL DEFAULT '',
-               review_count INTEGER NOT NULL DEFAULT 0,
-               __typename TEXT DEFAULT 'User'
-            );"#,
-        )
-        .await
-        .expect("create user table on B");
-    pg_b_client
-        .execute(
-            r#"INSERT INTO "user" (id, review_count) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
-            &[&"user-1", &42i32],
-        )
-        .await
-        .expect("insert review data into subgraph B");
-
-    let schema_b_json = r#"{
-        "types": [
-            {
-                "name": "User",
-                "table": "\"user\"",
-                "sql_source": "\"user\"",
-                "fields": [
-                    {"name": "id",          "field_type": "ID",  "nullable": false},
-                    {"name": "reviewCount", "field_type": "Int", "nullable": false, "column": "review_count"}
-                ]
-            }
-        ],
-        "queries": [],
-        "mutations": [],
-        "subscriptions": [],
-        "federation": {
-            "enabled": true,
-            "version": "v2",
-            "service_name": "reviews",
-            "entities": [
-                {"name": "User", "key_fields": ["id"]}
-            ]
-        },
-        "schema_sdl": "extend type User @key(fields: \"id\") {\n  id: ID! @external\n  reviewCount: Int!\n}\n"
-    }"#;
-    let schema_b = CompiledSchema::from_json(schema_b_json, false).expect("schema B valid");
-    let db_url_b = format!("postgresql://testuser:testpw@127.0.0.1:{pg_b_port}/testdb");
-    let adapter_b = Arc::new(PostgresAdapter::new(&db_url_b).await.expect("pg adapter B"));
-    let server_b = TestServer::start(schema_b, adapter_b).await;
-
-    // ── Validate both subgraphs serve federation SDL ────────────────────────
 
     let http = Client::new();
 
-    let sdl_a = http
-        .post(format!("{}/graphql", server_a.url))
-        .json(&json!({"query": "{ _service { sdl } }"}))
-        .send()
-        .await
-        .expect("SDL A")
-        .json::<Value>()
-        .await
-        .expect("parse A");
+    // ── Validate both subgraphs serve federation SDL ────────────────────────
+
+    let sdl_a = post_gql(&http, &subgraph_a, json!({"query": "{ _service { sdl } }"})).await;
     assert!(
         sdl_a["data"]["_service"]["sdl"].is_string(),
         "Subgraph A should serve SDL: {sdl_a}"
     );
-
-    let sdl_b = http
-        .post(format!("{}/graphql", server_b.url))
-        .json(&json!({"query": "{ _service { sdl } }"}))
-        .send()
-        .await
-        .expect("SDL B")
-        .json::<Value>()
-        .await
-        .expect("parse B");
+    let sdl_b = post_gql(&http, &subgraph_b, json!({"query": "{ _service { sdl } }"})).await;
     assert!(
         sdl_b["data"]["_service"]["sdl"].is_string(),
         "Subgraph B should serve SDL: {sdl_b}"
@@ -425,19 +236,15 @@ async fn cross_subgraph_entity_resolution_e2e() {
     // ── Cross-subgraph fan-out: resolve User from both subgraphs ────────────
 
     // Step 1: Fetch User name from Subgraph A via _entities
-    let entities_a = http
-        .post(format!("{}/graphql", server_a.url))
-        .json(&json!({
-            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id name } } }",
-            "variables": {"repr": [{"__typename": "User", "id": "user-1"}]}
-        }))
-        .send()
-        .await
-        .expect("entities A")
-        .json::<Value>()
-        .await
-        .expect("parse entities A");
-
+    let entities_a = post_gql(
+        &http,
+        &subgraph_a,
+        json!({
+            "query": "query($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { id name } } }",
+            "variables": {"representations": [{"__typename": "User", "id": "user-1"}]}
+        }),
+    )
+    .await;
     assert!(
         entities_a["errors"].is_null(),
         "Subgraph A entity errors: {}",
@@ -446,26 +253,22 @@ async fn cross_subgraph_entity_resolution_e2e() {
     assert_eq!(entities_a["data"]["_entities"][0]["name"], "Alice");
     assert_eq!(entities_a["data"]["_entities"][0]["id"], "user-1");
 
-    // Step 2: Fetch User reviewCount from Subgraph B via _entities
-    let entities_b = http
-        .post(format!("{}/graphql", server_b.url))
-        .json(&json!({
-            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id reviewCount } } }",
-            "variables": {"repr": [{"__typename": "User", "id": "user-1"}]}
-        }))
-        .send()
-        .await
-        .expect("entities B")
-        .json::<Value>()
-        .await
-        .expect("parse entities B");
-
+    // Step 2: Fetch User reviewcount from Subgraph B via _entities
+    let entities_b = post_gql(
+        &http,
+        &subgraph_b,
+        json!({
+            "query": "query($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { id reviewcount } } }",
+            "variables": {"representations": [{"__typename": "User", "id": "user-1"}]}
+        }),
+    )
+    .await;
     assert!(
         entities_b["errors"].is_null(),
         "Subgraph B entity errors: {}",
         entities_b["errors"]
     );
-    assert_eq!(entities_b["data"]["_entities"][0]["reviewCount"], 42);
+    assert_eq!(entities_b["data"]["_entities"][0]["reviewcount"], 42);
     assert_eq!(entities_b["data"]["_entities"][0]["id"], "user-1");
 
     // Step 3: Merge on `id` key — simulates gateway merge
@@ -476,10 +279,10 @@ async fn cross_subgraph_entity_resolution_e2e() {
     let merged = json!({
         "id": user_a["id"],
         "name": user_a["name"],
-        "reviewCount": user_b["reviewCount"],
+        "reviewcount": user_b["reviewcount"],
     });
     assert_eq!(merged["name"], "Alice");
-    assert_eq!(merged["reviewCount"], 42);
+    assert_eq!(merged["reviewcount"], 42);
     eprintln!("Cross-subgraph merge successful: {merged}");
 }
 
