@@ -3,7 +3,7 @@
 //! Integration tests for WHERE operators and query modifiers
 //!
 //! These tests verify that all operators work correctly with actual PostgreSQL data.
-//! Uses testcontainers to automatically spin up PostgreSQL with test data.
+//! Uses the test-support harness (Dagger-bound, or a local spawn with local-testcontainers) for PostgreSQL with test data.
 
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod common;

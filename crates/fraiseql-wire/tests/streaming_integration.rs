@@ -12,7 +12,7 @@ use futures::StreamExt;
 async fn test_streaming_query() {
     let container = get_test_container().await;
 
-    let transport = Transport::connect_tcp("127.0.0.1", container.port)
+    let transport = Transport::connect_tcp(&container.host, container.port)
         .await
         .expect("connect");
 

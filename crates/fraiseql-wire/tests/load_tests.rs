@@ -5,7 +5,7 @@
 //! Load testing suite for fraiseql-wire
 //!
 //! Tests throughput, memory stability, and performance under sustained load.
-//! Uses testcontainers to automatically spin up PostgreSQL with test data.
+//! Uses the test-support harness (Dagger-bound, or a local spawn with local-testcontainers) for PostgreSQL with test data.
 
 mod common;
 

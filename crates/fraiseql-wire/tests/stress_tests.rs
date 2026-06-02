@@ -3,7 +3,7 @@
 //! Stress testing suite for fraiseql-wire
 //!
 //! Tests failure handling and recovery under adverse conditions.
-//! Uses testcontainers to automatically spin up PostgreSQL with test data.
+//! Uses the test-support harness (Dagger-bound, or a local spawn with local-testcontainers) for PostgreSQL with test data.
 
 mod common;
 

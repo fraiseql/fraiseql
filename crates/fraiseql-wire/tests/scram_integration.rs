@@ -27,8 +27,8 @@ async fn test_scram_auth_wrong_password() {
 
     // Try to connect with wrong password
     let wrong_url = format!(
-        "postgres://{}:wrongpassword@127.0.0.1:{}/{}",
-        container.user, container.port, container.database
+        "postgres://{}:wrongpassword@{}:{}/{}",
+        container.user, container.host, container.port, container.database
     );
 
     let result = FraiseClient::connect(&wrong_url).await;

@@ -3,7 +3,7 @@
 //! Typed streaming integration tests
 //!
 //! Tests for typed streaming API.
-//! Uses testcontainers to automatically spin up PostgreSQL with test data.
+//! Uses the test-support harness (Dagger-bound, or a local spawn with local-testcontainers) for PostgreSQL with test data.
 //!
 //! Type parameter T affects only deserialization.
 //! SQL generation, filtering, and ordering are identical regardless of T.

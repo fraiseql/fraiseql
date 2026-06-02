@@ -463,6 +463,11 @@ const (
 	// passes when the wire client connects to it.
 	tlsBindHost = "postgres-tls"
 
+	// wireBindHost — the Postgres service for the fraiseql-wire integration tests.
+	// It enables SCRAM-SHA-256 explicitly so the wire client's auth path (and the
+	// auth/scram rejection tests) are exercised exactly as under the old testcontainer.
+	wireBindHost = "postgres-wire"
+
 	// sqlserverImage / sqlserverBindHost / sqlserverSaPassword — the SQL Server
 	// service (ci.yml integration-sqlserver). mssql has no initdb mechanism, so
 	// init.sql is applied via sqlcmd behind a readiness loop before the tests run.
@@ -505,8 +510,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationRedis(ctx, source)
 	case "vault":
 		return m.integrationVault(ctx, source)
+	case "wire":
+		return m.integrationWire(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire)", suite)
 	}
 }
 
@@ -632,6 +639,61 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// integrationWire binds a SCRAM-SHA-256 Postgres and runs the fraiseql-wire tests/*
+// integration binaries (Tier-C migrated off testcontainers). The shared test helper
+// (tests/common) reads DATABASE_URL via the harness, applies the wire test schema
+// idempotently, and seeds it only when empty so all binaries share one bound database.
+//
+// The binaries are run individually (not `--tests`) to exclude `tls_integration`: it
+// falls back from TLS_DATABASE_URL to DATABASE_URL, so it would try a TLS handshake
+// against this non-TLS service — it has its own `tls` suite. Each binary uses
+// --test-threads=1 (the bound database is shared across binaries).
+func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, wireBindHost, pgDatabase)
+
+	// Every tests/*.rs binary except tls_integration (own suite) and the common/ helper.
+	wireBins := []string{
+		"client_integration", "config_integration", "integration", "integration_full",
+		"integration_operators", "integration_pause_resume", "load_tests", "metrics_integration",
+		"property_protocol", "property_protocol_extended", "protocol_robustness_test",
+		"rust_predicate_integration", "scram_integration", "sdk_sql_compliance_test",
+		"streaming_integration", "stress_tests", "testcontainer_auth", "typed_streaming",
+	}
+
+	lines := []string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: wire (Dagger-bound SCRAM postgres; tests read DATABASE_URL via harness)'",
+	}
+	for _, bin := range wireBins {
+		lines = append(lines, "cargo test -p fraiseql-wire --test "+bin+" -- --test-threads=1")
+	}
+	lines = append(lines, "echo 'test-integration OK: wire suite passed'")
+	script := strings.Join(lines, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(wireBindHost, m.wirePgService()).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// wirePgService is a postgres:16 with SCRAM-SHA-256 forced on (matching the auth
+// config the old wire testcontainer used). It is otherwise blank: the wire test
+// helper creates the `test` schema and seeds it on first connect (idempotent +
+// seed-if-empty), so no initdb fixtures are mounted.
+func (m *FraiseqlCi) wirePgService() *dagger.Service {
+	return dag.Container().
+		From(pgImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithEnvVariable("POSTGRES_HOST_AUTH_METHOD", "scram-sha-256").
+		WithEnvVariable("POSTGRES_INITDB_ARGS", "--auth-host=scram-sha-256").
+		WithExposedPort(5432).
+		AsService()
 }
 
 // integrationRedis binds Redis + a seeded Postgres and runs the Redis-backed
