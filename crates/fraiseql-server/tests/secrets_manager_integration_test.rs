@@ -15,6 +15,7 @@
 #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 #![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
 #![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::print_stderr)] // Reason: skip messages print to stderr by design
 
 use fraiseql_secrets::secrets_manager::{SecretsBackendConfig, VaultAuth, create_secrets_manager};
 
@@ -55,11 +56,17 @@ async fn test_env_backend_initialization() {
 #[tokio::test]
 #[ignore = "requires vault"]
 async fn test_vault_backend_token_initialization() {
+    let Some(vault) = fraiseql_test_support::vault() else {
+        eprintln!(
+            "SKIP test_vault_backend_token_initialization: no vault (set VAULT_ADDR/VAULT_TOKEN)"
+        );
+        return;
+    };
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
+        addr:       vault.addr().to_string(),
+        auth:       VaultAuth::Token(vault.token().to_string().into()),
         namespace:  None,
-        tls_verify: true,
+        tls_verify: false,
     };
 
     let manager = create_secrets_manager(config).await.unwrap();
@@ -72,14 +79,20 @@ async fn test_vault_backend_token_initialization() {
 #[tokio::test]
 #[ignore = "requires vault"]
 async fn test_vault_backend_approle_initialization() {
+    let Some(vault) = fraiseql_test_support::vault() else {
+        eprintln!(
+            "SKIP test_vault_backend_approle_initialization: no vault (set VAULT_ADDR/VAULT_TOKEN)"
+        );
+        return;
+    };
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
+        addr:       vault.addr().to_string(),
         auth:       VaultAuth::AppRole {
             role_id:   "test-role-id".to_string(),
             secret_id: "test-secret-id".to_string().into(),
         },
         namespace:  None,
-        tls_verify: true,
+        tls_verify: false,
     };
 
     // This test is ignored since AppRole auth requires a running Vault instance

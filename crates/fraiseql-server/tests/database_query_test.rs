@@ -323,10 +323,16 @@ async fn test_pool_size_limits() {
     let conn = pool.acquire().await.expect("Should acquire a connection");
     drop(conn);
 
-    // Yield to let the pool process the connection return into its idle list.
-    tokio::task::yield_now().await;
-
-    let num_idle = pool.num_idle();
+    // The connection is returned to the pool asynchronously on drop, so a single
+    // yield can race the pool's idle bookkeeping. Poll briefly (bounded) instead.
+    let mut num_idle = pool.num_idle();
+    for _ in 0..100 {
+        if num_idle >= 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        num_idle = pool.num_idle();
+    }
     assert!(num_idle >= 1, "pool should have idle connections after query, got {num_idle}");
 
     pool.close().await;

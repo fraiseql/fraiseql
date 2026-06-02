@@ -137,6 +137,7 @@ fraiseql-auth = {workspace = true}
 fraiseql-cli = {workspace = true}
 fraiseql-federation = {workspace = true}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+fraiseql-test-support = {path = "../fraiseql-test-support"}
 futures = "0.3"
 proptest = {workspace = true}
 # HTTP testing
