@@ -20,9 +20,6 @@ use fraiseql_core::db::{
     traits::DatabaseAdapter,
 };
 use serde_json::json;
-use testcontainers_modules::{
-    mysql::Mysql, postgres::Postgres, testcontainers::runners::AsyncRunner,
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared schema SQL (per database)
@@ -76,19 +73,16 @@ INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES
 // Container helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
-    let container =
-        Postgres::default().start().await.expect("Failed to start PostgreSQL container");
-
-    let port = container.get_host_port_ipv4(5432).await.expect("Failed to get container port");
-
-    let conn_str =
-        format!("host=127.0.0.1 port={port} user=postgres password=postgres dbname=postgres");
+async fn setup_postgres() -> (PostgresAdapter, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set for cross-db tests (dagger call test-integration --suite=cross-db)");
+    let url = svc.url().to_string();
 
     // Apply schema and seed via tokio_postgres
-    let (client, conn) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls)
+    let (client, conn) = tokio_postgres::connect(&url, tokio_postgres::NoTls)
         .await
-        .expect("Failed to connect to PG container for setup");
+        .expect("Failed to connect to PG for setup");
     tokio::spawn(async move {
         if let Err(e) = conn.await {
             eprintln!("PG connection error during setup: {e}");
@@ -97,26 +91,19 @@ async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
     client.batch_execute(PG_SCHEMA).await.expect("Failed to apply PG schema");
     client.batch_execute(PG_SEED).await.expect("Failed to seed PG data");
 
-    let adapter_str = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let adapter = PostgresAdapter::new(&adapter_str)
-        .await
-        .expect("Failed to create PostgresAdapter");
+    let adapter = PostgresAdapter::new(&url).await.expect("Failed to create PostgresAdapter");
 
-    (adapter, container)
+    (adapter, svc)
 }
 
-async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
-    let container = Mysql::default().start().await.expect("Failed to start MySQL container");
-
-    let port = container.get_host_port_ipv4(3306).await.expect("Failed to get container port");
-
-    // MySQL default image: user=root, no password, db=test
-    let conn_str = format!("mysql://root@127.0.0.1:{port}/test");
+async fn setup_mysql() -> (MySqlAdapter, fraiseql_test_support::Service) {
+    let svc = fraiseql_test_support::mysql().await.expect(
+        "MYSQL_URL must be set for cross-db tests (dagger call test-integration --suite=cross-db)",
+    );
+    let url = svc.url().to_string();
 
     // Apply schema and seed via sqlx
-    let pool = sqlx::MySqlPool::connect(&conn_str)
-        .await
-        .expect("Failed to connect to MySQL container");
+    let pool = sqlx::MySqlPool::connect(&url).await.expect("Failed to connect to MySQL");
 
     sqlx::query(MYSQL_SCHEMA)
         .execute(&pool)
@@ -125,9 +112,9 @@ async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
     sqlx::query(MYSQL_SEED).execute(&pool).await.expect("Failed to seed MySQL data");
     drop(pool);
 
-    let adapter = MySqlAdapter::new(&conn_str).await.expect("Failed to create MySqlAdapter");
+    let adapter = MySqlAdapter::new(&url).await.expect("Failed to create MySqlAdapter");
 
-    (adapter, container)
+    (adapter, svc)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

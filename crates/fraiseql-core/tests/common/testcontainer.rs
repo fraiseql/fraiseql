@@ -1,15 +1,15 @@
-//! Testcontainer infrastructure for integration tests.
+//! Shared test database for integration tests.
 //!
-//! Provides a shared PostgreSQL container and a connected `PostgresAdapter`.
+//! Provides a connected `PostgresAdapter` against the harness-provided Postgres
+//! (Dagger-bound in CI; a local spawn with the `local-testcontainers` feature). The
+//! fixtures create an isolated `test` schema (`CREATE SCHEMA IF NOT EXISTS` + per-table
+//! `TRUNCATE … CASCADE`, seeds use `ON CONFLICT DO NOTHING`), so a shared database is
+//! fine — no per-test isolation is required.
 #![allow(dead_code)]
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use std::sync::Arc;
 
 use fraiseql_core::db::postgres::PostgresAdapter;
-use testcontainers_modules::{
-    postgres::Postgres,
-    testcontainers::{ContainerAsync, runners::AsyncRunner},
-};
 use tokio::sync::OnceCell;
 
 const SCHEMA_SQL: &str = include_str!("../fixtures/schema.sql");
@@ -18,56 +18,34 @@ const SEED_SQL: &str = include_str!("../fixtures/seed_data.sql");
 static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
 pub struct TestContainer {
+    // Held only to keep a locally-spawned container alive for the test's duration
+    // (no-op when the URL comes from the environment).
     #[allow(dead_code)]
-    // Reason: container held alive to keep Docker container running for test duration
-    container: ContainerAsync<Postgres>,
-    pub port:     u16,
-    pub user:     String,
-    pub password: String,
-    pub database: String,
+    service: fraiseql_test_support::Service,
 }
 
 impl TestContainer {
     pub fn connection_string(&self) -> String {
-        format!(
-            "postgres://{}:{}@127.0.0.1:{}/{}",
-            self.user, self.password, self.port, self.database
-        )
+        self.service.url().to_string()
     }
 }
 
 pub async fn get_test_container() -> Arc<TestContainer> {
     CONTAINER
-        .get_or_init(|| async {
-            let container = start_postgres_container().await;
-            Arc::new(container)
-        })
+        .get_or_init(|| async { Arc::new(start_postgres().await) })
         .await
         .clone()
 }
 
-async fn start_postgres_container() -> TestContainer {
-    let user = "testuser";
-    let password = "testpassword";
-    let database = "testdb";
+async fn start_postgres() -> TestContainer {
+    let service = fraiseql_test_support::postgres().await.expect(
+        "DATABASE_URL must be set (e.g. via `dagger call test-integration`) or enable the \
+         fraiseql-test-support/local-testcontainers feature",
+    );
 
-    let container = Postgres::default()
-        .with_user(user)
-        .with_password(password)
-        .with_db_name(database)
-        .start()
+    let (client, connection) = tokio_postgres::connect(service.url(), tokio_postgres::NoTls)
         .await
-        .expect("Failed to start PostgreSQL container");
-
-    let port = container.get_host_port_ipv4(5432).await.expect("Failed to get container port");
-
-    let conn_string =
-        format!("host=127.0.0.1 port={port} user={user} password={password} dbname={database}",);
-
-    let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
-        .await
-        .expect("Failed to connect to container for setup");
-
+        .expect("Failed to connect to test database for setup");
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("Connection error during setup: {e}");
@@ -75,19 +53,12 @@ async fn start_postgres_container() -> TestContainer {
     });
 
     client.batch_execute(SCHEMA_SQL).await.expect("Failed to create schema");
-
     client.batch_execute(SEED_SQL).await.expect("Failed to seed data");
 
-    TestContainer {
-        container,
-        port,
-        user: user.to_string(),
-        password: password.to_string(),
-        database: database.to_string(),
-    }
+    TestContainer { service }
 }
 
-/// Get a `PostgresAdapter` connected to the shared test container.
+/// Get a `PostgresAdapter` connected to the shared test database.
 pub async fn get_test_adapter() -> PostgresAdapter {
     let container = get_test_container().await;
     PostgresAdapter::new(&container.connection_string())

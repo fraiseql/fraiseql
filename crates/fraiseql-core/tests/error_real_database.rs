@@ -30,7 +30,12 @@ async fn connection_to_invalid_host_returns_connection_pool_error() {
 #[tokio::test]
 async fn connection_with_wrong_credentials_returns_error() {
     let container = common::testcontainer::get_test_container().await;
-    let bad_url = format!("postgres://wrong_user:wrong_pass@127.0.0.1:{}/testdb", container.port);
+    let base = container.connection_string();
+    // Swap in wrong credentials (replace everything between "//" and "@").
+    let bad_url = match (base.find("//"), base.find('@')) {
+        (Some(s), Some(a)) => format!("{}wrong_user:wrong_pass{}", &base[..s + 2], &base[a..]),
+        _ => "postgres://wrong_user:wrong_pass@127.0.0.1:5432/testdb".to_string(),
+    };
     let result = PostgresAdapter::new(&bad_url).await;
     assert!(result.is_err(), "expected Err for wrong credentials");
 }
