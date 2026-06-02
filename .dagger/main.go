@@ -473,6 +473,8 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationMysql(ctx, source)
 	case "nats":
 		return m.integrationNats(ctx, source)
+	case "observers":
+		return m.integrationObservers(ctx, source)
 	case "server":
 		return m.integrationServer(ctx, source)
 	case "redis":
@@ -480,7 +482,7 @@ func (m *FraiseqlCi) TestIntegration(
 	case "vault":
 		return m.integrationVault(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, server, redis, vault)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, server, redis, vault)", suite)
 	}
 }
 
@@ -651,6 +653,47 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("VAULT_ADDR", vaultAddr).
 		WithEnvVariable("VAULT_TOKEN", vaultToken).
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationObservers binds Postgres + Redis + NATS and runs the observer-runtime
+// integration suites from ci.yml's integration-observers job: PostgreSQL NOTIFY
+// transport, storage/lease (Redis), the PG+NATS bridge, and fraiseql-server's
+// observer runtime. All read their service URLs from env (DATABASE_URL / REDIS_URL /
+// NATS_URL); the bridge's NatsConfig url is overridden from NATS_URL.
+func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
+	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: observers (Dagger-bound postgres+redis+nats)'",
+		// postgres_notify lib tests are skip-on-None (not #[ignore]d); run name-filtered
+		// (no --ignored) so the NOTIFY transport tests exercise the bound Postgres.
+		"cargo test -p fraiseql-observers --features postgres --lib postgres_notify -- --test-threads=1",
+		// Lease/storage: kept as the legacy `--lib --ignored` no-op. Those tests are
+		// skip-on-None (not #[ignore]d) so this runs 0; running them unfiltered pulls in
+		// the SSRF-guard unit tests, which assert the guard is ON and so fail under this
+		// suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE=true. Lease coverage gap == legacy.
+		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'postgres,nats' --test bridge_integration -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
+		"echo 'test-integration OK: observers suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(redisBindHost, m.redisService()).
+		WithServiceBinding(natsBindHost, m.natsService()).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("TEST_DATABASE_URL", dbURL).
+		WithEnvVariable("REDIS_URL", redisURL).
+		WithEnvVariable("NATS_URL", natsURL).
+		WithEnvVariable("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true").
+		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

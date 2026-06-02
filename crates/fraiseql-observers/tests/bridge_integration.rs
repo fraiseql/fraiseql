@@ -50,6 +50,15 @@ mod bridge_tests {
 
     use super::*;
 
+    /// Override the NATS url with the canonical `NATS_URL` (Dagger injects it via the
+    /// observers suite). Replaces the old reliance on the `localhost:4222` default.
+    fn with_nats_url(mut config: NatsConfig) -> NatsConfig {
+        config.url = std::env::var("NATS_URL").expect(
+            "NATS_URL must be set (e.g. via `dagger call test-integration --suite=observers`)",
+        );
+        config
+    }
+
     /// Create a test database pool
     async fn create_test_pool() -> PgPool {
         PgPoolOptions::new()
@@ -457,7 +466,7 @@ mod bridge_tests {
             ..Default::default()
         };
 
-        let nats_transport = match NatsTransport::new(nats_config).await {
+        let nats_transport = match NatsTransport::new(with_nats_url(nats_config)).await {
             Ok(t) => Arc::new(t),
             Err(e) => {
                 eprintln!("Skipping test - NATS not available: {e}");
@@ -556,7 +565,7 @@ mod bridge_tests {
             ..Default::default()
         };
 
-        let nats_transport = match NatsTransport::new(nats_config).await {
+        let nats_transport = match NatsTransport::new(with_nats_url(nats_config)).await {
             Ok(t) => Arc::new(t),
             Err(e) => {
                 eprintln!("Skipping test - NATS not available: {e}");
