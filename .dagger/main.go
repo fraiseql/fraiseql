@@ -457,6 +457,11 @@ const (
 	// test container drives over HTTP.
 	serverBindHost  = "fraiseql-server"
 	e2eMetricsToken = "e2e-test-metrics-token-32chars!"
+
+	// tlsBindHost — the TLS Postgres service (ci.yml integration-tls). The cert's
+	// SAN includes this alias (CERT_HOSTNAME) so rustls servername verification
+	// passes when the wire client connects to it.
+	tlsBindHost = "postgres-tls"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -483,6 +488,8 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationObservers(ctx, source)
 	case "http-e2e":
 		return m.integrationHTTPE2e(ctx, source)
+	case "tls":
+		return m.integrationTLS(ctx, source)
 	case "server":
 		return m.integrationServer(ctx, source)
 	case "redis":
@@ -490,7 +497,7 @@ func (m *FraiseqlCi) TestIntegration(
 	case "vault":
 		return m.integrationVault(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, server, redis, vault)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, server, redis, vault)", suite)
 	}
 }
 
@@ -663,6 +670,93 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// integrationTLS runs ci.yml's integration-tls job: a TLS-enabled Postgres and the
+// fraiseql-wire TLS integration tests. The CA + server cert are pre-generated once
+// (SAN includes the bind alias so rustls servername verification passes); the server
+// cert goes into the pg service and the CA cert is injected DIRECTLY into the test
+// container as a File (deterministic — Dagger cache volumes don't reliably share a
+// running service's writes with a client container). Tests are skip-on-None
+// (TLS_DATABASE_URL + TLS_TEST_CA_CERT), not #[ignore]d, so they run without --ignored.
+func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Directory) (string, error) {
+	tlsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, tlsBindHost, pgDatabase)
+	certs := m.tlsCerts()
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: tls (fraiseql-wire over TLS to a Dagger-bound postgres-tls)'",
+		"cargo test -p fraiseql-wire --test tls_integration -- --test-threads=1",
+		"echo 'test-integration OK: tls suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(tlsBindHost, m.tlsPgService(certs)).
+		WithFile("/ca.crt", certs.File("ca.crt")).
+		WithEnvVariable("TLS_DATABASE_URL", tlsURL).
+		WithEnvVariable("TLS_TEST_CA_CERT", "/ca.crt").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// tlsCerts pre-generates a CA + server cert chain whose SAN covers the bind alias
+// (postgres-tls), localhost, and 127.0.0.1. Returns a directory with ca.crt,
+// server.crt, server.key (key world-readable so the pg init can copy it; the init
+// re-chmods to 600 under the postgres user).
+func (m *FraiseqlCi) tlsCerts() *dagger.Directory {
+	gen := strings.Join([]string{
+		"set -e",
+		"mkdir -p /out && cd /out",
+		"openssl req -x509 -newkey rsa:2048 -keyout ca.key -out ca.crt -days 365 -nodes" +
+			" -subj '/CN=fraiseql-test-ca'" +
+			" -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign'",
+		"openssl req -newkey rsa:2048 -keyout server.key -out server.csr -days 365 -nodes -subj '/CN=" + tlsBindHost + "'",
+		"openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365" +
+			" -extfile <(printf 'subjectAltName=DNS:" + tlsBindHost + ",DNS:localhost,IP:127.0.0.1\\nbasicConstraints=CA:FALSE')",
+		"chmod 644 ca.crt server.crt server.key",
+	}, "\n")
+
+	return dag.Container().
+		From(pgImage). // the postgres image ships openssl
+		WithExec([]string{"bash", "-c", gen}).
+		Directory("/out")
+}
+
+// tlsPgService is a postgres:16 that enables TLS using the pre-generated server cert.
+// A small initdb script copies the cert/key into $PGDATA (as the postgres user, then
+// chmod 600), turns on ssl, and seeds v_test_entity (the wire TLS tests query it and
+// expect >= 10 rows).
+func (m *FraiseqlCi) tlsPgService(certs *dagger.Directory) *dagger.Service {
+	const initScript = `#!/bin/bash
+set -e
+cp /tls-certs/server.crt "$PGDATA/server.crt"
+cp /tls-certs/server.key "$PGDATA/server.key"
+chmod 600 "$PGDATA/server.key"
+{ echo "ssl = on"; echo "ssl_cert_file = 'server.crt'"; echo "ssl_key_file = 'server.key'"; } >> "$PGDATA/postgresql.conf"
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'EOSQL'
+    CREATE TABLE IF NOT EXISTS test_entities (
+        id   SERIAL PRIMARY KEY,
+        name TEXT  NOT NULL,
+        data JSONB NOT NULL DEFAULT '{}'
+    );
+    INSERT INTO test_entities (name, data)
+    SELECT 'entity_' || i, jsonb_build_object('index', i, 'tag', md5(i::text))
+    FROM generate_series(1, 20) AS i;
+    CREATE OR REPLACE VIEW v_test_entity AS SELECT id, name, data FROM test_entities;
+EOSQL
+`
+	initDir := dag.Directory().WithNewFile("00-tls.sh", initScript)
+
+	return dag.Container().
+		From(pgImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithDirectory("/tls-certs", certs).
+		WithDirectory("/docker-entrypoint-initdb.d", initDir).
+		WithExposedPort(5432).
+		AsService()
 }
 
 // integrationHTTPE2e runs ci.yml's integration-http-e2e job: it boots the actual
