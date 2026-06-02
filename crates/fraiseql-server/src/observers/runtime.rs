@@ -446,9 +446,12 @@ impl ObserverRuntime {
                                                 // Write a log entry for each matched observer
                                                 for observer_id in observer_ids {
                                                     let _ = sqlx::query(
+                                                        // entity_id is bound as text (Uuid::to_string) and cast
+                                                        // to the column's uuid type — sqlx will not implicitly
+                                                        // coerce text to uuid on INSERT.
                                                         "INSERT INTO tb_observer_log
                                                          (fk_observer, event_id, entity_type, entity_id, event_type, status, duration_ms, attempt_number, max_attempts)
-                                                         VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 3)"
+                                                         VALUES ($1, $2, $3, $4::uuid, $5, $6, $7, 1, 3)"
                                                     )
                                                     .bind(observer_id)
                                                     .bind(event.id)
@@ -493,9 +496,10 @@ impl ObserverRuntime {
                                             if let Some(observer_ids) = observer_ids_err {
                                                 for observer_id in observer_ids {
                                                     let _ = sqlx::query(
+                                                        // entity_id cast to uuid as in the success path above.
                                                         "INSERT INTO tb_observer_log
                                                          (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
-                                                         VALUES ($1, $2, $3, $4, $5, 'error', $6, 1, 3)"
+                                                         VALUES ($1, $2, $3, $4::uuid, $5, 'error', $6, 1, 3)"
                                                     )
                                                     .bind(observer_id)
                                                     .bind(event.id)

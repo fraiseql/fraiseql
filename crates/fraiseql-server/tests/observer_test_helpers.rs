@@ -441,7 +441,7 @@ pub async fn assert_observer_log(
         r"
         SELECT status, attempt_number, duration_ms
         FROM tb_observer_log
-        WHERE entity_id = $1
+        WHERE entity_id = $1::uuid
         ORDER BY created_at DESC
         LIMIT 1
         ",
@@ -495,7 +495,7 @@ pub async fn get_observer_logs_for_entity(
         r"
         SELECT status, attempt_number, duration_ms
         FROM tb_observer_log
-        WHERE entity_id = $1
+        WHERE entity_id = $1::uuid
         ORDER BY attempt_number ASC
         ",
     )
