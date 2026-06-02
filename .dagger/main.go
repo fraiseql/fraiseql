@@ -523,6 +523,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// Tier-B migrated: aggregation_integration + fact_table_integration. The broad
 		// core/db `--test '*'` sweep (Tier-C testcontainers) follows in Increment 4.
 		"cargo test -p fraiseql-core --features test-postgres --test integration -- aggregation_integration fact_table_integration --test-threads=1",
+		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
+		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

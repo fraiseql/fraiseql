@@ -1,14 +1,23 @@
 //! Tests for cron state migration DDL.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::print_stderr)] // Reason: skip message when no backing Postgres is available
 
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
 
 use super::cron_migration_sql;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn with
+/// the `local-testcontainers` feature). Returns the pool plus the service guard, which
+/// the caller holds so a locally-spawned container outlives the test. `None` when no
+/// service is available (no `DATABASE_URL`, feature off) so the test skips cleanly.
+async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
+    let svc = fraiseql_test_support::postgres().await?;
+    let pool = PgPool::connect(svc.url()).await.unwrap();
+    Some((pool, svc))
+}
 
 /// Execute multi-statement DDL by splitting on semicolons.
 async fn execute_ddl(pool: &PgPool, ddl: &str) {
@@ -68,10 +77,12 @@ fn test_cron_migration_ddl_is_valid_sql() {
 /// PostgreSQL database.
 #[tokio::test]
 async fn test_cron_migration_creates_table() {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP test_cron_migration_creates_table: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
 
     let ddl = cron_migration_sql();
     execute_ddl(&pool, ddl).await;
@@ -91,10 +102,12 @@ async fn test_cron_migration_creates_table() {
 /// Verify the migration is idempotent — running it twice does not error.
 #[tokio::test]
 async fn test_cron_migration_is_idempotent() {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = PgPool::connect(&url).await.unwrap();
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP test_cron_migration_is_idempotent: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
 
     let ddl = cron_migration_sql();
 
