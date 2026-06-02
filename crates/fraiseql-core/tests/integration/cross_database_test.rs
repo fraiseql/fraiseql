@@ -1,12 +1,12 @@
 //! Cross-Database Parity Tests
 //!
 //! Validates that equivalent queries produce semantically equivalent results
-//! across PostgreSQL and MySQL adapters using real database containers.
+//! across the PostgreSQL and MySQL adapters using the harness-provided services.
 //!
-//! Tests require Docker and skip automatically unless `FEDERATION_TESTS` is set.
+//! They skip automatically unless `FEDERATION_TESTS` is set, and read DATABASE_URL /
+//! MYSQL_URL via the harness:
 //! ```bash
-//! FEDERATION_TESTS=1 cargo nextest run --test cross_database_test \
-//!     --features test-mysql,test-postgres
+//! dagger call test-integration --suite=cross-db
 //! ```
 //!
 //! The test schema uses a minimal `v_cross_item` view that returns a `data` JSON/JSONB
@@ -102,14 +102,24 @@ async fn setup_mysql() -> (MySqlAdapter, fraiseql_test_support::Service) {
     );
     let url = svc.url().to_string();
 
-    // Apply schema and seed via sqlx
+    // Apply schema and seed via sqlx. `sqlx::query` runs a single statement, so the
+    // multi-statement schema is split on `;` (each statement is idempotent: CREATE …
+    // IF NOT EXISTS / CREATE OR REPLACE VIEW, and the seed uses INSERT IGNORE).
     let pool = sqlx::MySqlPool::connect(&url).await.expect("Failed to connect to MySQL");
 
-    sqlx::query(MYSQL_SCHEMA)
+    for stmt in MYSQL_SCHEMA.split(';') {
+        let stmt = stmt.trim();
+        if !stmt.is_empty() {
+            sqlx::query(stmt)
+                .execute(&pool)
+                .await
+                .expect("Failed to apply MySQL schema statement");
+        }
+    }
+    sqlx::query(MYSQL_SEED.trim().trim_end_matches(';'))
         .execute(&pool)
         .await
-        .expect("Failed to apply MySQL schema");
-    sqlx::query(MYSQL_SEED).execute(&pool).await.expect("Failed to seed MySQL data");
+        .expect("Failed to seed MySQL data");
     drop(pool);
 
     let adapter = MySqlAdapter::new(&url).await.expect("Failed to create MySqlAdapter");

@@ -550,8 +550,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationServerStorage(ctx, source)
 	case "federation":
 		return m.integrationFederation(ctx, source)
+	case "cross-db":
+		return m.integrationCrossDb(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, cross-db)", suite)
 	}
 }
 
@@ -565,9 +567,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: postgres (Dagger-bound service; tests read DATABASE_URL via harness)'",
-		// Tier-B migrated: aggregation_integration + fact_table_integration. The broad
-		// core/db `--test '*'` sweep (Tier-C testcontainers) follows in Increment 4.
-		"cargo test -p fraiseql-core --features test-postgres --test integration -- aggregation_integration fact_table_integration --test-threads=1",
+		// Broad core/db `--test '*'` sweep (matches the legacy integration-postgres job).
+		// The mysql/sqlserver/redis/federation-gated tests skip cleanly (only pg is bound).
+		"cargo test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
+		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
@@ -796,6 +799,37 @@ func (m *FraiseqlCi) fakeGcsService() *dagger.Service {
 			UseEntrypoint: true,
 			Args:          []string{"-scheme", "http", "-backend", "memory", "-external-url", "http://" + fakeGcsBindHost + ":4443"},
 		})
+}
+
+// integrationCrossDb binds Postgres + MySQL and runs fraiseql-core's cross-database
+// parity tests (cross_database_test in the `integration` binary). They are gated by
+// FEDERATION_TESTS (the legacy job left it unset, so they were a no-op) and apply their
+// own schema/seed to each backend via the harness postgres()/mysql() services.
+func (m *FraiseqlCi) integrationCrossDb(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	mysqlURL := fmt.Sprintf("mysql://%s:%s@%s:3306/%s", pgUser, pgPassword, mysqlBindHost, pgDatabase)
+
+	svc, err := m.mysqlService(ctx, source)
+	if err != nil {
+		return "", err
+	}
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: cross-db (Dagger-bound postgres + mysql; FEDERATION_TESTS=1)'",
+		"cargo test -p fraiseql-core --features 'test-postgres,test-mysql' --test integration -- cross_database_test --test-threads=1",
+		"echo 'test-integration OK: cross-db suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(mysqlBindHost, svc).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("MYSQL_URL", mysqlURL).
+		WithEnvVariable("FEDERATION_TESTS", "1").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
 }
 
 // integrationServerStorage binds a MinIO (S3-compatible) service and runs
@@ -1198,7 +1232,7 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 // test container can reach it. Dagger starts the Postgres dependency (and waits for
 // its port) before the server starts, and the caller waits for :8815 before testing.
 func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service {
-	const targetVol = "fraiseql-rust-target-integration-1-92"
+	const targetVol = "fraiseql-rust-target-integ2-1-92"
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
@@ -1367,7 +1401,7 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 // feature/artifact sets) and sets RUST_LOG=debug like the legacy integration jobs.
 func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dagger.Container {
 	toolchain := resolveToolchain(rust)
-	targetVol := "fraiseql-rust-target-integration-" + strings.ReplaceAll(toolchain, ".", "-")
+	targetVol := "fraiseql-rust-target-integ2-" + strings.ReplaceAll(toolchain, ".", "-")
 	return m.rustBaseFor(toolchain).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").

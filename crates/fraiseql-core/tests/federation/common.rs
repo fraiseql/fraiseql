@@ -94,16 +94,15 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_raw_query(&self, sql: &str) -> Result<Vec<HashMap<String, Value>>> {
         if let Some(start) = sql.to_uppercase().find("FROM ") {
             let after_from = &sql[start + 5..].trim();
-            if let Some(space_pos) = after_from.find(' ') {
-                let table = after_from[..space_pos].trim().to_lowercase();
-                if let Some(rows) = self.data.get(&table) {
-                    return Ok(rows.clone());
-                }
-            } else {
-                let table = after_from.to_lowercase();
-                if let Some(rows) = self.data.get(&table) {
-                    return Ok(rows.clone());
-                }
+            let raw = match after_from.find(' ') {
+                Some(space_pos) => &after_from[..space_pos],
+                None => after_from,
+            };
+            // The resolver quotes the table identifier (`FROM "user"`); strip the quotes
+            // so the lookup matches the unquoted key registered via with_table_data().
+            let table = raw.trim().trim_matches('"').to_lowercase();
+            if let Some(rows) = self.data.get(&table) {
+                return Ok(rows.clone());
             }
         }
         Ok(Vec::new())

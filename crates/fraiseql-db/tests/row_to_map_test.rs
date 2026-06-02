@@ -4,7 +4,8 @@
 //! Integration tests for `row_to_map` with real PostgreSQL instances.
 //!
 //! These tests verify that `row_to_map` correctly handles TEXT[] and ENUM columns,
-//! including NULL values, by spinning up a real Postgres database via testcontainers.
+//! including NULL values, against the harness-provided Postgres (Dagger-bound, or a
+//! local spawn with the `local-testcontainers` feature).
 
 use serde_json::json;
 
@@ -104,19 +105,28 @@ async fn row_to_map_handles_enum_columns() {
         .expect("failed to create table");
 
     // Insert rows with ENUM values
+    // Cast the text parameter to the enum type — tokio-postgres binds &str as TEXT,
+    // which Postgres will not implicitly coerce to status_enum.
     client
-        .execute("INSERT INTO test_enum_table (id, status) VALUES ($1, $2)", &[&1i64, &"active"])
+        .execute(
+            "INSERT INTO test_enum_table (id, status) VALUES ($1, $2::text::status_enum)",
+            &[&1i64, &"active"],
+        )
         .await
         .expect("failed to insert active status");
 
     client
-        .execute("INSERT INTO test_enum_table (id, status) VALUES ($1, $2)", &[&2i64, &"pending"])
+        .execute(
+            "INSERT INTO test_enum_table (id, status) VALUES ($1, $2::text::status_enum)",
+            &[&2i64, &"pending"],
+        )
         .await
         .expect("failed to insert pending status");
 
-    // Query and verify ENUM columns are properly decoded
+    // Query and verify ENUM values round-trip as strings. The enum is cast to text in
+    // SQL because tokio-postgres' String decoder does not accept a custom enum OID.
     let rows = client
-        .query("SELECT id, status FROM test_enum_table ORDER BY id", &[])
+        .query("SELECT id, status::text FROM test_enum_table ORDER BY id", &[])
         .await
         .expect("failed to query");
 
@@ -201,10 +211,11 @@ async fn row_to_map_handles_mixed_types_with_nulls() {
     let int_val2: Option<i32> = rows[1].get(1);
     let text_val2: Option<String> = rows[1].get(2);
     let bool_val2: Option<bool> = rows[1].get(3);
-    let json_val2: serde_json::Value = rows[1].get(4);
+    // A SQL NULL must be retrieved as Option::None — `get::<Value>` on a NULL panics.
+    let json_val2: Option<serde_json::Value> = rows[1].get(4);
     assert_eq!(id2, 2);
     assert!(int_val2.is_none());
     assert!(text_val2.is_none());
     assert!(bool_val2.is_none());
-    assert!(json_val2.is_null());
+    assert!(json_val2.is_none());
 }
