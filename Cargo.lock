@@ -3437,6 +3437,7 @@ dependencies = [
  "fraiseql-db",
  "fraiseql-error",
  "fraiseql-federation",
+ "fraiseql-test-support",
  "fraiseql-test-utils",
  "fraiseql-wire",
  "futures",
@@ -3602,6 +3603,7 @@ dependencies = [
  "dashmap",
  "fraiseql-arrow",
  "fraiseql-error",
+ "fraiseql-test-support",
  "fraiseql-test-utils",
  "futures",
  "http 1.4.0",
@@ -3686,6 +3688,7 @@ dependencies = [
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-storage",
+ "fraiseql-test-support",
  "fraiseql-test-utils",
  "fraiseql-webhooks",
  "futures",
@@ -3788,11 +3791,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-test-support"
+version = "2.3.2"
+dependencies = [
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
+]
+
+[[package]]
 name = "fraiseql-test-utils"
 version = "2.3.2"
 dependencies = [
  "async-trait",
  "fraiseql-core",
+ "fraiseql-test-support",
  "serde_json",
  "tempfile",
  "tokio",

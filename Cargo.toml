@@ -31,6 +31,7 @@ members = [
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server",
+  "crates/fraiseql-test-support",
   "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
   "crates/fraiseql-federation",  # Apollo Federation v2 support
@@ -328,6 +329,7 @@ fraiseql-error = 5_000
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
 fraiseql-server = 55_000
+fraiseql-test-support = 5_000
 fraiseql-test-utils = 5_000
 fraiseql-webhooks = 10_000
 fraiseql-wire = 20_000

@@ -1,0 +1,37 @@
+[package]
+name = "fraiseql-test-support"
+description = "Service provisioning harness for FraiseQL integration tests: env-URL first, optional local testcontainers."
+readme = "README.md"
+publish = false
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+# Intentionally dependency-light: this crate is the single provisioning authority
+# and must be dev-dependable by every workspace crate (down to fraiseql-db) without
+# creating a dependency cycle. It pulls NO workspace crates.
+[dependencies]
+testcontainers = {version = "0.27", features = ["watchdog"], optional = true}
+testcontainers-modules = {version = "0.15", features = ["postgres"], optional = true}
+
+[features]
+default = []
+# Spawn ephemeral service containers on the LOCAL dev box when no env URL is set.
+# NEVER enable in CI: Dagger provisions the services and injects the URLs there, so
+# CI binaries must not even compile testcontainers — that makes the container-leak
+# class impossible in the CI artifact by construction. See parity-notes.md.
+local-testcontainers = ["dep:testcontainers", "dep:testcontainers-modules"]
+
+# tokio is dev-only (doctest/example runtime). The library itself stays runtime-agnostic.
+[dev-dependencies]
+tokio = {workspace = true}
+
+[lints]
+workspace = true
