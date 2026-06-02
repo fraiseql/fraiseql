@@ -11,6 +11,7 @@
 
 #![cfg(feature = "test-postgres")]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 use fraiseql_core::{
@@ -19,13 +20,14 @@ use fraiseql_core::{
 };
 use tokio_postgres::NoTls;
 
-const TEST_DB_URL: &str =
-    "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
-
-// Helper to create test introspector
-async fn create_test_introspector() -> PostgresIntrospector {
+// Helper to create a test introspector against the harness-provided Postgres.
+// Returns None when no database is available (caller skips). The caller keeps the
+// returned Service alive so a locally spawned container outlives the test.
+async fn create_test_introspector() -> Option<(fraiseql_test_support::Service, PostgresIntrospector)>
+{
+    let pg = fraiseql_test_support::postgres().await?;
     let mut cfg = Config::new();
-    cfg.url = Some(TEST_DB_URL.to_string());
+    cfg.url = Some(pg.url().to_string());
     cfg.manager = Some(ManagerConfig {
         recycling_method: RecyclingMethod::Fast,
     });
@@ -33,7 +35,7 @@ async fn create_test_introspector() -> PostgresIntrospector {
 
     let pool = cfg.create_pool(Some(Runtime::Tokio1), NoTls).expect("Failed to create pool");
 
-    PostgresIntrospector::new(pool)
+    Some((pg, PostgresIntrospector::new(pool)))
 }
 
 // ============================================================================
@@ -42,7 +44,10 @@ async fn create_test_introspector() -> PostgresIntrospector {
 
 #[tokio::test]
 async fn test_detect_tf_sales() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = FactTableDetector::introspect(&introspector, "tf_sales")
         .await
@@ -84,7 +89,10 @@ async fn test_detect_tf_sales() {
 
 #[tokio::test]
 async fn test_detect_tf_events() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = FactTableDetector::introspect(&introspector, "tf_events")
         .await
@@ -124,7 +132,10 @@ async fn test_detect_tf_events() {
 
 #[tokio::test]
 async fn test_reject_aggregate_table() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     // ta_sales_by_day should be rejected (not a fact table - no tf_ prefix)
     let result = FactTableDetector::introspect(&introspector, "ta_sales_by_day").await;
@@ -145,7 +156,10 @@ async fn test_reject_aggregate_table() {
 
 #[tokio::test]
 async fn test_reject_view() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     // v_user is a view, not a fact table
     let result = FactTableDetector::introspect(&introspector, "v_user").await;
@@ -166,7 +180,10 @@ async fn test_reject_view() {
 
 #[tokio::test]
 async fn test_reject_nonexistent_table() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let result = FactTableDetector::introspect(&introspector, "tf_nonexistent").await;
 
@@ -190,7 +207,10 @@ async fn test_reject_nonexistent_table() {
 
 #[tokio::test]
 async fn test_measure_types() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = FactTableDetector::introspect(&introspector, "tf_sales")
         .await
@@ -212,7 +232,10 @@ async fn test_measure_types() {
 
 #[tokio::test]
 async fn test_index_detection() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = FactTableDetector::introspect(&introspector, "tf_sales")
         .await
@@ -231,7 +254,10 @@ async fn test_index_detection() {
 
 #[tokio::test]
 async fn test_sql_type_detection() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = FactTableDetector::introspect(&introspector, "tf_sales")
         .await
@@ -270,7 +296,10 @@ async fn test_sql_type_detection() {
 
 #[tokio::test]
 async fn test_get_columns_tf_sales() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let columns = introspector.get_columns("tf_sales").await.expect("Failed to get columns");
 
@@ -288,7 +317,10 @@ async fn test_get_columns_tf_sales() {
 
 #[tokio::test]
 async fn test_get_indexed_columns_tf_sales() {
-    let introspector = create_test_introspector().await;
+    let Some((_pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let indexed = introspector
         .get_indexed_columns("tf_sales")

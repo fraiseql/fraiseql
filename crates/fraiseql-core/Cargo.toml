@@ -102,6 +102,7 @@ deadpool-postgres.workspace = true
 criterion = {version = "0.5", features = ["async_tokio"]}
 moka = {workspace = true}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+fraiseql-test-support = {path = "../fraiseql-test-support"}
 fraiseql-wire = {workspace = true}
 insta = {workspace = true}
 tracing-subscriber = {workspace = true}

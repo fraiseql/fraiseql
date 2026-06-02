@@ -364,12 +364,15 @@ async fn test_end_to_end_aggregate_query() {
 
     use fraiseql_core::{db::postgres::PostgresAdapter, runtime::Executor, schema::CompiledSchema};
 
-    const TEST_DB_URL: &str =
-        "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
+    let Some(pg) = fraiseql_test_support::postgres().await else {
+        eprintln!("SKIP test_end_to_end_aggregate_query: no postgres (set DATABASE_URL)");
+        return;
+    };
 
-    // Setup test database
+    // Setup test database (pg is held for the test's lifetime so a locally spawned
+    // container, if any, is not torn down mid-test).
     let adapter = Arc::new(
-        PostgresAdapter::new(TEST_DB_URL)
+        PostgresAdapter::new(pg.url())
             .await
             .expect("Failed to connect to test database"),
     );

@@ -58,9 +58,8 @@ mod mysql_tests {
     use super::*;
 
     fn mysql_url() -> String {
-        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
-            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
-        })
+        std::env::var("MYSQL_URL")
+            .expect("MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)")
     }
 
     #[tokio::test]
@@ -914,9 +913,8 @@ mod mysql_relay_tests {
     };
 
     fn mysql_url() -> String {
-        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
-            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
-        })
+        std::env::var("MYSQL_URL")
+            .expect("MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)")
     }
 
     async fn adapter() -> MySqlAdapter {
@@ -1073,9 +1071,8 @@ mod mysql_advanced_tests {
     use fraiseql_db::DatabaseAdapter;
 
     fn mysql_url() -> String {
-        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
-            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
-        })
+        std::env::var("MYSQL_URL")
+            .expect("MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)")
     }
 
     async fn adapter() -> MySqlAdapter {
@@ -1221,9 +1218,8 @@ mod mysql_mutation_tests {
     use fraiseql_db::DatabaseAdapter;
 
     fn mysql_url() -> String {
-        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
-            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
-        })
+        std::env::var("MYSQL_URL")
+            .expect("MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)")
     }
 
     /// MySQL mutation via stored procedure: insert returns the new row.
@@ -1288,11 +1284,10 @@ mod mysql_error_tests {
     /// Querying a non-existent view returns a database error.
     #[tokio::test]
     async fn test_mysql_missing_view_returns_database_error() {
-        let a = MySqlAdapter::new(
-            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql",
-        )
-        .await
-        .expect("connect");
+        let url = std::env::var("MYSQL_URL").expect(
+            "MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)",
+        );
+        let a = MySqlAdapter::new(&url).await.expect("connect");
         let err = a
             .execute_where_query("v_view_that_does_not_exist", None, Some(1), None, None)
             .await
