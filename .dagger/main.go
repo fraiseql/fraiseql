@@ -451,6 +451,12 @@ const (
 	// started with `-js -m 8222`.
 	natsImage    = "nats:2.10-alpine"
 	natsBindHost = "nats"
+
+	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (ci.yml
+	// integration-http-e2e): the fraiseql-server binary run as a bound service the
+	// test container drives over HTTP.
+	serverBindHost  = "fraiseql-server"
+	e2eMetricsToken = "e2e-test-metrics-token-32chars!"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -475,6 +481,8 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationNats(ctx, source)
 	case "observers":
 		return m.integrationObservers(ctx, source)
+	case "http-e2e":
+		return m.integrationHTTPE2e(ctx, source)
 	case "server":
 		return m.integrationServer(ctx, source)
 	case "redis":
@@ -482,7 +490,7 @@ func (m *FraiseqlCi) TestIntegration(
 	case "vault":
 		return m.integrationVault(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, server, redis, vault)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, server, redis, vault)", suite)
 	}
 }
 
@@ -655,6 +663,87 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// integrationHTTPE2e runs ci.yml's integration-http-e2e job: it boots the actual
+// fraiseql-server binary as a bound Dagger service (which itself binds an
+// e2e-seeded Postgres), then drives it over HTTP from the test container. The e2e
+// tests are skip-on-None (FRAISEQL_TEST_URL); legacy's --ignored ran 0, so they run
+// without --ignored here.
+func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Directory) (string, error) {
+	server := m.serverE2eService(source)
+	testURL := fmt.Sprintf("http://%s:8815", serverBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: http-e2e (fraiseql-server binary as a bound service)'",
+		"cargo test -p fraiseql-server --test http_server_e2e_test -- --test-threads=4",
+		"cargo test -p fraiseql-server --test concurrent_load_test -- --test-threads=1",
+		"echo 'test-integration OK: http-e2e suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(serverBindHost, server).
+		WithEnvVariable("FRAISEQL_TEST_URL", testURL).
+		WithEnvVariable("FRAISEQL_METRICS_TOKEN", e2eMetricsToken).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// serverE2eService builds the fraiseql-server binary, then runs it as a service
+// bound to an e2e-seeded Postgres. It binds 0.0.0.0 (not 127.0.0.1) so the bound
+// test container can reach it. Dagger starts the Postgres dependency (and waits for
+// its port) before the server starts, and the caller waits for :8815 before testing.
+func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service {
+	const targetVol = "fraiseql-rust-target-integration-1-92"
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
+	// path so it can be extracted as a File into the runtime service container.
+	built := m.rustBaseFor(rustMsrv).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+		WithExec([]string{
+			"bash", "-c",
+			"cargo build -p fraiseql-server && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
+		})
+	binary := built.File("/usr/local/bin/fraiseql-server")
+	schema := source.File("docker/e2e/schema.compiled.json")
+
+	// rustBase carries the runtime libs (openssl, etc.) the binary links against.
+	return m.rustBase().
+		WithFile("/usr/local/bin/fraiseql-server", binary).
+		WithFile("/schema.compiled.json", schema).
+		WithServiceBinding(pgBindHost, m.pgE2eService(source)).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("FRAISEQL_SCHEMA_PATH", "/schema.compiled.json").
+		WithEnvVariable("FRAISEQL_BIND_ADDR", "0.0.0.0:8815").
+		WithEnvVariable("FRAISEQL_METRICS_ENABLED", "true").
+		WithEnvVariable("FRAISEQL_METRICS_TOKEN", e2eMetricsToken).
+		WithEnvVariable("FRAISEQL_INTROSPECTION_ENABLED", "true").
+		WithEnvVariable("FRAISEQL_INTROSPECTION_REQUIRE_AUTH", "false").
+		WithEnvVariable("FRAISEQL_ENV", "development").
+		WithEnvVariable("RUST_LOG", "info").
+		WithExposedPort(8815).
+		AsService(dagger.ContainerAsServiceOpts{Args: []string{"/usr/local/bin/fraiseql-server"}})
+}
+
+// pgE2eService is a postgres:16 seeded with the E2E fixture (docker/e2e/
+// init-postgres.sql — tb_user + v_users), distinct from the main integration seed.
+func (m *FraiseqlCi) pgE2eService(source *dagger.Directory) *dagger.Service {
+	initDir := dag.Directory().
+		WithFile("00-init.sql", source.File("docker/e2e/init-postgres.sql"))
+
+	return dag.Container().
+		From(pgImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithDirectory("/docker-entrypoint-initdb.d", initDir).
+		WithExposedPort(5432).
+		AsService()
 }
 
 // integrationObservers binds Postgres + Redis + NATS and runs the observer-runtime
