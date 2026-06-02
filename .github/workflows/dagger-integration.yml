@@ -1,0 +1,41 @@
+name: Dagger — integration
+
+# Phase 04 integration matrix (Track 0). Ports ci.yml's integration-* jobs onto
+# Dagger-native service bindings (no testcontainers, no DinD): each suite binds its
+# backing service(s) via dag.Container().AsService() + WithServiceBinding and the
+# tests read the injected env URL through the fraiseql-test-support harness. Runs on
+# the self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's
+# cargo/target/sccache cache volumes (warm = fast). See parity-notes.md Phase 04.
+#
+# max-parallel: 1 — the runner box is RAM-bound (31 GiB); suites run one at a time
+# (preflight/test may still run alongside, up to the org-wide 2-runner cap).
+#
+# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
+# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: dagger-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: integration (${{ matrix.suite }})
+    runs-on: [self-hosted, fraiseql-8core]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        suite: [postgres, sqlite, mysql, nats, server, redis, vault]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: dagger call test-integration --suite=${{ matrix.suite }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call test-integration --source=. --suite=${{ matrix.suite }}
