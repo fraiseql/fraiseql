@@ -408,3 +408,335 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 	}
 	return base.WithEnvVariable("RUSTUP_TOOLCHAIN", toolchain)
 }
+
+// ── Phase 04: Integration Matrix ──────────────────────────────────────────────
+//
+// Ports ci.yml's integration-* jobs onto Dagger-native service bindings — NO
+// testcontainers, NO DinD. Each backing service is a dag.Container().AsService()
+// bound into the test container; the tests read the injected env URL through the
+// fraiseql-test-support harness. This makes local == CI: `dagger call
+// test-integration` here provisions the same pinned, bound services as the
+// self-hosted workflow does. See parity-notes.md Phase 04.
+
+const (
+	// pgImage pins the integration Postgres (matches ci.yml's integration jobs).
+	pgImage = "postgres:16"
+	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials from ci.yml.
+	pgUser     = "fraiseql_test"
+	pgPassword = "fraiseql_test_password"
+	pgDatabase = "test_fraiseql"
+	// pgBindHost is the service-binding alias; bound callers reach Postgres here on
+	// its internal 5432 (not the legacy host-mapped 5433).
+	pgBindHost = "postgres"
+
+	// redisImage / redisBindHost — the Redis service (ci.yml integration-redis).
+	redisImage    = "redis:7-alpine"
+	redisBindHost = "redis"
+
+	// vaultImage / vaultBindHost / vaultToken — the Vault dev-mode service
+	// (ci.yml integration-vault). Dev-mode root token; test-only.
+	vaultImage    = "hashicorp/vault:1.17"
+	vaultBindHost = "vault"
+	vaultToken    = "fraiseql-test-token"
+
+	// mysqlImage / mysqlBindHost / mysqlRootPassword — the MySQL service (ci.yml
+	// integration-mysql). User/password/database match the Postgres ones
+	// (fraiseql_test / fraiseql_test_password / test_fraiseql), so the pg* consts
+	// are reused for the URL.
+	mysqlImage        = "mysql:8.3"
+	mysqlBindHost     = "mysql"
+	mysqlRootPassword = "fraiseql_test_root"
+
+	// natsImage / natsBindHost — the NATS JetStream service (ci.yml integration-nats),
+	// started with `-js -m 8222`.
+	natsImage    = "nats:2.10-alpine"
+	natsBindHost = "nats"
+)
+
+// TestIntegration runs one integration suite against Dagger-bound services. `suite`
+// selects which (default "postgres"). The suites come online incrementally as the
+// tiers converge onto the harness (see .phases/dagger-adoption/phase-04-…).
+func (m *FraiseqlCi) TestIntegration(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// +optional
+	// +default="postgres"
+	suite string,
+) (string, error) {
+	switch suite {
+	case "", "postgres":
+		return m.integrationPostgres(ctx, source)
+	case "sqlite":
+		return m.integrationSqlite(ctx, source)
+	case "mysql":
+		return m.integrationMysql(ctx, source)
+	case "nats":
+		return m.integrationNats(ctx, source)
+	case "server":
+		return m.integrationServer(ctx, source)
+	case "redis":
+		return m.integrationRedis(ctx, source)
+	case "vault":
+		return m.integrationVault(ctx, source)
+	default:
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, server, redis, vault)", suite)
+	}
+}
+
+// integrationPostgres binds a seeded postgres:16 service and runs the PostgreSQL
+// integration tests that already route through the harness. The harness reads
+// DATABASE_URL (injected below) and connects to the bound service.
+func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: postgres (Dagger-bound service; tests read DATABASE_URL via harness)'",
+		// Tier-B migrated: aggregation_integration + fact_table_integration. The broad
+		// core/db `--test '*'` sweep (Tier-C testcontainers) follows in Increment 4.
+		"cargo test -p fraiseql-core --features test-postgres --test integration -- aggregation_integration fact_table_integration --test-threads=1",
+		"echo 'test-integration OK: postgres suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationSqlite runs the SQLite integration tests. SQLite is in-process
+// (`SqliteAdapter::in_memory`) — no service binding, no env URL. The `sqlite`
+// feature compiles a different code path than `test-postgres`; both sets of
+// artifacts coexist in the shared integration target cache (cargo keys fingerprints
+// per feature-set; sccache backs the cross-feature object reuse).
+func (m *FraiseqlCi) integrationSqlite(ctx context.Context, source *dagger.Directory) (string, error) {
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: sqlite (in-process; no service)'",
+		"cargo test -p fraiseql-core --features sqlite --test integration -- multi_database_integration::sqlite --test-threads=1",
+		"echo 'test-integration OK: sqlite suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationMysql binds a seeded MySQL service and runs the MySQL multi-database
+// integration tests. They are #[cfg(feature = "test-mysql")] and read MYSQL_URL,
+// querying the v_user / v_post views (init.sql) and the fn_create_tag stored
+// procedure (procedures.sql).
+func (m *FraiseqlCi) integrationMysql(ctx context.Context, source *dagger.Directory) (string, error) {
+	mysqlURL := fmt.Sprintf("mysql://%s:%s@%s:3306/%s", pgUser, pgPassword, mysqlBindHost, pgDatabase)
+
+	svc, err := m.mysqlService(ctx, source)
+	if err != nil {
+		return "", err
+	}
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: mysql (Dagger-bound service; tests read MYSQL_URL)'",
+		"cargo test -p fraiseql-core --features test-mysql --test integration -- multi_database_integration --test-threads=1",
+		"echo 'test-integration OK: mysql suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(mysqlBindHost, svc).
+		WithEnvVariable("MYSQL_URL", mysqlURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// mysqlService returns a started mysql:8.3 service seeded with init.sql (the views
+// the tests query) and procedures.sql (the fn_create_tag stored procedure). MySQL's
+// entrypoint creates the user/db from the env vars and runs
+// /docker-entrypoint-initdb.d on first boot.
+//
+// procedures.sql uses `//` as its statement terminator with no DELIMITER statement
+// (legacy loaded it via `mysql --delimiter="//"`). The entrypoint runs initdb files
+// through the mysql client with the default `;` delimiter, so we wrap the file body
+// in `DELIMITER //` … `DELIMITER ;` (a client directive the mysql CLI honours) and
+// seed the wrapped copy.
+func (m *FraiseqlCi) mysqlService(ctx context.Context, source *dagger.Directory) (*dagger.Service, error) {
+	procs, err := source.File("tests/sql/mysql/procedures.sql").Contents(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read mysql procedures.sql: %w", err)
+	}
+	wrappedProcs := "DELIMITER //\n" + procs + "\nDELIMITER ;\n"
+
+	initDir := dag.Directory().
+		WithFile("00-init.sql", source.File("tests/sql/mysql/init.sql")).
+		WithNewFile("01-procedures.sql", wrappedProcs)
+
+	return dag.Container().
+		From(mysqlImage).
+		WithEnvVariable("MYSQL_ROOT_PASSWORD", mysqlRootPassword).
+		WithEnvVariable("MYSQL_DATABASE", pgDatabase).
+		WithEnvVariable("MYSQL_USER", pgUser).
+		WithEnvVariable("MYSQL_PASSWORD", pgPassword).
+		WithDirectory("/docker-entrypoint-initdb.d", initDir).
+		WithExposedPort(3306).
+		AsService(), nil
+}
+
+// integrationServer binds a seeded Postgres and runs fraiseql-server's
+// database-query integration tests. They use try_database_url() + skip-on-None
+// (no #[ignore]), so they run plainly and execute once DATABASE_URL is injected.
+func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: server database (Dagger-bound postgres)'",
+		"cargo test -p fraiseql-server --test database_query_test -- --test-threads=1",
+		"echo 'test-integration OK: server suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationRedis binds Redis + a seeded Postgres and runs the Redis-backed
+// suites: fraiseql-core APQ storage and fraiseql-observers queue/lease. Those lib
+// tests are #[ignore]d ("requires Redis running") and read REDIS_URL / DATABASE_URL.
+func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: redis (core APQ + observers queue/lease) — Dagger-bound redis+postgres'",
+		"cargo test -p fraiseql-core --features redis-apq --lib redis -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
+		"echo 'test-integration OK: redis suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(redisBindHost, m.redisService()).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("TEST_DATABASE_URL", dbURL).
+		WithEnvVariable("REDIS_URL", redisURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationVault binds a Vault dev-mode service and runs fraiseql-server's
+// secrets-manager integration tests (#[ignore]d "requires vault"); they read
+// VAULT_ADDR / VAULT_TOKEN.
+func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Directory) (string, error) {
+	vaultAddr := fmt.Sprintf("http://%s:8200", vaultBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: vault secrets manager (Dagger-bound vault dev)'",
+		"cargo test -p fraiseql-server --features secrets --test secrets_manager_integration_test -- --ignored --test-threads=1",
+		"echo 'test-integration OK: vault suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(vaultBindHost, m.vaultService()).
+		WithEnvVariable("VAULT_ADDR", vaultAddr).
+		WithEnvVariable("VAULT_TOKEN", vaultToken).
+		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationNats binds a NATS JetStream service and runs the observers NATS
+// transport integration tests (#[ignore]d "requires NATS server"); they read
+// NATS_URL (the tests override NatsConfig.url with it).
+func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directory) (string, error) {
+	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: nats (Dagger-bound JetStream; tests read NATS_URL)'",
+		"cargo test -p fraiseql-observers --features nats --test nats_integration -- --ignored --test-threads=1",
+		"echo 'test-integration OK: nats suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(natsBindHost, m.natsService()).
+		WithEnvVariable("NATS_URL", natsURL).
+		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// natsService returns a started nats:2.10-alpine service with JetStream + monitoring
+// (`nats-server -js -m 8222`).
+func (m *FraiseqlCi) natsService() *dagger.Service {
+	return dag.Container().
+		From(natsImage).
+		WithExposedPort(4222).
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true, Args: []string{"-js", "-m", "8222"}})
+}
+
+// redisService returns a started redis:7-alpine service (default redis-server CMD).
+func (m *FraiseqlCi) redisService() *dagger.Service {
+	return dag.Container().
+		From(redisImage).
+		WithExposedPort(6379).
+		AsService()
+}
+
+// vaultService returns a started Vault dev-mode service. Dev mode disables mlock
+// (no IPC_LOCK cap needed) and seeds the root token from VAULT_DEV_ROOT_TOKEN_ID.
+func (m *FraiseqlCi) vaultService() *dagger.Service {
+	return dag.Container().
+		From(vaultImage).
+		WithEnvVariable("VAULT_DEV_ROOT_TOKEN_ID", vaultToken).
+		WithEnvVariable("VAULT_DEV_LISTEN_ADDRESS", "0.0.0.0:8200").
+		WithEnvVariable("VAULT_LOG_LEVEL", "warn").
+		WithExposedPort(8200).
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true, Args: []string{"server", "-dev"}})
+}
+
+// pgService returns a started postgres:16 service seeded with the repo's
+// integration fixtures. The two SQL files are mounted into
+// /docker-entrypoint-initdb.d under numeric names so the entrypoint runs them in
+// load order (init before init-analytics) on first boot. Dagger waits for the
+// exposed port before bound callers proceed, so Postgres is accepting connections
+// by the time the tests run.
+func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
+	initDir := dag.Directory().
+		WithFile("00-init.sql", source.File("tests/sql/postgres/init.sql")).
+		WithFile("01-init-analytics.sql", source.File("tests/sql/postgres/init-analytics.sql"))
+
+	return dag.Container().
+		From(pgImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithDirectory("/docker-entrypoint-initdb.d", initDir).
+		WithExposedPort(5432).
+		AsService()
+}
+
+// integrationBase mounts the source on rustBaseFor(toolchain), ready to bind
+// services into. It uses a dedicated integration target-cache volume (kept apart
+// from the Phase-02 gate and Phase-03 unit-test caches, which hold different
+// feature/artifact sets) and sets RUST_LOG=debug like the legacy integration jobs.
+func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dagger.Container {
+	toolchain := resolveToolchain(rust)
+	targetVol := "fraiseql-rust-target-integration-" + strings.ReplaceAll(toolchain, ".", "-")
+	return m.rustBaseFor(toolchain).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+		WithEnvVariable("RUST_LOG", "debug")
+}
