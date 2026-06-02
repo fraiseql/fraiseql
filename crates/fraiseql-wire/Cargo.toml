@@ -29,7 +29,7 @@ pbkdf2 = "0.13"  # Key derivation for SCRAM
 rand = "0.9"  # Random nonce generation
 # TLS support
 rustls = {version = "0.23", features = ["ring"]}
-rustls-native-certs = "0.8.3"
+rustls-native-certs = "0.8.4"
 rustls-pemfile = "2.2"
 rustls-pki-types = "1"
 # Serialization
