@@ -487,18 +487,31 @@ mod sqlite_tests {
 // SQL Server Integration Tests
 // ============================================================================
 
+/// Build a SQL Server connection string for `database` from the harness-provided
+/// server. `SQLSERVER_URL` holds `server=…;user=…;password=…;TrustServerCertificate=true`
+/// (no database); each test appends the database it needs. Returns `None` only when
+/// `SQLSERVER_URL` is unset.
+#[cfg(feature = "test-sqlserver")]
+async fn sqlserver_conn(database: &str) -> Option<String> {
+    let svc = fraiseql_test_support::sqlserver().await?;
+    Some(format!("{};database={database}", svc.url().trim_end_matches(';')))
+}
+
 #[cfg(feature = "test-sqlserver")]
 mod sqlserver_tests {
     use super::*;
 
-    const SQLSERVER_URL: &str = "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
-    const SQLSERVER_TEST_DB_URL: &str = "server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    /// Adapter against the `master` database (server-level tests).
+    async fn master_adapter() -> SqlServerAdapter {
+        let url = sqlserver_conn("master").await.expect(
+            "SQLSERVER_URL must be set (e.g. via `dagger call test-integration --suite=sqlserver`)",
+        );
+        SqlServerAdapter::new(&url).await.expect("Failed to create SQL Server adapter")
+    }
 
     #[tokio::test]
     async fn test_sqlserver_adapter_creation() {
-        let adapter = SqlServerAdapter::new(SQLSERVER_URL)
-            .await
-            .expect("Failed to create SQL Server adapter");
+        let adapter = master_adapter().await;
 
         assert_eq!(adapter.database_type(), DatabaseType::SQLServer);
 
@@ -508,18 +521,14 @@ mod sqlserver_tests {
 
     #[tokio::test]
     async fn test_sqlserver_health_check() {
-        let adapter = SqlServerAdapter::new(SQLSERVER_URL)
-            .await
-            .expect("Failed to create SQL Server adapter");
+        let adapter = master_adapter().await;
 
         adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
     async fn test_sqlserver_execute_raw_query() {
-        let adapter = SqlServerAdapter::new(SQLSERVER_URL)
-            .await
-            .expect("Failed to create SQL Server adapter");
+        let adapter = master_adapter().await;
 
         let results = adapter
             .execute_raw_query("SELECT 1 as value")
@@ -532,15 +541,13 @@ mod sqlserver_tests {
 
     #[tokio::test]
     async fn test_sqlserver_query_v_user_view() {
-        let adapter = match SqlServerAdapter::new(SQLSERVER_TEST_DB_URL).await {
-            Ok(adapter) => adapter,
-            Err(e) => {
-                eprintln!(
-                    "Skipping test_sqlserver_query_v_user_view: test_fraiseql database not available: {e}"
-                );
-                return;
-            },
+        let Some(url) = sqlserver_conn("test_fraiseql").await else {
+            eprintln!("Skipping test_sqlserver_query_v_user_view: SQLSERVER_URL not set");
+            return;
         };
+        let adapter = SqlServerAdapter::new(&url)
+            .await
+            .expect("Failed to connect to SQL Server (test_fraiseql)");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(10), None, None)
@@ -558,9 +565,7 @@ mod sqlserver_tests {
 
     #[tokio::test]
     async fn test_sqlserver_pool_metrics() {
-        let adapter = SqlServerAdapter::new(SQLSERVER_URL)
-            .await
-            .expect("Failed to create SQL Server adapter");
+        let adapter = master_adapter().await;
 
         let metrics = adapter.pool_metrics();
 
@@ -573,11 +578,7 @@ mod sqlserver_tests {
 
     #[tokio::test]
     async fn test_sqlserver_concurrent_queries() {
-        let adapter = Arc::new(
-            SqlServerAdapter::new(SQLSERVER_URL)
-                .await
-                .expect("Failed to create SQL Server adapter"),
-        );
+        let adapter = Arc::new(master_adapter().await);
 
         let mut handles = Vec::new();
 
@@ -614,8 +615,6 @@ mod sqlserver_relay_tests {
         error::FraiseQLError,
     };
 
-    const TEST_DB_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
-
     // UUID ids for v_relay_item rows (in ascending SQL Server UNIQUEIDENTIFIER order).
     // These UUIDs are of the form 00000000-0000-0000-0000-00000000000N where N is 1–a.
     // SQL Server compares bytes 10–15 first; for these UUIDs those bytes are
@@ -626,9 +625,10 @@ mod sqlserver_relay_tests {
     const UUID_10: &str = "00000000-0000-0000-0000-00000000000a";
 
     async fn adapter() -> SqlServerAdapter {
-        SqlServerAdapter::new(TEST_DB_URL)
-            .await
-            .expect("Failed to connect to SQL Server")
+        let url = super::sqlserver_conn("fraiseql_test").await.expect(
+            "SQLSERVER_URL must be set (e.g. via `dagger call test-integration --suite=sqlserver`)",
+        );
+        SqlServerAdapter::new(&url).await.expect("Failed to connect to SQL Server")
     }
 
     fn extract_label(row: &fraiseql_core::db::types::JsonbValue) -> String {
@@ -1308,12 +1308,11 @@ mod sqlserver_advanced_tests {
     use fraiseql_core::db::sqlserver::SqlServerAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const SQLSERVER_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
-
     async fn adapter() -> SqlServerAdapter {
-        SqlServerAdapter::new(SQLSERVER_URL)
-            .await
-            .expect("Failed to connect to SQL Server")
+        let url = super::sqlserver_conn("fraiseql_test").await.expect(
+            "SQLSERVER_URL must be set (e.g. via `dagger call test-integration --suite=sqlserver`)",
+        );
+        SqlServerAdapter::new(&url).await.expect("Failed to connect to SQL Server")
     }
 
     /// SQL Server `RANK()` window function partitioned by category.
@@ -1417,12 +1416,17 @@ mod sqlserver_mutation_tests {
     use fraiseql_core::db::sqlserver::SqlServerAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const SQLSERVER_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    async fn adapter() -> SqlServerAdapter {
+        let url = super::sqlserver_conn("fraiseql_test").await.expect(
+            "SQLSERVER_URL must be set (e.g. via `dagger call test-integration --suite=sqlserver`)",
+        );
+        SqlServerAdapter::new(&url).await.expect("connect")
+    }
 
     /// SQL Server mutation via stored procedure using OUTPUT INSERTED.*.
     #[tokio::test]
     async fn test_sqlserver_mutation_insert_via_procedure() {
-        let a = SqlServerAdapter::new(SQLSERVER_URL).await.expect("connect");
+        let a = adapter().await;
         let result = a
             .execute_function_call("fn_create_tag", &[serde_json::json!("test-tag-sqlserver")])
             .await
@@ -1438,7 +1442,7 @@ mod sqlserver_mutation_tests {
     #[tokio::test]
     async fn test_sqlserver_mutation_nonexistent_procedure_returns_error() {
         use fraiseql_core::error::FraiseQLError;
-        let a = SqlServerAdapter::new(SQLSERVER_URL).await.expect("connect");
+        let a = adapter().await;
         let err = a
             .execute_function_call("fn_does_not_exist", &[])
             .await

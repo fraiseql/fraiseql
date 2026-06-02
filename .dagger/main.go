@@ -462,6 +462,13 @@ const (
 	// SAN includes this alias (CERT_HOSTNAME) so rustls servername verification
 	// passes when the wire client connects to it.
 	tlsBindHost = "postgres-tls"
+
+	// sqlserverImage / sqlserverBindHost / sqlserverSaPassword — the SQL Server
+	// service (ci.yml integration-sqlserver). mssql has no initdb mechanism, so
+	// init.sql is applied via sqlcmd behind a readiness loop before the tests run.
+	sqlserverImage      = "mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04"
+	sqlserverBindHost   = "sqlserver"
+	sqlserverSaPassword = "FraiseQL_Test1234"
 )
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
@@ -490,6 +497,8 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationHTTPE2e(ctx, source)
 	case "tls":
 		return m.integrationTLS(ctx, source)
+	case "sqlserver":
+		return m.integrationSQLServer(ctx, source)
 	case "server":
 		return m.integrationServer(ctx, source)
 	case "redis":
@@ -497,7 +506,7 @@ func (m *FraiseqlCi) TestIntegration(
 	case "vault":
 		return m.integrationVault(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, server, redis, vault)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault)", suite)
 	}
 }
 
@@ -670,6 +679,68 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// integrationSQLServer runs ci.yml's integration-sqlserver job as a real enforcing
+// gate (no continue-on-error). mssql:2022 has no initdb mechanism, so tests/sql/
+// sqlserver/init.sql is applied via sqlcmd (from the mssql image, which ships it)
+// behind a readiness loop — that loop structurally removes the startup-race flake the
+// legacy job hit. The init runs in its own container bound to the same service; the
+// test container takes a data dependency on the init's marker file so the schema is
+// in place before the tests run. The 4 sqlserver test modules read SQLSERVER_URL via
+// the harness (test_support::sqlserver) and append their database.
+func (m *FraiseqlCi) integrationSQLServer(ctx context.Context, source *dagger.Directory) (string, error) {
+	svc := m.sqlserverService()
+	const sqlcmd = "/opt/mssql-tools18/bin/sqlcmd"
+	target := fmt.Sprintf("-S %s,1433 -U sa -P '%s' -C", sqlserverBindHost, sqlserverSaPassword)
+
+	initScript := strings.Join([]string{
+		"set -e",
+		"for i in $(seq 1 60); do",
+		"  " + sqlcmd + " " + target + " -Q 'SELECT 1' >/dev/null 2>&1 && break",
+		"  echo \"waiting for sqlserver ($i/60)...\"; sleep 3",
+		"  if [ \"$i\" -eq 60 ]; then echo 'sqlserver never became ready'; exit 1; fi",
+		"done",
+		sqlcmd + " " + target + " -i /init.sql",
+		"echo ok > /tmp/init-done",
+	}, "\n")
+
+	// Init container (mssql image → has sqlcmd). Bound to the same service instance.
+	initMarker := dag.Container().
+		From(sqlserverImage).
+		WithServiceBinding(sqlserverBindHost, svc).
+		WithFile("/init.sql", source.File("tests/sql/sqlserver/init.sql")).
+		WithExec([]string{"bash", "-c", initScript}).
+		File("/tmp/init-done")
+
+	sqlserverURL := fmt.Sprintf("server=%s,1433;user=sa;password=%s;TrustServerCertificate=true", sqlserverBindHost, sqlserverSaPassword)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: sqlserver (Dagger-bound mssql:2022; init.sql applied via sqlcmd)'",
+		"cargo test -p fraiseql-core --features test-sqlserver --test integration -- multi_database_integration --test-threads=1",
+		"echo 'test-integration OK: sqlserver suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(sqlserverBindHost, svc).
+		// Data dependency on the init marker forces init.sql to be applied first.
+		WithFile("/tmp/init-done", initMarker).
+		WithEnvVariable("SQLSERVER_URL", sqlserverURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// sqlserverService returns a started SQL Server 2022 (Developer edition) service.
+func (m *FraiseqlCi) sqlserverService() *dagger.Service {
+	return dag.Container().
+		From(sqlserverImage).
+		WithEnvVariable("ACCEPT_EULA", "Y").
+		WithEnvVariable("MSSQL_SA_PASSWORD", sqlserverSaPassword).
+		WithEnvVariable("MSSQL_PID", "Developer").
+		WithExposedPort(1433).
+		AsService()
 }
 
 // integrationTLS runs ci.yml's integration-tls job: a TLS-enabled Postgres and the
