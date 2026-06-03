@@ -228,6 +228,11 @@ reason = "transitive via older macOS SDK dependency chain"
 version = "=0.9.4"
 
 [[bans.skip]]
+name = "etcetera"
+reason = "transitive via testcontainers 0.27 (fraiseql-test-support dev-dep, local-testcontainers); sqlx-postgres pins etcetera 0.8"
+version = "=0.11.0"
+
+[[bans.skip]]
 name = "foldhash"
 reason = "transitive; ecosystem migrating to 0.2"
 version = "=0.1.5"
