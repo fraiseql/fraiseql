@@ -4,26 +4,28 @@
 --   tb_{entity} - command-side JSON storage table
 --   v_{entity}  - canonical entity view (data plane)
 --
+-- All fixtures live in ONE database (fraiseql_test): the users schema, the relay
+-- pagination schema, the scored-items schema, and the tags/mutation schema. (There
+-- is no SQL Server reason for separate databases; the previous test_fraiseql +
+-- fraiseql_test split was incidental.)
+--
 -- Idempotent: safe to run multiple times (uses IF NOT EXISTS / IF OBJECT_ID guards).
+-- The dbo.init_done sentinel at the very end lets a consumer poll for "fully applied".
 
 -- ============================================================================
--- Create test databases
+-- Create the test database
 -- ============================================================================
-
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'test_fraiseql')
-    CREATE DATABASE test_fraiseql;
-GO
 
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'fraiseql_test')
     CREATE DATABASE fraiseql_test;
 GO
 
--- ============================================================================
--- test_fraiseql: Users schema (used by sqlserver_tests)
--- ============================================================================
-
-USE test_fraiseql;
+USE fraiseql_test;
 GO
+
+-- ============================================================================
+-- Users schema (used by sqlserver_tests)
+-- ============================================================================
 
 IF OBJECT_ID('dbo.tb_user', 'U') IS NULL
     CREATE TABLE dbo.tb_user (
@@ -53,11 +55,8 @@ END
 GO
 
 -- ============================================================================
--- fraiseql_test: Relay pagination schema (used by sqlserver_relay_tests)
+-- Relay pagination schema (used by sqlserver_relay_tests)
 -- ============================================================================
-
-USE fraiseql_test;
-GO
 
 IF OBJECT_ID('dbo.tb_relay_item', 'U') IS NULL
     CREATE TABLE dbo.tb_relay_item (
@@ -104,7 +103,7 @@ END
 GO
 
 -- ============================================================================
--- fraiseql_test: Scored items (window function + CTE + aggregation tests)
+-- Scored items (window function + CTE + aggregation tests)
 -- ============================================================================
 
 IF OBJECT_ID('dbo.tb_score', 'U') IS NULL
@@ -139,7 +138,7 @@ END
 GO
 
 -- ============================================================================
--- fraiseql_test: Tags (mutation stored procedure tests)
+-- Tags (mutation stored procedure tests)
 -- ============================================================================
 
 IF OBJECT_ID('dbo.tb_tag', 'U') IS NULL
@@ -174,4 +173,17 @@ BEGIN
 
     SELECT pk_tag AS id, name FROM dbo.tb_tag WHERE name = @p_name;
 END
+GO
+
+-- ============================================================================
+-- Readiness sentinel: created LAST, so a consumer can poll dbo.init_done to know
+-- the entire script (all objects + seeds) has finished applying before connecting.
+-- ============================================================================
+
+IF OBJECT_ID('dbo.init_done', 'U') IS NULL
+    CREATE TABLE dbo.init_done (ok BIT NOT NULL);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.init_done)
+    INSERT INTO dbo.init_done (ok) VALUES (1);
 GO

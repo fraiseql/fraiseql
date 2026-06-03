@@ -1061,57 +1061,94 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 // in place before the tests run. The 4 sqlserver test modules read SQLSERVER_URL via
 // the harness (test_support::sqlserver) and append their database.
 func (m *FraiseqlCi) integrationSQLServer(ctx context.Context, source *dagger.Directory) (string, error) {
-	svc := m.sqlserverService()
+	// The mssql service self-applies init.sql on boot (see sqlserverService), so EVERY
+	// instance is initialized — this is what makes the suite robust. The earlier
+	// design applied init.sql from a SEPARATE init container bound to the same service
+	// object; Dagger does not guarantee that a second container binding the same
+	// service reuses the first's running instance, so the test container could connect
+	// to an UNINITIALIZED mssql (no databases) → bb8 retried each connect to the full
+	// 30s timeout → a deterministic 21×30s ≈ 630s wall of `bb8: Timed out` panics.
+	// (Surfaced reproducibly once the 2026-06-02 disk migration left the engine cold;
+	// init.sql + mssql are both fine standalone. See parity-notes.md.) Start() holds
+	// one instance up across the readiness gate and the test container.
+	svc, err := m.sqlserverService(source).Start(ctx)
+	if err != nil {
+		return "", fmt.Errorf("starting sqlserver service: %w", err)
+	}
 	const sqlcmd = "/opt/mssql-tools18/bin/sqlcmd"
-	target := fmt.Sprintf("-S %s,1433 -U sa -P '%s' -C", sqlserverBindHost, sqlserverSaPassword)
+	// -b makes sqlcmd exit non-zero on any SQL error, so the poll only breaks once the
+	// fraiseql_test DB AND the dbo.init_done sentinel (written last by init.sql) exist.
+	probe := fmt.Sprintf("%s -b -S %s,1433 -U sa -P '%s' -C -d fraiseql_test -Q 'SET NOCOUNT ON; SELECT TOP 1 ok FROM dbo.init_done'",
+		sqlcmd, sqlserverBindHost, sqlserverSaPassword)
 
-	initScript := strings.Join([]string{
+	// Readiness gate: block until the service has FULLY applied init.sql, then emit a
+	// marker the test container depends on so cargo test never races the DB warmup
+	// (Dagger only waits for port 1433 to listen, which happens before init completes).
+	readyScript := strings.Join([]string{
 		"set -e",
-		"for i in $(seq 1 60); do",
-		"  " + sqlcmd + " " + target + " -Q 'SELECT 1' >/dev/null 2>&1 && break",
-		"  echo \"waiting for sqlserver ($i/60)...\"; sleep 3",
-		"  if [ \"$i\" -eq 60 ]; then echo 'sqlserver never became ready'; exit 1; fi",
+		"for i in $(seq 1 90); do",
+		"  " + probe + " >/dev/null 2>&1 && break",
+		"  echo \"waiting for sqlserver init ($i/90)...\"; sleep 2",
+		"  if [ \"$i\" -eq 90 ]; then echo 'sqlserver init never completed'; exit 1; fi",
 		"done",
-		sqlcmd + " " + target + " -i /init.sql",
-		"echo ok > /tmp/init-done",
+		"echo ok > /tmp/ready",
 	}, "\n")
 
-	// Init container (mssql image → has sqlcmd). Bound to the same service instance.
-	initMarker := dag.Container().
+	// Readiness probe runs in the mssql image (it has sqlcmd); no init.sql needed here.
+	readyMarker := dag.Container().
 		From(sqlserverImage).
 		WithServiceBinding(sqlserverBindHost, svc).
-		WithFile("/init.sql", source.File("tests/sql/sqlserver/init.sql")).
-		WithExec([]string{"bash", "-c", initScript}).
-		File("/tmp/init-done")
+		WithExec([]string{"bash", "-c", readyScript}).
+		File("/tmp/ready")
 
 	sqlserverURL := fmt.Sprintf("server=%s,1433;user=sa;password=%s;TrustServerCertificate=true", sqlserverBindHost, sqlserverSaPassword)
 
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: sqlserver (Dagger-bound mssql:2022; init.sql applied via sqlcmd)'",
+		"echo '### integration: sqlserver (Dagger-bound self-initializing mssql:2022)'",
 		"cargo test -p fraiseql-core --features test-sqlserver --test integration -- multi_database_integration --test-threads=1",
 		"echo 'test-integration OK: sqlserver suite passed'",
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(sqlserverBindHost, svc).
-		// Data dependency on the init marker forces init.sql to be applied first.
-		WithFile("/tmp/init-done", initMarker).
+		// Data dependency on the readiness marker forces init.sql to be fully applied
+		// before cargo test runs.
+		WithFile("/tmp/ready", readyMarker).
 		WithEnvVariable("SQLSERVER_URL", sqlserverURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
 
-// sqlserverService returns a started SQL Server 2022 (Developer edition) service.
-func (m *FraiseqlCi) sqlserverService() *dagger.Service {
+// sqlserverService returns a self-initializing SQL Server 2022 (Developer edition)
+// service. Its startup command launches sqlservr, waits for it to accept connections,
+// applies init.sql, then waits on sqlservr to hold the service in the foreground.
+// Baking init.sql into the service (rather than applying it from a separate
+// container) means every instance is initialized — robust against Dagger's service
+// instance lifecycle, which otherwise left the test container talking to an
+// uninitialized mssql. init.sql is idempotent, so a re-applied instance is harmless.
+func (m *FraiseqlCi) sqlserverService(source *dagger.Directory) *dagger.Service {
+	const tools = "/opt/mssql-tools18/bin/sqlcmd"
+	entry := strings.Join([]string{
+		"set -e",
+		"/opt/mssql/bin/sqlservr & SQLSERVR_PID=$!",
+		"for i in $(seq 1 90); do",
+		"  " + tools + " -b -S localhost,1433 -U sa -P '" + sqlserverSaPassword + "' -C -Q 'SELECT 1' >/dev/null 2>&1 && break",
+		"  sleep 2",
+		"done",
+		tools + " -b -S localhost,1433 -U sa -P '" + sqlserverSaPassword + "' -C -i /init.sql",
+		"wait $SQLSERVR_PID",
+	}, "\n")
+
 	return dag.Container().
 		From(sqlserverImage).
 		WithEnvVariable("ACCEPT_EULA", "Y").
 		WithEnvVariable("MSSQL_SA_PASSWORD", sqlserverSaPassword).
 		WithEnvVariable("MSSQL_PID", "Developer").
+		WithFile("/init.sql", source.File("tests/sql/sqlserver/init.sql")).
 		WithExposedPort(1433).
-		AsService()
+		AsService(dagger.ContainerAsServiceOpts{Args: []string{"bash", "-c", entry}})
 }
 
 // integrationTLS runs ci.yml's integration-tls job: a TLS-enabled Postgres and the

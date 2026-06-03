@@ -541,13 +541,13 @@ mod sqlserver_tests {
 
     #[tokio::test]
     async fn test_sqlserver_query_v_user_view() {
-        let Some(url) = sqlserver_conn("test_fraiseql").await else {
+        let Some(url) = sqlserver_conn("fraiseql_test").await else {
             eprintln!("Skipping test_sqlserver_query_v_user_view: SQLSERVER_URL not set");
             return;
         };
         let adapter = SqlServerAdapter::new(&url)
             .await
-            .expect("Failed to connect to SQL Server (test_fraiseql)");
+            .expect("Failed to connect to SQL Server (fraiseql_test)");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(10), None, None)
