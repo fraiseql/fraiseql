@@ -1,0 +1,41 @@
+name: Dagger — security
+
+# Security & compliance gates (Track 0). Ports the portable subset of
+# security-compliance.yml onto one Dagger umbrella (`dagger call security`):
+#   - cargo-deny  — `cargo deny check` (licenses + advisories + bans + sources),
+#                   covering the legacy license-scan + dependency-audit jobs.
+#   - compliance  — required-file + secret-pattern shell gates (compliance-check).
+# The standalone cargo-deny binary parses Cargo.lock directly: no compile, no
+# backing services, so this gate is immune to the Docker Hub anonymous pull
+# rate-limit that gates the integration suites (it only pulls the cached ubuntu base
+# + a persistent advisory-db cache volume). See parity-notes.md.
+#
+# NOT ported (stay GitHub-native / dispatch-only, same precedent as CodeQL):
+# secrets-scan (TruffleHog PR-diff), container-security (Trivy + SARIF upload to GH
+# Code Scanning), dependency-review (GH Dependency-Graph API). security.yml and
+# security-compliance.yml remain workflow_dispatch as the porting spec / GH-native home.
+#
+# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
+# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: dagger-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: security
+    runs-on: [self-hosted, fraiseql-8core]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: dagger call security
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call security --source=.
