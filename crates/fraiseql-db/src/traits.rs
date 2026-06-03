@@ -601,7 +601,8 @@ pub trait DatabaseAdapter: Send + Sync {
         params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
-    /// Connection-affine variant of [`execute_parameterized_aggregate`].
+    /// Connection-affine variant of
+    /// [`execute_parameterized_aggregate`](Self::execute_parameterized_aggregate).
     ///
     /// Applies `session_vars` transaction-locally on the same connection that
     /// runs the aggregate, so aggregate views backed by `current_setting()` RLS
@@ -611,8 +612,8 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Same errors as [`execute_parameterized_aggregate`]; additionally returns
-    /// `FraiseQLError::Database` if `set_config` fails.
+    /// Same errors as [`execute_parameterized_aggregate`](Self::execute_parameterized_aggregate);
+    /// additionally returns `FraiseQLError::Database` if `set_config` fails.
     async fn execute_parameterized_aggregate_with_session(
         &self,
         sql: &str,
@@ -826,15 +827,15 @@ pub trait DatabaseAdapter: Send + Sync {
     /// Execute a database function call after pinning session variables on the
     /// **same connection** within the **same transaction** as the call.
     ///
-    /// This is the connection-affine variant of [`execute_function_call`]: the
-    /// `set_config(..., true)` calls and the `SELECT * FROM fn(...)` call share
-    /// one pooled connection inside one transaction, so transaction-local GUCs
-    /// are visible to the function body (fixes #329).
+    /// This is the connection-affine variant of
+    /// [`execute_function_call`](Self::execute_function_call): the `set_config(..., true)`
+    /// calls and the `SELECT * FROM fn(...)` call share one pooled connection inside one
+    /// transaction, so transaction-local GUCs are visible to the function body (fixes #329).
     ///
     /// Adapters that do not support session variables (MySQL, SQLite, SQL
     /// Server, mocks) inherit the default implementation, which silently drops
-    /// `session_vars` and delegates to [`execute_function_call`] — safe,
-    /// because those backends never applied session variables in the first
+    /// `session_vars` and delegates to [`execute_function_call`](Self::execute_function_call) —
+    /// safe, because those backends never applied session variables in the first
     /// place.
     ///
     /// # Arguments
@@ -847,7 +848,7 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Same as [`execute_function_call`]; additionally returns
+    /// Same as [`execute_function_call`](Self::execute_function_call); additionally returns
     /// `FraiseQLError::Database` if `set_config` fails on any pair.
     async fn execute_function_call_with_session(
         &self,
@@ -860,18 +861,18 @@ pub trait DatabaseAdapter: Send + Sync {
         self.execute_function_call(function_name, args).await
     }
 
-    /// Connection-affine variant of [`execute_where_query_arc`].
+    /// Connection-affine variant of [`execute_where_query_arc`](Self::execute_where_query_arc).
     ///
     /// Applies `session_vars` transaction-locally on the same connection that
     /// runs the read, so PostgreSQL Row-Level-Security policies backed by
     /// `current_setting()` see the configured values (fixes #329). See
-    /// [`execute_function_call_with_session`] for the rationale and the
-    /// non-PostgreSQL default behaviour.
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session) for the
+    /// rationale and the non-PostgreSQL default behaviour.
     ///
     /// # Errors
     ///
-    /// Same errors as [`execute_where_query_arc`]; additionally returns
-    /// `FraiseQLError::Database` if `set_config` fails on any pair.
+    /// Same errors as [`execute_where_query_arc`](Self::execute_where_query_arc); additionally
+    /// returns `FraiseQLError::Database` if `set_config` fails on any pair.
     async fn execute_where_query_arc_with_session(
         &self,
         view: &str,
@@ -884,14 +885,16 @@ pub trait DatabaseAdapter: Send + Sync {
         self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await
     }
 
-    /// Connection-affine variant of [`execute_with_projection_arc`].
+    /// Connection-affine variant of
+    /// [`execute_with_projection_arc`](Self::execute_with_projection_arc).
     ///
-    /// See [`execute_where_query_arc_with_session`] for the rationale.
+    /// See [`execute_where_query_arc_with_session`](Self::execute_where_query_arc_with_session) for
+    /// the rationale.
     ///
     /// # Errors
     ///
-    /// Same errors as [`execute_with_projection_arc`]; additionally returns
-    /// `FraiseQLError::Database` if `set_config` fails on any pair.
+    /// Same errors as [`execute_with_projection_arc`](Self::execute_with_projection_arc);
+    /// additionally returns `FraiseQLError::Database` if `set_config` fails on any pair.
     async fn execute_with_projection_arc_with_session(
         &self,
         request: &ProjectionRequest<'_>,
