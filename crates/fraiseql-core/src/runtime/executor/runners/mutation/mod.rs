@@ -249,26 +249,32 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     }
 
-    // 3b. Inject session variables (transaction-scoped set_config) when configured.
+    // 3b. Resolve session variables once and pass them to the adapter call so
+    //     they are applied on the same connection / transaction as the function
+    //     (fixes #329 — set_config(..., true) is transaction-local, so applying
+    //     it on a separate pooled connection left it invisible to the function).
     //
-    // Only called when there are variables to inject or inject_started_at is enabled,
-    // and only on the authenticated path (security context present). The no-op default
-    // on non-PostgreSQL adapters means this call is effectively free there.
-    {
+    // Only resolved when there are variables to inject or inject_started_at is
+    // enabled, and only on the authenticated path (security context present).
+    // The no-op default on non-PostgreSQL adapters means an empty slice here is
+    // effectively free there.
+    let resolved_session_vars = {
         let sv = &ctx.schema.session_variables;
-        if !sv.variables.is_empty() || sv.inject_started_at {
-            if let Some(sec_ctx) = security_ctx {
-                let vars =
-                    crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx);
-                let pairs: Vec<(&str, &str)> =
-                    vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                ctx.adapter.set_session_variables(&pairs).await?;
-            }
+        match security_ctx {
+            Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
+                crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)
+            },
+            _ => Vec::new(),
         }
-    }
+    };
+    let session_pairs: Vec<(&str, &str)> =
+        resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
-    // 4. Call the database function
-    let rows = ctx.adapter.execute_function_call(sql_source, &args).await?;
+    // 4. Call the database function (session variables pinned to its connection).
+    let rows = ctx
+        .adapter
+        .execute_function_call_with_session(sql_source, &args, &session_pairs)
+        .await?;
 
     // 5. Expect at least one row
     let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {

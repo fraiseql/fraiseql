@@ -371,6 +371,52 @@ impl PostgresAdapter {
         Ok(results)
     }
 
+    /// Like [`execute_raw`](Self::execute_raw) but applies transaction-local
+    /// session variables on the same connection / transaction that runs the
+    /// query.
+    ///
+    /// `set_config(..., true)` and the `SELECT` share one transaction, so
+    /// PostgreSQL RLS policies backed by `current_setting()` see the configured
+    /// values (fixes #329).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on transaction, `set_config`, query, or
+    /// commit failure.
+    pub(super) async fn execute_raw_with_session(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<JsonbValue>> {
+        let mut client = self.acquire_connection_with_retry().await?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        database::apply_session_vars(&txn, session_vars).await?;
+
+        let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Query execution failed: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let data: serde_json::Value = row.get(0);
+                JsonbValue::new(data)
+            })
+            .collect())
+    }
+
     /// Acquire a connection from the pool with retry logic.
     ///
     /// - `PoolError::Timeout`: the pool was exhausted for the full configured wait period. This is
@@ -518,43 +564,8 @@ impl PostgresAdapter {
 
         let projection = projection.expect("projection is Some; None was returned above");
 
-        // Build SQL with projection
-        // The projection_template is expected to be the SELECT clause with projection SQL
-        // e.g., "jsonb_build_object('id', data->>'id', 'email', data->>'email')"
-        let mut sql = format!(
-            "SELECT {} FROM {}",
-            projection.projection_template,
-            quote_postgres_identifier(view)
-        );
-
-        // Add WHERE clause if present
-        let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
-            let generator = PostgresWhereGenerator::new(PostgresDialect);
-            let (where_sql, where_params) = generator.generate(clause)?;
-            sql.push_str(" WHERE ");
-            sql.push_str(&where_sql);
-            where_params.into_iter().map(QueryParam::from).collect()
-        } else {
-            Vec::new()
-        };
-        let mut param_count = typed_params.len();
-
-        // ORDER BY must come before LIMIT/OFFSET in SQL.
-        append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
-
-        // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
-        // Reason (expect below): fmt::Write for String is infallible.
-        if let Some(lim) = limit {
-            param_count += 1;
-            write!(sql, " LIMIT ${param_count}").expect("write to String");
-            typed_params.push(QueryParam::BigInt(i64::from(lim)));
-        }
-
-        if let Some(off) = offset {
-            param_count += 1;
-            write!(sql, " OFFSET ${param_count}").expect("write to String");
-            typed_params.push(QueryParam::BigInt(i64::from(off)));
-        }
+        let (sql, typed_params) =
+            build_projection_select_sql(projection, view, where_clause, limit, offset, order_by)?;
 
         tracing::debug!("SQL with projection = {}", sql);
         tracing::debug!("typed_params = {:?}", typed_params);
@@ -654,6 +665,66 @@ pub(super) fn build_where_select_sql_ordered(
     }
 
     // Add OFFSET as BigInt (PostgreSQL requires integer type for OFFSET)
+    if let Some(off) = offset {
+        param_count += 1;
+        write!(sql, " OFFSET ${param_count}").expect("write to String");
+        typed_params.push(QueryParam::BigInt(i64::from(off)));
+    }
+
+    Ok((sql, typed_params))
+}
+
+/// Build a parameterized projection `SELECT` SQL string.
+///
+/// Mirrors the SQL produced inline by [`PostgresAdapter::execute_with_projection_impl`],
+/// extracted so the connection-affine `*_with_session` path can reuse it
+/// without acquiring its own connection.
+///
+/// # Returns
+///
+/// `(sql, typed_params)` — the SQL string and the bound parameter values.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError` if WHERE clause generation fails.
+pub(super) fn build_projection_select_sql(
+    projection: &SqlProjectionHint,
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
+) -> Result<(String, Vec<QueryParam>)> {
+    // The projection_template is the SELECT clause with projection SQL,
+    // e.g. "jsonb_build_object('id', data->>'id', 'email', data->>'email')".
+    let mut sql = format!(
+        "SELECT {} FROM {}",
+        projection.projection_template,
+        quote_postgres_identifier(view)
+    );
+
+    let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
+        let (where_sql, where_params) = generator.generate(clause)?;
+        sql.push_str(" WHERE ");
+        sql.push_str(&where_sql);
+        where_params.into_iter().map(QueryParam::from).collect()
+    } else {
+        Vec::new()
+    };
+    let mut param_count = typed_params.len();
+
+    // ORDER BY must come before LIMIT/OFFSET in SQL.
+    append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
+
+    // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
+    // Reason (expect below): fmt::Write for String is infallible.
+    if let Some(lim) = limit {
+        param_count += 1;
+        write!(sql, " LIMIT ${param_count}").expect("write to String");
+        typed_params.push(QueryParam::BigInt(i64::from(lim)));
+    }
+
     if let Some(off) = offset {
         param_count += 1;
         write!(sql, " OFFSET ${param_count}").expect("write to String");

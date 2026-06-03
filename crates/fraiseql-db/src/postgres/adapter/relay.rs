@@ -57,6 +57,105 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
     ) -> Result<RelayPageResult> {
+        let client = self.acquire_connection_with_retry().await?;
+        self.run_relay_page(
+            &**client,
+            view,
+            cursor_column,
+            after,
+            before,
+            limit,
+            forward,
+            where_clause,
+            order_by,
+            include_total_count,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
+    async fn execute_relay_page_with_session(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+        session_vars: &[(&str, &str)],
+    ) -> Result<RelayPageResult> {
+        // Fast path: no session vars => identical to execute_relay_page.
+        if session_vars.is_empty() {
+            return self
+                .execute_relay_page(
+                    view,
+                    cursor_column,
+                    after,
+                    before,
+                    limit,
+                    forward,
+                    where_clause,
+                    order_by,
+                    include_total_count,
+                )
+                .await;
+        }
+
+        // Apply set_config and run BOTH the page and count queries inside one
+        // transaction on one connection so RLS sees the session variables.
+        let mut client = self.acquire_connection_with_retry().await?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start relay session-var transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        super::database::apply_session_vars(&txn, session_vars).await?;
+        let result = self
+            .run_relay_page(
+                &*txn,
+                view,
+                cursor_column,
+                after,
+                before,
+                limit,
+                forward,
+                where_clause,
+                order_by,
+                include_total_count,
+            )
+            .await?;
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit relay session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+        Ok(result)
+    }
+}
+
+impl PostgresAdapter {
+    /// Build and run the relay page (and optional total-count) queries against
+    /// an arbitrary client — a pooled connection for the plain path, or a
+    /// transaction for the connection-affine `*_with_session` path.
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
+    async fn run_relay_page<C>(
+        &self,
+        client: &C,
+        view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult>
+    where
+        C: tokio_postgres::GenericClient + Sync,
+    {
         let quoted_view = quote_postgres_identifier(view);
         let quoted_col = quote_postgres_identifier(cursor_column);
 
@@ -173,9 +272,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         }
         page_typed_params.push(QueryParam::BigInt(i64::from(limit)));
 
-        let client = self.acquire_connection_with_retry().await?;
-
-        // ── Execute page query ─────────────────────────────────────────────────
+        // ── Execute page query (on the caller-provided client / transaction) ────
         let page_param_refs = crate::types::as_sql_param_refs(&page_typed_params);
 
         let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {

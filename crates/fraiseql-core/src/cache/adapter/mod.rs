@@ -704,6 +704,19 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_parameterized_aggregate(sql, params).await
     }
 
+    async fn execute_parameterized_aggregate_with_session(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Not cached (see execute_parameterized_aggregate); forward with session
+        // affinity so current_setting()-backed aggregate RLS sees the values (#329).
+        self.adapter
+            .execute_parameterized_aggregate_with_session(sql, params, session_vars)
+            .await
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -711,6 +724,75 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Mutations are never cached — always delegate to the underlying adapter
         self.adapter.execute_function_call(function_name, args).await
+    }
+
+    async fn execute_function_call_with_session(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Mutations are never cached; pass through with session affinity.
+        self.adapter
+            .execute_function_call_with_session(function_name, args, session_vars)
+            .await
+    }
+
+    async fn execute_where_query_arc_with_session(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        // No session variables => preserve the cached read path unchanged.
+        if session_vars.is_empty() {
+            return self
+                .execute_where_query_impl(view, where_clause, limit, offset, order_by)
+                .await;
+        }
+        // Security: the result-cache key is NOT session-variable-aware, so a
+        // tenant-scoped read (RLS via current_setting) could otherwise leak
+        // another tenant's cached rows. Bypass the cache and run the read with
+        // session affinity on the inner adapter. Tracked for a cache-key fix:
+        // see #329 follow-up.
+        self.adapter
+            .execute_where_query_arc_with_session(
+                view,
+                where_clause,
+                limit,
+                offset,
+                order_by,
+                session_vars,
+            )
+            .await
+    }
+
+    async fn execute_with_projection_arc_with_session(
+        &self,
+        request: &crate::db::ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        // No session variables => preserve the cached read path unchanged.
+        if session_vars.is_empty() {
+            return self
+                .execute_with_projection_impl(
+                    request.view,
+                    request.projection,
+                    request.where_clause,
+                    request.limit,
+                    request.offset,
+                    request.order_by,
+                )
+                .await;
+        }
+        // Security: see execute_where_query_arc_with_session — bypass the
+        // non-tenant-aware cache for session-scoped reads.
+        self.adapter
+            .execute_with_projection_arc_with_session(request, session_vars)
+            .await
     }
 
     async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {

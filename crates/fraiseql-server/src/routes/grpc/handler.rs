@@ -419,6 +419,11 @@ pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
         "Executing gRPC mutation"
     );
 
+    // No session vars: the gRPC mutation path does not yet thread the schema's
+    // session-variable config or a SecurityContext, so current_setting()-backed
+    // RLS / functions are not configured here. Wiring this through gRPC auth is a
+    // follow-up (#329); the GraphQL mutation path uses
+    // execute_function_call_with_session.
     let rows = adapter.execute_function_call(function_name, &args).await?;
 
     // The Trinity pattern returns a single row with status/entity_id columns.

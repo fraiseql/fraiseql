@@ -55,4 +55,45 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
     ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a;
+
+    /// Connection-affine variant of [`execute_relay_page`](Self::execute_relay_page).
+    ///
+    /// Applies `session_vars` transaction-locally on the same connection that
+    /// runs the page (and total-count) queries, so RLS-protected relay
+    /// pagination over views reading `current_setting()` returns the correct
+    /// tenant's rows (fixes #329 for the cursor-pagination path).
+    ///
+    /// Adapters that do not support session variables inherit the default,
+    /// which drops `session_vars` and delegates to `execute_relay_page`.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`execute_relay_page`](Self::execute_relay_page);
+    /// additionally returns `FraiseQLError::Database` if `set_config` fails.
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments plus session vars; no natural grouping
+    fn execute_relay_page_with_session<'a>(
+        &'a self,
+        view: &'a str,
+        cursor_column: &'a str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&'a WhereClause>,
+        order_by: Option<&'a [OrderByClause]>,
+        include_total_count: bool,
+        _session_vars: &'a [(&'a str, &'a str)],
+    ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a {
+        self.execute_relay_page(
+            view,
+            cursor_column,
+            after,
+            before,
+            limit,
+            forward,
+            where_clause,
+            order_by,
+            include_total_count,
+        )
+    }
 }

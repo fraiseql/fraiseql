@@ -20,6 +20,23 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         Self { ctx }
     }
 
+    /// Resolve configured session variables for `security_context` into owned
+    /// `(name, value)` pairs, for passing to the connection-affine
+    /// `*_with_session` adapter methods so `current_setting()`-backed RLS on
+    /// aggregate views is effective (#329).
+    fn resolve_session_vars(
+        &self,
+        security_context: Option<&SecurityContext>,
+    ) -> Vec<(String, String)> {
+        let sv = &self.ctx.schema.session_variables;
+        match security_context {
+            Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
+                crate::runtime::executor::security::resolve_session_variables(sv, sec)
+            },
+            _ => Vec::new(),
+        }
+    }
+
     /// Execute an aggregate query dispatch.
     ///
     /// # Errors
@@ -217,11 +234,19 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
             crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
-        // 5. Execute with bind parameters (eliminates escape-based injection risk)
+        // 5. Execute with bind parameters (eliminates escape-based injection risk), pinning session
+        //    variables to the connection for current_setting() RLS (#329).
+        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
-            .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
+            .execute_parameterized_aggregate_with_session(
+                &parameterized.sql,
+                &parameterized.params,
+                &session_pairs,
+            )
             .await?;
 
         // 6. Project results
@@ -284,7 +309,11 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
             extra_where.as_ref(),
         )?;
 
-        // Execute
+        // Execute.
+        // No session vars: the partial-period UNION branch does not thread a
+        // SecurityContext (callers above do), so there is nothing to resolve
+        // session variables from here. RLS for partial-period aggregates over
+        // current_setting()-backed views is a follow-up (#329).
         let rows = self
             .ctx
             .adapter
@@ -381,11 +410,19 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
-        //    values are passed as prepared-statement parameters, not inlined.
+        //    values are passed as prepared-statement parameters, not inlined. Session variables are
+        //    pinned to the connection for current_setting() RLS (#329).
+        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
-            .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
+            .execute_parameterized_aggregate_with_session(
+                &sql.raw_sql,
+                &sql.parameters,
+                &session_pairs,
+            )
             .await?;
 
         // 5. Project results

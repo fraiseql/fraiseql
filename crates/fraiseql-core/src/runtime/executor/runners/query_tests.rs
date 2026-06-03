@@ -421,7 +421,7 @@ mod rls_composition {
     }
 }
 
-// ── mod session_variables: C-SV — set_session_variables called on reads ───
+// ── mod session_variables: C-SV — session variables passed into reads ─────
 
 mod session_variables {
     use async_trait::async_trait;
@@ -437,7 +437,8 @@ mod session_variables {
         schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
     };
 
-    /// Mock adapter that captures calls to `set_session_variables`.
+    /// Mock adapter that captures the session variables passed into the
+    /// connection-affine `*_with_session` read methods (#329).
     struct SessionVarCapturingAdapter {
         mock_results: Vec<JsonbValue>,
         captured:     std::sync::Mutex<Vec<(String, String)>>,
@@ -483,12 +484,32 @@ mod session_variables {
             Ok(self.mock_results.clone())
         }
 
-        async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
+        async fn execute_with_projection_arc_with_session(
+            &self,
+            _request: &crate::db::ProjectionRequest<'_>,
+            session_vars: &[(&str, &str)],
+        ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
             let mut guard = self.captured.lock().unwrap();
-            for (k, v) in variables {
+            for (k, v) in session_vars {
                 guard.push(((*k).to_string(), (*v).to_string()));
             }
-            Ok(())
+            Ok(std::sync::Arc::new(self.mock_results.clone()))
+        }
+
+        async fn execute_where_query_arc_with_session(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+            session_vars: &[(&str, &str)],
+        ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
+            let mut guard = self.captured.lock().unwrap();
+            for (k, v) in session_vars {
+                guard.push(((*k).to_string(), (*v).to_string()));
+            }
+            Ok(std::sync::Arc::new(self.mock_results.clone()))
         }
 
         async fn health_check(&self) -> Result<()> {
@@ -564,7 +585,8 @@ mod session_variables {
         }
     }
 
-    /// C-SV1: session variables are injected via `set_session_variables` before a read query.
+    /// C-SV1: session variables are passed into the connection-affine read
+    /// method when configured.
     #[tokio::test]
     async fn test_session_variables_injected_on_read_query() {
         let schema = schema_with_session_vars();
@@ -580,7 +602,7 @@ mod session_variables {
         let pairs = adapter.captured_pairs();
         assert!(
             !pairs.is_empty(),
-            "set_session_variables must be called before a read query when session_variables are \
+            "session variables must be passed into the read method when session_variables are \
              configured"
         );
         assert!(
@@ -589,7 +611,7 @@ mod session_variables {
         );
     }
 
-    /// C-SV2: no `set_session_variables` call when `session_variables` config is empty.
+    /// C-SV2: no session variables passed when `session_variables` config is empty.
     #[tokio::test]
     async fn test_no_session_variables_injected_when_config_empty() {
         let schema = test_schema(); // session_variables defaults to empty
@@ -604,7 +626,7 @@ mod session_variables {
 
         assert!(
             adapter.captured_pairs().is_empty(),
-            "set_session_variables must not be called when no session_variables are configured"
+            "no session variables must be passed when no session_variables are configured"
         );
     }
 }
