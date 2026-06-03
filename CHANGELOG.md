@@ -72,6 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   additive `new_with_endpoint` constructors (and `AzureBackend` an additive
   `create_container_if_missing`); the existing `new` constructors are unchanged.
 
+- **Session variables now reach mutation SQL functions and RLS policies (#329).**
+  Before this release, `current_setting('app.x', true)` inside a mutation
+  function, an RLS-protected view, a relay-paginated list, or an aggregate
+  always returned NULL: `PostgresAdapter::set_session_variables` ran
+  `SELECT set_config(..., true)` on a pooled connection in its own autocommit
+  transaction — transaction-local *and* on a different connection than the
+  subsequent operation. Session variables are now applied transaction-locally
+  on the **same connection** as the operation. Applications that worked around
+  this by passing tenant/user ids as mutation arguments via `inject_params` can
+  continue to do so, or now rely on session variables.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,
@@ -83,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `hex::encode` (the new `hybrid-array` `Output` no longer implements
   `LowerHex`). No public API changed. The `cargo deny` skip for the transitive
   `sha1 0.10.6` (pinned by `sqlx-mysql`) was re-added.
+- `DatabaseAdapter` gains `execute_function_call_with_session`,
+  `execute_with_projection_arc_with_session`,
+  `execute_where_query_arc_with_session`, and
+  `execute_parameterized_aggregate_with_session`; `RelayDatabaseAdapter` gains
+  `execute_relay_page_with_session`. All have default implementations that
+  delegate to the existing methods, so custom adapter implementors need not
+  change anything (#329).
 
 ### Security
 
@@ -127,6 +145,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   All four router nests now mount behind `oidc_auth_middleware` via `route_layer`. If the `observers` feature is enabled but `[auth]` is not configured (no OIDC validator available), the HTTP admin API is *not* mounted and a `WARN` is logged at startup. The in-process observer runtime — triggers, dispatch, DLQ retention — is unaffected; only the HTTP control plane is gated. Affected anyone running the `observers` feature.
 
+- **Tenant-scoped reads through `CachedDatabaseAdapter` now bypass the result
+  cache when session variables are configured (#329)**, until the cache key is
+  extended to include a hash of the applied session variables (tracked as a
+  follow-up). Before this release the cache key was likewise not
+  session-variable-aware, but the bug masked any actual leak by making session
+  variables invisible to RLS policies.
+
 ### Breaking changes
 
 - **`POST /auth/revoke` request body changed.** The `token` field is now `Option<String>` and ignored. Clients that previously submitted a body token will continue to receive `200 OK`, but the revocation now targets the *authentication* token, not the body token. Update any flow that depended on revoking an arbitrary harvested token via this endpoint — there is no longer such a primitive.
@@ -138,6 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Token revocation requires `[auth]` to be configured.** If `[security.token_revocation] enabled = true` but no OIDC validator is present, the revocation routes are skipped at startup (with a `WARN` log) rather than mounted open. Configure `[auth]` in `fraiseql.toml` to restore the routes.
 
 - **Observer admin HTTP API requires `[auth]` to be configured.** If `[auth]` is absent, `/api/observers/*`, `/runtime/health`, and `/runtime/reload` are not mounted (with a `WARN` log at startup) rather than mounted open. Any internal tooling that called these endpoints unauthenticated must now present a valid bearer token. Reverse-proxy auth (mTLS or a bearer-token gate) is no longer the only line of defence.
+
+- **`DatabaseAdapter::set_session_variables` has been removed (#329).** It applied `set_config(..., true)` on a pooled connection in its own autocommit transaction — transaction-local *and* on a different connection than the subsequent operation — so it never reached the operation (the bug this release fixes), and the executor no longer calls it. Custom `DatabaseAdapter` implementors that overrode it should delete the override; any direct caller should switch to the connection-affine `*_with_session` methods (`execute_function_call_with_session`, `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`, `execute_parameterized_aggregate_with_session`, and `RelayDatabaseAdapter::execute_relay_page_with_session`), which apply session variables on the same connection as the operation.
 
 ### Documentation
 
@@ -195,6 +222,13 @@ These will be addressed in 2.4.x / 2.5.0; tracking on GitHub.
 A follow-up runbook with per-issue fix shapes lives at
 `/tmp/fraiseql-deferred-bugs-2026-05-30/runbook.md` (local) for the
 next agent to pick up cold.
+
+### Known follow-ups (#329)
+
+- Relay `node(id:)` lookups, partial-period aggregate UNION branches, and gRPC
+  mutations do not yet thread a `SecurityContext`/session-variable config, so
+  `current_setting()`-backed RLS is not configured on those paths. Each call
+  site is annotated in the source.
 
 ## [2.3.2] - 2026-05-28
 
