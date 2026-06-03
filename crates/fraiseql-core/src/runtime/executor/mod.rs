@@ -160,7 +160,6 @@
 
 mod context;
 
-use std::collections::HashMap;
 #[cfg(test)]
 use std::{sync::Arc, time::Duration};
 
@@ -216,11 +215,12 @@ enum QueryType {
     IntrospectionType(String),
 
     /// GraphQL mutation.
-    /// Contains the root field name and per-type selection fields.
-    /// Keys are type names (from `...on TypeName` fragments); `""` holds common fields.
+    /// Contains the root field name and the full result selection set (including
+    /// inline `... on TypeName` fragments), so projection can mirror the query
+    /// path's selection-faithful, depth-aware behaviour.
     Mutation {
-        name:            String,
-        type_selections: HashMap<String, Vec<String>>,
+        name:       String,
+        selections: Vec<crate::graphql::FieldSelection>,
     },
 
     /// Relay global node lookup: `node(id: ID!)`.

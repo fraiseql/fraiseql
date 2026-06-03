@@ -7,7 +7,7 @@
 //! [`MutationRunner`] path and the runtime-guarded `execute_mutation_query` path on
 //! [`Executor`](super::super::core::Executor).
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use fraiseql_db::ViewName;
 
@@ -15,12 +15,13 @@ use super::super::{context::ExecutorContext, resolve_inject_value};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
+    graphql::{DirectiveEvaluator, FieldSelection},
     runtime::{
-        FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
+        ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row},
-        suggest_similar,
+        project_entity, suggest_similar,
     },
-    schema::MutationOperation,
+    schema::{CompiledSchema, MutationOperation, NamingConvention},
     security::SecurityContext,
 };
 
@@ -50,10 +51,77 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        type_selections: &HashMap<String, Vec<String>>,
+        selections: &[FieldSelection],
     ) -> Result<serde_json::Value> {
-        execute_mutation_impl(&self.ctx, mutation_name, variables, None, type_selections).await
+        execute_mutation_impl(&self.ctx, mutation_name, variables, None, selections).await
     }
+}
+
+/// Re-case a mutation input payload's keys from the GraphQL surface naming
+/// convention to the schema's canonical (stored) field names, recursing into
+/// nested input objects and arrays of input objects.
+///
+/// The compiled schema stores field names in their canonical (typically
+/// `snake_case`) form; with [`NamingConvention::CamelCase`] the GraphQL surface
+/// presents them as `camelCase`, so a client sends `camelCase` keys. The Insert
+/// path maps those to positional SQL args by name (casing handled implicitly),
+/// but the Update path forwards the whole object as one JSONB arg — so without
+/// this the SQL function receives surface-cased keys it cannot read (#400).
+///
+/// Driven by the input type's per-field map (not a lossy `camel→snake` regex),
+/// so intentional names / acronyms in the canonical field names are preserved.
+/// A [`NamingConvention::Preserve`] schema, an unknown input type, and keys that
+/// match no field are all left untouched.
+fn recase_input_payload(
+    value: serde_json::Value,
+    input_type_name: &str,
+    schema: &CompiledSchema,
+) -> serde_json::Value {
+    // Preserve convention: the GraphQL surface already uses the canonical names.
+    if schema.naming_convention != NamingConvention::CamelCase {
+        return value;
+    }
+    let Some(input_type) = schema.find_input_type(input_type_name) else {
+        return value;
+    };
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (key, val) in map {
+                // Match the incoming surface key against each field's surface name,
+                // then map back to the exact canonical name.
+                let field = input_type.fields.iter().find(|f| schema.display_name(&f.name) == key);
+                let canonical = field.map_or(key, |f| f.name.clone());
+                let recased = match field
+                    .and_then(|f| nested_input_type_name(&f.field_type, schema))
+                {
+                    Some(nested) => match val {
+                        serde_json::Value::Object(_) => recase_input_payload(val, &nested, schema),
+                        serde_json::Value::Array(items) => serde_json::Value::Array(
+                            items
+                                .into_iter()
+                                .map(|it| recase_input_payload(it, &nested, schema))
+                                .collect(),
+                        ),
+                        other => other,
+                    },
+                    None => val,
+                };
+                out.insert(canonical, recased);
+            }
+            serde_json::Value::Object(out)
+        },
+        other => other,
+    }
+}
+
+/// If `field_type` (e.g. `"BillingAddressInput"`, `"[TagInput!]"`) names a known
+/// input object type, return that type's bare name (`[`, `]`, `!` stripped) so
+/// [`recase_input_payload`] can recurse; otherwise `None` (scalars, enums, and
+/// unknown types are left untouched).
+fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<String> {
+    let base = field_type.trim_matches(|c| c == '[' || c == ']' || c == '!');
+    schema.find_input_type(base).map(|_| base.to_string())
 }
 
 /// Core mutation execution logic, bounded only on `A: DatabaseAdapter`.
@@ -77,7 +145,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     mutation_name: &str,
     variables: Option<&serde_json::Value>,
     security_ctx: Option<&SecurityContext>,
-    type_selections: &HashMap<String, Vec<String>>,
+    selections: &[FieldSelection],
 ) -> Result<serde_json::Value> {
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -182,11 +250,17 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // the PK).
     let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
 
-    if is_update && input_type_name.is_some() {
-        // Pass the entire input object as a single JSONB arg.
+    if let Some(input_type_name) = input_type_name.filter(|_| is_update) {
+        // Pass the entire input object as a single JSONB arg, re-cased from the
+        // GraphQL surface naming convention to the schema's canonical (stored)
+        // field names so the SQL function — which reads `payload->>'snake_field'`
+        // / jsonb_populate_record — sees the values. The Insert path below gets
+        // this for free via positional args; the Update path must do it
+        // explicitly (fixes #400).
         let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
         if let Some(obj) = input_obj {
-            args.push(serde_json::Value::Object(obj.clone()));
+            let payload = serde_json::Value::Object(obj.clone());
+            args.push(recase_input_payload(payload, input_type_name, &ctx.schema));
         } else if !mutation_def.arguments[0].nullable {
             missing_required.push("input");
         }
@@ -375,24 +449,22 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let mutation_return_type = mutation_def.return_type.clone();
     let mutation_name_owned = mutation_name.to_string();
 
-    // Helper: merge common fields (key "") with type-specific fields for selection filtering.
-    let selection_for_type = |type_name: &str| -> Option<Vec<String>> {
-        if type_selections.is_empty() {
-            return None;
-        }
-        let common = type_selections.get("");
-        let specific = type_selections.get(type_name);
-        match (common, specific) {
-            (None, None) => None,
-            (Some(c), None) => Some(c.clone()),
-            (None, Some(s)) => Some(s.clone()),
-            (Some(c), Some(s)) => {
-                let mut merged = c.clone();
-                merged.extend(s.iter().cloned());
-                Some(merged)
-            },
-        }
+    // Evaluate @skip / @include against the request variables before projecting, so
+    // conditional fields are honoured exactly as on the query path. (Named fragment
+    // spreads were already resolved at classification time, where the document's
+    // fragment definitions are available.)
+    let variables_map: std::collections::HashMap<String, serde_json::Value> = match variables {
+        Some(serde_json::Value::Object(map)) => {
+            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        },
+        _ => std::collections::HashMap::new(),
     };
+    let filtered_selections = DirectiveEvaluator::filter_selections(selections, &variables_map)
+        .map_err(|e| FraiseQLError::Validation {
+            message: e.to_string(),
+            path:    Some("directives".to_string()),
+        })?;
+    let selections: &[FieldSelection] = &filtered_selections;
 
     let result_json = match outcome {
         MutationOutcome::Success {
@@ -401,10 +473,11 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             cascade,
             ..
         } => {
-            // Determine the GraphQL __typename
+            // Resolve the concrete GraphQL type of the success entity: the
+            // mutation_response's entity_type, else the first non-error union
+            // member, else the declared return type.
             let typename = entity_type
                 .or_else(|| {
-                    // Fall back to first non-error union member
                     ctx.schema
                         .find_union(&mutation_return_type)
                         .and_then(|u| {
@@ -416,28 +489,15 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 })
                 .unwrap_or_else(|| mutation_return_type.clone());
 
-            // Build projection mappings from the selection set.
-            // Success entities use snake_case keys (from DB), so source == output.
-            let requested = selection_for_type(&typename);
-            let mappings: Vec<FieldMapping> = match &requested {
-                Some(fields) => fields.iter().map(|f| FieldMapping::simple(f.clone())).collect(),
-                None => {
-                    // No selection filtering — pass all fields
-                    entity
-                        .as_object()
-                        .map(|m| m.keys().map(|k| FieldMapping::simple(k.clone())).collect())
-                        .unwrap_or_default()
-                },
-            };
+            // Project the entity through the single canonical projector — the same
+            // snake_case source keys, surface output keys, depth-aware recursion and
+            // selection-gated __typename as the query path — so a mutation's success
+            // payload and a query over the same entity return an identical shape.
+            let mut projected = project_entity(&entity, &typename, selections, &ctx.schema);
 
-            let mapper = ProjectionMapper::with_mappings(mappings).with_typename(&typename);
-            let obj = entity.as_object().cloned().unwrap_or_default();
-            let mut projected = mapper.project_json_object(&obj)?;
-
-            // Inject cascade JSONB into the projected object when present.
-            // This surfaces the graphql-cascade wire format
-            // (updated/deleted/invalidations/metadata) to clients without
-            // requiring the DB function to embed it in the entity JSONB itself.
+            // Surface the graphql-cascade wire format
+            // (updated/deleted/invalidations/metadata) to clients without requiring
+            // the DB function to embed it in the entity JSONB itself.
             if let Some(cascade_json) = cascade {
                 if let serde_json::Value::Object(ref mut map) = projected {
                     map.insert("cascade".to_string(), cascade_json);
@@ -453,7 +513,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         } => {
             let status = error_class.as_str();
 
-            // Find the matching error type from the return union
+            // Find the matching error type from the return union.
             let error_type = ctx.schema.find_union(&mutation_return_type).and_then(|u| {
                 u.member_types.iter().find_map(|t| {
                     let td = ctx.schema.find_type(t)?;
@@ -461,40 +521,30 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 })
             });
 
-            match error_type {
-                Some(td) => {
-                    // Build field mappings from the error type definition, with camelCase
-                    // source keys and recursive nested object/array projection (#215).
-                    let requested = selection_for_type(td.name.as_str());
-                    let requested_slice = requested.as_deref();
-                    let mut visited = std::collections::HashSet::new();
-                    let mappings = build_field_mappings_from_type(
-                        &td.fields,
-                        &ctx.schema,
-                        requested_slice,
-                        &mut visited,
+            // Project error metadata through the same canonical projector when the
+            // schema declares a matching error type. Otherwise emit just __typename
+            // (only when selected, matching the query contract); status is attached
+            // below in both cases.
+            let mut result = if let Some(td) = error_type {
+                project_entity(&metadata, td.name.as_str(), selections, &ctx.schema)
+            } else {
+                let mut map = serde_json::Map::new();
+                if selections.iter().any(|s| s.name == "__typename") {
+                    map.insert(
+                        "__typename".to_string(),
+                        serde_json::Value::String(mutation_return_type.clone()),
                     );
+                }
+                serde_json::Value::Object(map)
+            };
 
-                    let mapper = ProjectionMapper::with_mappings(mappings)
-                        .with_typename(td.name.to_string());
-                    let obj = metadata.as_object().cloned().unwrap_or_default();
-                    let mut result = mapper.project_json_object(&obj)?;
-
-                    // Inject status (not in type definition, but required by clients)
-                    if let serde_json::Value::Object(ref mut map) = result {
-                        map.insert(
-                            "status".to_string(),
-                            serde_json::Value::String(status.to_string()),
-                        );
-                    }
-
-                    result
-                },
-                None => {
-                    // No error type defined: surface the status as a plain object
-                    serde_json::json!({ "__typename": mutation_return_type, "status": status })
-                },
+            // Inject the synthetic `status` field — not part of the type definition,
+            // but required by clients to discriminate error outcomes.
+            if let serde_json::Value::Object(ref mut map) = result {
+                map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
             }
+
+            result
         },
     };
 

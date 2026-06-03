@@ -3,56 +3,14 @@
 //! This module handles converting GraphQL field names (typically camelCase)
 //! to PostgreSQL column names (typically `snake_case`).
 
-/// Convert camelCase or `PascalCase` to `snake_case`.
+/// The canonical field-name → `snake_case` JSONB-key rule.
 ///
-/// Follows the standard GraphQL-to-SQL field name convention used across all
-/// authoring languages: `camelCase` GraphQL names → `snake_case` column names.
-///
-/// # Examples
-///
-/// ```
-/// use fraiseql_core::utils::casing::to_snake_case;
-///
-/// assert_eq!(to_snake_case("userId"), "user_id");
-/// assert_eq!(to_snake_case("createdAt"), "created_at");
-/// assert_eq!(to_snake_case("HTTPResponse"), "http_response");
-/// assert_eq!(to_snake_case("already_snake"), "already_snake");
-/// ```
-#[must_use]
-pub fn to_snake_case(s: &str) -> String {
-    // If already snake_case (no uppercase letters), return as-is
-    if !s.chars().any(char::is_uppercase) {
-        return s.to_string();
-    }
-
-    let mut result = String::with_capacity(s.len() + 5);
-    let mut prev_was_upper = false;
-    let mut prev_was_lower = false;
-
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            // Add underscore before uppercase if:
-            // 1. Not the first character
-            // 2. Previous was lowercase OR next is lowercase (handles "HTTPResponse" →
-            //    "http_response")
-            if i > 0 {
-                let next_is_lower = s.chars().nth(i + 1).is_some_and(char::is_lowercase);
-                if prev_was_lower || (prev_was_upper && next_is_lower) {
-                    result.push('_');
-                }
-            }
-            result.push(c.to_ascii_lowercase());
-            prev_was_upper = true;
-            prev_was_lower = false;
-        } else {
-            result.push(c);
-            prev_was_upper = false;
-            prev_was_lower = c.is_lowercase();
-        }
-    }
-
-    result
-}
+/// Re-exported from `fraiseql-db` so the SQL projection generators and this
+/// crate's Rust entity projector share **one** definition — eliminating the
+/// historical drift where two copies disagreed on acronym field names
+/// (`userID` → `user_id`, never `user_i_d`). See
+/// [`fraiseql_db::utils::to_snake_case`].
+pub use fraiseql_db::utils::to_snake_case;
 
 /// Convert `snake_case` to camelCase.
 ///

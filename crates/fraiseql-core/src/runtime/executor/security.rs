@@ -250,16 +250,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.ctx.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation {
-                name,
-                type_selections,
-            } => {
+            QueryType::Mutation { name, selections } => {
                 runners::mutation::execute_mutation_impl(
                     &self.ctx,
                     &name,
                     variables,
                     Some(security_context),
-                    &type_selections,
+                    &selections,
                 )
                 .await
             },

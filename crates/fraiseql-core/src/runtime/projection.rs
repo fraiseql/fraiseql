@@ -1,7 +1,5 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
-use std::collections::HashSet;
-
 use serde_json::{Map, Value as JsonValue};
 
 use crate::{
@@ -9,6 +7,7 @@ use crate::{
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition},
+    utils::casing::{to_camel_case, to_snake_case},
 };
 
 /// Field mapping for projection with alias support.
@@ -506,94 +505,162 @@ impl ResultProjector {
     }
 }
 
-/// Build `FieldMapping`s from a type definition's fields, mapping `camelCase`
-/// source keys (as stored in mutation metadata JSONB) to `snake_case` output keys
-/// (as defined in the GraphQL schema).
+/// Maximum nesting depth for entity projection.
 ///
-/// Recursively builds nested mappings for `Object` and `List(Object)` fields by
-/// looking up types in the compiled schema. This enables the same `ProjectionMapper`
-/// pipeline used for query results to handle mutation error metadata.
+/// Mirrors the SQL projection generator's depth cap so the Rust (mutation) and
+/// SQL (query) paths stop recursing at the same level and fall back to returning
+/// the stored sub-blob identically.
+const MAX_ENTITY_PROJECTION_DEPTH: usize = 4;
+
+/// Project an entity-shaped JSONB value into a GraphQL response object, mirroring
+/// the query path's SQL projection exactly.
 ///
-/// # Arguments
+/// This is the **single, canonical** entity projector, shared by the mutation
+/// success arm (projecting the returned entity) and the error arm (projecting the
+/// error metadata). It is behaviourally equivalent to the SQL query projection
+/// (`projection_generator::render_field`):
 ///
-/// * `fields` — the type's field definitions
-/// * `schema` — compiled schema for resolving nested object types
-/// * `requested` — optional selection filter; when `Some`, only listed fields are included
-/// * `visited` — cycle guard to prevent infinite recursion on self-referencing types
+/// - **output key** = the selection's response key (the camelCase GraphQL surface name, honouring
+///   aliases),
+/// - **source key** = [`to_snake_case`](crate::utils::casing::to_snake_case) of the field name (the
+///   stored JSONB key), with a `camelCase` fallback for legacy metadata that used the surface
+///   casing,
+/// - **single object fields** with a sub-selection are recursed (depth-capped at
+///   `MAX_ENTITY_PROJECTION_DEPTH`),
+/// - **list fields, scalar fields, sub-selection-less object fields and over-depth fields** pass
+///   through their stored value (matching the SQL side's full-sub-blob fallback),
+/// - **`__typename`** is emitted only where the client selected it.
+///
+/// `type_name` is the concrete GraphQL object type of `entity` (resolved by the
+/// caller). `selections` is the result selection set for this level, with inline
+/// `... on T` fragments preserved; an **empty** slice means "no field filtering"
+/// and returns the stored entity unchanged.
 #[must_use]
-#[allow(clippy::implicit_hasher)] // Reason: internal API; no need for hasher generality
-pub fn build_field_mappings_from_type(
-    fields: &[FieldDefinition],
+pub fn project_entity(
+    entity: &JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
     schema: &CompiledSchema,
-    requested: Option<&[String]>,
-    visited: &mut HashSet<String>,
-) -> Vec<FieldMapping> {
-    fields
-        .iter()
-        .filter(|f| requested.is_none_or(|r| r.iter().any(|name| name == f.name.as_str())))
-        .map(|field| {
-            let source = to_camel_case(field.name.as_str());
-            let output = field.name.to_string();
-
-            // Fallback: try snake_case key when camelCase is not found.
-            // Mutation metadata may use either convention depending on the backend.
-            let source_fallback = if source != output {
-                Some(output.clone())
-            } else {
-                None
-            };
-
-            // Resolve the innermost type (unwrap List wrapper if present)
-            let inner = field.field_type.inner_type().unwrap_or(&field.field_type);
-
-            if let Some(type_name) = inner.type_name() {
-                // Object/Enum/Interface reference — try to resolve in schema
-                if let Some(td) = schema.find_type(type_name) {
-                    if visited.insert(type_name.to_string()) {
-                        let nested =
-                            build_field_mappings_from_type(&td.fields, schema, None, visited);
-                        visited.remove(type_name);
-                        return FieldMapping {
-                            source,
-                            output,
-                            source_fallback,
-                            nested_typename: Some(type_name.to_string()),
-                            nested_fields: Some(nested),
-                        };
-                    }
-                    // Cycle detected — return without recursion
-                }
-            }
-
-            FieldMapping {
-                source,
-                output,
-                source_fallback,
-                nested_typename: None,
-                nested_fields: None,
-            }
-        })
-        .collect()
+) -> JsonValue {
+    if selections.is_empty() {
+        // No selection set (e.g. the REST/typed path) — no field filtering.
+        return entity.clone();
+    }
+    project_entity_at(entity, type_name, selections, schema, 0)
 }
 
-/// Convert a `snake_case` field name to `camelCase` for metadata key lookup.
-///
-/// Examples: `"last_activity_date"` → `"lastActivityDate"`,
-///            `"cascade_count"` → `"cascadeCount"`.
-fn to_camel_case(snake: &str) -> String {
-    let mut result = String::with_capacity(snake.len());
-    let mut capitalise_next = false;
+fn project_entity_at(
+    entity: &JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    depth: usize,
+) -> JsonValue {
+    let JsonValue::Object(obj) = entity else {
+        // Not an object (e.g. null) — nothing to project.
+        return entity.clone();
+    };
+    let type_def = schema.find_type(type_name);
+    let mut out = Map::new();
 
-    for ch in snake.chars() {
-        if ch == '_' {
-            capitalise_next = true;
-        } else if capitalise_next {
-            result.push(ch.to_ascii_uppercase());
-            capitalise_next = false;
-        } else {
-            result.push(ch);
+    for sel in effective_selections(selections, type_name, schema) {
+        if sel.name == "__typename" {
+            out.insert(sel.response_key().to_string(), JsonValue::String(type_name.to_string()));
+            continue;
         }
+        let field_def =
+            type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name));
+        let Some(value) = lookup_source(obj, &sel.name) else {
+            // Absent stored key → omit (matches query/SQL behaviour: absent stays absent).
+            continue;
+        };
+        let projected = project_field_value(value, field_def, &sel.nested_fields, schema, depth);
+        out.insert(sel.response_key().to_string(), projected);
     }
 
-    result
+    JsonValue::Object(out)
+}
+
+/// Project a single field value, recursing into nested object selections.
+fn project_field_value(
+    value: &JsonValue,
+    field_def: Option<&FieldDefinition>,
+    nested: &[FieldSelection],
+    schema: &CompiledSchema,
+    depth: usize,
+) -> JsonValue {
+    // Recurse only into single (non-list) object fields that carry a sub-selection,
+    // within the depth cap — exactly as the SQL projector decides. Everything else
+    // (scalars, lists, sub-selection-less objects, over-depth) returns the stored
+    // value verbatim, matching the SQL full-sub-blob fallback.
+    if depth < MAX_ENTITY_PROJECTION_DEPTH && !nested.is_empty() {
+        if let Some(fd) = field_def {
+            if !fd.field_type.is_scalar() && !fd.field_type.is_list() {
+                if let Some(child_type) = fd.field_type.type_name() {
+                    match value {
+                        JsonValue::Object(_) => {
+                            return project_entity_at(value, child_type, nested, schema, depth + 1);
+                        },
+                        // The DB sometimes returns a nested object as a JSON string
+                        // (when extracted via `->>`). Re-parse and project it.
+                        JsonValue::String(s) => {
+                            if let Ok(parsed @ JsonValue::Object(_)) =
+                                serde_json::from_str::<JsonValue>(s)
+                            {
+                                return project_entity_at(
+                                    &parsed,
+                                    child_type,
+                                    nested,
+                                    schema,
+                                    depth + 1,
+                                );
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+            }
+        }
+    }
+    value.clone()
+}
+
+/// Look up a field's stored value: canonical `snake_case` key first, then a
+/// `camelCase` fallback for legacy metadata that used the GraphQL surface casing.
+fn lookup_source<'a>(obj: &'a Map<String, JsonValue>, field_name: &str) -> Option<&'a JsonValue> {
+    let snake = to_snake_case(field_name);
+    if let Some(v) = obj.get(&snake) {
+        return Some(v);
+    }
+    let camel = to_camel_case(field_name);
+    if camel != snake {
+        obj.get(&camel)
+    } else {
+        None
+    }
+}
+
+/// Flatten a selection set for a concrete object type: direct fields, plus the
+/// contents of any inline fragment `... on T` (or on an interface `T` implements).
+fn effective_selections<'a>(
+    selections: &'a [FieldSelection],
+    type_name: &str,
+    schema: &CompiledSchema,
+) -> Vec<&'a FieldSelection> {
+    let mut out = Vec::new();
+    for sel in selections {
+        if let Some(frag_type) = sel.name.strip_prefix("...on ") {
+            let frag_type = frag_type.trim();
+            let applies = frag_type == type_name
+                || schema
+                    .find_type(type_name)
+                    .is_some_and(|td| td.implements.iter().any(|i| i == frag_type));
+            if applies {
+                out.extend(effective_selections(&sel.nested_fields, type_name, schema));
+            }
+        } else {
+            out.push(sel);
+        }
+    }
+    out
 }

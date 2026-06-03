@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -352,8 +352,8 @@ mod mutation {
     }
 
     /// When a mutation includes a restricted selection set (e.g., `{ id name }`),
-    /// the response must only include those requested fields (plus __typename),
-    /// not all fields from the entity JSONB.
+    /// the response must only include those requested fields — and, matching the
+    /// query path and the GraphQL spec, `__typename` only when explicitly selected.
     #[tokio::test]
     async fn test_mutation_selection_set_filters_response_fields() {
         use crate::schema::MutationDefinition;
@@ -367,15 +367,19 @@ mod mutation {
         let adapter = Arc::new(SelectionSetFilterMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        // Query with restricted selection: only id and name (plus implicit __typename)
+        // Restricted selection: only id and name (no __typename selected).
         let result = executor.execute("mutation { createUser { id name } }", None).await.unwrap();
 
         let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
 
-        // Must have __typename and the selected fields
-        assert!(data.get("__typename").is_some(), "response must include __typename");
         assert!(data.get("id").is_some(), "response must include selected field 'id'");
         assert!(data.get("name").is_some(), "response must include selected field 'name'");
+
+        // __typename is NOT auto-injected — only returned when the client selects it.
+        assert!(
+            data.get("__typename").is_none(),
+            "response must NOT include __typename unless selected"
+        );
 
         // Must NOT have the non-selected fields
         assert!(
@@ -385,8 +389,33 @@ mod mutation {
         assert!(data.get("bio").is_none(), "response must NOT include non-selected field 'bio'");
     }
 
+    /// `__typename` is returned when, and only when, the client selects it.
+    #[tokio::test]
+    async fn test_mutation_typename_returned_when_selected() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(SelectionSetFilterMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute("mutation { createUser { __typename id } }", None)
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(data.get("__typename").and_then(|v| v.as_str()), Some("User"));
+        assert!(data.get("id").is_some());
+    }
+
     /// When a mutation has an empty selection set (just the field name, no `{ ... }`),
-    /// the response should include all fields (backward-compatible behavior).
+    /// the response passes the stored entity through unfiltered — and, with nothing
+    /// selected, without an injected `__typename`.
     #[tokio::test]
     async fn test_mutation_empty_selection_set_returns_all_fields() {
         use crate::schema::MutationDefinition;
@@ -400,16 +429,51 @@ mod mutation {
         let adapter = Arc::new(EmptySelectionMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        // Empty selection set: should return all fields
+        // Empty selection set: pass the stored entity through unfiltered.
         let result = executor.execute("mutation { createUser }", None).await.unwrap();
 
         let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
 
-        // All fields should be present
-        assert!(data.get("__typename").is_some(), "response must include __typename");
+        // All stored fields present; no synthetic __typename (nothing was selected).
         assert!(data.get("id").is_some(), "response must include all field 'id'");
         assert!(data.get("name").is_some(), "response must include all field 'name'");
         assert!(data.get("email").is_some(), "response must include all field 'email'");
+        assert!(
+            data.get("__typename").is_none(),
+            "no __typename injected for an empty selection set"
+        );
+    }
+
+    /// Named fragment spreads and `@skip`/`@include` directives on a mutation
+    /// selection must be resolved and evaluated before projection — exactly like
+    /// the query path — so a client that factors mutation fields into a fragment
+    /// (or guards them with a directive) gets the same shape it would from a query.
+    #[tokio::test]
+    async fn test_mutation_resolves_fragments_and_directives() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(SelectionSetFilterMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        // `id`/`name` come from a named fragment; `name` is gated true (kept) and
+        // `email` is skipped true (dropped).
+        let doc = r"
+            mutation { createUser { ...F email @skip(if: true) } }
+            fragment F on User { id name @include(if: true) }
+        ";
+        let result = executor.execute(doc, None).await.unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert!(data.get("id").is_some(), "fragment-spread field 'id' must be projected");
+        assert!(data.get("name").is_some(), "@include(if: true) field 'name' must be projected");
+        assert!(data.get("email").is_none(), "@skip(if: true) field 'email' must be omitted");
+        assert!(data.get("bio").is_none(), "unselected field 'bio' must be omitted");
     }
 
     // ── Three-state field semantics (issue #221) ───────────────────────────
@@ -549,6 +613,50 @@ mod mutation {
         schema
     }
 
+    fn schema_with_camelcase_update_mutation() -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        // GraphQL surface is camelCase over snake_case canonical field names.
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "BillingAddressInput".to_string(),
+            fields:      vec![InputFieldDefinition::new("postal_code", "String")],
+            description: None,
+            metadata:    None,
+        });
+        schema.input_types.push(InputObjectDefinition {
+            name:        "UpdateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("full_name", "String"),
+                InputFieldDefinition::new("billing_address", "BillingAddressInput"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "update_user".to_string(),
+            return_type: "User".to_string(),
+            sql_source: Some("update_user".to_string()),
+            operation: MutationOperation::Update {
+                table: "update_user".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("UpdateUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("update_user", "User")
+        });
+        schema
+    }
+
     fn schema_with_insert_mutation() -> CompiledSchema {
         use crate::schema::{
             FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
@@ -596,10 +704,7 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": "Alice", "email": "alice@example.com" }
         });
-        executor
-            .execute_mutation("update_user", Some(&vars), &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
@@ -610,6 +715,52 @@ mod mutation {
         );
         assert_eq!(captured[0]["id"], "abc");
         assert_eq!(captured[0]["name"], "Alice");
+    }
+
+    /// #400 — Update-path payload keys must be re-cased from the GraphQL
+    /// (`camelCase`) surface to the schema's canonical (`snake_case`) field names
+    /// before the JSONB reaches the SQL function. The Insert path gets this for
+    /// free (positional args); the Update path forwarded the object verbatim, so
+    /// a `camelCase` surface delivered `camelCase` keys a `snake_case` function can't read.
+    #[tokio::test]
+    async fn update_payload_keys_recased_to_naming_convention() {
+        let schema = schema_with_camelcase_update_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        // Client speaks the camelCase GraphQL surface, including a nested object.
+        let vars = serde_json::json!({
+            "input": {
+                "id": "abc",
+                "fullName": "Alice",
+                "billingAddress": { "postalCode": "75001" }
+            }
+        });
+        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
+        let payload = &captured[0];
+
+        // Top-level multi-word key must be recased to the canonical snake_case name.
+        assert_eq!(
+            payload["full_name"], "Alice",
+            "camelCase 'fullName' must reach the function as snake_case 'full_name'; got {payload:?}"
+        );
+        assert!(
+            payload.get("fullName").is_none(),
+            "verbatim camelCase key must not survive; got {payload:?}"
+        );
+
+        // Nested input objects must be recursed and recased too.
+        assert_eq!(
+            payload["billing_address"]["postal_code"], "75001",
+            "nested camelCase keys must be recased; got {payload:?}"
+        );
+
+        // Single-word keys are unchanged (camelCase == snake_case).
+        assert_eq!(payload["id"], "abc");
     }
 
     /// Insert mutations must still flatten Input type fields to positional args
@@ -624,10 +775,7 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "name": "Bob", "email": "bob@example.com" }
         });
-        executor
-            .execute_mutation("create_user", Some(&vars), &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("create_user", Some(&vars), &[]).await.unwrap();
 
         let captured = adapter_ref.args();
         // Two positional args (name, email), not one JSONB object.
@@ -648,10 +796,7 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": null }
         });
-        executor
-            .execute_mutation("update_user", Some(&vars), &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1);
@@ -673,10 +818,7 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": "Alice" }
         });
-        executor
-            .execute_mutation("update_user", Some(&vars), &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1);
@@ -876,7 +1018,7 @@ mod mutation_audit {
         };
         let executor = Executor::with_config(schema, Arc::new(AuditMockAdapter), config);
 
-        executor.execute_mutation("createUser", None, &HashMap::new()).await.unwrap();
+        executor.execute_mutation("createUser", None, &[]).await.unwrap();
 
         let events = captured.lock().unwrap();
         assert!(
@@ -899,7 +1041,7 @@ mod mutation_audit {
         // Default config: audit_mutations=false
         let executor = Executor::new(schema, Arc::new(AuditMockAdapter));
 
-        executor.execute_mutation("createUser", None, &HashMap::new()).await.unwrap();
+        executor.execute_mutation("createUser", None, &[]).await.unwrap();
 
         let events = captured.lock().unwrap();
         assert!(

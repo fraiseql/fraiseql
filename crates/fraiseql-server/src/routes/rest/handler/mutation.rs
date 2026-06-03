@@ -1,6 +1,6 @@
 //! Mutation handlers (POST, PUT, PATCH, DELETE) and mutation execution helpers.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::{
@@ -487,7 +487,7 @@ pub(super) async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
             )
             .await
     } else {
-        executor.execute_mutation(mutation_name, variables, &HashMap::new()).await
+        executor.execute_mutation(mutation_name, variables, &[]).await
     };
     result.map_err(RestError::from)
 }

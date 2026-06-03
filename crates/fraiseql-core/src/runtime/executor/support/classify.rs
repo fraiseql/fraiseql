@@ -1,7 +1,5 @@
 //! Query classification — determines operation type for routing.
 
-use std::collections::HashMap;
-
 use super::super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
@@ -106,36 +104,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             return Ok((QueryType::NodeQuery { selections }, None));
         }
 
-        // Mutations are routed by operation type.
+        // Mutations are routed by operation type. Carry the full result selection
+        // set (inline fragments intact) so the projector can subset and recurse
+        // exactly like the query path. Named fragment spreads are resolved here —
+        // the same as the query matcher — using the document's fragment
+        // definitions; `@skip`/`@include` directives are evaluated later in
+        // `execute_mutation_impl`, where the request variables are available.
         if parsed.operation_type == "mutation" {
-            let type_selections: HashMap<String, Vec<String>> = parsed
-                .selections
-                .first()
-                .map(|s| {
-                    let mut map: HashMap<String, Vec<String>> = HashMap::new();
-                    for f in &s.nested_fields {
-                        if let Some(type_name) = f.name.strip_prefix("...on ") {
-                            // Inline fragment: collect fields under the type name
-                            let fields: Vec<String> = f
-                                .nested_fields
-                                .iter()
-                                .map(|nf| nf.response_key().to_string())
-                                .collect();
-                            map.entry(type_name.to_string()).or_default().extend(fields);
-                        } else {
-                            // Common field (outside any inline fragment)
-                            map.entry(String::new())
-                                .or_default()
-                                .push(f.response_key().to_string());
-                        }
-                    }
-                    map
-                })
-                .unwrap_or_default();
+            let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
+            let resolver = crate::graphql::FragmentResolver::new(&parsed.fragments);
+            let selections =
+                resolver.resolve_spreads(raw).map_err(|e| FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("fragments".to_string()),
+                })?;
             return Ok((
                 QueryType::Mutation {
                     name: root_field.clone(),
-                    type_selections,
+                    selections,
                 },
                 None,
             ));

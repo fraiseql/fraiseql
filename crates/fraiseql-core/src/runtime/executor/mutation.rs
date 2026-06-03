@@ -11,12 +11,11 @@
 //! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
 //!   [`execute_mutation_batch`], [`execute_bulk_by_filter`]).
 
-use std::collections::HashMap;
-
 use super::{Executor, runners};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
+    graphql::FieldSelection,
     security::SecurityContext,
 };
 
@@ -33,7 +32,7 @@ use crate::{
 /// async fn _wont_compile() {
 ///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
 ///     let executor = Executor::new(CompiledSchema::new(), adapter);
-///     executor.execute_mutation("createUser", None).await.unwrap();
+///     executor.execute_mutation("createUser", None, &[]).await.unwrap();
 /// }
 /// ```
 impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
@@ -55,7 +54,8 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     ///
     /// * `mutation_name` - The GraphQL mutation field name (e.g. `"createUser"`)
     /// * `variables` - Optional JSON object of GraphQL variable values
-    /// * `type_selections` - Per-type field selections for projection
+    /// * `selections` - The result selection set (inline fragments intact) used to project the
+    ///   response; pass `&[]` for no field filtering.
     ///
     /// # Returns
     ///
@@ -69,12 +69,12 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        type_selections: &HashMap<String, Vec<String>>,
+        selections: &[FieldSelection],
     ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
         self.mutation_runner()
-            .execute_mutation(mutation_name, variables, type_selections)
+            .execute_mutation(mutation_name, variables, selections)
             .await
     }
 }
@@ -108,10 +108,9 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
-    /// let selections = std::collections::HashMap::new(); // no filtering
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation("createUser", Some(&vars), &selections).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars), &[]).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -119,7 +118,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        type_selections: &HashMap<String, Vec<String>>,
+        selections: &[FieldSelection],
     ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -142,7 +141,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             mutation_name,
             variables,
             None,
-            type_selections,
+            selections,
         )
         .await
     }

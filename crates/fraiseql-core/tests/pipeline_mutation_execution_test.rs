@@ -361,7 +361,7 @@ async fn error_path_applies_selection_filtering() {
     // Only request message and code (not conflicting_id, affected_ids, details)
     let result = executor
         .execute(
-            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { ... on DuplicateEmailError { message code } } }"#,
+            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { __typename ... on DuplicateEmailError { message code } } }"#,
             Some(&vars),
         )
         .await
@@ -401,7 +401,7 @@ async fn error_path_populates_array_fields() {
     // Request the array field
     let result = executor
         .execute(
-            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { ... on DuplicateEmailError { message affected_ids } } }"#,
+            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { __typename ... on DuplicateEmailError { message affected_ids } } }"#,
             Some(&vars),
         )
         .await

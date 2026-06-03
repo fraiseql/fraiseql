@@ -83,6 +83,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this by passing tenant/user ids as mutation arguments via `inject_params` can
   continue to do so, or now rely on session variables.
 
+- **Update mutations re-case the input payload to the schema's canonical field
+  names (#400).** With `naming_convention = "camelCase"`, the Update path forwarded
+  the GraphQL input object to the SQL function verbatim, so a `camelCase` surface
+  delivered `camelCase` keys (`{ "fullName": ... }`) that a `snake_case` function
+  reading `payload->>'full_name'` / `jsonb_populate_record` could not see — silently
+  writing NULLs (or failing NOT NULL constraints). The payload is now re-cased to
+  the canonical names before it reaches the function, recursing into nested input
+  objects and arrays of input objects. The mapping is driven by the input type's
+  per-field map (not a lossy regex), so acronyms and intentional names are preserved;
+  `Preserve` schemas, unknown input types, and unmatched keys are untouched. The
+  Insert/Delete paths were already correct (positional args).
+
+- **Mutation success responses now project nested typed-object fields like queries
+  do (#410).** The success arm projected the returned entity with a flat mapping
+  keyed by the selection's `camelCase` names, so it could not read the `snake_case`
+  entity JSONB and dropped (or failed to recurse into) nested typed-object fields —
+  a mutation selecting `{ thing { id billingAddress { postalCode } } }` lost
+  `billingAddress` entirely, while the same selection over a query returned it.
+  Mutation success **and** error responses now flow through a single canonical
+  entity projector that mirrors the query path exactly (`snake_case` source keys,
+  `camelCase` surface output, depth-aware recursion into nested objects), so a
+  mutation's payload and a query over the same entity return an identical shape.
+  This also removes a latent acronym drift between the SQL and Rust projectors,
+  which now share one `to_snake_case` definition. As part of the same unification,
+  mutation result selections now resolve named fragment spreads and evaluate
+  `@skip` / `@include` directives before projection, exactly as the query path
+  does — so factoring mutation fields into a fragment (or guarding them with a
+  directive) now behaves identically to a query.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,
@@ -165,6 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Observer admin HTTP API requires `[auth]` to be configured.** If `[auth]` is absent, `/api/observers/*`, `/runtime/health`, and `/runtime/reload` are not mounted (with a `WARN` log at startup) rather than mounted open. Any internal tooling that called these endpoints unauthenticated must now present a valid bearer token. Reverse-proxy auth (mTLS or a bearer-token gate) is no longer the only line of defence.
 
 - **`DatabaseAdapter::set_session_variables` has been removed (#329).** It applied `set_config(..., true)` on a pooled connection in its own autocommit transaction — transaction-local *and* on a different connection than the subsequent operation — so it never reached the operation (the bug this release fixes), and the executor no longer calls it. Custom `DatabaseAdapter` implementors that overrode it should delete the override; any direct caller should switch to the connection-affine `*_with_session` methods (`execute_function_call_with_session`, `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`, `execute_parameterized_aggregate_with_session`, and `RelayDatabaseAdapter::execute_relay_page_with_session`), which apply session variables on the same connection as the operation.
+
+- **Mutation response shape now matches the query contract (#410, #400).** Mutation success and error responses are projected by the same engine as queries, which changes three things for clients that relied on the old behaviour. (1) **`__typename` is returned only when selected** — it is no longer auto-injected into every mutation response; add `__typename` to your selection set if you depend on it (this matches the GraphQL spec and the query path). (2) **Nested typed-object fields are now projected** — previously dropped or returned as a verbatim sub-blob, they are now recased and subset to the selection, so clients that hand-rolled per-mutation key recasing must drop it or they will double-convert. (3) **Nested fields inside both success and error responses are now subset to the selection** rather than returned in full. There is no compatibility flag — fix-forward. The `Executor::execute_mutation` signature also changed its last parameter from `&HashMap<String, Vec<String>>` (flattened per-type field names) to `&[FieldSelection]` (the result selection set); pass `&[]` for no field filtering.
 
 ### Documentation
 

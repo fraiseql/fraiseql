@@ -44,8 +44,10 @@ pub mod introspector;
 pub mod types;
 pub mod where_generator;
 
-// Shared utilities
-pub(crate) mod utils;
+// Shared utilities. `utils::to_snake_case` is the canonical field-name → JSONB
+// key rule, re-used by `fraiseql-core`'s entity projector so SQL and Rust
+// projection can never disagree on a source key.
+pub mod utils;
 
 // DB adapter modules (from the old db/ directory)
 pub mod collation;
