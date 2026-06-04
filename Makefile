@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -82,6 +82,22 @@ build-release:
 release:
 	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=x.y.z" && exit 1)
 	bash tools/release.sh $(VERSION)
+
+# Pre-tag release validation via Dagger (same engine locally and on the runner).
+# Tokenless and read-only — never publishes. Run before cutting a release tag to
+# catch the "tag shipped but publish failed" class (v2.3.0/v2.3.1) up front.
+#   make release-validate                 # self-test the publish order + dry-run every crate
+#   make release-validate VERSION=2.4.0   # also assert Cargo.toml is on 2.4.0
+release-validate:
+	dagger call publish-order-selftest --source=.
+	dagger call publish-dry-run --source=. $(if $(VERSION),--expect-version=$(VERSION),)
+
+# Heavier API-compatibility gate (recompiles rustdoc for the whole workspace + its
+# baseline); run separately when an API-breaking review is wanted before a tag.
+#   make release-validate-semver                 # baseline = HEAD~1
+#   make release-validate-semver BASELINE=v2.3.2 # baseline = a published tag
+release-validate-semver:
+	dagger call semver-workspace --source=. --baseline-rev=$(or $(BASELINE),HEAD~1)
 
 # Run all tests (unit + integration)
 test: test-unit test-integration
