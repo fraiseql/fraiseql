@@ -83,8 +83,39 @@ jobs:
             if [ "$status" -eq 0 ]; then
               echo "OK: $c dry-run passed"
             else
-              echo "FAIL: $c dry-run exited $status"
-              FAILED=1
+              # A dry-run can fail purely because a sibling crate this one depends
+              # on has never been published yet — the first release of a new
+              # workspace crate (e.g. fraiseql-codegen, added in #291). cargo's
+              # packaging step resolves every dependency against the crates.io
+              # index, so a downstream crate fails here even though the REAL
+              # ordered publish succeeds: the sibling publishes earlier in $CRATES
+              # order, and its new version satisfies the >=floor requirement. We
+              # tolerate exactly that case — a single "failed to prepare local
+              # package for uploading" whose only missing packages are our own
+              # publishable crates — and hard-fail everything else (gitignored
+              # files swept into the tarball, build.rs side effects, a genuinely
+              # missing external dep, compile errors in the verify build).
+              missing=$(grep -oE "no matching package named \`[a-zA-Z0-9_-]+\`" "$log" \
+                        | sed -E "s/.*\`([^\`]+)\`/\1/" | sort -u)
+              errcount=$(grep -cE "^error" "$log")
+              tolerable=0
+              if [ -n "$missing" ] && [ "$errcount" -eq 1 ] \
+                 && grep -q "failed to prepare local package for uploading" "$log"; then
+                tolerable=1
+                for m in $missing; do
+                  case " $CRATES " in
+                    *" $m "*) ;;        # one of our publishable crates → first-publish ok
+                    *) tolerable=0 ;;   # an external dependency is genuinely missing → fail
+                  esac
+                done
+              fi
+              if [ "$tolerable" -eq 1 ]; then
+                echo "WARN: $c dry-run failed only on not-yet-published sibling crate(s): $missing"
+                echo "      tolerated — the ordered publish ships those first (see step comment)"
+              else
+                echo "FAIL: $c dry-run exited $status"
+                FAILED=1
+              fi
             fi
             echo "::endgroup::"
           done
