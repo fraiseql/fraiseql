@@ -868,6 +868,50 @@ mod complexity_tests {
         );
     }
 
+    // ── Overflow safety (integer-overflow DoS / fuzz no-panic invariant) ──
+
+    /// Build `query { f0(first: 100) { f1(first: 100) { ... { scalar } } } }`
+    /// with `levels` nested multiplier fields. Each `first: 100` compounds
+    /// multiplicatively in the complexity scorer, so ~12 levels score past
+    /// `usize::MAX` (100^12 ≈ 1e24).
+    fn deep_multiplied_query(levels: usize) -> String {
+        let mut inner = String::from("scalar");
+        for i in 0..levels {
+            inner = format!("f{i}(first: 100) {{ {inner} }}");
+        }
+        format!("query {{ {inner} }}")
+    }
+
+    #[test]
+    fn analyze_saturates_instead_of_overflowing_on_deep_pagination() {
+        // `analyze()` has no depth pre-check, so the scorer walks the full tree.
+        // The compounding multiplier must saturate at usize::MAX, never panic
+        // (the fuzz invariant) nor wrap to a small value.
+        let validator = RequestValidator::new();
+        let metrics = validator
+            .analyze(&deep_multiplied_query(12))
+            .expect("deep query must analyze without panicking");
+        assert_eq!(
+            metrics.complexity,
+            usize::MAX,
+            "overflowing complexity must saturate, not wrap"
+        );
+    }
+
+    #[test]
+    fn validate_fails_closed_on_overflowing_complexity() {
+        // With depth validation off, the deep query reaches the complexity gate.
+        // A saturated score must FAIL CLOSED (rejected) — never wrap under the
+        // limit and slip through.
+        let validator =
+            RequestValidator::new().with_max_complexity(100).with_depth_validation(false);
+        let result = validator.validate_query(&deep_multiplied_query(12));
+        assert!(
+            matches!(result, Err(ComplexityValidationError::QueryTooComplex { .. })),
+            "overflowing query must be rejected, got {result:?}"
+        );
+    }
+
     // ── Aliases ──
 
     #[test]

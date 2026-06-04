@@ -426,7 +426,7 @@ impl RequestValidator {
                 },
                 Definition::Fragment(_) => 0,
             })
-            .sum()
+            .fold(0usize, usize::saturating_add)
     }
 
     fn selection_set_complexity(
@@ -452,7 +452,12 @@ impl RequestValidator {
                             fragments,
                             recursion_depth,
                         );
-                        1 + nested * multiplier
+                        // Saturating: the multiplier compounds per nesting level,
+                        // so a crafted deep query overflows `usize`. Saturating to
+                        // `usize::MAX` keeps the score monotonic and fail-closed
+                        // (the limit always rejects it) instead of wrapping under
+                        // the limit (release) or panicking (overflow-checked builds).
+                        1usize.saturating_add(nested.saturating_mul(multiplier))
                     }
                 },
                 Selection::InlineFragment(inline) => {
@@ -470,7 +475,7 @@ impl RequestValidator {
                     }
                 },
             })
-            .sum()
+            .fold(0usize, usize::saturating_add)
     }
 
     fn count_aliases_ast(&self, document: &Document<String>) -> usize {
