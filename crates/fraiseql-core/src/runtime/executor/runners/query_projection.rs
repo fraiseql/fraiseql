@@ -83,7 +83,11 @@ pub fn build_typed_projection_fields(
                 };
 
             ProjectionField {
+                // Output under the response key (alias when present)…
                 name: sel.response_key().to_string(),
+                // …but read the JSONB column from the *source* field name so an
+                // aliased field reads the right column (#418).
+                source: sel.name.clone(),
                 kind,
                 sub_fields,
             }
@@ -159,3 +163,7 @@ pub fn selections_contain_field(selections: &[FieldSelection], field_name: &str)
     }
     false
 }
+
+#[cfg(test)]
+#[path = "query_projection_tests.rs"]
+mod query_projection_tests;

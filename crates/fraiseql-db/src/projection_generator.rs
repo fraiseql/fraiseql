@@ -58,8 +58,16 @@ pub enum FieldKind {
 /// behaviour (full blob, no sub-selection).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionField {
-    /// GraphQL field name (camelCase).
+    /// Output (response) key — the GraphQL alias if present, otherwise the field
+    /// name. Used verbatim as the key in the generated `jsonb_build_object`.
     pub name: String,
+
+    /// Source GraphQL field name (camelCase) used to derive the JSONB column via
+    /// `to_snake_case`. Equals [`name`](Self::name) for unaliased fields, but
+    /// differs when the field is aliased: `myName: fullName` yields
+    /// `name = "myName"`, `source = "fullName"`, so the projection reads
+    /// `data->>'full_name'` while emitting it under the `myName` key (#418).
+    pub source: String,
 
     /// Semantic kind of the field, controlling the JSONB extraction operator.
     pub kind: FieldKind,
@@ -81,9 +89,11 @@ impl ProjectionField {
     /// DateTime, etc.) should use [`Self::native`].
     #[must_use]
     pub fn scalar(name: impl Into<String>) -> Self {
+        let name = name.into();
         Self {
-            name:       name.into(),
-            kind:       FieldKind::Text,
+            source: name.clone(),
+            name,
+            kind: FieldKind::Text,
             sub_fields: None,
         }
     }
@@ -95,9 +105,11 @@ impl ProjectionField {
     /// `jsonb_build_object`, losing type information.
     #[must_use]
     pub fn native(name: impl Into<String>) -> Self {
+        let name = name.into();
         Self {
-            name:       name.into(),
-            kind:       FieldKind::Native,
+            source: name.clone(),
+            name,
+            kind: FieldKind::Native,
             sub_fields: None,
         }
     }
@@ -105,9 +117,11 @@ impl ProjectionField {
     /// Create a composite (object/list) projection field (uses `->` JSONB extraction).
     #[must_use]
     pub fn composite(name: impl Into<String>) -> Self {
+        let name = name.into();
         Self {
-            name:       name.into(),
-            kind:       FieldKind::Composite,
+            source: name.clone(),
+            name,
+            kind: FieldKind::Composite,
             sub_fields: None,
         }
     }
@@ -118,9 +132,11 @@ impl ProjectionField {
     /// `jsonb_build_object(...)` rather than returning the full composite blob.
     #[must_use]
     pub fn composite_with_sub_fields(name: impl Into<String>, sub_fields: Vec<Self>) -> Self {
+        let name = name.into();
         Self {
-            name:       name.into(),
-            kind:       FieldKind::Composite,
+            source: name.clone(),
+            name,
+            kind: FieldKind::Composite,
             sub_fields: Some(sub_fields),
         }
     }
@@ -308,8 +324,12 @@ impl PostgresProjectionGenerator {
     ///   depth 1)
     /// * `depth` — current recursion depth (capped at `MAX_PROJECTION_DEPTH`)
     fn render_field(field: &ProjectionField, path: &str, depth: usize) -> Result<String> {
+        // Output key is the (possibly aliased) response key; the JSONB column is
+        // derived from the *source* field name. For unaliased fields these are
+        // the same, but an aliased field (`myName: fullName`) must read
+        // `data->>'full_name'`, not `data->>'my_name'` (#418).
         let resp_key = Self::escape_sql_string(&field.name);
-        let jsonb_key = to_snake_case(&field.name);
+        let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
 
         // Recurse into Object sub-fields when available and within depth limit.
