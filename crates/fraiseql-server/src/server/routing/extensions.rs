@@ -102,11 +102,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             // SECURITY: Check require_auth flag before mounting.
             let mount_mcp = if mcp_cfg.require_auth {
                 if self.oidc_validator.is_some() {
-                    warn!(
+                    info!(
                         path = %mcp_cfg.path,
                         "MCP HTTP endpoint: require_auth=true, OIDC validator present. \
-                         Note: per-request MCP auth enforcement requires MCP middleware. \
-                         Ensure your MCP transport layer validates tokens."
+                         Per-request Bearer tokens are validated and tool calls fail closed \
+                         without a valid security context."
                     );
                     true
                 } else {
@@ -135,6 +135,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
                 let executor_swap = state.executor.clone();
                 let cfg = mcp_cfg.clone();
+                let validator = self.oidc_validator.clone();
                 let mcp_service = StreamableHttpService::new(
                     move || {
                         let executor = executor_swap.load_full();
@@ -143,7 +144,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             schema,
                             executor,
                             cfg.clone(),
-                        ))
+                        )
+                        .with_oidc_validator(validator.clone()))
                     },
                     Arc::new(LocalSessionManager::default()),
                     StreamableHttpServerConfig::default(),

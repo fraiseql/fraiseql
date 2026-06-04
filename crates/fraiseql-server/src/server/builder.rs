@@ -653,7 +653,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let schema = Arc::new(self.executor.schema().clone());
         let executor = self.executor.clone();
 
-        let service = crate::mcp::handler::FraiseQLMcpService::new(schema, executor, mcp_cfg);
+        let service = crate::mcp::handler::FraiseQLMcpService::new(schema, executor, mcp_cfg)
+            .with_oidc_validator(self.oidc_validator.clone());
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");
 

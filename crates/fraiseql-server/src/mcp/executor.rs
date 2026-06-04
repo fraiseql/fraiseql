@@ -10,15 +10,29 @@ use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::Executor,
     schema::{CompiledSchema, FieldType},
+    security::SecurityContext,
 };
 use rmcp::model::{CallToolResult, Content};
 
 /// Execute an MCP tool call by building and running a GraphQL query.
+///
+/// When `security_context` is `Some`, the call is routed through the
+/// authenticated executor path ([`Executor::execute_with_security`]) so RLS
+/// `WHERE` clauses, session variables, and `@inject` JWT parameters are applied
+/// exactly as they are for the HTTP GraphQL endpoint.
+///
+/// When `security_context` is `None`, the call is **refused** (fail-closed) if
+/// the compiled schema has an RLS policy configured or `require_auth` is set —
+/// running such a query without a security context would bypass tenant
+/// isolation. Non-RLS schemas with `require_auth = false` continue to run
+/// unauthenticated (development convenience).
 pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     tool_name: &str,
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
     schema: &CompiledSchema,
     executor: &Arc<Executor<A>>,
+    security_context: Option<&SecurityContext>,
+    require_auth: bool,
 ) -> CallToolResult {
     let is_mutation = schema.mutations.iter().any(|m| m.name == tool_name);
 
@@ -29,7 +43,26 @@ pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let variables = arguments.map(|args| serde_json::Value::Object(args.clone()));
 
-    match executor.execute(&graphql_query, variables.as_ref()).await {
+    // Route through the authenticated executor path when a security context is
+    // present, mirroring the HTTP GraphQL handler. When it is absent, fail
+    // closed if the schema enforces RLS or authentication is required — running
+    // such a query through the unauthenticated path would bypass tenant
+    // isolation and `@inject` JWT resolution.
+    let exec_result = if let Some(ctx) = security_context {
+        executor.execute_with_security(&graphql_query, variables.as_ref(), ctx).await
+    } else {
+        if require_auth || schema.has_rls_configured() {
+            return error_result(
+                "Authentication required: this MCP server enforces row-level security \
+                 or requires authentication, but the request carried no validated \
+                 security context. Provide a Bearer token over the HTTP transport, or \
+                 disable require_auth and RLS for unauthenticated use.",
+            );
+        }
+        executor.execute(&graphql_query, variables.as_ref()).await
+    };
+
+    match exec_result {
         Ok(result) => {
             let result_text = result.to_string();
             CallToolResult::success(vec![Content::text(result_text)])
@@ -194,6 +227,6 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
     }
 }
 
-fn error_result(message: &str) -> CallToolResult {
+pub(super) fn error_result(message: &str) -> CallToolResult {
     CallToolResult::error(vec![Content::text(message.to_string())])
 }

@@ -251,7 +251,7 @@ fn service_get_tool_returns_none_for_missing() {
 async fn call_tool_with_unknown_name_returns_error() {
     let (schema, executor) = make_executor();
 
-    let result = call_tool("nonExistentQuery", None, &schema, &executor).await;
+    let result = call_tool("nonExistentQuery", None, &schema, &executor, None, false).await;
     assert_eq!(result.is_error, Some(true));
 
     let text = content_as_text(&result.content[0]);
@@ -266,7 +266,7 @@ async fn call_tool_rejects_invalid_argument_names() {
     args.insert("valid_arg".to_string(), serde_json::json!("value"));
     args.insert("inject: bad".to_string(), serde_json::json!("evil"));
 
-    let result = call_tool("users", Some(&args), &schema, &executor).await;
+    let result = call_tool("users", Some(&args), &schema, &executor, None, false).await;
     assert_eq!(result.is_error, Some(true));
 
     let text = content_as_text(&result.content[0]);
@@ -279,7 +279,7 @@ async fn call_tool_with_valid_query_attempts_execution() {
 
     // This will fail at the executor level (FailingAdapter), but should not
     // fail at the MCP layer — proving the GraphQL query was built correctly.
-    let result = call_tool("users", None, &schema, &executor).await;
+    let result = call_tool("users", None, &schema, &executor, None, false).await;
 
     // The FailingAdapter will produce an execution error, which is expected.
     // The key assertion is that we got past the MCP query-building phase.
@@ -293,7 +293,7 @@ async fn call_tool_with_arguments_builds_valid_query() {
     let mut args = serde_json::Map::new();
     args.insert("id".to_string(), serde_json::json!("123"));
 
-    let result = call_tool("user", Some(&args), &schema, &executor).await;
+    let result = call_tool("user", Some(&args), &schema, &executor, None, false).await;
     // Should not be an MCP-level error (may be an executor error from FailingAdapter)
     assert!(!result.content.is_empty());
 }

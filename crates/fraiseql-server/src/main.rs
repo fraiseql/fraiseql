@@ -398,7 +398,10 @@ async fn dispatch_server(
 ) -> anyhow::Result<()> {
     let adapter = build_wire_adapter(&config).await?;
     let server = Server::new(config, schema, adapter, None).await?;
-    finish_server(server, cli, /* with_arrow = */ false).await
+    // Box::pin: with the wire backend enabled the combined server/serve future
+    // exceeds clippy's `large_futures` 16-KiB threshold. Heap-allocating once at
+    // startup is fine.
+    Box::pin(finish_server(server, cli, /* with_arrow = */ false)).await
 }
 
 #[cfg(not(feature = "wire-backend"))]
@@ -409,11 +412,14 @@ async fn dispatch_server(
 ) -> anyhow::Result<()> {
     use fraiseql_server::url_guard::{DatabaseScheme, parse_database_url};
 
+    // Box::pin each arm: the per-scheme server-setup futures exceed clippy's
+    // `large_futures` 16-KiB threshold once optional subsystems (observers, MCP,
+    // multiple adapters) are enabled. Heap-allocating once at startup is fine.
     match parse_database_url(&config.database_url)? {
-        DatabaseScheme::Postgres => run_postgres(config, schema, cli).await,
-        DatabaseScheme::MySql => run_mysql(config, schema, cli).await,
-        DatabaseScheme::Sqlite => run_sqlite(config, schema, cli).await,
-        DatabaseScheme::SqlServer => run_sqlserver(config, schema, cli).await,
+        DatabaseScheme::Postgres => Box::pin(run_postgres(config, schema, cli)).await,
+        DatabaseScheme::MySql => Box::pin(run_mysql(config, schema, cli)).await,
+        DatabaseScheme::Sqlite => Box::pin(run_sqlite(config, schema, cli)).await,
+        DatabaseScheme::SqlServer => Box::pin(run_sqlserver(config, schema, cli)).await,
     }
 }
 

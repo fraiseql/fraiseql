@@ -139,3 +139,35 @@ mod tools_tests {
         assert_eq!(required[0], "id");
     }
 }
+
+mod handler_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::super::handler::extract_bearer;
+
+    #[test]
+    fn extract_bearer_returns_token_for_well_formed_header() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::AUTHORIZATION, "Bearer abc.def.ghi".parse().unwrap());
+        assert_eq!(extract_bearer(&headers), Some("abc.def.ghi".to_string()));
+    }
+
+    #[test]
+    fn extract_bearer_none_when_header_missing() {
+        assert_eq!(extract_bearer(&http::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn extract_bearer_none_for_non_bearer_scheme() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::AUTHORIZATION, "Basic dXNlcjpwYXNz".parse().unwrap());
+        assert_eq!(extract_bearer(&headers), None);
+    }
+
+    #[test]
+    fn extract_bearer_none_for_empty_token() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::AUTHORIZATION, "Bearer    ".parse().unwrap());
+        assert_eq!(extract_bearer(&headers), None);
+    }
+}

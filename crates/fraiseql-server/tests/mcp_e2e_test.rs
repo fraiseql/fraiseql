@@ -8,11 +8,13 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test functions
 #![cfg(feature = "mcp")]
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
+use chrono::Utc;
 use fraiseql_core::{
     runtime::Executor,
-    schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig},
+    schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig, SecurityConfig},
+    security::SecurityContext,
 };
 use fraiseql_server::mcp::{executor, handler::FraiseQLMcpService, tools};
 use fraiseql_test_utils::{
@@ -192,7 +194,8 @@ async fn mcp_e2e_tool_call_query() {
     let args = json!({ "limit": 10 });
     let args_map = args.as_object().unwrap();
 
-    let result = executor::call_tool("users", Some(args_map), &schema, &executor).await;
+    let result =
+        executor::call_tool("users", Some(args_map), &schema, &executor, None, false).await;
 
     // Should NOT be an error
     assert!(
@@ -210,7 +213,7 @@ async fn mcp_e2e_tool_call_query() {
 async fn mcp_e2e_tool_call_query_no_args() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result = executor::call_tool("users", None, &schema, &executor).await;
+    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
 
     assert!(
         result.is_error != Some(true),
@@ -229,7 +232,8 @@ async fn mcp_e2e_tool_call_query_no_args() {
 async fn mcp_e2e_tool_call_unknown_tool() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result = executor::call_tool("nonExistentTool", None, &schema, &executor).await;
+    let result =
+        executor::call_tool("nonExistentTool", None, &schema, &executor, None, false).await;
 
     assert_eq!(result.is_error, Some(true), "Expected is_error for unknown tool");
 
@@ -249,7 +253,8 @@ async fn mcp_e2e_tool_call_invalid_argument_name() {
     let args = json!({ "limit: 99) { __typename } #": 1 });
     let args_map = args.as_object().unwrap();
 
-    let result = executor::call_tool("users", Some(args_map), &schema, &executor).await;
+    let result =
+        executor::call_tool("users", Some(args_map), &schema, &executor, None, false).await;
 
     assert_eq!(result.is_error, Some(true), "Expected is_error for injection attempt",);
 
@@ -265,7 +270,8 @@ async fn mcp_e2e_tool_call_mutation() {
     let args = json!({ "name": "Alice", "email": "alice@example.com" });
     let args_map = args.as_object().unwrap();
 
-    let result = executor::call_tool("createUser", Some(args_map), &schema, &executor).await;
+    let result =
+        executor::call_tool("createUser", Some(args_map), &schema, &executor, None, false).await;
 
     // FailingAdapter may return an error for mutations (no canned response),
     // but the MCP layer should handle it gracefully (not panic).
@@ -293,4 +299,113 @@ fn mcp_e2e_scalar_fields_unknown_type() {
     let schema = build_test_schema();
     let fields = executor::scalar_fields_for_type("NonExistentType", &schema);
     assert!(fields.is_empty());
+}
+
+// ===========================================================================
+// Security — RLS / auth enforcement on the MCP path
+// ===========================================================================
+
+/// Build a security context standing in for an authenticated MCP caller.
+fn test_security_context() -> SecurityContext {
+    SecurityContext {
+        user_id:          "mcp-user".into(),
+        roles:            vec![],
+        tenant_id:        Some("tenant-1".into()),
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "mcp-test".to_string(),
+        ip_address:       None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: Utc::now(),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// Build a schema whose compiled security config has a non-empty RLS policy
+/// list, so [`CompiledSchema::has_rls_configured`] returns `true`.
+fn build_rls_schema() -> CompiledSchema {
+    let mut schema = build_test_schema();
+    let mut additional = HashMap::new();
+    additional.insert("policies".to_string(), serde_json::json!([{ "name": "tenant_isolation" }]));
+    schema.security = Some(SecurityConfig {
+        additional,
+        ..SecurityConfig::default()
+    });
+    assert!(schema.has_rls_configured(), "test schema must report RLS configured");
+    schema
+}
+
+/// `require_auth = true` with no security context must fail closed, even when
+/// the schema itself has no RLS policy.
+#[tokio::test]
+async fn mcp_call_tool_refuses_without_context_when_require_auth() {
+    let (_, schema, executor) = make_mcp_service();
+
+    let result = executor::call_tool("users", None, &schema, &executor, None, true).await;
+
+    assert_eq!(
+        result.is_error,
+        Some(true),
+        "MCP must fail closed when require_auth and no security context: {:?}",
+        result.content,
+    );
+    let text = format!("{:?}", result.content);
+    assert!(
+        text.contains("Authentication required"),
+        "Expected an authentication-required message: {text}",
+    );
+}
+
+/// A schema with RLS configured must fail closed without a security context,
+/// even when `require_auth = false` — running it unauthenticated would bypass
+/// tenant isolation.
+#[tokio::test]
+async fn mcp_call_tool_refuses_without_context_when_rls_configured() {
+    let schema = Arc::new(build_rls_schema());
+    let adapter = Arc::new(FailingAdapter::new());
+    let executor = Arc::new(Executor::new((*schema).clone(), adapter));
+
+    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
+
+    assert_eq!(
+        result.is_error,
+        Some(true),
+        "MCP must fail closed when RLS is configured and no security context: {:?}",
+        result.content,
+    );
+}
+
+/// With a security context present, the call is allowed and routed through the
+/// authenticated executor path (no fail-closed refusal).
+#[tokio::test]
+async fn mcp_call_tool_allows_with_security_context() {
+    let (_, schema, executor) = make_mcp_service();
+    let ctx = test_security_context();
+
+    let result = executor::call_tool("users", None, &schema, &executor, Some(&ctx), true).await;
+
+    assert!(
+        result.is_error != Some(true),
+        "Expected success when a security context is supplied: {:?}",
+        result.content,
+    );
+    assert!(!result.content.is_empty(), "Expected non-empty content");
+}
+
+/// A non-RLS schema with `require_auth = false` still runs unauthenticated
+/// (development convenience) — the fail-closed gate must not over-trigger.
+#[tokio::test]
+async fn mcp_call_tool_allows_unauthenticated_when_not_required() {
+    let (_, schema, executor) = make_mcp_service();
+
+    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
+
+    assert!(
+        result.is_error != Some(true),
+        "Non-RLS, require_auth=false must run unauthenticated: {:?}",
+        result.content,
+    );
 }
