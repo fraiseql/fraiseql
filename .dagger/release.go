@@ -170,3 +170,56 @@ func (m *FraiseqlCi) PublishOrderSelftest(
 	return fmt.Sprintf("publish-order OK: %d publishable crates, valid topological order\n  %s\n",
 		len(legacyPublishOrder), strings.Join(legacyPublishOrder, " → ")), nil
 }
+
+// PublishDryRun runs `cargo publish --dry-run` for every publishable crate in
+// publish order, mirroring release.yml's "Dry-run publish for every publishable
+// crate" gate — the upstream check added after v2.3.0/v2.3.1 shipped tags whose
+// publish then failed (packaging-rule regressions: gitignored files or build.rs
+// side effects swept into the .crate tarball). Like the legacy gate it does NOT
+// fail fast: it dry-runs all crates, prints the tail of any that fail, and exits
+// non-zero at the end if any failed, so one run surfaces every packaging problem.
+//
+// No registry token is needed — `--dry-run` packages and verify-builds but never
+// contacts the upload endpoint — so this is safe to run locally before tagging.
+// Sibling path dependencies resolve to the local crates, so an as-yet-unpublished
+// new version dry-runs cleanly.
+//
+// expectVersion, when set, asserts the workspace `[workspace.package]` version
+// matches first — a guard against tagging vX while Cargo.toml still says vY.
+func (m *FraiseqlCi) PublishDryRun(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// +optional
+	expectVersion string,
+) (string, error) {
+	script := strings.Join([]string{
+		"set -uo pipefail",
+		fmt.Sprintf("EXPECT=%q", expectVersion),
+		`if [ -n "$EXPECT" ]; then`,
+		`  ACTUAL=$(grep -m1 -E '^version[[:space:]]*=' Cargo.toml | sed -E 's/.*"([^"]*)".*/\1/')`,
+		`  if [ "$ACTUAL" != "$EXPECT" ]; then`,
+		`    echo "❌ version mismatch: [workspace.package] version is $ACTUAL, expected $EXPECT"; exit 1`,
+		`  fi`,
+		`  echo "✅ workspace version $ACTUAL matches expected"`,
+		`fi`,
+		"FAILED=0",
+		fmt.Sprintf("for c in %s; do", strings.Join(legacyPublishOrder, " ")),
+		`  echo "===== dry-run publish: $c ====="`,
+		`  log="/tmp/dryrun-$c.log"`,
+		`  if cargo publish --dry-run -p "$c" > "$log" 2>&1; then`,
+		`    echo "OK: $c"`,
+		`  else`,
+		`    echo "FAIL: $c (exit $?)"`,
+		`    tail -40 "$log"`,
+		`    FAILED=1`,
+		`  fi`,
+		"done",
+		`if [ "$FAILED" -ne 0 ]; then echo "❌ one or more crates failed dry-run publish"; exit 1; fi`,
+		fmt.Sprintf(`echo "✅ publish-dry-run OK: all %d crates passed"`, len(legacyPublishOrder)),
+	}, "\n")
+
+	return m.rustSrc(source).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
