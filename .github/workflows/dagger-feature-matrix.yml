@@ -2,21 +2,22 @@ name: Dagger — feature matrix
 
 # Phase 05 feature-flag check matrix (Track 0). Ports feature-flags.yml's
 # `cargo check --features …` combos (feature-matrix / database-matrix /
-# storage-matrix / functions-matrix) onto one parameterized Dagger fn
-# (`dagger call feature-check --combo=X`), with the combo list as typed Go data
-# (.dagger/feature-combos.go). cargo check / clippy only — no test binaries, so NO
-# backing services: this matrix is immune to the Docker Hub anonymous pull
-# rate-limit that gates the integration suites (it only pulls the cached rust:1.92).
-# Runs on the self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's
-# cargo/target/sccache cache volumes (warm = fast). See parity-notes.md Phase 05.
+# storage-matrix / functions-matrix) onto one parameterized Dagger fn, with the
+# combo list as typed Go data (.dagger/feature-combos.go). cargo check / clippy only
+# — no test binaries, so NO backing services: this matrix is immune to the Docker Hub
+# anonymous pull rate-limit that gates the integration suites (it only pulls the
+# cached rust:1.92). Runs on the self-hosted runner (fraiseql-8core) at ~$0/min,
+# reusing the box's cargo/sccache cache volumes (warm = fast). See parity-notes.md.
 #
-# The `check` matrix is GENERATED from the Go combo list: the `list` job runs
-# `dagger call list-combos` and the `check` job expands it via fromJSON. Adding a
-# combo is a one-line Go struct literal in feature-combos.go — no YAML edit, the new
-# combo appears as its own CI status row automatically.
-#
-# max-parallel: 1 — the box is RAM-bound (31 GiB) and every combo shares one target
-# cache volume (cargo's per-target build lock would serialize them regardless).
+# ONE job, `dagger call feature-matrix`, which fans the combos across N lanes
+# (featureMatrixLanes in feature-combos.go), each lane on its own target cache volume
+# so cargo's per-target build lock never serializes across lanes. sccache (shared) backs
+# cross-lane object reuse. This supersedes the old per-combo `strategy.matrix` (which
+# could only run serially on the single runner): combos now run concurrently in one job.
+# Trade-off: the 33 per-combo GH status rows collapse to one check — the job log lists
+# every combo's pass/fail in declaration order, and a failure names each bad combo.
+# Adding a combo is still a one-line Go struct literal in feature-combos.go.
+# `dagger call feature-check --combo=X` remains for local single-combo runs.
 #
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
@@ -30,38 +31,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  list:
-    name: list combos
-    runs-on: [self-hosted, fraiseql-8core]
-    timeout-minutes: 10
-    outputs:
-      combos: ${{ steps.gen.outputs.combos }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - id: gen
-        name: dagger call list-combos
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          dagger version
-          combos=$(dagger call list-combos)
-          echo "combos=$combos" >> "$GITHUB_OUTPUT"
-
-  check:
-    name: check (${{ matrix.combo }})
-    needs: list
+  matrix:
+    name: feature matrix
     runs-on: [self-hosted, fraiseql-8core]
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        combo: ${{ fromJSON(needs.list.outputs.combos) }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      - name: dagger call feature-check --combo=${{ matrix.combo }}
+      - name: dagger call feature-matrix
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           dagger version
-          dagger call feature-check --source=. --combo=${{ matrix.combo }}
+          dagger call feature-matrix --source=.

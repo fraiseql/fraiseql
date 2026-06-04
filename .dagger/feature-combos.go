@@ -17,18 +17,22 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
+	"sync"
 
 	"dagger/fraiseql-ci/internal/dagger"
 )
 
-// featureTargetVol is the shared target cache volume for every feature-check combo.
-// Kept apart from the Phase-02 gate / Phase-03 unit-test / Phase-04 integration
-// caches: those hold `--all-features` or test artifacts, whereas the feature combos
-// compile narrow `--no-default-features` slices. All combos share this one volume
-// (the matrix runs serially, so a warm cache is reused combo-to-combo; sccache backs
-// the cross-feature object reuse for the unchanged upstream dependency graph).
+// featureTargetVol is the BASE name of the feature-check target cache volume. Single
+// combo runs (FeatureCheck) mount it directly; the parallel FeatureMatrix derives one
+// "<base>-lane-N" volume per worker so concurrent combos never contend on cargo's
+// per-target build lock. Kept apart from the Phase-02 gate / Phase-03 unit-test /
+// Phase-04 integration caches (those hold `--all-features` or test artifacts). sccache
+// (a separate shared volume) backs cross-combo/cross-lane object reuse for the
+// unchanged upstream dependency graph.
 const featureTargetVol = "fraiseql-rust-target-features-1-92"
 
 // featureCombo is one entry of the feature-flag check matrix: a crate plus the
@@ -158,20 +162,35 @@ func lookupCombo(name string) (featureCombo, error) {
 	return featureCombo{}, fmt.Errorf("unknown feature combo %q (known: %s)", name, strings.Join(comboNames(), ", "))
 }
 
-// featureBase mounts the source on the MSRV rustBase with the shared feature-check
+// featureBase mounts the source on the MSRV rustBase with the given feature-check
 // target cache volume. Reuses the Phase-02 rustBase (toolchain + native deps + mold +
-// sccache + cargo registry/git caches).
-func (m *FraiseqlCi) featureBase(source *dagger.Directory) *dagger.Container {
+// sccache + cargo registry/git caches). The target volume is a parameter so the
+// parallel FeatureMatrix can give each lane its own (avoiding cargo's per-target build
+// lock); single-combo FeatureCheck passes the shared featureTargetVol.
+func (m *FraiseqlCi) featureBase(source *dagger.Directory, targetVol string) *dagger.Container {
 	return m.rustBaseFor(rustMsrv).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(featureTargetVol))
+		WithMountedCache("/src/target", dag.CacheVolume(targetVol))
+}
+
+// comboResultMarker is the OK/FAIL line runCombo's script prints; the Go layer parses
+// it instead of relying on the cargo exit code (see runCombo for why).
+func comboResultMarker(name, status string) string {
+	return "=== COMBO-RESULT " + name + ": " + status + " ==="
+}
+
+// comboOK reports whether a runCombo output carries the success marker for `name`.
+func comboOK(name, out string) bool {
+	return strings.Contains(out, comboResultMarker(name, "OK"))
 }
 
 // FeatureCheck compiles one named feature combo with `cargo check` (or `cargo clippy`
-// for the functions combos) and returns its output. It is the per-combo unit the
-// self-hosted `dagger-feature-matrix.yml` calls once per matrix entry. An unknown
-// combo name fails fast with the list of known names.
+// for the functions combos) and returns its output. Still callable standalone
+// (`dagger call feature-check --combo=X`) for local single-combo runs on the shared
+// target volume; the CI matrix now goes through FeatureMatrix. An unknown combo name
+// fails fast with the list of known names; a compile failure returns the captured cargo
+// output as the error.
 func (m *FraiseqlCi) FeatureCheck(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -182,14 +201,36 @@ func (m *FraiseqlCi) FeatureCheck(
 	if err != nil {
 		return "", err
 	}
-
-	cmd := strings.Join(c.cargoArgs(), " ")
-	lines := []string{
-		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
-		fmt.Sprintf("echo '### feature-check: %s'", c.name),
-		"echo '### " + cmd + "'",
+	out, err := m.runCombo(ctx, source, c, featureTargetVol)
+	if err != nil {
+		return out, err
 	}
+	if !comboOK(c.name, out) {
+		return out, fmt.Errorf("feature-check %s FAILED:\n%s", c.name, out)
+	}
+	return out, nil
+}
+
+// runCombo compiles one combo on the given target cache volume and returns its output.
+// Factored out of FeatureCheck so the parallel FeatureMatrix can run each lane on its
+// own target volume while single-combo FeatureCheck keeps the shared one.
+//
+// The compile runs in a captured subshell that ALWAYS exits 0; the pass/fail is encoded
+// in a `COMBO-RESULT` marker line the caller parses. Why not let a non-zero `cargo` exit
+// fail the WithExec? Because Dagger then surfaces ITS exec error in the TUI and discards
+// FeatureMatrix's returned report — so a failing combo's cargo error would be buried in
+// interleaved per-lane TUI output instead of the clean, ordered report. Exiting 0 + a
+// marker keeps the full per-combo detail in the function's own output. On success the
+// cargo output is suppressed (just the marker) to keep green logs compact; on failure the
+// captured output is printed in full.
+func (m *FraiseqlCi) runCombo(
+	ctx context.Context,
+	source *dagger.Directory,
+	c featureCombo,
+	targetVol string,
+) (string, error) {
+	cmd := strings.Join(c.cargoArgs(), " ")
+	var setup string
 	if c.clippy {
 		// rustBaseFor pins RUSTUP_TOOLCHAIN=1.92, but rustBase installs clippy on the
 		// base image's *default* toolchain — not the instance RUSTUP_TOOLCHAIN selects
@@ -198,24 +239,43 @@ func (m *FraiseqlCi) FeatureCheck(
 		// Scoped here, not in rustBase: the Phase-02 clippy/fmt gates use rustBase()
 		// directly (no RUSTUP_TOOLCHAIN) and are unaffected; only these clippy combos hit
 		// the gap. Promote to rustBase if a future phase runs clippy under rustBaseFor.
-		lines = append(lines, "rustup component add clippy")
+		setup = "rustup component add clippy >/dev/null\n"
 	}
-	lines = append(lines, cmd, fmt.Sprintf("echo 'feature-check OK: %s'", c.name))
-	script := strings.Join(lines, "\n")
+	script := fmt.Sprintf(`set -e
+echo "### toolchain: $(rustc --version)"
+echo '### feature-check: %[1]s'
+echo '### %[2]s'
+%[3]sset +e
+out=$(%[2]s 2>&1); rc=$?
+set -e
+if [ "$rc" = "0" ]; then
+  echo '%[4]s'
+else
+  printf '%%s\n' "$out"
+  echo '%[5]s'
+fi
+exit 0`, c.name, cmd, setup, comboResultMarker(c.name, "OK"), comboResultMarker(c.name, "FAIL"))
 
-	return m.featureBase(source).
+	return m.featureBase(source, targetVol).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
 
-// FeatureMatrix runs every combo and returns a pass/fail summary. It runs SERIALLY
-// over the single shared feature-check target cache volume — a deliberate divergence
-// from the plan's errgroup/--max-parallel design:
-//   - cost over speed is a hard project rule (the self-hosted runner is ~$0/min);
-//   - cargo holds a per-target build lock, so combos sharing one target volume would
-//     serialize on it anyway — real parallelism would need a target volume per worker,
-//     multiplying disk on a disk-pressured box;
-//   - CI runs one job per combo at max-parallel:1 regardless (RAM-bound box).
+// featureMatrixLanes bounds how many combos compile concurrently in FeatureMatrix.
+// Sized for the self-hosted box (i7-13700K, 24 threads, 31 GiB): `cargo check` is light
+// (no final-binary codegen) and sccache (a shared volume) serves cross-lane object
+// reuse, so 3 lanes peak well under the RAM ceiling — leaving headroom for a second leg
+// running concurrently on a 2nd runner. Each lane gets its OWN target cache volume, so
+// cargo's per-target build lock never serializes across lanes (the reason the previous
+// design ran serially over one shared volume).
+const featureMatrixLanes = 3
+
+// FeatureMatrix runs every combo and returns a pass/fail summary. It fans the combos
+// across featureMatrixLanes workers, each pinned to its own target cache volume, so the
+// matrix is no longer serialized by the shared-volume cargo build lock. This is the
+// single self-hosted `dagger-feature-matrix.yml` job (one GH status row); the per-combo
+// pass/fail still appears in this report in declaration order, and a failure names every
+// bad combo.
 //
 // fail-fast is OFF (every combo runs even after one fails), matching feature-flags.yml's
 // `fail-fast: false`, so a single run reports the full matrix.
@@ -224,26 +284,78 @@ func (m *FraiseqlCi) FeatureMatrix(
 	// +ignore=["target", "**/target", ".git"]
 	source *dagger.Directory,
 ) (string, error) {
-	var report strings.Builder
-	var failed []string
+	type comboResult struct {
+		name string
+		out  string
+		err  error
+	}
 
-	for _, c := range featureCombos {
-		out, err := m.FeatureCheck(ctx, source, c.name)
-		if err != nil {
-			failed = append(failed, c.name)
-			fmt.Fprintf(&report, "\n===== %s (FAILED) =====\n%s\n%v\n", c.name, out, err)
-			continue
+	jobs := make(chan featureCombo)
+	results := make(chan comboResult)
+
+	// Each lane owns a dedicated target volume; combos are pulled off a shared queue so
+	// fast combos don't idle a lane waiting on a slow one (work-stealing, not round-robin).
+	var wg sync.WaitGroup
+	for lane := 0; lane < featureMatrixLanes; lane++ {
+		wg.Add(1)
+		go func(lane int) {
+			defer wg.Done()
+			targetVol := fmt.Sprintf("%s-lane-%d", featureTargetVol, lane)
+			for c := range jobs {
+				out, err := m.runCombo(ctx, source, c, targetVol)
+				results <- comboResult{name: c.name, out: out, err: err}
+			}
+		}(lane)
+	}
+
+	go func() {
+		for _, c := range featureCombos {
+			jobs <- c
 		}
-		fmt.Fprintf(&report, "\n===== %s (ok) =====\n%s\n", c.name, out)
+		close(jobs)
+	}()
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	reports := make(map[string]string)
+	var failed []string
+	for r := range results {
+		switch {
+		case r.err != nil:
+			// Infra error (engine / Stdout), not a compile failure — runCombo's script
+			// exits 0, so this is rare (e.g. the container couldn't start).
+			failed = append(failed, r.name)
+			reports[r.name] = fmt.Sprintf("\n===== %s (ERROR) =====\n%s\n%v\n", r.name, r.out, r.err)
+		case !comboOK(r.name, r.out):
+			failed = append(failed, r.name)
+			reports[r.name] = fmt.Sprintf("\n===== %s (FAILED) =====\n%s\n", r.name, r.out)
+		default:
+			// Compact on success: the marker, not the (suppressed) cargo output.
+			reports[r.name] = fmt.Sprintf("===== %s (ok) =====\n", r.name)
+		}
+	}
+
+	// Emit in declaration order (stable, matches the combo table) regardless of the
+	// order lanes finished in.
+	var report strings.Builder
+	for _, c := range featureCombos {
+		report.WriteString(reports[c.name])
 	}
 
 	if len(failed) > 0 {
-		fmt.Fprintf(&report, "\nfeature-matrix FAILED: %d/%d combos failed: %s\n",
+		sort.Strings(failed)
+		fmt.Fprintf(&report, "\nfeature-matrix FAILED: %d/%d combo(s) failed: %s\n",
 			len(failed), len(featureCombos), strings.Join(failed, ", "))
-		return report.String(), fmt.Errorf("feature-matrix: %d combo(s) failed: %s",
-			len(failed), strings.Join(failed, ", "))
+		// Every combo's WithExec exits 0 (pass/fail is in the COMBO-RESULT marker), so no
+		// Dagger exec error shadows this — `dagger call` prints THIS report (each failed
+		// combo's `===== name (FAILED) =====` block carries its full cargo error) as the
+		// error, landing it cleanly at the tail of the CI log for `gh run view --log-failed`.
+		return "", errors.New(report.String())
 	}
-	fmt.Fprintf(&report, "\nfeature-matrix OK: all %d combos passed\n", len(featureCombos))
+	fmt.Fprintf(&report, "\nfeature-matrix OK: all %d combos passed across %d lanes\n",
+		len(featureCombos), featureMatrixLanes)
 	return report.String(), nil
 }
 
