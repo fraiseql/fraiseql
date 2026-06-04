@@ -145,6 +145,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on this same path. The scan now recurses into inline fragments, reusing the
   `selections_contain_field` helper the query projector already uses.
 
+- **Aliased query fields now read from their source JSONB column (#418).** The
+  query SQL projector derived a field's JSONB key from its *response* key
+  (`to_snake_case` of the alias), so an aliased field like `myName: fullName`
+  generated `data->>'my_name'` and read the wrong (nonexistent) column —
+  returning null where the un-aliased query worked. `ProjectionField` now
+  carries a `source` (the GraphQL field name that drives the JSONB key) distinct
+  from `name` (the output/response key): the column is read from `source` and the
+  value emitted under `name`. The mutation projector was already correct after
+  #410.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,
