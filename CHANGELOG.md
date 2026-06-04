@@ -135,6 +135,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   does — so factoring mutation fields into a fragment (or guarding them with a
   directive) now behaves identically to a query.
 
+- **Mutation error fallback now detects `__typename` inside inline fragments
+  (#419).** When a mutation's error outcome has no matching error type declared
+  in the return union, the response carries just `__typename` (plus the synthetic
+  `status`), and only when the client selects `__typename`. That selection scan
+  was top-level only, so a client that nested `__typename` inside an inline
+  fragment — `... on SomeError { __typename }` — was silently denied it, even
+  though #410 already resolves named fragment spreads and `@skip` / `@include`
+  on this same path. The scan now recurses into inline fragments, reusing the
+  `selections_contain_field` helper the query projector already uses.
+
 ### Changed
 
 - Upgraded the RustCrypto hashing stack jointly (#300): `sha1 0.10 → 0.11`,

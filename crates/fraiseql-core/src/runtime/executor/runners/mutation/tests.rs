@@ -476,6 +476,118 @@ mod mutation {
         assert!(data.get("bio").is_none(), "unselected field 'bio' must be omitted");
     }
 
+    /// Mock adapter that returns a failed `mutation_response` row (an error
+    /// outcome with no entity), driving the executor down the mutation-error
+    /// fallback path.
+    struct MutationErrorMockAdapter;
+
+    #[async_trait]
+    impl DatabaseAdapter for MutationErrorMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(false));
+            row.insert("state_changed".to_string(), json!(false));
+            row.insert("error_class".to_string(), json!("conflict"));
+            row.insert("message".to_string(), json!("already exists"));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for MutationErrorMockAdapter {}
+
+    /// The mutation-error fallback (no matching error type declared in the return
+    /// union) emits `__typename` only when the client selects it. That detection
+    /// must recurse into inline fragments — `... on T { __typename }` — exactly
+    /// like the query projector does, so a client that nests `__typename` inside
+    /// an inline fragment still gets it. Regression test for #419.
+    #[tokio::test]
+    async fn test_mutation_error_fallback_detects_typename_in_inline_fragment() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        // `__typename` is selected ONLY inside an inline fragment, never at the
+        // top level of the mutation selection set.
+        let result = executor
+            .execute("mutation { createUser { ... on User { __typename } } }", None)
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("User"),
+            "error fallback must surface __typename selected inside an inline fragment"
+        );
+    }
+
     // ── Three-state field semantics (issue #221) ───────────────────────────
     //
     // Update mutations must preserve the absent/null/value distinction.

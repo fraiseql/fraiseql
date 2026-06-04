@@ -11,7 +11,10 @@ use std::sync::Arc;
 
 use fraiseql_db::ViewName;
 
-use super::super::{context::ExecutorContext, resolve_inject_value};
+use super::{
+    super::{context::ExecutorContext, resolve_inject_value},
+    query_projection::selections_contain_field,
+};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
@@ -529,7 +532,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 project_entity(&metadata, td.name.as_str(), selections, &ctx.schema)
             } else {
                 let mut map = serde_json::Map::new();
-                if selections.iter().any(|s| s.name == "__typename") {
+                // Scan recursively: `__typename` may be nested inside an inline
+                // fragment (`... on T { __typename }`), not just at the top level.
+                if selections_contain_field(selections, "__typename") {
                     map.insert(
                         "__typename".to_string(),
                         serde_json::Value::String(mutation_return_type.clone()),
