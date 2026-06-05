@@ -69,6 +69,11 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          # GitHub runs `shell: bash` with `-e`, which would abort this loop at the
+          # first crate whose dry-run exits non-zero — before the per-crate status
+          # capture and first-publish-sibling tolerance below ever run, defeating
+          # the collect-all design. Disable errexit; the loop tracks FAILED itself.
+          set +e
           CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
