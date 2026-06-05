@@ -435,6 +435,15 @@ lint-tests-layout:
 	fi; \
 	echo "OK: no inline test blocks in workspace src/"
 
+# Unit tests for the release tooling (tools/release.sh shell libs). Pure bash, no
+# toolchain — wired into the Dagger ShellGates so the release-cut helpers (tag-note
+# extraction, internal floor bump, dry-run first-publish-sibling tolerance) cannot
+# silently bit-rot.
+.PHONY: test-release-tooling
+test-release-tooling:
+	@bash tools/tests/release_helpers_test.sh
+	@bash tools/tests/dry_run_tolerance_test.sh
+
 # Gate: ensure no axum 0.7-style `:param` captures slip back into `.route()` calls.
 # Issue #316 prevention — see `tools/check-route-syntax.sh` for the load-bearing multi-line awk.
 .PHONY: lint-routes

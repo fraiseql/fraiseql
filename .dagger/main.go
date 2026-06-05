@@ -216,6 +216,7 @@ func (m *FraiseqlCi) ShellGates(
 		"make lint-async-trait",
 		"make lint-gate-db",
 		"make lint-gate-core",
+		"make test-release-tooling",
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
 	}, "\n")
