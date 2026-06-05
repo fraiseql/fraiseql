@@ -12,6 +12,17 @@ use sqlx::PgPool;
 
 use crate::backend::types::ObjectInfo;
 
+/// Escape the PostgreSQL `LIKE` metacharacters (`%`, `_`) and the escape
+/// character (`\`) in a client-supplied key prefix so it is matched as a
+/// literal string.
+///
+/// Intended for use with an explicit `ESCAPE '\'` clause. The backslash is
+/// replaced first so it cannot accidentally escape a metacharacter introduced
+/// by a later replacement.
+fn escape_like_prefix(prefix: &str) -> String {
+    prefix.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 /// A row from the `_fraiseql_storage_objects` table.
 #[derive(Debug, Clone)]
 pub struct StorageMetadataRow {
@@ -165,16 +176,20 @@ impl StorageMetadataRepo {
     ) -> Result<Vec<StorageMetadataRow>, FraiseQLError> {
         let rows = match prefix {
             Some(pfx) => {
+                // #339: `prefix` is a literal key prefix, not a LIKE pattern.
+                // Escape the LIKE metacharacters in the client-supplied value
+                // and pin the escape character so `%` / `_` / `\` match
+                // literally and cannot be used to widen the match.
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
                             size_bytes, etag, owner_id, created_at, updated_at \
                      FROM _fraiseql_storage_objects \
-                     WHERE bucket = $1 AND key LIKE $2 \
+                     WHERE bucket = $1 AND key LIKE $2 ESCAPE '\\' \
                      ORDER BY key ASC \
                      LIMIT $3 OFFSET $4",
                 )
                 .bind(bucket)
-                .bind(format!("{pfx}%"))
+                .bind(format!("{}%", escape_like_prefix(pfx)))
                 .bind(i64::from(limit))
                 .bind(i64::from(offset))
                 .fetch_all(&self.pool)

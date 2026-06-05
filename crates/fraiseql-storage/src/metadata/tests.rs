@@ -4,7 +4,20 @@
 
 use sqlx::PgPool;
 
-use super::{NewStorageObject, StorageMetadataRepo};
+use super::{NewStorageObject, StorageMetadataRepo, escape_like_prefix};
+
+#[test]
+fn escape_like_prefix_escapes_metacharacters() {
+    // #339: %, _ and \ are escaped so the prefix matches literally.
+    assert_eq!(escape_like_prefix("a%"), "a\\%");
+    assert_eq!(escape_like_prefix("a_"), "a\\_");
+    assert_eq!(escape_like_prefix("a\\"), "a\\\\");
+    // Backslash is escaped first, so an existing escape sequence is preserved
+    // rather than collapsed.
+    assert_eq!(escape_like_prefix("a\\%"), "a\\\\\\%");
+    // Ordinary prefixes are unchanged.
+    assert_eq!(escape_like_prefix("docs/"), "docs/");
+}
 
 /// DDL for the metadata table, used by tests and later exposed as migration SQL.
 const CREATE_TABLE_DDL: &str = r"
@@ -111,6 +124,58 @@ async fn test_list_metadata_with_prefix() {
     let rows = repo.list("bucket", Some("docs/"), 100, 0).await.unwrap();
     assert_eq!(rows.len(), 2, "only docs/ prefix objects should match");
     assert!(rows.iter().all(|r| r.key.starts_with("docs/")));
+}
+
+#[tokio::test]
+async fn test_list_prefix_treats_percent_literally() {
+    // #339: the `prefix` argument is a literal key prefix, not a LIKE pattern.
+    // A `%` in the prefix must match a literal percent sign, never act as a
+    // wildcard. Unescaped, prefix "a%" becomes `LIKE 'a%%'` and matches every
+    // key beginning with "a".
+    let (pool, _container) = setup_pg().await;
+    let repo = StorageMetadataRepo::new(pool);
+
+    for key in ["a%b", "axb", "acb"] {
+        repo.insert(&sample_object("bucket", key)).await.unwrap();
+    }
+
+    let rows = repo.list("bucket", Some("a%"), 100, 0).await.unwrap();
+    assert_eq!(rows.len(), 1, "prefix 'a%' must match only the literal 'a%' prefix");
+    assert_eq!(rows[0].key, "a%b");
+}
+
+#[tokio::test]
+async fn test_list_prefix_treats_underscore_literally() {
+    // #339: a `_` in the prefix must match a literal underscore, never the
+    // LIKE single-character wildcard. Unescaped, prefix "a_" becomes
+    // `LIKE 'a_%'` and matches every key whose second character is anything.
+    let (pool, _container) = setup_pg().await;
+    let repo = StorageMetadataRepo::new(pool);
+
+    for key in ["a_b", "axb"] {
+        repo.insert(&sample_object("bucket", key)).await.unwrap();
+    }
+
+    let rows = repo.list("bucket", Some("a_"), 100, 0).await.unwrap();
+    assert_eq!(rows.len(), 1, "prefix 'a_' must match only the literal 'a_' prefix");
+    assert_eq!(rows[0].key, "a_b");
+}
+
+#[tokio::test]
+async fn test_list_prefix_treats_backslash_literally() {
+    // #339: a `\` in the prefix must match a literal backslash. With an
+    // `ESCAPE '\'` clause the prefix itself must be escaped so a trailing
+    // backslash cannot escape the appended `%` wildcard.
+    let (pool, _container) = setup_pg().await;
+    let repo = StorageMetadataRepo::new(pool);
+
+    for key in ["a\\b", "axb"] {
+        repo.insert(&sample_object("bucket", key)).await.unwrap();
+    }
+
+    let rows = repo.list("bucket", Some("a\\"), 100, 0).await.unwrap();
+    assert_eq!(rows.len(), 1, "prefix 'a\\' must match only the literal 'a\\' prefix");
+    assert_eq!(rows[0].key, "a\\b");
 }
 
 #[tokio::test]
