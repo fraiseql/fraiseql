@@ -181,8 +181,17 @@ func (m *FraiseqlCi) PublishOrderSelftest(
 //
 // No registry token is needed — `--dry-run` packages and verify-builds but never
 // contacts the upload endpoint — so this is safe to run locally before tagging.
-// Sibling path dependencies resolve to the local crates, so an as-yet-unpublished
-// new version dry-runs cleanly.
+//
+// The verify build resolves each crate's dependencies from crates.io, NOT from the
+// local workspace paths. So during a synchronized version bump the not-yet-published
+// new sibling versions are unresolvable, and a crate that depends on one fails its
+// dry-run with "no matching package named X" / "failed to select a version for X".
+// That is expected and benign — the ordered publish ships those siblings first — so
+// dry_run_failure_is_tolerable (tools/lib/, unit-tested) downgrades it to a WARN when
+// every unresolved package is one of our own publishable crates and the failure is a
+// packaging-prep failure, not a compile error. Everything else still hard-fails. This
+// matches release.yml's tolerance (v2.4.0 hit exactly this with fraiseql-codegen and
+// the synchronized 2.4.0 bump).
 //
 // expectVersion, when set, asserts the workspace `[workspace.package]` version
 // matches first — a guard against tagging vX while Cargo.toml still says vY.
@@ -195,6 +204,10 @@ func (m *FraiseqlCi) PublishDryRun(
 ) (string, error) {
 	script := strings.Join([]string{
 		"set -uo pipefail",
+		// Plain (uncoloured) cargo output so the tolerance greps match reliably.
+		"export CARGO_TERM_COLOR=never",
+		// First-publish-sibling tolerance lives in a tested shell lib in the source.
+		"source tools/lib/dry_run_tolerance.sh",
 		fmt.Sprintf("EXPECT=%q", expectVersion),
 		`if [ -n "$EXPECT" ]; then`,
 		`  ACTUAL=$(grep -m1 -E '^version[[:space:]]*=' Cargo.toml | sed -E 's/.*"([^"]*)".*/\1/')`,
@@ -203,20 +216,25 @@ func (m *FraiseqlCi) PublishDryRun(
 		`  fi`,
 		`  echo "✅ workspace version $ACTUAL matches expected"`,
 		`fi`,
+		fmt.Sprintf("CRATES=%q", strings.Join(legacyPublishOrder, " ")),
 		"FAILED=0",
-		fmt.Sprintf("for c in %s; do", strings.Join(legacyPublishOrder, " ")),
+		`for c in $CRATES; do`,
 		`  echo "===== dry-run publish: $c ====="`,
 		`  log="/tmp/dryrun-$c.log"`,
-		`  if cargo publish --dry-run -p "$c" > "$log" 2>&1; then`,
+		`  cargo publish --dry-run -p "$c" > "$log" 2>&1`,
+		`  status=$?`,
+		`  if [ "$status" -eq 0 ]; then`,
 		`    echo "OK: $c"`,
+		`  elif tol=$(dry_run_failure_is_tolerable "$log" "$CRATES"); then`,
+		`    echo "WARN: $c tolerated — not-yet-published sibling(s): $(echo $tol | tr '\n' ' ')"`,
 		`  else`,
-		`    echo "FAIL: $c (exit $?)"`,
+		`    echo "FAIL: $c (exit $status)"`,
 		`    tail -40 "$log"`,
 		`    FAILED=1`,
 		`  fi`,
 		"done",
 		`if [ "$FAILED" -ne 0 ]; then echo "❌ one or more crates failed dry-run publish"; exit 1; fi`,
-		fmt.Sprintf(`echo "✅ publish-dry-run OK: all %d crates passed"`, len(legacyPublishOrder)),
+		fmt.Sprintf(`echo "✅ publish-dry-run OK: all %d crates passed (first-publish siblings tolerated)"`, len(legacyPublishOrder)),
 	}, "\n")
 
 	return m.rustSrc(source).
