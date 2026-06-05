@@ -74,6 +74,8 @@ jobs:
           # capture and first-publish-sibling tolerance below ever run, defeating
           # the collect-all design. Disable errexit; the loop tracks FAILED itself.
           set +e
+          # Plain (uncoloured) cargo output so the log greps below match reliably.
+          export CARGO_TERM_COLOR=never
           CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
@@ -89,30 +91,35 @@ jobs:
               echo "OK: $c dry-run passed"
             else
               # A dry-run can fail purely because a sibling crate this one depends
-              # on has never been published yet — the first release of a new
-              # workspace crate (e.g. fraiseql-codegen, added in #291). cargo's
-              # packaging step resolves every dependency against the crates.io
-              # index, so a downstream crate fails here even though the REAL
-              # ordered publish succeeds: the sibling publishes earlier in $CRATES
-              # order, and its new version satisfies the >=floor requirement. We
-              # tolerate exactly that case — a single "failed to prepare local
-              # package for uploading" whose only missing packages are our own
-              # publishable crates — and hard-fail everything else (gitignored
-              # files swept into the tarball, build.rs side effects, a genuinely
-              # missing external dep, compile errors in the verify build).
-              missing=$(grep -oE "no matching package named \`[a-zA-Z0-9_-]+\`" "$log" \
-                        | sed -E "s/.*\`([^\`]+)\`/\1/" | sort -u)
-              errcount=$(grep -cE "^error" "$log")
+              # on is not on crates.io at the required version yet — the first
+              # release of a new crate (fraiseql-codegen) or a synchronized version
+              # bump where the new sibling versions are published later in $CRATES
+              # order. cargo phrases this two ways:
+              #   "no matching package named \`X\` found"                  (X never published)
+              #   "failed to select a version for the requirement \`X = …\`" (X published, not at the required version)
+              # Tolerate either when every unresolved package is one of our own
+              # publishable crates AND the failure is a packaging-prep failure —
+              # NOT a compile error in the verify build. Gitignored files / build.rs
+              # side effects / a genuinely missing external dep / a real compile
+              # error all still hard-fail.
               tolerable=0
-              if [ -n "$missing" ] && [ "$errcount" -eq 1 ] \
-                 && grep -q "failed to prepare local package for uploading" "$log"; then
-                tolerable=1
-                for m in $missing; do
-                  case " $CRATES " in
-                    *" $m "*) ;;        # one of our publishable crates → first-publish ok
-                    *) tolerable=0 ;;   # an external dependency is genuinely missing → fail
-                  esac
-                done
+              if grep -q "failed to prepare local package for uploading" "$log" \
+                 && ! grep -qE "could not compile|error\[E[0-9]|aborting due to" "$log"; then
+                missing=$( {
+                  grep -oE "no matching package named \`[a-zA-Z0-9_-]+\`" "$log" \
+                    | sed -E "s/.*\`([^\`]+)\`.*/\1/"
+                  grep -oE "failed to select a version for the requirement \`[a-zA-Z0-9_-]+" "$log" \
+                    | sed -E "s/.*\`([a-zA-Z0-9_-]+).*/\1/"
+                } | sort -u)
+                if [ -n "$missing" ]; then
+                  tolerable=1
+                  for m in $missing; do
+                    case " $CRATES " in
+                      *" $m "*) ;;        # one of our publishable crates → first-publish ordering, ok
+                      *) tolerable=0 ;;   # an external dependency is genuinely unresolved → fail
+                    esac
+                  done
+                fi
               fi
               if [ "$tolerable" -eq 1 ]; then
                 echo "WARN: $c dry-run failed only on not-yet-published sibling crate(s): $missing"
