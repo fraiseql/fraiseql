@@ -16,8 +16,8 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{
     Extension, Router,
     body::Body,
-    extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode, header},
+    extract::{DefaultBodyLimit, Path, Query, State},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post, put},
 };
@@ -118,12 +118,46 @@ pub struct StorageUser {
 // Router
 // ---------------------------------------------------------------------------
 
+/// Upload body limit applied when no configured bucket sets an explicit
+/// `max_object_bytes` (or none are configured). Mirrors the legacy storage
+/// route default; larger objects should use presigned direct-to-backend
+/// uploads rather than the buffered server-side route.
+const DEFAULT_STORAGE_BODY_LIMIT: usize = 100 * 1024 * 1024; // 100 MiB
+
+/// Compute the per-route upload body limit from the configured buckets.
+///
+/// Returns the largest explicit `max_object_bytes` across all buckets, or
+/// [`DEFAULT_STORAGE_BODY_LIMIT`] when any bucket is unlimited (or no buckets
+/// are configured). Sizing the route limit to the largest bucket keeps each
+/// bucket's own `max_object_bytes` check reachable — smaller buckets are still
+/// enforced per-request by [`put_handler`].
+fn storage_body_limit(buckets: &HashMap<String, BucketConfig>) -> usize {
+    let mut max_explicit: u64 = 0;
+    for bucket in buckets.values() {
+        match bucket.max_object_bytes {
+            Some(n) => max_explicit = max_explicit.max(n),
+            None => return DEFAULT_STORAGE_BODY_LIMIT, // an unlimited bucket is present
+        }
+    }
+    if max_explicit == 0 {
+        DEFAULT_STORAGE_BODY_LIMIT // no buckets configured
+    } else {
+        usize::try_from(max_explicit).unwrap_or(DEFAULT_STORAGE_BODY_LIMIT)
+    }
+}
+
 /// Build the storage HTTP router.
 ///
 /// Returns an `axum::Router` that handles all storage endpoints.
 /// The caller is responsible for applying authentication middleware
 /// that populates `StorageUser` in request extensions.
 pub fn storage_router(state: StorageState) -> Router {
+    // #338: the storage handlers buffer the whole body into memory and enforce
+    // per-bucket `max_object_bytes`. Apply a per-route body limit sized to the
+    // largest configured bucket so those checks are reachable; being applied on
+    // this router (inner) it overrides the server-wide `DefaultBodyLimit` (and
+    // axum's 2 MiB default) for storage routes only.
+    let body_limit = storage_body_limit(&state.buckets);
     Router::new()
         .route(
             "/storage/v1/object/{bucket}/{*key}",
@@ -131,6 +165,7 @@ pub fn storage_router(state: StorageState) -> Router {
         )
         .route("/storage/v1/list/{bucket}", get(list_handler))
         .route("/storage/v1/presign/{bucket}/{*key}", post(presign_handler))
+        .layer(DefaultBodyLimit::max(body_limit))
         .with_state(state)
 }
 
@@ -204,8 +239,10 @@ async fn put_handler(
         }
     }
 
-    // Upload to backend
-    let etag = match state.backend.upload(&key, &body, content_type).await {
+    // Upload to backend. #336: scope the backend key by bucket so two buckets
+    // cannot collide on the same object key.
+    let object_key = backend_object_key(&bucket_name, &key);
+    let etag = match state.backend.upload(&object_key, &body, content_type).await {
         Ok(etag) => etag,
         Err(e) => return storage_error_response(&e),
     };
@@ -262,8 +299,8 @@ async fn get_handler(
         return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
     }
 
-    // Download from backend
-    match state.backend.download(&key).await {
+    // Download from backend (#336: bucket-scoped key).
+    match state.backend.download(&backend_object_key(&bucket_name, &key)).await {
         Ok(data) => {
             let mut headers = HeaderMap::new();
             if let Ok(ct) = row.content_type.parse() {
@@ -280,6 +317,18 @@ async fn get_handler(
                     .parse()
                     .expect("static ASCII header value parses as HeaderValue"),
             );
+            // #337: defang stored content. `nosniff` stops browsers from
+            // MIME-sniffing the body into an executable type. The default
+            // `attachment` disposition forces a download rather than inline
+            // rendering; a bucket may opt into inline rendering, but content
+            // types that can execute as active content stay attachments.
+            headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+            let disposition = if bucket.serve_inline && !is_inline_unsafe(&row.content_type) {
+                "inline"
+            } else {
+                "attachment"
+            };
+            headers.insert(header::CONTENT_DISPOSITION, HeaderValue::from_static(disposition));
             (StatusCode::OK, headers, Body::from(data)).into_response()
         },
         Err(e) => storage_error_response(&e),
@@ -315,8 +364,8 @@ async fn delete_handler(
         return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
     }
 
-    // Delete from backend
-    if let Err(e) = state.backend.delete(&key).await {
+    // Delete from backend (#336: bucket-scoped key).
+    if let Err(e) = state.backend.delete(&backend_object_key(&bucket_name, &key)).await {
         return storage_error_response(&e);
     }
 
@@ -466,6 +515,9 @@ async fn presign_handler(
     {
         use std::time::Duration;
         let expires_in = Duration::from_secs(request.expires_in_secs);
+        // #336: scope the presigned key by bucket so the signed URL targets the
+        // same backend object the PUT/GET handlers use.
+        let object_key = backend_object_key(&bucket_name, &key);
 
         let result = if operation == "upload" {
             let Some(content_type) = request.content_type else {
@@ -475,9 +527,9 @@ async fn presign_handler(
                     "content_type required for upload",
                 );
             };
-            state.backend.presign_put(&key, &content_type, expires_in).await
+            state.backend.presign_put(&object_key, &content_type, expires_in).await
         } else {
-            state.backend.presign_get(&key, expires_in).await
+            state.backend.presign_get(&object_key, expires_in).await
         };
 
         match result {
@@ -597,6 +649,29 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
         tracing::error!(error = %err, "Unexpected storage error");
         error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &err.to_string())
     }
+}
+
+/// Compose the backend object key from the bucket name and the object key.
+///
+/// Buckets are an isolation boundary (#336): two objects with the same key in
+/// different buckets must map to distinct backend keys. The metadata table
+/// keys on `(bucket, key)`, but the object store is a single shared backing
+/// store — prefixing the bucket name scopes the backend key so a key in one
+/// bucket cannot overwrite or shadow the same key in another.
+fn backend_object_key(bucket: &str, key: &str) -> String {
+    format!("{bucket}/{key}")
+}
+
+/// Content types a browser may execute as active content when rendered
+/// inline. These are always served as `attachment` regardless of bucket
+/// configuration, to neutralise stored XSS (#337).
+fn is_inline_unsafe(content_type: &str) -> bool {
+    // Compare only the media type, ignoring parameters like "; charset=utf-8".
+    let base = content_type.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    matches!(
+        base.as_str(),
+        "text/html" | "application/xhtml+xml" | "image/svg+xml" | "application/xml" | "text/xml"
+    )
 }
 
 /// Check if a MIME type pattern matches a content type.

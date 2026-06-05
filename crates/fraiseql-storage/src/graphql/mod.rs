@@ -50,6 +50,7 @@ impl StorageSchemaTypes {
     ///     allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
     ///     access: BucketAccess::PublicRead,
     ///     transform_presets: None,
+    ///     serve_inline: false,
     /// }];
     ///
     /// let entries = StorageSchemaTypes::generate(&buckets);
@@ -85,6 +86,7 @@ impl StorageSchemaTypes {
     ///     allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
     ///     access: BucketAccess::PublicRead,
     ///     transform_presets: None,
+    ///     serve_inline: false,
     /// };
     ///
     /// let type_def = StorageSchemaTypes::storage_object_type(&bucket);

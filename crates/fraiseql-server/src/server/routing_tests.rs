@@ -84,6 +84,7 @@ async fn storage_state(bucket: &str) -> StorageState {
             allowed_mime_types: None,
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
+            serve_inline:       false,
         },
     );
     StorageState {

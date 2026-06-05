@@ -13,6 +13,7 @@ fn private_bucket() -> BucketConfig {
         allowed_mime_types: None,
         access:             BucketAccess::Private,
         transform_presets:  None,
+        serve_inline:       false,
     }
 }
 
@@ -23,6 +24,7 @@ fn public_bucket() -> BucketConfig {
         allowed_mime_types: None,
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
+        serve_inline:       false,
     }
 }
 

@@ -19,6 +19,7 @@ fn temp_service(
         allowed_mime_types: allowed_types,
         access:             BucketAccess::Private,
         transform_presets:  None,
+        serve_inline:       false,
     };
     (BucketService::new(backend, config), tmpdir)
 }

@@ -21,12 +21,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an integer overflow in the relay `page_size + 1` fetch when pagination is
   unbounded.
 
+- **Storage list-prefix LIKE-injection (#339).** The `prefix` filter on
+  `GET /storage/v1/list/{bucket}` is now matched as a literal string. A client-supplied
+  `%` or `_` was previously interpolated into the metadata `LIKE` pattern unescaped,
+  letting a caller widen the match and enumerate a bucket's keys (e.g. `prefix=%`
+  matched every object). The prefix is now escaped and bound with an explicit `ESCAPE`
+  clause.
+
+- **Storage stored-XSS hardening (#337).** Object downloads now always carry
+  `X-Content-Type-Options: nosniff` and default to `Content-Disposition: attachment`,
+  so an uploaded payload with a client-chosen `Content-Type` (e.g. HTML or SVG) can no
+  longer be rendered as active content in the storage origin. A bucket may opt into
+  in-browser rendering with the new `BucketConfig::serve_inline` flag, but content
+  types browsers execute as active content (`text/html`, `image/svg+xml`, …) stay
+  attachments even then.
+
+### Fixed
+
+- **Cross-bucket object collisions (#336).** Storage backend operations
+  (upload / download / delete / presign) now scope the object key by bucket
+  (`{bucket}/{key}`). Two objects with the same key in different buckets previously
+  mapped to the same backend object, so one upload could overwrite or shadow another
+  and a delete in one bucket could remove a different bucket's bytes. Object metadata
+  already keyed on `(bucket, key)`; the backend store now matches.
+
+- **Storage uploads capped below the per-bucket limit (#338).** The storage router now
+  applies its own request-body limit, sized to the largest configured `max_object_bytes`
+  (or 100 MiB when a bucket is unlimited), overriding the server-wide
+  `max_request_body_bytes` (default 1 MiB) and axum's 2 MiB extractor default for storage
+  routes only. Previously a bucket's `max_object_bytes` was unreachable and larger uploads
+  failed with a generic 413. Very large objects should still use presigned
+  direct-to-backend uploads.
+
 ### Changed
 
 - **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in
   a single page now receive a validation error by default. Raise
   `[validation] max_page_size`, set `FRAISEQL_MAX_PAGE_SIZE`, or set it to `0`/`none`
   to restore the previous unbounded behavior.
+
+- **Breaking (storage backend layout, #336):** objects are now stored under
+  bucket-prefixed backend keys (`{bucket}/{key}`). Deployments that wrote objects via
+  the `fraiseql-storage` routes before this release must relocate existing backend
+  objects under the new prefix. The off-the-shelf `fraiseql-server` binary did not yet
+  mount these routes (#334), so most deployments are unaffected.
+
+- **Storage downloads default to `Content-Disposition: attachment` (#337).** Buckets
+  that need in-browser rendering must opt in with `BucketConfig::serve_inline = true`.
 
 ## [2.4.0] - 2026-06-04
 

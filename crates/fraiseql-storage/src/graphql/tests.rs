@@ -14,6 +14,7 @@ fn sample_bucket() -> BucketConfig {
         allowed_mime_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
+        serve_inline:       false,
     }
 }
 
@@ -123,6 +124,7 @@ fn test_generate_produces_entries_per_bucket() {
             allowed_mime_types: None,
             access:             BucketAccess::Private,
             transform_presets:  None,
+            serve_inline:       false,
         },
     ];
 
@@ -145,6 +147,7 @@ fn test_storage_object_type_with_multiple_buckets() {
         allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
+        serve_inline:       false,
     };
 
     let bucket2 = BucketConfig {
@@ -153,6 +156,7 @@ fn test_storage_object_type_with_multiple_buckets() {
         allowed_mime_types: Some(vec!["image/png".to_string()]),
         access:             BucketAccess::Private,
         transform_presets:  None,
+        serve_inline:       false,
     };
 
     let type1 = StorageSchemaTypes::storage_object_type(&bucket1);

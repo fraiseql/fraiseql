@@ -53,6 +53,18 @@ pub struct BucketConfig {
 
     /// Predefined image transform presets
     pub transform_presets: Option<Vec<TransformPreset>>,
+
+    /// Serve downloads from this bucket with `Content-Disposition: inline`
+    /// (rendered in-browser) instead of the default `attachment`
+    /// (force-download).
+    ///
+    /// Defaults to `false` (force-download), which — together with the
+    /// always-on `X-Content-Type-Options: nosniff` header — neutralises the
+    /// stored-XSS surface for buckets that accept untrusted content (#337).
+    /// Even when set to `true`, content types that browsers can execute as
+    /// active content (`text/html`, `image/svg+xml`, …) are still served as
+    /// `attachment`.
+    pub serve_inline: bool,
 }
 
 /// Storage configuration (from fraiseql-server config).

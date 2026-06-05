@@ -51,6 +51,7 @@ async fn local_storage_state(bucket_name: &str) -> StorageState {
             allowed_mime_types: None,
             access:             BucketAccess::Private,
             transform_presets:  None,
+            serve_inline:       false,
         },
     );
     StorageState {
