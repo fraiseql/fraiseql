@@ -23,6 +23,23 @@ fn expected_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tutorial-expected")
 }
 
+/// Neutralise the generator-version stamp (`// fraiseql-codegen: X.Y.Z`) so the
+/// snapshot is not coupled to the crate version, which changes every release. The
+/// `schema-hash` line — the meaningful staleness signal — is still compared
+/// verbatim, as is every other line; only this provenance stamp is masked.
+fn normalize(s: &str) -> String {
+    s.lines()
+        .map(|line| {
+            if line.starts_with("// fraiseql-codegen: ") {
+                "// fraiseql-codegen: <version>".to_owned()
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn tutorial_schema_matches_reference() {
     let schema: CompiledSchema = serde_json::from_str(FIXTURE).unwrap();
@@ -37,7 +54,7 @@ fn tutorial_schema_matches_reference() {
     let mut problems = Vec::new();
     for (rel, content) in &generated {
         match std::fs::read_to_string(dir.join(rel)) {
-            Ok(expected) if &expected == content => {},
+            Ok(expected) if normalize(&expected) == normalize(content) => {},
             Ok(_) => problems.push(format!("  {} differs", rel.display())),
             Err(_) => problems.push(format!("  {} missing from expected tree", rel.display())),
         }
