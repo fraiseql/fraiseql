@@ -64,7 +64,7 @@ deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.4.0"}
 fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.4.0"}
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.4.0"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.3.0"}
 fraiseql-codegen = {path = "crates/fraiseql-codegen", version = "2.4.0"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.4.0", default-features = false}
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.4.0", default-features = false}
