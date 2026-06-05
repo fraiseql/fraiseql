@@ -303,6 +303,7 @@ fn test_executor_runtime_config_with_field_filter() {
         cache_query_plans:    true,
         max_query_depth:      10,
         max_query_complexity: 1000,
+        max_page_size:        Some(1000),
         enable_tracing:       false,
         field_filter:         None,
         rls_policy:           None,

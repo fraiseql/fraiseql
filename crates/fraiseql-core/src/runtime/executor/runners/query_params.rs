@@ -3,7 +3,10 @@
 //! Pure functions that build `WhereClause` values from inject params and
 //! explicit query arguments, and compute response cache keys.
 
-use crate::db::{WhereClause, WhereOperator};
+use crate::{
+    db::{WhereClause, WhereOperator},
+    error::{FraiseQLError, Result},
+};
 
 /// Auto-wired argument names that are handled by the `auto_params` system.
 /// These are never treated as explicit WHERE filters.
@@ -123,3 +126,35 @@ pub fn combine_explicit_arg_where(
         _ => Some(WhereClause::And(all_conditions)),
     }
 }
+
+/// Reject a pagination argument that exceeds the configured maximum page size.
+///
+/// Returns the value unchanged when it is within the ceiling, when no ceiling is
+/// configured (`max` is `None`), or when no value was supplied. This is the
+/// top-level row-count guard against unbounded pagination (#421): a client-supplied
+/// `first`/`last`/`limit` is the one knob that sizes the DB result set and the
+/// serialized response, so an arbitrarily large value is a denial-of-service lever.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when `value > max`, naming the argument and
+/// the ceiling.
+pub fn enforce_max_page_size(
+    value: Option<u32>,
+    max: Option<u32>,
+    arg_name: &str,
+) -> Result<Option<u32>> {
+    if let (Some(v), Some(m)) = (value, max) {
+        if v > m {
+            return Err(FraiseQLError::Validation {
+                message: format!("`{arg_name}` {v} exceeds the maximum page size of {m}"),
+                path:    Some(arg_name.to_string()),
+            });
+        }
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+#[path = "query_params_tests.rs"]
+mod query_params_tests;

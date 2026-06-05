@@ -373,6 +373,13 @@ pub struct ValidationConfig {
     /// Maximum allowed query complexity score.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
+    /// Maximum number of rows a top-level `first`/`last`/`limit` argument may
+    /// request, guarding against unbounded-pagination denial of service (#421).
+    /// When unset, the runtime default (1000) applies; set to a large value to
+    /// raise the ceiling. The server also honours the `FRAISEQL_MAX_PAGE_SIZE`
+    /// environment variable as an override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_page_size:        Option<u32>,
 }
 
 /// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).

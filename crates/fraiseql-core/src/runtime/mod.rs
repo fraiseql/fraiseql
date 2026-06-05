@@ -157,6 +157,14 @@ pub struct RuntimeConfig {
     /// Maximum query complexity score.
     pub max_query_complexity: usize,
 
+    /// Maximum number of rows a top-level `first`/`last`/`limit` argument may
+    /// request, guarding against unbounded-pagination denial of service (#421):
+    /// the top-level row count is the one knob that sizes the database result set
+    /// and the serialized response. A request exceeding this is rejected with a
+    /// [`crate::FraiseQLError::Validation`]. `None` disables the ceiling. Default
+    /// `Some(1000)`.
+    pub max_page_size: Option<u32>,
+
     /// Enable performance tracing.
     pub enable_tracing: bool,
 
@@ -208,6 +216,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("cache_query_plans", &self.cache_query_plans)
             .field("max_query_depth", &self.max_query_depth)
             .field("max_query_complexity", &self.max_query_complexity)
+            .field("max_page_size", &self.max_page_size)
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
@@ -225,6 +234,7 @@ impl Default for RuntimeConfig {
             cache_query_plans:    true,
             max_query_depth:      10,
             max_query_complexity: 1000,
+            max_page_size:        Some(1000),
             enable_tracing:       false,
             field_filter:         None,
             rls_policy:           None,

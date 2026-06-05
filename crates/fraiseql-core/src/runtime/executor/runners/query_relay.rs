@@ -5,7 +5,9 @@ use std::sync::Arc;
 use super::{
     super::resolve_inject_value,
     query::QueryRunner,
-    query_params::{compute_projection_reduction, inject_param_where_clause},
+    query_params::{
+        compute_projection_reduction, enforce_max_page_size, inject_param_where_clause,
+    },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
     },
@@ -153,6 +155,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .and_then(|v| v.get("last"))
             .and_then(|v| v.as_u64())
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        // Cap the requested page size before it reaches SQL (#421: unbounded-pagination DoS guard).
+        let first = enforce_max_page_size(first, self.ctx.config.max_page_size, "first")?;
+        let last = enforce_max_page_size(last, self.ctx.config.max_page_size, "last")?;
         let after_cursor: Option<&str> = vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
         let before_cursor: Option<&str> =
             vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
@@ -219,8 +224,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (true, first.unwrap_or(20))
         };
 
-        // Fetch page_size + 1 rows to detect hasNextPage/hasPreviousPage.
-        let fetch_limit = page_size + 1;
+        // Fetch page_size + 1 rows to detect hasNextPage/hasPreviousPage. Saturating so an
+        // unbounded `first` (when max_page_size is disabled) cannot overflow to LIMIT 0.
+        let fetch_limit = page_size.saturating_add(1);
 
         // Parse optional `where` filter from variables.
         let user_where_clause = if query_def.auto_params.has_where {

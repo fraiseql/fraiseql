@@ -55,6 +55,13 @@ pub struct ValidationConfig {
     /// Maximum allowed query complexity score. `None` uses the server default (100).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
+
+    /// Maximum rows a top-level `first`/`last`/`limit` argument may request,
+    /// guarding against unbounded-pagination denial of service (#421). `None`
+    /// uses the server default (1000); the server also honours the
+    /// `FRAISEQL_MAX_PAGE_SIZE` environment variable as an override.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_page_size: Option<u32>,
 }
 
 /// Debug/development configuration.

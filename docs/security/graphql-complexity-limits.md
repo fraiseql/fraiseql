@@ -8,6 +8,7 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 |-------|---------|-------------|----------|
 | **Alias amplification** | 30 aliases | No (hardcoded) | `crates/fraiseql-server/src/validation.rs:459` |
 | **Query depth** | 10 levels | Yes (`max_query_depth` in `fraiseql.toml`) | `crates/fraiseql-server/src/validation.rs:457` |
+| **Top-level page size** | 1000 rows | Yes (`max_page_size` in `[validation]`, `FRAISEQL_MAX_PAGE_SIZE` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_page_size`) |
 | **Complexity error rate** | 30 errors/60s per key | Yes (`complexity_errors_max_requests`) | `crates/fraiseql-core/src/validation/rate_limiting.rs:67` |
 | **Federation batch** | 1000 representations | No (hardcoded) | `crates/fraiseql-server/src/federation/` |
 
@@ -37,6 +38,27 @@ fraiseql.toml override:
 A query exceeding the depth limit is rejected with a `QueryTooDeep` error before reaching
 the database.
 
+### Top-Level Page Size (Default 1000, Configurable)
+
+The `first`/`last`/`limit` argument on a **root** query is capped before it reaches SQL
+(#421). This is the one pagination knob that sizes the database scan, the materialized
+JSONB, and the response buffer — an arbitrarily large value is an unbounded-pagination
+denial-of-service lever. (Nested `first`/`limit` is an in-memory slice of an already-fetched
+JSONB array in FraiseQL's view model, so it is not a separate cap.)
+
+```
+Location: crates/fraiseql-core/src/runtime/executor/runners/query_params.rs (enforce_max_page_size)
+  Enforced in the regular runner (query_regular.rs) and the relay runner (query_relay.rs).
+
+Precedence (highest first):
+  FRAISEQL_MAX_PAGE_SIZE env  (a number, or 0/none to disable)
+  [validation] max_page_size  (fraiseql.toml → compiled schema)
+  RuntimeConfig::max_page_size default (1000)
+```
+
+A request exceeding the ceiling is rejected with a `Validation` error
+(`` `first` 5000000 exceeds the maximum page size of 1000 ``) before any SQL is issued.
+
 ### Complexity Error Rate Limiting
 
 When queries fail complexity validation (depth/alias), the error itself is rate-limited
@@ -65,10 +87,14 @@ Location: crates/fraiseql-core/src/validation/rate_limiting.rs
 
 ```toml
 # fraiseql.toml
-[fraiseql.security]
-# Max query nesting depth (default: 10 in RequestValidator)
+[validation]
+# Max query nesting depth (default: 10)
 max_query_depth = 10
+# Max rows a top-level first/last/limit may request (default: 1000). #421
+# Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a number, or 0/none to disable).
+max_page_size = 1000
 
+[fraiseql.security]
 # Max query complexity score — NOT YET IMPLEMENTED
 # max_query_complexity = 1000
 

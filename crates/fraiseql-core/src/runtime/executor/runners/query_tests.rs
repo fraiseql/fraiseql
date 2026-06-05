@@ -118,6 +118,48 @@ mod auto_params {
     }
 
     #[tokio::test]
+    async fn test_limit_over_max_page_size_is_rejected() {
+        // Default RuntimeConfig caps the top-level page size at 1000 (#421).
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = serde_json::json!({"limit": 5000});
+        let err = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap_err();
+        match err {
+            crate::FraiseQLError::Validation { message, .. } => {
+                assert!(message.contains("maximum page size"), "message was: {message}");
+            },
+            other => panic!("expected Validation error, got {other:?}"),
+        }
+        // Rejected before any SQL dispatch — the adapter was never queried.
+        assert_eq!(adapter.captured_limit(), None);
+    }
+
+    #[tokio::test]
+    async fn test_limit_at_max_page_size_is_allowed() {
+        let schema = schema_with_auto_params(AutoParams {
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
+            has_order_by: false,
+        });
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        // Exactly at the default ceiling passes through unchanged.
+        let vars = serde_json::json!({"limit": 1000});
+        executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+
+        assert_eq!(adapter.captured_limit(), Some(1000));
+    }
+
+    #[tokio::test]
     async fn test_has_offset_threads_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
             has_limit:    false,

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Top-level page-size ceiling (#421).** A root query's `first`/`last`/`limit`
+  argument is now capped at a configurable maximum (default **1000**) before it
+  reaches SQL, closing an unbounded-pagination denial-of-service vector — a single
+  query could previously request millions of rows, sizing the database scan, the
+  materialized JSONB, and the response buffer with no server-side limit. A request
+  exceeding the ceiling is rejected with a validation error. Configure it via
+  `[validation] max_page_size` in `fraiseql.toml`, the `FRAISEQL_MAX_PAGE_SIZE`
+  environment variable (a number, or `0`/`none` to disable), or
+  `RuntimeConfig::max_page_size` for direct `fraiseql-core` embedders. Also fixed
+  an integer overflow in the relay `page_size + 1` fetch when pagination is
+  unbounded.
+
+### Changed
+
+- **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in
+  a single page now receive a validation error by default. Raise
+  `[validation] max_page_size`, set `FRAISEQL_MAX_PAGE_SIZE`, or set it to `0`/`none`
+  to restore the previous unbounded behavior.
+
 ## [2.4.0] - 2026-06-04
 
 ### Added

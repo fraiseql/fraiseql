@@ -1,3 +1,35 @@
+// ── page_size_precedence_tests ──────────────────────────────────────────────────
+
+mod page_size_precedence_tests {
+    use super::super::builder::page_size_precedence;
+
+    #[test]
+    fn default_applies_when_nothing_configured() {
+        assert_eq!(page_size_precedence(None, None), Some(1000));
+    }
+
+    #[test]
+    fn compiled_value_overrides_default() {
+        assert_eq!(page_size_precedence(None, Some(250)), Some(250));
+    }
+
+    #[test]
+    fn env_number_overrides_compiled() {
+        assert_eq!(page_size_precedence(Some("500"), Some(250)), Some(500));
+    }
+
+    #[test]
+    fn env_none_or_zero_disables_the_ceiling() {
+        assert_eq!(page_size_precedence(Some("none"), Some(250)), None);
+        assert_eq!(page_size_precedence(Some("0"), Some(250)), None);
+    }
+
+    #[test]
+    fn unparseable_env_falls_through_to_compiled() {
+        assert_eq!(page_size_precedence(Some("lots"), Some(250)), Some(250));
+    }
+}
+
 // ── initialization_tests ──────────────────────────────────────────────────────
 
 mod initialization_tests {

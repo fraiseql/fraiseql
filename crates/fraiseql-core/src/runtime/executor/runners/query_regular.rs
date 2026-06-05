@@ -8,7 +8,8 @@ use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
     query_params::{
-        combine_explicit_arg_where, compute_projection_reduction, inject_param_where_clause,
+        combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
+        inject_param_where_clause,
     },
     query_projection::{build_typed_projection_fields, enrich_order_by_clauses},
 };
@@ -276,15 +277,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         );
 
         // 8. Extract limit/offset from query arguments when auto_params are enabled
-        let limit = if query_match.query_def.auto_params.has_limit {
-            query_match
-                .arguments
-                .get("limit")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
-        } else {
-            None
-        };
+        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
+        let limit = enforce_max_page_size(
+            if query_match.query_def.auto_params.has_limit {
+                query_match
+                    .arguments
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .and_then(|v| u32::try_from(v).ok())
+            } else {
+                None
+            },
+            self.ctx.config.max_page_size,
+            "limit",
+        )?;
 
         let offset = if query_match.query_def.auto_params.has_offset {
             query_match
@@ -529,15 +535,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &query_match.query_def.native_columns,
         );
 
-        let limit = if query_match.query_def.auto_params.has_limit {
-            query_match
-                .arguments
-                .get("limit")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
-        } else {
-            None
-        };
+        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
+        let limit = enforce_max_page_size(
+            if query_match.query_def.auto_params.has_limit {
+                query_match
+                    .arguments
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .and_then(|v| u32::try_from(v).ok())
+            } else {
+                None
+            },
+            self.ctx.config.max_page_size,
+            "limit",
+        )?;
 
         let offset = if query_match.query_def.auto_params.has_offset {
             query_match
@@ -648,11 +659,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
-        let limit = query_match
-            .arguments
-            .get("limit")
-            .and_then(|v| v.as_u64())
-            .and_then(|v| u32::try_from(v).ok());
+        // The top-level page size is capped (#421: unbounded-pagination DoS guard).
+        let limit = enforce_max_page_size(
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok()),
+            self.ctx.config.max_page_size,
+            "limit",
+        )?;
 
         let offset = query_match
             .arguments

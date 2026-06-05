@@ -823,6 +823,7 @@ type = "ID"
 [validation]
 max_query_depth = 3
 max_query_complexity = 25
+max_page_size = 750
 "#;
 
         let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
@@ -835,6 +836,8 @@ max_query_complexity = 25
         let vc = schema.validation_config.as_ref().expect("validation_config should be set");
         assert_eq!(vc.max_query_depth, Some(3));
         assert_eq!(vc.max_query_complexity, Some(25));
+        // #421: the page-size ceiling flows TOML → compiled schema.
+        assert_eq!(vc.max_page_size, Some(750));
     }
 
     #[test]

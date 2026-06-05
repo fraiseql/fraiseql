@@ -202,8 +202,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         if audit_mutations {
             info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
         }
+        // #421: top-level page-size ceiling — FRAISEQL_MAX_PAGE_SIZE overrides the
+        // compiled `[validation] max_page_size`, which overrides the default (1000).
+        let max_page_size = page_size_precedence(
+            std::env::var("FRAISEQL_MAX_PAGE_SIZE").ok().as_deref(),
+            schema.validation_config.as_ref().and_then(|v| v.max_page_size),
+        );
         let executor_config = RuntimeConfig {
             audit_mutations,
+            max_page_size,
             ..RuntimeConfig::default()
         };
         let executor =
@@ -670,4 +677,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         Ok(())
     }
+}
+
+/// Resolve the top-level page-size ceiling (#421) from its precedence chain.
+///
+/// `env` is the raw `FRAISEQL_MAX_PAGE_SIZE` value when set (a positive integer,
+/// or `"0"`/`"none"` to disable the ceiling). It overrides `compiled` (the
+/// `[validation] max_page_size` from the compiled schema), which overrides the
+/// runtime default (1000). Returns `None` only when explicitly disabled.
+pub fn page_size_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
+    if let Some(raw) = env {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
+            return None;
+        }
+        if let Ok(n) = trimmed.parse::<u32>() {
+            return Some(n);
+        }
+        // Unparseable env value: ignore it and fall through to compiled/default.
+    }
+    compiled.or(RuntimeConfig::default().max_page_size)
 }
