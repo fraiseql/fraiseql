@@ -455,6 +455,160 @@ fn test_validation_config_partial_override() {
 }
 
 #[test]
+fn test_storage_and_files_default_to_empty() {
+    let config = ServerConfig::default();
+    assert!(config.storage.is_empty(), "storage should default to empty");
+    assert!(config.files.is_empty(), "files should default to empty");
+}
+
+#[test]
+fn test_storage_section_full_parses_from_toml() {
+    let toml_str = r#"
+        [storage.docs]
+        backend = "s3"
+        bucket = "fraiseql-docs"
+        region = "us-east-1"
+        endpoint = "http://minio:9000"
+        access = "public_read"
+        max_object_bytes = 10485760
+        allowed_mime_types = ["image/png", "image/jpeg"]
+        serve_inline = true
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let section = config.storage.get("docs").expect("storage.docs should be parsed");
+    assert_eq!(section.backend, "s3");
+    assert_eq!(section.bucket.as_deref(), Some("fraiseql-docs"));
+    assert_eq!(section.region.as_deref(), Some("us-east-1"));
+    assert_eq!(section.endpoint.as_deref(), Some("http://minio:9000"));
+    assert_eq!(section.access.as_deref(), Some("public_read"));
+    assert_eq!(section.max_object_bytes, Some(10_485_760));
+    assert_eq!(
+        section.allowed_mime_types.as_deref(),
+        Some(["image/png".to_string(), "image/jpeg".to_string()].as_slice()),
+    );
+    assert_eq!(section.serve_inline, Some(true));
+}
+
+#[test]
+fn test_storage_section_minimal_local_defaults_policy_to_none() {
+    let toml_str = r#"
+        [storage.uploads]
+        backend = "local"
+        path = "/var/lib/fraiseql/uploads"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let section = config.storage.get("uploads").expect("storage.uploads should be parsed");
+    assert_eq!(section.backend, "local");
+    assert_eq!(section.path.as_deref(), Some("/var/lib/fraiseql/uploads"));
+    assert!(section.access.is_none(), "access policy should be unset");
+    assert!(section.max_object_bytes.is_none());
+    assert!(section.allowed_mime_types.is_none());
+    assert!(section.serve_inline.is_none());
+}
+
+#[test]
+fn test_files_section_is_parsed_for_warning() {
+    let toml_str = r#"
+        [files.avatars]
+        storage = "uploads"
+        max_size = "5MB"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let section = config.files.get("avatars").expect("files.avatars should be parsed");
+    assert_eq!(section.storage.as_deref(), Some("uploads"));
+    assert_eq!(section.max_size.as_deref(), Some("5MB"));
+}
+
+#[test]
+fn resolve_storage_section_returns_none_when_unconfigured() {
+    let config = ServerConfig::default();
+    let resolved = resolve_storage_section(&config).expect("resolution should not error");
+    assert!(resolved.is_none(), "no [storage] section should resolve to None");
+}
+
+#[test]
+fn resolve_storage_section_maps_local_with_secure_defaults() {
+    use fraiseql_storage::config::BucketAccess;
+
+    let toml_str = r#"
+        [storage.uploads]
+        backend = "local"
+        path = "/var/lib/fraiseql/uploads"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let resolved = resolve_storage_section(&config)
+        .expect("resolution should not error")
+        .expect("one section should resolve to Some");
+
+    assert_eq!(resolved.backend.backend, "local");
+    assert_eq!(resolved.backend.path.as_deref(), Some("/var/lib/fraiseql/uploads"));
+    assert_eq!(resolved.bucket.name, "uploads", "bucket name is the section key");
+    assert!(
+        matches!(resolved.bucket.access, BucketAccess::Private),
+        "access should default to the secure Private policy",
+    );
+    assert!(!resolved.bucket.serve_inline, "serve_inline should default to false");
+    assert!(resolved.bucket.max_object_bytes.is_none());
+    assert!(resolved.bucket.allowed_mime_types.is_none());
+}
+
+#[test]
+fn resolve_storage_section_honors_public_read_and_policy_fields() {
+    use fraiseql_storage::config::BucketAccess;
+
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+        access = "public_read"
+        max_object_bytes = 10485760
+        allowed_mime_types = ["image/png", "image/*"]
+        serve_inline = true
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let resolved = resolve_storage_section(&config).unwrap().unwrap();
+
+    assert!(matches!(resolved.bucket.access, BucketAccess::PublicRead));
+    assert_eq!(resolved.bucket.max_object_bytes, Some(10_485_760));
+    assert_eq!(
+        resolved.bucket.allowed_mime_types.as_deref(),
+        Some(["image/png".to_string(), "image/*".to_string()].as_slice()),
+    );
+    assert!(resolved.bucket.serve_inline);
+}
+
+#[test]
+fn resolve_storage_section_rejects_unknown_access() {
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+        access = "open-to-the-world"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let err = resolve_storage_section(&config).expect_err("unknown access should error");
+    assert!(err.contains("invalid storage access policy"), "got: {err}");
+}
+
+#[test]
+fn resolve_storage_section_rejects_multiple_sections() {
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+
+        [storage.media]
+        backend = "local"
+        path = "/tmp/media"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let err = resolve_storage_section(&config).expect_err("multiple sections should error");
+    assert!(err.contains("single storage backend"), "got: {err}");
+    // Both section names are reported, sorted.
+    assert!(err.contains("docs") && err.contains("media"), "got: {err}");
+}
+
+#[test]
 fn test_auth_hs256_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(config.auth_hs256.is_none());

@@ -610,6 +610,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self
     }
 
+    /// Attach a pre-built [`StorageState`](fraiseql_storage::StorageState) and
+    /// mount the bucket-scoped `/storage/v1/*` routes (object upload/download/
+    /// delete, list, presign) with per-bucket access policy and RLS.
+    ///
+    /// This is the full storage path (metadata-backed, bucket-aware); it differs
+    /// from [`with_storage`](Self::with_storage), which mounts the simpler legacy
+    /// object router. Authentication is applied by `mount_storage_state`: a
+    /// configured `storage_token` acts as an admin bearer and, when an OIDC
+    /// validator is present, per-user tokens populate the request's
+    /// `StorageUser` for RLS.
+    #[must_use]
+    pub fn with_storage_state(mut self, state: fraiseql_storage::StorageState) -> Self {
+        self.storage_state = Some(state);
+        self
+    }
+
     /// Attach a function deployment store and runtime, mounting `/functions/v1/` routes.
     ///
     /// When set, the server mounts `POST /functions/v1/{name}` which loads the

@@ -339,6 +339,42 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
     Ok(None)
 }
 
+/// Warn at startup when `[files.<name>]` sections are configured: file-upload
+/// routes are not yet wired into the binary, so the sections are parsed but
+/// otherwise ignored. Emitting a warning keeps them from being silently dropped.
+fn warn_files_not_wired(config: &ServerConfig) {
+    if config.files.is_empty() {
+        return;
+    }
+    let mut names: Vec<&str> = config.files.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    tracing::warn!(
+        sections = %names.join(", "),
+        "[files.<name>] sections are configured but file-upload routes are not yet wired into \
+         the fraiseql-server binary; these sections are ignored."
+    );
+}
+
+/// Warn at startup when `[storage.<name>]` is configured for a database the
+/// binary cannot mount storage on. Object storage is PostgreSQL-only because the
+/// object-metadata repository requires a `sqlx::PgPool`.
+#[cfg(any(
+    feature = "mysql",
+    feature = "sqlite",
+    feature = "sqlserver",
+    feature = "wire-backend"
+))]
+fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
+    if config.storage.is_empty() {
+        return;
+    }
+    tracing::warn!(
+        database,
+        "[storage.<name>] is configured but object storage via the binary is PostgreSQL-only \
+         (the metadata repository requires PostgreSQL); storage routes will NOT be mounted."
+    );
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────
 
 /// Entry point.
@@ -379,6 +415,8 @@ async fn main() -> anyhow::Result<()> {
     let schema = load_schema(&config).await?;
     init_security(&schema)?;
 
+    warn_files_not_wired(&config);
+
     // Box::pin: the per-scheme dispatch holds adapter init futures for all
     // enabled adapters, which combined exceeds clippy's `large_futures`
     // 16-KiB stack threshold. Heap-allocating once at startup is fine.
@@ -396,6 +434,7 @@ async fn dispatch_server(
     schema: CompiledSchema,
     cli: &Cli,
 ) -> anyhow::Result<()> {
+    warn_storage_requires_postgres(&config, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
     let server = Server::new(config, schema, adapter, None).await?;
     // Box::pin: with the wire backend enabled the combined server/serve future
@@ -434,6 +473,19 @@ async fn run_postgres(
     let adapter = build_postgres_adapter(&config).await?;
     let db_pool = build_observer_pool(&config).await?;
 
+    // Wire `[storage.<name>]` into a mounted /storage/v1/* route group. Built
+    // before the server is constructed (which moves `config`); a None result
+    // means no storage was configured. PostgreSQL-only — see build_storage_state.
+    let storage_state = fraiseql_server::server_config::build_storage_state(&config)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if let Some(state) = &storage_state {
+        tracing::info!(
+            buckets = state.buckets.len(),
+            "Object storage configured; mounting /storage/v1/*"
+        );
+    }
+
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
     {
@@ -443,6 +495,10 @@ async fn run_postgres(
         let server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;
+        let server = match storage_state {
+            Some(state) => server.with_storage_state(state),
+            None => server,
+        };
         return finish_server(server, cli, /* with_arrow = */ true).await;
     }
 
@@ -456,6 +512,10 @@ async fn run_postgres(
         } else {
             Server::new(config, schema, adapter, db_pool).await?
         };
+        let server = match storage_state {
+            Some(state) => server.with_storage_state(state),
+            None => server,
+        };
         finish_server(server, cli, /* with_arrow = */ false).await
     }
 }
@@ -465,6 +525,7 @@ async fn run_postgres(
 /// particular rely on PostgreSQL LISTEN/NOTIFY and have no MySQL equivalent.
 #[cfg(all(not(feature = "wire-backend"), feature = "mysql"))]
 async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
+    warn_storage_requires_postgres(&config, "mysql");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
@@ -491,6 +552,7 @@ async fn run_mysql(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Resul
 /// SQLite entry point — read-only.
 #[cfg(all(not(feature = "wire-backend"), feature = "sqlite"))]
 async fn run_sqlite(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
+    warn_storage_requires_postgres(&config, "sqlite");
     fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
     tracing::info!(
         pool_min_size = config.pool_min_size,
@@ -522,6 +584,7 @@ async fn run_sqlserver(
     schema: CompiledSchema,
     cli: &Cli,
 ) -> anyhow::Result<()> {
+    warn_storage_requires_postgres(&config, "sqlserver");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,

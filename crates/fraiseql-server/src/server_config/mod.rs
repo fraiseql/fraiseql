@@ -11,12 +11,13 @@ pub(crate) mod defaults;
 pub mod hs256;
 mod methods;
 pub mod observers;
+pub mod storage;
 pub mod tls;
 
 #[cfg(test)]
 mod tests;
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
@@ -32,6 +33,7 @@ pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{ObserverConfig, ObserverPoolConfig};
 use serde::{Deserialize, Serialize};
+pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 
 use crate::middleware::RateLimitConfig;
@@ -566,6 +568,122 @@ pub struct ServerConfig {
     /// When absent (default), counters are in-memory only and reset on restart.
     #[serde(default)]
     pub usage: Option<crate::config::UsagePersistenceConfig>,
+
+    /// Named object-storage backend configurations, keyed by storage name.
+    ///
+    /// Each `[storage.<name>]` section is wired into a mounted `/storage/v1/*`
+    /// route group on startup (PostgreSQL only — the object-metadata repository
+    /// requires a `sqlx::PgPool`). The section name is the logical bucket name in
+    /// the URL path (`/storage/v1/object/<name>/<key>`). See
+    /// [`StorageSectionConfig`].
+    ///
+    /// **v1 supports a single section.** Configuring more than one
+    /// `[storage.<name>]` is a startup error (multiplexing several physical
+    /// backends behind one route group is a planned follow-up).
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [storage.uploads]
+    /// backend = "local"
+    /// path = "/var/lib/fraiseql/uploads"
+    /// access = "public_read"
+    /// ```
+    #[serde(default)]
+    pub storage: HashMap<String, StorageSectionConfig>,
+
+    /// Named file-upload route configurations, keyed by route name.
+    ///
+    /// **Not yet wired into the binary** (tracked as a `[storage]` follow-up).
+    /// The section is parsed only so the server can warn at startup rather than
+    /// silently dropping it. See [`FileSectionConfig`].
+    #[serde(default)]
+    pub files: HashMap<String, FileSectionConfig>,
+}
+
+/// A single `[storage.<name>]` configuration section.
+///
+/// Combines the storage *backend* connection settings (mapped to
+/// [`fraiseql_storage::config::StorageConfig`] and passed to
+/// `fraiseql_storage::create_backend`) with the optional *logical-bucket* access
+/// policy (mapped to `fraiseql_storage::config::BucketConfig`). The section name
+/// becomes the logical bucket name in the URL path.
+///
+/// The connection fields mirror [`fraiseql_storage::config::StorageConfig`]; the
+/// policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
+/// `serve_inline`) are optional and default to a private, force-download bucket.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageSectionConfig {
+    /// Backend type: `"local"`, `"s3"` (and S3-compatible providers `"hetzner"`,
+    /// `"scaleway"`, `"ovh"`, `"exoscale"`, `"backblaze"`, `"r2"`), `"gcs"`,
+    /// `"azure"`. Non-local backends require the matching Cargo feature
+    /// (`aws-s3`, `gcs`, `azure-blob`) to be compiled in.
+    pub backend: String,
+
+    /// Filesystem path for the `local` backend.
+    #[serde(default)]
+    pub path: Option<String>,
+
+    /// Physical bucket name for S3/GCS/Azure backends.
+    #[serde(default)]
+    pub bucket: Option<String>,
+
+    /// Region for S3-compatible backends.
+    #[serde(default)]
+    pub region: Option<String>,
+
+    /// Custom endpoint URL for S3-compatible services and cloud emulators.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+
+    /// GCP project ID for the GCS backend.
+    #[serde(default)]
+    pub project_id: Option<String>,
+
+    /// Azure storage account name.
+    #[serde(default)]
+    pub account_name: Option<String>,
+
+    /// Access policy for the logical bucket: `"private"` (default) or
+    /// `"public_read"`. An unrecognised value is a startup error.
+    #[serde(default)]
+    pub access: Option<String>,
+
+    /// Maximum object size in bytes for the logical bucket (None = unlimited,
+    /// subject to the route-wide body limit).
+    #[serde(default)]
+    pub max_object_bytes: Option<u64>,
+
+    /// Allowed MIME types for uploads (None = any). Supports `image/*`-style
+    /// wildcards.
+    #[serde(default)]
+    pub allowed_mime_types: Option<Vec<String>>,
+
+    /// Serve downloads with `Content-Disposition: inline` instead of the default
+    /// `attachment`. Active-content types (`text/html`, `image/svg+xml`, …) are
+    /// always served as `attachment` regardless of this flag.
+    #[serde(default)]
+    pub serve_inline: Option<bool>,
+}
+
+/// A single `[files.<name>]` configuration section.
+///
+/// File-upload routes are **not yet wired** into the binary; this type exists so
+/// the server can warn rather than silently ignore the section. All fields are
+/// optional to keep parsing tolerant.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FileSectionConfig {
+    /// Named storage backend this upload route writes to.
+    #[serde(default)]
+    pub storage: Option<String>,
+
+    /// Maximum upload size (e.g. `"50MB"`).
+    #[serde(default)]
+    pub max_size: Option<String>,
+
+    /// URL path prefix override.
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -632,7 +750,9 @@ impl Default for ServerConfig {
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
             admin_auth_max_failures: defaults::default_admin_auth_max_failures(),
             storage_token: None,
-            usage: None, // Usage persistence disabled by default
+            usage: None,             // Usage persistence disabled by default
+            storage: HashMap::new(), // No storage backends wired by default
+            files: HashMap::new(),   // No file-upload routes by default
         }
     }
 }

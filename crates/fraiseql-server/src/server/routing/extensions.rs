@@ -236,13 +236,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         storage_state: &fraiseql_storage::StorageState,
     ) -> Router {
         let storage = fraiseql_storage::storage_router(storage_state.clone());
-        let storage = if let Some(ref validator) = self.oidc_validator {
-            let validator = validator.clone();
+
+        // Authentication is applied when EITHER a static `storage_token` is set OR
+        // an OIDC validator is configured. For each request the bearer token (or
+        // `__Host-access_token` cookie) is resolved as follows:
+        //   1. matches `storage_token` (constant-time) → admin `StorageUser`;
+        //   2. else, an OIDC validator present → validate (401 on failure), populating a per-user
+        //      `StorageUser` for RLS;
+        //   3. else (token-only mode), a non-matching token → 401.
+        // A request with no token is left anonymous: RLS then permits only
+        // PublicRead reads. With neither auth mechanism configured the routes are
+        // mounted without a layer (anonymous everywhere).
+        let storage_token = self.config.storage_token.clone();
+        let validator = self.oidc_validator.clone();
+
+        let storage = if storage_token.is_some() || validator.is_some() {
             storage.layer(middleware::from_fn(
                 move |mut request: axum::extract::Request, next: axum::middleware::Next| {
+                    let storage_token = storage_token.clone();
                     let validator = validator.clone();
                     async move {
-                        use axum::http::header;
+                        use axum::http::{StatusCode, header};
                         use axum::response::IntoResponse;
                         use crate::middleware::oidc_auth::extract_access_token_cookie;
 
@@ -255,22 +269,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             .or_else(|| extract_access_token_cookie(request.headers()));
 
                         if let Some(token) = token {
-                            match validator.validate_token(&token).await {
-                                Ok(user) => {
-                                    let storage_user = fraiseql_storage::StorageUser {
-                                        user_id: Some(user.user_id.to_string()),
-                                        roles: user.scopes,
-                                    };
-                                    request.extensions_mut().insert(storage_user);
+                            if let Some(user) = storage_admin_user(&token, storage_token.as_deref())
+                            {
+                                request.extensions_mut().insert(user);
+                            } else if let Some(ref validator) = validator {
+                                match validator.validate_token(&token).await {
+                                    Ok(user) => {
+                                        let storage_user = fraiseql_storage::StorageUser {
+                                            user_id: Some(user.user_id.to_string()),
+                                            roles:   user.scopes,
+                                        };
+                                        request.extensions_mut().insert(storage_user);
+                                    },
+                                    Err(e) => {
+                                        tracing::debug!(error = %e, "Storage auth: token validation failed");
+                                        return (
+                                            StatusCode::UNAUTHORIZED,
+                                            "Invalid or expired token",
+                                        )
+                                            .into_response();
+                                    },
                                 }
-                                Err(e) => {
-                                    tracing::debug!(error = %e, "Storage auth: token validation failed");
-                                    return (
-                                        axum::http::StatusCode::UNAUTHORIZED,
-                                        "Invalid or expired token",
-                                    )
-                                        .into_response();
-                                }
+                            } else {
+                                // Token-only mode (no OIDC validator); the layer is
+                                // mounted only when `storage_token` is set, so a
+                                // non-matching token is a rejected admin attempt.
+                                tracing::debug!("Storage auth: bearer did not match storage_token");
+                                return (StatusCode::UNAUTHORIZED, "Invalid storage token")
+                                    .into_response();
                             }
                         }
                         next.run(request).await
@@ -281,7 +307,38 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             storage
         };
         app = app.merge(storage);
-        info!("Storage API routes mounted");
+        info!("Storage API routes mounted at /storage/v1/");
         app
     }
 }
+
+/// Map a presented bearer token to an admin [`fraiseql_storage::StorageUser`]
+/// when it matches the configured static `storage_token`.
+///
+/// The comparison is constant-time. Returns `None` when no `storage_token` is
+/// configured, the configured token is empty, or the presented token does not
+/// match — in which case the caller falls back to OIDC validation or rejects
+/// the request. The admin user carries the `admin` role recognised by the
+/// storage RLS evaluator, granting full access regardless of bucket ownership.
+fn storage_admin_user(
+    presented: &str,
+    configured: Option<&str>,
+) -> Option<fraiseql_storage::StorageUser> {
+    let configured = configured?;
+    // Reject an empty configured token outright so a misconfigured
+    // `storage_token = ""` cannot grant admin to a bare `Authorization: Bearer`.
+    if configured.is_empty() {
+        return None;
+    }
+    if crate::middleware::auth::constant_time_compare(presented, configured) {
+        Some(fraiseql_storage::StorageUser {
+            user_id: Some("storage-admin".to_string()),
+            roles:   vec!["admin".to_string()],
+        })
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests;

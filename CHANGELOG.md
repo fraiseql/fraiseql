@@ -53,6 +53,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failed with a generic 413. Very large objects should still use presigned
   direct-to-backend uploads.
 
+- **Storage routes unreachable from the `fraiseql-server` binary (#334).** The
+  off-the-shelf binary now wires a `[storage.<name>]` TOML section into a mounted
+  `/storage/v1/*` route group (object upload / download / delete, list, presign) at
+  startup. Previously `ServerConfig` had no `storage` field, so serde silently dropped the
+  section and every storage path returned **404** even though the library API existed. The
+  section name is the logical bucket; optional `access` (`"private"` default /
+  `"public_read"`), `max_object_bytes`, `allowed_mime_types`, and `serve_inline` set the
+  bucket policy. Authentication uses the configured OIDC validator (per-user RLS) and/or a
+  `storage_token` bearer treated as a full-access admin; with neither set, only
+  `public_read` buckets are reachable (read-only). Object storage via the binary is
+  **PostgreSQL-only** (the object-metadata repository requires PostgreSQL), and **v1
+  supports a single backend** — configuring more than one `[storage.<name>]` is a startup
+  error. `[files.<name>]` sections are parsed but not yet wired (a startup warning is
+  logged).
+
 ### Changed
 
 - **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in
@@ -62,9 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking (storage backend layout, #336):** objects are now stored under
   bucket-prefixed backend keys (`{bucket}/{key}`). Deployments that wrote objects via
-  the `fraiseql-storage` routes before this release must relocate existing backend
-  objects under the new prefix. The off-the-shelf `fraiseql-server` binary did not yet
-  mount these routes (#334), so most deployments are unaffected.
+  the `fraiseql-storage` library routes before this release must relocate existing backend
+  objects under the new prefix. Earlier releases' off-the-shelf `fraiseql-server` binary
+  did not mount these routes (#334 wires them in this release), so only deployments that
+  used storage through the library API before upgrading are affected.
 
 - **Storage downloads default to `Content-Disposition: attachment` (#337).** Buckets
   that need in-browser rendering must opt in with `BucketConfig::serve_inline = true`.
