@@ -276,7 +276,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]
-        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
+        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await?;
 
         // Warn if PKCE is configured but [auth] is missing.
         #[cfg(feature = "auth")]
@@ -360,35 +360,75 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         })
     }
 
-    /// Initialize observer runtime from configuration
+    /// Initialize observer runtime from configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when a non-Postgres observer transport
+    /// is selected that this binary cannot run (feature not compiled in, or NATS
+    /// without a URL) while in production mode (#350), or when the transport
+    /// configuration is otherwise invalid. In development such a selection is
+    /// downgraded to a warning and the runtime falls back to PostgreSQL.
     #[cfg(feature = "observers")]
     pub(super) async fn init_observer_runtime(
         config: &ServerConfig,
         pool: Option<&sqlx::PgPool>,
-    ) -> Option<Arc<RwLock<ObserverRuntime>>> {
+    ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
+        use fraiseql_observers::config::TransportKind;
+
         // Check if enabled
         let observer_config = match &config.observers {
             Some(cfg) if cfg.enabled => cfg,
             _ => {
                 info!("Observer runtime disabled");
-                return None;
+                return Ok(None);
             },
         };
 
         let Some(pool) = pool else {
             warn!("No database pool provided for observers");
-            return None;
+            return Ok(None);
         };
 
         info!("Initializing observer runtime");
+
+        // Resolve the event transport from compiled config + env overrides, then
+        // fail loud (#350) on a selection this binary cannot run before validating
+        // the finer NATS/JetStream bounds — never a silent fallback to PostgreSQL.
+        let mut transport = observer_config.runtime.transport.clone().with_env_overrides();
+        let compiled_in = cfg!(feature = "observers-nats");
+        let nats_url_present = !transport.nats.url.is_empty();
+        crate::server::initialization::observer_transport_check(
+            transport.transport,
+            compiled_in,
+            nats_url_present,
+            crate::ServerConfig::is_production_mode(),
+        )?;
+
+        // In production an unrunnable selection already returned above; the only
+        // way past the guard with an unrunnable transport is development, where it
+        // was downgraded to a warning — fall back to PostgreSQL so local boot works.
+        let usable = match transport.transport {
+            TransportKind::Postgres | TransportKind::InMemory => true,
+            TransportKind::Nats => compiled_in && nats_url_present,
+            _ => false,
+        };
+        if !usable {
+            transport.transport = TransportKind::Postgres;
+        }
+
+        transport.validate().map_err(|e| {
+            crate::ServerError::ConfigError(format!("invalid observer transport config: {e}"))
+        })?;
 
         let runtime_config = ObserverRuntimeConfig::new(pool.clone())
             .with_poll_interval(observer_config.runtime.poll_interval_ms)
             .with_batch_size(observer_config.runtime.batch_size)
             .with_channel_capacity(observer_config.runtime.channel_capacity)
-            .with_max_dlq_size(observer_config.runtime.max_dlq_size);
+            .with_max_dlq_size(observer_config.runtime.max_dlq_size)
+            .with_transport(transport);
 
         let runtime = ObserverRuntime::new(runtime_config);
-        Some(Arc::new(RwLock::new(runtime)))
+        Ok(Some(Arc::new(RwLock::new(runtime))))
     }
 }

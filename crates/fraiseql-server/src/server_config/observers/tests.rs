@@ -136,6 +136,42 @@ fn flat_pool_table_is_trapped() {
     assert_eq!(cfg.misplaced_runtime_keys(), vec!["pool"]);
 }
 
+// ── `[observers.runtime.transport]` (#350) ──────────────────────────────────
+
+#[test]
+fn runtime_transport_subtable_parses() {
+    use fraiseql_observers::config::TransportKind;
+
+    let cfg: ObserverConfig = toml::from_str(
+        "enabled = true\n\
+         [runtime.transport]\n\
+         transport = \"nats\"\n\
+         [runtime.transport.nats]\n\
+         url = \"nats://broker:4222\"\n",
+    )
+    .unwrap();
+
+    assert_eq!(cfg.runtime.transport.transport, TransportKind::Nats);
+    assert_eq!(cfg.runtime.transport.nats.url, "nats://broker:4222");
+    assert!(cfg.misplaced_runtime_keys().is_empty());
+}
+
+#[test]
+fn runtime_transport_defaults_to_postgres() {
+    use fraiseql_observers::config::TransportKind;
+
+    let cfg: ObserverConfig = toml::from_str("enabled = true\n").unwrap();
+    assert_eq!(cfg.runtime.transport.transport, TransportKind::Postgres);
+}
+
+#[test]
+fn runtime_transport_typo_is_rejected() {
+    // A typo directly under `[runtime]` is still caught by deny_unknown_fields,
+    // even though `transport` is now a recognised sub-table.
+    let err = toml::from_str::<ObserverConfig>("[runtime]\ntranport = \"nats\"\n");
+    assert!(err.is_err(), "typo `tranport` under [runtime] should be rejected");
+}
+
 #[test]
 fn new_layout_has_no_misplaced_keys() {
     let cfg: ObserverConfig = toml::from_str(

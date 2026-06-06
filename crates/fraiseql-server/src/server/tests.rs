@@ -174,6 +174,54 @@ mod initialization_tests {
     fn failed_login_tuned_value_is_a_warning_in_development() {
         assert!(failed_login_lockout_check(5, 60, false).is_ok());
     }
+
+    // #350: a configured non-Postgres observer transport that cannot run must fail
+    // loud (refuse boot in production), never silently fall back to PostgreSQL.
+    #[cfg(feature = "observers")]
+    mod observer_transport {
+        use fraiseql_observers::config::TransportKind;
+
+        use crate::server::initialization::observer_transport_check;
+
+        #[test]
+        fn postgres_is_always_ok() {
+            // The default transport needs no broker and never blocks boot.
+            assert!(observer_transport_check(TransportKind::Postgres, false, false, true).is_ok());
+            assert!(observer_transport_check(TransportKind::Postgres, false, false, false).is_ok());
+        }
+
+        #[test]
+        fn in_memory_is_always_ok() {
+            // The in-memory transport is always compiled and needs no broker.
+            assert!(observer_transport_check(TransportKind::InMemory, false, false, true).is_ok());
+        }
+
+        #[test]
+        fn nats_not_compiled_in_is_fatal_in_production() {
+            // transport = "nats" without the observers-nats feature cannot run.
+            assert!(observer_transport_check(TransportKind::Nats, false, true, true).is_err());
+        }
+
+        #[test]
+        fn nats_not_compiled_in_is_a_warning_in_development() {
+            assert!(observer_transport_check(TransportKind::Nats, false, true, false).is_ok());
+        }
+
+        #[test]
+        fn nats_without_url_is_fatal_in_production() {
+            assert!(observer_transport_check(TransportKind::Nats, true, false, true).is_err());
+        }
+
+        #[test]
+        fn nats_without_url_is_a_warning_in_development() {
+            assert!(observer_transport_check(TransportKind::Nats, true, false, false).is_ok());
+        }
+
+        #[test]
+        fn nats_compiled_with_url_is_ok() {
+            assert!(observer_transport_check(TransportKind::Nats, true, true, true).is_ok());
+        }
+    }
 }
 
 // ── lifecycle_tests ───────────────────────────────────────────────────────────

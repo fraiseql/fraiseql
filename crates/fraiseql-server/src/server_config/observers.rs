@@ -3,6 +3,8 @@
 #[cfg(all(test, feature = "observers"))]
 mod tests;
 
+#[cfg(feature = "observers")]
+use fraiseql_observers::config::TransportConfig;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
@@ -150,6 +152,21 @@ pub struct ObserverRuntimeSettings {
     #[serde(default)]
     pub max_dlq_size: Option<usize>,
 
+    /// Event transport selection (`[observers.runtime.transport]`).
+    ///
+    /// Selects how the runtime sources change events: PostgreSQL LISTEN/NOTIFY
+    /// (default), NATS `JetStream`, or in-memory. The selection is honored by
+    /// [`ObserverRuntime::start`](crate::observers::ObserverRuntime::start);
+    /// `FRAISEQL_OBSERVER_TRANSPORT` and the other `FRAISEQL_NATS_*` variables
+    /// override the compiled values at boot (see
+    /// [`TransportConfig::with_env_overrides`]).
+    ///
+    /// A configured non-Postgres transport that cannot run (feature not
+    /// compiled in, or NATS without a URL) fails loud at boot in production —
+    /// the server never silently falls back to PostgreSQL (#350).
+    #[serde(default)]
+    pub transport: TransportConfig,
+
     /// Dedicated connection pool configuration for the observer runtime.
     ///
     /// When absent, sensible observer-specific defaults are used (smaller
@@ -169,6 +186,7 @@ impl Default for ObserverRuntimeSettings {
             auto_reload:          default_auto_reload(),
             reload_interval_secs: default_reload_interval_secs(),
             max_dlq_size:         None,
+            transport:            TransportConfig::default(),
             pool:                 ObserverPoolConfig::default(),
         }
     }

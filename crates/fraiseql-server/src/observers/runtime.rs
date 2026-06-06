@@ -19,6 +19,7 @@ use arc_swap::ArcSwap;
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig, EventMatcher,
     FailurePolicy, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
+    config::TransportConfig,
 };
 use sqlx::PgPool;
 use tokio::{
@@ -63,12 +64,21 @@ pub struct ObserverRuntimeConfig {
     /// failed entry is dropped (drop-newest) with a warning and an overflow
     /// counter bump.
     pub max_dlq_size: Option<usize>,
+
+    /// Event transport selection (PostgreSQL LISTEN/NOTIFY, NATS, in-memory).
+    ///
+    /// Resolved at boot from `[observers.runtime.transport]` plus
+    /// `FRAISEQL_OBSERVER_TRANSPORT`/`FRAISEQL_NATS_*` env overrides, validated,
+    /// and gated by
+    /// [`observer_transport_check`](crate::server::initialization::observer_transport_check).
+    /// Consumed by [`ObserverRuntime::start`] to pick the event source.
+    pub transport: TransportConfig,
 }
 
 impl ObserverRuntimeConfig {
-    /// Create config with defaults
+    /// Create config with defaults (PostgreSQL transport).
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
+    pub fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
@@ -77,6 +87,7 @@ impl ObserverRuntimeConfig {
             auto_reload: true,
             reload_interval_secs: 60,
             max_dlq_size: None,
+            transport: TransportConfig::default(),
         }
     }
 
@@ -105,6 +116,13 @@ impl ObserverRuntimeConfig {
     #[must_use]
     pub const fn with_max_dlq_size(mut self, max: Option<usize>) -> Self {
         self.max_dlq_size = max;
+        self
+    }
+
+    /// Set the event transport configuration (already env-overridden + validated).
+    #[must_use]
+    pub fn with_transport(mut self, transport: TransportConfig) -> Self {
+        self.transport = transport;
         self
     }
 }

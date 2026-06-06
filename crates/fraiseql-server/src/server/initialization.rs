@@ -597,6 +597,139 @@ pub(super) fn failed_login_lockout_check(
     Ok(())
 }
 
+// ── Observer transport selection (#350) ──────────────────────────────────────
+
+/// Reject a configured observer transport the binary cannot run.
+///
+/// The off-the-shelf binary ships with PostgreSQL LISTEN/NOTIFY always
+/// available; NATS `JetStream` is gated behind the `observers-nats` feature and
+/// needs a broker URL. When an operator selects `transport = "nats"` (via
+/// `[observers.runtime.transport]` or `FRAISEQL_OBSERVER_TRANSPORT`) but the
+/// binary cannot actually run it — the feature is not compiled in, or no URL is
+/// configured — the server must say so loudly rather than silently fall back to
+/// PostgreSQL and serve with a false "running on NATS" posture (the #350 bug).
+///
+/// In production this is a hard error so the server refuses to boot; in
+/// development (`FRAISEQL_ENV=development`/`dev`) it is downgraded to a warning
+/// so local runs still come up (on PostgreSQL). `Postgres` and the testing-only
+/// `InMemory` transport need no broker and are always accepted. A future
+/// (`#[non_exhaustive]`) transport the binary does not understand is treated as
+/// unsupported.
+///
+/// This is a pure, race-free decision function (mirrors
+/// [`pkce_state_encryption_check`] and [`failed_login_lockout_check`]): the
+/// caller supplies the resolved transport, whether the feature is compiled in,
+/// whether a NATS URL is present, and the production flag.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when a non-Postgres transport cannot run
+/// and `is_production` is true.
+#[cfg(feature = "observers")]
+pub(super) fn observer_transport_check(
+    kind: fraiseql_observers::config::TransportKind,
+    compiled_in: bool,
+    nats_url_present: bool,
+    is_production: bool,
+) -> crate::Result<()> {
+    use fraiseql_observers::config::TransportKind;
+
+    // Postgres (default) and the in-memory testing transport need no broker.
+    match kind {
+        TransportKind::Postgres | TransportKind::InMemory => return Ok(()),
+        TransportKind::Nats => {},
+        // A transport variant added in a future fraiseql-observers release that
+        // this binary was not built to drive: refuse it rather than guess.
+        _ => {
+            return refuse_or_warn_transport(
+                is_production,
+                UNKNOWN_TRANSPORT_MSG,
+                UNKNOWN_TRANSPORT_WARN,
+            );
+        },
+    }
+
+    if !compiled_in {
+        return refuse_or_warn_transport(
+            is_production,
+            NATS_NOT_COMPILED_MSG,
+            NATS_NOT_COMPILED_WARN,
+        );
+    }
+    if !nats_url_present {
+        return refuse_or_warn_transport(is_production, NATS_NO_URL_MSG, NATS_NO_URL_WARN);
+    }
+    Ok(())
+}
+
+#[cfg(feature = "observers")]
+const NATS_NOT_COMPILED_MSG: &str = concat!(
+    "FraiseQL failed to start\n\n",
+    "  [observers.runtime.transport] transport = \"nats\" (or\n",
+    "  FRAISEQL_OBSERVER_TRANSPORT=nats) was selected, but this binary was not\n",
+    "  built with NATS support, so the observer runtime cannot run on NATS and\n",
+    "  would silently fall back to PostgreSQL LISTEN/NOTIFY.\n\n",
+    "  To fix, build/run a binary with the NATS transport compiled in:\n",
+    "    cargo build -p fraiseql-server --features observers-nats\n\n",
+    "  Or select the PostgreSQL transport explicitly:\n",
+    "    [observers.runtime.transport]\n",
+    "    transport = \"postgres\"\n\n",
+    "  For local development only:\n",
+    "    Set FRAISEQL_ENV=development to downgrade this to a warning (runs on PostgreSQL).",
+);
+
+#[cfg(feature = "observers")]
+const NATS_NOT_COMPILED_WARN: &str = "observer transport = \"nats\" selected but this binary lacks the observers-nats feature; \
+     the observer runtime will run on PostgreSQL. Allowed only because FRAISEQL_ENV=development; \
+     build with --features observers-nats before production.";
+
+#[cfg(feature = "observers")]
+const NATS_NO_URL_MSG: &str = concat!(
+    "FraiseQL failed to start\n\n",
+    "  [observers.runtime.transport] transport = \"nats\" was selected, but no NATS\n",
+    "  broker URL is configured, so the observer runtime cannot connect.\n\n",
+    "  To fix, set the broker URL:\n",
+    "    [observers.runtime.transport.nats]\n",
+    "    url = \"nats://your-broker:4222\"\n",
+    "  (or export FRAISEQL_NATS_URL).\n\n",
+    "  For local development only:\n",
+    "    Set FRAISEQL_ENV=development to downgrade this to a warning (runs on PostgreSQL).",
+);
+
+#[cfg(feature = "observers")]
+const NATS_NO_URL_WARN: &str = "observer transport = \"nats\" selected but no NATS broker URL is configured; the observer \
+     runtime will run on PostgreSQL. Allowed only because FRAISEQL_ENV=development; set \
+     [observers.runtime.transport.nats] url before production.";
+
+#[cfg(feature = "observers")]
+const UNKNOWN_TRANSPORT_MSG: &str = concat!(
+    "FraiseQL failed to start\n\n",
+    "  [observers.runtime.transport] selected an observer transport this binary\n",
+    "  does not know how to run. Upgrade fraiseql-server, or select a supported\n",
+    "  transport (\"postgres\" or \"nats\").\n\n",
+    "  For local development only:\n",
+    "    Set FRAISEQL_ENV=development to downgrade this to a warning (runs on PostgreSQL).",
+);
+
+#[cfg(feature = "observers")]
+const UNKNOWN_TRANSPORT_WARN: &str = "observer transport selection is not supported by this binary; the observer runtime will run \
+     on PostgreSQL. Allowed only because FRAISEQL_ENV=development; upgrade fraiseql-server or \
+     select a supported transport before production.";
+
+/// Either refuse to boot (production) or warn and continue on PostgreSQL (dev).
+#[cfg(feature = "observers")]
+fn refuse_or_warn_transport(
+    is_production: bool,
+    prod_msg: &'static str,
+    dev_warn: &'static str,
+) -> crate::Result<()> {
+    if is_production {
+        return Err(crate::ServerError::ConfigError(prod_msg.into()));
+    }
+    warn!("{dev_warn}");
+    Ok(())
+}
+
 // ── SSRF guard for manifest hot-reload URL ────────────────────────────────────
 
 /// Returns `true` when `url` resolves to a private, loopback, or link-local

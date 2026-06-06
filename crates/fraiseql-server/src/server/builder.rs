@@ -355,7 +355,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]
-        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
+        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await?;
 
         // Initialize Flight service with OIDC authentication if configured
         #[cfg(feature = "arrow")]
