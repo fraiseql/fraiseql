@@ -137,6 +137,19 @@ pub struct ObserverRuntimeSettings {
     #[serde(default = "default_reload_interval_secs")]
     pub reload_interval_secs: u64,
 
+    /// Maximum number of entries the in-memory dead letter queue may hold.
+    ///
+    /// When the DLQ reaches this limit, the newest entry is dropped (the current
+    /// failing action is discarded) and a warning is logged. This prevents
+    /// unbounded memory growth under sustained action failures, mirroring the
+    /// `fraiseql-observers` library policy so the same key means the same thing
+    /// in the binary and the embedder.
+    ///
+    /// Default: `None` (unbounded — matches previous behaviour for
+    /// backwards compatibility). Recommended production value: `10_000`.
+    #[serde(default)]
+    pub max_dlq_size: Option<usize>,
+
     /// Dedicated connection pool configuration for the observer runtime.
     ///
     /// When absent, sensible observer-specific defaults are used (smaller
@@ -155,6 +168,7 @@ impl Default for ObserverRuntimeSettings {
             channel_capacity:     default_channel_capacity(),
             auto_reload:          default_auto_reload(),
             reload_interval_secs: default_reload_interval_secs(),
+            max_dlq_size:         None,
             pool:                 ObserverPoolConfig::default(),
         }
     }
@@ -204,6 +218,8 @@ pub struct ObserverConfig {
     pub(crate) legacy_auto_reload:          Option<toml::Value>,
     #[serde(default, rename = "reload_interval_secs", skip_serializing)]
     pub(crate) legacy_reload_interval_secs: Option<toml::Value>,
+    #[serde(default, rename = "max_dlq_size", skip_serializing)]
+    pub(crate) legacy_max_dlq_size:         Option<toml::Value>,
     #[serde(default, rename = "pool", skip_serializing)]
     pub(crate) legacy_pool:                 Option<toml::Value>,
 }
@@ -233,6 +249,9 @@ impl ObserverConfig {
         }
         if self.legacy_reload_interval_secs.is_some() {
             keys.push("reload_interval_secs");
+        }
+        if self.legacy_max_dlq_size.is_some() {
+            keys.push("max_dlq_size");
         }
         if self.legacy_pool.is_some() {
             keys.push("pool");

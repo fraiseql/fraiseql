@@ -33,6 +33,9 @@ use crate::{
     subscriptions::event_bridge::EntityEvent as BridgeEntityEvent,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Configuration for the observer runtime
 #[derive(Debug, Clone)]
 pub struct ObserverRuntimeConfig {
@@ -53,6 +56,13 @@ pub struct ObserverRuntimeConfig {
 
     /// Interval to check for observer changes (seconds)
     pub reload_interval_secs: u64,
+
+    /// Maximum entries the in-memory DLQ may hold (`None` = unbounded).
+    ///
+    /// Mirrors the `fraiseql-observers` library cap: when reached, the newest
+    /// failed entry is dropped (drop-newest) with a warning and an overflow
+    /// counter bump.
+    pub max_dlq_size: Option<usize>,
 }
 
 impl ObserverRuntimeConfig {
@@ -66,6 +76,7 @@ impl ObserverRuntimeConfig {
             channel_capacity: 1000,
             auto_reload: true,
             reload_interval_secs: 60,
+            max_dlq_size: None,
         }
     }
 
@@ -87,6 +98,13 @@ impl ObserverRuntimeConfig {
     #[must_use]
     pub const fn with_channel_capacity(mut self, capacity: usize) -> Self {
         self.channel_capacity = capacity;
+        self
+    }
+
+    /// Set the in-memory DLQ size cap (`None` = unbounded).
+    #[must_use]
+    pub const fn with_max_dlq_size(mut self, max: Option<usize>) -> Self {
+        self.max_dlq_size = max;
         self
     }
 }
@@ -148,6 +166,7 @@ impl ObserverRuntime {
     #[must_use]
     pub fn new(config: ObserverRuntimeConfig) -> Self {
         let repository = ObserverRepository::new(config.pool.clone());
+        let max_dlq_size = config.max_dlq_size;
 
         Self {
             config,
@@ -162,7 +181,7 @@ impl ObserverRuntime {
             matcher: Arc::new(RwLock::new(None)),
             executor: Arc::new(RwLock::new(None)),
             entity_type_index: Arc::new(ArcSwap::from_pointee(HashMap::new())),
-            dlq: Arc::new(InMemoryDlq::new()),
+            dlq: Arc::new(InMemoryDlq::new_with_max(max_dlq_size)),
             event_bridge_sender: None,
         }
     }
@@ -687,21 +706,44 @@ impl ObserverRuntime {
     }
 }
 
-/// Simple in-memory Dead Letter Queue for development
+/// Simple in-memory Dead Letter Queue for development.
+///
+/// Honors an optional size cap (`max_size`) mirroring the `fraiseql-observers`
+/// library policy so `max_dlq_size` means the same thing in the binary and the
+/// embedder: when the cap is reached, [`push`](InMemoryDlq::push) **drops the
+/// newest** failed entry, emits a `warn!` with the same fields as the library,
+/// and bumps an overflow counter — the durable, loud signal (a lone warn line
+/// scrolls past). The length check and the insert happen under the same items
+/// mutex, so there is no separate-atomic TOCTOU.
 pub(crate) struct InMemoryDlq {
-    items: std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
+    items:          std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
+    /// Maximum retained entries; `None` = unbounded (back-compat default).
+    max_size:       Option<usize>,
+    /// Count of entries dropped because the DLQ was at capacity (drop-newest).
+    overflow_count: std::sync::atomic::AtomicUsize,
 }
 
 impl InMemoryDlq {
-    const fn new() -> Self {
+    /// Create a DLQ with an optional retention cap (`None` = unbounded).
+    const fn new_with_max(max_size: Option<usize>) -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
+            max_size,
+            overflow_count: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
     /// Returns the number of items currently in the DLQ.
     pub(crate) fn count(&self) -> usize {
         self.items.lock().expect("items mutex poisoned").len()
+    }
+
+    /// Number of entries dropped because the DLQ was at capacity (drop-newest).
+    ///
+    /// The durable counterpart to the per-drop `warn!` — the loud overflow
+    /// signal that survives log rotation.
+    pub(crate) fn overflow_count(&self) -> usize {
+        self.overflow_count.load(Ordering::Relaxed)
     }
 
     /// Returns all DLQ items as a cloned snapshot.
@@ -734,15 +776,32 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         error: String,
     ) -> fraiseql_observers::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
-        let item = fraiseql_observers::DlqItem {
+        let mut items = self.items.lock().expect("items mutex poisoned");
+
+        // Drop-newest when at capacity, mirroring the library policy
+        // (`fraiseql-observers` executor): same `warn!` fields + an overflow
+        // counter so the cap means the same thing in the binary and embedder.
+        if let Some(max) = self.max_size {
+            if items.len() >= max {
+                warn!(
+                    max_dlq_size = max,
+                    action_type = action.action_type(),
+                    event_id = %event.id,
+                    "DLQ full; dropping failed action entry"
+                );
+                self.overflow_count.fetch_add(1, Ordering::Relaxed);
+                // Drop the newest entry: it is intentionally not stored.
+                return Ok(id);
+            }
+        }
+
+        items.push(fraiseql_observers::DlqItem {
             id,
             event,
             action,
             error_message: error,
             attempts: 0,
-        };
-        let mut items = self.items.lock().expect("items mutex poisoned");
-        items.push(item);
+        });
         Ok(id)
     }
 
@@ -767,10 +826,18 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
     async fn mark_retry_failed(
         &self,
         id: uuid::Uuid,
-        _error: &str,
+        error: &str,
     ) -> fraiseql_observers::Result<()> {
+        // Keep the item for a future retry / operator inspection: record the
+        // failure on the existing fields instead of silently destroying it.
+        // Items leave the DLQ only via `mark_success` or an explicit `remove`
+        // (operator DELETE). This preserves the audit trail (#343) and is the
+        // lifecycle the atomic claim model (#344) relies on.
         let mut items = self.items.lock().expect("items mutex poisoned");
-        items.retain(|i| i.id != id);
+        if let Some(item) = items.iter_mut().find(|i| i.id == id) {
+            item.attempts = item.attempts.saturating_add(1);
+            item.error_message = error.to_string();
+        }
         Ok(())
     }
 }

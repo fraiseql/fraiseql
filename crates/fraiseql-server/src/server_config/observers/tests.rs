@@ -108,6 +108,24 @@ fn flat_scalar_server_keys_are_trapped() {
 }
 
 #[test]
+fn runtime_max_dlq_size_parses() {
+    let cfg: ObserverConfig = toml::from_str("[runtime]\nmax_dlq_size = 10000\n").unwrap();
+    assert_eq!(cfg.runtime.max_dlq_size, Some(10000));
+    assert!(cfg.misplaced_runtime_keys().is_empty());
+
+    // Absent → unbounded (None), back-compat default.
+    let default: ObserverConfig = toml::from_str("enabled = true\n").unwrap();
+    assert_eq!(default.runtime.max_dlq_size, None);
+}
+
+#[test]
+fn flat_max_dlq_size_is_trapped() {
+    // The pre-#342 docs showed `[observers] max_dlq_size`; it now lives under runtime.
+    let cfg: ObserverConfig = toml::from_str("max_dlq_size = 10000\n").unwrap();
+    assert_eq!(cfg.misplaced_runtime_keys(), vec!["max_dlq_size"]);
+}
+
+#[test]
 fn flat_pool_table_is_trapped() {
     let cfg: ObserverConfig = toml::from_str(
         "[pool]\n\

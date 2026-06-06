@@ -92,6 +92,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer DLQ ignored `max_dlq_size`; failed retries silently destroyed (#343).**
+  The `fraiseql-server` binary's in-memory dead letter queue grew without bound
+  — `max_dlq_size` was a documented setting the binary never honored, a memory
+  DoS amplifier under sustained action failures. It now enforces the cap with
+  the same policy as the `fraiseql-observers` library (drop-newest + a `warn!`
+  with matching fields + an overflow counter), enforced atomically under the
+  items mutex. The overflow counter is surfaced as `dlq_dropped` on
+  `GET /api/observers/delivery/health`. Configure via
+  `[observers.runtime] max_dlq_size` (default `None` = unbounded, for
+  back-compat). Separately, `mark_retry_failed` previously deleted the failed
+  item outright, destroying the audit trail; it now keeps the item, increments
+  its `attempts`, and records the latest error — items leave the DLQ only on
+  success or an explicit operator delete.
+
 - **Observer runtime routes mounted at the wrong prefix (#340).** The observer
   runtime-health and reload endpoints were `merge`d at the router root, so
   `/api/observers/runtime/health` and `/api/observers/runtime/reload` returned
