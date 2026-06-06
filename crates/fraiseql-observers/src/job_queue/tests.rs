@@ -167,10 +167,11 @@ mod job_queue_tests {
         let job_webhook = Job::new(
             event_id,
             ActionConfig::Webhook {
-                url:           Some("http://example.com".to_string()),
-                url_env:       None,
-                headers:       std::collections::HashMap::default(),
-                body_template: None,
+                url:                Some("http://example.com".to_string()),
+                url_env:            None,
+                headers:            std::collections::HashMap::default(),
+                body_template:      None,
+                signing_secret_env: None,
             },
             3,
             crate::config::BackoffStrategy::Exponential,

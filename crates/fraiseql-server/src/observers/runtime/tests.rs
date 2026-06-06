@@ -23,10 +23,11 @@ fn test_event() -> EntityEvent {
 
 fn test_action() -> ActionConfig {
     ActionConfig::Webhook {
-        url:           Some("http://localhost/hook".to_string()),
-        url_env:       None,
-        headers:       HashMap::new(),
-        body_template: None,
+        url:                Some("http://localhost/hook".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     }
 }
 

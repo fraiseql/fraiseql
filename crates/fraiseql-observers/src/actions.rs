@@ -18,12 +18,51 @@ use crate::{
     event::EntityEvent,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Default HTTP request timeout for outbound webhook calls.
 ///
 /// Prevents a slow or non-responsive endpoint from blocking the executor
 /// indefinitely.  Operators can override this by constructing the client
 /// manually via [`WebhookAction::with_timeout`].
 pub(crate) const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
+
+/// Header carrying the HMAC-SHA256 signature of the webhook body.
+///
+/// Stripe-compatible shape (`t=<unix_ts>,v1=<hex>`); verifiable with
+/// `fraiseql-webhooks`'s `StripeVerifier` (#345).
+pub(crate) const WEBHOOK_SIGNATURE_HEADER: &str = "X-FraiseQL-Signature-256";
+
+/// Compute the Stripe-shape signature header value for the exact `body_bytes`.
+///
+/// Returns `t=<ts>,v1=<hex>` where the HMAC-SHA256 is taken over the byte
+/// sequence `"<ts>.<body>"` — byte-identical to the signing base used by
+/// `fraiseql_webhooks::signature::stripe::StripeVerifier`
+/// (`format!("{t}.{}", String::from_utf8_lossy(body))`), so a receiver can
+/// verify the payload with that verifier.
+///
+/// `body_bytes` MUST be the exact bytes transmitted on the wire (see
+/// [`WebhookAction::execute`], which signs the same buffer it sends) — signing a
+/// re-serialization can diverge from the transmitted bytes and fail every
+/// external verification.
+pub(crate) fn webhook_signature(secret: &str, ts: i64, body_bytes: &[u8]) -> String {
+    use hmac::{Hmac, KeyInit, Mac};
+    use sha2::Sha256;
+
+    let ts_str = ts.to_string();
+    let mut signed = Vec::with_capacity(ts_str.len() + 1 + body_bytes.len());
+    signed.extend_from_slice(ts_str.as_bytes());
+    signed.push(b'.');
+    signed.extend_from_slice(body_bytes);
+
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .expect("HMAC-SHA256 accepts a key of any length");
+    mac.update(&signed);
+    let hex = hex::encode(mac.finalize().into_bytes());
+
+    format!("t={ts},v1={hex}")
+}
 
 /// Validate an outbound URL for SSRF risk before sending a request.
 ///
@@ -281,6 +320,7 @@ impl WebhookAction {
         url: &str,
         headers: &HashMap<String, String>,
         body_template: Option<&str>,
+        signing_secret: Option<&str>,
         event: &EntityEvent,
     ) -> Result<WebhookResponse> {
         let start = std::time::Instant::now();
@@ -327,12 +367,36 @@ impl WebhookAction {
             serde_json::to_string(&body).unwrap_or_else(|_| "<invalid json>".to_string())
         );
 
+        // Serialize the body ONCE so the signature (below) covers the EXACT
+        // bytes sent on the wire. `.json()` re-serializes and could diverge
+        // (key order / whitespace), making every external signature
+        // verification fail (#345).
+        let body_bytes =
+            serde_json::to_vec(&body).map_err(|e| ObserverError::ActionExecutionFailed {
+                reason: format!("Failed to serialize webhook body: {e}"),
+            })?;
+
         // Build request
         let mut request = self.client.post(url);
 
-        // Add headers (already validated above)
+        // Add headers (already validated above), tracking whether the operator
+        // set a Content-Type so we don't duplicate it.
+        let mut has_content_type = false;
         for (key, value) in headers {
+            if key.eq_ignore_ascii_case("content-type") {
+                has_content_type = true;
+            }
             request = request.header(key, value);
+        }
+        if !has_content_type {
+            request = request.header(reqwest::header::CONTENT_TYPE, "application/json");
+        }
+
+        // Sign the exact transmitted bytes if a signing secret is configured.
+        if let Some(secret) = signing_secret {
+            let ts = chrono::Utc::now().timestamp();
+            let signature = webhook_signature(secret, ts, &body_bytes);
+            request = request.header(WEBHOOK_SIGNATURE_HEADER, signature);
         }
 
         info!(
@@ -342,15 +406,12 @@ impl WebhookAction {
             "Webhook dispatch starting"
         );
 
-        // Send request
-        let response =
-            request
-                .json(&body)
-                .send()
-                .await
-                .map_err(|e| ObserverError::ActionExecutionFailed {
-                    reason: format!("HTTP request failed: {e}"),
-                })?;
+        // Send request — `.body(body_bytes)` sends the exact bytes we signed.
+        let response = request.body(body_bytes).send().await.map_err(|e| {
+            ObserverError::ActionExecutionFailed {
+                reason: format!("HTTP request failed: {e}"),
+            }
+        })?;
 
         let status = response.status();
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;

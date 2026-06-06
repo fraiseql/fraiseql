@@ -203,10 +203,11 @@ mod integration_tests {
     #[test]
     fn test_webhook_action_validation() {
         let invalid = ActionConfig::Webhook {
-            url:           None,
-            url_env:       None,
-            headers:       std::collections::HashMap::new(),
-            body_template: None,
+            url:                None,
+            url_env:            None,
+            headers:            std::collections::HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         };
 
         assert!(
@@ -216,10 +217,11 @@ mod integration_tests {
         );
 
         let valid = ActionConfig::Webhook {
-            url:           Some("https://example.com".to_string()),
-            url_env:       None,
-            headers:       std::collections::HashMap::new(),
-            body_template: Some("{}".to_string()),
+            url:                Some("https://example.com".to_string()),
+            url_env:            None,
+            headers:            std::collections::HashMap::new(),
+            body_template:      Some("{}".to_string()),
+            signing_secret_env: None,
         };
 
         valid

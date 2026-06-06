@@ -90,10 +90,11 @@ async fn concurrent_retry_dispatches_at_most_once() {
         serde_json::json!({}),
     );
     let action = ActionConfig::Webhook {
-        url:           Some("http://localhost/hook".to_string()),
-        url_env:       None,
-        headers:       HashMap::new(),
-        body_template: None,
+        url:                Some("http://localhost/hook".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     };
     let id = runtime.dlq().push(event, action, "boom".to_string()).await.expect("push");
 

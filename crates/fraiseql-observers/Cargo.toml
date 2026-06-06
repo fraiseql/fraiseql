@@ -14,6 +14,8 @@ dashmap = {workspace = true}
 fraiseql-arrow = {workspace = true, optional = true}
 fraiseql-error = {workspace = true}
 futures = "0.3"
+hex = {workspace = true}
+hmac = {workspace = true}
 http = "1.1"
 parking_lot = {workspace = true}
 prometheus = {version = "0.14", optional = true}
@@ -37,6 +39,10 @@ uuid = {workspace = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+# Round-trip verification of the webhook HMAC signer against the project's own
+# Stripe-shape verifier (#345). Test-only; fraiseql-webhooks does not depend on
+# fraiseql-observers, so there is no production dependency cycle.
+fraiseql-webhooks = {path = "../fraiseql-webhooks"}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}

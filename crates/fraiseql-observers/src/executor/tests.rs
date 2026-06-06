@@ -341,10 +341,11 @@ fn make_mock_executor_with_matcher(
 
 fn webhook_action() -> ActionConfig {
     ActionConfig::Webhook {
-        url:           Some("https://example.com/hook".to_string()),
-        url_env:       None,
-        headers:       std::collections::HashMap::new(),
-        body_template: None,
+        url:                Some("https://example.com/hook".to_string()),
+        url_env:            None,
+        headers:            std::collections::HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     }
 }
 
@@ -764,10 +765,11 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
     // DefaultActionDispatcher handles the missing-URL case directly.
     let executor = create_test_executor();
     let action = ActionConfig::Webhook {
-        url:           None,
-        url_env:       None,
-        headers:       std::collections::HashMap::new(),
-        body_template: None,
+        url:                None,
+        url_env:            None,
+        headers:            std::collections::HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     };
     let event = test_event();
 
@@ -783,10 +785,11 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
 async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name() {
     let executor = create_test_executor();
     let action = ActionConfig::Webhook {
-        url:           None,
-        url_env:       Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
-        headers:       std::collections::HashMap::new(),
-        body_template: None,
+        url:                None,
+        url_env:            Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
+        headers:            std::collections::HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     };
     let event = test_event();
 
@@ -1497,8 +1500,48 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
 mod dispatch_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code — panics are intentional
 
-    use super::dispatch::resolve_url;
+    use super::dispatch::{resolve_signing_secret, resolve_url};
     use crate::error::ObserverError;
+
+    #[test]
+    fn signing_secret_none_when_unconfigured() {
+        // No env var name configured → signing simply off (no error).
+        assert_eq!(resolve_signing_secret(None).unwrap(), None);
+    }
+
+    #[test]
+    fn signing_secret_resolves_from_env() {
+        temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET", Some("whsec_123"), || {
+            assert_eq!(
+                resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET")).unwrap(),
+                Some("whsec_123".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn signing_secret_missing_env_fails_loud() {
+        // An operator who asked for signing must NOT get an unsigned delivery:
+        // an absent env var is a hard error, never a silent skip (#345).
+        temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET_UNSET", None::<&str>, || {
+            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_UNSET"));
+            assert!(
+                matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+                "missing signing-secret env var must fail loud: {result:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn signing_secret_empty_env_fails_loud() {
+        temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET_EMPTY", Some(""), || {
+            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_EMPTY"));
+            assert!(
+                matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+                "empty signing-secret env var must fail loud: {result:?}"
+            );
+        });
+    }
 
     #[test]
     fn test_valid_urls_pass() {

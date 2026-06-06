@@ -205,16 +205,25 @@ pub enum ActionConfig {
     /// HTTP webhook action
     Webhook {
         /// Target URL for the webhook POST request.
-        url:           String,
+        url:                String,
         /// HTTP method (default: POST).
         #[serde(default = "default_method")]
-        method:        String,
+        method:             String,
         /// Optional custom request headers.
         #[serde(default)]
-        headers:       Option<std::collections::HashMap<String, String>>,
+        headers:            Option<std::collections::HashMap<String, String>>,
         /// Optional Handlebars body template.
         #[serde(default)]
-        body_template: Option<String>,
+        body_template:      Option<String>,
+        /// Name of the environment variable holding the HMAC signing secret (#345).
+        ///
+        /// When set, the observer runtime signs outbound payloads for this
+        /// webhook (HMAC-SHA256, `X-FraiseQL-Signature-256: t=<ts>,v1=<hex>`,
+        /// Stripe-compatible). This is the env var *name*, never the secret
+        /// literal. Stored in the observer's `actions` JSONB and consumed by the
+        /// runtime's `fraiseql_observers::ActionConfig::Webhook`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        signing_secret_env: Option<String>,
     },
 
     /// Email notification action

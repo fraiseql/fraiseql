@@ -109,15 +109,16 @@ fn create_test_event(kind: EventKind, entity_type: &str, data: serde_json::Value
 #[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn create_http_action(url: &str) -> ActionConfig {
     ActionConfig::Webhook {
-        url:           Some(url.to_string()),
-        url_env:       None,
-        headers:       HashMap::from([(
+        url:                Some(url.to_string()),
+        url_env:            None,
+        headers:            HashMap::from([(
             "Content-Type".to_string(),
             "application/json".to_string(),
         )]),
-        body_template: Some(
+        body_template:      Some(
             r#"{"event": "{{ event.kind }}", "entity": "{{ event.entity_type }}"}"#.to_string(),
         ),
+        signing_secret_env: None,
     }
 }
 

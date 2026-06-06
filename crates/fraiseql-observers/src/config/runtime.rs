@@ -269,15 +269,25 @@ pub enum ActionConfig {
     /// HTTP POST webhook to external URL
     Webhook {
         /// URL to POST to
-        url:           Option<String>,
+        url:                Option<String>,
         /// Environment variable containing the URL
-        url_env:       Option<String>,
+        url_env:            Option<String>,
         /// Optional HTTP headers
         #[serde(default)]
-        headers:       HashMap<String, String>,
+        headers:            HashMap<String, String>,
         /// Template for request body
         #[serde(default)]
-        body_template: Option<String>,
+        body_template:      Option<String>,
+        /// Name of the environment variable holding the HMAC signing secret.
+        ///
+        /// When set, the outbound payload is signed with HMAC-SHA256 and the
+        /// `X-FraiseQL-Signature-256: t=<unix_ts>,v1=<hex>` header is attached
+        /// (Stripe-compatible, verifiable with
+        /// `fraiseql-webhooks`'s `StripeVerifier`). This is the env var *name*,
+        /// never the secret literal. If set but the env var is absent or empty,
+        /// dispatch fails loud rather than sending an unsigned payload (#345).
+        #[serde(default)]
+        signing_secret_env: Option<String>,
     },
 
     /// Send message to Slack webhook
@@ -375,6 +385,7 @@ impl ActionConfig {
                 url,
                 url_env,
                 body_template,
+                signing_secret_env,
                 ..
             } => {
                 if url.is_none() && url_env.is_none() {
@@ -385,6 +396,13 @@ impl ActionConfig {
                 if body_template.as_ref().is_some_and(std::string::String::is_empty) {
                     return Err(ObserverError::InvalidActionConfig {
                         reason: "Webhook body_template cannot be empty".to_string(),
+                    });
+                }
+                if signing_secret_env.as_ref().is_some_and(std::string::String::is_empty) {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: "Webhook signing_secret_env cannot be empty (it is the env var \
+                                 NAME holding the secret, or omit it for unsigned delivery)"
+                            .to_string(),
                     });
                 }
                 Ok(())

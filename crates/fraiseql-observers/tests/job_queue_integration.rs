@@ -111,10 +111,11 @@ fn test_job_creation_with_fixed_backoff() -> Result<()> {
     let job = Job::with_config(
         event_id,
         ActionConfig::Webhook {
-            url:           Some("http://example.com/webhook".to_string()),
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                Some("http://example.com/webhook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         },
         3,
         BackoffStrategy::Fixed,
@@ -135,10 +136,11 @@ fn test_job_creation_with_linear_backoff() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url:           Some("http://example.com/webhook".to_string()),
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                Some("http://example.com/webhook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         },
         5,
         BackoffStrategy::Linear,
@@ -157,10 +159,11 @@ fn test_job_creation_with_exponential_backoff() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url:           Some("http://example.com/webhook".to_string()),
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                Some("http://example.com/webhook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         },
         10,
         BackoffStrategy::Exponential,
@@ -182,10 +185,11 @@ fn test_job_retry_counting() -> Result<()> {
     let mut job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url:           Some("http://example.com/webhook".to_string()),
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                Some("http://example.com/webhook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         },
         3,
         BackoffStrategy::Fixed,
@@ -225,14 +229,15 @@ fn test_job_with_webhook_action() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url:           Some("http://api.example.com/webhooks/event".to_string()),
-            url_env:       None,
-            headers:       {
+            url:                Some("http://api.example.com/webhooks/event".to_string()),
+            url_env:            None,
+            headers:            {
                 let mut h = HashMap::new();
                 h.insert("X-API-Key".to_string(), "secret".to_string());
                 h
             },
-            body_template: Some(r#"{"event": "{{ event.kind }}"}"#.to_string()),
+            body_template:      Some(r#"{"event": "{{ event.kind }}"}"#.to_string()),
+            signing_secret_env: None,
         },
         3,
         BackoffStrategy::Exponential,
@@ -341,10 +346,11 @@ fn test_backoff_strategies() -> Result<()> {
         let _job = Job::with_config(
             Uuid::new_v4(),
             ActionConfig::Webhook {
-                url:           Some("http://example.com/webhook".to_string()),
-                url_env:       None,
-                headers:       HashMap::new(),
-                body_template: None,
+                url:                Some("http://example.com/webhook".to_string()),
+                url_env:            None,
+                headers:            HashMap::new(),
+                body_template:      None,
+                signing_secret_env: None,
             },
             3,
             strategy,
@@ -367,10 +373,11 @@ fn test_job_lifecycle() -> Result<()> {
     let mut job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url:           Some("http://example.com/webhook".to_string()),
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                Some("http://example.com/webhook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         },
         3,
         BackoffStrategy::Linear,
@@ -410,10 +417,11 @@ fn test_job_config_combinations() -> Result<()> {
         (
             "webhook",
             ActionConfig::Webhook {
-                url:           Some("http://example.com/webhook".to_string()),
-                url_env:       None,
-                headers:       HashMap::new(),
-                body_template: None,
+                url:                Some("http://example.com/webhook".to_string()),
+                url_env:            None,
+                headers:            HashMap::new(),
+                body_template:      None,
+                signing_secret_env: None,
             },
         ),
         (

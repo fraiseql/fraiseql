@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Outbound observer webhooks can now be HMAC-signed (#345).** Webhook payloads
+  were sent unsigned, so receivers had no way to authenticate them — the
+  documented receiver-side verification pattern was not implementable
+  end-to-end. Setting `signing_secret_env` on a webhook action (the env var
+  *name* holding the secret) now signs the payload with HMAC-SHA256 and attaches
+  `X-FraiseQL-Signature-256: t=<unix_ts>,v1=<hex>`, byte-compatible with
+  `fraiseql-webhooks`'s `StripeVerifier` (the signature is computed over the
+  exact bytes transmitted on the wire, not a re-serialization). If
+  `signing_secret_env` is set but the env var is absent or empty, dispatch fails
+  loud rather than silently sending an unsigned payload. Settable on
+  DB-defined observers and via the `/api/observers` admin API; unset leaves
+  delivery unsigned (back-compat).
+
 - **PostgreSQL token-revocation backend implemented (#357).** `[security.token_revocation]
   backend = "postgres"` previously fell back to an in-memory store after a single warning —
   revocations were lost on restart and not shared across replicas, silently breaking the

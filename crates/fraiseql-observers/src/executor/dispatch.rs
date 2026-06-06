@@ -80,6 +80,27 @@ pub(super) fn resolve_url(
     Ok(url)
 }
 
+/// Resolve the webhook HMAC signing secret from its environment variable name.
+///
+/// Returns `Ok(None)` when signing is not configured (`env_var` is `None`).
+/// Returns `Err(ObserverError::InvalidActionConfig)` when an env var name is
+/// given but the variable is absent or empty — an operator who asked for signing
+/// must never get an unsigned delivery silently (#345, fail-loud house style).
+pub(super) fn resolve_signing_secret(env_var: Option<&str>) -> Result<Option<String>> {
+    let Some(var_name) = env_var else {
+        return Ok(None);
+    };
+    let secret = std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
+        reason: format!("Webhook signing secret env var {var_name} not found"),
+    })?;
+    if secret.is_empty() {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!("Webhook signing secret env var {var_name} is empty"),
+        });
+    }
+    Ok(Some(secret))
+}
+
 /// Validate a URL against Server-Side Request Forgery (SSRF) attack vectors.
 ///
 /// Rejects:
@@ -208,13 +229,21 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     url_env,
                     headers,
                     body_template,
+                    signing_secret_env,
                 } => {
                     debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
                     let webhook_url = resolve_url(url.as_deref(), url_env.as_deref(), "Webhook")?;
+                    let signing_secret = resolve_signing_secret(signing_secret_env.as_deref())?;
 
                     match self
                         .webhook_action
-                        .execute(&webhook_url, headers, body_template.as_deref(), event)
+                        .execute(
+                            &webhook_url,
+                            headers,
+                            body_template.as_deref(),
+                            signing_secret.as_deref(),
+                            event,
+                        )
                         .await
                     {
                         Ok(response) => Ok(ActionResult {

@@ -237,10 +237,11 @@ fn test_retry_config_defaults() {
 fn test_action_type_names() {
     assert_eq!(
         ActionConfig::Webhook {
-            url:           None,
-            url_env:       None,
-            headers:       HashMap::new(),
-            body_template: None,
+            url:                None,
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
         }
         .action_type(),
         "webhook"
@@ -263,10 +264,11 @@ fn test_action_type_names() {
 #[test]
 fn test_webhook_action_validation() {
     let invalid = ActionConfig::Webhook {
-        url:           None,
-        url_env:       None,
-        headers:       HashMap::new(),
-        body_template: None,
+        url:                None,
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret_env: None,
     };
 
     let result = invalid.validate();
@@ -276,15 +278,65 @@ fn test_webhook_action_validation() {
     );
 
     let valid = ActionConfig::Webhook {
-        url:           Some("https://example.com".to_string()),
-        url_env:       None,
-        headers:       HashMap::new(),
-        body_template: Some("{}".to_string()),
+        url:                Some("https://example.com".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      Some("{}".to_string()),
+        signing_secret_env: None,
     };
 
     valid
         .validate()
         .unwrap_or_else(|e| panic!("valid webhook config should pass: {e}"));
+}
+
+#[test]
+fn test_webhook_signing_secret_env_deserializes() {
+    // #345: the signing-secret env-var NAME is captured from config.
+    let json = serde_json::json!({
+        "type": "webhook",
+        "url": "https://example.com/hook",
+        "signing_secret_env": "MY_WEBHOOK_SECRET"
+    });
+    let action: ActionConfig = serde_json::from_value(json).expect("deserialize webhook");
+    match action {
+        ActionConfig::Webhook {
+            signing_secret_env, ..
+        } => {
+            assert_eq!(signing_secret_env.as_deref(), Some("MY_WEBHOOK_SECRET"));
+        },
+        other => panic!("expected webhook, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_webhook_signing_secret_env_defaults_to_none() {
+    let json = serde_json::json!({ "type": "webhook", "url": "https://example.com/hook" });
+    let action: ActionConfig = serde_json::from_value(json).expect("deserialize webhook");
+    match action {
+        ActionConfig::Webhook {
+            signing_secret_env, ..
+        } => {
+            assert_eq!(signing_secret_env, None);
+        },
+        other => panic!("expected webhook, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_webhook_empty_signing_secret_env_is_rejected() {
+    // An empty NAME is a config error (it would silently never resolve a secret).
+    let action = ActionConfig::Webhook {
+        url:                Some("https://example.com".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret_env: Some(String::new()),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+        "empty signing_secret_env must be rejected"
+    );
 }
 
 #[test]

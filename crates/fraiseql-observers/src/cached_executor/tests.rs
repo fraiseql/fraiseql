@@ -137,10 +137,11 @@ fn test_cache_key_generation() {
     );
 
     let action = ActionConfig::Webhook {
-        url:           Some("https://example.com".to_string()),
-        url_env:       None,
-        headers:       std::collections::HashMap::new(),
-        body_template: Some("{}".to_string()),
+        url:                Some("https://example.com".to_string()),
+        url_env:            None,
+        headers:            std::collections::HashMap::new(),
+        body_template:      Some("{}".to_string()),
+        signing_secret_env: None,
     };
 
     let key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
