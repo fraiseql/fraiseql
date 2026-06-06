@@ -807,7 +807,7 @@ mod tenant_key_tests {
     #[test]
     fn test_resolve_from_jwt_takes_priority() {
         let ctx = ctx_with_tenant("from-jwt");
-        let headers = headers_with_tenant_id("from-header");
+        let headers = headers_with_tenant_id("from_header");
         let registry = DomainRegistry::new();
         let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("from-jwt".to_string()));
@@ -815,10 +815,10 @@ mod tenant_key_tests {
 
     #[test]
     fn test_resolve_from_header_when_no_jwt() {
-        let headers = headers_with_tenant_id("from-header");
+        let headers = headers_with_tenant_id("from_header");
         let registry = DomainRegistry::new();
         let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
-        assert_eq!(key, Some("from-header".to_string()));
+        assert_eq!(key, Some("from_header".to_string()));
     }
 
     #[test]
@@ -857,10 +857,10 @@ mod tenant_key_tests {
 
     #[test]
     fn test_resolve_accepts_valid_header() {
-        let headers = headers_with_tenant_id("valid-tenant_123");
+        let headers = headers_with_tenant_id("valid_tenant_123");
         let registry = DomainRegistry::new();
         let result = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
-        assert_eq!(result, Some("valid-tenant_123".to_string()));
+        assert_eq!(result, Some("valid_tenant_123".to_string()));
     }
 
     #[test]
@@ -908,7 +908,7 @@ mod tenant_key_tests {
     #[test]
     fn test_resolve_strict_mode_rejects_conflicts() {
         let ctx = ctx_with_tenant("jwt-tenant");
-        let headers = headers_with_tenant_id("header-tenant");
+        let headers = headers_with_tenant_id("header_tenant");
         let registry = DomainRegistry::new();
         let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), true);
         assert!(result.is_err());
