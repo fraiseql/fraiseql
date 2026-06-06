@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 
 /// Default failed-login attempt cap, mirroring the CLI `toml_schema` default so the
 /// runtime can tell an operator-tuned value from an untouched one (#356).
-pub(crate) const DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS: u32 = 10;
+pub const DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS: u32 = 10;
 /// Default failed-login lockout window in seconds, mirroring the CLI default (#356).
-pub(crate) const DEFAULT_FAILED_LOGIN_LOCKOUT_SECS: u64 = 900;
+pub const DEFAULT_FAILED_LOGIN_LOCKOUT_SECS: u64 = 900;
 
 const fn default_failed_login_max_attempts() -> u32 {
     DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS

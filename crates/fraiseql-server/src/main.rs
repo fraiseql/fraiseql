@@ -375,6 +375,27 @@ fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
     );
 }
 
+/// Warn at startup when `[security.token_revocation] backend = "postgres"` is set on
+/// a database the binary cannot back it with. The Postgres revocation store requires
+/// a `sqlx::PgPool`, so on non-PostgreSQL deployments the backend is unavailable and
+/// token revocation will not be active (#357). Use `memory`/`redis`, or run on PostgreSQL.
+#[cfg(any(
+    feature = "mysql",
+    feature = "sqlite",
+    feature = "sqlserver",
+    feature = "wire-backend"
+))]
+fn warn_revocation_requires_postgres(schema: &CompiledSchema, database: &str) {
+    if fraiseql_server::token_revocation::revocation_backend_is_postgres(schema) {
+        tracing::warn!(
+            database,
+            "[security.token_revocation] backend = \"postgres\" but this binary is not running on \
+             PostgreSQL; token revocation will NOT be active. Set backend = \"memory\" or \
+             \"redis\", or deploy on PostgreSQL."
+        );
+    }
+}
+
 /// Warn at startup when the multi-tenant runtime is enabled on a database where
 /// runtime tenant *provisioning* is unavailable. The registry and `X-Tenant-ID`
 /// dispatch still work for pre-registered tenants, but `PUT /api/v1/admin/tenants`
@@ -457,6 +478,7 @@ async fn dispatch_server(
 ) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "wire-backend");
     warn_tenant_provisioning_requires_postgres(&config, "wire-backend");
+    warn_revocation_requires_postgres(&schema, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
     let server = Server::new(config, schema, adapter, None).await?;
     // Box::pin: with the wire backend enabled the combined server/serve future
@@ -508,6 +530,17 @@ async fn run_postgres(
         );
     }
 
+    // Postgres-backed token revocation (#357): revocation_manager_from_schema defers
+    // the "postgres" backend because it needs a database connection, so build it here
+    // (where the database URL is available) and install it on the server below.
+    let pg_revocation_manager =
+        fraiseql_server::token_revocation::build_postgres_revocation_manager(
+            &config.database_url,
+            &schema,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
     // Multi-tenant runtime provisioning (#330): build the per-tenant executor
     // factory when the runtime is enabled. PostgresAdapter implements
     // `FromPoolConfig`, so `PUT /api/v1/admin/tenants/{key}` can open per-tenant
@@ -536,6 +569,10 @@ async fn run_postgres(
             Some(factory) => server.with_tenant_executor_factory(factory),
             None => server,
         };
+        let server = match pg_revocation_manager {
+            Some(manager) => server.with_revocation_manager(manager),
+            None => server,
+        };
         return finish_server(server, cli, /* with_arrow = */ true).await;
     }
 
@@ -557,6 +594,10 @@ async fn run_postgres(
             Some(factory) => server.with_tenant_executor_factory(factory),
             None => server,
         };
+        let server = match pg_revocation_manager {
+            Some(manager) => server.with_revocation_manager(manager),
+            None => server,
+        };
         finish_server(server, cli, /* with_arrow = */ false).await
     }
 }
@@ -568,6 +609,7 @@ async fn run_postgres(
 async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "mysql");
     warn_tenant_provisioning_requires_postgres(&config, "mysql");
+    warn_revocation_requires_postgres(&schema, "mysql");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
@@ -596,6 +638,7 @@ async fn run_mysql(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Resul
 async fn run_sqlite(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "sqlite");
     warn_tenant_provisioning_requires_postgres(&config, "sqlite");
+    warn_revocation_requires_postgres(&schema, "sqlite");
     fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
     tracing::info!(
         pool_min_size = config.pool_min_size,
@@ -629,6 +672,7 @@ async fn run_sqlserver(
 ) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "sqlserver");
     warn_tenant_provisioning_requires_postgres(&config, "sqlserver");
+    warn_revocation_requires_postgres(&schema, "sqlserver");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,

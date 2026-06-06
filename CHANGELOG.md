@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **PostgreSQL token-revocation backend implemented (#357).** `[security.token_revocation]
+  backend = "postgres"` previously fell back to an in-memory store after a single warning —
+  revocations were lost on restart and not shared across replicas, silently breaking the
+  cross-replica revocation contract operators expected. The binary now provisions a real
+  PostgreSQL-backed store (table `fraiseql_revoked_tokens`, idempotent migration) on the
+  PostgreSQL runtime path, so revoked `jti`s persist and are shared across replicas. An
+  unrecognised `backend` value is now a hard startup error instead of a silent in-memory
+  fallback, and a non-PostgreSQL deployment that requests `backend = "postgres"` warns at
+  startup that the backend is unavailable.
+
 - **Failed-login lockout config is no longer silently ignored (#356).** The server
   previously dropped `[security.rate_limiting] failed_login_max_attempts` /
   `failed_login_lockout_secs` on deserialization. The off-the-shelf binary performs no

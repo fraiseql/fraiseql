@@ -10,6 +10,9 @@
 //! Revoked JTIs expire automatically when the JWT's `exp` claim passes, keeping
 //! the store bounded.
 
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -272,6 +275,114 @@ impl RevocationStore for RedisRevocationStore {
 }
 
 // ───────────────────────────────────────────────────────────────
+// PostgreSQL backend
+// ───────────────────────────────────────────────────────────────
+
+/// Maximum size of the dedicated pool used for token-revocation metadata.
+/// Revocation is metadata-light (one row per revoked token), so a small pool is
+/// sufficient and keeps startup cheap.
+const REVOCATION_POOL_MAX: u32 = 5;
+
+/// Idempotent DDL for the PostgreSQL revocation store.
+const REVOKED_TOKENS_SCHEMA_SQL: &str = "\
+CREATE TABLE IF NOT EXISTS fraiseql_revoked_tokens (
+    jti TEXT PRIMARY KEY,
+    sub TEXT,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_revoked_tokens_sub
+    ON fraiseql_revoked_tokens (sub);
+CREATE INDEX IF NOT EXISTS idx_fraiseql_revoked_tokens_expires
+    ON fraiseql_revoked_tokens (expires_at);";
+
+/// PostgreSQL-backed JWT revocation store.
+///
+/// Persists revoked `jti` claims in `fraiseql_revoked_tokens`, so revocations
+/// survive a restart and are shared across replicas — unlike the in-memory
+/// backend, which the server silently fell back to for `backend = "postgres"`
+/// before this was implemented (#357). Each row carries an `expires_at` matching
+/// the JWT's remaining lifetime; `is_revoked` ignores expired rows and
+/// [`cleanup_expired`](Self::cleanup_expired) prunes them.
+pub struct PostgresRevocationStore {
+    pool: sqlx::PgPool,
+}
+
+impl PostgresRevocationStore {
+    /// Create a Postgres revocation store, ensuring the backing table exists
+    /// (idempotent DDL).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RevocationError::Backend`] if the schema cannot be created.
+    pub async fn new(pool: sqlx::PgPool) -> Result<Self, RevocationError> {
+        sqlx::raw_sql(REVOKED_TOKENS_SCHEMA_SQL)
+            .execute(&pool)
+            .await
+            .map_err(|e| RevocationError::Backend(format!("schema creation failed: {e}")))?;
+        Ok(Self { pool })
+    }
+
+    /// Delete expired revocation rows. Optional housekeeping; `is_revoked` already
+    /// ignores expired entries, so this only reclaims space.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RevocationError::Backend`] if the delete fails.
+    pub async fn cleanup_expired(&self) -> Result<u64, RevocationError> {
+        let result = sqlx::query("DELETE FROM fraiseql_revoked_tokens WHERE expires_at <= NOW()")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RevocationError::Backend(format!("cleanup failed: {e}")))?;
+        Ok(result.rows_affected())
+    }
+}
+
+// Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl RevocationStore for PostgresRevocationStore {
+    async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
+        let revoked: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1 FROM fraiseql_revoked_tokens WHERE jti = $1 AND expires_at > NOW()
+             )",
+        )
+        .bind(jti)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| RevocationError::Backend(format!("is_revoked query failed: {e}")))?;
+        Ok(revoked)
+    }
+
+    async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
+        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs.cast_signed());
+        // Single-JTI revocation does not carry a `sub` (the trait signature has none);
+        // it is recorded NULL, matching the in-memory backend.
+        sqlx::query(
+            "INSERT INTO fraiseql_revoked_tokens (jti, sub, expires_at)
+             VALUES ($1, NULL, $2)
+             ON CONFLICT (jti) DO UPDATE SET expires_at = EXCLUDED.expires_at",
+        )
+        .bind(jti)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RevocationError::Backend(format!("revoke insert failed: {e}")))?;
+        Ok(())
+    }
+
+    async fn revoke_all_for_user(&self, sub: &str) -> Result<u64, RevocationError> {
+        let result = sqlx::query("DELETE FROM fraiseql_revoked_tokens WHERE sub = $1")
+            .bind(sub)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RevocationError::Backend(format!("revoke_all_for_user failed: {e}")))?;
+        Ok(result.rows_affected())
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
 // Token Revocation Manager
 // ───────────────────────────────────────────────────────────────
 
@@ -380,20 +491,36 @@ pub enum TokenRejection {
 // Builder from compiled schema
 // ───────────────────────────────────────────────────────────────
 
-/// Build a `TokenRevocationManager` from the compiled schema's `security.token_revocation` JSON.
+/// Build a `TokenRevocationManager` for the DB-agnostic backends (`memory`, `redis`)
+/// from the compiled schema's `security.token_revocation` JSON.
+///
+/// The `postgres` backend is **deferred** here (returns `Ok(None)`) because it needs
+/// a database connection; it is provisioned by [`build_postgres_revocation_manager`]
+/// on the PostgreSQL runtime path and installed via `Server::with_revocation_manager`.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the `token_revocation` JSON cannot be
+/// parsed, or when `backend` is an unrecognised value — previously an unknown
+/// backend silently fell back to in-memory, defeating the operator's intent (#357).
 pub fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
-) -> Option<Arc<TokenRevocationManager>> {
-    let security = schema.security.as_ref()?;
-    let revocation_val = security.additional.get("token_revocation")?;
-    let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
-        .map_err(|e| {
-            warn!(error = %e, "Failed to parse security.token_revocation config");
-        })
-        .ok()?;
+) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
+    let Some(security) = schema.security.as_ref() else {
+        return Ok(None);
+    };
+    let Some(revocation_val) = security.additional.get("token_revocation") else {
+        return Ok(None);
+    };
+    let config: TokenRevocationConfig =
+        serde_json::from_value(revocation_val.clone()).map_err(|e| {
+            crate::ServerError::ConfigError(format!(
+                "invalid security.token_revocation config: {e}"
+            ))
+        })?;
 
     if !config.enabled {
-        return None;
+        return Ok(None);
     }
 
     let store: Arc<dyn RevocationStore> = match config.backend.as_str() {
@@ -423,15 +550,89 @@ pub fn revocation_manager_from_schema(
             info!(backend = "memory", "Token revocation store initialized (in-memory)");
             Arc::new(InMemoryRevocationStore::new())
         },
+        "postgres" => {
+            // Needs a database connection — provisioned by the PostgreSQL runtime path
+            // (build_postgres_revocation_manager) and installed via with_revocation_manager.
+            info!(
+                backend = "postgres",
+                "Token revocation backend = postgres; provisioned by the PostgreSQL runtime"
+            );
+            return Ok(None);
+        },
         other => {
-            warn!(backend = %other, "Unknown revocation backend — falling back to in-memory");
-            Arc::new(InMemoryRevocationStore::new())
+            return Err(crate::ServerError::ConfigError(format!(
+                "unknown token_revocation backend {other:?}; \
+                 expected \"memory\", \"redis\", or \"postgres\""
+            )));
         },
     };
 
-    Some(Arc::new(TokenRevocationManager::new(
+    Ok(Some(Arc::new(TokenRevocationManager::new(
         store,
         config.require_jti,
         config.fail_open,
-    )))
+    ))))
+}
+
+/// Build a PostgreSQL-backed `TokenRevocationManager` from the compiled schema's
+/// `security.token_revocation` config, connecting a dedicated metadata pool from
+/// `database_url`.
+///
+/// Returns `Ok(None)` when token revocation is disabled or the backend is not
+/// `"postgres"` (the `memory`/`redis` backends are built on the generic construction
+/// path by [`revocation_manager_from_schema`]). Call this on the PostgreSQL runtime
+/// path and install the result with `Server::with_revocation_manager`.
+///
+/// # Errors
+///
+/// Returns an error message when the `token_revocation` config is invalid, the
+/// database cannot be reached, or the backing table cannot be created.
+pub async fn build_postgres_revocation_manager(
+    database_url: &str,
+    schema: &fraiseql_core::schema::CompiledSchema,
+) -> std::result::Result<Option<Arc<TokenRevocationManager>>, String> {
+    let Some(security) = schema.security.as_ref() else {
+        return Ok(None);
+    };
+    let Some(revocation_val) = security.additional.get("token_revocation") else {
+        return Ok(None);
+    };
+    let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
+        .map_err(|e| format!("invalid security.token_revocation config: {e}"))?;
+
+    if !config.enabled || config.backend != "postgres" {
+        return Ok(None);
+    }
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(REVOCATION_POOL_MAX)
+        .connect(database_url)
+        .await
+        .map_err(|e| format!("token revocation: failed to connect to PostgreSQL: {e}"))?;
+
+    let store = PostgresRevocationStore::new(pool)
+        .await
+        .map_err(|e| format!("token revocation: {e}"))?;
+
+    info!(backend = "postgres", "Token revocation store initialized (PostgreSQL)");
+    Ok(Some(Arc::new(TokenRevocationManager::new(
+        Arc::new(store),
+        config.require_jti,
+        config.fail_open,
+    ))))
+}
+
+/// Returns `true` when token revocation is enabled with the `postgres` backend.
+///
+/// Non-PostgreSQL runtime paths use this to warn that the backend is unavailable:
+/// the binary cannot connect a PostgreSQL pool from, e.g., a MySQL `database_url`,
+/// so `revocation_manager_from_schema` defers the backend and nothing builds it.
+#[must_use]
+pub fn revocation_backend_is_postgres(schema: &fraiseql_core::schema::CompiledSchema) -> bool {
+    schema
+        .security
+        .as_ref()
+        .and_then(|s| s.additional.get("token_revocation"))
+        .and_then(|v| serde_json::from_value::<TokenRevocationConfig>(v.clone()).ok())
+        .is_some_and(|c| c.enabled && c.backend == "postgres")
 }

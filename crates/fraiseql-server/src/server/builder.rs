@@ -130,7 +130,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         if api_key_authenticator.is_some() {
             info!("API key authentication enabled");
         }
-        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema)?;
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }
@@ -642,6 +642,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub fn with_storage_state(mut self, state: fraiseql_storage::StorageState) -> Self {
         self.storage_state = Some(state);
+        self
+    }
+
+    /// Install a pre-built token-revocation manager, replacing whatever the generic
+    /// construction path produced.
+    ///
+    /// Used by the PostgreSQL runtime path to install the Postgres-backed store
+    /// (#357): `revocation_manager_from_schema` defers the `postgres` backend because
+    /// it needs a database connection, so `main.rs` builds it with
+    /// `build_postgres_revocation_manager` and installs it here.
+    #[must_use]
+    pub fn with_revocation_manager(
+        mut self,
+        manager: Arc<crate::token_revocation::TokenRevocationManager>,
+    ) -> Self {
+        self.revocation_manager = Some(manager);
         self
     }
 
