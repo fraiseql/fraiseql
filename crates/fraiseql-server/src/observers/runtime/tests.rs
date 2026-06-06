@@ -152,3 +152,31 @@ async fn reinsert_bypasses_the_cap() {
     assert_eq!(dlq.count(), 2, "reinsert must bypass the cap");
     assert_eq!(dlq.overflow_count(), 0, "reinsert is not an overflow");
 }
+
+// ── Listener selection seam (#350) ──────────────────────────────────────────
+
+mod listener_selection {
+    use fraiseql_observers::config::TransportKind;
+
+    use super::super::{ListenerSelection, listener_selection};
+
+    #[test]
+    fn postgres_uses_the_change_log_listener() {
+        assert_eq!(
+            listener_selection(TransportKind::Postgres),
+            ListenerSelection::PostgresChangeLog,
+        );
+    }
+
+    #[test]
+    fn nats_uses_the_transport_stream_not_the_pg_listener() {
+        // The whole point of #350: a NATS selection must NOT fall through to the
+        // PostgreSQL listener.
+        assert_eq!(listener_selection(TransportKind::Nats), ListenerSelection::TransportStream,);
+    }
+
+    #[test]
+    fn in_memory_uses_the_transport_stream() {
+        assert_eq!(listener_selection(TransportKind::InMemory), ListenerSelection::TransportStream,);
+    }
+}

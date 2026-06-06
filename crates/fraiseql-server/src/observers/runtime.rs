@@ -17,10 +17,13 @@ use std::{
 
 use arc_swap::ArcSwap;
 use fraiseql_observers::{
-    ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig, EventMatcher,
-    FailurePolicy, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
-    config::TransportConfig,
+    ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig,
+    EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy, InMemoryTransport,
+    ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
+    config::{TransportConfig, TransportKind},
+    transport::{EventFilter, EventTransport},
 };
+use futures::StreamExt;
 use sqlx::PgPool;
 use tokio::{
     sync::{RwLock, mpsc, oneshot},
@@ -36,6 +39,57 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
+
+/// Which event-source path [`ObserverRuntime::start`] takes for a given transport.
+///
+/// This is the listener-selection *seam* for #350: the PostgreSQL transport
+/// drives the existing `ChangeLogListener` (LISTEN/NOTIFY) loop, while NATS and
+/// the in-memory transport are driven generically through an
+/// [`EventTransport`] stream. Keeping the decision in a pure function makes the
+/// selection unit-testable without a database or broker, and guarantees a
+/// non-Postgres selection never silently falls through to the PG listener.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ListenerSelection {
+    /// PostgreSQL LISTEN/NOTIFY via `ChangeLogListener` (the default path).
+    PostgresChangeLog,
+    /// An `EventTransport` stream (NATS `JetStream`, or in-memory).
+    TransportStream,
+}
+
+/// Map a transport kind to the event-source path `start()` will use.
+pub(crate) const fn listener_selection(kind: TransportKind) -> ListenerSelection {
+    match kind {
+        TransportKind::Postgres => ListenerSelection::PostgresChangeLog,
+        // NATS, in-memory, and any future fraiseql-observers transport variant
+        // run through the generic stream path rather than silently using the PG
+        // listener. `init_observer_runtime` has already refused/downgraded any
+        // transport this binary cannot run, so reaching `start()` with an
+        // unknown kind is benign (and still never lands on the PG listener).
+        _ => ListenerSelection::TransportStream,
+    }
+}
+
+/// Build the transport-layer [`NatsConfig`](fraiseql_observers::transport::NatsConfig)
+/// from the operator-facing `[observers.runtime.transport.nats]` settings.
+///
+/// Note: NATS rejects stream names containing `.` or `_`; an offending
+/// `stream_name` surfaces as a loud connection/stream-creation error from
+/// `NatsTransport::new` rather than a silent fallback.
+#[cfg(feature = "observers-nats")]
+fn nats_config_from(
+    cfg: &fraiseql_observers::config::NatsTransportConfig,
+) -> fraiseql_observers::transport::NatsConfig {
+    fraiseql_observers::transport::NatsConfig {
+        url: cfg.url.clone(),
+        stream_name: cfg.stream_name.clone(),
+        consumer_name: cfg.consumer_name.clone(),
+        subject_prefix: cfg.subject_prefix.clone(),
+        ack_wait_secs: cfg.jetstream.ack_wait_secs,
+        retention_max_messages: cfg.jetstream.max_msgs,
+        retention_max_bytes: cfg.jetstream.max_bytes,
+        ..Default::default()
+    }
+}
 
 /// Configuration for the observer runtime
 #[derive(Debug, Clone)]
@@ -297,15 +351,33 @@ impl ObserverRuntime {
 
     /// Start the observer runtime
     ///
+    /// Selects the event source by the configured transport (#350): the default
+    /// PostgreSQL transport drives the `ChangeLogListener` (LISTEN/NOTIFY) loop
+    /// below; NATS `JetStream` and the in-memory transport are driven by
+    /// [`start_transport_stream`](Self::start_transport_stream). A non-Postgres
+    /// transport never silently falls through to the PG listener.
+    ///
     /// # Errors
     ///
-    /// Returns `ServerError` if the runtime is already running or initialization fails.
+    /// Returns `ServerError` if the runtime is already running, initialization
+    /// fails, or the configured transport cannot connect (e.g. an unreachable
+    /// NATS broker) — the latter is the #350 dead-broker boot-failure contract.
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
             return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
         }
 
-        info!("Starting observer runtime...");
+        // Listener-selection seam (#350): a non-Postgres transport runs through
+        // the generic EventTransport stream path, never the PG listener. Box the
+        // delegated future so the (larger, broker-connecting) stream path does not
+        // bloat `start()`'s future — and through it `Server::serve` — past the
+        // `clippy::large_futures` budget.
+        if listener_selection(self.config.transport.transport) == ListenerSelection::TransportStream
+        {
+            return Box::pin(self.start_transport_stream()).await;
+        }
+
+        info!("Starting observer runtime (PostgreSQL LISTEN/NOTIFY transport)...");
 
         // Load initial observers with entity_type index for logging
         let (observers, entity_type_index) = self.load_observers().await?;
@@ -447,109 +519,17 @@ impl ObserverRuntime {
                                         }
                                     };
 
-                                    // Find matching observers using current (possibly reloaded) matcher
-                                    let matching_observers = current_matcher.find_matches(&event);
-
-                                    // Process event using current (possibly reloaded) executor
-                                    let process_result =
-                                        current_executor.process_event(&event).await;
-
-                                    match process_result {
-                                        Ok(summary) => {
-                                            events_processed.fetch_add(1, Ordering::Relaxed);
-                                            debug!(
-                                                "Event {} processed: {} actions succeeded, {} skipped",
-                                                event.id,
-                                                summary.successful_actions,
-                                                summary.conditions_skipped
-                                            );
-
-                                            // Write execution logs for each matched observer
-                                            // Look up observer IDs by (entity_type, event_type) from shared reference
-                                            let event_type_str = event.event_type.as_str().to_uppercase();
-                                            let observer_ids = entity_type_index_ref
-                                                .load()
-                                                .get(&(event.entity_type.clone(), event_type_str.clone()))
-                                                .cloned();
-                                            if let Some(observer_ids) = observer_ids {
-                                                let status = if summary.successful_actions > 0 { "success" } else { "error" };
-                                                let duration_ms = if matching_observers.is_empty() {
-                                                    0
-                                                } else {
-                                                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: observer count is small; average duration fits in i32
-                                                    { (summary.total_duration_ms / matching_observers.len() as f64) as i32 }
-                                                };
-
-                                                // Write a log entry for each matched observer
-                                                for observer_id in observer_ids {
-                                                    let _ = sqlx::query(
-                                                        // entity_id is bound as text (Uuid::to_string) and cast
-                                                        // to the column's uuid type — sqlx will not implicitly
-                                                        // coerce text to uuid on INSERT.
-                                                        "INSERT INTO tb_observer_log
-                                                         (fk_observer, event_id, entity_type, entity_id, event_type, status, duration_ms, attempt_number, max_attempts)
-                                                         VALUES ($1, $2, $3, $4::uuid, $5, $6, $7, 1, 3)"
-                                                    )
-                                                    .bind(observer_id)
-                                                    .bind(event.id)
-                                                    .bind(&event.entity_type)
-                                                    .bind(event.entity_id.to_string())
-                                                    .bind(event.event_type.as_str())
-                                                    .bind(status)
-                                                    .bind(duration_ms)
-                                                    .execute(&pool)
-                                                    .await;
-                                                }
-                                            }
-
-                                            // Forward processed event to EventBridge for
-                                            // GraphQL subscription delivery.
-                                            if let Some(ref sender) = bridge_sender {
-                                                let mut bridge_event = BridgeEntityEvent::new(
-                                                    &event.entity_type,
-                                                    event.entity_id.to_string(),
-                                                    event.event_type.as_str(),
-                                                    event.data.clone(),
-                                                );
-                                                // Propagate tenant_id for multi-tenant filtering
-                                                if let Some(ref tid) = event.tenant_id {
-                                                    bridge_event = bridge_event.with_tenant_id(tid);
-                                                }
-                                                if let Err(e) = sender.try_send(bridge_event) {
-                                                    warn!("Failed to forward event {} to EventBridge: {}", event.id, e);
-                                                }
-                                            }
-                                        }
-                                        Err(e) => {
-                                            errors.fetch_add(1, Ordering::Relaxed);
-                                            error!("Failed to process event {}: {}", event.id, e);
-
-                                            // Write error logs for matched observers
-                                            let event_type_str = event.event_type.as_str().to_uppercase();
-                                            let observer_ids_err = entity_type_index_ref
-                                                .load()
-                                                .get(&(event.entity_type.clone(), event_type_str))
-                                                .cloned();
-                                            if let Some(observer_ids) = observer_ids_err {
-                                                for observer_id in observer_ids {
-                                                    let _ = sqlx::query(
-                                                        // entity_id cast to uuid as in the success path above.
-                                                        "INSERT INTO tb_observer_log
-                                                         (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
-                                                         VALUES ($1, $2, $3, $4::uuid, $5, 'error', $6, 1, 3)"
-                                                    )
-                                                    .bind(observer_id)
-                                                    .bind(event.id)
-                                                    .bind(&event.entity_type)
-                                                    .bind(event.entity_id.to_string())
-                                                    .bind(event.event_type.as_str())
-                                                    .bind(e.to_string())
-                                                    .execute(&pool)
-                                                    .await;
-                                                }
-                                            }
-                                        }
-                                    }
+                                    process_entity_event(
+                                        &event,
+                                        &current_matcher,
+                                        &current_executor,
+                                        &entity_type_index_ref,
+                                        &pool,
+                                        bridge_sender.as_ref(),
+                                        &events_processed,
+                                        &errors,
+                                    )
+                                    .await;
                                 }
 
                                 // Update checkpoint (in-memory and database)
@@ -618,6 +598,175 @@ impl ObserverRuntime {
         })?;
 
         info!("Runtime started successfully");
+        Ok(())
+    }
+
+    /// Start the runtime on a generic [`EventTransport`] stream (NATS, in-memory).
+    ///
+    /// Mirrors the PostgreSQL [`start`](Self::start) setup — load observers, build
+    /// the matcher + executor, publish the entity-type index, share state for hot
+    /// reload — but sources events from [`EventTransport::subscribe`] instead of
+    /// the `ChangeLogListener`. Per-event dispatch, logging, and subscription
+    /// forwarding go through the shared [`process_entity_event`] seam so behaviour
+    /// matches the PG path. Transport-stream consumers do not persist change-log
+    /// checkpoints — delivery state is owned by the transport (e.g. a NATS durable
+    /// consumer).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError` if observers cannot be loaded, the matcher cannot be
+    /// built, or the transport cannot connect/subscribe. An unreachable NATS
+    /// broker fails here, before the runtime reports itself started — the #350
+    /// dead-broker contract (no silent fallback to PostgreSQL).
+    async fn start_transport_stream(&mut self) -> Result<(), ServerError> {
+        let kind = self.config.transport.transport;
+        info!("Starting observer runtime ({kind:?} transport)...");
+
+        // Build the transport. Connecting happens here, so an unreachable broker
+        // fails loudly before the runtime reports itself started (#350).
+        let transport: Arc<dyn EventTransport> = match kind {
+            TransportKind::InMemory => Arc::new(InMemoryTransport::new()),
+            #[cfg(feature = "observers-nats")]
+            TransportKind::Nats => {
+                let nats_config = nats_config_from(&self.config.transport.nats);
+                let connected = fraiseql_observers::transport::NatsTransport::new(nats_config)
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "observer NATS transport failed to connect to {}: {e}",
+                            self.config.transport.nats.url
+                        ))
+                    })?;
+                Arc::new(connected)
+            },
+            #[cfg(not(feature = "observers-nats"))]
+            TransportKind::Nats => {
+                return Err(ServerError::ConfigError(
+                    "observer transport = \"nats\" but this binary lacks the observers-nats \
+                     feature"
+                        .to_string(),
+                ));
+            },
+            other => {
+                // Postgres is handled by `start()` and never reaches here; an
+                // unknown future kind was already refused/downgraded at init.
+                return Err(ServerError::ConfigError(format!(
+                    "unsupported observer transport for the stream path: {other:?}"
+                )));
+            },
+        };
+
+        // Load initial observers + build matcher/executor (same as the PG path).
+        let (observers, entity_type_index) = self.load_observers().await?;
+        self.observer_count.store(observers.len(), Ordering::SeqCst);
+        let matcher = EventMatcher::build(observers).map_err(|e| {
+            ServerError::ConfigError(format!("Failed to build event matcher: {}", e))
+        })?;
+        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), self.dlq.clone()));
+        {
+            let mut m = self.matcher.write().await;
+            *m = Some(matcher.clone());
+        }
+        {
+            let mut ex = self.executor.write().await;
+            *ex = Some(executor.clone());
+        }
+        self.entity_type_index.store(Arc::new(entity_type_index));
+
+        // Subscribe to the event stream (a second connection-time failure point).
+        let mut stream = transport.subscribe(EventFilter::default()).await.map_err(|e| {
+            ServerError::ConfigError(format!("failed to subscribe to observer transport: {e}"))
+        })?;
+
+        // Shutdown + readiness channels (same protocol as the PG path).
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+        self.shutdown_tx = Some(shutdown_tx);
+        let (ready_tx, ready_rx) = oneshot::channel::<()>();
+
+        // Clone task-local state for the background loop.
+        let running = self.running.clone();
+        let events_processed = self.events_processed.clone();
+        let errors = self.errors.clone();
+        let pool = self.config.pool.clone();
+        let matcher_ref = Arc::clone(&self.matcher);
+        let executor_ref = Arc::clone(&self.executor);
+        let entity_type_index_ref = Arc::clone(&self.entity_type_index);
+        let bridge_sender = self.event_bridge_sender.clone();
+
+        let mut current_matcher = matcher;
+        let mut current_executor = executor;
+
+        running.store(true, Ordering::SeqCst);
+
+        let handle = tokio::spawn(async move {
+            info!("Observer runtime stream loop started, beginning event processing");
+            // Signal readiness so callers can publish immediately after start().
+            let _ = ready_tx.send(());
+
+            loop {
+                tokio::select! {
+                    _ = shutdown_rx.recv() => {
+                        info!("Observer runtime received shutdown signal");
+                        break;
+                    }
+                    maybe_event = stream.next() => {
+                        // Refresh matcher/executor in case a hot-reload occurred.
+                        {
+                            let m = matcher_ref.read().await;
+                            if let Some(updated) = m.clone() {
+                                current_matcher = updated;
+                            }
+                        }
+                        {
+                            let ex = executor_ref.read().await;
+                            if let Some(updated) = ex.clone() {
+                                current_executor = updated;
+                            }
+                        }
+
+                        match maybe_event {
+                            Some(Ok(event)) => {
+                                process_entity_event(
+                                    &event,
+                                    &current_matcher,
+                                    &current_executor,
+                                    &entity_type_index_ref,
+                                    &pool,
+                                    bridge_sender.as_ref(),
+                                    &events_processed,
+                                    &errors,
+                                )
+                                .await;
+                            },
+                            Some(Err(e)) => {
+                                errors.fetch_add(1, Ordering::Relaxed);
+                                error!("Observer transport stream error: {}", e);
+                            },
+                            None => {
+                                info!("Observer transport stream ended; stopping loop");
+                                break;
+                            },
+                        }
+                    }
+                }
+
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+
+            info!("Observer runtime stopped");
+        });
+
+        self.task_handle = Some(handle);
+
+        ready_rx.await.map_err(|_| {
+            ServerError::ConfigError(
+                "observer background task exited before signalling readiness".to_string(),
+            )
+        })?;
+
+        info!("Observer runtime started ({kind:?} transport)");
         Ok(())
     }
 
@@ -721,6 +870,137 @@ impl ObserverRuntime {
 
         info!("Reloaded {} observers successfully", count);
         Ok(count)
+    }
+}
+
+/// Process a single ready [`EntityEvent`](ObserverEntityEvent): match observers,
+/// execute actions, write the per-observer execution log, and forward the event
+/// to the GraphQL subscription bridge.
+///
+/// This is the shared seam between the PostgreSQL `ChangeLogListener` loop and
+/// the generic [`EventTransport`] stream loop (#350): both paths converge here so
+/// observer dispatch, logging, and subscription forwarding behave identically
+/// regardless of how the event was sourced. The PostgreSQL loop additionally
+/// persists a change-log checkpoint per batch (a PG-specific concern that stays
+/// in that loop); transport-stream consumers manage their own delivery state.
+#[allow(clippy::too_many_arguments)]
+// Reason: a shared event-processing seam threading the runtime's task-local state
+// (counters, shared index, pool, bridge sender) into both event-source loops.
+async fn process_entity_event(
+    event: &ObserverEntityEvent,
+    matcher: &EventMatcher,
+    executor: &Arc<ObserverExecutor>,
+    entity_type_index: &ArcSwap<HashMap<(String, String), Vec<i64>>>,
+    pool: &PgPool,
+    bridge_sender: Option<&mpsc::Sender<BridgeEntityEvent>>,
+    events_processed: &std::sync::atomic::AtomicU64,
+    errors: &std::sync::atomic::AtomicU64,
+) {
+    // Find matching observers using the current (possibly reloaded) matcher.
+    let matching_observers = matcher.find_matches(event);
+
+    // Process event using the current (possibly reloaded) executor.
+    let process_result = executor.process_event(event).await;
+
+    match process_result {
+        Ok(summary) => {
+            events_processed.fetch_add(1, Ordering::Relaxed);
+            debug!(
+                "Event {} processed: {} actions succeeded, {} skipped",
+                event.id, summary.successful_actions, summary.conditions_skipped
+            );
+
+            // Write execution logs for each matched observer.
+            // Look up observer IDs by (entity_type, event_type) from shared reference.
+            let event_type_str = event.event_type.as_str().to_uppercase();
+            let observer_ids = entity_type_index
+                .load()
+                .get(&(event.entity_type.clone(), event_type_str.clone()))
+                .cloned();
+            if let Some(observer_ids) = observer_ids {
+                let status = if summary.successful_actions > 0 {
+                    "success"
+                } else {
+                    "error"
+                };
+                let duration_ms = if matching_observers.is_empty() {
+                    0
+                } else {
+                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                    // Reason: observer count is small; average duration fits in i32
+                    {
+                        (summary.total_duration_ms / matching_observers.len() as f64) as i32
+                    }
+                };
+
+                // Write a log entry for each matched observer.
+                for observer_id in observer_ids {
+                    let _ = sqlx::query(
+                        // entity_id is bound as text (Uuid::to_string) and cast
+                        // to the column's uuid type — sqlx will not implicitly
+                        // coerce text to uuid on INSERT.
+                        "INSERT INTO tb_observer_log
+                         (fk_observer, event_id, entity_type, entity_id, event_type, status, duration_ms, attempt_number, max_attempts)
+                         VALUES ($1, $2, $3, $4::uuid, $5, $6, $7, 1, 3)",
+                    )
+                    .bind(observer_id)
+                    .bind(event.id)
+                    .bind(&event.entity_type)
+                    .bind(event.entity_id.to_string())
+                    .bind(event.event_type.as_str())
+                    .bind(status)
+                    .bind(duration_ms)
+                    .execute(pool)
+                    .await;
+                }
+            }
+
+            // Forward processed event to EventBridge for GraphQL subscription delivery.
+            if let Some(sender) = bridge_sender {
+                let mut bridge_event = BridgeEntityEvent::new(
+                    &event.entity_type,
+                    event.entity_id.to_string(),
+                    event.event_type.as_str(),
+                    event.data.clone(),
+                );
+                // Propagate tenant_id for multi-tenant filtering.
+                if let Some(ref tid) = event.tenant_id {
+                    bridge_event = bridge_event.with_tenant_id(tid);
+                }
+                if let Err(e) = sender.try_send(bridge_event) {
+                    warn!("Failed to forward event {} to EventBridge: {}", event.id, e);
+                }
+            }
+        },
+        Err(e) => {
+            errors.fetch_add(1, Ordering::Relaxed);
+            error!("Failed to process event {}: {}", event.id, e);
+
+            // Write error logs for matched observers.
+            let event_type_str = event.event_type.as_str().to_uppercase();
+            let observer_ids_err = entity_type_index
+                .load()
+                .get(&(event.entity_type.clone(), event_type_str))
+                .cloned();
+            if let Some(observer_ids) = observer_ids_err {
+                for observer_id in observer_ids {
+                    let _ = sqlx::query(
+                        // entity_id cast to uuid as in the success path above.
+                        "INSERT INTO tb_observer_log
+                         (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
+                         VALUES ($1, $2, $3, $4::uuid, $5, 'error', $6, 1, 3)",
+                    )
+                    .bind(observer_id)
+                    .bind(event.id)
+                    .bind(&event.entity_type)
+                    .bind(event.entity_id.to_string())
+                    .bind(event.event_type.as_str())
+                    .bind(e.to_string())
+                    .execute(pool)
+                    .await;
+                }
+            }
+        },
     }
 }
 
