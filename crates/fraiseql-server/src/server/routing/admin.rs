@@ -1,10 +1,12 @@
 //! Base, studio, admin, introspection, metrics, and design audit routes.
 
+use std::sync::Arc;
+
 use axum::{
     Router, middleware,
     routing::{get, post, put},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
 use tracing::{info, warn};
 
 use super::super::{
@@ -47,6 +49,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if self.config.admin_api_enabled {
             if let Some(ref token) = self.config.admin_token {
                 app = self.mount_studio_admin_api(app, state, token);
+            }
+        }
+
+        // JWKS force-refresh — operator response to a known IdP key compromise (#361).
+        // Auth-gated by the admin bearer token; mounted only when an OIDC validator is
+        // configured (there is otherwise nothing to refresh).
+        if self.config.admin_api_enabled {
+            if let (Some(token), Some(validator)) =
+                (self.config.admin_token.as_ref(), self.oidc_validator.as_ref())
+            {
+                app = self.mount_jwks_refresh(app, token, validator);
             }
         }
 
@@ -169,6 +182,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_state(state.clone());
         info!("Studio admin API mounted at /admin/v1/* (bearer token required)");
         app.merge(studio_admin_router)
+    }
+
+    /// Mount `POST /admin/v1/auth/refresh-jwks` (#361): force an immediate JWKS
+    /// refetch so an operator can close the stolen-key replay window the moment a
+    /// key compromise is detected, instead of waiting up to `jwks_cache_ttl_secs`
+    /// or restarting every replica. Gated by the admin bearer token.
+    fn mount_jwks_refresh(
+        &self,
+        app: Router,
+        token: &str,
+        validator: &Arc<OidcValidator>,
+    ) -> Router {
+        let auth = BearerAuthState::with_max_failures(
+            token.to_string(),
+            self.config.admin_auth_max_failures,
+        );
+        let router = Router::new()
+            .route(
+                "/admin/v1/auth/refresh-jwks",
+                post(crate::routes::jwks_admin::refresh_jwks_handler),
+            )
+            .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
+            .with_state(Arc::clone(validator));
+        info!(
+            "JWKS refresh endpoint mounted: POST /admin/v1/auth/refresh-jwks (admin token required)"
+        );
+        app.merge(router)
     }
 
     fn mount_playground(&self, mut app: Router, _state: &AppState<A>) -> Router {

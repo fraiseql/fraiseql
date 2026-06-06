@@ -24,8 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refreshes, instead of being trusted until the cache TTL expires. `fraiseql-core`
   embedders can close the window immediately on a known key compromise with the new
   `OidcValidator::invalidate_jwks_cache` (flush) and `refresh_jwks` (eager refetch)
-  methods. The `jwks_cache_ttl_secs` documentation now describes it as the maximum
-  stolen-key replay window once a rotation has propagated.
+  methods; operators of the off-the-shelf binary can trigger the same via the new
+  admin-token-gated `POST /admin/v1/auth/refresh-jwks` endpoint (fail-closed: if the
+  provider is unreachable the cache is invalidated anyway). The `jwks_cache_ttl_secs`
+  documentation now describes it as the maximum stolen-key replay window once a
+  rotation has propagated.
 
 - **Top-level page-size ceiling (#421).** A root query's `first`/`last`/`limit`
   argument is now capped at a configurable maximum (default **1000**) before it

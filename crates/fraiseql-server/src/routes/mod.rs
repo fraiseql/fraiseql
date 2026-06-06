@@ -8,6 +8,7 @@ pub mod functions;
 pub mod graphql;
 pub mod health;
 pub mod introspection;
+pub mod jwks_admin;
 pub mod metrics;
 pub mod playground;
 pub mod realtime;
