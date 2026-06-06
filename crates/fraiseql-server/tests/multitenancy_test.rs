@@ -155,10 +155,10 @@ fn test_unregistered_tenant_via_header() {
 
     let registry = DomainRegistry::new();
     let mut headers = HeaderMap::new();
-    headers.insert("X-Tenant-ID", HeaderValue::from_static("ghost-tenant"));
+    headers.insert("X-Tenant-ID", HeaderValue::from_static("ghost_tenant"));
 
     let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
-    assert_eq!(key, Some("ghost-tenant".to_string()));
+    assert_eq!(key, Some("ghost_tenant".to_string()));
 
     // The resolver returns the key — it's the registry that rejects it.
     // This is the correct separation of concerns.
@@ -286,13 +286,25 @@ fn test_valid_tenant_key_formats() {
 
     let domain_registry = DomainRegistry::new();
 
-    for key in &["abc", "a-b-c", "a_b_c", "ABC123", "tenant-001_prod"] {
+    // #333: the accepted alphabet is now `[a-zA-Z0-9_]` (hyphens removed) so the
+    // header validator agrees with the schema-mode DDL helpers.
+    for key in &["abc", "a_b_c", "ABC123", "tenant_001_prod"] {
         let mut headers = HeaderMap::new();
         headers.insert("X-Tenant-ID", HeaderValue::from_str(key).unwrap());
 
         let result = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false);
         assert!(result.is_ok(), "key '{key}' should be valid");
         assert_eq!(result.unwrap(), Some((*key).to_string()));
+    }
+
+    // Hyphenated keys were accepted before #333 but break schema-mode silently;
+    // they are now rejected at the dispatch boundary.
+    for key in &["a-b-c", "tenant-001-prod"] {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Tenant-ID", HeaderValue::from_str(key).unwrap());
+
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false);
+        assert!(result.is_err(), "hyphenated key '{key}' must now be rejected (#333)");
     }
 }
 
@@ -409,12 +421,12 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     };
 
     let domain_reg = DomainRegistry::new();
-    domain_reg.register("api.acme.com", "from-host");
+    domain_reg.register("api.acme.com", "from_host");
 
     let ctx = SecurityContext {
         user_id:          UserId("u1".to_string()),
         roles:            vec![],
-        tenant_id:        Some(TenantId("from-jwt".to_string())),
+        tenant_id:        Some(TenantId("from_jwt".to_string())),
         scopes:           vec![],
         attributes:       std::collections::HashMap::new(),
         request_id:       "r1".to_string(),
@@ -428,22 +440,22 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     };
 
     let mut headers = HeaderMap::new();
-    headers.insert("X-Tenant-ID", HeaderValue::from_static("from-header"));
+    headers.insert("X-Tenant-ID", HeaderValue::from_static("from_header"));
     headers.insert("Host", HeaderValue::from_static("api.acme.com"));
 
     // All three sources present → JWT wins
     let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&domain_reg), false).unwrap();
-    assert_eq!(key, Some("from-jwt".to_string()));
+    assert_eq!(key, Some("from_jwt".to_string()));
 
     // No JWT → header wins
     let key = TenantKeyResolver::resolve(None, &headers, Some(&domain_reg), false).unwrap();
-    assert_eq!(key, Some("from-header".to_string()));
+    assert_eq!(key, Some("from_header".to_string()));
 
     // No JWT, no header → host wins
     let mut host_only = HeaderMap::new();
     host_only.insert("Host", HeaderValue::from_static("api.acme.com"));
     let key = TenantKeyResolver::resolve(None, &host_only, Some(&domain_reg), false).unwrap();
-    assert_eq!(key, Some("from-host".to_string()));
+    assert_eq!(key, Some("from_host".to_string()));
 
     // Nothing → None
     let key =

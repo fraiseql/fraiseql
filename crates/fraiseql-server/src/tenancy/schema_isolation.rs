@@ -10,10 +10,16 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_error::{FraiseQLError, Result};
 
 /// Maximum length of a PostgreSQL identifier (schema name, table name, etc.).
-const MAX_PG_IDENTIFIER_LEN: usize = 63;
+///
+/// Exposed `pub(crate)` so the `X-Tenant-ID` header validator can derive its own
+/// length cap from the same source and avoid validator drift (#333).
+pub(crate) const MAX_PG_IDENTIFIER_LEN: usize = 63;
 
 /// Prefix prepended to tenant keys to form PostgreSQL schema names.
-const TENANT_SCHEMA_PREFIX: &str = "tenant_";
+///
+/// Exposed `pub(crate)` so the header validator's length cap can subtract it
+/// from [`MAX_PG_IDENTIFIER_LEN`] (#333).
+pub(crate) const TENANT_SCHEMA_PREFIX: &str = "tenant_";
 
 /// Derive and validate a PostgreSQL schema name from a tenant key.
 ///

@@ -105,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Storage downloads default to `Content-Disposition: attachment` (#337).** Buckets
   that need in-browser rendering must opt in with `BucketConfig::serve_inline = true`.
 
+- **Breaking (tenant-key alphabet, #333):** the `X-Tenant-ID` header validator is
+  tightened to `[a-zA-Z0-9_]` with a 56-character cap (derived from PostgreSQL's
+  63-character identifier limit minus the `tenant_` schema prefix), matching the
+  schema-mode DDL helpers. Hyphenated keys (e.g. `acme-corp`) and keys of 57–128
+  characters — previously accepted at dispatch but silently rejected at schema-mode
+  provisioning — are now rejected uniformly, including at tenant registration
+  (`PUT /api/v1/admin/tenants/{key}`). Deployments using hyphenated tenant keys in
+  row-mode must migrate to underscores.
+
 ## [2.4.0] - 2026-06-04
 
 ### Added

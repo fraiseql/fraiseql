@@ -17,8 +17,15 @@ use fraiseql_core::security::SecurityContext;
 use fraiseql_error::{FraiseQLError, Result};
 use tracing::warn;
 
-/// Maximum length for a tenant key from the `X-Tenant-ID` header.
-pub(crate) const MAX_TENANT_KEY_LEN: usize = 128;
+/// Maximum length of a tenant key accepted from the `X-Tenant-ID` header.
+///
+/// Derived from the schema-isolation limit so the header validator and the
+/// schema-mode DDL helpers agree on a single cap (#333): a schema-mode tenant
+/// produces the PostgreSQL identifier `tenant_{key}`, which must fit in
+/// [`MAX_PG_IDENTIFIER_LEN`](crate::tenancy::schema_isolation::MAX_PG_IDENTIFIER_LEN)
+/// (63), leaving `63 - "tenant_".len()` = 56 usable characters.
+pub(crate) const MAX_TENANT_KEY_LEN: usize = crate::tenancy::schema_isolation::MAX_PG_IDENTIFIER_LEN
+    - crate::tenancy::schema_isolation::TENANT_SCHEMA_PREFIX.len();
 
 /// Resolves the tenant key from an incoming HTTP request.
 pub struct TenantKeyResolver;
@@ -106,19 +113,25 @@ impl TenantKeyResolver {
 
 /// Validate that a tenant key from the `X-Tenant-ID` header is safe.
 ///
+/// The accepted alphabet (`[a-zA-Z0-9_]`) and length cap ([`MAX_TENANT_KEY_LEN`])
+/// match the schema-mode DDL helpers in
+/// [`crate::tenancy::schema_isolation`] so a key accepted here is also usable
+/// for schema-mode provisioning (#333). Hyphens, previously accepted, are now
+/// rejected because PostgreSQL schema identifiers cannot contain them.
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if the key is too long or contains
-/// characters outside `[a-zA-Z0-9_-]`.
-fn validate_tenant_key(key: &str) -> Result<()> {
+/// characters outside `[a-zA-Z0-9_]`.
+pub(crate) fn validate_tenant_key(key: &str) -> Result<()> {
     if key.len() > MAX_TENANT_KEY_LEN {
         return Err(FraiseQLError::validation(format!(
             "X-Tenant-ID exceeds maximum length of {MAX_TENANT_KEY_LEN} characters"
         )));
     }
-    if !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
+    if !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return Err(FraiseQLError::validation(
-            "X-Tenant-ID contains invalid characters (allowed: a-zA-Z0-9_-)",
+            "X-Tenant-ID contains invalid characters (allowed: a-zA-Z0-9_)",
         ));
     }
     Ok(())
@@ -185,3 +198,6 @@ impl Default for DomainRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -164,6 +164,12 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     Path(key): Path<String>,
     Json(body): Json<TenantRegistrationRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
+    // Reject keys that the header validator would accept but schema-mode
+    // provisioning would later reject, so the drift surfaces at registration
+    // time rather than at the first schema-mode DDL job (#333).
+    crate::routes::graphql::tenant_key::validate_tenant_key(&key)
+        .map_err(|e| ApiError::validation_error(e.to_string()))?;
+
     let registry = state
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
