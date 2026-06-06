@@ -16,7 +16,7 @@ mod extensions;
 mod graphql;
 mod middleware;
 #[cfg(feature = "observers")]
-mod observers;
+pub(in crate::server) mod observers;
 mod state;
 
 use axum::Router;

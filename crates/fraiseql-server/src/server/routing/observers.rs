@@ -92,10 +92,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 runtime: runtime.clone(),
             };
 
-            app.merge(observer_runtime_routes(runtime_state).route_layer(auth_layer()))
-                .nest("/api/observers", observer_dlq_routes(dlq_state).route_layer(auth_layer()))
+            mount_observer_runtime_routes(
+                app,
+                observer_runtime_routes(runtime_state).route_layer(auth_layer()),
+                observer_dlq_routes(dlq_state).route_layer(auth_layer()),
+            )
         } else {
             app
         }
     }
+}
+
+/// Mount the optional observer runtime-health and DLQ routers under the shared
+/// `/api/observers` prefix.
+///
+/// Both routers declare *inner* paths (`/runtime/health`, `/runtime/reload`,
+/// `/dlq`, …) and so must be `nest`ed under `/api/observers`, consistent with
+/// the always-on observer-management and changelog routers. Mounting the runtime
+/// router at the router root (the pre-#340 behaviour) made
+/// `/api/observers/runtime/health` return 404 while shadowing any user routes at
+/// `/runtime/*`.
+///
+/// Extracted as a free function so the mount placement is unit-testable without
+/// constructing a full [`Server`] (issue #340).
+#[cfg(feature = "observers")]
+pub(in crate::server) fn mount_observer_runtime_routes(
+    app: Router,
+    runtime_routes: Router,
+    dlq_routes: Router,
+) -> Router {
+    app.nest("/api/observers", runtime_routes).nest("/api/observers", dlq_routes)
 }

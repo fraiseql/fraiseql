@@ -92,6 +92,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer runtime routes mounted at the wrong prefix (#340).** The observer
+  runtime-health and reload endpoints were `merge`d at the router root, so
+  `/api/observers/runtime/health` and `/api/observers/runtime/reload` returned
+  **404** while the handlers were instead reachable at `/runtime/health` /
+  `/runtime/reload`, shadowing any user routes there. Both are now `nest`ed under
+  `/api/observers` like the other observer routers. **Breaking (path move):**
+  clients calling the root `/runtime/*` paths must switch to
+  `/api/observers/runtime/*`.
+
 - **Cross-bucket object collisions (#336).** Storage backend operations
   (upload / download / delete / presign) now scope the object key by bucket
   (`{bucket}/{key}`). Two objects with the same key in different buckets previously

@@ -198,3 +198,58 @@ async fn test_existing_routes_unaffected_when_subsystems_added() {
         .status();
     assert_ne!(st_status.as_u16(), 404);
 }
+
+// ── Observers (#340) ────────────────────────────────────────────────────────────
+
+/// The runtime-health and DLQ routers must be reachable under `/api/observers`,
+/// and their inner paths must **not** be mounted at the router root.
+///
+/// Regression guard for #340: the runtime router was `merge`d at the root, so
+/// `/api/observers/runtime/health` 404'd while `/runtime/health` shadowed user
+/// routes. Exercises the production [`mount_observer_runtime_routes`] helper so
+/// the nest-vs-merge placement is verified, not re-implemented.
+#[cfg(feature = "observers")]
+#[tokio::test]
+async fn test_observer_runtime_routes_nested_under_api_prefix() {
+    use tokio::sync::RwLock;
+
+    use crate::{
+        observers::{
+            DlqState, RuntimeHealthState, observer_dlq_routes, observer_runtime_routes,
+            runtime::{ObserverRuntime, ObserverRuntimeConfig},
+        },
+        server::routing::observers::mount_observer_runtime_routes,
+    };
+
+    let runtime =
+        Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(lazy_pool()))));
+
+    let router = mount_observer_runtime_routes(
+        Router::new().route("/health", get(|| async { "ok" })),
+        observer_runtime_routes(RuntimeHealthState {
+            runtime: Arc::clone(&runtime),
+        }),
+        observer_dlq_routes(DlqState { runtime }),
+    );
+
+    let addr = spawn(router).await;
+
+    // Nested runtime-health path resolves (handler runs → non-404).
+    let nested = reqwest::get(format!("http://{addr}/api/observers/runtime/health"))
+        .await
+        .unwrap()
+        .status();
+    assert_ne!(
+        nested.as_u16(),
+        404,
+        "/api/observers/runtime/health should be mounted (got {nested})"
+    );
+
+    // The DLQ router is also reachable under the prefix.
+    let dlq = reqwest::get(format!("http://{addr}/api/observers/dlq")).await.unwrap().status();
+    assert_ne!(dlq.as_u16(), 404, "/api/observers/dlq should be mounted (got {dlq})");
+
+    // The runtime path is no longer shadow-mounted at the router root.
+    let root = reqwest::get(format!("http://{addr}/runtime/health")).await.unwrap().status();
+    assert_eq!(root.as_u16(), 404, "/runtime/health must not be mounted at the root");
+}
