@@ -375,6 +375,27 @@ fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
     );
 }
 
+/// Warn at startup when the multi-tenant runtime is enabled on a database where
+/// runtime tenant *provisioning* is unavailable. The registry and `X-Tenant-ID`
+/// dispatch still work for pre-registered tenants, but `PUT /api/v1/admin/tenants`
+/// needs a `FromPoolConfig` adapter, which only PostgreSQL provides today.
+#[cfg(any(
+    feature = "mysql",
+    feature = "sqlite",
+    feature = "sqlserver",
+    feature = "wire-backend"
+))]
+fn warn_tenant_provisioning_requires_postgres(config: &ServerConfig, database: &str) {
+    if config.tenancy.runtime.enabled {
+        tracing::warn!(
+            database,
+            "[tenancy.runtime] is enabled but runtime tenant provisioning \
+             (PUT /api/v1/admin/tenants) is PostgreSQL-only; dispatch to \
+             pre-registered tenants still works, but registration will fail."
+        );
+    }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────
 
 /// Entry point.
@@ -435,6 +456,7 @@ async fn dispatch_server(
     cli: &Cli,
 ) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "wire-backend");
+    warn_tenant_provisioning_requires_postgres(&config, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
     let server = Server::new(config, schema, adapter, None).await?;
     // Box::pin: with the wire backend enabled the combined server/serve future
@@ -486,6 +508,17 @@ async fn run_postgres(
         );
     }
 
+    // Multi-tenant runtime provisioning (#330): build the per-tenant executor
+    // factory when the runtime is enabled. PostgresAdapter implements
+    // `FromPoolConfig`, so `PUT /api/v1/admin/tenants/{key}` can open per-tenant
+    // pools. Built here (concrete adapter) and threaded onto the server;
+    // `build_app_state` installs it when `[tenancy.runtime] enabled = true`.
+    let tenant_factory = config.tenancy.runtime.enabled.then(
+        fraiseql_server::tenancy::make_executor_factory::<
+            fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
+        >,
+    );
+
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
     {
@@ -497,6 +530,10 @@ async fn run_postgres(
                 .await?;
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
+            None => server,
+        };
+        let server = match tenant_factory {
+            Some(factory) => server.with_tenant_executor_factory(factory),
             None => server,
         };
         return finish_server(server, cli, /* with_arrow = */ true).await;
@@ -516,6 +553,10 @@ async fn run_postgres(
             Some(state) => server.with_storage_state(state),
             None => server,
         };
+        let server = match tenant_factory {
+            Some(factory) => server.with_tenant_executor_factory(factory),
+            None => server,
+        };
         finish_server(server, cli, /* with_arrow = */ false).await
     }
 }
@@ -526,6 +567,7 @@ async fn run_postgres(
 #[cfg(all(not(feature = "wire-backend"), feature = "mysql"))]
 async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "mysql");
+    warn_tenant_provisioning_requires_postgres(&config, "mysql");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
@@ -553,6 +595,7 @@ async fn run_mysql(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Resul
 #[cfg(all(not(feature = "wire-backend"), feature = "sqlite"))]
 async fn run_sqlite(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "sqlite");
+    warn_tenant_provisioning_requires_postgres(&config, "sqlite");
     fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
     tracing::info!(
         pool_min_size = config.pool_min_size,
@@ -585,6 +628,7 @@ async fn run_sqlserver(
     cli: &Cli,
 ) -> anyhow::Result<()> {
     warn_storage_requires_postgres(&config, "sqlserver");
+    warn_tenant_provisioning_requires_postgres(&config, "sqlserver");
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,

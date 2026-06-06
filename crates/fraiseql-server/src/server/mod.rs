@@ -144,6 +144,17 @@ pub struct Server<A: DatabaseAdapter> {
     /// `/realtime/v1`. Set via [`Server::with_realtime`].
     pub(super) realtime_state: Option<crate::realtime::server::RealtimeState>,
 
+    /// Factory for building per-tenant executors at registration time.
+    ///
+    /// Set by the binary's PostgreSQL boot path (where the concrete adapter
+    /// implements [`FromPoolConfig`](crate::tenancy::FromPoolConfig)) via
+    /// [`Server::with_tenant_executor_factory`]. When the multi-tenant runtime is
+    /// enabled, `build_app_state` installs it into `AppState` so
+    /// `PUT /api/v1/admin/tenants/{key}` can provision tenants. `None` leaves
+    /// runtime provisioning unavailable (dispatch to pre-registered tenants still
+    /// works).
+    pub(super) tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
+
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,
 

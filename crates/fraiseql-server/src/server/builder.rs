@@ -431,6 +431,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
             storage_state: None,
             realtime_state: None,
+            tenant_executor_factory: None,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
@@ -490,6 +491,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub const fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
+        self
+    }
+
+    /// Attach the per-tenant executor factory used to provision tenants at
+    /// runtime (`PUT /api/v1/admin/tenants/{key}`).
+    ///
+    /// Build it with
+    /// [`make_executor_factory`](crate::tenancy::make_executor_factory) from the
+    /// concrete adapter type (which must implement
+    /// [`FromPoolConfig`](crate::tenancy::FromPoolConfig)). When the multi-tenant
+    /// runtime is enabled (`[tenancy.runtime] enabled = true`), `build_app_state`
+    /// installs it into `AppState`. Call this before `serve`.
+    #[must_use]
+    pub fn with_tenant_executor_factory(
+        mut self,
+        factory: crate::tenancy::TenantExecutorFactory<A>,
+    ) -> Self {
+        self.tenant_executor_factory = Some(factory);
         self
     }
 

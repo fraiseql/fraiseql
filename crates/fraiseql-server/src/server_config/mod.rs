@@ -599,6 +599,21 @@ pub struct ServerConfig {
     /// silently dropping it. See [`FileSectionConfig`].
     #[serde(default)]
     pub files: HashMap<String, FileSectionConfig>,
+
+    /// Multi-tenant executor runtime configuration.
+    ///
+    /// Off by default. Enable with `[tenancy.runtime] enabled = true` to mount the
+    /// multi-tenant runtime in the off-the-shelf binary: the per-tenant executor
+    /// registry, `X-Tenant-ID` / JWT `tenant_id` / Host dispatch, and the
+    /// `/api/v1/admin/tenants/*` lifecycle API. Runtime tenant provisioning
+    /// (registering a tenant with its own connection) is PostgreSQL-only.
+    ///
+    /// ```toml
+    /// [tenancy.runtime]
+    /// enabled = true
+    /// ```
+    #[serde(default)]
+    pub tenancy: TenancyServerConfig,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -686,6 +701,23 @@ pub struct FileSectionConfig {
     pub path: Option<String>,
 }
 
+/// Multi-tenant runtime configuration (`[tenancy]`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TenancyServerConfig {
+    /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
+    #[serde(default)]
+    pub runtime: TenancyRuntimeConfig,
+}
+
+/// Per-tenant executor runtime settings (`[tenancy.runtime]`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TenancyRuntimeConfig {
+    /// Mount the multi-tenant executor runtime (registry + admin tenant API +
+    /// `X-Tenant-ID` / JWT / Host dispatch). Defaults to `false`.
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -753,6 +785,7 @@ impl Default for ServerConfig {
             usage: None,             // Usage persistence disabled by default
             storage: HashMap::new(), // No storage backends wired by default
             files: HashMap::new(),   // No file-upload routes by default
+            tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
         }
     }
 }

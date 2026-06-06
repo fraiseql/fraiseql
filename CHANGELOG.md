@@ -88,6 +88,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header carrying the registry's retry value (60s), matching the documented
   suspend/resume contract.
 
+- **Multi-tenant runtime now wired into the `fraiseql-server` binary (#330).** The
+  per-tenant executor runtime (registry, `X-Tenant-ID` / JWT `tenant_id` / Host
+  dispatch, the `/api/v1/admin/tenants/*` lifecycle API, suspend/resume, and the
+  explicit-deny 403 for an unregistered tenant key) was implemented only as a
+  library API; the off-the-shelf binary never installed it, so the admin tenant
+  endpoints returned `404 multi-tenant mode not enabled` and an explicit
+  `X-Tenant-ID` was silently served by the default executor. Enable it with
+  `[tenancy.runtime] enabled = true` in `fraiseql.toml`: the binary installs the
+  registry (seeded with the default executor), an in-memory tenant audit log, the
+  domain registry, and — on PostgreSQL — the executor factory so
+  `PUT /api/v1/admin/tenants/{key}` provisions a tenant with its own connection
+  (and schema, in `tenancy.mode = "schema"`). `PostgresAdapter` now implements
+  `FromPoolConfig`. Runtime provisioning is PostgreSQL-only; dispatch to
+  pre-registered tenants works on any adapter.
+
 ### Changed
 
 - **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in

@@ -8,7 +8,11 @@
 use std::sync::Arc;
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    db::{
+        postgres::{PoolPrewarmConfig, PostgresAdapter},
+        traits::DatabaseAdapter,
+    },
     runtime::Executor,
     schema::{CompiledSchema, TenancyMode},
 };
@@ -57,6 +61,44 @@ pub trait FromPoolConfig: DatabaseAdapter + Sized {
     /// Returns `FraiseQLError::ConnectionPool` or `FraiseQLError::Database`
     /// if the connection cannot be established.
     async fn from_pool_config(config: &TenantPoolConfig) -> Result<Self>;
+}
+
+#[async_trait::async_trait]
+impl FromPoolConfig for PostgresAdapter {
+    async fn from_pool_config(config: &TenantPoolConfig) -> Result<Self> {
+        Self::with_pool_config(
+            &config.connection_string,
+            PoolPrewarmConfig {
+                // Per-tenant pools are created on demand at registration; don't eagerly
+                // pre-warm (min_size = 0). `with_pool_config` still opens one connection
+                // for the startup health check, validating the connection string.
+                min_size: 0,
+                // Reason: `max_connections` is a small operator-set pool bound; usize is
+                // at least 32-bit on every supported target, so the cast cannot truncate.
+                #[allow(clippy::cast_possible_truncation)]
+                max_size: config.max_connections as usize,
+                timeout_secs: Some(config.connect_timeout_secs),
+            },
+        )
+        .await
+    }
+}
+
+/// The binary's `Server` wraps its adapter in a [`CachedDatabaseAdapter`], so the
+/// per-tenant executor registry stores `Executor<CachedDatabaseAdapter<A>>` and the
+/// factory must build that wrapped type. Each tenant gets its own fresh, isolated
+/// [`QueryResultCache`]; on a schema update the whole executor is replaced
+/// (`TenantExecutorRegistry::upsert`), so the cache is rebuilt rather than
+/// version-invalidated — an empty `schema_version` namespace is sufficient and
+/// collision-free. Per-tenant caches use `CacheConfig::default()` (they do not
+/// inherit the server's tuned view-TTL / cacheable-view configuration).
+#[async_trait::async_trait]
+impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
+    async fn from_pool_config(config: &TenantPoolConfig) -> Result<Self> {
+        let inner = A::from_pool_config(config).await?;
+        let cache = QueryResultCache::new(CacheConfig::default());
+        Ok(Self::new(inner, cache, String::new()))
+    }
 }
 
 /// Creates a complete tenant executor from a compiled schema JSON string and

@@ -161,6 +161,38 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             state = state.with_trusted_docs(store.clone());
         }
 
+        // Multi-tenant executor runtime (#330). When enabled via
+        // `[tenancy.runtime] enabled = true`, install the per-tenant executor
+        // registry (seeded with the default executor), an in-memory audit log,
+        // and — when the binary's PostgreSQL boot path supplied one — the executor
+        // factory that `PUT /api/v1/admin/tenants/{key}` uses to provision tenants.
+        // The domain registry is already present (an empty default) and is
+        // populated at runtime via `PUT /api/v1/admin/domains/{domain}`.
+        if self.config.tenancy.runtime.enabled {
+            use crate::{
+                routes::graphql::tenant_registry::TenantExecutorRegistry,
+                tenancy::audit::InMemoryAuditLog,
+            };
+
+            // Seed the registry with the default executor (the `ArcSwap`-wrapped
+            // one `AppState` holds), so requests with no/unknown tenant fall back
+            // to it exactly as the GraphQL handler expects.
+            let registry = TenantExecutorRegistry::new(state.executor.clone());
+            state = state
+                .with_tenant_registry(std::sync::Arc::new(registry))
+                .with_tenant_audit_log(std::sync::Arc::new(InMemoryAuditLog::new()));
+
+            if let Some(ref factory) = self.tenant_executor_factory {
+                state = state.with_tenant_executor_factory(factory.clone());
+            }
+
+            info!(
+                provisioning = self.tenant_executor_factory.is_some(),
+                "Multi-tenant runtime enabled: tenant registry, dispatch, and \
+                 /api/v1/admin/tenants/* mounted"
+            );
+        }
+
         state
     }
 }

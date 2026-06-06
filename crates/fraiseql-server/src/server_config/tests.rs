@@ -609,6 +609,31 @@ fn resolve_storage_section_rejects_multiple_sections() {
 }
 
 #[test]
+fn test_tenancy_runtime_defaults_to_disabled() {
+    let config = ServerConfig::default();
+    assert!(!config.tenancy.runtime.enabled, "tenancy runtime should default to off");
+}
+
+#[test]
+fn test_tenancy_runtime_parses_from_toml() {
+    let toml_str = r"
+        [tenancy.runtime]
+        enabled = true
+    ";
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.tenancy.runtime.enabled, "[tenancy.runtime] enabled should be parsed");
+}
+
+#[test]
+fn test_tenancy_absent_section_keeps_runtime_off() {
+    let toml_str = r#"
+        database_url = "postgres://localhost/db"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    assert!(!config.tenancy.runtime.enabled);
+}
+
+#[test]
 fn test_auth_hs256_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(config.auth_hs256.is_none());
