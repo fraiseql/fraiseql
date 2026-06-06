@@ -90,6 +90,9 @@ pub mod testing;
 mod tests;
 
 // Re-export common types at crate level
+#[allow(deprecated)]
+// Reason: #349 stub — re-export the deprecated EmailAction so downstream sees the stub
+// warning; allow dropped when SMTP lands.
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 #[cfg(feature = "caching")]

@@ -1747,3 +1747,40 @@ mod retry_tests {
         }
     }
 }
+
+// ── #349: EmailAction must not report silent success ────────────────────────
+
+fn email_action() -> ActionConfig {
+    ActionConfig::Email {
+        to:               Some("ops@example.com".to_string()),
+        to_template:      None,
+        subject:          Some("Alert".to_string()),
+        subject_template: None,
+        body_template:    Some("Event {{ id }}".to_string()),
+        reply_to:         None,
+    }
+}
+
+#[tokio::test]
+async fn email_action_reports_failure_not_silent_success() {
+    // #349: the EmailAction stub returned success without ever sending, so a
+    // dead email integration showed green metrics. Dispatching a real Email
+    // action through the executor must now propagate a failure — the no-op is
+    // counted as failed (and DLQ-eligible), never as a successful action.
+    let matcher = create_test_matcher();
+    let dlq = Arc::new(MockDeadLetterQueue::new());
+    let executor = ObserverExecutor::new(matcher, dlq); // real dispatcher → real EmailAction
+
+    let action = email_action();
+    let event = test_event();
+    let retry = make_retry(1, 0);
+    let failure_policy = FailurePolicy::Log;
+    let mut summary = ExecutionSummary::new();
+
+    executor
+        .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary)
+        .await;
+
+    assert_eq!(summary.successful_actions, 0, "a non-sending email must NOT count as success");
+    assert_eq!(summary.failed_actions, 1, "a non-sending email action must report failure");
+}

@@ -589,23 +589,40 @@ pub struct SlackResponse {
     pub duration_ms: f64,
 }
 
-/// Email action executor
+/// Email action executor.
+///
+/// **Stub (#349):** this action is not yet implemented — there is no SMTP client
+/// behind it. [`execute`](EmailAction::execute) therefore fails loud rather than
+/// reporting a phantom success, so a dead email integration is DLQ'd with red
+/// metrics instead of silently dropping messages. Until SMTP lands, drive email
+/// through a webhook action against your transactional-email provider.
+#[deprecated(
+    note = "stub — see #349; EmailAction does not send yet. Use a webhook action against your \
+            transactional-email provider, or wait for the SMTP implementation."
+)]
 pub struct EmailAction {
     // Placeholder for SMTP client
 }
 
+#[allow(deprecated)] // Reason: #349 stub — the impl is the deprecated type's own surface; the attribute is dropped when SMTP lands.
 impl EmailAction {
-    /// Create a new email action executor
+    /// Create a new email action executor.
     #[must_use]
     pub const fn new() -> Self {
         Self {}
     }
 
-    /// Execute email action (stub)
+    /// Execute email action.
+    ///
+    /// **Stub (#349):** always fails — `EmailAction` has no SMTP backend yet, so
+    /// rather than report a phantom success (the previous behaviour) it returns a
+    /// permanent failure. The dispatcher surfaces this as a failed action so the
+    /// event is DLQ'd and counted in `failed_actions`, never `successful_actions`.
     ///
     /// # Errors
     ///
-    /// Returns `ObserverError` if the email delivery fails.
+    /// Always returns [`ObserverError::ActionPermanentlyFailed`] until a real SMTP
+    /// sender is wired in.
     #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
     pub async fn execute(
         &self,
@@ -614,15 +631,16 @@ impl EmailAction {
         _body_template: Option<&str>,
         _event: &EntityEvent,
     ) -> Result<EmailResponse> {
-        // Stub implementation
-        Ok(EmailResponse {
-            success:     true,
-            message_id:  Some(uuid::Uuid::new_v4().to_string()),
-            duration_ms: 10.0,
+        Err(ObserverError::ActionPermanentlyFailed {
+            reason: "EmailAction is not implemented (stub, #349): it has no SMTP backend and \
+                     does not send. Use a webhook action against your transactional-email \
+                     provider instead."
+                .to_string(),
         })
     }
 }
 
+#[allow(deprecated)] // Reason: #349 stub — Default for the deprecated type; dropped when SMTP lands.
 impl Default for EmailAction {
     fn default() -> Self {
         Self::new()

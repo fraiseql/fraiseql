@@ -27,6 +27,9 @@ use tracing::{debug, error};
 use crate::cache::CacheBackendDyn;
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
+#[allow(deprecated)]
+// Reason: #349 stub — EmailAction is a transitional stub; import drops the allow when SMTP
+// lands.
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
     actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
@@ -81,6 +84,9 @@ pub struct ObserverExecutor {
 impl ObserverExecutor {
     /// Create a new executor.
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
+        #[allow(deprecated)]
+        // Reason: #349 stub — EmailAction::new() is the transitional no-op; allow dropped when SMTP
+        // lands.
         let dispatcher = Arc::new(DefaultActionDispatcher {
             webhook_action: Arc::new(WebhookAction::new()),
             slack_action:   Arc::new(SlackAction::new()),
@@ -130,6 +136,9 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         cache_backend: Option<Arc<dyn CacheBackendDyn>>,
     ) -> Self {
+        #[allow(deprecated)]
+        // Reason: #349 stub — EmailAction::new() is the transitional no-op; allow dropped when SMTP
+        // lands.
         let dispatcher = Arc::new(DefaultActionDispatcher {
             webhook_action: Arc::new(WebhookAction::new()),
             slack_action:   Arc::new(SlackAction::new()),

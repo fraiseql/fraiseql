@@ -29,6 +29,7 @@ mod actions_tests {
     }
 
     #[test]
+    #[allow(deprecated)] // Reason: #349 stub — exercising the deprecated EmailAction; dropped when SMTP lands.
     fn test_email_action_creation() {
         let email = EmailAction::new();
         // Basic instantiation test
@@ -36,6 +37,7 @@ mod actions_tests {
     }
 
     #[tokio::test]
+    #[allow(deprecated)] // Reason: #349 stub — exercising the deprecated EmailAction; dropped when SMTP lands.
     async fn test_email_action_execute() {
         let email = EmailAction::new();
         let event = crate::event::EntityEvent::new(
@@ -45,10 +47,14 @@ mod actions_tests {
             json!({"total": 100}),
         );
 
-        let result = email.execute("user@example.com", "Test", None, &event).await.unwrap();
-
-        assert!(result.success);
-        assert!(result.message_id.is_some());
+        // #349: the stub no longer reports a phantom success — it fails loud so a
+        // non-sending email integration is surfaced (DLQ'd) rather than silently
+        // dropping the message.
+        let result = email.execute("user@example.com", "Test", None, &event).await;
+        assert!(
+            matches!(result, Err(crate::error::ObserverError::ActionPermanentlyFailed { .. })),
+            "EmailAction stub must fail permanently, got: {result:?}"
+        );
     }
 
     #[test]
