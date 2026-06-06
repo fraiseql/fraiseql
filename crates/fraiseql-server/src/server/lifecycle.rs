@@ -208,6 +208,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         );
                     },
                     Err(e) => {
+                        // A broker-backed transport (NATS) was an explicit operator
+                        // choice; refusing to boot in production rather than silently
+                        // coming up without it is the #350 dead-broker contract. The
+                        // default PostgreSQL transport keeps the resilient
+                        // log-and-continue behaviour (and development downgrades the
+                        // NATS failure to the same warning).
+                        if guard.transport_requires_broker()
+                            && crate::ServerConfig::is_production_mode()
+                        {
+                            error!(
+                                error = %e,
+                                "Observer runtime failed to start on its configured \
+                                 transport; refusing to boot (set FRAISEQL_ENV=development \
+                                 to downgrade to a warning)"
+                            );
+                            return Err(e);
+                        }
                         error!("Failed to start observer runtime: {}", e);
                         warn!("Server will continue without observers");
                     },

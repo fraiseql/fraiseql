@@ -123,8 +123,7 @@ pub struct ObserverRuntimeConfig {
     ///
     /// Resolved at boot from `[observers.runtime.transport]` plus
     /// `FRAISEQL_OBSERVER_TRANSPORT`/`FRAISEQL_NATS_*` env overrides, validated,
-    /// and gated by
-    /// [`observer_transport_check`](crate::server::initialization::observer_transport_check).
+    /// and gated by `observer_transport_check` (in `server::initialization`).
     /// Consumed by [`ObserverRuntime::start`] to pick the event source.
     pub transport: TransportConfig,
 }
@@ -353,9 +352,9 @@ impl ObserverRuntime {
     ///
     /// Selects the event source by the configured transport (#350): the default
     /// PostgreSQL transport drives the `ChangeLogListener` (LISTEN/NOTIFY) loop
-    /// below; NATS `JetStream` and the in-memory transport are driven by
-    /// [`start_transport_stream`](Self::start_transport_stream). A non-Postgres
-    /// transport never silently falls through to the PG listener.
+    /// below; NATS `JetStream` and the in-memory transport are driven by the
+    /// `start_transport_stream` path. A non-Postgres transport never silently
+    /// falls through to the PG listener.
     ///
     /// # Errors
     ///
@@ -801,6 +800,20 @@ impl ObserverRuntime {
     #[must_use]
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+
+    /// Whether a [`start`](Self::start) failure on this transport should be fatal
+    /// at boot.
+    ///
+    /// The default PostgreSQL transport keeps the resilient "log and continue
+    /// without observers" behaviour on a start failure. A non-Postgres transport
+    /// (NATS) is an explicit operator choice for a broker-backed event source; if
+    /// it cannot start — e.g. an unreachable broker — the server must not
+    /// silently come up *without* it in production (#350). The boot path turns a
+    /// start error into a boot failure when this is true and we are in production.
+    #[must_use]
+    pub(crate) fn transport_requires_broker(&self) -> bool {
+        self.config.transport.transport != TransportKind::Postgres
     }
 
     /// Get a reference to the in-memory DLQ for use by HTTP handlers.

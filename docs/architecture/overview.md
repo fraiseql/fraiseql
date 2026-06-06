@@ -238,6 +238,16 @@ enabled = true
 [observers.runtime]
 channel_capacity = 1000
 max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
+
+# Optional: event transport (#350). Defaults to PostgreSQL LISTEN/NOTIFY.
+# "nats" requires a binary built with `--features observers-nats`; a NATS
+# selection that cannot run (feature missing or no broker URL) or whose broker
+# is unreachable refuses to boot in production rather than silently falling back
+# to PostgreSQL. Override at boot with FRAISEQL_OBSERVER_TRANSPORT / FRAISEQL_NATS_*.
+[observers.runtime.transport]
+transport = "nats"          # "postgres" (default) | "nats" | "in_memory"
+[observers.runtime.transport.nats]
+url = "nats://broker:4222"  # NATS stream names must not contain '.' or '_'
 ```
 
 > **Resource note**: enabling `observers` adds one PostgreSQL connection

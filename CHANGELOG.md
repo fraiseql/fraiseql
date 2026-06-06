@@ -105,6 +105,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer transport selection was silently ignored; NATS ran on PostgreSQL (#350).**
+  The off-the-shelf binary never read `[observers.runtime.transport]` /
+  `FRAISEQL_OBSERVER_TRANSPORT`, so selecting `transport = "nats"` quietly ran on
+  PostgreSQL LISTEN/NOTIFY with a false "running on NATS" posture. The runtime now
+  honors the selection: PostgreSQL drives the existing change-log listener, while
+  NATS `JetStream` and the in-memory transport run through the library's
+  `EventTransport` stream — a non-Postgres selection can never fall through to the
+  PG listener. A selection this binary cannot run (NATS without the `observers-nats`
+  feature, or no broker URL) refuses to boot in production (downgraded to a warning
+  under `FRAISEQL_ENV=development`, which runs on PostgreSQL), and a configured NATS
+  transport whose broker is unreachable fails startup rather than silently coming up
+  without it. Configure via `[observers.runtime.transport]` (`transport = "postgres"
+  | "nats" | "in_memory"`) with `[observers.runtime.transport.nats]` for the broker
+  URL and JetStream settings; NATS requires a binary built with `--features
+  observers-nats`.
+
 - **DLQ retry could double-fire the action under concurrent requests (#344).**
   `POST /api/observers/dlq/{id}/retry` read the item, released the lock, then
   re-dispatched and removed it — so two concurrent retries (or a per-item retry
