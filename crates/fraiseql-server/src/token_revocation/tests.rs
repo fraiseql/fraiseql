@@ -50,3 +50,26 @@ fn disabled_revocation_builds_nothing() {
             .is_none()
     );
 }
+
+#[test]
+fn null_token_revocation_is_treated_as_absent() {
+    // The CLI compiler emits `token_revocation: null` when the section is absent — the
+    // common case. This must be Ok(None), not a hard ConfigError (regression: a `?` on
+    // the parse turned null into a boot failure, caught by pipeline_e2e).
+    let schema = schema_with_revocation(serde_json::Value::Null);
+    assert!(
+        revocation_manager_from_schema(&schema)
+            .expect("null token_revocation means 'not configured', not an error")
+            .is_none()
+    );
+}
+
+#[test]
+fn absent_token_revocation_key_builds_nothing() {
+    let schema = CompiledSchema::default();
+    assert!(
+        revocation_manager_from_schema(&schema)
+            .expect("no security section is ok")
+            .is_none()
+    );
+}

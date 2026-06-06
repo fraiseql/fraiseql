@@ -512,6 +512,12 @@ pub fn revocation_manager_from_schema(
     let Some(revocation_val) = security.additional.get("token_revocation") else {
         return Ok(None);
     };
+    // The CLI compiler serialises an absent `[security.token_revocation]` as JSON `null`,
+    // so a null value means "not configured" — treat it like an absent key rather than a
+    // malformed config. A non-null value that fails to parse IS a genuine misconfig.
+    if revocation_val.is_null() {
+        return Ok(None);
+    }
     let config: TokenRevocationConfig =
         serde_json::from_value(revocation_val.clone()).map_err(|e| {
             crate::ServerError::ConfigError(format!(
@@ -597,6 +603,10 @@ pub async fn build_postgres_revocation_manager(
     let Some(revocation_val) = security.additional.get("token_revocation") else {
         return Ok(None);
     };
+    // A null value means the section is absent (see revocation_manager_from_schema).
+    if revocation_val.is_null() {
+        return Ok(None);
+    }
     let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
         .map_err(|e| format!("invalid security.token_revocation config: {e}"))?;
 
