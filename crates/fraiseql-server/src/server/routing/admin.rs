@@ -213,7 +213,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         app
     }
 
-    fn mount_subscriptions(&self, mut app: Router, _state: &AppState<A>) -> Router {
+    fn mount_subscriptions(&self, mut app: Router, state: &AppState<A>) -> Router {
         // Extract remote subscription fields from federation metadata (if enabled).
         #[cfg(feature = "federation")]
         let remote_sub_fields = self
@@ -223,10 +223,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .map(|m| m.remote_subscription_fields)
             .unwrap_or_default();
 
+        // Mirror the GraphQL handler's tenant dispatch on the subscription
+        // upgrade: install the Host-domain registry and drive strict cross-source
+        // validation from the schema's RLS configuration (#331).
+        let strict_tenant_validation = self.executor.schema().has_rls_configured();
+
         #[allow(unused_mut)] // Reason: `mut` is needed when the federation feature is enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
-            .with_max_subscriptions(self.max_subscriptions_per_connection);
+            .with_max_subscriptions(self.max_subscriptions_per_connection)
+            .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation);
 
         #[cfg(feature = "federation")]
         if !remote_sub_fields.is_empty() {

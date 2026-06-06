@@ -40,19 +40,27 @@ use axum::{
     http::HeaderMap,
     response::IntoResponse,
 };
-use fraiseql_core::runtime::{
-    SubscriptionId, SubscriptionManager, SubscriptionPayload,
-    protocol::{
-        ClientMessage, ClientMessageType, CloseCode, GraphQLError, ServerMessage, SubscribePayload,
+use fraiseql_core::{
+    runtime::{
+        SubscriptionId, SubscriptionManager, SubscriptionPayload,
+        protocol::{
+            ClientMessage, ClientMessageType, CloseCode, GraphQLError, ServerMessage,
+            SubscribePayload,
+        },
     },
+    security::SecurityContext,
 };
 use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-use crate::subscriptions::{
-    lifecycle::SubscriptionLifecycle,
-    protocol::{ProtocolCodec, WsProtocol},
+use crate::{
+    extractors::OptionalSecurityContext,
+    routes::graphql::DomainRegistry,
+    subscriptions::{
+        lifecycle::SubscriptionLifecycle,
+        protocol::{ProtocolCodec, WsProtocol},
+    },
 };
 
 // ── Subscription metrics (module-level atomics) ──────────────────────
@@ -117,6 +125,13 @@ pub struct SubscriptionState {
     /// Maps root subscription field name to the subgraph `WebSocket` URL.
     /// Empty when federation is disabled or no remote subscription fields are declared.
     pub remote_subscription_fields: Arc<HashMap<String, String>>,
+    /// Host-header → tenant-key domain registry. `None` until a host binary
+    /// installs one (mirrors `AppState::domain_registry`).
+    pub domain_registry: Option<Arc<DomainRegistry>>,
+    /// Reject conflicting tenant sources (JWT vs `X-Tenant-ID` vs Host) on the
+    /// upgrade. Driven by `schema.has_rls_configured()`, mirroring the GraphQL
+    /// handler's strict tenant validation.
+    pub strict_tenant_validation: bool,
 }
 
 impl SubscriptionState {
@@ -127,7 +142,26 @@ impl SubscriptionState {
             lifecycle: Arc::new(crate::subscriptions::lifecycle::NoopLifecycle),
             max_subscriptions_per_connection: None,
             remote_subscription_fields: Arc::new(HashMap::new()),
+            domain_registry: None,
+            strict_tenant_validation: false,
         }
+    }
+
+    /// Install the tenant-resolution context — the Host-header domain registry
+    /// and strict-validation flag — so the subscription upgrade dispatches the
+    /// tenant key the same way the GraphQL handler does (JWT `tenant_id` >
+    /// `X-Tenant-ID` header > Host domain, with cross-source conflict rejection
+    /// when `strict_tenant_validation` is set). See
+    /// [`crate::routes::graphql::TenantKeyResolver`].
+    #[must_use]
+    pub fn with_tenant_context(
+        mut self,
+        domain_registry: Arc<DomainRegistry>,
+        strict_tenant_validation: bool,
+    ) -> Self {
+        self.domain_registry = Some(domain_registry);
+        self.strict_tenant_validation = strict_tenant_validation;
+        self
     }
 
     /// Set lifecycle hooks.
@@ -162,6 +196,7 @@ impl SubscriptionState {
 /// Returns `400 Bad Request` for unrecognised protocols.
 pub async fn subscription_handler(
     headers: HeaderMap,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     ws: WebSocketUpgrade,
     State(state): State<SubscriptionState>,
 ) -> impl IntoResponse {
@@ -179,16 +214,47 @@ pub async fn subscription_handler(
         },
     };
 
-    // Resolve tenant from headers (same as GraphQL handler)
-    let tenant_id = super::graphql::TenantKeyResolver::resolve(None, &headers, None, false)
-        .ok()
-        .flatten();
+    // Resolve the tenant key exactly as the GraphQL handler does: the JWT
+    // `tenant_id` (trusted) takes precedence over the `X-Tenant-ID` header and
+    // the Host-domain lookup, and conflicting sources are rejected when strict
+    // validation is enabled. Previously this passed `None, None, false`,
+    // silently dropping JWT precedence, ignoring an installed domain registry,
+    // and disabling strict cross-source validation (#331).
+    let tenant_id = match resolve_subscription_tenant(security_context.as_ref(), &headers, &state) {
+        Ok(tenant_id) => tenant_id,
+        Err(e) => {
+            warn!(error = %e, "Subscription tenant resolution rejected the upgrade");
+            return axum::http::StatusCode::BAD_REQUEST.into_response();
+        },
+    };
 
     ws.protocols([protocol.as_str()])
         .on_upgrade(move |socket| {
             handle_subscription_connection(socket, state, protocol, tenant_id)
         })
         .into_response()
+}
+
+/// Resolve the subscription's tenant key, mirroring the GraphQL handler's
+/// dispatch (`routes/graphql/handler.rs`): JWT `tenant_id` > `X-Tenant-ID`
+/// header > Host-domain registry, with cross-source conflict rejection when the
+/// schema has RLS configured (`strict_tenant_validation`).
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` when the `X-Tenant-ID` header is invalid,
+/// or — under `strict_tenant_validation` — when the resolved sources disagree.
+fn resolve_subscription_tenant(
+    security_context: Option<&SecurityContext>,
+    headers: &HeaderMap,
+    state: &SubscriptionState,
+) -> fraiseql_error::Result<Option<String>> {
+    super::graphql::TenantKeyResolver::resolve(
+        security_context,
+        headers,
+        state.domain_registry.as_deref(),
+        state.strict_tenant_validation,
+    )
 }
 
 /// Handle a `WebSocket` subscription connection.
@@ -768,3 +834,6 @@ pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
 
     Some(after_brace[..name_end].to_string())
 }
+
+#[cfg(test)]
+mod tests;

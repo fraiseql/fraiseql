@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an integer overflow in the relay `page_size + 1` fetch when pagination is
   unbounded.
 
+- **WebSocket subscriptions now enforce tenant dispatch (#331).** The subscription
+  upgrade previously resolved the tenant key with `security_context = None`,
+  `domain_registry = None`, and `strict = false` hard-coded — silently dropping JWT
+  `tenant_id` precedence, ignoring an installed domain registry, and disabling the
+  strict cross-source validation the GraphQL handler applies when RLS is configured.
+  A client could carry a JWT for tenant `bar` and still tag its subscription as
+  tenant `foo` via an `X-Tenant-ID` header. The handler now extracts the
+  authenticated `SecurityContext`, propagates the domain registry, and drives strict
+  mode from `schema.has_rls_configured()`, rejecting the upgrade (HTTP 400) on a
+  conflicting or invalid tenant key — mirroring the GraphQL handler exactly.
+
 - **Storage list-prefix LIKE-injection (#339).** The `prefix` filter on
   `GET /storage/v1/list/{bucket}` is now matched as a literal string. A client-supplied
   `%` or `_` was previously interpolated into the metadata `LIKE` pattern unescaped,
