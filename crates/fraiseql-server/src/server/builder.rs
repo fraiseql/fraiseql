@@ -125,7 +125,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         #[cfg(not(feature = "auth"))]
         let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         if api_key_authenticator.is_some() {
             info!("API key authentication enabled");

@@ -205,18 +205,38 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// initialises a Redis-backed distributed limiter; otherwise falls back to the
     /// in-memory backend (with a warning when `redis_url` is set but the feature is
     /// absent).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when the `failed_login_*` brute-force
+    /// settings are tuned away from their defaults while running in production — the
+    /// binary has no first-factor login surface to enforce them (#356). See
+    /// [`failed_login_lockout_check`].
     pub(super) async fn rate_limiter_from_schema(
         schema: &CompiledSchema,
-    ) -> Option<Arc<RateLimiter>> {
-        let sec: crate::middleware::RateLimitingSecurityConfig = schema
+    ) -> crate::Result<Option<Arc<RateLimiter>>> {
+        let Some(sec): Option<crate::middleware::RateLimitingSecurityConfig> = schema
             .security
             .as_ref()
             .and_then(|s| s.additional.get("rate_limiting"))
-            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        else {
+            return Ok(None);
+        };
 
         if !sec.enabled {
-            return None;
+            return Ok(None);
         }
+
+        // SECURITY (#356): the binary performs no first-factor login, so it cannot
+        // honour failed_login_max_attempts / failed_login_lockout_secs. Refuse to
+        // boot in production when an operator has tuned them away from the defaults
+        // (development downgrades to a warning).
+        failed_login_lockout_check(
+            sec.failed_login_max_attempts,
+            sec.failed_login_lockout_secs,
+            crate::ServerConfig::is_production_mode(),
+        )?;
 
         // Warn when trust_proxy_headers is enabled without restricting which IPs are
         // trusted proxies — any client can then spoof X-Forwarded-For.
@@ -272,7 +292,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             RateLimiter::new(config).with_path_rules_from_security(&sec)
         };
 
-        Some(Arc::new(limiter))
+        Ok(Some(Arc::new(limiter)))
     }
 
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
@@ -511,6 +531,68 @@ pub(super) fn pkce_state_encryption_check(
         "pkce.enabled = true but state_encryption is disabled — PKCE state tokens are \
          sent to the OIDC provider unencrypted. Allowed only because \
          FRAISEQL_ENV=development; enable [security.state_encryption] before production."
+    );
+    Ok(())
+}
+
+// ── Failed-login lockout enforceability (#356) ────────────────────────────────
+
+/// Reject a `failed_login_*` brute-force configuration the binary cannot enforce.
+///
+/// The off-the-shelf `fraiseql-server` binary performs no first-factor login of its
+/// own: OIDC/JWT bearer tokens are validated cryptographically (first-factor auth is
+/// delegated to the identity provider), API keys and admin bearer tokens are
+/// high-entropy machine credentials (the admin paths already have their own
+/// `admin_auth_max_failures` lockout), and TOTP MFA is a library-only feature that
+/// `main.rs` never mounts. There is therefore no place to apply
+/// `failed_login_max_attempts` / `failed_login_lockout_secs`.
+///
+/// When an operator tunes these away from the documented defaults they expect a
+/// brute-force control the binary cannot provide, so in production this refuses to
+/// boot (a silently-ignored security control is the exact failure mode #356
+/// reports). Development mode (`FRAISEQL_ENV=development`/`dev`) downgrades it to a
+/// warning. Untouched (default) values are accepted silently — they ride along with
+/// any `[security.rate_limiting]` section and signal no intent.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the values are non-default and
+/// `is_production` is true.
+pub(super) fn failed_login_lockout_check(
+    max_attempts: u32,
+    lockout_secs: u64,
+    is_production: bool,
+) -> crate::Result<()> {
+    let tuned = max_attempts != crate::middleware::rate_limit::DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS
+        || lockout_secs != crate::middleware::rate_limit::DEFAULT_FAILED_LOGIN_LOCKOUT_SECS;
+    if !tuned {
+        return Ok(());
+    }
+    if is_production {
+        return Err(crate::ServerError::ConfigError(
+            concat!(
+                "FraiseQL failed to start\n\n",
+                "  [security.rate_limiting] failed_login_max_attempts / failed_login_lockout_secs\n",
+                "  are set, but the fraiseql-server binary performs no first-factor login and\n",
+                "  cannot enforce a failed-login lockout. OIDC/JWT is validated cryptographically\n",
+                "  (first-factor auth is delegated to your identity provider), and TOTP MFA is a\n",
+                "  library-only feature this binary does not mount.\n\n",
+                "  Enforce brute-force protection where the first factor is actually checked:\n",
+                "    - at your identity provider (login attempt limits / lockout), or\n",
+                "    - at the edge (nginx / Cloudflare / a WAF) in front of FraiseQL.\n\n",
+                "  Then remove failed_login_max_attempts / failed_login_lockout_secs from\n",
+                "  [security.rate_limiting] (per-IP / per-endpoint rate limits still apply).\n\n",
+                "  For local development only:\n",
+                "    Set FRAISEQL_ENV=development to downgrade this to a warning.",
+            )
+            .into(),
+        ));
+    }
+    warn!(
+        "[security.rate_limiting] failed_login_* is set but this binary performs no \
+         first-factor login and cannot enforce a failed-login lockout. Allowed only because \
+         FRAISEQL_ENV=development; enforce brute-force protection at your identity provider or \
+         edge proxy. Per-IP / per-endpoint rate limits still apply."
     );
     Ok(())
 }

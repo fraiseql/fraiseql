@@ -141,6 +141,39 @@ mod initialization_tests {
         assert!(pkce_state_encryption_check(true, true).is_ok());
         assert!(pkce_state_encryption_check(true, false).is_ok());
     }
+
+    // #356: the binary cannot enforce failed_login_* lockout (no first-factor login).
+    use super::super::initialization::failed_login_lockout_check;
+    use crate::middleware::rate_limit::{
+        DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS,
+    };
+
+    #[test]
+    fn failed_login_default_values_boot_silently_even_in_production() {
+        // Defaults ride along with any [security.rate_limiting] section and signal no
+        // intent, so they must never block startup.
+        assert!(
+            failed_login_lockout_check(
+                DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS,
+                DEFAULT_FAILED_LOGIN_LOCKOUT_SECS,
+                true,
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn failed_login_tuned_value_is_fatal_in_production() {
+        // A tuned max_attempts expects a control the binary cannot provide.
+        assert!(failed_login_lockout_check(5, DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, true).is_err());
+        // A tuned lockout window is equally fatal.
+        assert!(failed_login_lockout_check(DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS, 60, true).is_err());
+    }
+
+    #[test]
+    fn failed_login_tuned_value_is_a_warning_in_development() {
+        assert!(failed_login_lockout_check(5, 60, false).is_ok());
+    }
 }
 
 // ── lifecycle_tests ───────────────────────────────────────────────────────────

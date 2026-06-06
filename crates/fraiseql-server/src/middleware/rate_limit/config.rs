@@ -2,6 +2,19 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Default failed-login attempt cap, mirroring the CLI `toml_schema` default so the
+/// runtime can tell an operator-tuned value from an untouched one (#356).
+pub(crate) const DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS: u32 = 10;
+/// Default failed-login lockout window in seconds, mirroring the CLI default (#356).
+pub(crate) const DEFAULT_FAILED_LOGIN_LOCKOUT_SECS: u64 = 900;
+
+const fn default_failed_login_max_attempts() -> u32 {
+    DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS
+}
+const fn default_failed_login_lockout_secs() -> u64 {
+    DEFAULT_FAILED_LOGIN_LOCKOUT_SECS
+}
+
 /// Minimal mirror of the `[security.rate_limiting]` TOML section, deserialized
 /// from the compiled schema's `security.rate_limiting` JSON key.
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -25,6 +38,20 @@ pub struct RateLimitingSecurityConfig {
     pub auth_refresh_max_requests: u32,
     /// Token refresh window in seconds.
     pub auth_refresh_window_secs: u64,
+    /// Maximum failed first-factor login attempts before lockout.
+    ///
+    /// Mirrors the CLI `[security.rate_limiting] failed_login_max_attempts` field.
+    /// The off-the-shelf binary performs no first-factor login of its own (OIDC/JWT
+    /// is validated cryptographically and first-factor auth is delegated to the
+    /// provider; TOTP MFA is a library-only feature), so it cannot enforce this. A
+    /// value tuned away from the default is rejected at startup in production (#356);
+    /// see `failed_login_lockout_check`.
+    #[serde(default = "default_failed_login_max_attempts")]
+    pub failed_login_max_attempts: u32,
+    /// Lockout window in seconds after `failed_login_max_attempts` is exceeded.
+    /// Not enforced by the binary — see `failed_login_max_attempts`.
+    #[serde(default = "default_failed_login_lockout_secs")]
+    pub failed_login_lockout_secs: u64,
     /// Per-authenticated-user request rate in requests/second.
     /// Defaults to 10× `requests_per_second` if not set.
     #[serde(default)]
