@@ -85,6 +85,57 @@ redis_url = "redis://localhost:6379"
         assert!(config.nats_url.is_none());
     }
 
+    // --- Issue #342: tolerate the server's `[observers.runtime]` sub-table ---
+
+    #[test]
+    fn test_observers_runtime_subtable_is_tolerated() {
+        // The same fraiseql.toml feeds both `fraiseql compile` and the server.
+        // The compiler must not reject the server's `[observers.runtime]` tuning.
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[observers]
+enabled = true
+backend = "postgresql"
+
+[observers.runtime]
+poll_interval_ms = 500
+batch_size = 250
+
+[observers.runtime.pool]
+max_connections = 9
+"#;
+        let schema =
+            TomlSchema::parse_toml(toml).expect("compile must tolerate [observers.runtime]");
+        assert!(schema.observers.enabled);
+        assert_eq!(schema.observers.backend, "postgresql");
+        // The compiler captures but does not validate the runtime sub-table.
+        assert!(schema.observers.runtime.is_some());
+    }
+
+    #[test]
+    fn test_observers_unknown_toplevel_key_still_rejected() {
+        // deny_unknown_fields stays the strict gate for genuine `[observers]` typos.
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[observers]
+enabled = true
+backend = "postgresql"
+poll_interval_ms = 500
+"#;
+        assert!(
+            TomlSchema::parse_toml(toml).is_err(),
+            "a server-tuning key at the [observers] top level must be rejected by the compiler",
+        );
+    }
+
     // --- Issue #39: federation circuit breaker ---
 
     #[test]

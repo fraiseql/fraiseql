@@ -31,7 +31,7 @@ use fraiseql_core::security::OidcConfig;
 pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
-pub use observers::{ObserverConfig, ObserverPoolConfig};
+pub use observers::{ObserverConfig, ObserverPoolConfig, ObserverRuntimeSettings};
 use serde::{Deserialize, Serialize};
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};

@@ -232,6 +232,10 @@ client_id_env = "GOOGLE_CLIENT_ID"
 # Optional: Observers
 [observers]
 enabled = true
+
+# Server runtime tuning lives under [observers.runtime] (see #342) so the same
+# fraiseql.toml can also be consumed by `fraiseql compile`.
+[observers.runtime]
 channel_capacity = 1000
 max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
 ```

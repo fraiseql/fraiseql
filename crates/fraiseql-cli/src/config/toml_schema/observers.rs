@@ -2,7 +2,16 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Observers/event system configuration
+/// Observers/event system configuration — the **declarative compile-time**
+/// shape of the `[observers]` table.
+///
+/// This is NOT the server's runtime schema. The same `fraiseql.toml` is fed to
+/// both `fraiseql compile` (this struct) and `fraiseql-server`; the server's
+/// runtime tuning lives under `[observers.runtime]` (see the server's
+/// `ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)
+/// field is declared-and-ignored here so a shared config carrying the server's
+/// `[observers.runtime]` sub-table still compiles — the compiler does not
+/// validate its contents.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserversConfig {
@@ -20,6 +29,13 @@ pub struct ObserversConfig {
     pub nats_url:  Option<String>,
     /// Event handlers
     pub handlers:  Vec<EventHandler>,
+    /// Server-runtime tuning sub-table (`[observers.runtime]`).
+    ///
+    /// Declared-and-ignored: owned and validated by `fraiseql-server`, not the
+    /// compiler. Captured as an opaque value so a shared `fraiseql.toml` that
+    /// carries server runtime tuning still passes `fraiseql compile` (#342).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime:   Option<toml::Value>,
 }
 
 impl Default for ObserversConfig {
@@ -30,6 +46,7 @@ impl Default for ObserversConfig {
             redis_url: None,
             nats_url:  None,
             handlers:  vec![],
+            runtime:   None,
         }
     }
 }

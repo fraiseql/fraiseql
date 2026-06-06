@@ -723,26 +723,30 @@ mod observers_tests {
 
     #[test]
     fn observer_config_with_pool_section_deserializes() {
+        // Pool config lives under `[observers.runtime.pool]` since #342.
         let toml = r"
             enabled = true
 
-            [pool]
+            [runtime.pool]
             min_connections = 3
             max_connections = 8
             acquire_timeout_secs = 15
         ";
         let cfg: ObserverConfig = toml::from_str(toml).unwrap();
-        assert_eq!(cfg.pool.min_connections, 3);
-        assert_eq!(cfg.pool.max_connections, 8);
-        assert_eq!(cfg.pool.acquire_timeout_secs, 15);
+        assert_eq!(cfg.runtime.pool.min_connections, 3);
+        assert_eq!(cfg.runtime.pool.max_connections, 8);
+        assert_eq!(cfg.runtime.pool.acquire_timeout_secs, 15);
     }
 
     #[test]
     fn observer_config_pool_defaults_when_section_absent() {
         let toml = r"enabled = true";
         let cfg: ObserverConfig = toml::from_str(toml).unwrap();
-        assert_eq!(cfg.pool.min_connections, 2, "default min_connections should be 2");
-        assert_eq!(cfg.pool.max_connections, 5, "default max_connections should be 5");
-        assert_eq!(cfg.pool.acquire_timeout_secs, 10, "default acquire_timeout_secs should be 10");
+        assert_eq!(cfg.runtime.pool.min_connections, 2, "default min_connections should be 2");
+        assert_eq!(cfg.runtime.pool.max_connections, 5, "default max_connections should be 5");
+        assert_eq!(
+            cfg.runtime.pool.acquire_timeout_secs, 10,
+            "default acquire_timeout_secs should be 10"
+        );
     }
 }

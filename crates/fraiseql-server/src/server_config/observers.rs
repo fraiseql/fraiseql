@@ -1,5 +1,8 @@
 //! Observer runtime and admission control configuration.
 
+#[cfg(all(test, feature = "observers"))]
+mod tests;
+
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
@@ -89,14 +92,31 @@ impl Default for ObserverPoolConfig {
     }
 }
 
-/// Observer runtime configuration.
+/// Server-side observer **runtime** tuning, lives under `[observers.runtime]`.
+///
+/// The same `fraiseql.toml` is consumed by both `fraiseql compile` (whose
+/// `[observers]` schema owns `backend`/`redis_url`/`nats_url`/`handlers`) and
+/// `fraiseql-server`. To keep the two schemas from colliding, the server's
+/// runtime tuning lives in its own `[observers.runtime]` sub-table (#342):
+///
+/// ```toml
+/// [observers]                 # compiler-owned
+/// enabled  = true
+/// backend  = "postgresql"
+/// handlers = [ ... ]
+/// [observers.runtime]         # server-owned
+/// poll_interval_ms = 500
+/// batch_size       = 100
+/// ```
+///
+/// This struct is **strict** (`deny_unknown_fields`): an unrecognised key under
+/// `[observers.runtime]` (e.g. a typo `pol_interval_ms`) fails to parse, so the
+/// server refuses to boot with a clear error rather than silently ignoring the
+/// setting (the #342 fail-loud contract).
 #[cfg(feature = "observers")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ObserverConfig {
-    /// Enable observer runtime (default: true).
-    #[serde(default = "default_observers_enabled")]
-    pub enabled: bool,
-
+#[serde(default, deny_unknown_fields)]
+pub struct ObserverRuntimeSettings {
     /// Poll interval for change log in milliseconds (default: 100).
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
@@ -120,10 +140,105 @@ pub struct ObserverConfig {
     /// Dedicated connection pool configuration for the observer runtime.
     ///
     /// When absent, sensible observer-specific defaults are used (smaller
-    /// than the application pool). Operators can set `[observers.pool]` in
-    /// `fraiseql.toml` to tune independently of the main pool.
+    /// than the application pool). Operators can set `[observers.runtime.pool]`
+    /// in `fraiseql.toml` to tune independently of the main pool.
     #[serde(default)]
     pub pool: ObserverPoolConfig,
+}
+
+#[cfg(feature = "observers")]
+impl Default for ObserverRuntimeSettings {
+    fn default() -> Self {
+        Self {
+            poll_interval_ms:     default_poll_interval_ms(),
+            batch_size:           default_batch_size(),
+            channel_capacity:     default_channel_capacity(),
+            auto_reload:          default_auto_reload(),
+            reload_interval_secs: default_reload_interval_secs(),
+            pool:                 ObserverPoolConfig::default(),
+        }
+    }
+}
+
+/// Observer configuration block (`[observers]`).
+///
+/// This is the **shared-file** view: `[observers]` is owned by the compiler
+/// schema (`backend`/`redis_url`/`nats_url`/`handlers`), while the server's
+/// runtime tuning lives under [`runtime`](ObserverConfig::runtime)
+/// (`[observers.runtime]`). The only top-level key both tools read is
+/// `enabled`. Unknown top-level keys are tolerated here so the compiler's own
+/// keys do not break server boot (the compiler is the strict gate for the
+/// `[observers]` table); the strictness for the server's own settings lives on
+/// [`ObserverRuntimeSettings`].
+///
+/// The `legacy_*` fields are migration traps for the pre-#342 flat layout (see
+/// [`misplaced_runtime_keys`](ObserverConfig::misplaced_runtime_keys)).
+#[cfg(feature = "observers")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObserverConfig {
+    /// Enable observer runtime (default: true).
+    ///
+    /// Shared top-level key — also read by `fraiseql compile`.
+    #[serde(default = "default_observers_enabled")]
+    pub enabled: bool,
+
+    /// Server-side runtime tuning (`[observers.runtime]`).
+    ///
+    /// Defaults are applied when the sub-table is absent.
+    #[serde(default)]
+    pub runtime: ObserverRuntimeSettings,
+
+    // ── Migration traps (pre-#342 flat layout) ──────────────────────────────
+    // These keys previously lived directly under `[observers]`; they now live
+    // under `[observers.runtime]`. They are captured here ONLY so `load_config`
+    // can fail loud with a migration message — never silently ignored, which
+    // was the #342 bug. They are not consumed by the runtime and never
+    // re-serialized.
+    #[serde(default, rename = "poll_interval_ms", skip_serializing)]
+    pub(crate) legacy_poll_interval_ms:     Option<toml::Value>,
+    #[serde(default, rename = "batch_size", skip_serializing)]
+    pub(crate) legacy_batch_size:           Option<toml::Value>,
+    #[serde(default, rename = "channel_capacity", skip_serializing)]
+    pub(crate) legacy_channel_capacity:     Option<toml::Value>,
+    #[serde(default, rename = "auto_reload", skip_serializing)]
+    pub(crate) legacy_auto_reload:          Option<toml::Value>,
+    #[serde(default, rename = "reload_interval_secs", skip_serializing)]
+    pub(crate) legacy_reload_interval_secs: Option<toml::Value>,
+    #[serde(default, rename = "pool", skip_serializing)]
+    pub(crate) legacy_pool:                 Option<toml::Value>,
+}
+
+#[cfg(feature = "observers")]
+impl ObserverConfig {
+    /// Pre-#342 flat server-tuning keys still present directly under
+    /// `[observers]` (they moved to `[observers.runtime]` in v2.5.0).
+    ///
+    /// Returns the offending key names so the caller can fail loud with a
+    /// migration message. Empty in the new layout. The list is returned in a
+    /// stable, declaration order for deterministic error messages.
+    #[must_use]
+    pub fn misplaced_runtime_keys(&self) -> Vec<&'static str> {
+        let mut keys = Vec::new();
+        if self.legacy_poll_interval_ms.is_some() {
+            keys.push("poll_interval_ms");
+        }
+        if self.legacy_batch_size.is_some() {
+            keys.push("batch_size");
+        }
+        if self.legacy_channel_capacity.is_some() {
+            keys.push("channel_capacity");
+        }
+        if self.legacy_auto_reload.is_some() {
+            keys.push("auto_reload");
+        }
+        if self.legacy_reload_interval_secs.is_some() {
+            keys.push("reload_interval_secs");
+        }
+        if self.legacy_pool.is_some() {
+            keys.push("pool");
+        }
+        keys
+    }
 }
 
 /// Admission control configuration for backpressure limiting.

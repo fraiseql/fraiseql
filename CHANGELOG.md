@@ -157,6 +157,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (observer config layout, #342):** the server's observer **runtime**
+  tuning moved from the flat `[observers]` table to a dedicated
+  `[observers.runtime]` sub-table: `poll_interval_ms`, `batch_size`,
+  `channel_capacity`, `auto_reload`, `reload_interval_secs`, and the
+  `[observers.pool]` table (now `[observers.runtime.pool]`). The same
+  `fraiseql.toml` is consumed by both `fraiseql compile` and `fraiseql-server`;
+  the compiler owns the `[observers]` top-level keys (`backend`/`handlers`/…) and
+  rejected server-tuning keys placed there, so a shared file could never carry
+  both. With the relocation, `fraiseql compile` tolerates `[observers.runtime]`
+  and the server reads it. Two fail-loud guards replace the previous silent
+  swallow: a server-tuning key left at the flat `[observers]` level now fails
+  startup with a migration message naming the key and its new home, and an
+  unrecognised key under `[observers.runtime]` (e.g. a typo) fails to parse
+  instead of being ignored. Move any server-tuning keys under
+  `[observers.runtime]` to upgrade.
+
 - **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in
   a single page now receive a validation error by default. Raise
   `[validation] max_page_size`, set `FRAISEQL_MAX_PAGE_SIZE`, or set it to `0`/`none`

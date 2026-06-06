@@ -26,12 +26,45 @@ fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     if let Some(path) = config_path {
         tracing::info!(path = %path, "Loading configuration from file");
         let contents = std::fs::read_to_string(path)?;
-        let config: ServerConfig = toml::from_str(&contents)?;
+        let config: ServerConfig = toml::from_str(&contents)
+            .map_err(|e| anyhow::anyhow!("failed to parse config file `{path}`: {e}"))?;
+        #[cfg(feature = "observers")]
+        check_observer_config_layout(&config, path)?;
         Ok(config)
     } else {
         tracing::info!("Using default server configuration");
         Ok(ServerConfig::default())
     }
+}
+
+/// Reject the pre-#342 flat `[observers]` server-tuning layout with a clear
+/// migration message.
+///
+/// As of v2.5.0 the server's runtime tuning (`poll_interval_ms`, `batch_size`,
+/// `channel_capacity`, `auto_reload`, `reload_interval_secs`, `pool`) moved from
+/// `[observers]` to `[observers.runtime]` so the `[observers]` table can be
+/// shared with the compiler schema (#342). A flat key here is captured as a
+/// migration trap rather than silently ignored — boot fails loud, the #342
+/// contract.
+///
+/// # Errors
+///
+/// Returns an error naming the misplaced keys when a pre-#342 server-tuning key
+/// is found directly under `[observers]`.
+#[cfg(feature = "observers")]
+fn check_observer_config_layout(config: &ServerConfig, path: &str) -> anyhow::Result<()> {
+    if let Some(observers) = &config.observers {
+        let misplaced = observers.misplaced_runtime_keys();
+        if let Some(first) = misplaced.first() {
+            anyhow::bail!(
+                "config file `{path}`: the [observers] key(s) `{}` moved to \
+                 [observers.runtime] in v2.5.0. Move them under an \
+                 `[observers.runtime]` table, e.g.\n\n    [observers.runtime]\n    {first} = ...\n",
+                misplaced.join("`, `"),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Validate that schema file exists.
@@ -277,8 +310,8 @@ async fn build_wire_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseW
 /// occupies a persistent slot that must not be shared with request-serving
 /// connections (request connections need to be available for concurrent queries).
 ///
-/// The observer pool is configured independently via `[observers.pool]` in
-/// `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
+/// The observer pool is configured independently via `[observers.runtime.pool]`
+/// in `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
 /// than the application pool — observers need far fewer connections).
 // Gated on `not(wire-backend)` to match its sole caller `run_postgres`: with
 // `wire-backend` the wire dispatch path is compiled instead and never builds an
@@ -290,7 +323,7 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sql
 
     use sqlx::postgres::PgPoolOptions;
 
-    let pool_cfg = config.observers.as_ref().map(|o| o.pool.clone()).unwrap_or_default();
+    let pool_cfg = config.observers.as_ref().map(|o| o.runtime.pool.clone()).unwrap_or_default();
 
     tracing::info!(
         min = pool_cfg.min_connections,
