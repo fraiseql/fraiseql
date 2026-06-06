@@ -129,24 +129,24 @@ impl OidcValidator {
         // Fetch fresh JWKS
         let jwks = self.fetch_jwks().await?;
 
-        // SECURITY: Detect key rotation for audit purposes
+        // SECURITY (#361): a key missing from the fresh set means the IdP rotated it
+        // out — tokens signed by it must stop validating. Detect this against the
+        // currently-cached set BEFORE we replace the cache below.
         if self.detect_key_rotation(&jwks) {
             tracing::warn!(
-                "OIDC key rotation detected: some previously cached keys no longer available"
+                "OIDC key rotation detected: previously cached keys are no longer published \
+                 by the provider; evicting them so tokens signed by rotated-out keys are rejected"
             );
         }
 
-        // Find the key index first, then we can clone the key
-        let key_index =
-            jwks.keys.iter().position(|k| k.kid.as_deref() == Some(kid)).ok_or_else(|| {
-                tracing::debug!(kid = %kid, "Key not found in JWKS");
-                SecurityError::InvalidToken
-            })?;
+        // Resolve the requested key from the freshly-fetched set first, so that a
+        // missing `kid` does not short-circuit the cache replacement below.
+        let key = jwks.keys.iter().find(|k| k.kid.as_deref() == Some(kid)).cloned();
 
-        // Clone the key before caching (keys are small, cloning is fine)
-        let key = jwks.keys[key_index].clone();
-
-        // Cache the JWKS
+        // SECURITY (#361): ALWAYS replace the cache with the freshly-fetched JWKS,
+        // even when `kid` was not found. This evicts rotated-out keys so a token
+        // signed by a removed key cannot keep validating off a stale cache entry on
+        // a later cache hit.
         {
             let mut cache = self.jwks_cache.write();
             *cache = Some(CachedJwks {
@@ -156,7 +156,50 @@ impl OidcValidator {
             });
         }
 
+        let key = key.ok_or_else(|| {
+            tracing::debug!(kid = %kid, "Key not found in JWKS");
+            SecurityError::InvalidToken
+        })?;
         self.jwk_to_decoding_key(&key)
+    }
+
+    /// Invalidate the cached JWKS so the next token validation refetches keys.
+    ///
+    /// Use this when an operator learns of an `IdP`-side key compromise or rotation
+    /// and wants to close the stolen-key replay window immediately, rather than
+    /// waiting up to `jwks_cache_ttl_secs` for the cache to expire. The next token
+    /// validation performs a fresh fetch from the provider.
+    pub fn invalidate_jwks_cache(&self) {
+        *self.jwks_cache.write() = None;
+        tracing::info!(
+            "JWKS cache invalidated; next token validation will refetch keys from the provider"
+        );
+    }
+
+    /// Force an immediate JWKS refetch, replacing the cache with the provider's
+    /// current key set.
+    ///
+    /// Returns the number of keys fetched. Backs the operator-facing
+    /// `/admin/v1/auth/refresh-jwks` endpoint, which closes the stolen-key replay
+    /// window on demand and confirms the refresh succeeded.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecurityError::SecurityConfigError` if the JWKS endpoint cannot be
+    /// reached or the response cannot be parsed.
+    pub async fn refresh_jwks(&self) -> Result<usize> {
+        let jwks = self.fetch_jwks().await?;
+        let key_count = jwks.keys.len();
+        {
+            let mut cache = self.jwks_cache.write();
+            *cache = Some(CachedJwks {
+                jwks,
+                fetched_at: Instant::now(),
+                ttl: Duration::from_secs(self.config.jwks_cache_ttl_secs),
+            });
+        }
+        tracing::info!(key_count, "JWKS cache force-refreshed from provider");
+        Ok(key_count)
     }
 
     /// Fetch JWKS from the provider.

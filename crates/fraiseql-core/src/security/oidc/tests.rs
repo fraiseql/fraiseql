@@ -225,6 +225,144 @@ fn test_detect_key_rotation_when_no_keys_removed() {
     assert!(!validator.detect_key_rotation(&new_jwks));
 }
 
+// ============================================================================
+// #361: JWKS rotation — cache invalidation closes the stolen-key replay window
+// ============================================================================
+
+#[test]
+fn invalidate_jwks_cache_clears_the_cached_entry() {
+    let validator = make_validator("http://localhost:8080");
+    {
+        let mut cache = validator.jwks_cache.write();
+        *cache = Some(CachedJwks {
+            jwks:       Jwks {
+                keys: vec![make_jwk("compromised_kid")],
+            },
+            fetched_at: Instant::now(),
+            ttl:        Duration::from_secs(300),
+        });
+    }
+    assert!(validator.jwks_cache.read().is_some(), "precondition: cache populated");
+
+    // Operator response to a known key compromise: flush so the next validation
+    // refetches from the IdP instead of trusting the cached (now-revoked) key.
+    validator.invalidate_jwks_cache();
+
+    assert!(
+        validator.jwks_cache.read().is_none(),
+        "invalidate_jwks_cache must clear the cache so revoked keys stop validating"
+    );
+}
+
+#[tokio::test]
+async fn refresh_jwks_replaces_the_cache_with_freshly_fetched_keys() {
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    // IdP now publishes only the rotated-in key.
+    let jwks_body = json!({
+        "keys": [{ "kty": "RSA", "kid": "rotated_in_kid", "n": TEST_RSA_N, "e": TEST_RSA_E }]
+    });
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    let config = OidcConfig {
+        issuer: issuer.clone(),
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+
+    // Seed a stale cache holding the compromised key.
+    {
+        let mut cache = validator.jwks_cache.write();
+        *cache = Some(CachedJwks {
+            jwks:       Jwks {
+                keys: vec![make_jwk("compromised_kid")],
+            },
+            fetched_at: Instant::now(),
+            ttl:        Duration::from_secs(300),
+        });
+    }
+
+    let count = validator.refresh_jwks().await.expect("force refresh should succeed");
+    assert_eq!(count, 1, "refresh_jwks returns the number of keys fetched");
+
+    let cache = validator.jwks_cache.read();
+    let cached = cache.as_ref().expect("cache repopulated after refresh");
+    let kids: Vec<&str> = cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
+    assert_eq!(kids, vec!["rotated_in_kid"], "compromised key evicted; rotated-in key cached");
+}
+
+#[tokio::test]
+async fn get_decoding_key_refetch_evicts_rotated_out_keys() {
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let port = mock.uri().rsplit(':').next().unwrap().to_string();
+    let issuer = format!("http://localhost:{port}");
+    let jwks_path = "/.well-known/jwks.json";
+
+    // After IdP rotation the compromised key is gone; only the new key remains.
+    let jwks_body = json!({
+        "keys": [{ "kty": "RSA", "kid": "new_kid", "n": TEST_RSA_N, "e": TEST_RSA_E }]
+    });
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    let config = OidcConfig {
+        issuer: issuer.clone(),
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+
+    // Seed an EXPIRED cache holding the compromised key so the next lookup refetches.
+    {
+        let mut cache = validator.jwks_cache.write();
+        *cache = Some(CachedJwks {
+            jwks:       Jwks {
+                keys: vec![make_jwk("compromised_kid")],
+            },
+            fetched_at: Instant::now(),
+            ttl:        Duration::ZERO,
+        });
+    }
+    // ttl == 0: age the monotonic clock so the entry is unambiguously expired.
+    tokio::time::sleep(Duration::from_millis(10)).await;
+
+    // A token still signed by the rotated-out key must be rejected …
+    let result = validator.get_decoding_key("compromised_kid").await;
+    assert!(result.is_err(), "a token signed by a rotated-out key must be rejected");
+
+    // … and the refetch must have replaced the cache with the IdP's current keys,
+    // so the compromised key no longer lingers (it would otherwise keep validating
+    // off the stale cache on the hit path). This is the core of #361.
+    let cache = validator.jwks_cache.read();
+    let cached = cache.as_ref().expect("cache repopulated after refetch");
+    let kids: Vec<&str> = cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
+    assert!(!kids.contains(&"compromised_kid"), "rotated-out key must be evicted from cache");
+    assert_eq!(kids, vec!["new_kid"], "cache reflects the IdP's current key set");
+}
+
 #[test]
 fn test_find_key_by_kid() {
     let validator = make_validator("http://localhost:8080");

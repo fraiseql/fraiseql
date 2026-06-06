@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **JWKS rotation no longer leaves revoked keys cached (#361).** When the OIDC
+  provider rotates signing keys, FraiseQL now replaces its JWKS cache with the
+  provider's current key set on the next refetch — even when the looked-up `kid` is
+  absent — so a token signed by a rotated-out key stops validating once the cache
+  refreshes, instead of being trusted until the cache TTL expires. `fraiseql-core`
+  embedders can close the window immediately on a known key compromise with the new
+  `OidcValidator::invalidate_jwks_cache` (flush) and `refresh_jwks` (eager refetch)
+  methods. The `jwks_cache_ttl_secs` documentation now describes it as the maximum
+  stolen-key replay window once a rotation has propagated.
+
 - **Top-level page-size ceiling (#421).** A root query's `first`/`last`/`limit`
   argument is now capped at a configurable maximum (default **1000**) before it
   reaches SQL, closing an unbounded-pagination denial-of-service vector — a single

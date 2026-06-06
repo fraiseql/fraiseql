@@ -78,8 +78,14 @@ pub struct OidcConfig {
 
     /// JWKS cache TTL in seconds.
     ///
-    /// How long to cache the JWKS before refetching.
-    /// Default: 300 (5 minutes) — short to prevent token cache poisoning.
+    /// How long to cache the JWKS before refetching. This is the MAXIMUM
+    /// stolen-key replay window once a key rotation has propagated upstream:
+    /// after an `IdP` rotates keys, FraiseQL keeps accepting tokens signed by a
+    /// cached-but-rotated-out key until the cached entry expires or is flushed.
+    /// To close the window immediately on a known compromise, call
+    /// `OidcValidator::invalidate_jwks_cache` (e.g. via `POST
+    /// /admin/v1/auth/refresh-jwks`).
+    /// Default: 300 (5 minutes) — short to bound the replay window.
     #[serde(default = "default_jwks_cache_ttl")]
     pub jwks_cache_ttl_secs: u64,
 
