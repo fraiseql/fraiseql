@@ -92,6 +92,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DLQ retry could double-fire the action under concurrent requests (#344).**
+  `POST /api/observers/dlq/{id}/retry` read the item, released the lock, then
+  re-dispatched and removed it — so two concurrent retries (or a per-item retry
+  racing `retry-all`) both dispatched the action, turning at-least-once delivery
+  into at-least-twice. Retries now go through an atomic claim (single-lock
+  remove-and-return): exactly one caller dispatches per claim, the loser gets
+  404; `retry-all` drains via the same claim. A failed redispatch re-inserts the
+  item (cap-bypassing, so a DLQ that refilled to capacity during the claim
+  cannot silently drop the just-failed item) with its `attempts` incremented.
+
 - **Observer DLQ ignored `max_dlq_size`; failed retries silently destroyed (#343).**
   The `fraiseql-server` binary's in-memory dead letter queue grew without bound
   — `max_dlq_size` was a documented setting the binary never honored, a memory

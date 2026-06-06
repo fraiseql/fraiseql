@@ -1,9 +1,13 @@
-//! Tests for the in-memory DLQ cap and retry-failure lifecycle (#343).
+//! Tests for the in-memory DLQ cap (#343), retry-failure lifecycle (#343), and
+//! the atomic claim primitive (#344).
 #![allow(clippy::unwrap_used)] // Reason: test code; lock/await failures should panic to surface bugs.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Barrier},
+};
 
-use fraiseql_observers::{ActionConfig, DeadLetterQueue, EntityEvent, EventKind};
+use fraiseql_observers::{ActionConfig, DeadLetterQueue, DlqItem, EntityEvent, EventKind};
 use uuid::Uuid;
 
 use super::InMemoryDlq;
@@ -85,4 +89,65 @@ async fn mark_success_removes_item() {
 
     assert!(dlq.get(id).is_none(), "a succeeded item should be removed");
     assert_eq!(dlq.count(), 0);
+}
+
+// ── #344: atomic claim ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn try_claim_removes_and_is_idempotent() {
+    let dlq = InMemoryDlq::new_with_max(None);
+    let id = push(&dlq).await;
+
+    assert!(dlq.try_claim(id).is_some(), "first claim returns the item");
+    assert_eq!(dlq.count(), 0, "claim removes the item");
+    assert!(dlq.try_claim(id).is_none(), "second claim finds nothing");
+}
+
+#[tokio::test]
+async fn try_claim_is_atomic_under_concurrency() {
+    // Push one item, then race N claimers: exactly one must win. This is the
+    // exactly-once gate the retry handlers rely on (#344) — the old
+    // get→process→remove path let every racer dispatch the action.
+    let dlq = Arc::new(InMemoryDlq::new_with_max(None));
+    let id = push(&dlq).await;
+
+    let n = 8;
+    let barrier = Arc::new(Barrier::new(n));
+    // Spawn ALL threads before joining any — collecting here is intentional so
+    // the claimers actually race rather than run serially.
+    #[allow(clippy::needless_collect)] // Reason: must spawn all before joining; see comment above.
+    let handles: Vec<_> = (0..n)
+        .map(|_| {
+            let dlq = Arc::clone(&dlq);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                dlq.try_claim(id).is_some()
+            })
+        })
+        .collect();
+
+    let winners = handles.into_iter().map(|h| h.join().unwrap()).filter(|&won| won).count();
+    assert_eq!(winners, 1, "exactly one of {n} concurrent claimers should win");
+    assert_eq!(dlq.count(), 0);
+}
+
+#[tokio::test]
+async fn reinsert_bypasses_the_cap() {
+    let dlq = InMemoryDlq::new_with_max(Some(1));
+    push(&dlq).await; // fills to cap
+
+    // A claimed item whose retry failed must be restored even when the DLQ
+    // refilled to capacity during the claim — never silently dropped (#343/#344).
+    let claimed = DlqItem {
+        id:            Uuid::new_v4(),
+        event:         test_event(),
+        action:        test_action(),
+        error_message: "retry failed".to_string(),
+        attempts:      1,
+    };
+    dlq.reinsert(claimed);
+
+    assert_eq!(dlq.count(), 2, "reinsert must bypass the cap");
+    assert_eq!(dlq.overflow_count(), 0, "reinsert is not an overflow");
 }

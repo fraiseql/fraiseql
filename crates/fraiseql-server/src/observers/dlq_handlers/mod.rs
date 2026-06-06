@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::runtime::ObserverRuntime;
+use super::runtime::{InMemoryDlq, ObserverRuntime};
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -230,30 +230,59 @@ pub async fn dlq_get_handler(
     }
 }
 
+/// Outcome of atomically claiming and re-processing a single DLQ item.
+enum RetryOutcome {
+    /// No item with this id was present to claim (already retried, or never existed).
+    NotFound,
+    /// The claimed item was re-dispatched successfully and stays removed.
+    Succeeded,
+    /// Re-dispatch failed; the item was re-inserted (cap-bypassing) and the
+    /// error message is carried back for the response.
+    Failed(String),
+}
+
+/// Atomically claim a DLQ item and re-dispatch it through the executor.
+///
+/// The claim ([`InMemoryDlq::try_claim`]) removes the item under a single lock,
+/// so two concurrent retries on the same id dispatch the action **at most once**
+/// (#344): the winner processes, the loser sees [`RetryOutcome::NotFound`]. On a
+/// failed redispatch the item is re-inserted via the **cap-bypassing** path
+/// ([`InMemoryDlq::reinsert`]) with its `attempts` bumped, so a failed retry is
+/// never silently lost — even if the DLQ refilled to capacity during the claim
+/// (#343/#344).
+async fn claim_and_process(
+    dlq: &InMemoryDlq,
+    executor: &fraiseql_observers::ObserverExecutor,
+    id: Uuid,
+) -> RetryOutcome {
+    let Some(mut item) = dlq.try_claim(id) else {
+        return RetryOutcome::NotFound;
+    };
+
+    match executor.process_event(&item.event).await {
+        Ok(_summary) => RetryOutcome::Succeeded,
+        Err(e) => {
+            item.attempts = item.attempts.saturating_add(1);
+            item.error_message = format!("Retry failed: {e}");
+            dlq.reinsert(item);
+            RetryOutcome::Failed(e.to_string())
+        },
+    }
+}
+
 /// `POST /api/observers/dlq/{id}/retry`
 ///
-/// Re-processes a single DLQ item through the observer executor, then
-/// removes it from the DLQ on success.
+/// Atomically claims a single DLQ item and re-processes it through the observer
+/// executor. The claim guarantees the action is re-dispatched at most once even
+/// under concurrent retries; a failed redispatch re-inserts the item.
 pub async fn dlq_retry_handler(
     State(state): State<DlqState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
-    let dlq = runtime.dlq();
 
-    let Some(item) = dlq.get(id) else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(RetryResponse {
-                success: false,
-                item_id: id,
-                message: "DLQ item not found".to_string(),
-            }),
-        )
-            .into_response();
-    };
-
-    // Re-process the event through the executor
+    // Acquire the executor before claiming: if it is unavailable we return 503
+    // without removing the item.
     let executor_guard = runtime.executor_ref().read().await;
     let Some(executor) = executor_guard.as_ref() else {
         return (
@@ -267,20 +296,26 @@ pub async fn dlq_retry_handler(
             .into_response();
     };
 
-    match executor.process_event(&item.event).await {
-        Ok(_summary) => {
-            dlq.remove(id);
-            (
-                StatusCode::OK,
-                Json(RetryResponse {
-                    success: true,
-                    item_id: id,
-                    message: "Item re-processed successfully".to_string(),
-                }),
-            )
-                .into_response()
-        },
-        Err(e) => (
+    match claim_and_process(runtime.dlq(), executor, id).await {
+        RetryOutcome::NotFound => (
+            StatusCode::NOT_FOUND,
+            Json(RetryResponse {
+                success: false,
+                item_id: id,
+                message: "DLQ item not found".to_string(),
+            }),
+        )
+            .into_response(),
+        RetryOutcome::Succeeded => (
+            StatusCode::OK,
+            Json(RetryResponse {
+                success: true,
+                item_id: id,
+                message: "Item re-processed successfully".to_string(),
+            }),
+        )
+            .into_response(),
+        RetryOutcome::Failed(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(RetryResponse {
                 success: false,
@@ -294,13 +329,18 @@ pub async fn dlq_retry_handler(
 
 /// `POST /api/observers/dlq/retry-all`
 ///
-/// Re-processes all DLQ items. Successfully retried items are removed from the DLQ.
+/// Re-processes all DLQ items. Each item is claimed atomically (a single-lock
+/// remove-and-return), so an item that a per-item retry claims concurrently is
+/// not also dispatched by this loop. Successfully retried items stay removed;
+/// failed ones are re-inserted.
 pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let dlq = runtime.dlq();
-    let items = dlq.list_all();
 
-    if items.is_empty() {
+    // Snapshot the ids to drain; each is then claimed atomically below.
+    let ids: Vec<Uuid> = dlq.list_all().into_iter().map(|item| item.id).collect();
+
+    if ids.is_empty() {
         return (
             StatusCode::OK,
             Json(RetryAllResponse {
@@ -317,7 +357,7 @@ pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoRe
             StatusCode::SERVICE_UNAVAILABLE,
             Json(RetryAllResponse {
                 items_retried: 0,
-                items_failed:  items.len(),
+                items_failed:  ids.len(),
                 message:       "Observer executor not available".to_string(),
             }),
         );
@@ -326,14 +366,13 @@ pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoRe
     let mut retried = 0;
     let mut failed = 0;
 
-    for item in &items {
-        match executor.process_event(&item.event).await {
-            Ok(_) => {
-                dlq.remove(item.id);
-                retried += 1;
-            },
-            Err(e) => {
-                tracing::warn!(item_id = %item.id, error = %e, "DLQ retry failed");
+    for id in ids {
+        match claim_and_process(dlq, executor, id).await {
+            // Claimed and dispatched by a racing per-item retry — not our work.
+            RetryOutcome::NotFound => {},
+            RetryOutcome::Succeeded => retried += 1,
+            RetryOutcome::Failed(e) => {
+                tracing::warn!(item_id = %id, error = %e, "DLQ retry failed");
                 failed += 1;
             },
         }

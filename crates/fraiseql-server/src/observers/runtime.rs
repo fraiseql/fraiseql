@@ -761,9 +761,31 @@ impl InMemoryDlq {
             .cloned()
     }
 
-    /// Removes a DLQ item by ID.
-    pub(crate) fn remove(&self, id: uuid::Uuid) {
-        self.items.lock().expect("items mutex poisoned").retain(|item| item.id != id);
+    /// Atomically remove and return a DLQ item by ID.
+    ///
+    /// The find and the remove happen under a single lock, so two concurrent
+    /// retries on the same id cannot both observe it: exactly one caller gets
+    /// `Some`, the rest get `None`. This makes DLQ retry **at-most-once per
+    /// claim** (#344), closing the previous `get` → `process` → `remove` race
+    /// that re-dispatched the action twice (turning at-least-once delivery into
+    /// at-least-twice).
+    pub(crate) fn try_claim(&self, id: uuid::Uuid) -> Option<fraiseql_observers::DlqItem> {
+        let mut items = self.items.lock().expect("items mutex poisoned");
+        let pos = items.iter().position(|item| item.id == id)?;
+        Some(items.remove(pos))
+    }
+
+    /// Re-insert a previously-claimed item whose retry failed, **bypassing the
+    /// size cap**.
+    ///
+    /// A claimed item was already counted against the cap before [`try_claim`]
+    /// removed it; routing it back through [`push`](InMemoryDlq::push) would let
+    /// drop-newest silently discard it if the DLQ refilled to `max_size` during
+    /// the claim — re-introducing the exact silent loss the cap exists to
+    /// prevent (#343/#344). The retry handlers use this to restore an item after
+    /// a failed redispatch.
+    pub(crate) fn reinsert(&self, item: fraiseql_observers::DlqItem) {
+        self.items.lock().expect("items mutex poisoned").push(item);
     }
 }
 
