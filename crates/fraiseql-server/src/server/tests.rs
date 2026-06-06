@@ -107,6 +107,40 @@ mod initialization_tests {
         // 2001:db8:: is documentation range — treated as public by is_manifest_url_ssrf_blocked
         assert!(!is_manifest_url_ssrf_blocked("http://[2001:db8::1]/manifest.json"));
     }
+
+    // #360: PKCE must not be served without [security.state_encryption] in production.
+    #[cfg(feature = "auth")]
+    #[test]
+    fn pkce_without_state_encryption_is_fatal_in_production() {
+        use super::super::initialization::pkce_state_encryption_check;
+        let result = pkce_state_encryption_check(
+            // has_state_encryption
+            false, // is_production
+            true,
+        );
+        assert!(
+            result.is_err(),
+            "PKCE without state encryption must refuse to boot in production (#360)"
+        );
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn pkce_without_state_encryption_is_a_warning_in_development() {
+        use super::super::initialization::pkce_state_encryption_check;
+        assert!(
+            pkce_state_encryption_check(false, false).is_ok(),
+            "development mode downgrades the missing-state-encryption error to a warning"
+        );
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn pkce_with_state_encryption_is_always_ok() {
+        use super::super::initialization::pkce_state_encryption_check;
+        assert!(pkce_state_encryption_check(true, true).is_ok());
+        assert!(pkce_state_encryption_check(true, false).is_ok());
+    }
 }
 
 // ── lifecycle_tests ───────────────────────────────────────────────────────────

@@ -39,14 +39,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
     /// a Redis-backed distributed store; otherwise falls back to the in-memory backend
     /// with a warning.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when `pkce.enabled = true` but
+    /// `[security.state_encryption]` is missing or disabled while running in production
+    /// mode (`FRAISEQL_ENV` is not `development`/`dev`). PKCE state tokens would
+    /// otherwise be sent to the OIDC provider as the raw, unencrypted lookup key, so the
+    /// server refuses to start rather than serve `/auth/start` with a false "state
+    /// encryption is enforced" posture. In development mode this is a warning instead.
     #[cfg(feature = "auth")]
     #[allow(clippy::cognitive_complexity)] // Reason: conditional backend selection (Redis vs in-memory) with feature-gated branches
     pub(super) async fn pkce_store_from_schema(
         schema: &CompiledSchema,
         state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
-    ) -> Option<Arc<crate::auth::PkceStateStore>> {
-        let security = schema.security.as_ref()?;
-        let pkce_cfg = security.additional.get("pkce")?;
+    ) -> crate::Result<Option<Arc<crate::auth::PkceStateStore>>> {
+        let Some(security) = schema.security.as_ref() else {
+            return Ok(None);
+        };
+        let Some(pkce_cfg) = security.additional.get("pkce") else {
+            return Ok(None);
+        };
 
         #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
         #[derive(serde::Deserialize)]
@@ -68,22 +81,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             "S256".into()
         }
 
-        let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone())
-            .inspect_err(
-                |e| warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE"),
-            )
-            .ok()?;
+        let cfg: PkceCfgMinimal = match serde_json::from_value(pkce_cfg.clone()) {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE");
+                return Ok(None);
+            },
+        };
         if !cfg.enabled {
-            return None;
+            return Ok(None);
         }
 
-        if state_encryption.is_none() {
-            warn!(
-                "pkce.enabled = true but state_encryption is disabled. \
-                 PKCE state tokens are sent to the OIDC provider unencrypted. \
-                 Enable [security.state_encryption] in production for full protection."
-            );
-        }
+        // SECURITY (#360): PKCE state tokens are sent to the OIDC provider; without
+        // [security.state_encryption] they travel as the raw 32-byte lookup key. Refuse
+        // to boot in production rather than serve /auth/start with a false "state
+        // encryption is enforced" posture; development mode downgrades this to a warning.
+        pkce_state_encryption_check(
+            state_encryption.is_some(),
+            crate::ServerConfig::is_production_mode(),
+        )?;
 
         if cfg.code_challenge_method.eq_ignore_ascii_case("plain") {
             warn!(
@@ -101,7 +117,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             {
                 Ok(store) => {
                     info!(redis_url = %url, "PKCE state store: Redis backend");
-                    return Some(Arc::new(store));
+                    return Ok(Some(Arc::new(store)));
                 },
                 Err(e) => {
                     tracing::error!(
@@ -129,7 +145,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
              or FRAISEQL_REQUIRE_REDIS=1 to enforce it at startup."
         );
 
-        Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc)))
+        Ok(Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc))))
     }
 
     /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.
@@ -449,6 +465,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         });
     }
+}
+
+// ── PKCE state-encryption requirement (#360) ─────────────────────────────────
+
+/// Enforce that PKCE is not served without `[security.state_encryption]`.
+///
+/// PKCE state tokens are sent to the OIDC provider; without state encryption they
+/// travel as the raw 32-byte lookup key. In production this is a hard error so the
+/// server does not serve `/auth/start` with a false "state encryption is enforced"
+/// posture. In development (`FRAISEQL_ENV=development`/`dev`) it is downgraded to a
+/// warning so local auth flows still work.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `has_state_encryption` is false and
+/// `is_production` is true.
+#[cfg(feature = "auth")]
+pub(super) fn pkce_state_encryption_check(
+    has_state_encryption: bool,
+    is_production: bool,
+) -> crate::Result<()> {
+    if has_state_encryption {
+        return Ok(());
+    }
+    if is_production {
+        return Err(ServerError::ConfigError(
+            concat!(
+                "FraiseQL failed to start\n\n",
+                "  [security.pkce] enabled = true but [security.state_encryption] is\n",
+                "  missing or disabled. PKCE state tokens would be sent to the OIDC\n",
+                "  provider unencrypted, so the documented \"state encryption is\n",
+                "  enforced\" posture would be false.\n\n",
+                "  To fix, enable state encryption:\n",
+                "    [security.state_encryption]\n",
+                "    enabled = true\n",
+                "    # 32-byte key supplied via FRAISEQL_STATE_ENCRYPTION_KEY\n\n",
+                "  For local development only:\n",
+                "    Set FRAISEQL_ENV=development to downgrade this to a warning.",
+            )
+            .into(),
+        ));
+    }
+    warn!(
+        "pkce.enabled = true but state_encryption is disabled — PKCE state tokens are \
+         sent to the OIDC provider unencrypted. Allowed only because \
+         FRAISEQL_ENV=development; enable [security.state_encryption] before production."
+    );
+    Ok(())
 }
 
 // ── SSRF guard for manifest hot-reload URL ────────────────────────────────────

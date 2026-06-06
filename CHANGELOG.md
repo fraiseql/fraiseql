@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **PKCE refuses to boot without state encryption in production (#360).** When
+  `[security.pkce] enabled = true` but `[security.state_encryption]` is missing or
+  disabled, the server now refuses to start in production instead of serving
+  `/auth/start` while emitting only a warning — the outbound state token would
+  otherwise be the raw, unencrypted lookup key, contradicting the documented "state
+  encryption is enforced" posture. Set `FRAISEQL_ENV=development` to downgrade the
+  refusal to a warning for local development.
+
 - **JWKS rotation no longer leaves revoked keys cached (#361).** When the OIDC
   provider rotates signing keys, FraiseQL now replaces its JWKS cache with the
   provider's current key set on the next refetch — even when the looked-up `kid` is
