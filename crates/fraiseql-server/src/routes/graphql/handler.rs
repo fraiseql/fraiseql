@@ -13,6 +13,7 @@ use fraiseql_core::{
     graphql::parse_graphql_document,
     security::SecurityContext,
 };
+use fraiseql_error::FraiseQLError;
 use tracing::{debug, error, warn};
 
 use super::{
@@ -574,12 +575,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     };
 
     // Execute query (defer error propagation to record circuit breaker outcome first)
-    let executor = state.executor_for_tenant(tenant_key.as_deref()).map_err(|e| {
-        ErrorResponse::from_error(GraphQLError::new(
-            e.to_string(),
-            crate::error::ErrorCode::Forbidden,
-        ))
-    })?;
+    let executor = state
+        .executor_for_tenant(tenant_key.as_deref())
+        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
@@ -699,3 +697,24 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         body: response_json,
     })
 }
+
+/// Map a tenant-dispatch error from [`AppState::executor_for_tenant`] to the
+/// correct GraphQL error code (#332).
+///
+/// `executor_for_tenant` returns [`FraiseQLError::Authorization`] for an unknown
+/// tenant key (→ 403 Forbidden) and [`FraiseQLError::ServiceUnavailable`] for a
+/// suspended tenant (→ 503 with a `Retry-After` header carrying `retry_after`).
+/// Previously both collapsed to 403, discarding the variant and the retry hint.
+fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
+    match error {
+        FraiseQLError::ServiceUnavailable { retry_after, .. } => {
+            GraphQLError::service_unavailable(error.to_string(), *retry_after)
+        },
+        // Unknown tenant key (Authorization) and any other dispatch error stay
+        // 403 Forbidden, preserving the prior behaviour.
+        _ => GraphQLError::new(error.to_string(), crate::error::ErrorCode::Forbidden),
+    }
+}
+
+#[cfg(test)]
+mod tests;

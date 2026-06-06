@@ -41,6 +41,9 @@ pub enum ErrorCode {
     Conflict,
     /// Circuit breaker open — federation entity temporarily unavailable.
     CircuitBreakerOpen,
+    /// Service temporarily unavailable (e.g. a suspended tenant). Maps to HTTP
+    /// 503 and carries a `Retry-After` header when a retry hint is known.
+    ServiceUnavailable,
     /// Persisted query not found — client must re-send the full query body.
     PersistedQueryNotFound,
     /// Persisted query hash mismatch — SHA-256 of body does not match provided hash.
@@ -84,7 +87,7 @@ impl ErrorCode {
             Self::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             Self::Timeout => StatusCode::REQUEST_TIMEOUT,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::CircuitBreakerOpen => StatusCode::SERVICE_UNAVAILABLE,
+            Self::CircuitBreakerOpen | Self::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 }
@@ -340,6 +343,21 @@ impl GraphQLError {
             request_id:       None,
             retry_after_secs: Some(retry_after_secs),
             detail:           None,
+        })
+    }
+
+    /// Service temporarily unavailable (HTTP 503), e.g. a suspended tenant.
+    ///
+    /// When `retry_after_secs` is set the response carries a matching
+    /// `Retry-After` header (see [`ErrorResponse`]'s `IntoResponse`).
+    #[must_use]
+    pub fn service_unavailable(message: impl Into<String>, retry_after_secs: Option<u64>) -> Self {
+        Self::new(message, ErrorCode::ServiceUnavailable).with_extensions(ErrorExtensions {
+            category: Some("SERVICE_UNAVAILABLE".to_string()),
+            status: Some(503),
+            request_id: None,
+            retry_after_secs,
+            detail: None,
         })
     }
 }

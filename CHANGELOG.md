@@ -79,6 +79,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error. `[files.<name>]` sections are parsed but not yet wired (a startup warning is
   logged).
 
+- **Suspended tenant now returns HTTP 503 + `Retry-After` (#332).** The GraphQL
+  handler mapped every error from per-tenant executor dispatch to HTTP 403,
+  collapsing a suspended tenant (`ServiceUnavailable { retry_after }`) and an
+  unknown tenant key (`Authorization`) onto the same status and dropping the
+  retry hint. Dispatch errors are now mapped by variant: an unknown key stays
+  403 Forbidden, while a suspended tenant returns 503 with a `Retry-After`
+  header carrying the registry's retry value (60s), matching the documented
+  suspend/resume contract.
+
 ### Changed
 
 - **Breaking (runtime behavior, #421):** clients requesting more than 1000 rows in
