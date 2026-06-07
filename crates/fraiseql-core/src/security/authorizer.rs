@@ -106,15 +106,12 @@ pub enum AuthzDecision {
 ///
 /// impl Authorizer for WritesNeedAuth {
 ///     fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
-///         match req.operation {
-///             OperationKind::Query => Ok(AuthzDecision::Allow),
-///             OperationKind::Mutation | OperationKind::Subscription => {
-///                 if req.principal.is_some() {
-///                     Ok(AuthzDecision::Allow)
-///                 } else {
-///                     Ok(AuthzDecision::Deny { reason: "authentication required".to_string() })
-///                 }
-///             }
+///         // Reads are public; writes (and any future operation kind) need a principal.
+///         // `OperationKind` is `#[non_exhaustive]`, so avoid an exhaustive match here.
+///         if matches!(req.operation, OperationKind::Query) || req.principal.is_some() {
+///             Ok(AuthzDecision::Allow)
+///         } else {
+///             Ok(AuthzDecision::Deny { reason: "authentication required".to_string() })
 ///         }
 ///     }
 /// }
