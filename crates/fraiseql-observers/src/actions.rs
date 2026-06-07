@@ -7,13 +7,21 @@
 //!
 //! Each action handles template rendering, retry logic, and error handling.
 
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
+use lettre::{
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
+    transport::smtp::authentication::Credentials,
+};
 use reqwest::Client;
 use serde_json::{Value, json};
 use tracing::{debug, info};
 
 use crate::{
+    config::{EmailSmtpConfig, SmtpTlsMode},
     error::{ObserverError, Result},
     event::EntityEvent,
 };
@@ -555,20 +563,7 @@ impl SlackAction {
 
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(crate) fn render_message_template(&self, template: &str, data: &Value) -> String {
-        let mut rendered = template.to_string();
-
-        if let Value::Object(map) = data {
-            for (key, value) in map {
-                let placeholder = format!("{{{{ {key} }}}}");
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                rendered = rendered.replace(&placeholder, &value_str);
-            }
-        }
-
-        rendered
+        render_text_template(template, data)
     }
 }
 
@@ -589,62 +584,204 @@ pub struct SlackResponse {
     pub duration_ms: f64,
 }
 
-/// Email action executor.
+/// Email action executor: sends email over SMTP via `lettre` (#349).
 ///
-/// **Stub (#349):** this action is not yet implemented — there is no SMTP client
-/// behind it. [`execute`](EmailAction::execute) therefore fails loud rather than
-/// reporting a phantom success, so a dead email integration is DLQ'd with red
-/// metrics instead of silently dropping messages. Until SMTP lands, drive email
-/// through a webhook action against your transactional-email provider.
-#[deprecated(
-    note = "stub — see #349; EmailAction does not send yet. Use a webhook action against your \
-            transactional-email provider, or wait for the SMTP implementation."
-)]
+/// Constructed with an optional [`EmailSmtpConfig`]. When SMTP is configured,
+/// [`execute`](EmailAction::execute) renders the body template, builds a message,
+/// and sends it -- classifying SMTP failures as transient (retryable) or permanent
+/// (DLQ). When SMTP is **not** configured, `execute` fails loud (permanent) rather
+/// than reporting a phantom success, so a non-sending email integration is always
+/// surfaced instead of silently dropping messages.
 pub struct EmailAction {
-    // Placeholder for SMTP client
+    /// Built SMTP transport + sender address, or `None` when SMTP is unconfigured.
+    sender: Option<SmtpSender>,
 }
 
-#[allow(deprecated)] // Reason: #349 stub — the impl is the deprecated type's own surface; the attribute is dropped when SMTP lands.
+/// A built SMTP transport paired with its configured sender address.
+struct SmtpSender {
+    transport: AsyncSmtpTransport<Tokio1Executor>,
+    from:      Mailbox,
+}
+
 impl EmailAction {
-    /// Create a new email action executor.
+    /// Create an email action with **no** SMTP backend.
+    ///
+    /// [`execute`](EmailAction::execute) fails permanently until a transport is
+    /// configured via [`from_smtp_config`](EmailAction::from_smtp_config).
     #[must_use]
     pub const fn new() -> Self {
-        Self {}
+        Self { sender: None }
     }
 
-    /// Execute email action.
+    /// Build an email action from optional SMTP configuration.
     ///
-    /// **Stub (#349):** always fails — `EmailAction` has no SMTP backend yet, so
-    /// rather than report a phantom success (the previous behaviour) it returns a
-    /// permanent failure. The dispatcher surfaces this as a failed action so the
-    /// event is DLQ'd and counted in `failed_actions`, never `successful_actions`.
+    /// `None` yields a no-SMTP action (execute fails loud). `Some(cfg)` builds a
+    /// `lettre` transport: the TLS mode selects STARTTLS / implicit-TLS /
+    /// plaintext, and credentials are resolved from the configured env-var names.
     ///
     /// # Errors
     ///
-    /// Always returns [`ObserverError::ActionPermanentlyFailed`] until a real SMTP
-    /// sender is wired in.
-    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
+    /// Returns [`ObserverError::InvalidConfig`] if the `from` address is
+    /// unparseable, the relay cannot be constructed, `username_env` is set without
+    /// `password_env`, or a configured credential env var is missing.
+    pub fn from_smtp_config(config: Option<&EmailSmtpConfig>) -> Result<Self> {
+        let Some(cfg) = config else {
+            return Ok(Self { sender: None });
+        };
+
+        let from = cfg.from.parse::<Mailbox>().map_err(|e| ObserverError::InvalidConfig {
+            message: format!(
+                "[observers.runtime.email] invalid `from` address {:?}: {e}",
+                cfg.from
+            ),
+        })?;
+
+        let mut builder =
+            match cfg.tls {
+                SmtpTlsMode::StartTls => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(
+                    &cfg.host,
+                )
+                .map_err(|e| ObserverError::InvalidConfig {
+                    message: format!(
+                        "[observers.runtime.email] cannot build STARTTLS relay to {}: {e}",
+                        cfg.host
+                    ),
+                })?,
+                SmtpTlsMode::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host)
+                    .map_err(|e| ObserverError::InvalidConfig {
+                        message: format!(
+                            "[observers.runtime.email] cannot build TLS relay to {}: {e}",
+                            cfg.host
+                        ),
+                    })?,
+                SmtpTlsMode::None => {
+                    AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(cfg.host.as_str())
+                },
+            };
+        builder = builder.port(cfg.port).timeout(Some(Duration::from_secs(cfg.timeout_secs)));
+
+        if let Some(user_env) = cfg.username_env.as_deref() {
+            let username = std::env::var(user_env).map_err(|_| ObserverError::InvalidConfig {
+                message: format!("[observers.runtime.email] username_env {user_env} is not set"),
+            })?;
+            let pass_env =
+                cfg.password_env.as_deref().ok_or_else(|| ObserverError::InvalidConfig {
+                    message: "[observers.runtime.email] username_env is set but password_env is \
+                              missing"
+                        .to_string(),
+                })?;
+            let password = std::env::var(pass_env).map_err(|_| ObserverError::InvalidConfig {
+                message: format!("[observers.runtime.email] password_env {pass_env} is not set"),
+            })?;
+            builder = builder.credentials(Credentials::new(username, password));
+        }
+
+        Ok(Self {
+            sender: Some(SmtpSender {
+                transport: builder.build(),
+                from,
+            }),
+        })
+    }
+
+    /// Send the email: render the body template, build the message, dispatch it.
+    ///
+    /// The `to` and `subject` arrive already resolved from the action config; only
+    /// the body is rendered against the event data.
+    ///
+    /// # Errors
+    ///
+    /// - [`ObserverError::ActionPermanentlyFailed`] when no SMTP is configured, the
+    ///   recipient/message is malformed, or the server returns a permanent (5xx) error -- the event
+    ///   is DLQ'd, not retried.
+    /// - [`ObserverError::ActionExecutionFailed`] for transient failures (connection refused,
+    ///   timeout, 4xx greylisting) -- retried per policy.
     pub async fn execute(
         &self,
-        _to: &str,
-        _subject: &str,
-        _body_template: Option<&str>,
-        _event: &EntityEvent,
+        to: &str,
+        subject: &str,
+        body_template: Option<&str>,
+        event: &EntityEvent,
     ) -> Result<EmailResponse> {
-        Err(ObserverError::ActionPermanentlyFailed {
-            reason: "EmailAction is not implemented (stub, #349): it has no SMTP backend and \
-                     does not send. Use a webhook action against your transactional-email \
-                     provider instead."
-                .to_string(),
-        })
+        let start = Instant::now();
+
+        let Some(sender) = self.sender.as_ref() else {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: "EmailAction has no SMTP backend configured (#349): set \
+                         [observers.runtime.email], or use a webhook action against your \
+                         transactional-email provider"
+                    .to_string(),
+            });
+        };
+
+        let to_mbox =
+            to.parse::<Mailbox>().map_err(|e| ObserverError::ActionPermanentlyFailed {
+                reason: format!("invalid email recipient {to:?}: {e}"),
+            })?;
+
+        let body = body_template.map_or_else(String::new, |t| render_text_template(t, &event.data));
+
+        let message = Message::builder()
+            .from(sender.from.clone())
+            .to(to_mbox)
+            .subject(subject)
+            .body(body)
+            .map_err(|e| ObserverError::ActionPermanentlyFailed {
+                reason: format!("failed to build email message: {e}"),
+            })?;
+
+        debug!(action_type = "email", event_id = %event.id, to, "Email dispatch starting");
+        match sender.transport.send(message).await {
+            Ok(response) => {
+                let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+                info!(
+                    action_type = "email",
+                    event_id = %event.id,
+                    code = ?response.code(),
+                    "Email dispatch complete"
+                );
+                Ok(EmailResponse {
+                    success: true,
+                    message_id: response.first_line().map(ToString::to_string),
+                    duration_ms,
+                })
+            },
+            // Permanent SMTP failures (5xx: bad recipient, auth rejected) go
+            // straight to the DLQ; everything else (connection refused, timeout,
+            // 4xx greylisting) is transient and retried per policy.
+            Err(e) if e.is_permanent() => Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!("SMTP permanent error: {e}"),
+            }),
+            Err(e) => Err(ObserverError::ActionExecutionFailed {
+                reason: format!("SMTP transient error: {e}"),
+            }),
+        }
     }
 }
 
-#[allow(deprecated)] // Reason: #349 stub — Default for the deprecated type; dropped when SMTP lands.
 impl Default for EmailAction {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Render a `{{ key }}` text template against a JSON object's top-level fields.
+///
+/// Shared by the Slack and email actions. Unmatched placeholders are left as-is;
+/// non-string values are rendered via their JSON representation.
+pub(crate) fn render_text_template(template: &str, data: &Value) -> String {
+    let mut rendered = template.to_string();
+    if let Value::Object(map) = data {
+        for (key, value) in map {
+            let placeholder = format!("{{{{ {key} }}}}");
+            let value_str = match value {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            rendered = rendered.replace(&placeholder, &value_str);
+        }
+    }
+    rendered
 }
 
 /// Response from email execution

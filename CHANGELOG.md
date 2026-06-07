@@ -105,6 +105,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer email action reported success without sending (#349).** `EmailAction`
+  was a stub that always returned success, so a dead email integration showed green
+  metrics while silently dropping every message. It now sends real email over SMTP
+  via `lettre` (rustls, no OpenSSL): configure `[observers.runtime.email]`
+  (`host`/`port`/`from`/`tls` = `start_tls`|`tls`|`none`, with credentials supplied
+  via the `username_env`/`password_env` environment-variable *names*). SMTP failures
+  are classified — permanent (5xx, bad recipient, auth rejected) go straight to the
+  DLQ, transient (connection refused, timeout, 4xx greylisting) are retried per
+  policy. When SMTP is **not** configured the action fails loud (permanent) instead
+  of faking success, so a misconfigured email integration is always surfaced. The
+  `[observers.runtime.email]` block is strict (`deny_unknown_fields`): a typo or a
+  literal-credential key fails the parse. _Scoped follow-up: a MailHog/smtp4dev
+  Dagger service for end-to-end wire coverage is not yet built — the refused-send
+  failure path is covered without infra; happy-path wire behaviour is exercised
+  manually until that sink lands._
+
 - **Observer transport selection was silently ignored; NATS ran on PostgreSQL (#350).**
   The off-the-shelf binary never read `[observers.runtime.transport]` /
   `FRAISEQL_OBSERVER_TRANSPORT`, so selecting `transport = "nats"` quietly ran on

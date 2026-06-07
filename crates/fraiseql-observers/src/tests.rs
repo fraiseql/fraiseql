@@ -29,7 +29,6 @@ mod actions_tests {
     }
 
     #[test]
-    #[allow(deprecated)] // Reason: #349 stub — exercising the deprecated EmailAction; dropped when SMTP lands.
     fn test_email_action_creation() {
         let email = EmailAction::new();
         // Basic instantiation test
@@ -37,8 +36,10 @@ mod actions_tests {
     }
 
     #[tokio::test]
-    #[allow(deprecated)] // Reason: #349 stub — exercising the deprecated EmailAction; dropped when SMTP lands.
-    async fn test_email_action_execute() {
+    async fn test_email_action_execute_without_smtp_fails_loud() {
+        // #349: with no SMTP configured, the email action fails loud (permanent)
+        // rather than reporting a phantom success — a non-sending integration is
+        // always surfaced (DLQ'd), never silently dropped.
         let email = EmailAction::new();
         let event = crate::event::EntityEvent::new(
             EventKind::Created,
@@ -47,13 +48,42 @@ mod actions_tests {
             json!({"total": 100}),
         );
 
-        // #349: the stub no longer reports a phantom success — it fails loud so a
-        // non-sending email integration is surfaced (DLQ'd) rather than silently
-        // dropping the message.
         let result = email.execute("user@example.com", "Test", None, &event).await;
         assert!(
             matches!(result, Err(crate::error::ObserverError::ActionPermanentlyFailed { .. })),
-            "EmailAction stub must fail permanently, got: {result:?}"
+            "EmailAction with no SMTP must fail permanently, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_email_send_to_dead_smtp_is_loud_and_transient() {
+        // #349 acceptance gate (no SMTP infra): a refused send must surface as a
+        // failure — and be classified transient (retry → DLQ), never a phantom
+        // success. 127.0.0.1:1 has nothing listening → connection refused, fast
+        // and deterministic; tls=none avoids any handshake delay.
+        use crate::config::{EmailSmtpConfig, SmtpTlsMode};
+
+        let cfg = EmailSmtpConfig {
+            host:         "127.0.0.1".to_string(),
+            port:         1,
+            from:         "alerts@example.com".to_string(),
+            username_env: None,
+            password_env: None,
+            tls:          SmtpTlsMode::None,
+            timeout_secs: 2,
+        };
+        let email = EmailAction::from_smtp_config(Some(&cfg)).expect("transport builds");
+        let event = crate::event::EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            uuid::Uuid::new_v4(),
+            json!({"total": 100}),
+        );
+
+        let result = email.execute("ops@example.com", "Alert", Some("body"), &event).await;
+        assert!(
+            matches!(result, Err(crate::error::ObserverError::ActionExecutionFailed { .. })),
+            "a refused SMTP send must be a loud, transient failure (retryable), got: {result:?}"
         );
     }
 

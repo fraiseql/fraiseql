@@ -172,6 +172,49 @@ fn runtime_transport_typo_is_rejected() {
     assert!(err.is_err(), "typo `tranport` under [runtime] should be rejected");
 }
 
+// ── `[observers.runtime.email]` SMTP block (#349) ───────────────────────────
+
+#[test]
+fn runtime_email_subtable_parses() {
+    use fraiseql_observers::config::SmtpTlsMode;
+
+    let cfg: ObserverConfig = toml::from_str(
+        "enabled = true\n\
+         [runtime.email]\n\
+         host = \"smtp.example.com\"\n\
+         from = \"alerts@example.com\"\n\
+         tls = \"start_tls\"\n\
+         username_env = \"SMTP_USER\"\n\
+         password_env = \"SMTP_PASS\"\n",
+    )
+    .unwrap();
+
+    let email = cfg.runtime.email.as_ref().expect("email block present");
+    assert_eq!(email.host, "smtp.example.com");
+    assert_eq!(email.from, "alerts@example.com");
+    assert_eq!(email.tls, SmtpTlsMode::StartTls);
+    assert_eq!(email.port, 587, "default submission port");
+    assert!(cfg.misplaced_runtime_keys().is_empty());
+}
+
+#[test]
+fn runtime_email_absent_is_none() {
+    let cfg: ObserverConfig = toml::from_str("enabled = true\n").unwrap();
+    assert!(cfg.runtime.email.is_none());
+}
+
+#[test]
+fn runtime_email_unknown_key_is_rejected() {
+    // The inner SMTP struct is strict: a literal-credential / typo key fails loud.
+    let err = toml::from_str::<ObserverConfig>(
+        "[runtime.email]\n\
+         host = \"smtp.example.com\"\n\
+         from = \"a@example.com\"\n\
+         password = \"secret\"\n",
+    );
+    assert!(err.is_err(), "unknown key `password` under [runtime.email] should be rejected");
+}
+
 #[test]
 fn new_layout_has_no_misplaced_keys() {
     let cfg: ObserverConfig = toml::from_str(

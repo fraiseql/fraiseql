@@ -90,9 +90,6 @@ pub mod testing;
 mod tests;
 
 // Re-export common types at crate level
-#[allow(deprecated)]
-// Reason: #349 stub — re-export the deprecated EmailAction so downstream sees the stub
-// warning; allow dropped when SMTP lands.
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 #[cfg(feature = "caching")]
@@ -106,8 +103,8 @@ pub use checkpoint::{
 pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
-    ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
-    ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
+    ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, MultiListenerConfig,
+    ObserverDefinition, ObserverRuntimeConfig, OverflowPolicy, RetryConfig, SmtpTlsMode,
 };
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;

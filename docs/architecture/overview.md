@@ -248,6 +248,17 @@ max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
 transport = "nats"          # "postgres" (default) | "nats" | "in_memory"
 [observers.runtime.transport.nats]
 url = "nats://broker:4222"  # NATS stream names must not contain '.' or '_'
+
+# Optional: SMTP for the email observer action (#349). Strict block — a typo
+# fails the parse. Credentials are env var NAMES, never literals. Without this
+# block the email action fails loud rather than silently dropping messages.
+[observers.runtime.email]
+host         = "smtp.example.com"
+port         = 587
+from         = "alerts@example.com"
+tls          = "start_tls"   # start_tls (default) | tls | none
+username_env = "FRAISEQL_SMTP_USERNAME"
+password_env = "FRAISEQL_SMTP_PASSWORD"
 ```
 
 > **Resource note**: enabling `observers` adds one PostgreSQL connection

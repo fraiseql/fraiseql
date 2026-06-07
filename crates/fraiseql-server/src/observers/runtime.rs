@@ -20,7 +20,7 @@ use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig,
     EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy, InMemoryTransport,
     ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
-    config::{TransportConfig, TransportKind},
+    config::{EmailSmtpConfig, TransportConfig, TransportKind},
     transport::{EventFilter, EventTransport},
 };
 use futures::StreamExt;
@@ -126,6 +126,12 @@ pub struct ObserverRuntimeConfig {
     /// and gated by `observer_transport_check` (in `server::initialization`).
     /// Consumed by [`ObserverRuntime::start`] to pick the event source.
     pub transport: TransportConfig,
+
+    /// SMTP configuration for the email observer action (`[observers.runtime.email]`).
+    ///
+    /// `None` leaves the email action without a backend (it fails loud, #349);
+    /// `Some(_)` builds a real `lettre` SMTP sender when the executor is created.
+    pub email: Option<EmailSmtpConfig>,
 }
 
 impl ObserverRuntimeConfig {
@@ -141,6 +147,7 @@ impl ObserverRuntimeConfig {
             reload_interval_secs: 60,
             max_dlq_size: None,
             transport: TransportConfig::default(),
+            email: None,
         }
     }
 
@@ -176,6 +183,13 @@ impl ObserverRuntimeConfig {
     #[must_use]
     pub fn with_transport(mut self, transport: TransportConfig) -> Self {
         self.transport = transport;
+        self
+    }
+
+    /// Set the SMTP configuration for the email observer action.
+    #[must_use]
+    pub fn with_email(mut self, email: Option<EmailSmtpConfig>) -> Self {
+        self.email = email;
         self
     }
 }
@@ -391,7 +405,14 @@ impl ObserverRuntime {
         let matcher_for_logging = matcher.clone();
 
         // Create executor with the shared in-memory DLQ
-        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), self.dlq.clone()));
+        let executor = Arc::new(
+            ObserverExecutor::new_with_email(
+                matcher.clone(),
+                self.dlq.clone(),
+                self.config.email.as_ref(),
+            )
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+        );
 
         // Store in shared references for hot reload
         {
@@ -661,7 +682,14 @@ impl ObserverRuntime {
         let matcher = EventMatcher::build(observers).map_err(|e| {
             ServerError::ConfigError(format!("Failed to build event matcher: {}", e))
         })?;
-        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), self.dlq.clone()));
+        let executor = Arc::new(
+            ObserverExecutor::new_with_email(
+                matcher.clone(),
+                self.dlq.clone(),
+                self.config.email.as_ref(),
+            )
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+        );
         {
             let mut m = self.matcher.write().await;
             *m = Some(matcher.clone());
@@ -857,7 +885,14 @@ impl ObserverRuntime {
             .map_err(|e| ServerError::ConfigError(format!("Failed to build matcher: {}", e)))?;
 
         // Build new executor sharing the existing DLQ
-        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), self.dlq.clone()));
+        let new_executor = Arc::new(
+            ObserverExecutor::new_with_email(
+                new_matcher.clone(),
+                self.dlq.clone(),
+                self.config.email.as_ref(),
+            )
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+        );
 
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");

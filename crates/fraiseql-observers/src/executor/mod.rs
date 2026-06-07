@@ -27,12 +27,10 @@ use tracing::{debug, error};
 use crate::cache::CacheBackendDyn;
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
-#[allow(deprecated)]
-// Reason: #349 stub — EmailAction is a transitional stub; import drops the allow when SMTP
-// lands.
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
     actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
+    config::EmailSmtpConfig,
     error::Result,
     event::EntityEvent,
     matcher::EventMatcher,
@@ -81,26 +79,34 @@ pub struct ObserverExecutor {
     pub(super) metrics:           MetricsRegistry,
 }
 
+/// Build the production action dispatcher with the given (configured) email action.
+///
+/// Factored out so the `new` / `with_cache` / `new_with_email` constructors share
+/// a single action set and only the email action varies.
+fn make_dispatcher(email_action: EmailAction) -> Arc<DefaultActionDispatcher> {
+    Arc::new(DefaultActionDispatcher {
+        webhook_action: Arc::new(WebhookAction::new()),
+        slack_action:   Arc::new(SlackAction::new()),
+        email_action:   Arc::new(email_action),
+        sms_action:     Arc::new(SmsAction::new()),
+        push_action:    Arc::new(PushAction::new()),
+        search_action:  Arc::new(SearchAction::new()),
+        cache_action:   Arc::new(CacheAction::new()),
+    })
+}
+
 impl ObserverExecutor {
     /// Create a new executor.
+    ///
+    /// The email action has **no** SMTP backend (it fails loud until configured);
+    /// use [`new_with_email`](ObserverExecutor::new_with_email) to enable real
+    /// email delivery.
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
-        #[allow(deprecated)]
-        // Reason: #349 stub — EmailAction::new() is the transitional no-op; allow dropped when SMTP
-        // lands.
-        let dispatcher = Arc::new(DefaultActionDispatcher {
-            webhook_action: Arc::new(WebhookAction::new()),
-            slack_action:   Arc::new(SlackAction::new()),
-            email_action:   Arc::new(EmailAction::new()),
-            sms_action:     Arc::new(SmsAction::new()),
-            push_action:    Arc::new(PushAction::new()),
-            search_action:  Arc::new(SearchAction::new()),
-            cache_action:   Arc::new(CacheAction::new()),
-        });
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             condition_cache: dashmap::DashMap::new(),
-            dispatcher,
+            dispatcher: make_dispatcher(EmailAction::new()),
             dlq,
             max_dlq_size: None,
             dlq_push_count: Arc::new(AtomicUsize::new(0)),
@@ -110,6 +116,38 @@ impl ObserverExecutor {
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
         }
+    }
+
+    /// Create a new executor whose email action is configured from `email_config`.
+    ///
+    /// `None` leaves email unconfigured (execute fails loud, as with
+    /// [`new`](ObserverExecutor::new)); `Some(cfg)` builds a real SMTP sender.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`ObserverError`](crate::error::ObserverError) from
+    /// [`EmailAction::from_smtp_config`] when the SMTP config is invalid (bad
+    /// `from` address, unbuildable relay, or missing credential env var).
+    pub fn new_with_email(
+        matcher: EventMatcher,
+        dlq: Arc<dyn DeadLetterQueue>,
+        email_config: Option<&EmailSmtpConfig>,
+    ) -> Result<Self> {
+        let email_action = EmailAction::from_smtp_config(email_config)?;
+        Ok(Self {
+            matcher: Arc::new(matcher),
+            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
+            condition_cache: dashmap::DashMap::new(),
+            dispatcher: make_dispatcher(email_action),
+            dlq,
+            max_dlq_size: None,
+            dlq_push_count: Arc::new(AtomicUsize::new(0)),
+            action_timeout_ms: None,
+            #[cfg(feature = "caching")]
+            cache_backend: None,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
+        })
     }
 
     /// Create a new executor with a DLQ size cap.
@@ -136,23 +174,11 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         cache_backend: Option<Arc<dyn CacheBackendDyn>>,
     ) -> Self {
-        #[allow(deprecated)]
-        // Reason: #349 stub — EmailAction::new() is the transitional no-op; allow dropped when SMTP
-        // lands.
-        let dispatcher = Arc::new(DefaultActionDispatcher {
-            webhook_action: Arc::new(WebhookAction::new()),
-            slack_action:   Arc::new(SlackAction::new()),
-            email_action:   Arc::new(EmailAction::new()),
-            sms_action:     Arc::new(SmsAction::new()),
-            push_action:    Arc::new(PushAction::new()),
-            search_action:  Arc::new(SearchAction::new()),
-            cache_action:   Arc::new(CacheAction::new()),
-        });
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             condition_cache: dashmap::DashMap::new(),
-            dispatcher,
+            dispatcher: make_dispatcher(EmailAction::new()),
             dlq,
             max_dlq_size: None,
             dlq_push_count: Arc::new(AtomicUsize::new(0)),

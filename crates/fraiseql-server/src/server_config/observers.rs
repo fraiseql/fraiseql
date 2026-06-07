@@ -4,7 +4,7 @@
 mod tests;
 
 #[cfg(feature = "observers")]
-use fraiseql_observers::config::TransportConfig;
+use fraiseql_observers::config::{EmailSmtpConfig, TransportConfig};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
@@ -167,6 +167,15 @@ pub struct ObserverRuntimeSettings {
     #[serde(default)]
     pub transport: TransportConfig,
 
+    /// SMTP configuration for the email observer action (`[observers.runtime.email]`).
+    ///
+    /// Absent (`None`) leaves the email action without a backend: it fails loud
+    /// rather than silently dropping messages (#349). When present, the strict
+    /// inner [`EmailSmtpConfig`] (host/port/from/TLS/env-backed credentials) is
+    /// used to build a real `lettre` SMTP sender.
+    #[serde(default)]
+    pub email: Option<EmailSmtpConfig>,
+
     /// Dedicated connection pool configuration for the observer runtime.
     ///
     /// When absent, sensible observer-specific defaults are used (smaller
@@ -187,6 +196,7 @@ impl Default for ObserverRuntimeSettings {
             reload_interval_secs: default_reload_interval_secs(),
             max_dlq_size:         None,
             transport:            TransportConfig::default(),
+            email:                None,
             pool:                 ObserverPoolConfig::default(),
         }
     }

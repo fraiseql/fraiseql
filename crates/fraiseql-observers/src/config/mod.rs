@@ -15,6 +15,7 @@
 //! Environment variable precedence: `FRAISEQL_*` > TOML > defaults
 
 pub mod clickhouse;
+pub mod email;
 pub mod job_queue;
 pub mod performance;
 pub mod redis;
@@ -25,6 +26,7 @@ pub mod transport;
 mod tests;
 
 pub use clickhouse::ClickHouseConfig;
+pub use email::{EmailSmtpConfig, SmtpTlsMode};
 pub use job_queue::JobQueueConfig;
 pub use performance::PerformanceConfig;
 pub use redis::RedisConfig;

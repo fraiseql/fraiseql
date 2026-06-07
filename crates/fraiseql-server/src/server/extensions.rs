@@ -426,7 +426,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_batch_size(observer_config.runtime.batch_size)
             .with_channel_capacity(observer_config.runtime.channel_capacity)
             .with_max_dlq_size(observer_config.runtime.max_dlq_size)
-            .with_transport(transport);
+            .with_transport(transport)
+            .with_email(observer_config.runtime.email.clone());
 
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))

@@ -17,6 +17,12 @@ futures = "0.3"
 hex = {workspace = true}
 hmac = {workspace = true}
 http = "1.1"
+# SMTP for the email action (#349). rustls only — no OpenSSL (matches the
+# workspace TLS stack). Unconditional: it adds no new rustls version (reqwest
+# already pulls rustls here), and keeping it always-compiled means the
+# refused-send acceptance test runs in the standard test leg, not only behind a
+# feature the CI test leg would skip.
+lettre = {version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"]}
 parking_lot = {workspace = true}
 prometheus = {version = "0.14", optional = true}
 rand = "0.9"

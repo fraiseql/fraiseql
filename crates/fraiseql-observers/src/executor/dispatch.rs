@@ -8,9 +8,6 @@ use std::sync::Arc;
 
 use tracing::debug;
 
-#[allow(deprecated)]
-// Reason: #349 stub — EmailAction is a transitional stub; import drops the allow when SMTP
-// lands.
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
     actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
@@ -42,9 +39,7 @@ pub(super) struct DefaultActionDispatcher {
     /// Slack action executor
     pub(super) slack_action:   Arc<SlackAction>,
     /// Email action executor
-    #[allow(deprecated)]
-    // Reason: #349 stub — field holds the transitional EmailAction; allow dropped when SMTP lands.
-    pub(super) email_action: Arc<EmailAction>,
+    pub(super) email_action:   Arc<EmailAction>,
     /// SMS action executor
     pub(super) sms_action:     Arc<SmsAction>,
     /// Push notification action executor
