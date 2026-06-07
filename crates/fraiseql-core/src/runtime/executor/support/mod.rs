@@ -3,6 +3,7 @@
 //! These modules provide stateless helpers and dispatch logic used by the
 //! runner types. They do not define their own sub-executor types.
 
+pub(super) mod authz;
 pub(super) mod classify;
 pub(super) mod explain;
 #[cfg(feature = "federation")]

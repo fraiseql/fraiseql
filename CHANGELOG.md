@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Operation-level authorization — pluggable `Authorizer` (#422).** v2 had only a
+  *static* per-operation gate (`requires_role`, an enumeration-hiding role compare) and no
+  general, pluggable hook to authorize a whole operation against the principal and its
+  input. A new decision-returning `Authorizer` trait (the operation-level counterpart of
+  the field-level `FieldAuthorizer`, mirroring the `RLSPolicy` plugin) closes that gap:
+  the engine *enforces* but delegates the *decision* to an app-supplied trait object
+  (in-process rules, a DB query, or an external service). Register one on `RuntimeConfig`
+  via `with_authorizer(…)`; it receives `AuthzRequest { principal, operation, name, input }`
+  and returns `Allow` / `Deny { reason }`. Semantics: **fail-closed** — any policy error or
+  a `Deny` returns HTTP 403 `FORBIDDEN` and the operation never executes (the underlying
+  policy error is not surfaced); the decision **AND-composes** with `requires_role` (both
+  must allow, and `requires_role` keeps its enumeration-hiding "not found in schema"
+  response — it is *not* routed through the authorizer); and the **anonymous** entry path
+  is consulted with `principal: None` rather than blanket-denied, so public operations
+  remain expressible. **Path coverage (the security-critical part):** every operation entry
+  path is gated — authenticated and anonymous GraphQL (incl. multi-root, where a deny on
+  any root fails the whole request before dispatch), MCP, **all REST reads** (GET, count,
+  streaming, embedding, bulk-by-filter) at the shared read runner, **all mutations** at the
+  universal mutation chokepoint (`execute_mutation_impl`, which also covers the
+  anonymous-REST write path that bypasses the GraphQL chokepoints), introspection,
+  federation `_entities`, and **subscriptions** at subscribe-time (a deny rejects with a
+  `FORBIDDEN` GraphQL-WS error). Because the gate runs *before* the response cache, a warm
+  cache never replays an allow past a later deny (no cache bypass needed, unlike the
+  per-row field authorizer). **API note:** `AuthzRequest.principal` is
+  `Option<&SecurityContext>` (a deliberate divergence from the field authorizer's
+  non-optional principal) so the anonymous path is a first-class, explicit case. No
+  compiled-schema change. Per-event subscription re-evaluation, federation per-entity-type
+  granularity, an `RLSPolicy` argument widening, and a declarative/SDK authoring surface are
+  tracked follow-ups. See `docs/guides/operation-authorization.md`.
+
 - **Dynamic field-level authorization — pluggable `FieldAuthorizer` (#423).** v2 had
   only *static* field gating (`field(requires_scope=…)`): it can answer "does this
   principal hold scope X?" but not relational/contextual rules that depend on the

@@ -272,7 +272,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
             .with_max_subscriptions(self.max_subscriptions_per_connection)
-            .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation);
+            .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation)
+            // #422: enforce the operation-level authorizer (if any) at subscribe-time.
+            .with_authorizer(self.executor.config().authorizer.clone());
 
         #[cfg(feature = "federation")]
         if !remote_sub_fields.is_empty() {

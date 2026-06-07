@@ -124,5 +124,6 @@ These fail **closed** today and are tracked for a future release:
 
 ## See also
 
+- [Operation-level authorization](operation-authorization.md) — the operation-level counterpart (`Authorizer`).
 - [`RLSPolicy`](../architecture/overview.md) — row-level (whole-row) security.
 - `field(requires_scope=…)` — static field scopes.

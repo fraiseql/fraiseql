@@ -245,6 +245,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
+        // #422: operation-level authorization for the public aggregate embedder entry
+        //       (the GraphQL aggregate path is gated at the chokepoint, not here, to
+        //       avoid double-gating). Fail-closed → 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = [(crate::security::OperationKind::Query, query_name.to_string())];
+            crate::security::authorizer::enforce_authz(
+                authorizer.as_ref(),
+                None,
+                &ops,
+                Some(query_json),
+            )?;
+        }
         self.aggregate_runner()
             .execute_aggregate_query(query_json, query_name, metadata, None)
             .await
@@ -262,6 +274,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
+        // #422: operation-level authorization for the public window embedder entry
+        //       (the GraphQL window path is gated at the chokepoint, not here).
+        //       Fail-closed → 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = [(crate::security::OperationKind::Query, query_name.to_string())];
+            crate::security::authorizer::enforce_authz(
+                authorizer.as_ref(),
+                None,
+                &ops,
+                Some(query_json),
+            )?;
+        }
         self.aggregate_runner()
             .execute_window_query(query_json, query_name, metadata, None)
             .await

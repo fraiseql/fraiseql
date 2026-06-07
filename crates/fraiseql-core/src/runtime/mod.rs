@@ -110,7 +110,7 @@ pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
 use crate::security::{
-    FieldAuthorizer, FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy,
+    Authorizer, FieldAuthorizer, FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy,
 };
 
 /// Runtime configuration for the FraiseQL query executor.
@@ -129,6 +129,7 @@ use crate::security::{
 /// | `query_timeout_ms` | `30 000` | Hard limit; 0 disables the timeout |
 /// | `field_filter` | `None` | No field-level access control |
 /// | `rls_policy` | `None` | No row-level security |
+/// | `authorizer` | `None` | No operation-level authorization |
 ///
 /// # Example
 ///
@@ -189,6 +190,16 @@ pub struct RuntimeConfig {
     /// See [`FieldAuthorizer`].
     pub field_authorizer: Option<Arc<dyn FieldAuthorizer>>,
 
+    /// Optional dynamic operation-level authorizer.
+    ///
+    /// When set, every operation (query, mutation, subscription) is passed to this
+    /// authorizer before dispatch, which returns an allow/deny decision based on the
+    /// principal (or `None` when anonymous), the operation kind and name, and the
+    /// request input. Composes as a logical AND with the static `requires_role` gate
+    /// and is fail-closed (any error or raise denies with HTTP 403 / `FORBIDDEN`).
+    /// See [`Authorizer`].
+    pub authorizer: Option<Arc<dyn Authorizer>>,
+
     /// Query timeout in milliseconds (0 = no timeout).
     pub query_timeout_ms: u64,
 
@@ -233,6 +244,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
             .field("field_authorizer", &self.field_authorizer.is_some())
+            .field("authorizer", &self.authorizer.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
@@ -252,6 +264,7 @@ impl Default for RuntimeConfig {
             field_filter:         None,
             rls_policy:           None,
             field_authorizer:     None,
+            authorizer:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
@@ -333,6 +346,38 @@ impl RuntimeConfig {
     #[must_use = "builder method returns modified builder"]
     pub fn with_field_authorizer(mut self, authorizer: Arc<dyn FieldAuthorizer>) -> Self {
         self.field_authorizer = Some(authorizer);
+        self
+    }
+
+    /// Configure a dynamic operation-level authorizer.
+    ///
+    /// When set, every operation (query, mutation, subscription) is passed to this
+    /// authorizer before dispatch. The decision composes as a logical AND with the
+    /// static `requires_role` gate and is fail-closed (any error or raise denies with
+    /// HTTP 403 / `FORBIDDEN`). Parallel to
+    /// [`with_field_authorizer`](Self::with_field_authorizer) and
+    /// [`with_rls_policy`](Self::with_rls_policy).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::runtime::RuntimeConfig;
+    /// use fraiseql_core::security::{Authorizer, AuthzRequest, AuthzDecision};
+    /// use fraiseql_core::error::Result;
+    /// use std::sync::Arc;
+    ///
+    /// struct AllowAll;
+    /// impl Authorizer for AllowAll {
+    ///     fn authorize(&self, _req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
+    ///         Ok(AuthzDecision::Allow)
+    ///     }
+    /// }
+    ///
+    /// let config = RuntimeConfig::default().with_authorizer(Arc::new(AllowAll));
+    /// ```
+    #[must_use = "builder method returns modified builder"]
+    pub fn with_authorizer(mut self, authorizer: Arc<dyn Authorizer>) -> Self {
+        self.authorizer = Some(authorizer);
         self
     }
 }

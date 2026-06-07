@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use super::{Executor, QueryType, pipeline};
+use super::{Executor, QueryType, pipeline, support};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -90,6 +90,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
             pair
         };
+
+        // 1b. Operation-level authorization (#422): anonymous path (no principal →
+        //     `None`). Runs before single- AND multi-root dispatch so a deny
+        //     short-circuits the parallel pipeline. Mutations are gated downstream at
+        //     `execute_mutation_impl`. Fail-closed: a `Deny` or any policy error → 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = support::authz::collect_authz_ops(&query_type, maybe_parsed.as_ref());
+            crate::security::authorizer::enforce_authz(authorizer.as_ref(), None, &ops, variables)?;
+        }
 
         // 2. Route to appropriate handler
         match query_type {

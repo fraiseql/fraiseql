@@ -278,3 +278,94 @@ async fn ws_e2e_complete_unsubscribes() {
         tokio::task::yield_now().await;
     }
 }
+
+// ---------------------------------------------------------------------------
+// #422 operation-level authorization at subscribe-time
+// ---------------------------------------------------------------------------
+
+use fraiseql_core::{
+    error::Result as FqlResult,
+    security::{Authorizer, AuthzDecision, AuthzRequest},
+};
+
+struct DenyAll;
+impl Authorizer for DenyAll {
+    fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+        Ok(AuthzDecision::Deny {
+            reason: "nope".into(),
+        })
+    }
+}
+
+struct AllowAll;
+impl Authorizer for AllowAll {
+    fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+        Ok(AuthzDecision::Allow)
+    }
+}
+
+/// A configured authorizer that denies → the subscribe is rejected with an error
+/// frame and the subscription is NOT registered.
+#[tokio::test]
+async fn ws_e2e_authorizer_deny_rejects_subscription() {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager.clone()).with_authorizer(Some(Arc::new(DenyAll)));
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_deny",
+            "payload": { "query": "subscription { orderCreated { id status } }" }
+        }),
+    )
+    .await;
+
+    let error_frame = recv_json(&mut stream).await;
+    assert_eq!(
+        error_frame["type"], "error",
+        "deny must yield an error frame, got {error_frame}"
+    );
+    assert_eq!(error_frame["id"], "op_deny");
+
+    // The subscription must NOT be registered.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(manager.subscription_count(), 0, "denied subscription must not register");
+}
+
+/// A configured authorizer that allows → the subscription registers normally.
+#[tokio::test]
+async fn ws_e2e_authorizer_allow_permits_subscription() {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager.clone()).with_authorizer(Some(Arc::new(AllowAll)));
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_allow",
+            "payload": { "query": "subscription { orderCreated { id status } }" }
+        }),
+    )
+    .await;
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "allowed subscription should register");
+        tokio::task::yield_now().await;
+    }
+}

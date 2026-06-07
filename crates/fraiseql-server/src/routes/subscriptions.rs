@@ -48,7 +48,7 @@ use fraiseql_core::{
             SubscribePayload,
         },
     },
-    security::SecurityContext,
+    security::{Authorizer, OperationKind, SecurityContext, authorizer::enforce_authz},
 };
 use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
@@ -132,6 +132,11 @@ pub struct SubscriptionState {
     /// upgrade. Driven by `schema.has_rls_configured()`, mirroring the GraphQL
     /// handler's strict tenant validation.
     pub strict_tenant_validation: bool,
+    /// Optional operation-level authorizer (#422). When set, each subscription is
+    /// authorized at establishment with [`OperationKind::Subscription`], the
+    /// subscription field name, and the connection's principal. `None` until a host
+    /// binary installs one (from `Executor::config().authorizer`).
+    pub authorizer: Option<Arc<dyn Authorizer>>,
 }
 
 impl SubscriptionState {
@@ -144,7 +149,18 @@ impl SubscriptionState {
             remote_subscription_fields: Arc::new(HashMap::new()),
             domain_registry: None,
             strict_tenant_validation: false,
+            authorizer: None,
         }
+    }
+
+    /// Install the operation-level authorizer (#422). When set, every subscription is
+    /// authorized at establishment; a `Deny` (or any policy error) rejects the
+    /// subscription with a `FORBIDDEN` GraphQL-WS error. Typically populated from
+    /// `Executor::config().authorizer`.
+    #[must_use]
+    pub fn with_authorizer(mut self, authorizer: Option<Arc<dyn Authorizer>>) -> Self {
+        self.authorizer = authorizer;
+        self
     }
 
     /// Install the tenant-resolution context — the Host-header domain registry
@@ -230,7 +246,7 @@ pub async fn subscription_handler(
 
     ws.protocols([protocol.as_str()])
         .on_upgrade(move |socket| {
-            handle_subscription_connection(socket, state, protocol, tenant_id)
+            handle_subscription_connection(socket, state, protocol, tenant_id, security_context)
         })
         .into_response()
 }
@@ -264,6 +280,7 @@ async fn handle_subscription_connection(
     state: SubscriptionState,
     protocol: WsProtocol,
     tenant_id: Option<String>,
+    principal: Option<SecurityContext>,
 ) {
     let connection_id = uuid::Uuid::new_v4().to_string();
     let codec = ProtocolCodec::new(protocol);
@@ -397,6 +414,7 @@ async fn handle_subscription_connection(
                             remote_msg_tx.clone(),
                             &mut sender,
                             tenant_id.as_deref(),
+                            principal.as_ref(),
                         ).await {
                             // Best-effort: connection is already being closed.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -509,6 +527,7 @@ async fn handle_client_message(
     remote_msg_tx: tokio::sync::mpsc::Sender<ServerMessage>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     tenant_id: Option<&str>,
+    principal: Option<&SecurityContext>,
 ) -> Result<(), CloseCode> {
     // remote_msg_tx is only consumed inside the #[cfg(feature = "federation")] block below.
     // When the feature is disabled the parameter goes unused; suppress the warning.
@@ -591,6 +610,34 @@ async fn handle_client_message(
             // HashMap<String, Value> serialization is infallible; the error path cannot occur.
             let variables_value = serde_json::to_value(&payload.variables)
                 .expect("HashMap<String, serde_json::Value> serialization is infallible");
+
+            // #422: operation-level authorization at subscription establishment.
+            // The per-event delivery does not route through the executor, so the
+            // subscription is authorized once, here, with the connection's principal
+            // (or `None` when anonymous). Fail-closed: a `Deny` or any policy error
+            // rejects the subscription with a `FORBIDDEN` GraphQL-WS error.
+            if let Some(authorizer) = state.authorizer.as_ref() {
+                let ops = [(OperationKind::Subscription, subscription_name.clone())];
+                if let Err(err) =
+                    enforce_authz(authorizer.as_ref(), principal, &ops, Some(&variables_value))
+                {
+                    warn!(
+                        connection_id = %connection_id,
+                        subscription = %subscription_name,
+                        "Operation authorizer denied the subscription"
+                    );
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(err.to_string(), "FORBIDDEN")],
+                    );
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send authorization denial to client");
+                    }
+                    return Ok(());
+                }
+            }
+
             if let Err(reason) = state
                 .lifecycle
                 .on_subscribe(&subscription_name, &variables_value, connection_id)

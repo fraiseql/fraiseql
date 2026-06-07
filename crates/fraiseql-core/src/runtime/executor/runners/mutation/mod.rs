@@ -240,6 +240,24 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     })?;
 
+    // 1a. Operation-level authorization (#422): the universal mutation chokepoint.
+    //     EVERY mutation entry path converges here — the two `*_internal` GraphQL
+    //     branches, `execute_mutation_query`, and the direct `SupportsMutations` API
+    //     used by the anonymous-REST write path (which bypasses both chokepoints).
+    //     Runs after `find_mutation` so an unknown name keeps its "not found" message
+    //     (no enumeration leak), and before `requires_role` (AND-composition).
+    //     Fail-closed: a `Deny` or any policy error returns 403.
+    if let Some(authorizer) = ctx.config.authorizer.as_ref() {
+        let ops =
+            [(crate::security::authorizer::OperationKind::Mutation, mutation_name.to_string())];
+        crate::security::authorizer::enforce_authz(
+            authorizer.as_ref(),
+            security_ctx,
+            &ops,
+            variables,
+        )?;
+    }
+
     // 1b. Enforce requires_role — return "not found" (not "forbidden") to prevent
     //     enumeration, mirroring the query-level check in query_regular.rs.
     if let Some(required_role) = mutation_def.requires_role.as_deref() {

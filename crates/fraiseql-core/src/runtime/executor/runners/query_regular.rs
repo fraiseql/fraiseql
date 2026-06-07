@@ -18,7 +18,10 @@ use crate::{
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
     schema::SqlProjectionHint,
-    security::{RlsWhereClause, SecurityContext},
+    security::{
+        RlsWhereClause, SecurityContext,
+        authorizer::{OperationKind, enforce_authz},
+    },
 };
 
 impl<A: DatabaseAdapter> QueryRunner<A> {
@@ -700,9 +703,18 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     pub(in super::super) async fn execute_query_direct(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
-        _variables: Option<&serde_json::Value>,
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        // #422: operation-level authorization for the REST direct-read chokepoint.
+        //       Every REST read (GET/count/streaming/embedding) and the in-core
+        //       bulk-by-filter lookup funnel through this runner method, so gating
+        //       here (not the `core.rs` wrapper) is leak-proof. Fail-closed → 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
+            enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
+        }
+
         // #423: the REST direct projection path does not run per-row field
         // authorization; fail closed if a policy-gated field is selected.
         let root_fields =
@@ -863,9 +875,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     pub(in super::super) async fn count_rows(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
-        _variables: Option<&serde_json::Value>,
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<u64> {
+        // #422: operation-level authorization for the REST count path (called alone by
+        //       the embedding path, and alongside `execute_query_direct` for
+        //       `Prefer: count=exact`). Fail-closed → 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
+            enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
+        }
+
         // 1. Evaluate RLS policy
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
             (&self.ctx.config.rls_policy, security_context)

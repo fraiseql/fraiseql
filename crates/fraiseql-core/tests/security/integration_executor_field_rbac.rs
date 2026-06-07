@@ -313,6 +313,7 @@ fn test_executor_runtime_config_with_field_filter() {
         field_filter:         None,
         rls_policy:           None,
         field_authorizer:     None,
+        authorizer:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
         query_validation:     None,

@@ -212,8 +212,24 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
     ) -> Result<serde_json::Value> {
-        // 1. Classify query type
-        let query_type = self.classify_query(query)?;
+        // 1. Classify query type. Retain the parsed AST for `Regular` queries — the authorizer
+        //    needs the per-root operation names to gate multi-root requests.
+        let (query_type, parsed) = self.classify_query_with_parse(query)?;
+
+        // 1b. Operation-level authorization (#422): consult the configured `Authorizer`
+        //     before dispatch. Mutations are gated downstream at `execute_mutation_impl`
+        //     (the single point every mutation entry path converges), so
+        //     `collect_authz_ops` returns no ops for the `Mutation` variant here.
+        //     Fail-closed: a `Deny` or any policy error returns 403.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let ops = support::authz::collect_authz_ops(&query_type, parsed.as_ref());
+            crate::security::authorizer::enforce_authz(
+                authorizer.as_ref(),
+                Some(security_context),
+                &ops,
+                variables,
+            )?;
+        }
 
         // 2. Route to appropriate handler (with RLS support for regular queries)
         match query_type {

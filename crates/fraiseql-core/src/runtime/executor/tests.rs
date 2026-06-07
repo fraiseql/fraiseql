@@ -70,6 +70,7 @@ mod query {
             field_filter:         None,
             rls_policy:           None,
             field_authorizer:     None,
+            authorizer:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
@@ -436,6 +437,7 @@ mod config {
             field_filter:         None,
             rls_policy:           None,
             field_authorizer:     None,
+            authorizer:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
@@ -462,6 +464,7 @@ mod config {
             field_filter:         None,
             rls_policy:           None,
             field_authorizer:     None,
+            authorizer:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   custom_options,
             query_validation:     None,
@@ -1515,4 +1518,524 @@ mod field_authz {
         // A schema with no policy-gated fields.
         assert!(!test_schema().has_any_authorize_field());
     }
+}
+
+// ── mod operation_authz: #422 operation-level authorization ──────────────
+
+mod operation_authz {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+    use crate::{
+        cache::{ResponseCache, ResponseCacheConfig},
+        error::{FraiseQLError, Result as FqlResult},
+        schema::{MutationDefinition, MutationOperation},
+        security::{Authorizer, AuthzDecision, AuthzRequest},
+    };
+
+    // ---- reference authorizers --------------------------------------------
+
+    struct AllowAll;
+    impl Authorizer for AllowAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            Ok(AuthzDecision::Allow)
+        }
+    }
+
+    struct DenyAll;
+    impl Authorizer for DenyAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            Ok(AuthzDecision::Deny {
+                reason: "nope".into(),
+            })
+        }
+    }
+
+    struct Raising;
+    impl Authorizer for Raising {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            Err(FraiseQLError::Validation {
+                message: "policy backend down".into(),
+                path:    None,
+            })
+        }
+    }
+
+    /// Denies one named operation, allows all others.
+    struct DenyNamed(&'static str);
+    impl Authorizer for DenyNamed {
+        fn authorize(&self, req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            if req.name == self.0 {
+                Ok(AuthzDecision::Deny {
+                    reason: "named-deny".into(),
+                })
+            } else {
+                Ok(AuthzDecision::Allow)
+            }
+        }
+    }
+
+    /// Allows only authenticated requests; denies anonymous (`principal == None`).
+    struct RequireAuthenticated;
+    impl Authorizer for RequireAuthenticated {
+        fn authorize(&self, req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            if req.principal.is_some() {
+                Ok(AuthzDecision::Allow)
+            } else {
+                Ok(AuthzDecision::Deny {
+                    reason: "auth required".into(),
+                })
+            }
+        }
+    }
+
+    /// First call → Allow, every later call → Deny. Proves the gate runs BEFORE the
+    /// response cache: a stale `Allow` is never replayed for a now-denied operation.
+    struct Flip {
+        calls: AtomicUsize,
+    }
+    impl Authorizer for Flip {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                Ok(AuthzDecision::Allow)
+            } else {
+                Ok(AuthzDecision::Deny {
+                    reason: "later".into(),
+                })
+            }
+        }
+    }
+
+    /// Panics if consulted — proves the gate is a no-op when no authorizer is set.
+    struct PanicIfCalled;
+    impl Authorizer for PanicIfCalled {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            panic!("authorizer must not be consulted");
+        }
+    }
+
+    // ---- fixtures ---------------------------------------------------------
+
+    fn ctx(user_id: &str) -> SecurityContext {
+        SecurityContext {
+            user_id:          user_id.into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-op-authz".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn admin_ctx(user_id: &str) -> SecurityContext {
+        let mut c = ctx(user_id);
+        c.roles = vec!["admin".to_string()];
+        c
+    }
+
+    /// A `users` query gated by `requires_role = "admin"`.
+    fn schema_requires_admin() -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.queries[0].requires_role = Some("admin".to_string());
+        schema
+    }
+
+    /// A schema with a `createUser` insert mutation.
+    fn schema_with_mutation() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        let mut def = MutationDefinition::new("createUser", "User");
+        def.sql_source = Some("fn_create_user".to_string());
+        def.operation = MutationOperation::Insert {
+            table: "users".to_string(),
+        };
+        schema.mutations.push(def);
+        schema
+    }
+
+    fn is_authz(err: &FraiseQLError) -> bool {
+        matches!(err, FraiseQLError::Authorization { .. })
+    }
+
+    // ---- authenticated query path -----------------------------------------
+
+    // HONESTY: a Deny on the authenticated path → 403; the data is never served.
+    #[tokio::test]
+    async fn authenticated_deny_returns_403() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor
+            .execute_with_security("{ users { id name } }", None, &ctx("u1"))
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "deny must map to Authorization/403: {err:?}");
+        assert!(!format!("{err}").contains("Alice"), "must not leak data");
+    }
+
+    // HONESTY: a raising authorizer fails closed → 403; the policy error is not leaked.
+    #[tokio::test]
+    async fn authenticated_raise_fails_closed() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(Raising)),
+        );
+        let err = executor
+            .execute_with_security("{ users { id name } }", None, &ctx("u1"))
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "raise must fail closed to Authorization/403: {err:?}");
+        assert!(!format!("{err}").contains("backend down"), "policy error must not leak");
+    }
+
+    // ALLOW passes through to a normal response.
+    #[tokio::test]
+    async fn authenticated_allow_passes() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx("u1"))
+            .await
+            .unwrap();
+        assert_eq!(result["data"]["users"][0]["name"], "Alice");
+    }
+
+    // ---- anonymous query path ---------------------------------------------
+
+    #[tokio::test]
+    async fn anonymous_deny_returns_403() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor.execute("{ users { id name } }", None).await.unwrap_err();
+        assert!(is_authz(&err), "anon deny must map to Authorization/403: {err:?}");
+    }
+
+    // The anon path passes `principal = None`; the authenticated path passes `Some`.
+    #[tokio::test]
+    async fn anonymous_principal_is_none_authenticated_is_some() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(RequireAuthenticated)),
+        );
+        // Anonymous → principal None → denied.
+        assert!(executor.execute("{ users { id name } }", None).await.is_err());
+        // Authenticated → principal Some → allowed.
+        assert!(
+            executor
+                .execute_with_security("{ users { id name } }", None, &ctx("u1"))
+                .await
+                .is_ok()
+        );
+    }
+
+    // ---- multi-root --------------------------------------------------------
+
+    // Deny on ANY root denies the whole request, before any root is dispatched.
+    #[tokio::test]
+    async fn multi_root_denies_on_any_root() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyNamed("secret"))),
+        );
+        let err = executor.execute("{ users { id name } secret { id } }", None).await.unwrap_err();
+        match err {
+            FraiseQLError::Authorization { resource, .. } => {
+                assert_eq!(resource.as_deref(), Some("secret"), "denied root is the secret one");
+            },
+            other => panic!("expected Authorization, got {other:?}"),
+        }
+    }
+
+    // ---- other operation kinds are gated (no bypass) -----------------------
+
+    #[tokio::test]
+    async fn introspection_is_gated() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        assert!(executor.execute("{ __schema { queryType { name } } }", None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn aggregate_is_gated() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        // Classified as Aggregate by the `_aggregate` suffix; the gate runs before dispatch.
+        assert!(executor.execute("{ users_aggregate { count } }", None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn node_is_gated() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let res = executor
+            .execute(r#"{ node(id: "VXNlcjoxMjM=") { ... on User { id } } }"#, None)
+            .await;
+        assert!(res.is_err(), "node lookup must route through the op authorizer");
+    }
+
+    // ---- requires_role AND-composition (enumeration-hiding preserved) ------
+
+    // An allowing authorizer does NOT bypass `requires_role`: a principal lacking the
+    // role still gets the enumeration-hiding "not found" Validation error, NOT 403.
+    #[tokio::test]
+    async fn allow_does_not_bypass_requires_role() {
+        let executor = Executor::with_config(
+            schema_requires_admin(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
+        );
+        let err = executor
+            .execute_with_security("{ users { id name } }", None, &ctx("u1")) // no admin role
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "requires_role must stay enumeration-hiding (Validation 'not found'), got {err:?}"
+        );
+        assert!(!is_authz(&err), "must NOT regress to Authorization (would leak existence)");
+    }
+
+    // The authorizer runs FIRST: a Deny wins even for a principal that holds the role.
+    #[tokio::test]
+    async fn deny_wins_over_satisfied_requires_role() {
+        let executor = Executor::with_config(
+            schema_requires_admin(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor
+            .execute_with_security("{ users { id name } }", None, &admin_ctx("admin-1"))
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "authorizer deny must win (403), got {err:?}");
+    }
+
+    // ---- response cache safety --------------------------------------------
+
+    // The gate runs before the response cache: a warm cache from an earlier Allow does
+    // NOT let a later Deny through.
+    #[tokio::test]
+    async fn deny_not_bypassed_by_warm_response_cache() {
+        let cache = Arc::new(ResponseCache::new(ResponseCacheConfig {
+            enabled:     true,
+            max_entries: 100,
+            ttl_seconds: 3600,
+        }));
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(Flip {
+                calls: AtomicUsize::new(0),
+            })),
+        )
+        .with_response_cache(cache);
+
+        let q = "{ users { id name } }";
+        // First call → Allow → executes and warms the cache.
+        assert!(executor.execute_with_security(q, None, &ctx("u1")).await.is_ok());
+        // Second call → Deny → 403, even though the cache holds the first response.
+        let err = executor.execute_with_security(q, None, &ctx("u1")).await.unwrap_err();
+        assert!(is_authz(&err), "a warm cache must not replay an Allow past a later Deny");
+    }
+
+    // ---- no authorizer configured → zero-cost no-op ------------------------
+
+    // With no authorizer configured the gate is a no-op: a `PanicIfCalled` authorizer
+    // would fire if the gate ran, so its ABSENCE from the config means the query runs
+    // normally. (That a configured authorizer IS consulted is proven by every deny test
+    // above.)
+    #[tokio::test]
+    async fn no_authorizer_is_never_consulted() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default(),
+        );
+        assert!(executor.execute("{ users { id name } }", None).await.is_ok());
+    }
+
+    // A configured authorizer that panics is reached on execution (proves the gate
+    // actually consults the configured authorizer rather than skipping it).
+    #[tokio::test]
+    #[should_panic(expected = "authorizer must not be consulted")]
+    async fn configured_authorizer_is_consulted() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let _ = executor.execute("{ users { id name } }", None).await;
+    }
+
+    // ---- mutation path: gated at the universal chokepoint ------------------
+
+    // Authenticated GraphQL mutation → execute_mutation_impl gate.
+    #[tokio::test]
+    async fn mutation_via_execute_with_security_deny() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor
+            .execute_with_security("mutation { createUser { id } }", None, &ctx("u1"))
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "authenticated mutation deny → 403: {err:?}");
+    }
+
+    // Anonymous GraphQL mutation → execute_mutation_query → execute_mutation_impl gate.
+    #[tokio::test]
+    async fn mutation_via_anonymous_graphql_deny() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
+        assert!(is_authz(&err), "anonymous GraphQL mutation deny → 403: {err:?}");
+    }
+
+    // LOAD-BEARING (delta 1): the direct `execute_mutation` API — used by the anonymous
+    // REST write path — bypasses both `*_internal` chokepoints, so it MUST be gated at
+    // `execute_mutation_impl`. A deny here proves the anon-REST-write bypass is closed.
+    #[tokio::test]
+    async fn mutation_via_direct_api_deny_closes_anon_rest_bypass() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor.execute_mutation("createUser", None, &[]).await.unwrap_err();
+        assert!(
+            is_authz(&err),
+            "direct execute_mutation deny → 403 (anon-REST bypass closed): {err:?}"
+        );
+    }
+
+    // A raising authorizer fails the mutation closed.
+    #[tokio::test]
+    async fn mutation_raise_fails_closed() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(Raising)),
+        );
+        let err = executor.execute_mutation("createUser", None, &[]).await.unwrap_err();
+        assert!(is_authz(&err), "raising authorizer must fail the mutation closed: {err:?}");
+    }
+
+    // ALLOW lets the mutation past the gate (it then proceeds to execution — the empty
+    // mock response fails downstream, but NOT with an Authorization error).
+    #[tokio::test]
+    async fn mutation_allow_passes_the_gate() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
+        );
+        let result = executor.execute_mutation("createUser", None, &[]).await;
+        // The gate allowed it; any resulting error is downstream, not Authorization.
+        if let Err(err) = result {
+            assert!(!is_authz(&err), "AllowAll must not block at the authz gate: {err:?}");
+        }
+    }
+
+    // An unknown mutation name keeps its "not found" Validation (enumeration-hiding):
+    // the gate runs AFTER find_mutation.
+    #[tokio::test]
+    async fn unknown_mutation_keeps_not_found_with_authorizer() {
+        let executor = Executor::with_config(
+            schema_with_mutation(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let err = executor.execute_mutation("doesNotExist", None, &[]).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "unknown mutation must stay 'not found' (Validation), got {err:?}"
+        );
+    }
+
+    // ---- REST direct-read path (execute_query_direct / count_rows) --------
+    // These runner methods bypass both `*_internal` chokepoints; they carry the gate
+    // themselves (delta 2) so REST GET / count / streaming / embedding are covered.
+
+    fn users_match() -> crate::runtime::matcher::QueryMatch {
+        crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn rest_direct_read_deny_returns_403() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let qm = users_match();
+        // Authenticated REST read.
+        let err = executor.execute_query_direct(&qm, None, Some(&ctx("u1"))).await.unwrap_err();
+        assert!(is_authz(&err), "REST direct read deny → 403: {err:?}");
+        // Anonymous REST read (principal None) is gated too.
+        let err = executor.execute_query_direct(&qm, None, None).await.unwrap_err();
+        assert!(is_authz(&err), "anonymous REST direct read deny → 403: {err:?}");
+    }
+
+    #[tokio::test]
+    async fn rest_count_rows_deny_returns_403() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
+        );
+        let qm = users_match();
+        let err = executor.count_rows(&qm, None, Some(&ctx("u1"))).await.unwrap_err();
+        assert!(is_authz(&err), "REST count_rows deny → 403: {err:?}");
+    }
+
+    #[tokio::test]
+    async fn rest_direct_read_allow_passes() {
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
+        );
+        let qm = users_match();
+        let result = executor.execute_query_direct(&qm, None, Some(&ctx("u1"))).await.unwrap();
+        assert!(result["users"].is_array() || result.get("data").is_some(), "allowed: {result}");
+    }
+
+    // NOTE: the aggregate/window *embedder* entries (`Executor::execute_aggregate_query`
+    // / `execute_window_query` in core.rs) carry an identical gate. They have no server
+    // route and require a full `FactTableMetadata` fixture to invoke; the GraphQL
+    // aggregate path (which routes through the chokepoint) is covered by
+    // `aggregate_is_gated` above, and the embedder gate is structurally identical.
 }
