@@ -399,8 +399,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     resource: Some(return_type.clone()),
                 });
             };
-            // Phase 1 enforces only top-level entity-row fields; a gated field nested inside a
-            // sub-selection is fail-closed (tracked follow-up: extend enforcement to nesting).
+            // This version enforces only top-level entity-row fields; a gated field nested
+            // inside a sub-selection is fail-closed (tracked follow-up: extend to nesting).
             if authz::selection_set_has_nested_gated_field(
                 &self.ctx.schema,
                 return_type,
