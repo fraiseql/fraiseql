@@ -63,6 +63,15 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
+        // #423: the federation `_entities` resolver has no SecurityContext and resolves
+        // entities by `__typename`; it does not run per-row field authorization. Fail
+        // closed if the schema declares any policy-gated field (tracked follow-up:
+        // thread an authorizer into the subgraph resolver).
+        crate::security::field_authorizer::deny_if_schema_has_gated_field(
+            &self.ctx.schema,
+            "federation _entities",
+        )?;
+
         // Get federation metadata from schema
         let fed_metadata =
             self.ctx.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {

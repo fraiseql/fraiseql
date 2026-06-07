@@ -90,6 +90,26 @@ impl CompiledSchema {
         self.types.iter().find(|t| t.name == name)
     }
 
+    /// Whether the named type has any policy-gated field
+    /// ([`FieldDefinition::authorize`](crate::schema::FieldDefinition)).
+    ///
+    /// Used by projection paths that do not (yet) run the dynamic field authorizer
+    /// to fail closed conservatively when a gated type could be projected (#423).
+    #[must_use]
+    pub fn type_has_gated_field(&self, type_name: &str) -> bool {
+        self.find_type(type_name).is_some_and(|t| t.fields.iter().any(|f| f.authorize))
+    }
+
+    /// Whether any object type in the schema declares a policy-gated field (#423).
+    ///
+    /// Used by projection paths with a dynamic/unknown result type (Relay `node`,
+    /// federation `_entities`) to fail closed when field-level authorization is in
+    /// use but cannot yet be enforced on that path.
+    #[must_use]
+    pub fn has_any_authorize_field(&self) -> bool {
+        self.types.iter().any(|t| t.fields.iter().any(|f| f.authorize))
+    }
+
     /// Find an enum definition by name.
     #[must_use]
     pub fn find_enum(&self, name: &str) -> Option<&EnumDefinition> {

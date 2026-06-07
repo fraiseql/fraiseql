@@ -256,6 +256,59 @@ pub(crate) fn collect_top_level_gated_fields(
         .collect()
 }
 
+/// Fail-closed guard for a projection path that does not run the field authorizer.
+///
+/// Returns [`FraiseQLError::Authorization`] (403) when a policy-gated field is
+/// selected on `type_name` (top-level or nested). `path` names the unsupported path
+/// in the error message. Used by the anonymous-query and REST projection paths in
+/// the current version; full per-row enforcement on those paths is a tracked
+/// follow-up.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] if a gated field is selected.
+pub(crate) fn deny_if_gated_field_selected(
+    schema: &CompiledSchema,
+    type_name: &str,
+    fields: &[FieldSelection],
+    path: &str,
+) -> Result<()> {
+    if selection_set_selects_gated_field(schema, type_name, fields) {
+        return Err(FraiseQLError::Authorization {
+            message:  format!(
+                "Field-level authorization is not enforced on the {path} path; a policy-gated \
+                 field on type '{type_name}' was selected"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        });
+    }
+    Ok(())
+}
+
+/// Fail-closed guard for a path whose result type is dynamic/unknown at the call site
+/// (Relay `node`, federation `_entities`). Returns [`FraiseQLError::Authorization`]
+/// (403) when the schema declares **any** policy-gated field, since the path cannot
+/// yet enforce the dynamic decision. Conservative by design (#423).
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] if the schema has any gated field.
+#[cfg(feature = "federation")]
+pub(crate) fn deny_if_schema_has_gated_field(schema: &CompiledSchema, path: &str) -> Result<()> {
+    if schema.has_any_authorize_field() {
+        return Err(FraiseQLError::Authorization {
+            message:  format!(
+                "Field-level authorization is not enforced on the {path} path, but the schema \
+                 declares policy-gated fields"
+            ),
+            action:   Some("read".to_string()),
+            resource: None,
+        });
+    }
+    Ok(())
+}
+
 /// The fail-closed deny error: a generic 403 that never echoes the parent row or the
 /// underlying policy error (avoids leaking why access was denied).
 fn field_authz_error(type_name: &str, field: &str, code: &str) -> FraiseQLError {

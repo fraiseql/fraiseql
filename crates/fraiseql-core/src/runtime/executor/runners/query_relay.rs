@@ -62,6 +62,21 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             schema::CursorType,
         };
 
+        // #423: the Relay path emits the entity `node` blob directly and does not yet
+        // run per-row field authorization. Fail closed if the entity type has any
+        // policy-gated field (tracked follow-up: enforce per-edge).
+        if self.ctx.schema.type_has_gated_field(&query_match.query_def.return_type) {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization is not enforced on the Relay path, but type \
+                     '{}' declares a policy-gated field",
+                    query_match.query_def.return_type
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(query_match.query_def.return_type.clone()),
+            });
+        }
+
         let query_def = &query_match.query_def;
 
         // Guard: queries with inject params require a security context.
@@ -424,6 +439,19 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 message: format!("node query: invalid node ID '{raw_id}'"),
                 path:    Some("node.id".to_string()),
             })?;
+
+        // #423: the Relay `node` lookup has no SecurityContext and emits the entity blob
+        // directly; fail closed if the resolved type has any policy-gated field.
+        if self.ctx.schema.type_has_gated_field(&type_name) {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization is not enforced on the Relay node path, but type \
+                     '{type_name}' declares a policy-gated field"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(type_name.clone()),
+            });
+        }
 
         // 3. Find the SQL view for this type (O(1) index lookup built at startup).
         let sql_source: Arc<str> =

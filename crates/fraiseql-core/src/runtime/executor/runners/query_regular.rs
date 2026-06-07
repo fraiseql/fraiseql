@@ -541,6 +541,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             return self.execute_relay_query(&query_match, variables, None, &[]).await;
         }
 
+        // #423: the unauthenticated path has no principal, so a selected policy-gated
+        // field cannot be authorized — fail closed.
+        let root_fields =
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
+        crate::security::field_authorizer::deny_if_gated_field_selected(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            root_fields,
+            "unauthenticated query",
+        )?;
+
         // 2. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
 
@@ -692,6 +703,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         _variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        // #423: the REST direct projection path does not run per-row field
+        // authorization; fail closed if a policy-gated field is selected.
+        let root_fields =
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
+        crate::security::field_authorizer::deny_if_gated_field_selected(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            root_fields,
+            "REST",
+        )?;
+
         // Evaluate RLS policy if present.
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
             (&self.ctx.config.rls_policy, security_context)

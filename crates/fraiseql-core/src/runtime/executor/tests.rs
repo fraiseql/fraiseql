@@ -1473,4 +1473,46 @@ mod field_authz {
             "a stale cached Allow must not be replayed for a gated query"
         );
     }
+
+    // PATH COVERAGE (#423): the unauthenticated query path has no principal, so a
+    // gated field cannot be authorized — it fails closed even with a permissive
+    // authorizer configured.
+    #[tokio::test]
+    async fn anonymous_query_with_gated_field_fails_closed() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll)),
+        );
+        let res = executor.execute("{ users { id email } }", None).await;
+        assert!(res.is_err(), "unauthenticated query selecting a gated field must fail closed");
+    }
+
+    // PATH COVERAGE (#423): the Relay `node` lookup has no SecurityContext and emits
+    // the entity blob directly — a gated resolved type fails closed.
+    #[tokio::test]
+    async fn node_query_with_gated_type_fails_closed() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll)),
+        );
+        // node(id: base64("User:123")) → resolved type "User" has a gated field.
+        let res = executor
+            .execute(r#"{ node(id: "VXNlcjoxMjM=") { ... on User { email } } }"#, None)
+            .await;
+        assert!(res.is_err(), "node lookup of a gated type must fail closed");
+    }
+
+    // The schema-level gated-field helpers used by the default-deny guards.
+    #[test]
+    fn schema_gated_field_helpers() {
+        let gated = gated_schema(None);
+        assert!(gated.type_has_gated_field("User"));
+        assert!(!gated.type_has_gated_field("Unknown"));
+        assert!(gated.has_any_authorize_field());
+
+        // A schema with no policy-gated fields.
+        assert!(!test_schema().has_any_authorize_field());
+    }
 }
