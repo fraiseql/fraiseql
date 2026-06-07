@@ -388,6 +388,74 @@ pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoRe
     )
 }
 
+/// `DELETE /api/observers/dlq/{id}`
+///
+/// Removes a single DLQ item. Returns 200 when an item was present and removed,
+/// 404 when absent. The removal goes through the atomic claim
+/// ([`InMemoryDlq::try_claim`], #344), so a concurrent retry and delete cannot
+/// both act on the same item — exactly one wins, the other gets 404. This is the
+/// real backing for the `fraiseql-observers dlq remove` CLI command (#341).
+pub async fn dlq_delete_handler(
+    State(state): State<DlqState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let runtime = state.runtime.read().await;
+    let dlq = runtime.dlq();
+
+    if dlq.try_claim(id).is_some() {
+        (StatusCode::OK, Json(serde_json::json!({ "deleted": id }))).into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "DLQ item not found" })),
+        )
+            .into_response()
+    }
+}
+
+/// DLQ statistics response.
+#[derive(Debug, Serialize)]
+pub struct DlqStatsResponse {
+    /// Number of items currently in the DLQ.
+    pub total_items:   usize,
+    /// Sum of retry attempts recorded across all current items.
+    pub total_retries: u64,
+    /// Entries dropped because the DLQ was at capacity (drop-newest, controlled
+    /// by `[observers.runtime] max_dlq_size`).
+    pub dropped:       usize,
+    /// Item counts grouped by the failed action type (e.g. `webhook`, `email`).
+    pub by_action:     std::collections::BTreeMap<String, usize>,
+}
+
+/// `GET /api/observers/dlq/stats`
+///
+/// Returns real aggregate statistics computed from the in-memory DLQ — total
+/// items, total recorded retry attempts, count dropped at capacity, and a
+/// per-action breakdown. Backs the `fraiseql-observers dlq stats` CLI command
+/// (#341) with real data instead of fabricated numbers.
+pub async fn dlq_stats_handler(State(state): State<DlqState>) -> impl IntoResponse {
+    let runtime = state.runtime.read().await;
+    let dlq = runtime.dlq();
+    let items = dlq.list_all();
+
+    let total_items = items.len();
+    let total_retries: u64 = items.iter().map(|item| u64::from(item.attempts)).sum();
+    let mut by_action: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    for item in &items {
+        *by_action.entry(action_type_str(&item.action).to_string()).or_default() += 1;
+    }
+
+    let response = DlqStatsResponse {
+        total_items,
+        total_retries,
+        dropped: dlq.overflow_count(),
+        by_action,
+    };
+
+    (StatusCode::OK, Json(response))
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Extract a human-readable action type string from an `ActionConfig`.

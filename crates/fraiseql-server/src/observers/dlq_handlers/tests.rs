@@ -128,3 +128,99 @@ async fn concurrent_retry_dispatches_at_most_once() {
         "the item is claimed and dispatched exactly once, then gone"
     );
 }
+
+// ── #341: DELETE + stats endpoints ──────────────────────────────────────────
+
+mod dlq_endpoints {
+    use std::{collections::HashMap, sync::Arc};
+
+    use axum::{
+        extract::{Path, State},
+        http::StatusCode,
+        response::IntoResponse,
+    };
+    use fraiseql_observers::{ActionConfig, DeadLetterQueue, EntityEvent, EventKind};
+    use sqlx::PgPool;
+    use tokio::sync::RwLock;
+    use uuid::Uuid;
+
+    use super::super::{DlqState, dlq_delete_handler, dlq_stats_handler};
+    use crate::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
+
+    fn webhook_action() -> ActionConfig {
+        ActionConfig::Webhook {
+            url:                Some("http://localhost/hook".to_string()),
+            url_env:            None,
+            headers:            HashMap::new(),
+            body_template:      None,
+            signing_secret_env: None,
+        }
+    }
+
+    fn test_event() -> EntityEvent {
+        EntityEvent::new(EventKind::Created, "T".to_string(), Uuid::new_v4(), serde_json::json!({}))
+    }
+
+    fn empty_runtime() -> ObserverRuntime {
+        // A lazy pool never connects; the DLQ is in-memory, so these endpoint
+        // tests need no database.
+        let pool = PgPool::connect_lazy("postgres://test:test@localhost/test").expect("lazy pool");
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool))
+    }
+
+    #[tokio::test]
+    async fn delete_present_item_returns_200_and_removes() {
+        let runtime = empty_runtime();
+        let id = runtime
+            .dlq()
+            .push(test_event(), webhook_action(), "boom".to_string())
+            .await
+            .expect("push");
+        let state = DlqState {
+            runtime: Arc::new(RwLock::new(runtime)),
+        };
+
+        let resp = dlq_delete_handler(State(state.clone()), Path(id)).await.into_response();
+        assert_eq!(resp.status(), StatusCode::OK, "deleting a present item returns 200");
+        assert_eq!(state.runtime.read().await.dlq().count(), 0, "the item is removed");
+    }
+
+    #[tokio::test]
+    async fn delete_absent_item_returns_404() {
+        let state = DlqState {
+            runtime: Arc::new(RwLock::new(empty_runtime())),
+        };
+
+        let resp = dlq_delete_handler(State(state), Path(Uuid::new_v4())).await.into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "deleting an absent item returns 404");
+    }
+
+    #[tokio::test]
+    async fn stats_reports_real_counts() {
+        let runtime = empty_runtime();
+        // Two webhook failures; bump one's attempts so total_retries is non-zero.
+        runtime
+            .dlq()
+            .push(test_event(), webhook_action(), "boom".to_string())
+            .await
+            .expect("push");
+        let id2 = runtime
+            .dlq()
+            .push(test_event(), webhook_action(), "boom".to_string())
+            .await
+            .expect("push");
+        runtime.dlq().mark_retry_failed(id2, "again").await.expect("mark");
+        let state = DlqState {
+            runtime: Arc::new(RwLock::new(runtime)),
+        };
+
+        let resp = dlq_stats_handler(State(state)).await.into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.expect("body");
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("json");
+
+        assert_eq!(json["total_items"], 2, "two items in the DLQ");
+        assert_eq!(json["total_retries"], 1, "one item had a recorded retry attempt");
+        assert_eq!(json["by_action"]["webhook"], 2, "both failures are webhook actions");
+    }
+}

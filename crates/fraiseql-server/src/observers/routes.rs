@@ -10,8 +10,8 @@ use super::{
         ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
     },
     dlq_handlers::{
-        DlqState, delivery_health_handler, dlq_get_handler, dlq_list_handler,
-        dlq_retry_all_handler, dlq_retry_handler,
+        DlqState, delivery_health_handler, dlq_delete_handler, dlq_get_handler, dlq_list_handler,
+        dlq_retry_all_handler, dlq_retry_handler, dlq_stats_handler,
     },
     handlers::{
         ObserverState, RuntimeHealthState, create_observer, delete_observer, disable_observer,
@@ -99,17 +99,21 @@ pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
 ///
 /// # Routes
 ///
-/// - `GET  /delivery/health`       - Observer delivery health summary
-/// - `GET  /dlq`                   - List DLQ items (paginated, filterable)
-/// - `GET  /dlq/{id}`              - Get a single DLQ item
-/// - `POST /dlq/{id}/retry`        - Re-process a single DLQ item
-/// - `POST /dlq/retry-all`         - Re-process all DLQ items
+/// - `GET    /delivery/health`     - Observer delivery health summary
+/// - `GET    /dlq`                 - List DLQ items (paginated, filterable)
+/// - `GET    /dlq/stats`           - Aggregate DLQ statistics
+/// - `GET    /dlq/{id}`            - Get a single DLQ item
+/// - `DELETE /dlq/{id}`            - Remove a single DLQ item
+/// - `POST   /dlq/{id}/retry`      - Re-process a single DLQ item
+/// - `POST   /dlq/retry-all`       - Re-process all DLQ items
 pub fn observer_dlq_routes(state: DlqState) -> Router {
     Router::new()
         .route("/delivery/health", get(delivery_health_handler))
         .route("/dlq", get(dlq_list_handler))
+        .route("/dlq/stats", get(dlq_stats_handler))
         .route("/dlq/retry-all", post(dlq_retry_all_handler))
-        .route("/dlq/{id}", get(dlq_get_handler))
+        // Static `/dlq/stats` above takes priority over this capture in axum.
+        .route("/dlq/{id}", get(dlq_get_handler).delete(dlq_delete_handler))
         .route("/dlq/{id}/retry", post(dlq_retry_handler))
         .with_state(state)
 }
