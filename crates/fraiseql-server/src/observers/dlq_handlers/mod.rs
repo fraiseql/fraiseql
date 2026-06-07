@@ -392,7 +392,7 @@ pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoRe
 ///
 /// Removes a single DLQ item. Returns 200 when an item was present and removed,
 /// 404 when absent. The removal goes through the atomic claim
-/// ([`InMemoryDlq::try_claim`], #344), so a concurrent retry and delete cannot
+/// (`InMemoryDlq::try_claim`, #344), so a concurrent retry and delete cannot
 /// both act on the same item — exactly one wins, the other gets 404. This is the
 /// real backing for the `fraiseql-observers dlq remove` CLI command (#341).
 pub async fn dlq_delete_handler(

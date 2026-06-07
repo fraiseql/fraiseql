@@ -105,6 +105,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer DLQ CLI fabricated data; now talks to the real server API (#341).** The
+  `fraiseql-observers dlq` subcommands (list/show/retry/retry-all/remove/stats)
+  returned hard-coded JSON fixtures — synthetic items, invented retry counts and
+  stats — so the CLI confidently reported state that did not exist. They now call
+  the server's observer admin API over HTTP and render the real response, or fail
+  loud: a non-2xx status (e.g. a 404 from `remove` on a missing item) or an
+  unreachable server surfaces as an error with a non-zero exit, never a synthetic
+  success. New global args `--base-url` (default `http://localhost:8000`) and
+  `--admin-token` (sent as `Authorization: Bearer`) target the server. Two new
+  server endpoints back the CLI: `DELETE /api/observers/dlq/{id}` (remove) and
+  `GET /api/observers/dlq/stats` (aggregate stats). Mock-era filters the server API
+  does not support (`--observer`/`--after`/`--by-observer`/`--by-error`/`--dry-run`)
+  now emit a warning rather than being silently honored.
+
 - **Observer email action reported success without sending (#349).** `EmailAction`
   was a stub that always returned success, so a dead email integration showed green
   metrics while silently dropping every message. It now sends real email over SMTP

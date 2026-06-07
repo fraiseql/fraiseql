@@ -36,6 +36,14 @@ pub struct Cli {
     #[arg(short, long, global = true, default_value = "text")]
     pub format: OutputFormat,
 
+    /// Base URL of the running server's admin API (for `dlq` commands).
+    #[arg(long, global = true, default_value = "http://localhost:8000")]
+    pub base_url: String,
+
+    /// Bearer token for the server admin API (`Authorization: Bearer <token>`).
+    #[arg(long, global = true)]
+    pub admin_token: Option<String>,
+
     /// Subcommand to execute
     #[command(subcommand)]
     pub command: Commands,
@@ -237,7 +245,15 @@ pub async fn run() -> crate::error::Result<()> {
             entity_type,
             kind,
         } => commands::debug_event::execute(cli.format, event_id, history, entity_type, kind).await,
-        Commands::Dlq { subcommand } => commands::dlq::execute(cli.format, subcommand).await,
+        Commands::Dlq { subcommand } => {
+            commands::dlq::execute(
+                cli.format,
+                &cli.base_url,
+                cli.admin_token.as_deref(),
+                subcommand,
+            )
+            .await
+        },
         Commands::ValidateConfig { file, detailed } => {
             commands::validate_config::execute(cli.format, file, detailed).await
         },

@@ -1,68 +1,102 @@
 //! Tests for the DLQ CLI subcommands (#341).
 //!
-//! The CLI must never fabricate data: until the HTTP client lands every
-//! subcommand fails loud, and once wired a missing endpoint / unreachable
-//! server surfaces as an error rather than being reported as success.
+//! The CLI talks to the server admin API over HTTP and must never fabricate
+//! data: a successful call renders the server's real response, while a non-2xx
+//! status or an unreachable server surfaces as an error (non-zero exit), never
+//! as a synthetic success.
 #![allow(clippy::unwrap_used)] // Reason: test code; failures should panic to surface bugs.
+
+use serde_json::json;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{header, method, path},
+};
 
 use super::execute;
 use crate::cli::{DlqSubcommand, OutputFormat};
 
 #[tokio::test]
-async fn list_does_not_fabricate() {
+async fn list_calls_server_with_bearer_and_renders() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/observers/dlq"))
+        .and(header("authorization", "Bearer test-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [],
+            "total": 0,
+            "limit": 10,
+            "offset": 0
+        })))
+        .expect(1) // auto-verified on server drop: the request must have been made
+        .mount(&server)
+        .await;
+
     let sub = DlqSubcommand::List {
         limit:    10,
         offset:   None,
         observer: None,
         after:    None,
     };
+    let result = execute(OutputFormat::Json, &server.uri(), Some("test-token"), sub).await;
+
+    assert!(result.is_ok(), "a 200 from the server must render successfully: {result:?}");
+}
+
+#[tokio::test]
+async fn remove_404_surfaces_as_error_not_success() {
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "error": "not found" })))
+        .mount(&server)
+        .await;
+
+    let sub = DlqSubcommand::Remove {
+        item_id: "missing".to_string(),
+        force:   true,
+    };
+    let result = execute(OutputFormat::Json, &server.uri(), Some("test-token"), sub).await;
+
     assert!(
-        execute(OutputFormat::Json, sub).await.is_err(),
-        "dlq list must not return fabricated data"
+        result.is_err(),
+        "a 404 from DELETE must surface as an error, never be swallowed as success"
     );
 }
 
 #[tokio::test]
-async fn show_does_not_fabricate() {
-    let sub = DlqSubcommand::Show {
-        item_id: "dlq-001".to_string(),
+async fn stats_renders_server_response() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/observers/dlq/stats"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "total_items": 2,
+            "total_retries": 1,
+            "dropped": 0,
+            "by_action": { "webhook": 2 }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let sub = DlqSubcommand::Stats {
+        by_observer: false,
+        by_error:    false,
     };
-    assert!(execute(OutputFormat::Json, sub).await.is_err());
+    let result = execute(OutputFormat::Json, &server.uri(), None, sub).await;
+
+    assert!(result.is_ok(), "stats must render the server response: {result:?}");
 }
 
 #[tokio::test]
-async fn retry_does_not_fabricate() {
-    let sub = DlqSubcommand::Retry {
-        item_id: "dlq-001".to_string(),
-        force:   false,
-    };
-    assert!(execute(OutputFormat::Json, sub).await.is_err());
-}
-
-#[tokio::test]
-async fn retry_all_does_not_fabricate() {
-    let sub = DlqSubcommand::RetryAll {
+async fn unreachable_server_is_an_error() {
+    // Nothing listens on 127.0.0.1:1 → connection refused. The CLI must surface
+    // it, never report success.
+    let sub = DlqSubcommand::List {
+        limit:    10,
+        offset:   None,
         observer: None,
         after:    None,
-        dry_run:  false,
     };
-    assert!(execute(OutputFormat::Json, sub).await.is_err());
-}
+    let result = execute(OutputFormat::Json, "http://127.0.0.1:1", None, sub).await;
 
-#[tokio::test]
-async fn remove_does_not_fabricate() {
-    let sub = DlqSubcommand::Remove {
-        item_id: "dlq-001".to_string(),
-        force:   true,
-    };
-    assert!(execute(OutputFormat::Json, sub).await.is_err());
-}
-
-#[tokio::test]
-async fn stats_does_not_fabricate() {
-    let sub = DlqSubcommand::Stats {
-        by_observer: true,
-        by_error:    true,
-    };
-    assert!(execute(OutputFormat::Json, sub).await.is_err());
+    assert!(result.is_err(), "an unreachable server must surface as an error");
 }
