@@ -50,6 +50,7 @@ impl SchemaExtractor for RustExtractor {
                         directives: None,
                         requires_scope: None,
                         on_deny: None,
+                        authorize: None,
                         hierarchy: None,
                     });
                 }

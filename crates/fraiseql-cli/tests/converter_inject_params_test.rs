@@ -34,6 +34,7 @@ fn order_type() -> IntermediateType {
             directives:     None,
             requires_scope: None,
             on_deny:        None,
+            authorize:      None,
             hierarchy:      None,
         }],
         ..Default::default()

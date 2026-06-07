@@ -951,6 +951,7 @@ mod field_filter_tests {
             deprecation:    None,
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny:        FieldDenyPolicy::default(),
+            authorize:      false,
             encryption:     None,
             hierarchy:      None,
         }
@@ -1076,6 +1077,7 @@ mod field_filter_tests {
             deprecation: None,
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny,
+            authorize: false,
             encryption: None,
             hierarchy: None,
         }

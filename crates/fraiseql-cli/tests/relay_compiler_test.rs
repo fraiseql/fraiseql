@@ -34,6 +34,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -44,6 +45,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],

@@ -31,6 +31,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 deprecation:    None,
                 requires_scope: None, // Public field
                 on_deny:        FieldDenyPolicy::default(),
+                authorize:      false,
                 encryption:     None,
                 hierarchy:      None,
             },
@@ -45,6 +46,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 deprecation:    None,
                 requires_scope: None, // Public field
                 on_deny:        FieldDenyPolicy::default(),
+                authorize:      false,
                 encryption:     None,
                 hierarchy:      None,
             },
@@ -59,6 +61,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
                 on_deny:        FieldDenyPolicy::default(),
+                authorize:      false,
                 encryption:     None,
                 hierarchy:      None,
             },
@@ -73,6 +76,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
                 on_deny:        FieldDenyPolicy::default(),
+                authorize:      false,
                 encryption:     None,
                 hierarchy:      None,
             },

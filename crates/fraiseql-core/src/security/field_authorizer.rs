@@ -11,16 +11,15 @@
 //!
 //! # Semantics
 //!
-//! - **Fail-closed**: any `Err` returned by [`FieldAuthorizer::authorize_field`] is
-//!   treated as a hard deny — the request fails with
-//!   [`FraiseQLError::Authorization`](crate::error::FraiseQLError::Authorization)
-//!   (HTTP 403 / `FORBIDDEN`). The field value is never served on a policy failure.
-//! - **AND-composition**: the dynamic decision composes with the static
-//!   `requires_scope` gate as a logical AND — a field is visible only if *both* the
-//!   static gate and the dynamic authorizer allow it.
-//! - **Deny policy**: a [`FieldAuthzDecision::Deny`] reuses the existing
-//!   [`FieldDenyPolicy`]: `Reject` fails the whole query, `Mask` nulls just that
-//!   field on just that row.
+//! - **Fail-closed**: any `Err` returned by [`FieldAuthorizer::authorize_field`] is treated as a
+//!   hard deny — the request fails with
+//!   [`FraiseQLError::Authorization`](crate::error::FraiseQLError::Authorization) (HTTP 403 /
+//!   `FORBIDDEN`). The field value is never served on a policy failure.
+//! - **AND-composition**: the dynamic decision composes with the static `requires_scope` gate as a
+//!   logical AND — a field is visible only if *both* the static gate and the dynamic authorizer
+//!   allow it.
+//! - **Deny policy**: a [`FieldAuthzDecision::Deny`] reuses the existing [`FieldDenyPolicy`]:
+//!   `Reject` fails the whole query, `Mask` nulls just that field on just that row.
 //!
 //! Only fields marked policy-gated in the compiled schema
 //! ([`FieldDefinition::authorize`](crate::schema::FieldDefinition)) are passed to the
@@ -42,9 +41,9 @@ use crate::{error::Result, schema::FieldDenyPolicy, security::SecurityContext};
 #[non_exhaustive]
 pub struct FieldAuthzRequest<'a> {
     /// The authenticated principal making the request.
-    pub principal: &'a SecurityContext,
+    pub principal:  &'a SecurityContext,
     /// The GraphQL type name that owns the field (e.g. `"User"`).
-    pub type_name: &'a str,
+    pub type_name:  &'a str,
     /// The field name being authorized (e.g. `"email"`).
     pub field_name: &'a str,
     /// The full row/object the field is projected from, when available.
@@ -52,9 +51,9 @@ pub struct FieldAuthzRequest<'a> {
     /// This is the *complete* fetched row (not just the selected fields), so a
     /// policy may key on columns the client did not select (e.g. an `owner_id`
     /// used to decide ownership). `None` only on paths where no row context exists.
-    pub parent: Option<&'a serde_json::Value>,
+    pub parent:     Option<&'a serde_json::Value>,
     /// The field's GraphQL arguments, when present.
-    pub arguments: Option<&'a serde_json::Value>,
+    pub arguments:  Option<&'a serde_json::Value>,
 }
 
 /// The decision a [`FieldAuthorizer`] returns for a single field on a single row.

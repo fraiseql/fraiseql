@@ -247,6 +247,7 @@ pub enum FieldDenyPolicy {
 ///     deprecation: None,
 ///     requires_scope: None,
 ///     on_deny: FieldDenyPolicy::default(),
+///     authorize: false,
 ///     encryption: None,
 ///     hierarchy: None,
 /// };
@@ -308,6 +309,7 @@ pub struct FieldDefinition {
     ///     deprecation: None,
     ///     requires_scope: Some("read:Employee.salary".to_string()),
     ///     on_deny: FieldDenyPolicy::Reject,
+    ///     authorize: false,
     ///     encryption: None,
     ///     hierarchy: None,
     /// };
@@ -321,6 +323,19 @@ pub struct FieldDefinition {
     /// - `Mask`: the query succeeds but this field returns `null`.
     #[serde(default)]
     pub on_deny: FieldDenyPolicy,
+
+    /// Whether this field is gated by the dynamic
+    /// [`FieldAuthorizer`](crate::security::FieldAuthorizer).
+    ///
+    /// When `true` and a `FieldAuthorizer` is configured on the runtime, the
+    /// authorizer is consulted per row for this field (composing as a logical AND
+    /// with any static `requires_scope`). The decision can vary by principal, parent
+    /// row, and field arguments — expressing rules `requires_scope` cannot.
+    ///
+    /// Defaults to `false` (no dynamic gate). `false` is not serialized, so compiled
+    /// schemas that predate this field deserialize unchanged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub authorize: bool,
 
     /// Encryption configuration for this field.
     ///
@@ -405,6 +420,7 @@ impl FieldDefinition {
             deprecation: None,
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
+            authorize: false,
             encryption: None,
             hierarchy: None,
         }
@@ -424,6 +440,7 @@ impl FieldDefinition {
             deprecation: None,
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
+            authorize: false,
             encryption: None,
             hierarchy: None,
         }
@@ -451,6 +468,7 @@ impl FieldDefinition {
             deprecation:    None,
             requires_scope: None,
             on_deny:        FieldDenyPolicy::default(),
+            authorize:      false,
             encryption:     None,
             hierarchy:      None,
         }
@@ -476,6 +494,26 @@ impl FieldDefinition {
     #[must_use]
     pub const fn with_on_deny(mut self, policy: FieldDenyPolicy) -> Self {
         self.on_deny = policy;
+        self
+    }
+
+    /// Mark this field as gated by the dynamic
+    /// [`FieldAuthorizer`](crate::security::FieldAuthorizer).
+    ///
+    /// When `true` and a `FieldAuthorizer` is configured on the runtime, the
+    /// authorizer is consulted per row for this field.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// let email = FieldDefinition::new("email", FieldType::String).with_authorize(true);
+    /// assert!(email.authorize);
+    /// ```
+    #[must_use]
+    pub const fn with_authorize(mut self, authorize: bool) -> Self {
+        self.authorize = authorize;
         self
     }
 
@@ -923,3 +961,6 @@ impl FieldType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -702,6 +702,7 @@ mod schema_validator_tests {
             directives:     None,
             requires_scope: None,
             on_deny:        None,
+            authorize:      None,
             hierarchy:      None,
         }
     }

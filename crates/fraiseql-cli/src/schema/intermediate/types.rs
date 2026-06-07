@@ -86,6 +86,25 @@ pub struct IntermediateField {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_deny: Option<String>,
 
+    /// Whether this field is gated by the dynamic field authorizer at runtime.
+    ///
+    /// When `true`, the compiled field is marked policy-gated
+    /// (`FieldDefinition.authorize`) and a configured `FieldAuthorizer` is consulted
+    /// per row. Defaults to `false` when absent.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "email",
+    ///   "type": "String",
+    ///   "nullable": true,
+    ///   "authorize": true
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorize: Option<bool>,
+
     /// Named hierarchy reference for ID-based ltree operators.
     /// References a key in the `hierarchies` config map.
     #[serde(default, skip_serializing_if = "Option::is_none")]

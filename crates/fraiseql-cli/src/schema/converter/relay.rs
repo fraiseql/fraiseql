@@ -37,6 +37,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             deprecation:    None,
             requires_scope: None,
             on_deny:        FieldDenyPolicy::default(),
+            authorize:      false,
             encryption:     None,
             hierarchy:      None,
         };
@@ -61,6 +62,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             deprecation: None,
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
+            authorize: false,
             encryption: None,
             hierarchy: None,
         };
@@ -124,6 +126,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
         deprecation: None,
         requires_scope: None,
         on_deny: FieldDenyPolicy::default(),
+        authorize: false,
         encryption: None,
         hierarchy: None,
     };

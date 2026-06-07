@@ -1568,6 +1568,7 @@ mod optimizer_tests {
                         deprecation:    None,
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
+                        authorize:      false,
                         encryption:     None,
                         hierarchy:      None,
                     })
@@ -1626,6 +1627,7 @@ mod optimizer_tests {
                         deprecation:    None,
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
+                        authorize:      false,
                         encryption:     None,
                         hierarchy:      None,
                     })
@@ -1694,6 +1696,7 @@ mod optimizer_tests {
                         deprecation:    None,
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
+                        authorize:      false,
                         encryption:     None,
                         hierarchy:      None,
                     })

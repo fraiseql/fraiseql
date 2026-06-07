@@ -212,6 +212,7 @@ fn test_deprecated_field_introspection() {
                 }),
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
+                authorize:      false,
                 encryption:     None,
                 hierarchy:      None,
             },

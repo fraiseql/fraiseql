@@ -50,6 +50,40 @@ fn test_convert_minimal_schema() {
 }
 
 #[test]
+fn convert_field_maps_authorize_true() {
+    let intermediate = IntermediateField {
+        name:           "email".to_string(),
+        field_type:     "String".to_string(),
+        nullable:       true,
+        description:    None,
+        directives:     None,
+        requires_scope: None,
+        on_deny:        None,
+        authorize:      Some(true),
+        hierarchy:      None,
+    };
+    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    assert!(compiled.authorize, "authorize: Some(true) must compile to authorize == true");
+}
+
+#[test]
+fn convert_field_authorize_absent_defaults_false() {
+    let intermediate = IntermediateField {
+        name:           "id".to_string(),
+        field_type:     "Int".to_string(),
+        nullable:       false,
+        description:    None,
+        directives:     None,
+        requires_scope: None,
+        on_deny:        None,
+        authorize:      None,
+        hierarchy:      None,
+    };
+    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    assert!(!compiled.authorize, "absent authorize must compile to authorize == false");
+}
+
+#[test]
 fn test_convert_type_with_fields() {
     let intermediate = IntermediateSchema {
         security:             None,
@@ -65,6 +99,7 @@ fn test_convert_type_with_fields() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -75,6 +110,7 @@ fn test_convert_type_with_fields() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
@@ -403,6 +439,7 @@ fn test_convert_field_with_deprecated_directive() {
                     }]),
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -413,6 +450,7 @@ fn test_convert_field_with_deprecated_directive() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
@@ -882,6 +920,7 @@ fn test_convert_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
+                authorize:      None,
                 hierarchy:      None,
             }],
             description: Some("An object with a globally unique ID".to_string()),
@@ -939,6 +978,7 @@ fn test_convert_type_implements_interface() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -949,6 +989,7 @@ fn test_convert_type_implements_interface() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
@@ -970,6 +1011,7 @@ fn test_convert_type_implements_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
+                authorize:      None,
                 hierarchy:      None,
             }],
             description: None,
@@ -1026,6 +1068,7 @@ fn test_validate_unknown_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
+                authorize:      None,
                 hierarchy:      None,
             }],
             description:   None,
@@ -1085,6 +1128,7 @@ fn test_validate_missing_interface_field() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
@@ -1106,6 +1150,7 @@ fn test_validate_missing_interface_field() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
+                authorize:      None,
                 hierarchy:      None,
             }],
             description: None,
@@ -1157,6 +1202,7 @@ fn test_convert_union() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 }],
                 description:   None,
@@ -1175,6 +1221,7 @@ fn test_convert_union() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 }],
                 description:   None,
@@ -1243,6 +1290,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -1253,6 +1301,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -1263,6 +1312,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: Some("read:Employee.salary".to_string()),
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -1273,6 +1323,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: Some("admin".to_string()),
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
@@ -1365,6 +1416,7 @@ mod tenancy_tests {
             directives:     None,
             requires_scope: None,
             on_deny:        None,
+            authorize:      None,
             hierarchy:      None,
         }
     }
@@ -1381,6 +1433,7 @@ mod tenancy_tests {
             }]),
             requires_scope: None,
             on_deny:        None,
+            authorize:      None,
             hierarchy:      None,
         }
     }

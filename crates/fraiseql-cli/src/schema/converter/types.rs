@@ -187,6 +187,7 @@ impl SchemaConverter {
                     FieldDenyPolicy::Reject
                 }
             }),
+            authorize: intermediate.authorize.unwrap_or(false),
             encryption: None,
             hierarchy: intermediate.hierarchy,
         })

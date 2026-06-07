@@ -422,6 +422,7 @@ fn test_e2e_full_field_assertion() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
                 IntermediateField {
@@ -432,6 +433,7 @@ fn test_e2e_full_field_assertion() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    authorize:      None,
                     hierarchy:      None,
                 },
             ],
