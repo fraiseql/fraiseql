@@ -130,10 +130,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   policy. When SMTP is **not** configured the action fails loud (permanent) instead
   of faking success, so a misconfigured email integration is always surfaced. The
   `[observers.runtime.email]` block is strict (`deny_unknown_fields`): a typo or a
-  literal-credential key fails the parse. _Scoped follow-up: a MailHog/smtp4dev
-  Dagger service for end-to-end wire coverage is not yet built — the refused-send
-  failure path is covered without infra; happy-path wire behaviour is exercised
-  manually until that sink lands._
+  literal-credential key fails the parse. The failure path (a refused send is a
+  loud, classified error) is covered without infra; the happy path is covered
+  end-to-end by a MailHog SMTP sink bound into the `integration(observers)` CI
+  leg — a test sends through `lettre` and asserts the message arrives.
 
 - **Observer transport selection was silently ignored; NATS ran on PostgreSQL (#350).**
   The off-the-shelf binary never read `[observers.runtime.transport]` /

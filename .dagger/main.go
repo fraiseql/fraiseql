@@ -461,6 +461,13 @@ const (
 	natsImage    = "nats:2.10-alpine"
 	natsBindHost = "nats"
 
+	// mailhogImage / mailhogBindHost — the MailHog SMTP sink for the #349 email
+	// happy-path test. Speaks real SMTP on 1025 (plaintext) and exposes an HTTP
+	// API on 8025 to inspect captured messages; the test sends through lettre and
+	// asserts the message arrived in the sink.
+	mailhogImage    = "mailhog/mailhog:v1.0.1"
+	mailhogBindHost = "mailhog"
+
 	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (ci.yml
 	// integration-http-e2e): the fraiseql-server binary run as a bound service the
 	// test container drives over HTTP.
@@ -1353,6 +1360,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'postgres,nats' --test bridge_integration -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
+		// #349 email happy-path: send through lettre to the bound MailHog sink and
+		// assert the message arrived (real SMTP wire format, not a stub).
+		"cargo test -p fraiseql-observers --test smtp_integration -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 
@@ -1360,10 +1370,14 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithServiceBinding(natsBindHost, m.natsService()).
+		WithServiceBinding(mailhogBindHost, m.mailhogService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
 		WithEnvVariable("NATS_URL", natsURL).
+		WithEnvVariable("MAILHOG_SMTP_HOST", mailhogBindHost).
+		WithEnvVariable("MAILHOG_SMTP_PORT", "1025").
+		WithEnvVariable("MAILHOG_API", fmt.Sprintf("http://%s:8025", mailhogBindHost)).
 		WithEnvVariable("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true").
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
@@ -1399,6 +1413,16 @@ func (m *FraiseqlCi) natsService() *dagger.Service {
 		From(natsImage).
 		WithExposedPort(4222).
 		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true, Args: []string{"-js", "-m", "8222"}})
+}
+
+// mailhogService is the MailHog SMTP sink: SMTP on 1025 (plaintext) and an HTTP
+// inspection API on 8025. Used by the #349 email happy-path integration test.
+func (m *FraiseqlCi) mailhogService() *dagger.Service {
+	return dag.Container().
+		From(mailhogImage).
+		WithExposedPort(1025).
+		WithExposedPort(8025).
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
 }
 
 // redisService returns a started redis:7-alpine service (default redis-server CMD).
