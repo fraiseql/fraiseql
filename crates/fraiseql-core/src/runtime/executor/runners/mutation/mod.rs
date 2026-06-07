@@ -28,6 +28,71 @@ use crate::{
     security::SecurityContext,
 };
 
+/// Enforce the dynamic field authorizer (#423) on a projected mutation payload.
+///
+/// `entity` is the full projected-from value (the `parent`); `projected` is the
+/// response object, mutated in place. Fail-closed:
+/// - a gated field selected with no authenticated principal → 403,
+/// - a gated field selected with no authorizer configured → 403,
+/// - a gated field nested in a sub-selection → 403 (top-level enforced in v1),
+/// - a `Reject` decision or any policy error → 403.
+///
+/// No-op (and zero authorizer calls) when the selection set has no gated field.
+fn enforce_mutation_field_authz<A: DatabaseAdapter>(
+    ctx: &ExecutorContext<A>,
+    security_ctx: Option<&SecurityContext>,
+    type_name: &str,
+    selections: &[FieldSelection],
+    entity: &serde_json::Value,
+    projected: &mut serde_json::Value,
+) -> Result<()> {
+    use crate::security::field_authorizer as authz;
+
+    if !authz::selection_set_selects_gated_field(&ctx.schema, type_name, selections) {
+        return Ok(());
+    }
+    let Some(principal) = security_ctx else {
+        return Err(FraiseQLError::Authorization {
+            message:  format!(
+                "Field-level authorization is required for a selected field on type \
+                 '{type_name}' but the request is not authenticated"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        });
+    };
+    let Some(authorizer) = ctx.config.field_authorizer.as_ref() else {
+        return Err(FraiseQLError::Authorization {
+            message:  format!(
+                "Field-level authorization is required for a selected field on type \
+                 '{type_name}' but no field authorizer is configured"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        });
+    };
+    if authz::selection_set_has_nested_gated_field(&ctx.schema, type_name, selections) {
+        return Err(FraiseQLError::Authorization {
+            message:  format!(
+                "Field-level authorization of nested fields on type '{type_name}' is not \
+                 supported in this version"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        });
+    }
+    let gated = authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections);
+    let pass = authz::FieldAuthzPass {
+        authorizer: authorizer.as_ref(),
+        principal,
+        type_name,
+        gated: &gated,
+        // The mutation path has no static requires_scope gate, so nothing is pre-masked.
+        statically_masked: &[],
+    };
+    authz::apply_field_authorizer_to_entity(&pass, entity, projected)
+}
+
 /// Executes GraphQL mutations with compile-time capability enforcement.
 ///
 /// Only constructible when `A: SupportsMutations`. This means calling mutation
@@ -498,6 +563,17 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             // payload and a query over the same entity return an identical shape.
             let mut projected = project_entity(&entity, &typename, selections, &ctx.schema);
 
+            // Enforce the dynamic field authorizer (#423) on the success entity, per
+            // the resolved concrete type, before surfacing it. Fail-closed.
+            enforce_mutation_field_authz(
+                ctx,
+                security_ctx,
+                &typename,
+                selections,
+                &entity,
+                &mut projected,
+            )?;
+
             // Surface the graphql-cascade wire format
             // (updated/deleted/invalidations/metadata) to clients without requiring
             // the DB function to embed it in the entity JSONB itself.
@@ -542,6 +618,19 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 }
                 serde_json::Value::Object(map)
             };
+
+            // Enforce the dynamic field authorizer (#423) on error metadata too, so a
+            // gated field on an error type cannot leak through the error arm.
+            if let Some(td) = error_type {
+                enforce_mutation_field_authz(
+                    ctx,
+                    security_ctx,
+                    td.name.as_str(),
+                    selections,
+                    &metadata,
+                    &mut result,
+                )?;
+            }
 
             // Inject the synthetic `status` field — not part of the type definition,
             // but required by clients to discriminate error outcomes.

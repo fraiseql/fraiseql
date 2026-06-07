@@ -115,10 +115,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         //     nested). When so, the per-row dynamic authorizer decision is neither
         //     cacheable (D5b) nor compatible with a selection-stripped row, so the
         //     response cache and the SQL projection hint are both bypassed below.
-        let gated_present = crate::security::field_authorizer::query_selects_gated_field(
+        let root_fields: &[crate::graphql::FieldSelection] =
+            query_match.selections.first().map_or(&[], |r| r.nested_fields.as_slice());
+        let gated_present = crate::security::field_authorizer::selection_set_selects_gated_field(
             &self.ctx.schema,
             &query_match.query_def.return_type,
-            query_match.selections.first(),
+            root_fields,
         );
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
@@ -399,10 +401,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             };
             // Phase 1 enforces only top-level entity-row fields; a gated field nested inside a
             // sub-selection is fail-closed (tracked follow-up: extend enforcement to nesting).
-            if authz::selection_contains_nested_gated_field(
+            if authz::selection_set_has_nested_gated_field(
                 &self.ctx.schema,
                 return_type,
-                query_match.selections.first(),
+                root_fields,
             ) {
                 return Err(FraiseQLError::Authorization {
                     message:  format!(
@@ -413,11 +415,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     resource: Some(return_type.clone()),
                 });
             }
-            let gated = authz::collect_top_level_gated_fields(
-                &self.ctx.schema,
-                return_type,
-                query_match.selections.first(),
-            );
+            let gated =
+                authz::collect_top_level_gated_fields(&self.ctx.schema, return_type, root_fields);
             let pass = authz::FieldAuthzPass {
                 authorizer:        authorizer.as_ref(),
                 principal:         security_context,

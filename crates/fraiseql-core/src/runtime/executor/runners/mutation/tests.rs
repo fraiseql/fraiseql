@@ -1265,3 +1265,241 @@ mod mutation_rbac {
         );
     }
 }
+
+// ── mod field_authz: #423 dynamic field-level authorization on mutations ──
+
+mod field_authz {
+    #![allow(clippy::panic)] // Reason: test doubles panic to assert they are never called
+
+    use std::collections::HashMap;
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{
+        db::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
+        security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
+    };
+
+    /// Adapter whose mutation returns a `User` entity carrying a policy-gated `email`.
+    struct GatedEntityAdapter;
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for GatedEntityAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert(
+                "entity".to_string(),
+                json!({ "id": "123", "name": "Alice", "email": "alice@x.com", "owner_id": "user-1" }),
+            );
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for GatedEntityAdapter {}
+
+    struct DenyMask;
+    impl FieldAuthorizer for DenyMask {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Deny {
+                code:    "no".into(),
+                on_deny: FieldDenyPolicy::Mask,
+            })
+        }
+    }
+
+    struct Raising;
+    impl FieldAuthorizer for Raising {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Err(FraiseQLError::Validation {
+                message: "policy backend down".into(),
+                path:    None,
+            })
+        }
+    }
+
+    struct PanicIfCalled;
+    impl FieldAuthorizer for PanicIfCalled {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            panic!("field authorizer must not be consulted here");
+        }
+    }
+
+    fn schema() -> CompiledSchema {
+        let mut s = CompiledSchema::new();
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("name", FieldType::String),
+            FieldDefinition::nullable("email", FieldType::String).with_authorize(true),
+            FieldDefinition::nullable("owner_id", FieldType::String),
+        ];
+        s.types.push(user);
+        s.build_indexes();
+        s
+    }
+
+    fn ctx() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-authz".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    // A raising policy on a gated mutation field denies the whole mutation (403).
+    #[tokio::test]
+    async fn mutation_raising_policy_denies() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(Raising)),
+        );
+        let res = executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await;
+        assert!(res.is_err(), "raising policy must fail closed on the mutation path");
+        assert!(
+            !format!("{}", res.unwrap_err()).contains("alice@x.com"),
+            "must not leak the value"
+        );
+    }
+
+    // Deny{Mask} nulls the gated field in the success payload.
+    #[tokio::test]
+    async fn mutation_deny_mask_nulls_field() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(DenyMask)),
+        );
+        let res = executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await
+            .unwrap();
+        let payload = &res["data"]["createUser"];
+        assert_eq!(payload["id"], "123");
+        assert!(payload["email"].is_null(), "masked gated field must be null: {payload}");
+    }
+
+    // An unauthenticated mutation selecting a gated field fails closed (no principal).
+    #[tokio::test]
+    async fn mutation_gated_without_principal_fails_closed() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(DenyMask)),
+        );
+        let res = executor.execute("mutation { createUser { id email } }", None).await;
+        assert!(res.is_err(), "gated field on an unauthenticated mutation must fail closed");
+    }
+
+    // A gated field selected with no authorizer configured fails closed.
+    #[tokio::test]
+    async fn mutation_gated_without_authorizer_fails_closed() {
+        let executor =
+            Executor::with_config(schema(), Arc::new(GatedEntityAdapter), RuntimeConfig::default());
+        let res = executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await;
+        assert!(res.is_err(), "gated field with no authorizer configured must fail closed");
+    }
+
+    // No gated field selected → authorizer never consulted, payload unchanged.
+    #[tokio::test]
+    async fn mutation_no_gated_field_skips_authorizer() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let res = executor
+            .execute_with_security("mutation { createUser { id name } }", None, &ctx())
+            .await
+            .unwrap();
+        let payload = &res["data"]["createUser"];
+        assert_eq!(payload["name"], "Alice");
+        assert!(payload.get("email").is_none(), "email not selected → absent");
+    }
+}
