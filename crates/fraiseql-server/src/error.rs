@@ -31,6 +31,12 @@ pub enum ErrorCode {
     InternalServerError,
     /// Database error.
     DatabaseError,
+    /// Client-input data exception (SQLSTATE class 22, e.g. a malformed value that
+    /// failed a cast) — the request was invalid, not the server (HTTP 400).
+    BadUserInput,
+    /// Integrity-constraint violation (SQLSTATE class 23, e.g. not-null / unique /
+    /// foreign-key / check) caused by client input (HTTP 400).
+    ConstraintViolation,
     /// Timeout error.
     Timeout,
     /// Rate limit exceeded.
@@ -79,7 +85,9 @@ impl ErrorCode {
             Self::RequestError
             | Self::PersistedQueryMismatch
             | Self::ForbiddenQuery
-            | Self::DocumentNotFound => StatusCode::BAD_REQUEST,
+            | Self::DocumentNotFound
+            | Self::BadUserInput
+            | Self::ConstraintViolation => StatusCode::BAD_REQUEST,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
@@ -89,6 +97,35 @@ impl ErrorCode {
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen | Self::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
+    }
+}
+
+/// A Postgres SQLSTATE class that indicates a **client-input** fault (HTTP 4xx)
+/// rather than a server fault (HTTP 5xx).
+///
+/// Shared by the GraphQL and REST error mappers so both transports classify a
+/// `FraiseQLError::Database` identically (#413).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ClientInputSqlState {
+    /// SQLSTATE class `22` — data exception (e.g. `22P02` invalid text representation:
+    /// a malformed `uuid`/`inet`/`numeric` value that failed a cast).
+    DataException,
+    /// SQLSTATE class `23` — integrity constraint violation (`23502` not-null,
+    /// `23503` foreign-key, `23505` unique, `23514` check).
+    IntegrityConstraint,
+}
+
+/// Classify a Postgres SQLSTATE as a client-input fault, if it is one.
+///
+/// Returns `None` for every other class (connection loss, internal `PLpgSQL` faults,
+/// …) and for an absent SQLSTATE — those stay HTTP 500 / `DATABASE_ERROR`.
+pub(crate) fn classify_client_input_sqlstate(
+    sql_state: Option<&str>,
+) -> Option<ClientInputSqlState> {
+    match sql_state {
+        Some(s) if s.starts_with("22") => Some(ClientInputSqlState::DataException),
+        Some(s) if s.starts_with("23") => Some(ClientInputSqlState::IntegrityConstraint),
+        _ => None,
     }
 }
 
@@ -283,7 +320,21 @@ impl GraphQLError {
     pub fn from_fraiseql_error(err: &fraiseql_core::error::FraiseQLError) -> Self {
         use fraiseql_core::error::FraiseQLError as E;
         match err {
-            E::Database { .. } | E::ConnectionPool { .. } => Self::database(err.to_string()),
+            // Classify client-input DB faults (SQLSTATE 22xxx/23xxx) as 400 rather than
+            // 500 (#413); genuine server faults (other classes, no SQLSTATE, connection
+            // pool) stay 500 / DATABASE_ERROR.
+            E::Database { sql_state, .. } => {
+                match classify_client_input_sqlstate(sql_state.as_deref()) {
+                    Some(ClientInputSqlState::DataException) => {
+                        Self::new(err.to_string(), ErrorCode::BadUserInput)
+                    },
+                    Some(ClientInputSqlState::IntegrityConstraint) => {
+                        Self::new(err.to_string(), ErrorCode::ConstraintViolation)
+                    },
+                    None => Self::database(err.to_string()),
+                }
+            },
+            E::ConnectionPool { .. } => Self::database(err.to_string()),
             E::Parse { .. } => Self::parse(err.to_string()),
             E::Validation { .. } | E::UnknownField { .. } | E::UnknownType { .. } => {
                 Self::validation(err.to_string())

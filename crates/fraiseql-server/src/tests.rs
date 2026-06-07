@@ -400,6 +400,67 @@ mod error_tests {
         assert_eq!(graphql_err.code, ErrorCode::DatabaseError);
     }
 
+    // #413: client-input DB faults (SQLSTATE 22xxx/23xxx) classify as 400, not 500.
+    #[test]
+    fn test_from_fraiseql_error_sqlstate_22_maps_to_bad_user_input_400() {
+        use axum::http::StatusCode;
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Database {
+            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state: Some("22P02".into()),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::BadUserInput);
+        assert_eq!(graphql_err.code.status_code(), StatusCode::BAD_REQUEST);
+        // The PG message is preserved (not swallowed).
+        assert!(graphql_err.message.contains("not-a-uuid"));
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_sqlstate_23_maps_to_constraint_violation_400() {
+        use axum::http::StatusCode;
+        use fraiseql_core::error::FraiseQLError;
+        for code in ["23502", "23503", "23505", "23514"] {
+            let err = FraiseQLError::Database {
+                message:   "violates constraint".into(),
+                sql_state: Some(code.into()),
+            };
+            let graphql_err = GraphQLError::from_fraiseql_error(&err);
+            assert_eq!(
+                graphql_err.code,
+                ErrorCode::ConstraintViolation,
+                "SQLSTATE {code} should map to ConstraintViolation"
+            );
+            assert_eq!(graphql_err.code.status_code(), StatusCode::BAD_REQUEST);
+        }
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_non_client_sqlstate_stays_database_500() {
+        use axum::http::StatusCode;
+        use fraiseql_core::error::FraiseQLError;
+        // A connection-class SQLSTATE (08xxx) and an absent SQLSTATE both stay 500.
+        for sql_state in [Some("08006".to_string()), None] {
+            let err = FraiseQLError::Database {
+                message: "connection failure".into(),
+                sql_state,
+            };
+            let graphql_err = GraphQLError::from_fraiseql_error(&err);
+            assert_eq!(graphql_err.code, ErrorCode::DatabaseError);
+            assert_eq!(graphql_err.code.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_connection_pool_stays_database_500() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::ConnectionPool {
+            message: "pool exhausted".into(),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::DatabaseError);
+    }
+
     #[test]
     fn test_from_fraiseql_error_validation_maps_to_validation_code() {
         use fraiseql_core::error::FraiseQLError;

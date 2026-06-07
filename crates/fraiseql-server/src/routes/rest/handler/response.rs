@@ -8,6 +8,8 @@ use axum::http::StatusCode;
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
+use crate::error::{ClientInputSqlState, classify_client_input_sqlstate};
+
 /// HTTP response with status, headers, and optional body.
 pub struct RestResponse {
     /// HTTP status code.
@@ -37,6 +39,26 @@ impl RestError {
         Self {
             status:  StatusCode::BAD_REQUEST,
             code:    "BAD_REQUEST",
+            message: message.into(),
+            details: None,
+        }
+    }
+
+    /// 400 Bad Request — client-input data exception (SQLSTATE class 22, #413).
+    pub fn bad_user_input(message: impl Into<String>) -> Self {
+        Self {
+            status:  StatusCode::BAD_REQUEST,
+            code:    "BAD_USER_INPUT",
+            message: message.into(),
+            details: None,
+        }
+    }
+
+    /// 400 Bad Request — integrity-constraint violation (SQLSTATE class 23, #413).
+    pub fn constraint_violation(message: impl Into<String>) -> Self {
+        Self {
+            status:  StatusCode::BAD_REQUEST,
+            code:    "CONSTRAINT_VIOLATION",
             message: message.into(),
             details: None,
         }
@@ -112,6 +134,20 @@ impl From<FraiseQLError> for RestError {
                 code:    "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
+            },
+            // Client-input DB faults (SQLSTATE 22xxx/23xxx) are 400, not 500 (#413);
+            // genuine server faults (other classes, no SQLSTATE, connection pool) fall
+            // through to the 500 catch-all. Mirrors the GraphQL mapper.
+            FraiseQLError::Database { sql_state, .. } => {
+                match classify_client_input_sqlstate(sql_state.as_deref()) {
+                    Some(ClientInputSqlState::DataException) => {
+                        Self::bad_user_input(err.to_string())
+                    },
+                    Some(ClientInputSqlState::IntegrityConstraint) => {
+                        Self::constraint_violation(err.to_string())
+                    },
+                    None => Self::internal(err.to_string()),
+                }
             },
             _ => Self::internal(err.to_string()),
         }

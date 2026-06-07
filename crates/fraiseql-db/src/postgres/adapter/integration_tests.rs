@@ -638,6 +638,26 @@ async fn test_execute_function_call_with_timing_enabled() {
     );
 }
 
+// #413: proves the live tokio-postgres driver populates `sql_state` with the exact
+// SQLSTATE class the HTTP error-mapper keys on (class 22 = client-input data
+// exception). The unit tests cover the 22xxx/23xxx → 400 classification; this closes
+// the gap that the *premise* (the class actually arrives) holds against real Postgres.
+#[tokio::test]
+async fn execute_raw_query_surfaces_sqlstate_22p02_for_malformed_cast() {
+    let adapter = create_test_adapter().await;
+    let result = adapter.execute_raw_query("SELECT 'not-a-uuid'::uuid").await;
+    match result {
+        Err(FraiseQLError::Database { sql_state, .. }) => {
+            assert_eq!(
+                sql_state.as_deref(),
+                Some("22P02"),
+                "a malformed uuid cast must surface SQLSTATE 22P02 (class 22 → HTTP 400)"
+            );
+        },
+        other => panic!("expected Database error carrying sql_state, got: {other:?}"),
+    }
+}
+
 // ========================================================================
 // Pool Pre-warming Tests (Issue #183)
 // ========================================================================

@@ -162,6 +162,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Client-input DB errors now return HTTP 400, not 500 (#413).** When a PL/pgSQL
+  mutation raised on **client input** — a malformed value that fails a cast (e.g.
+  `"not-a-uuid"` → `uuid`, SQLSTATE `22P02`) or an integrity-constraint violation
+  (not-null / unique / foreign-key / check, class `23xxx`) — the server returned
+  **HTTP 500 / `DATABASE_ERROR`**, because every `FraiseQLError::Database` was mapped
+  to `INTERNAL_SERVER_ERROR` regardless of SQLSTATE. HTTP-aware clients and test
+  harnesses treat 5xx as a server fault to retry/alert on, not a 4xx to surface to the
+  user. The server now classifies a `Database` error by its SQLSTATE: class **`22`**
+  (data exception) → **HTTP 400 / `BAD_USER_INPUT`**, class **`23`** (integrity
+  constraint) → **HTTP 400 / `CONSTRAINT_VIOLATION`**; every other class, an absent
+  SQLSTATE, and connection-pool errors stay **HTTP 500 / `DATABASE_ERROR`**. The PG
+  message is preserved in the structured error. Applied to **both** transports — the
+  GraphQL mapper (`from_fraiseql_error`) and the REST/bulk mapper (`RestError::from`),
+  which classify via one shared predicate so they cannot drift. **Client-visible
+  behaviour change:** these specific cases move from 500 to 400. (Per-subclass
+  `23505 unique_violation → 409 Conflict`, surfacing the SQLSTATE in the error
+  extensions, and the gRPC `Code::Internal` path are tracked follow-ups.)
+
 - **Observer DLQ CLI fabricated data; now talks to the real server API (#341).** The
   `fraiseql-observers dlq` subcommands (list/show/retry/retry-all/remove/stats)
   returned hard-coded JSON fixtures — synthetic items, invented retry counts and

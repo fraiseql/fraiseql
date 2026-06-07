@@ -556,6 +556,47 @@ mod response {
         assert_eq!(err.details, Some(details));
     }
 
+    // #413: REST maps client-input DB faults (SQLSTATE 22xxx/23xxx) to 400, mirroring
+    // the GraphQL mapper. Genuine server faults (other classes, none, pool) stay 500.
+    #[test]
+    fn rest_error_from_sqlstate_22_is_bad_user_input_400() {
+        let err = RestError::from(fraiseql_error::FraiseQLError::Database {
+            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state: Some("22P02".into()),
+        });
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.code, "BAD_USER_INPUT");
+        assert!(err.message.contains("not-a-uuid"));
+    }
+
+    #[test]
+    fn rest_error_from_sqlstate_23_is_constraint_violation_400() {
+        for code in ["23502", "23503", "23505", "23514"] {
+            let err = RestError::from(fraiseql_error::FraiseQLError::Database {
+                message:   "violates constraint".into(),
+                sql_state: Some(code.into()),
+            });
+            assert_eq!(err.status, StatusCode::BAD_REQUEST, "SQLSTATE {code}");
+            assert_eq!(err.code, "CONSTRAINT_VIOLATION", "SQLSTATE {code}");
+        }
+    }
+
+    #[test]
+    fn rest_error_from_non_client_database_stays_500() {
+        for sql_state in [Some("08006".to_string()), None] {
+            let err = RestError::from(fraiseql_error::FraiseQLError::Database {
+                message: "connection failure".into(),
+                sql_state,
+            });
+            assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+            assert_eq!(err.code, "INTERNAL_SERVER_ERROR");
+        }
+        let pool = RestError::from(fraiseql_error::FraiseQLError::ConnectionPool {
+            message: "pool exhausted".into(),
+        });
+        assert_eq!(pool.status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
     #[test]
     fn rest_error_internal() {
         let err = RestError::internal("internal error");
