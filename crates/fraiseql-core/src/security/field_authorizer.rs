@@ -12,9 +12,8 @@
 //! # Semantics
 //!
 //! - **Fail-closed**: any `Err` returned by [`FieldAuthorizer::authorize_field`] is treated as a
-//!   hard deny — the request fails with
-//!   [`FraiseQLError::Authorization`](crate::error::FraiseQLError::Authorization) (HTTP 403 /
-//!   `FORBIDDEN`). The field value is never served on a policy failure.
+//!   hard deny — the request fails with [`FraiseQLError::Authorization`] (HTTP 403 / `FORBIDDEN`).
+//!   The field value is never served on a policy failure.
 //! - **AND-composition**: the dynamic decision composes with the static `requires_scope` gate as a
 //!   logical AND — a field is visible only if *both* the static gate and the dynamic authorizer
 //!   allow it.
@@ -31,7 +30,15 @@
 //! [`with_field_authorizer`](crate::runtime::RuntimeConfig::with_field_authorizer),
 //! exactly parallel to [`with_rls_policy`](crate::runtime::RuntimeConfig::with_rls_policy).
 
-use crate::{error::Result, schema::FieldDenyPolicy, security::SecurityContext};
+use serde_json::Value as JsonValue;
+
+use crate::{
+    db::types::JsonbValue,
+    error::{FraiseQLError, Result},
+    graphql::FieldSelection,
+    schema::{CompiledSchema, FieldDenyPolicy, FieldType},
+    security::SecurityContext,
+};
 
 /// A field-level authorization request handed to a [`FieldAuthorizer`].
 ///
@@ -117,11 +124,256 @@ pub trait FieldAuthorizer: Send + Sync {
     /// # Errors
     ///
     /// Any `Err` is treated as a **hard deny** (fail-closed): the request fails
-    /// with [`FraiseQLError::Authorization`](crate::error::FraiseQLError::Authorization)
+    /// with [`FraiseQLError::Authorization`]
     /// (HTTP 403 / `FORBIDDEN`) and the field value is never served. Return
     /// [`FieldAuthzDecision::Deny`] for an ordinary, expected denial; reserve `Err`
     /// for policy-evaluation failures (e.g. an unreachable policy backend).
     fn authorize_field(&self, req: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision>;
+}
+
+// ============================================================================
+// Runtime enforcement helpers (shared by the executor's projection paths)
+// ============================================================================
+
+/// A selected, policy-gated field on an entity row, with the data the authorizer
+/// needs. `name` is the GraphQL field name — also the projected output key for the
+/// entity row (consistent with the static-gate masking in
+/// [`null_masked_fields`](crate::runtime::executor)).
+pub(crate) struct GatedField {
+    /// Field name (== projected key on the row).
+    pub(crate) name:      String,
+    /// The field's GraphQL arguments as a JSON object, when any are present.
+    pub(crate) arguments: Option<JsonValue>,
+}
+
+/// Resolve the object type a (possibly list-wrapped) field points to, if any.
+fn object_type_of(field_type: &FieldType) -> Option<&str> {
+    field_type
+        .type_name()
+        .or_else(|| field_type.inner_type().and_then(FieldType::type_name))
+}
+
+/// Build a JSON object of a selection's GraphQL arguments, or `None` if it has none.
+fn field_arguments_json(sel: &FieldSelection) -> Option<JsonValue> {
+    if sel.arguments.is_empty() {
+        return None;
+    }
+    let mut map = serde_json::Map::with_capacity(sel.arguments.len());
+    for arg in &sel.arguments {
+        let value = serde_json::from_str::<JsonValue>(&arg.value_json)
+            .unwrap_or_else(|_| JsonValue::String(arg.value_json.clone()));
+        map.insert(arg.name.clone(), value);
+    }
+    Some(JsonValue::Object(map))
+}
+
+/// Returns `true` if any field selected on `return_type` (top-level **or** nested)
+/// resolves to a policy-gated [`FieldDefinition`](crate::schema::FieldDefinition).
+///
+/// Used pre-plan to decide whether to bypass the response cache and the SQL
+/// projection hint (the per-row decision is neither cacheable nor compatible with a
+/// selection-stripped row).
+pub(crate) fn query_selects_gated_field(
+    schema: &CompiledSchema,
+    return_type: &str,
+    root_selection: Option<&FieldSelection>,
+) -> bool {
+    let Some(root) = root_selection else {
+        return false;
+    };
+    let Some(type_def) = schema.find_type(return_type) else {
+        return false;
+    };
+    root.nested_fields.iter().any(|sel| {
+        type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize)
+            || selection_field_has_gated_descendant(schema, return_type, sel)
+    })
+}
+
+/// Returns `true` if `sel` (a field on `parent_type`) has a policy-gated field
+/// somewhere in its sub-selection (depth ≥ 1).
+fn selection_field_has_gated_descendant(
+    schema: &CompiledSchema,
+    parent_type: &str,
+    sel: &FieldSelection,
+) -> bool {
+    if sel.nested_fields.is_empty() {
+        return false;
+    }
+    let Some(parent_def) = schema.find_type(parent_type) else {
+        return false;
+    };
+    let Some(field_def) = parent_def.fields.iter().find(|f| f.name.as_str() == sel.name) else {
+        return false;
+    };
+    let Some(child_type) = object_type_of(&field_def.field_type) else {
+        return false;
+    };
+    let Some(child_def) = schema.find_type(child_type) else {
+        return false;
+    };
+    sel.nested_fields.iter().any(|child_sel| {
+        child_def
+            .fields
+            .iter()
+            .any(|f| f.name.as_str() == child_sel.name && f.authorize)
+            || selection_field_has_gated_descendant(schema, child_type, child_sel)
+    })
+}
+
+/// Returns `true` if a policy-gated field is selected **below the root** (nested
+/// inside an object sub-selection). The Phase-1 enforcement covers only the
+/// top-level entity row; the caller fail-closes when this is `true`.
+pub(crate) fn selection_contains_nested_gated_field(
+    schema: &CompiledSchema,
+    return_type: &str,
+    root_selection: Option<&FieldSelection>,
+) -> bool {
+    let Some(root) = root_selection else {
+        return false;
+    };
+    root.nested_fields
+        .iter()
+        .any(|sel| selection_field_has_gated_descendant(schema, return_type, sel))
+}
+
+/// Collect the top-level policy-gated fields selected on `return_type`, paired with
+/// their GraphQL arguments.
+pub(crate) fn collect_top_level_gated_fields(
+    schema: &CompiledSchema,
+    return_type: &str,
+    root_selection: Option<&FieldSelection>,
+) -> Vec<GatedField> {
+    let (Some(root), Some(type_def)) = (root_selection, schema.find_type(return_type)) else {
+        return Vec::new();
+    };
+    root.nested_fields
+        .iter()
+        .filter(|sel| type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize))
+        .map(|sel| GatedField {
+            name:      sel.name.clone(),
+            arguments: field_arguments_json(sel),
+        })
+        .collect()
+}
+
+/// The fail-closed deny error: a generic 403 that never echoes the parent row or the
+/// underlying policy error (avoids leaking why access was denied).
+fn field_authz_error(type_name: &str, field: &str, code: &str) -> FraiseQLError {
+    FraiseQLError::Authorization {
+        message:  format!("Access denied to field '{field}' on type '{type_name}' [{code}]"),
+        action:   Some("read".to_string()),
+        resource: Some(format!("{type_name}.{field}")),
+    }
+}
+
+/// Apply the configured [`FieldAuthorizer`] to the projected result of a regular
+/// query, per row. `results` are the **full** fetched rows (the `parent` context);
+/// `projected` is the response value, mutated in place (a `Mask` decision nulls the
+/// field on that row). `statically_masked` are fields the static `requires_scope`
+/// gate already denied — skipped here (AND-composition: already denied).
+///
+/// Fail-closed: a `Reject` decision or any policy `Err` returns
+/// [`FraiseQLError::Authorization`] (403) and the value is never served.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] on any `Reject` decision or policy error.
+pub(crate) fn apply_field_authorizer(
+    pass: &FieldAuthzPass<'_>,
+    results: &[JsonbValue],
+    projected: &mut JsonValue,
+    returns_list: bool,
+) -> Result<()> {
+    if pass.gated.is_empty() {
+        return Ok(());
+    }
+    match projected {
+        JsonValue::Array(rows) if returns_list => {
+            for (i, row) in rows.iter_mut().enumerate() {
+                let parent = results.get(i).map(JsonbValue::as_value);
+                enforce_row(pass, parent, row)?;
+            }
+        },
+        JsonValue::Object(_) if !returns_list => {
+            let parent = results.first().map(JsonbValue::as_value);
+            enforce_row(pass, parent, projected)?;
+        },
+        _ => {},
+    }
+    Ok(())
+}
+
+/// The per-query context of a field-authorization pass: who is asking, on which type,
+/// which fields are gated, and which the static gate already denied. Grouped so the
+/// per-row enforcement carries one context instead of many parameters.
+pub(crate) struct FieldAuthzPass<'a> {
+    /// The configured authorizer.
+    pub(crate) authorizer:        &'a dyn FieldAuthorizer,
+    /// The authenticated principal.
+    pub(crate) principal:         &'a SecurityContext,
+    /// The GraphQL type that owns the rows.
+    pub(crate) type_name:         &'a str,
+    /// The selected, policy-gated fields to enforce.
+    pub(crate) gated:             &'a [GatedField],
+    /// Fields the static `requires_scope` gate already denied — skipped (AND-composition).
+    pub(crate) statically_masked: &'a [String],
+}
+
+/// Enforce the gated fields on a single projected row object.
+fn enforce_row(
+    pass: &FieldAuthzPass<'_>,
+    parent: Option<&JsonValue>,
+    projected_row: &mut JsonValue,
+) -> Result<()> {
+    let JsonValue::Object(map) = projected_row else {
+        return Ok(());
+    };
+    let FieldAuthzPass {
+        authorizer,
+        principal,
+        type_name,
+        gated,
+        statically_masked,
+    } = *pass;
+    for gf in gated {
+        // The field is not in this projected row (not selected / absent) — nothing to gate.
+        if !map.contains_key(&gf.name) {
+            continue;
+        }
+        // AND-composition: the static gate already masked this field → already denied.
+        if statically_masked.iter().any(|m| m == &gf.name) {
+            continue;
+        }
+        let req = FieldAuthzRequest {
+            principal,
+            type_name,
+            field_name: &gf.name,
+            parent,
+            arguments: gf.arguments.as_ref(),
+        };
+        match authorizer.authorize_field(&req) {
+            Ok(FieldAuthzDecision::Allow) => {},
+            Ok(FieldAuthzDecision::Deny {
+                on_deny: FieldDenyPolicy::Mask,
+                ..
+            }) => {
+                map.insert(gf.name.clone(), JsonValue::Null);
+            },
+            Ok(FieldAuthzDecision::Deny {
+                code,
+                on_deny: FieldDenyPolicy::Reject,
+            }) => {
+                return Err(field_authz_error(type_name, &gf.name, &code));
+            },
+            Err(_) => {
+                // Fail-closed: any policy error is a hard deny. The underlying error is
+                // not surfaced to the client (no information leak).
+                return Err(field_authz_error(type_name, &gf.name, "field_authorization_failed"));
+            },
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

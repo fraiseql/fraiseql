@@ -1151,3 +1151,326 @@ mod parse_cache {
         );
     }
 }
+
+// ── mod field_authz: #423 dynamic field-level authorization ──────────────
+
+mod field_authz {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use super::*;
+    use crate::{
+        cache::{ResponseCache, ResponseCacheConfig},
+        error::{FraiseQLError, Result as FqlResult},
+        security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest},
+    };
+
+    // ---- reference authorizers --------------------------------------------
+
+    struct AllowAll;
+    impl FieldAuthorizer for AllowAll {
+        fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Allow)
+        }
+    }
+
+    struct DenyReject;
+    impl FieldAuthorizer for DenyReject {
+        fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Deny {
+                code:    "nope".into(),
+                on_deny: FieldDenyPolicy::Reject,
+            })
+        }
+    }
+
+    struct Raising;
+    impl FieldAuthorizer for Raising {
+        fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            Err(FraiseQLError::Validation {
+                message: "policy backend down".into(),
+                path:    None,
+            })
+        }
+    }
+
+    struct OwnerOnly;
+    impl FieldAuthorizer for OwnerOnly {
+        fn authorize_field(&self, req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            let owner = req.parent.and_then(|p| p.get("owner_id")).and_then(|v| v.as_str());
+            if owner == Some(req.principal.user_id.as_str()) {
+                Ok(FieldAuthzDecision::Allow)
+            } else {
+                Ok(FieldAuthzDecision::Deny {
+                    code:    "not_owner".into(),
+                    on_deny: FieldDenyPolicy::Mask,
+                })
+            }
+        }
+    }
+
+    /// Panics if consulted — proves the authorizer is NOT called when nothing is gated.
+    struct PanicIfCalled;
+    impl FieldAuthorizer for PanicIfCalled {
+        fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            panic!("field authorizer must not be consulted here");
+        }
+    }
+
+    /// First call → Allow, every later call → Deny(Mask). Proves the response cache is
+    /// bypassed for gated queries (D5b): a stale `Allow` is never replayed.
+    struct FlipAuthorizer {
+        calls: AtomicUsize,
+    }
+    impl FieldAuthorizer for FlipAuthorizer {
+        fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> FqlResult<FieldAuthzDecision> {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                Ok(FieldAuthzDecision::Allow)
+            } else {
+                Ok(FieldAuthzDecision::Deny {
+                    code:    "later".into(),
+                    on_deny: FieldDenyPolicy::Mask,
+                })
+            }
+        }
+    }
+
+    // ---- schema / fixtures ------------------------------------------------
+
+    fn users_query() -> QueryDefinition {
+        QueryDefinition {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
+        }
+    }
+
+    /// `User` type with a policy-gated `email` field. `email_scope` layers a static
+    /// `requires_scope` (with the given deny policy) on top for AND-composition tests.
+    fn gated_schema(email_scope: Option<(&str, FieldDenyPolicy)>) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(users_query());
+
+        let mut email = FieldDefinition::nullable("email", FieldType::String).with_authorize(true);
+        if let Some((scope, on_deny)) = email_scope {
+            email = email.with_requires_scope(scope).with_on_deny(on_deny);
+        }
+
+        let mut user_type = TypeDefinition::new("User", "v_user");
+        user_type.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("name", FieldType::String),
+            email,
+            FieldDefinition::nullable("owner_id", FieldType::String),
+        ];
+
+        schema.security = Some(SecurityConfig {
+            role_definitions: vec![RoleDefinition {
+                name:        "viewer".into(),
+                description: None,
+                scopes:      vec!["read:User".into()],
+            }],
+            default_role:     None,
+            multi_tenant:     false,
+            tenancy:          TenancyConfig::default(),
+            additional:       HashMap::default(),
+        });
+
+        schema.types.push(user_type);
+        schema
+    }
+
+    fn ctx(user_id: &str) -> SecurityContext {
+        SecurityContext {
+            user_id:          user_id.into(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec!["read:User".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-authz".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn rows() -> Vec<JsonbValue> {
+        vec![
+            JsonbValue::new(serde_json::json!({
+                "id": 1, "name": "Alice", "email": "alice@x.com", "owner_id": "user-1"
+            })),
+            JsonbValue::new(serde_json::json!({
+                "id": 2, "name": "Bob", "email": "bob@x.com", "owner_id": "user-2"
+            })),
+        ]
+    }
+
+    // ---- tests ------------------------------------------------------------
+
+    // HONESTY-1: a raising policy denies the whole query (403); the value is never served.
+    #[tokio::test]
+    async fn raising_policy_denies_query() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(Raising)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await;
+        assert!(result.is_err(), "raising policy must fail closed");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(!msg.contains("alice@x.com"), "must never leak the field value: {msg}");
+    }
+
+    // HONESTY-2: an explicit Deny{Reject} is a 403 and names the field.
+    #[tokio::test]
+    async fn deny_reject_returns_authorization() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(DenyReject)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await;
+        assert!(result.is_err());
+        let msg = format!("{}", result.unwrap_err());
+        assert!(msg.contains("email"), "error should name the denied field: {msg}");
+    }
+
+    // NO-AUTHZ-CONFIGURED: a gated field selected with no authorizer configured → fail closed.
+    #[tokio::test]
+    async fn gated_field_without_authorizer_fails_closed() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default(), // no field_authorizer
+        );
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await;
+        assert!(result.is_err(), "gated field with no authorizer must fail closed");
+    }
+
+    // OWNER: Deny{Mask} unless parent.owner_id == principal → per-row masking; proves the
+    // `parent` carries the *unselected* owner_id (full-row fetch, D3).
+    #[tokio::test]
+    async fn owner_only_masks_non_owner_rows() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(OwnerOnly)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await
+            .unwrap();
+        let users = result["data"]["users"].as_array().unwrap();
+        assert_eq!(users[0]["email"], "alice@x.com", "owner row keeps the field");
+        assert!(users[1]["email"].is_null(), "non-owner row is masked: {}", users[1]);
+    }
+
+    // PASSTHROUGH: no gated field selected → authorizer never consulted, normal response.
+    #[tokio::test]
+    async fn no_gated_field_selected_skips_authorizer() {
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx("user-1"))
+            .await
+            .unwrap();
+        let users = result["data"]["users"].as_array().unwrap();
+        assert_eq!(users[0]["name"], "Alice");
+        assert!(users[0].get("email").is_none(), "email not selected → absent");
+    }
+
+    // AND-1: static requires_scope Reject fires before the dynamic authorizer.
+    #[tokio::test]
+    async fn static_reject_precedes_dynamic_allow() {
+        let executor = Executor::with_config(
+            gated_schema(Some(("admin:*", FieldDenyPolicy::Reject))),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll)),
+        );
+        // viewer lacks admin:* → static Reject → 403, even though the dynamic policy allows.
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await;
+        assert!(result.is_err(), "static reject must win over a dynamic Allow");
+    }
+
+    // AND-2: static Mask already nulled the field → dynamic authorizer is not consulted.
+    #[tokio::test]
+    async fn static_mask_skips_dynamic_authorizer() {
+        let executor = Executor::with_config(
+            gated_schema(Some(("read:User.email", FieldDenyPolicy::Mask))),
+            Arc::new(MockAdapter::new(rows())),
+            // PanicIfCalled would blow up if the dynamic pass ran on the masked field.
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let result = executor
+            .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
+            .await
+            .unwrap();
+        let users = result["data"]["users"].as_array().unwrap();
+        assert!(users[0]["email"].is_null(), "statically-masked field stays null");
+    }
+
+    // CACHE-BYPASS (D5b): with the response cache enabled, a gated query is never cached,
+    // so a policy that flips Allow→Deny between calls is honoured fresh each time.
+    #[tokio::test]
+    async fn response_cache_bypassed_for_gated_query() {
+        let cache = Arc::new(ResponseCache::new(ResponseCacheConfig {
+            enabled:     true,
+            max_entries: 100,
+            ttl_seconds: 3600,
+        }));
+        let executor = Executor::with_config(
+            gated_schema(None),
+            Arc::new(MockAdapter::new(rows())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(FlipAuthorizer {
+                calls: AtomicUsize::new(0),
+            })),
+        )
+        .with_response_cache(cache);
+
+        let q = "{ users { id email } }";
+        let first = executor.execute_with_security(q, None, &ctx("user-1")).await.unwrap();
+        let second = executor.execute_with_security(q, None, &ctx("user-1")).await.unwrap();
+
+        // First call → Allow (email present); second → Deny(Mask) (email null).
+        // If the cache were used, the second would replay the first.
+        assert_eq!(first["data"]["users"][0]["email"], "alice@x.com");
+        assert!(
+            second["data"]["users"][0]["email"].is_null(),
+            "a stale cached Allow must not be replayed for a gated query"
+        );
+    }
+}

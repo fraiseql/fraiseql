@@ -111,16 +111,27 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 .await;
         }
 
+        // 0a. Detect whether a policy-gated field (#423) is selected (top-level or
+        //     nested). When so, the per-row dynamic authorizer decision is neither
+        //     cacheable (D5b) nor compatible with a selection-stripped row, so the
+        //     response cache and the SQL projection hint are both bypassed below.
+        let gated_present = crate::security::field_authorizer::query_selects_gated_field(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            query_match.selections.first(),
+        );
+
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key =
-            if self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled()) {
-                let query_key = Self::compute_response_cache_key(&query_match)?;
-                let sec_hash =
-                    crate::cache::response_cache::hash_security_context(Some(security_context));
-                Some((query_key, sec_hash))
-            } else {
-                None
-            };
+        let response_cache_key = if !gated_present
+            && self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled())
+        {
+            let query_key = Self::compute_response_cache_key(&query_match)?;
+            let sec_hash =
+                crate::cache::response_cache::hash_security_context(Some(security_context));
+            Some((query_key, sec_hash))
+        } else {
+            None
+        };
 
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
@@ -191,8 +202,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
         //    ProjectionField tree from the selection set so that composite sub-fields are projected
-        //    with nested jsonb_build_object instead of returning the full blob.
-        let projection_hint = if !plan.projection_fields.is_empty()
+        //    with nested jsonb_build_object instead of returning the full blob. When a policy-gated
+        //    field is selected (#423), the hint is skipped so the adapter returns the full row,
+        //    giving the field authorizer the complete `parent` to decide on.
+        let projection_hint = if !gated_present
+            && !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
             let root_fields = query_match
@@ -363,6 +377,60 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // 11. Null out masked fields in the projected result
         if !access.masked.is_empty() {
             null_masked_fields(&mut projected, &access.masked);
+        }
+
+        // 11c. Apply the dynamic field authorizer (#423) per row. The static gate (step
+        //      10) ran first — AND-composition: a field shown only if both allow. Fail-closed:
+        //      a Reject decision or any policy error returns 403; the value is never served.
+        if gated_present {
+            use crate::security::field_authorizer as authz;
+
+            let return_type = &query_match.query_def.return_type;
+            // A gated field is selected but no authorizer is configured → fail closed.
+            let Some(authorizer) = self.ctx.config.field_authorizer.as_ref() else {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "Field-level authorization is required for a selected field on type \
+                         '{return_type}' but no field authorizer is configured"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(return_type.clone()),
+                });
+            };
+            // Phase 1 enforces only top-level entity-row fields; a gated field nested inside a
+            // sub-selection is fail-closed (tracked follow-up: extend enforcement to nesting).
+            if authz::selection_contains_nested_gated_field(
+                &self.ctx.schema,
+                return_type,
+                query_match.selections.first(),
+            ) {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "Field-level authorization of nested fields on type '{return_type}' is \
+                         not supported in this version"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(return_type.clone()),
+                });
+            }
+            let gated = authz::collect_top_level_gated_fields(
+                &self.ctx.schema,
+                return_type,
+                query_match.selections.first(),
+            );
+            let pass = authz::FieldAuthzPass {
+                authorizer:        authorizer.as_ref(),
+                principal:         security_context,
+                type_name:         return_type,
+                gated:             &gated,
+                statically_masked: &access.masked,
+            };
+            authz::apply_field_authorizer(
+                &pass,
+                &results,
+                &mut projected,
+                query_match.query_def.returns_list,
+            )?;
         }
 
         // 12. Wrap in GraphQL data envelope
