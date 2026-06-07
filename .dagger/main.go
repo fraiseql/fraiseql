@@ -374,6 +374,14 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + "'",
 		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES)'",
 		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "'",
+		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
+		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
+		// and run in the integration legs; `--features cli` pulls in the CLI
+		// subcommand tests. Previously observers was excluded from the workspace
+		// run and only its #[ignore]d/name-filtered tests ran (in integration),
+		// so these unit tests never executed in CI.
+		"echo '### cargo test -p fraiseql-observers --lib --features cli (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features cli",
 		"echo '### cargo test --doc --all-features'",
 		"cargo test --doc --all-features",
 		"echo \"test OK: workspace suite passed (toolchain " + toolchain + ", testcontainers tests skipped)\"",
@@ -750,6 +758,7 @@ func (m *FraiseqlCi) wirePgService() *dagger.Service {
 //     table per test, --test-threads=1 for shared-DB isolation),
 //   - the azure_emulator round-trip (feature azure-blob; reads AZURE_BLOB_ENDPOINT),
 //   - the gcs_emulator round-trip (feature gcs; reads GCS_ENDPOINT).
+//
 // The routes tests use a local-filesystem backend (no S3/minio needed here).
 func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
