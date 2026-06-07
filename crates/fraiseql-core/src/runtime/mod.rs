@@ -109,7 +109,9 @@ pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
-use crate::security::{FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy};
+use crate::security::{
+    FieldAuthorizer, FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy,
+};
 
 /// Runtime configuration for the FraiseQL query executor.
 ///
@@ -177,6 +179,16 @@ pub struct RuntimeConfig {
     /// what rows a user can access (e.g., tenant isolation, owner-based access).
     pub rls_policy: Option<Arc<dyn RLSPolicy>>,
 
+    /// Optional dynamic field-level authorizer.
+    ///
+    /// When set, fields marked policy-gated in the compiled schema
+    /// ([`FieldDefinition::authorize`](crate::schema::FieldDefinition)) are passed to
+    /// this authorizer per row, which returns an allow/deny decision based on the
+    /// principal, the parent row, and the field arguments. Composes as a logical AND
+    /// with the static `requires_scope` gate and is fail-closed (any error denies).
+    /// See [`FieldAuthorizer`].
+    pub field_authorizer: Option<Arc<dyn FieldAuthorizer>>,
+
     /// Query timeout in milliseconds (0 = no timeout).
     pub query_timeout_ms: u64,
 
@@ -220,6 +232,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
+            .field("field_authorizer", &self.field_authorizer.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
@@ -238,6 +251,7 @@ impl Default for RuntimeConfig {
             enable_tracing:       false,
             field_filter:         None,
             rls_policy:           None,
+            field_authorizer:     None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
@@ -286,6 +300,39 @@ impl RuntimeConfig {
     #[must_use = "builder method returns modified builder"]
     pub fn with_rls_policy(mut self, policy: Arc<dyn RLSPolicy>) -> Self {
         self.rls_policy = Some(policy);
+        self
+    }
+
+    /// Configure a dynamic field-level authorizer.
+    ///
+    /// When set, fields marked policy-gated in the compiled schema
+    /// ([`FieldDefinition::authorize`](crate::schema::FieldDefinition)) are evaluated
+    /// per row by this authorizer. The decision composes as a logical AND with the
+    /// static `requires_scope` gate and is fail-closed (any error or raise denies
+    /// with HTTP 403 / `FORBIDDEN`). Parallel to [`with_rls_policy`](Self::with_rls_policy).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::runtime::RuntimeConfig;
+    /// use fraiseql_core::security::{
+    ///     FieldAuthorizer, FieldAuthzRequest, FieldAuthzDecision,
+    /// };
+    /// use fraiseql_core::error::Result;
+    /// use std::sync::Arc;
+    ///
+    /// struct AllowAll;
+    /// impl FieldAuthorizer for AllowAll {
+    ///     fn authorize_field(&self, _req: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+    ///         Ok(FieldAuthzDecision::Allow)
+    ///     }
+    /// }
+    ///
+    /// let config = RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll));
+    /// ```
+    #[must_use = "builder method returns modified builder"]
+    pub fn with_field_authorizer(mut self, authorizer: Arc<dyn FieldAuthorizer>) -> Self {
+        self.field_authorizer = Some(authorizer);
         self
     }
 }
