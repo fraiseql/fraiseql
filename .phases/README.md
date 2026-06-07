@@ -1,15 +1,20 @@
 # FraiseQL .phases/
 
-Active sprint: [2026-05-20-sprint/](2026-05-20-sprint/)
+**Active:** [2026-05-31-release-train/](2026-05-31-release-train/) — master
+orchestration for everything queued after v2.3.2 (Dagger CI migration as the
+prerequisite, then the v2.4.0 tail, deferred-bug waves, and enhancements), laid
+out for parallel git-worktree execution. **Start there.**
 
 ## Archive
 
 Completed campaigns moved to [_archive/](_archive/).
 
-## Deferred (open campaigns not in current sprint)
+## Shipped (previously-deferred, now merged to dev)
 
-- [federation-docs-170/](federation-docs-170/) — docs follow-up to PR #276 WASM host bridge (issue #170)
-- [freebsd-148/](freebsd-148/) — FreeBSD support (issue #148)
+- [federation-docs-170/](federation-docs-170/) — issue #170 merged via PR #403
+- [freebsd-148/](freebsd-148/) — issue #148 merged via PR #402
+
+(Superseded sprint: [2026-05-20-sprint/](2026-05-20-sprint/).)
 
 ## Convention
 
