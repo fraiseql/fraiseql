@@ -42,6 +42,7 @@
         {
           "name": "status",
           "field_type": "OrderStatus",
+          "nullable": false,
           "description": "Filter by order status"
         },
         {

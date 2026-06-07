@@ -204,6 +204,15 @@ fn golden_02_input_types() {
     let created_after = filter.fields.iter().find(|f| f.name == "created_after").unwrap();
     let dep = created_after.deprecation.as_ref().expect("created_after must be deprecated");
     assert_eq!(dep.reason.as_deref(), Some("Use dateRange instead"));
+
+    // #414: input-field nullability. `status` carries explicit `"nullable": false`
+    // → required; `min_amount`/`created_after` omit the key → default to nullable.
+    let status = filter.fields.iter().find(|f| f.name == "status").unwrap();
+    assert!(!status.nullable, "explicit nullable:false must deserialize as non-null");
+    assert!(status.is_required(), "non-null field without a default is required");
+    assert!(min_amount.nullable, "absent nullable key must default to true (nullable)");
+    assert!(!min_amount.is_required(), "field with a default is not required");
+    assert!(created_after.nullable, "absent nullable key must default to true (nullable)");
 }
 
 #[test]

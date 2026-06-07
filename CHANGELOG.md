@@ -160,7 +160,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   types browsers execute as active content (`text/html`, `image/svg+xml`, …) stay
   attachments even then.
 
+### Breaking
+
+- **Compiled-schema format: input-object fields now carry `nullable` (#414).** Each
+  `InputFieldDefinition` in `schema.compiled.json` gains a `nullable` boolean (mirroring the
+  output `FieldDefinition.nullable`), so the runtime can distinguish a required (non-null)
+  input field from an optional one — previously a compiled input field carried only `name` +
+  `field_type` and requiredness was lost. **`fraiseql-cli compile` emits the new field;
+  recompile your schema** to pick up required-input-field enforcement (see Fixed, below). The
+  field is serde-defaulted to `true` (nullable) on load, so an older compiled artifact still
+  deserialises — it simply enforces nothing until recompiled. Nullability is driven by the
+  `nullable` flag the SDK emits, **not** by a `!` suffix in the type string: a hand-written
+  compiled schema encoding a required field only as `"field_type": "ID!"` (without
+  `"nullable": false`) is treated as optional until recompiled via the SDK.
+
 ### Fixed
+
+- **Required input fields are now enforced before the database call (#414).** `fraiseql-cli
+  compile` dropped per-field nullability for input-object types, so the runtime could not
+  tell a required input field from an optional one: a create mutation that **omitted** a
+  non-null input field (or passed explicit `null`) flattened a SQL `NULL` straight into the
+  function instead of being rejected. The compiler now carries input-field nullability into
+  the compiled schema (see Breaking, above), and the mutation executor rejects an
+  omitted-or-explicit-null required (non-null, no-default) input field with a GraphQL
+  **validation error** (HTTP 200 + `errors[]`) before any DB round-trip — a clear, actionable
+  message in place of relying on a downstream constraint failure (post-#413 those surface as
+  HTTP 400, but only after the function runs). Enforcement covers the insert/delete/custom
+  **flatten** path at the universal mutation chokepoint. As part of the same lookup fix, a
+  **latent camelCase Insert bug** is closed: under `NamingConvention::CamelCase` the flatten
+  path looked up input values by the canonical (snake_case) name while clients send camelCase
+  keys, so values silently became `NULL`; fields are now matched by their GraphQL surface
+  name. GraphQL introspection now reports a required input field as `NON_NULL`. **Not**
+  covered (tracked follow-ups): update-path three-state inputs (an omitted field still means
+  "leave unchanged"), the gRPC mutation path (binds proto fields directly, bypassing the
+  chokepoint), query/filter inputs (optional by design), input-object-field **kind** +
+  list-element nullability in introspection, and applying an input field's default for an
+  absent value.
 
 - **Client-input DB errors now return HTTP 400, not 500 (#413).** When a PL/pgSQL
   mutation raised on **client input** — a malformed value that fails a cast (e.g.

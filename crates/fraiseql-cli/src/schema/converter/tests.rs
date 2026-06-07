@@ -601,7 +601,7 @@ fn test_convert_input_object() {
                 IntermediateInputField {
                     name:        "name".to_string(),
                     field_type:  "String".to_string(),
-                    nullable:    true,
+                    nullable:    false,
                     description: None,
                     default:     None,
                     deprecated:  None,
@@ -662,16 +662,26 @@ fn test_convert_input_object() {
     assert_eq!(filter.description, Some("User filter input".to_string()));
     assert_eq!(filter.fields.len(), 3);
 
-    // Check name field
+    // Check name field — nullability must survive the conversion (#414).
     let name_field = filter.find_field("name").expect("test");
     assert_eq!(name_field.field_type, "String");
     assert!(!name_field.is_deprecated());
+    assert!(
+        !name_field.nullable,
+        "non-null input field must compile to nullable=false (#414)"
+    );
+    assert!(name_field.is_required(), "non-null field with no default is required (#414)");
 
     // Check active field with default value
     let active_field = filter.find_field("active").expect("test");
     assert_eq!(active_field.field_type, "Boolean");
     assert_eq!(active_field.default_value, Some("true".to_string()));
     assert_eq!(active_field.description, Some("Filter by active status".to_string()));
+    assert!(
+        active_field.nullable,
+        "nullable input field must compile to nullable=true (#414)"
+    );
+    assert!(!active_field.is_required(), "nullable field is not required (#414)");
 
     // Check deprecated field
     let old_field = filter.find_field("oldField").expect("test");

@@ -126,8 +126,10 @@ pub struct IntermediateInputField {
     #[serde(rename = "type")]
     pub field_type: String,
 
-    /// Is field nullable?
-    #[serde(default)]
+    /// Is field nullable? Defaults to `true` — GraphQL input fields are nullable
+    /// unless explicitly marked non-null, so an absent key degrades safely to
+    /// "optional" (no required-field enforcement) rather than over-rejecting (#414).
+    #[serde(default = "default_input_nullable")]
     pub nullable: bool,
 
     /// Field description (from docstring)
@@ -141,4 +143,10 @@ pub struct IntermediateInputField {
     /// Deprecation info (if field is deprecated)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
+}
+
+/// Serde default for [`IntermediateInputField::nullable`] — GraphQL input fields
+/// are nullable unless explicitly marked non-null.
+const fn default_input_nullable() -> bool {
+    true
 }

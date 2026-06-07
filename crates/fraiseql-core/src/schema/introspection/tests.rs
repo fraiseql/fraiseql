@@ -328,6 +328,7 @@ fn test_input_object_introspection() {
             InputFieldDefinition {
                 name:             "name".to_string(),
                 field_type:       "String".to_string(),
+                nullable:         true,
                 description:      Some("Filter by name".to_string()),
                 default_value:    None,
                 deprecation:      None,
@@ -336,6 +337,7 @@ fn test_input_object_introspection() {
             InputFieldDefinition {
                 name:             "email".to_string(),
                 field_type:       "String".to_string(),
+                nullable:         true,
                 description:      None,
                 default_value:    None,
                 deprecation:      None,
@@ -344,6 +346,7 @@ fn test_input_object_introspection() {
             InputFieldDefinition {
                 name:             "limit".to_string(),
                 field_type:       "Int".to_string(),
+                nullable:         true,
                 description:      Some("Max results".to_string()),
                 default_value:    Some("10".to_string()),
                 deprecation:      None,
@@ -848,6 +851,7 @@ fn test_deprecated_input_field_introspection() {
             InputFieldDefinition {
                 name:             "name".to_string(),
                 field_type:       "String!".to_string(),
+                nullable:         false,
                 default_value:    None,
                 description:      Some("User name".to_string()),
                 deprecation:      None,
@@ -856,6 +860,7 @@ fn test_deprecated_input_field_introspection() {
             InputFieldDefinition {
                 name:             "oldEmail".to_string(),
                 field_type:       "String".to_string(),
+                nullable:         true,
                 default_value:    None,
                 description:      Some("Legacy email field".to_string()),
                 deprecation:      Some(DeprecationInfo {

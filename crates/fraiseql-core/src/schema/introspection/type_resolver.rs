@@ -143,10 +143,33 @@ pub(super) fn build_input_object_type(input_def: &InputObjectDefinition) -> Intr
         .map(|f| {
             let validation_rules = f.validation_rules.iter().map(build_validation_rule).collect();
 
+            // Named type reference, with any trailing `!` stripped so the type
+            // *name* is clean — the non-null signal is carried by the NON_NULL
+            // wrapper (driven by `f.nullable`, #414), not the name. The inner
+            // kind (Scalar vs Enum/InputObject) and list-element nullability are
+            // not yet reconstructed from the string type — tracked as follow-ups.
+            let named = type_ref(f.field_type.trim_end_matches('!'));
+            let input_type = if f.nullable {
+                named
+            } else {
+                IntrospectionType {
+                    kind:               TypeKind::NonNull,
+                    name:               None,
+                    description:        None,
+                    fields:             None,
+                    interfaces:         None,
+                    possible_types:     None,
+                    enum_values:        None,
+                    input_fields:       None,
+                    of_type:            Some(Box::new(named)),
+                    specified_by_u_r_l: None,
+                }
+            };
+
             IntrospectionInputValue {
                 name: f.name.clone(),
                 description: f.description.clone(),
-                input_type: type_ref(&f.field_type),
+                input_type,
                 default_value: f.default_value.clone(),
                 is_deprecated: f.is_deprecated(),
                 deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),

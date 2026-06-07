@@ -1,6 +1,6 @@
 //! Tests for the mutation runner, co-located with `runners/mutation.rs`.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
 use std::sync::Arc;
 
@@ -894,6 +894,209 @@ mod mutation {
         assert_eq!(captured.len(), 2, "insert mutation must flatten to two positional args");
         assert_eq!(captured[0], "Bob");
         assert_eq!(captured[1], "bob@example.com");
+    }
+
+    // ── #414: required input-field enforcement on the flatten path ─────────
+
+    /// Insert/Delete/Custom flatten path schema with a required field
+    /// (`contract_id`: non-null, no default), an optional field (`currency`),
+    /// and a non-null field that has a default (`active` — NOT required).
+    fn schema_with_required_field_insert() -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreatePriceInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("contract_id", "ID").with_nullable(false),
+                InputFieldDefinition::new("currency", "String").with_nullable(true),
+                InputFieldDefinition::new("active", "Boolean")
+                    .with_nullable(false)
+                    .with_default_value("true"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "create_price".to_string(),
+            return_type: "Price".to_string(),
+            sql_source: Some("create_price".to_string()),
+            operation: MutationOperation::Insert {
+                table: "create_price".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreatePriceInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_price", "Price")
+        });
+        schema
+    }
+
+    /// A required input field omitted from a create must be rejected with a
+    /// validation error before the DB call — not passed through as SQL NULL.
+    #[tokio::test]
+    async fn insert_rejects_omitted_required_input_field() {
+        let schema = schema_with_required_field_insert();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        // contract_id (required) is omitted; active has a default, so absent is fine.
+        let vars = serde_json::json!({ "input": { "currency": "USD" } });
+        let err = executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap_err();
+
+        match err {
+            FraiseQLError::Validation { message, .. } => {
+                assert!(
+                    message.contains("contract_id"),
+                    "validation error must name the missing field; got: {message}"
+                );
+            },
+            other => panic!("expected Validation error, got: {other:?}"),
+        }
+        assert!(
+            adapter_ref.args().is_empty(),
+            "the DB function must NOT be called when a required field is missing"
+        );
+    }
+
+    /// An explicit `null` for a required input field is just as invalid as omitting it.
+    #[tokio::test]
+    async fn insert_rejects_explicit_null_required_input_field() {
+        let schema = schema_with_required_field_insert();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "contract_id": null, "currency": "USD" } });
+        let err = executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap_err();
+
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "expected Validation, got {err:?}"
+        );
+        assert!(
+            adapter_ref.args().is_empty(),
+            "DB must not be called for an explicit-null required field"
+        );
+    }
+
+    /// When the required field is present (and a non-null-with-default field is
+    /// omitted), the mutation proceeds and the field reaches the DB.
+    #[tokio::test]
+    async fn insert_accepts_present_required_input_field() {
+        let schema = schema_with_required_field_insert();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        // contract_id present; active (non-null but defaulted) omitted → still OK.
+        let vars = serde_json::json!({ "input": { "contract_id": "c1", "currency": "USD" } });
+        executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 3, "all three input fields flatten to positional args");
+        assert_eq!(captured[0], "c1");
+        assert_eq!(captured[1], "USD");
+    }
+
+    /// A non-null input field that carries a default is NOT required: omitting it
+    /// must not be rejected (the default covers it).
+    #[tokio::test]
+    async fn insert_non_null_field_with_default_is_not_required() {
+        let schema = schema_with_required_field_insert();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let executor = Executor::new(schema, adapter);
+
+        // Provide the genuinely-required field; omit `active` (non-null + default).
+        let vars = serde_json::json!({ "input": { "contract_id": "c1" } });
+        let result = executor.execute_mutation("create_price", Some(&vars), &[]).await;
+        assert!(
+            result.is_ok(),
+            "omitting a defaulted non-null field must not be rejected: {result:?}"
+        );
+    }
+
+    /// Update mutations use partial-update (three-state) semantics: an omitted
+    /// required field means "leave unchanged" and must NOT be rejected here.
+    /// (`schema_with_update_mutation`'s input has a non-null `id`.)
+    #[tokio::test]
+    async fn update_does_not_enforce_required_input_field() {
+        let mut schema = schema_with_update_mutation();
+        // Make `id` genuinely required to prove the update path still skips enforcement.
+        if let Some(input) = schema.input_types.iter_mut().find(|t| t.name == "UpdateUserInput") {
+            if let Some(id) = input.fields.iter_mut().find(|f| f.name == "id") {
+                id.nullable = false;
+            }
+        }
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let executor = Executor::new(schema, adapter);
+
+        // `id` (now required) omitted — update must still proceed (three-state).
+        let vars = serde_json::json!({ "input": { "name": "Alice" } });
+        let result = executor.execute_mutation("update_user", Some(&vars), &[]).await;
+        assert!(result.is_ok(), "update path must not enforce required input fields: {result:?}");
+    }
+
+    /// Under `CamelCase` naming the client sends the surface (camelCase) key for a
+    /// canonical `snake_case` required field. The required check must look it up by
+    /// the surface name (`display_name`) so a present field is not falsely rejected
+    /// — and the value must actually reach the DB (fixes a latent value-pass miss).
+    #[tokio::test]
+    async fn insert_camelcase_required_field_found_by_surface_name() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("full_name", "String").with_nullable(false),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "create_user".to_string(),
+            return_type: "User".to_string(),
+            sql_source: Some("create_user".to_string()),
+            operation: MutationOperation::Insert {
+                table: "create_user".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_user", "User")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        // Client speaks camelCase: `fullName` maps to canonical `full_name`.
+        let vars = serde_json::json!({ "input": { "fullName": "Alice" } });
+        executor.execute_mutation("create_user", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "single field flattens to one positional arg");
+        assert_eq!(
+            captured[0], "Alice",
+            "camelCase 'fullName' must be found by surface name and reach the DB; got {captured:?}"
+        );
     }
 
     /// Explicitly-null fields in an update input must survive as key-present-null

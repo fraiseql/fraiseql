@@ -113,6 +113,10 @@ impl SchemaConverter {
         InputFieldDefinition {
             name: intermediate.name,
             field_type: intermediate.field_type,
+            // Carry per-field nullability into the compiled schema so the runtime
+            // can enforce required input fields (#414). Output fields already do
+            // this via `convert_field`.
+            nullable: intermediate.nullable,
             description: intermediate.description,
             default_value,
             deprecation,

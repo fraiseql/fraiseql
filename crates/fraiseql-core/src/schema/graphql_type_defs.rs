@@ -429,6 +429,13 @@ impl InputObjectDefinition {
     }
 }
 
+/// Serde default for [`InputFieldDefinition::nullable`]: input fields are
+/// nullable unless explicitly marked otherwise (GraphQL semantics + safe
+/// degradation for compiled schemas predating the `nullable` field).
+const fn default_input_field_nullable() -> bool {
+    true
+}
+
 /// A field within a GraphQL input object type.
 ///
 /// # Example
@@ -436,9 +443,9 @@ impl InputObjectDefinition {
 /// ```
 /// use fraiseql_core::schema::InputFieldDefinition;
 ///
-/// let field = InputFieldDefinition::new("email", "String!")
+/// let field = InputFieldDefinition::new("email", "String")
 ///     .with_description("User's email address")
-///     .with_default_value("\"user@example.com\"");
+///     .with_nullable(false); // required
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InputFieldDefinition {
@@ -447,6 +454,19 @@ pub struct InputFieldDefinition {
 
     /// Field type (e.g., `"String!"`, `"[Int]"`, `"UserFilter"`).
     pub field_type: String,
+
+    /// Whether this input field is nullable (optional).
+    ///
+    /// Drives required-field enforcement: a non-nullable field with no default
+    /// must be supplied (and non-null) by the client or the request is rejected
+    /// before the database call. Unlike the output [`FieldDefinition::nullable`]
+    /// (which defaults to `false`), this defaults to `true` — GraphQL input
+    /// fields are nullable unless explicitly marked non-null, and a missing key
+    /// degrades safely to "optional" (no enforcement) rather than over-rejecting.
+    ///
+    /// [`FieldDefinition::nullable`]: super::FieldDefinition::nullable
+    #[serde(default = "default_input_field_nullable")]
+    pub nullable: bool,
 
     /// Description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -472,6 +492,7 @@ impl InputFieldDefinition {
         Self {
             name:             name.into(),
             field_type:       field_type.into(),
+            nullable:         true,
             description:      None,
             default_value:    None,
             deprecation:      None,
@@ -483,6 +504,13 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
+        self
+    }
+
+    /// Set whether this field is nullable (optional). Defaults to `true`.
+    #[must_use]
+    pub const fn with_nullable(mut self, nullable: bool) -> Self {
+        self.nullable = nullable;
         self
     }
 
@@ -507,9 +535,14 @@ impl InputFieldDefinition {
     }
 
     /// Check if this field is required (non-nullable without default).
+    ///
+    /// Driven by [`nullable`](Self::nullable), not the `!` suffix of
+    /// [`field_type`](Self::field_type): a filter operator field can have a
+    /// non-null type (e.g. `"[String!]!"`) yet be optional, so requiredness is
+    /// tracked separately from the type string.
     #[must_use]
-    pub fn is_required(&self) -> bool {
-        self.field_type.ends_with('!') && self.default_value.is_none()
+    pub const fn is_required(&self) -> bool {
+        !self.nullable && self.default_value.is_none()
     }
 
     /// Add a validation rule to this field.

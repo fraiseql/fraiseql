@@ -354,9 +354,34 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         // Insert / Delete / Custom: flatten Input type fields to positional typed args.
         let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
         if let Some(input_obj) = input_obj {
+            // #414: enforce required (non-null, no-default) input fields before the
+            // database call, rejecting an omitted-or-explicit-null required field
+            // with a GraphQL validation error instead of passing SQL NULL through.
+            //
+            // Look up each field by its GraphQL surface name (`display_name`):
+            // under `NamingConvention::CamelCase` the client sends camelCase keys
+            // while `input_type.fields` hold canonical (snake_case) names. Using
+            // the surface key both makes the required check correct and fixes the
+            // latent value-passing miss on the camelCase Insert path (previously
+            // only the Update path recased — see `recase_input_payload`).
+            let mut missing_input_fields: Vec<&str> = Vec::new();
             for field in &input_type.fields {
-                let value = input_obj.get(&field.name).cloned();
-                args.push(value.unwrap_or(serde_json::Value::Null));
+                let key = ctx.schema.display_name(&field.name);
+                let value = input_obj.get(&key);
+                if field.is_required() && value.is_none_or(serde_json::Value::is_null) {
+                    missing_input_fields.push(field.name.as_str());
+                }
+                args.push(value.cloned().unwrap_or(serde_json::Value::Null));
+            }
+            if !missing_input_fields.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Mutation '{mutation_name}': required input field(s) not provided or \
+                         null: {}",
+                        missing_input_fields.join(", ")
+                    ),
+                    path:    None,
+                });
             }
         } else if !mutation_def.arguments[0].nullable {
             missing_required.push("input");
