@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Dynamic field-level authorization — pluggable `FieldAuthorizer` (#423).** v2 had
+  only *static* field gating (`field(requires_scope=…)`): it can answer "does this
+  principal hold scope X?" but not relational/contextual rules that depend on the
+  **row** being resolved, the **principal**, and the **field arguments** (e.g. "show
+  `User.email` only to the row's owner or an admin"). A new pluggable, decision-returning
+  `FieldAuthorizer` trait (the field analogue of an operation-level authorizer, mirroring
+  the `RLSPolicy` plugin) closes that gap. Register one on `RuntimeConfig` via
+  `with_field_authorizer(…)`; mark a field policy-gated with `authorize: true` in the
+  compiled schema (authored as `field(authorize=True)` → `IntermediateField.authorize`).
+  For each selected gated field the engine consults the authorizer per row, passing the
+  principal, the **full** row (`parent`), and the field arguments. Semantics:
+  **fail-closed** — any policy error or a `Deny { on_deny: Reject }` returns HTTP 403
+  `FORBIDDEN` and the value is never served; `Deny { on_deny: Mask }` nulls just that
+  field on just that row; and the decision **AND-composes** with the static
+  `requires_scope` gate (a field is visible only if both allow). Enforced on the
+  authenticated query and mutation paths; **every other projection path
+  (unauthenticated query, REST direct, Relay list/`node`, federation `_entities`) fails
+  closed** when a policy-gated field could be projected — a missed path cannot leak a
+  gated field. Per-row enforcement on Relay/federation, an SDK `@authorize_field`
+  authoring surface, and nested-field enforcement are tracked follow-ups (top-level
+  fields are enforced today; nested gated fields fail closed). **Compiled-schema format
+  note:** `FieldDefinition.authorize` / `IntermediateField.authorize` are new fields;
+  unlike the project's usual "plain required field, recompile to migrate" stance for
+  compiled-schema additions, this one keeps `#[serde(default, skip_serializing_if = …)]`
+  (a deliberate divergence) so `authorize: false` is never serialized — existing golden
+  fixtures and the fuzz corpus stay byte-stable and no recompile is forced.
+
 - **Outbound observer webhooks can now be HMAC-signed (#345).** Webhook payloads
   were sent unsigned, so receivers had no way to authenticate them — the
   documented receiver-side verification pattern was not implementable
