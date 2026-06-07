@@ -1,6 +1,7 @@
 //! PostgreSQL integration tests.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::items_after_statements)]
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 //! These tests require a running PostgreSQL database with test data.
 //!
 //! ## Running the tests
