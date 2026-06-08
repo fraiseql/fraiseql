@@ -6,9 +6,9 @@ name: Dagger — security
 #                   covering the legacy license-scan + dependency-audit jobs.
 #   - compliance  — required-file + secret-pattern shell gates (compliance-check).
 # The standalone cargo-deny binary parses Cargo.lock directly: no compile, no
-# backing services, so this gate is immune to the Docker Hub anonymous pull
-# rate-limit that gates the integration suites (it only pulls the cached ubuntu base
-# + a persistent advisory-db cache volume). See parity-notes.md.
+# backing services, so this gate is light — it only pulls the ubuntu base (from the
+# private ghcr.io/fraiseql mirror, see mirror-base-images.yml) plus a persistent
+# advisory-db cache volume. See parity-notes.md.
 #
 # NOT ported (stay GitHub-native / dispatch-only, same precedent as CodeQL):
 # secrets-scan (TruffleHog PR-diff), container-security (Trivy + SARIF upload to GH
@@ -22,6 +22,12 @@ on:
     branches: [dev]
   workflow_dispatch:
 
+# packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image
+# mirror (.github/workflows/mirror-base-images.yml); contents: read for checkout.
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: dagger-security-${{ github.ref }}
   cancel-in-progress: true
@@ -33,6 +39,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The Dagger engine pulls the private ghcr.io/fraiseql/* base images via the
+      # host's docker credentials; authenticate with the job's GITHUB_TOKEN first.
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: dagger call security
         run: |

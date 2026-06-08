@@ -4,10 +4,10 @@ name: Dagger — feature matrix
 # `cargo check --features …` combos (feature-matrix / database-matrix /
 # storage-matrix / functions-matrix) onto one parameterized Dagger fn, with the
 # combo list as typed Go data (.dagger/feature-combos.go). cargo check / clippy only
-# — no test binaries, so NO backing services: this matrix is immune to the Docker Hub
-# anonymous pull rate-limit that gates the integration suites (it only pulls the
-# cached rust:1.92). Runs on the self-hosted runner (fraiseql-8core) at ~$0/min,
-# reusing the box's cargo/sccache cache volumes (warm = fast). See parity-notes.md.
+# — no test binaries, so NO backing services: it only pulls the rust:1.92 base (from
+# the private ghcr.io/fraiseql mirror, see mirror-base-images.yml). Runs on the
+# self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's cargo/sccache
+# cache volumes (warm = fast). See parity-notes.md.
 #
 # ONE job, `dagger call feature-matrix`, which fans the combos across N lanes
 # (featureMatrixLanes in feature-combos.go), each lane on its own target cache volume
@@ -26,6 +26,12 @@ on:
     branches: [dev]
   workflow_dispatch:
 
+# packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image
+# mirror (.github/workflows/mirror-base-images.yml); contents: read for checkout.
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: dagger-feature-matrix-${{ github.ref }}
   cancel-in-progress: true
@@ -37,6 +43,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The Dagger engine pulls the private ghcr.io/fraiseql/* base images via the
+      # host's docker credentials; authenticate with the job's GITHUB_TOKEN first.
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: dagger call feature-matrix
         run: |
