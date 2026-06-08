@@ -101,6 +101,38 @@ bump_internal_dep_floors 2.5.0 "$WORK/Cargo.toml"
 after="$(cat "$WORK/Cargo.toml")"
 check "bump: idempotent on a second run" "$after" "$before"
 
+# ── index_url_for ───────────────────────────────────────────────────────────────
+
+check "index_url: >=4 chars -> first2/next2"  "$(index_url_for fraiseql-wire)" "https://index.crates.io/fr/ai/fraiseql-wire"
+check "index_url: root crate fraiseql"        "$(index_url_for fraiseql)"      "https://index.crates.io/fr/ai/fraiseql"
+check "index_url: 1-char name"                "$(index_url_for a)"             "https://index.crates.io/1/a"
+check "index_url: 2-char name"                "$(index_url_for ab)"            "https://index.crates.io/2/ab"
+check "index_url: 3-char name"                "$(index_url_for abc)"           "https://index.crates.io/3/a/abc"
+check "index_url: lowercases the name"        "$(index_url_for Fraiseql-CLI)"  "https://index.crates.io/fr/ai/fraiseql-cli"
+
+# ── index_body_has_version ──────────────────────────────────────────────────────
+
+INDEX_BODY='{"name":"fraiseql-wire","vers":"2.4.0","yanked":false}
+{"name":"fraiseql-wire","vers":"2.5.0","yanked":false}'
+
+if index_body_has_version "$INDEX_BODY" "2.5.0"; then r=yes; else r=no; fi
+check "index_has_version: present version -> yes" "$r" "yes"
+
+if index_body_has_version "$INDEX_BODY" "2.6.0"; then r=yes; else r=no; fi
+check "index_has_version: absent version -> no" "$r" "no"
+
+# A shorter version must NOT match as a substring of a longer one — the exact
+# `"vers":"X.Y.Z"` token (closing quote included) is what prevents that.
+SUBSTR_BODY='{"name":"x","vers":"12.5.0","yanked":false}
+{"name":"x","vers":"2.5.01","yanked":false}'
+if index_body_has_version "$SUBSTR_BODY" "2.5.0"; then r=yes; else r=no; fi
+check "index_has_version: no false substring match (12.5.0 / 2.5.01)" "$r" "no"
+
+# A yanked record still counts as present (cargo only needs the version to exist).
+YANKED_BODY='{"name":"fraiseql","vers":"2.5.0","yanked":true}'
+if index_body_has_version "$YANKED_BODY" "2.5.0"; then r=yes; else r=no; fi
+check "index_has_version: yanked record still present -> yes" "$r" "yes"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

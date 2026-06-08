@@ -63,3 +63,46 @@ bump_internal_dep_floors() {
         { print }
     ' "$cargo_toml" > "${cargo_toml}.tmp" && mv "${cargo_toml}.tmp" "$cargo_toml"
 }
+
+# Compute the cargo sparse-index URL for a crate name.
+#
+# `cargo publish` resolves dependency versions from the SPARSE INDEX
+# (index.crates.io), NOT the crates.io API — the v2.5.0 cut hit a partial publish
+# because the tier-wait polled only the API (200 once the web DB had the row) while
+# the index, which lags by tens of seconds, had not yet advertised the version, so
+# the next tier's `cargo publish` failed with "failed to select a version". The
+# path prefix follows the registry index spec, keyed on the (lowercased) name
+# length:
+#   1 char  -> 1/<name>
+#   2 chars -> 2/<name>
+#   3 chars -> 3/<first-char>/<name>
+#   >=4     -> <first-2>/<next-2>/<name>   (all fraiseql crates land here: fr/ai/…)
+#
+# Usage: index_url_for <crate>
+index_url_for() {
+    local crate="$1" lower len prefix
+    lower="$(printf '%s' "$crate" | tr '[:upper:]' '[:lower:]')"
+    len=${#lower}
+    case "$len" in
+        1) prefix="1" ;;
+        2) prefix="2" ;;
+        3) prefix="3/${lower:0:1}" ;;
+        *) prefix="${lower:0:2}/${lower:2:2}" ;;
+    esac
+    printf 'https://index.crates.io/%s/%s' "$prefix" "$lower"
+}
+
+# Report (exit 0) whether a sparse-index response body advertises an exact version.
+#
+# The index returns newline-delimited JSON, one compact record per published
+# version, each carrying `"vers":"X.Y.Z"` (no spaces). Matching that whole token as
+# a FIXED string is what makes the check exact: a bare `2.5.0` would match inside
+# `12.5.0` or `2.5.01`, but `"vers":"2.5.0"` (with the closing quote) cannot. Yanked
+# status is irrelevant — a freshly published version is present and non-yanked, and
+# cargo only needs the version to exist in the index.
+#
+# Usage: index_body_has_version "<body>" <version>
+index_body_has_version() {
+    local body="$1" version="$2"
+    printf '%s' "$body" | grep -qF "\"vers\":\"$version\""
+}

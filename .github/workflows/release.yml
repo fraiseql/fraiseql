@@ -331,18 +331,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 1)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
 
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
@@ -366,18 +355,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 2)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-db fraiseql-storage; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-db fraiseql-storage
 
       # Tier 3: Depends on fraiseql-db, fraiseql-error
       - name: Publish fraiseql-federation
@@ -391,18 +369,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 3)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-federation; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-federation
 
       # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
       - name: Publish fraiseql-core
@@ -416,18 +383,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 4)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-core; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-core
 
       # Tier 4.5: Depends on fraiseql-core, fraiseql-error
       - name: Publish fraiseql-codegen
@@ -441,18 +397,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 4.5)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-codegen; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-codegen
 
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
@@ -476,18 +421,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 5)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-arrow fraiseql-secrets; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-arrow fraiseql-secrets
 
       # Tier 6: Depends on fraiseql-arrow
       - name: Publish fraiseql-observers
@@ -501,18 +435,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 6)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-observers; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-observers
 
       # Tier 6.5: Depends on fraiseql-error, fraiseql-observers (+ optional core/db/storage)
       - name: Publish fraiseql-functions
@@ -526,18 +449,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 6.5)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-functions; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-functions
 
       # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-functions, fraiseql-observers, fraiseql-secrets, fraiseql-storage, fraiseql-webhooks
       - name: Publish fraiseql-server
@@ -551,18 +463,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 7)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-server; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-server
 
       # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
       - name: Publish fraiseql-cli
@@ -576,18 +477,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 8)
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          for crate in fraiseql-cli; do
-            echo "Waiting for $crate to be indexed on crates.io..."
-            for i in $(seq 1 30); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
-                echo "✅ $crate indexed"
-                break
-              fi
-              sleep 10
-            done
-          done
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-cli
 
       # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
