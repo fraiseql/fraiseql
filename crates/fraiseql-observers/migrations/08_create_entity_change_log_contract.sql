@@ -1,0 +1,140 @@
+-- FraiseQL Change-Log Contract — core.tb_entity_change_log
+-- ============================================================================
+-- The framework-owned, superset-column definition of the entity change-log
+-- table: the first step of the "Change Spine" (an app-mediated transactional
+-- outbox the mutation executor writes in-txn; see
+-- docs/architecture/change-log-contract.md).
+--
+-- This migration OWNS the table contract. It supersedes the best-effort
+-- `core.v_entity_change_log` view that 07_create_changelog_views.sql used to
+-- create (07 now ships only the transport-checkpoint view + upsert fn).
+--
+-- It is **purely additive and idempotent**:
+--   - CREATE TABLE IF NOT EXISTS installs the NOT-NULL backbone for a fresh DB.
+--   - ALTER ... ADD COLUMN IF NOT EXISTS brings a pre-existing (app-created /
+--     older-framework) table up to the contract — every added column is
+--     nullable or defaulted, so it is safe on a populated table.
+--   - It never drops or renames an existing column. In particular `tenant_id`
+--     (the RLS/JWT partition stamp) is ADDED alongside `fk_customer_org` (the
+--     internal join FK) — the two are complementary under the Trinity pattern,
+--     NOT a rename.
+--
+-- PostgreSQL DDL. MySQL / SQLite / SQL Server variants land in phase-03
+-- (mirroring migrations 04_*/05_*). The view is the portable read surface.
+
+CREATE SCHEMA IF NOT EXISTS core;
+
+-- ----------------------------------------------------------------------------
+-- Backbone (NOT NULL, no default) — created only on a fresh table. Every
+-- pre-existing change-log table inherently carries object_type/modification_type,
+-- so CREATE IF NOT EXISTS no-ops and we never add a no-default NOT NULL column
+-- to live rows.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
+    pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    object_type          TEXT NOT NULL,
+    modification_type    TEXT NOT NULL
+);
+
+-- ----------------------------------------------------------------------------
+-- Contract columns (nullable, or NOT NULL with a safe default) — additive
+-- reconcile path. Native ADD COLUMN IF NOT EXISTS makes each statement
+-- idempotent and safe on a table with live rows: id/created_at backfill from
+-- their defaults, every other column is nullable.
+-- ----------------------------------------------------------------------------
+ALTER TABLE core.tb_entity_change_log
+    -- Defaulted backbone (backfills on a pre-existing table that lacks them).
+    ADD COLUMN IF NOT EXISTS id                 UUID        NOT NULL DEFAULT gen_random_uuid(),
+    ADD COLUMN IF NOT EXISTS created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Spine envelope: RLS/JWT partition stamp (complementary to fk_customer_org).
+    ADD COLUMN IF NOT EXISTS tenant_id          BIGINT,
+    -- Internal join FKs (Trinity fk_{entity}) — existing observer schema, kept.
+    ADD COLUMN IF NOT EXISTS fk_customer_org    BIGINT,
+    ADD COLUMN IF NOT EXISTS fk_contact         BIGINT,
+    -- Changed-entity identity + payload.
+    ADD COLUMN IF NOT EXISTS object_id          UUID,
+    ADD COLUMN IF NOT EXISTS object_data        JSONB,
+    ADD COLUMN IF NOT EXISTS updated_fields     TEXT[],
+    ADD COLUMN IF NOT EXISTS cascade            JSONB,
+    -- Perf observability (#392): populated by the executor in phase-01/02.
+    ADD COLUMN IF NOT EXISTS duration_ms        INTEGER,
+    ADD COLUMN IF NOT EXISTS started_at         TIMESTAMPTZ,
+    -- Durable ordering / dedup (#382 broker fan-out).
+    ADD COLUMN IF NOT EXISTS commit_time        TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS seq                BIGINT,
+    -- Actor model (#390): columns now, values when #390 lands.
+    ADD COLUMN IF NOT EXISTS actor_type         TEXT,
+    ADD COLUMN IF NOT EXISTS acting_for         BIGINT,
+    -- Replay correctness (#377/#378): column now, value when #377 lands.
+    ADD COLUMN IF NOT EXISTS schema_version     TEXT,
+    -- W3C trace context (#375): columns now, values when #375 lands.
+    ADD COLUMN IF NOT EXISTS trace_id           TEXT,
+    ADD COLUMN IF NOT EXISTS trace_context      JSONB,
+    -- Existing reader columns (poller / NATS bridge).
+    ADD COLUMN IF NOT EXISTS change_status      TEXT,
+    ADD COLUMN IF NOT EXISTS extra_metadata     JSONB,
+    ADD COLUMN IF NOT EXISTS nats_published_at  TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS nats_event_id      UUID;
+
+-- ----------------------------------------------------------------------------
+-- Indexes (re-run safe).
+-- ----------------------------------------------------------------------------
+-- Slowest-mutation ordering (#392 perf forensics).
+CREATE INDEX IF NOT EXISTS idx_entity_log_duration
+    ON core.tb_entity_change_log (duration_ms DESC);
+-- Per-object-type scans (perf + reader).
+CREATE INDEX IF NOT EXISTS idx_entity_log_type
+    ON core.tb_entity_change_log (object_type);
+-- Time-range scans.
+CREATE INDEX IF NOT EXISTS idx_entity_log_created
+    ON core.tb_entity_change_log (created_at);
+-- Per-tenant ordered fan-out (RLS-clean consumer reads).
+CREATE INDEX IF NOT EXISTS idx_entity_log_tenant_seq
+    ON core.tb_entity_change_log (tenant_id, seq);
+-- Per-object-type dedup on (object_type, seq).
+CREATE INDEX IF NOT EXISTS idx_entity_log_type_seq
+    ON core.tb_entity_change_log (object_type, seq);
+
+-- ----------------------------------------------------------------------------
+-- Read-path view (#392 consumes duration_ms; #149 consumes the `data` JSONB).
+-- Superset of the legacy 07 view: keeps every #149 GraphQL `data` key (so the
+-- entity_change_logs query stays stable) and adds the perf/envelope columns as
+-- top-level columns for indexed WHERE/ORDER BY.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW core.v_entity_change_log AS
+SELECT
+    pk_entity_change_log,
+    object_type,
+    modification_type,
+    object_id,
+    tenant_id,
+    duration_ms,
+    started_at,
+    trace_id,
+    seq,
+    created_at,
+    jsonb_build_object(
+        'id',                   id,
+        'pk_entity_change_log', pk_entity_change_log,
+        'tenant_id',            tenant_id,
+        'fk_customer_org',      fk_customer_org,
+        'fk_contact',           fk_contact,
+        'object_type',          object_type,
+        'object_id',            object_id,
+        'modification_type',    modification_type,
+        'change_status',        change_status,
+        'object_data',          object_data,
+        'updated_fields',       updated_fields,
+        'cascade',              cascade,
+        'duration_ms',          duration_ms,
+        'started_at',           started_at,
+        'extra_metadata',       extra_metadata,
+        'created_at',           created_at
+    ) AS data
+FROM core.tb_entity_change_log;
+
+COMMENT ON TABLE core.tb_entity_change_log IS
+    'FraiseQL change-log contract (Change Spine Tier 0 outbox). Owned by the framework; superset of perf (#392) + envelope columns. See docs/architecture/change-log-contract.md.';
+
+COMMENT ON VIEW core.v_entity_change_log IS
+    'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log.';

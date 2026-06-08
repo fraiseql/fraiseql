@@ -1,8 +1,8 @@
 -- FraiseQL Observer System - Changelog GraphQL Exposure
 -- This migration surfaces the observer change-log as queryable GraphQL types
 -- (see issue #149). It installs:
---   - core.v_entity_change_log       : read projection over tb_entity_change_log
 --   - core.v_transport_checkpoint    : read projection over tb_transport_checkpoint
+-- (core.v_entity_change_log moved to 08_create_entity_change_log_contract.sql)
 --   - core.fn_upsert_transport_checkpoint : idempotent checkpoint upsert
 --
 -- Gating: applied only when `[changelog] expose = true` (the compiler injects the
@@ -23,30 +23,10 @@
 -- ============================================================================
 -- Entity Change Log View
 -- ============================================================================
--- Cursor key is `pk_entity_change_log` (BIGINT). The GraphQL `entity_change_logs`
--- query paginates with `where: { pk_entity_change_log: { gt: $cursor } }
--- orderBy: [{ field: "pk_entity_change_log", direction: ASC }]`.
-
-CREATE OR REPLACE VIEW core.v_entity_change_log AS
-SELECT
-    pk_entity_change_log,
-    object_type,
-    modification_type,
-    created_at,
-    jsonb_build_object(
-        'id',                id,
-        'pk_entity_change_log', pk_entity_change_log,
-        'fk_customer_org',   fk_customer_org,
-        'fk_contact',        fk_contact,
-        'object_type',       object_type,
-        'object_id',         object_id,
-        'modification_type', modification_type,
-        'change_status',     change_status,
-        'object_data',       object_data,
-        'extra_metadata',    extra_metadata,
-        'created_at',        created_at
-    ) AS data
-FROM core.tb_entity_change_log;
+-- NOTE: `core.v_entity_change_log` is now owned by the change-log contract
+-- migration (08_create_entity_change_log_contract.sql), which ships the
+-- superset view (perf columns + #149 `data` JSONB). It is defined there, not
+-- here, so that re-running this migration cannot clobber the superset view.
 
 -- ============================================================================
 -- Transport Checkpoint View
@@ -114,9 +94,6 @@ $$;
 -- ============================================================================
 -- Comments
 -- ============================================================================
-
-COMMENT ON VIEW core.v_entity_change_log IS
-    'GraphQL read projection over tb_entity_change_log (#149). Cursor key: pk_entity_change_log.';
 
 COMMENT ON VIEW core.v_transport_checkpoint IS
     'GraphQL read projection over tb_transport_checkpoint (#149). Keyed by transport_name.';

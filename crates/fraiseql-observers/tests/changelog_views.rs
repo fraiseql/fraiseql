@@ -15,6 +15,7 @@
 #![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stdout)] // Reason: integration test file
 
+use fraiseql_observers::migrations::entity_change_log_contract_sql;
 use fraiseql_test_utils::database_url;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
@@ -108,6 +109,14 @@ async fn install_prerequisites(pool: &PgPool) {
 async fn migration_installs_views_and_upsert_fn() {
     let pool = pool().await;
     install_prerequisites(&pool).await;
+
+    // The change-log contract (08) owns core.v_entity_change_log; apply it first
+    // (additively reconciles the app-shape fixture table), then 07 for the
+    // transport-checkpoint view + upsert fn.
+    sqlx::raw_sql(entity_change_log_contract_sql())
+        .execute(&pool)
+        .await
+        .expect("apply change-log contract migration");
 
     // Apply migration — and a second time to prove idempotency.
     sqlx::raw_sql(MIGRATION).execute(&pool).await.expect("first migration apply");

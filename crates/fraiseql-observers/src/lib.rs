@@ -72,6 +72,7 @@ pub mod logging;
 pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
+pub mod migrations;
 pub mod queue;
 #[cfg(feature = "queue")]
 pub mod queued_executor;
