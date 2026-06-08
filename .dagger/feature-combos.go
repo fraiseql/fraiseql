@@ -98,6 +98,15 @@ var featureCombos = []featureCombo{
 	// the non-wire arms actually compile. check-only on purpose — clippy would drag in
 	// the pre-existing bare-`arrow` lint debt (see parity-notes.md); arrow stays out.
 	{name: "server-multidb", crate: "fraiseql-server", features: []string{"mysql", "sqlite", "sqlserver"}},
+	// server-rest-arrow is the ONE binary feature combo no other leg builds: preflight
+	// clippy is `--all-features` (wire-backend ON ⇒ run_postgres is cfg'd out, so the
+	// arrow path never compiles), server-arrow-wire pairs arrow WITH wire-backend (same
+	// cfg-out), and server-functions-rest-testing has rest but not arrow. The
+	// fraiseql-server-full Docker image is the only artifact that builds rest+arrow, and
+	// it broke on the #330 tenancy wiring (the arrow path keeps a raw PostgresAdapter
+	// while the tenant factory was typed for the cached adapter). check-only on purpose:
+	// arrow stays out of the clippy combos (see the server-multidb note above).
+	{name: "server-rest-arrow", crate: "fraiseql-server", features: []string{"rest", "arrow"}},
 
 	// ── core: database-matrix (cargo check -p fraiseql-core --no-default-features) ──
 	{name: "core-postgres", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres"}},

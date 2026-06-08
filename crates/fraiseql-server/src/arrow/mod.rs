@@ -68,23 +68,21 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 ///
 /// # Returns
 ///
-/// FraiseQLFlightService configured with the real database adapter
+/// `FraiseQLFlightService` configured with the real database adapter
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```text
 /// // PostgreSQL (default)
 /// let pg_adapter = PostgresAdapter::new(&db_url).await?;
 /// let flight_service = create_flight_service(Arc::new(pg_adapter));
 ///
-/// // FraiseQL Wire (with wire-backend feature)
-/// # #[cfg(feature = "wire-backend")]
-/// # {
+/// // FraiseQL Wire (with the `wire-backend` feature)
 /// let wire_adapter = FraiseWireAdapter::new(&db_url);
 /// let flight_service = create_flight_service(Arc::new(wire_adapter));
-/// # }
 /// ```
 #[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+#[must_use]
 pub fn create_flight_service(adapter: Arc<PostgresAdapter>) -> FraiseQLFlightService {
     let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
 

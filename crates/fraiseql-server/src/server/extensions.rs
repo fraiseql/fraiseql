@@ -207,8 +207,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let circuit_breaker = schema.federation.as_ref().and_then(
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
-        #[cfg(not(feature = "federation"))]
-        let _circuit_breaker: Option<()> = None;
+        // Non-federation builds construct the `Server` struct literal below with the
+        // `circuit_breaker` field cfg'd out, so there is no placeholder to bind here —
+        // just mark `schema.federation` read to mirror the federation branch.
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);

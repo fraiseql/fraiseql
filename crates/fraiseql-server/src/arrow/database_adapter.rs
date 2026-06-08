@@ -19,10 +19,11 @@ use fraiseql_core::db::FraiseWireAdapter;
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_core::db::traits::DatabaseAdapter as CoreDatabaseAdapter;
 
-/// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's DatabaseAdapter trait.
+/// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's `DatabaseAdapter`
+/// trait.
 ///
 /// This enables the Arrow Flight service to execute queries against different database backends
-/// without requiring direct knowledge of fraiseql-core's DatabaseAdapter interface.
+/// without requiring direct knowledge of fraiseql-core's `DatabaseAdapter` interface.
 ///
 /// # Feature-Gated Backends
 ///
@@ -52,6 +53,7 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - PostgreSQL adapter from fraiseql-core
+    #[must_use]
     pub fn new(adapter: PostgresAdapter) -> Self {
         Self {
             inner: Arc::new(adapter),
@@ -63,12 +65,14 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - PostgreSQL adapter wrapped in Arc
-    pub fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
+    #[must_use]
+    pub const fn from_arc(adapter: Arc<PostgresAdapter>) -> Self {
         Self { inner: adapter }
     }
 
     /// Get a reference to the inner PostgreSQL adapter.
-    pub fn inner(&self) -> &Arc<PostgresAdapter> {
+    #[must_use]
+    pub const fn inner(&self) -> &Arc<PostgresAdapter> {
         &self.inner
     }
 }

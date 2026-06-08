@@ -574,16 +574,15 @@ async fn run_postgres(
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    // Multi-tenant runtime provisioning (#330): build the per-tenant executor
-    // factory when the runtime is enabled. PostgresAdapter implements
-    // `FromPoolConfig`, so `PUT /api/v1/admin/tenants/{key}` can open per-tenant
-    // pools. Built here (concrete adapter) and threaded onto the server;
-    // `build_app_state` installs it when `[tenancy.runtime] enabled = true`.
-    let tenant_factory = config.tenancy.runtime.enabled.then(
-        fraiseql_server::tenancy::make_executor_factory::<
-            fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-        >,
-    );
+    // Multi-tenant runtime provisioning (#330): the per-tenant executor factory is
+    // built when `[tenancy.runtime] enabled = true`. Its adapter type MUST match the
+    // server's, which differs by build. The non-arrow PG path wraps the adapter in
+    // `CachedDatabaseAdapter` (via `Server::new`/`with_relay_pagination`), while the
+    // arrow path keeps the raw `PostgresAdapter` (via `Server::with_flight_service`,
+    // which never caches). Both implement `FromPoolConfig`, so each branch below builds
+    // its factory with the matching type. Capture the flag here, before `config` is
+    // moved into the constructor.
+    let tenancy_runtime_enabled = config.tenancy.runtime.enabled;
 
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
@@ -594,6 +593,10 @@ async fn run_postgres(
         let server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;
+        // Arrow path: the server holds the raw `PostgresAdapter`, so the tenant
+        // factory must produce `PostgresAdapter` executors to match its adapter type.
+        let tenant_factory = tenancy_runtime_enabled
+            .then(fraiseql_server::tenancy::make_executor_factory::<PostgresAdapter>);
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
             None => server,
@@ -619,6 +622,14 @@ async fn run_postgres(
         } else {
             Server::new(config, schema, adapter, db_pool).await?
         };
+        // Non-arrow path: `Server::new`/`with_relay_pagination` wrap the adapter in
+        // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
+        // to match the server's adapter type.
+        let tenant_factory = tenancy_runtime_enabled.then(
+            fraiseql_server::tenancy::make_executor_factory::<
+                fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
+            >,
+        );
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
             None => server,

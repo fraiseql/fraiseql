@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`fraiseql-server` now compiles with `--features rest,arrow` (unbreaks the
+  `server-full` image).** The `#[cfg(feature = "arrow")]` server path builds a
+  `Server<PostgresAdapter>` (the Arrow Flight constructor keeps the raw adapter), but the
+  multi-tenant runtime wiring (#330) built the per-tenant executor factory only for the
+  *cached* adapter type, so `with_tenant_executor_factory` failed to type-check (`E0308`)
+  on the arrow path. The factory is now built per build with the adapter type that matches
+  the server it is installed on — `PostgresAdapter` for the arrow path,
+  `CachedDatabaseAdapter<PostgresAdapter>` otherwise. This was the one feature combination
+  no CI leg compiled (preflight runs `--all-features`, which enables `wire-backend` and
+  takes a different `cfg` branch), so it had been broken since #330 landed and left the
+  `fraiseql-server-full` Docker image — the sole artifact that builds `rest + arrow` —
+  stale at `2.4.0`; it ships again from the next release. A `server-rest-arrow`
+  feature-matrix combo now guards the build, and the pre-existing arrow-path lint/doctest
+  debt the combo surfaced has been cleared.
+
 ## [2.5.0] - 2026-06-08
 
 ### Security
