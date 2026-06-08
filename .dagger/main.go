@@ -20,7 +20,16 @@ const (
 	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.92).
 	// The default (non-slim) variant is buildpack-deps-based, so gcc/perl/curl/git are present.
 	// (Later: pin by digest — see parity-notes.md Phase 02.)
-	rustImage = "rust:1.92"
+	//
+	// Pulled from ghcr.io/fraiseql/* (mirrored by .github/workflows/mirror-base-images.yml),
+	// NOT Docker Hub: the self-hosted runner shares one Docker Hub account whose pull-rate
+	// limit periodically 429s every leg. The ghcr mirrors are public, so the engine pulls
+	// them anonymously. Every ghcr.io/fraiseql/* tag below MUST have a matching entry in that
+	// workflow's IMAGES list. (mcr.microsoft.com/* and the Apollo router stay as-is — not
+	// Docker Hub, not rate-limited.)
+	rustImage = "ghcr.io/fraiseql/rust:1.92"
+	// ubuntuImage backs shellBase (the toolchain-free shell-gate container).
+	ubuntuImage = "ghcr.io/fraiseql/ubuntu:24.04"
 	// unwrapAllowLimit mirrors the ci.yml clippy job's `make lint-unwrap UNWRAP_ALLOW_LIMIT=3`.
 	unwrapAllowLimit = "3"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
@@ -105,7 +114,7 @@ pub fn __lint_routes_fixture() {
 // cache strategy exists.)
 func (m *FraiseqlCi) lintBase() *dagger.Container {
 	return dag.Container().
-		From("ubuntu:24.04").
+		From(ubuntuImage).
 		WithExec([]string{"apt-get", "update"}).
 		WithExec([]string{
 			"apt-get", "install", "-y", "--no-install-recommends",
@@ -292,7 +301,7 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 // (gawk, not mawk, for the load-bearing multi-line route-syntax pass — see lintBase).
 func (m *FraiseqlCi) shellBase() *dagger.Container {
 	return dag.Container().
-		From("ubuntu:24.04").
+		From(ubuntuImage).
 		WithExec([]string{"apt-get", "update"}).
 		WithExec([]string{
 			"apt-get", "install", "-y", "--no-install-recommends",
@@ -429,7 +438,7 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 
 const (
 	// pgImage pins the integration Postgres (matches ci.yml's integration jobs).
-	pgImage = "postgres:16"
+	pgImage = "ghcr.io/fraiseql/postgres:16"
 	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials from ci.yml.
 	pgUser     = "fraiseql_test"
 	pgPassword = "fraiseql_test_password"
@@ -439,12 +448,12 @@ const (
 	pgBindHost = "postgres"
 
 	// redisImage / redisBindHost — the Redis service (ci.yml integration-redis).
-	redisImage    = "redis:7-alpine"
+	redisImage    = "ghcr.io/fraiseql/redis:7-alpine"
 	redisBindHost = "redis"
 
 	// vaultImage / vaultBindHost / vaultToken — the Vault dev-mode service
 	// (ci.yml integration-vault). Dev-mode root token; test-only.
-	vaultImage    = "hashicorp/vault:1.17"
+	vaultImage    = "ghcr.io/fraiseql/vault:1.17"
 	vaultBindHost = "vault"
 	vaultToken    = "fraiseql-test-token"
 
@@ -452,20 +461,20 @@ const (
 	// integration-mysql). User/password/database match the Postgres ones
 	// (fraiseql_test / fraiseql_test_password / test_fraiseql), so the pg* consts
 	// are reused for the URL.
-	mysqlImage        = "mysql:8.3"
+	mysqlImage        = "ghcr.io/fraiseql/mysql:8.3"
 	mysqlBindHost     = "mysql"
 	mysqlRootPassword = "fraiseql_test_root"
 
 	// natsImage / natsBindHost — the NATS JetStream service (ci.yml integration-nats),
 	// started with `-js -m 8222`.
-	natsImage    = "nats:2.10-alpine"
+	natsImage    = "ghcr.io/fraiseql/nats:2.10-alpine"
 	natsBindHost = "nats"
 
 	// mailhogImage / mailhogBindHost — the MailHog SMTP sink for the #349 email
 	// happy-path test. Speaks real SMTP on 1025 (plaintext) and exposes an HTTP
 	// API on 8025 to inspect captured messages; the test sends through lettre and
 	// asserts the message arrived in the sink.
-	mailhogImage    = "mailhog/mailhog:v1.0.1"
+	mailhogImage    = "ghcr.io/fraiseql/mailhog:v1.0.1"
 	mailhogBindHost = "mailhog"
 
 	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (ci.yml
@@ -499,13 +508,13 @@ const (
 	// fakeGcsImage / fakeGcsBindHost — the GCS emulator for the fraiseql-storage
 	// gcs_emulator test. The backend reaches it at http://<alias>:4443 via GCS_ENDPOINT;
 	// -external-url must match so the emulator's media links point back at the alias.
-	fakeGcsImage    = "fsouza/fake-gcs-server:latest"
+	fakeGcsImage    = "ghcr.io/fraiseql/fake-gcs-server:latest"
 	fakeGcsBindHost = "fake-gcs"
 
 	// minioImage / minioBindHost / minioUser / minioPass — the S3-compatible MinIO
 	// service for fraiseql-server's storage_minio integration test. The test reads
 	// MINIO_ENDPOINT (http://<alias>:9000) and authenticates with the constants below.
-	minioImage    = "minio/minio:latest"
+	minioImage    = "ghcr.io/fraiseql/minio:latest"
 	minioBindHost = "minio"
 	minioUser     = "minioadmin"
 	minioPass     = "minioadmin"

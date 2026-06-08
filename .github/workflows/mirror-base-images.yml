@@ -1,0 +1,92 @@
+name: Mirror base images to ghcr.io
+
+# The CI base + service images are Docker Hub images, whose pull-rate-limit (429)
+# periodically red-lines the self-hosted runner — one authenticated `fraiseql`
+# Docker Hub account is shared across the whole release+CI load, so a busy day
+# (a release + Dependabot + a few pushes) exhausts the 6-hour pull budget and every
+# `dagger call` leg fails resolving `rust:1.92` / `postgres:16` / etc.
+#
+# This job mirrors each of those images into ghcr.io/fraiseql/*, which the Dagger
+# engine then pulls anonymously (public packages) with NO Docker Hub involvement —
+# exactly how it already pulls the public ghcr.io/apollographql/router image. crane
+# copies registry-to-registry (all platforms, no local `docker pull`), so it does not
+# itself touch the self-hosted runner: it runs on a GitHub-hosted runner with a fresh
+# IP and its own Docker Hub budget, pulling each image once.
+#
+# Keep IMAGES below in sync with the image constants in `.dagger/main.go` (and the
+# shared `rustImage` used by `.dagger/security.go`). The `.dagger` side points at the
+# ghcr.io/fraiseql/* tags this job publishes.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly refresh so the `:latest`-tagged mirrors (minio, fake-gcs-server) track
+    # upstream; the pinned tags are idempotent re-copies. Monday 04:17 UTC.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: mirror-base-images
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: crane copy docker.io -> ghcr.io/fraiseql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install crane (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          VERSION=v0.21.6
+          SHA256=7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435
+          curl -fsSL -o crane.tgz \
+            "https://github.com/google/go-containerregistry/releases/download/${VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+          echo "${SHA256}  crane.tgz" | sha256sum -c -
+          tar -xzf crane.tgz crane
+          sudo install -m 0755 crane /usr/local/bin/crane
+          crane version
+
+      - name: Log in to ghcr.io
+        run: crane auth login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Mirror images
+        run: |
+          set -euo pipefail
+          # src (Docker Hub) | dst (ghcr.io/fraiseql, org/name flattened to fraiseql/<name>)
+          IMAGES="
+          docker.io/library/rust:1.92|ghcr.io/fraiseql/rust:1.92
+          docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
+          docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
+          docker.io/library/redis:7-alpine|ghcr.io/fraiseql/redis:7-alpine
+          docker.io/library/nats:2.10-alpine|ghcr.io/fraiseql/nats:2.10-alpine
+          docker.io/library/mysql:8.3|ghcr.io/fraiseql/mysql:8.3
+          docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17
+          docker.io/mailhog/mailhog:v1.0.1|ghcr.io/fraiseql/mailhog:v1.0.1
+          docker.io/fsouza/fake-gcs-server:latest|ghcr.io/fraiseql/fake-gcs-server:latest
+          docker.io/minio/minio:latest|ghcr.io/fraiseql/minio:latest
+          "
+          rc=0
+          # here-string, not `echo | while`: a pipe would run the loop in a subshell
+          # and `rc` would not survive to `exit`.
+          while IFS='|' read -r src dst; do
+            [ -z "${src// }" ] && continue
+            echo "::group::$src -> $dst"
+            if crane copy "$src" "$dst"; then
+              echo "✅ mirrored $dst"
+            else
+              echo "::error::failed to mirror $src -> $dst"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done <<< "$IMAGES"
+          exit $rc
+
+      - name: Reminder — packages must be public
+        run: |
+          echo "Mirror complete. On FIRST publish each package is private; the Dagger"
+          echo "engine pulls anonymously, so set these public once at:"
+          echo "  https://github.com/orgs/fraiseql/packages?tab=packages&q=<name>"
+          echo "Packages: rust ubuntu postgres redis nats mysql vault mailhog fake-gcs-server minio"
