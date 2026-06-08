@@ -355,6 +355,48 @@ CVE-2026-29111
 # Compliance: Documented risk acceptance per NIST 800-53 SI-2
 CVE-2025-69720
 
+# -----------------------------------------------------------------------------
+# CATEGORY 5c: perl-base / Archive::Tar / IO-Compress (No fix in debian:bookworm-slim)
+# Risk Level: LOW (mitigated by application design + container hardening)
+# Mitigation: FraiseQL is a Rust GraphQL server. perl-base is an Essential
+#   transitive package of debian:bookworm-slim and is never invoked by the
+#   application — no perl scripts, no tar/zip/archive processing, no Archive::Tar
+#   or IO::Compress usage, and no user input reaches perl. Container runs non-root
+#   (UID 65532) on a read-only filesystem with no interactive shell.
+# Added 2026-06-08: these CVEs appeared in the base image after the 2026-05-23
+#   review; all are unpatched (fix_deferred/affected) in perl-base 5.36.0-7+deb12u3.
+# -----------------------------------------------------------------------------
+
+# CVE-2026-42496: perl Archive::Tar path traversal via crafted symlinks
+# Severity: CRITICAL — Status: no fix available (fix_deferred)
+# Mitigation: no archive extraction in FraiseQL; perl unused at runtime
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-42496
+
+# CVE-2026-8376: perl heap buffer overflow when compiling crafted input
+# Severity: CRITICAL — Status: no fix available (affected)
+# Mitigation: application does not invoke perl; no perl scripts executed
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-8376
+
+# CVE-2026-42497: perl Archive::Tar hardlink extraction attack (Archive::Tar < 3.08)
+# Severity: HIGH — Status: no fix available (fix_deferred)
+# Mitigation: no tar extraction in FraiseQL; perl unused at runtime
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-42497
+
+# CVE-2026-48962: perl IO-Compress arbitrary code execution via output glob
+# Severity: HIGH — Status: no fix available (affected)
+# Mitigation: no IO::Compress usage; perl unused at runtime
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-48962
+
+# CVE-2026-9538: perl Archive::Tar memory exhaustion (Archive::Tar < 3.10)
+# Severity: HIGH — Status: no fix available (fix_deferred)
+# Mitigation: no tar processing in FraiseQL; perl unused at runtime
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-9538
+
 # =============================================================================
 # CATEGORY 6: LOW SEVERITY CVEs (All Documented & Accepted)
 # Risk Level: MINIMAL
