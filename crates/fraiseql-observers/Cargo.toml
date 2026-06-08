@@ -16,7 +16,7 @@ fraiseql-error = {workspace = true}
 futures = "0.3"
 hex = {workspace = true}
 hmac = {workspace = true}
-http = "1.1"
+http = "1.4"
 # SMTP for the email action (#349). rustls only — no OpenSSL (matches the
 # workspace TLS stack). Unconditional: it adds no new rustls version (reqwest
 # already pulls rustls here), and keeping it always-compiled means the
