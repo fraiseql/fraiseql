@@ -216,14 +216,21 @@ pub async fn run() {
             check_unused,
             strict,
             types,
+            against_db,
         } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
                 let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
                 commands::validate_facts::run(std::path::Path::new(&schema), &database, &formatter)
                     .await
             },
-            None => match input {
-                Some(input) => {
+            None => match (against_db, input) {
+                (Some(db_url), Some(input)) => {
+                    commands::validate::run_against_db(&input, &db_url, cli.json).await
+                },
+                (Some(_), None) => Err(anyhow::anyhow!(
+                    "INPUT (schema.compiled.json) is required with --against-db"
+                )),
+                (None, Some(input)) => {
                     let opts = commands::validate::ValidateOptions {
                         check_cycles,
                         check_unused,
@@ -245,7 +252,7 @@ pub async fn run() {
                         Err(e) => Err(e),
                     }
                 },
-                None => Err(anyhow::anyhow!("INPUT required when no subcommand provided")),
+                (None, None) => Err(anyhow::anyhow!("INPUT required when no subcommand provided")),
             },
         },
 
@@ -436,9 +443,19 @@ pub async fn run() {
             config,
             schema,
             db_url,
+            against_db,
+            schemas,
             json: json_flag,
         } => {
-            let all_passed = commands::doctor::run(&config, &schema, db_url.as_deref(), json_flag);
+            let all_passed = commands::doctor::run_with_db_checks(
+                &config,
+                &schema,
+                db_url.as_deref(),
+                against_db.as_deref(),
+                &schemas,
+                json_flag,
+            )
+            .await;
             if all_passed {
                 Ok(())
             } else {

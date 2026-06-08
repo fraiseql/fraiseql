@@ -49,6 +49,7 @@ tempfile = "3.25"
 
 [dev-dependencies]
 assert_cmd = "2"
+fraiseql-test-support = {path = "../fraiseql-test-support"}
 http-body-util = "0.1"
 insta = {version = "1", features = ["yaml"]}
 predicates = "3"
@@ -72,6 +73,10 @@ sqlserver = [
     "fraiseql-server?/sqlserver",
 ]
 run-server = ["dep:fraiseql-server", "dep:axum"]
+# Gate for the `--against-db` integration tests (#397/#409). The tests self-skip
+# when no `DATABASE_URL` is set, so enabling this under `--all-features` in a
+# DB-free leg is safe; it only marks the live-PostgreSQL test surface.
+test-postgres = []
 
 [lints]
 workspace = true

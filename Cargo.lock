@@ -3393,6 +3393,7 @@ dependencies = [
  "fraiseql-codegen",
  "fraiseql-core",
  "fraiseql-server",
+ "fraiseql-test-support",
  "glob",
  "hex",
  "http-body-util",

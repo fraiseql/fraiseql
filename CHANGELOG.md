@@ -160,6 +160,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   types browsers execute as active content (`text/html`, `image/svg+xml`, …) stay
   attachments even then.
 
+### Added
+
+- **`fraiseql-cli validate --against-db` — static server↔database mutation-contract
+  check (#397).** The server invokes each mutation as `SELECT * FROM <sql_source>(…)` and
+  decodes the returned row into `MutationResponse`; both halves of that contract — the
+  *call binding* and the *response shape* — were only mirrored by hand between the compiled
+  schema and the SQL functions, so every drift surfaced as an opaque runtime 500 (the root
+  of the #413/#414 family). `validate --against-db <DATABASE_URL> schema.compiled.json` now
+  verifies the contract against a live PostgreSQL **without booting a server or invoking any
+  mutation**: for each DB-backed mutation it checks that `sql_source` resolves to exactly one
+  function (catching *does not exist* and *is not unique*) whose input arity matches what the
+  runtime sends (the positional args — flat, flattened input-object fields, or the
+  update-path jsonb payload — plus the trailing injected params), that the update payload
+  parameter is `jsonb`, that the trailing parameter names match the inject keys, and that the
+  function's result row carries `succeeded` + `state_changed` (both `boolean`, required by
+  the decoder) with compatible types for the optional `MutationResponse` columns (`error_class`
+  accepts `text` or a project enum). Error-severity findings fail the command (exit 1) for CI
+  gating; `--json` emits a machine-readable report. The *behavioural* response invariants
+  (`succeeded ⇒ error_class IS NULL`, `http_status ∈ 100..=599`, …) are out of scope — they
+  are only observable by invoking the mutation, which would have database side effects.
+
+- **`fraiseql-cli doctor --against-db` — PL/pgSQL body-resolution pass (#409).** PostgreSQL
+  defers PL/pgSQL body analysis to runtime, so a migration that changes a function's
+  signature silently breaks every *internal* caller until that branch executes — invisible to
+  `compile` and to the server-facing check in #397. `doctor --against-db <DATABASE_URL>
+  --schemas a,b` resolves every call inside each managed function's body against the live
+  catalog (via the [`plpgsql_check`](https://github.com/okbob/plpgsql_check) extension) and
+  reports unresolved internal calls as failed doctor checks. It degrades gracefully: when
+  `plpgsql_check` is not installed (the common case on managed Postgres), the pass is skipped
+  with a `Warn` and an install hint rather than failing.
+
 ### Breaking
 
 - **Compiled-schema format: input-object fields now carry `nullable` (#414).** Each

@@ -344,6 +344,15 @@ EXAMPLES:
         /// Only analyze specific type(s) - comma-separated list
         #[arg(long, value_name = "TYPES", value_delimiter = ',')]
         types: Vec<String>,
+
+        /// Validate the mutation contract against a live PostgreSQL database.
+        ///
+        /// For each DB-backed mutation, checks that its `sql_source` function
+        /// exists with the argument layout the server sends and returns the
+        /// columns the server decodes into `MutationResponse`. Requires a
+        /// compiled schema (schema.compiled.json) as INPUT. (#397)
+        #[arg(long, value_name = "DATABASE_URL")]
+        against_db: Option<String>,
     },
 
     /// Introspect database for fact tables and output suggestions
@@ -597,6 +606,23 @@ EXAMPLES:
         /// Override DATABASE_URL for the connectivity check.
         #[arg(long)]
         db_url: Option<String>,
+
+        /// Run the PL/pgSQL body-resolution pass against this PostgreSQL
+        /// database, reporting internal calls that no longer resolve.
+        ///
+        /// Requires the `plpgsql_check` extension; skips with a hint when it is
+        /// unavailable. (#409)
+        #[arg(long, value_name = "DATABASE_URL")]
+        against_db: Option<String>,
+
+        /// Schemas to scan in the body-resolution pass (comma-separated).
+        #[arg(
+            long,
+            value_name = "SCHEMAS",
+            value_delimiter = ',',
+            default_value = "public"
+        )]
+        schemas: Vec<String>,
 
         /// Output machine-readable JSON (for CI integration).
         #[arg(long)]

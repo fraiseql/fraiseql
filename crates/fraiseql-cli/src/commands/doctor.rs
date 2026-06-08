@@ -9,7 +9,10 @@ use std::{net::TcpStream, path::Path, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::toml_schema::TomlSchema;
+use crate::{
+    config::toml_schema::TomlSchema,
+    schema::pg_catalog::{PgCatalog, PlpgsqlCheckOutcome},
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -473,8 +476,24 @@ pub fn run_checks(
 ///
 /// Returns `true` if all checks passed (exit 0), `false` if any check failed
 /// (exit 1). Warnings do not trigger an exit-1.
-pub fn run(config: &Path, schema: &Path, db_url: Option<&str>, json: bool) -> bool {
-    let checks = run_checks(config, schema, db_url);
+/// Execute the doctor command including the optional `--against-db` PL/pgSQL
+/// body-resolution pass (#409).
+///
+/// Runs the standard checks, then — when `against_db` is set — appends the
+/// internal-call resolution results for `schemas`. Returns `true` if all checks
+/// passed (exit 0), `false` if any failed (exit 1).
+pub async fn run_with_db_checks(
+    config: &Path,
+    schema: &Path,
+    db_url: Option<&str>,
+    against_db: Option<&str>,
+    schemas: &[String],
+    json: bool,
+) -> bool {
+    let mut checks = run_checks(config, schema, db_url);
+    if let Some(url) = against_db {
+        checks.extend(body_resolution_checks(url, schemas).await);
+    }
 
     if json {
         print_json_report(&checks);
@@ -483,4 +502,52 @@ pub fn run(config: &Path, schema: &Path, db_url: Option<&str>, json: bool) -> bo
     }
 
     checks.iter().all(|c| c.status != CheckStatus::Fail)
+}
+
+/// Run the PL/pgSQL body-resolution pass and map its outcome to doctor checks.
+///
+/// Never panics: connection or analysis failures become `Fail` checks, an
+/// absent `plpgsql_check` extension becomes a `Warn` (skipped), and each
+/// unresolved internal call becomes its own `Fail`.
+async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorCheck> {
+    const NAME: &str = "PL/pgSQL body resolution";
+
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match catalog.plpgsql_check_unresolved_calls(schemas).await {
+        Err(e) => vec![DoctorCheck::fail(
+            NAME,
+            format!("pass failed: {e}"),
+            "Ensure the connecting role may CREATE EXTENSION plpgsql_check",
+        )],
+        Ok(PlpgsqlCheckOutcome::Unavailable) => vec![DoctorCheck::warn(
+            NAME,
+            "plpgsql_check not installed — skipped",
+            "Install the plpgsql_check extension to enable internal-call checking",
+        )],
+        Ok(PlpgsqlCheckOutcome::Ran { errors }) if errors.is_empty() => vec![DoctorCheck::pass(
+            NAME,
+            format!("all internal calls resolve in {}", schemas.join(", ")),
+        )],
+        Ok(PlpgsqlCheckOutcome::Ran { errors }) => errors
+            .iter()
+            .map(|e| {
+                let location = e.lineno.map_or_else(String::new, |l| format!(" (line {l})"));
+                DoctorCheck::fail(
+                    NAME,
+                    format!("{}{location}: {}", e.caller, e.message),
+                    "A migration changed a function signature — update its internal callers",
+                )
+            })
+            .collect(),
+    }
 }

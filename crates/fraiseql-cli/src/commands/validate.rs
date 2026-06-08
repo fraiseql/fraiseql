@@ -8,11 +8,14 @@
 
 use std::fs;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use fraiseql_core::schema::{CompiledSchema, SchemaDependencyGraph};
 use serde::Serialize;
 
-use crate::output::CommandResult;
+use crate::{
+    output::CommandResult,
+    schema::{mutation_contract::validate_mutation_contract, pg_catalog::PgCatalog},
+};
 
 /// Options for schema validation
 #[derive(Debug, Clone, Default)]
@@ -181,4 +184,36 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
     } else {
         Ok(CommandResult::success("validate", data))
     }
+}
+
+/// Validate the mutation contract against a live PostgreSQL database (#397).
+///
+/// Loads the compiled schema at `input`, checks every DB-backed mutation's call
+/// binding and response shape against the database, prints a report, and fails
+/// when any error-severity violation is found.
+///
+/// # Errors
+///
+/// Returns an error if the schema cannot be read or parsed, the database cannot
+/// be reached, or any mutation violates the contract.
+pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()> {
+    let schema_content = fs::read_to_string(input)
+        .with_context(|| format!("failed to read compiled schema `{input}`"))?;
+    let schema: CompiledSchema = serde_json::from_str(&schema_content).with_context(|| {
+        format!("`{input}` is not a valid compiled schema (run `fraiseql compile` first)")
+    })?;
+
+    let catalog = PgCatalog::connect(db_url)?;
+    let report = validate_mutation_contract(&schema, &catalog).await?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report.to_json())?);
+    } else {
+        report.print_text();
+    }
+
+    if report.error_count() > 0 {
+        anyhow::bail!("mutation contract validation failed: {} error(s)", report.error_count());
+    }
+    Ok(())
 }
