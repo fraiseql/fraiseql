@@ -59,7 +59,7 @@ bytes = "1.0"
 chrono = {version = "0.4", features = ["serde"]}
 dashmap = "6.1"
 # Connection pooling
-deadpool = "0.12"
+deadpool = "0.13"
 deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.5.0"}

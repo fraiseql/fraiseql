@@ -2578,8 +2578,19 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0be2b1d1d6ec8d846f05e137292d0b89133caf95ef33695424c09568bdd39b1b"
 dependencies = [
- "deadpool-runtime",
+ "deadpool-runtime 0.1.4",
  "lazy_static",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "883466cb8db62725aee5f4a6011e8a5d42912b42632df32aad57fc91127c6e04"
+dependencies = [
+ "deadpool-runtime 0.3.1",
  "num_cpus",
  "tokio",
 ]
@@ -2591,7 +2602,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d697d376cbfa018c23eb4caab1fd1883dd9c906a8c034e8d9a3cb06a7e0bef9"
 dependencies = [
  "async-trait",
- "deadpool",
+ "deadpool 0.12.3",
  "getrandom 0.2.17",
  "tokio",
  "tokio-postgres",
@@ -2606,6 +2617,12 @@ checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
 dependencies = [
  "tokio",
 ]
+
+[[package]]
+name = "deadpool-runtime"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2657f61fb1dd8bf37a8d51093cc7cee4e77125b22f7753f49b289f831bec2bae"
 
 [[package]]
 name = "debugid"
@@ -3448,7 +3465,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "deadpool",
+ "deadpool 0.13.0",
  "deadpool-postgres",
  "dhat",
  "fraiseql-db",
@@ -3510,7 +3527,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "deadpool",
+ "deadpool 0.13.0",
  "deadpool-postgres",
  "fraiseql-error",
  "fraiseql-test-support",
@@ -3549,7 +3566,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "deadpool",
+ "deadpool 0.13.0",
  "deadpool-postgres",
  "fraiseql-db",
  "fraiseql-error",
@@ -10792,7 +10809,7 @@ checksum = "08db1edfb05d9b3c1542e521aea074442088292f00b5f28e435c714a98f85031"
 dependencies = [
  "assert-json-diff",
  "base64 0.22.1",
- "deadpool",
+ "deadpool 0.12.3",
  "futures",
  "http 1.4.0",
  "http-body-util",
