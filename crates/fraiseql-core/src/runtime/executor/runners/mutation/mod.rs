@@ -470,8 +470,21 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     //    makes the adapter behave exactly like the session-affine path.
     let modification_type = mutation_def.operation.kind_str().to_uppercase();
     let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
-    let changelog =
-        write_changelog.then(|| ChangeLogWrite::new(&mutation_def.return_type, &modification_type));
+    // Envelope stamp (phase-03): stamp the tenant partition id EXPLICITLY from the
+    // SecurityContext — never reconstructed from connection / RLS state, because
+    // out-of-session spine consumers (poller, NATS bridge) bypass RLS and must
+    // re-authz fan-out from the row itself. `tenant_id` is the Trinity
+    // public-facing UUID; a request with no tenant, or a tenant identifier that
+    // is not UUID-shaped, leaves it NULL (we never abort a user's mutation over a
+    // log-row stamp). `actor_type`/`schema_version`/trace context stay NULL here
+    // pending #390 / #377 / #375.
+    let tenant_uuid = security_ctx
+        .and_then(|c| c.tenant_id.as_ref())
+        .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
+    let changelog = write_changelog.then(|| {
+        ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
+            .with_tenant_id(tenant_uuid)
+    });
     let rows = ctx
         .adapter
         .execute_function_call_with_changelog(sql_source, &args, &session_pairs, changelog.as_ref())

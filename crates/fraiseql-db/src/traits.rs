@@ -33,9 +33,13 @@ use crate::{
 /// returned row inside the same transaction (see
 /// [`DatabaseAdapter::execute_function_call_with_changelog`]).
 ///
-/// This is the Change Spine transactional-outbox contract (phase-02). Envelope
-/// columns (`tenant_id`, `actor_type`, `seq`, `schema_version`, trace context)
-/// are stamped in phase-03 and left NULL here.
+/// This is the Change Spine transactional-outbox contract. Phase-02 wrote the
+/// `object_type`/`modification_type` + the changed-entity columns; phase-03
+/// stamps the envelope: `tenant_id` (carried here, from `SecurityContext`),
+/// `commit_time` (`clock_timestamp()` at INSERT), and `seq` (the table's
+/// `SEQUENCE` default). The remaining envelope columns (`actor_type`,
+/// `schema_version`, trace context) stay NULL pending their upstream issues
+/// (#390 / #377 / #375).
 #[derive(Debug, Clone, Copy)]
 pub struct ChangeLogWrite<'a> {
     /// NOT-NULL fallback for `object_type` when the row's `entity_type` is NULL.
@@ -44,16 +48,35 @@ pub struct ChangeLogWrite<'a> {
     /// The DML verb written to `modification_type` (e.g. `"INSERT"`,
     /// `"UPDATE"`, `"DELETE"`, `"CUSTOM"`), from `MutationOperation`.
     pub modification_type: &'a str,
+    /// The tenant partition stamp written to the `tenant_id UUID` column — the
+    /// Trinity public-facing identifier, read from `SecurityContext.tenant_id`
+    /// at write time and **never** reconstructed from connection / RLS state
+    /// (RLS is PG-only; out-of-session spine consumers bypass it, so the row
+    /// must carry tenant identity explicitly). `None` (→ SQL NULL) for an
+    /// unauthenticated request, a request with no tenant, or a tenant
+    /// identifier that is not a UUID.
+    pub tenant_id:         Option<uuid::Uuid>,
 }
 
 impl<'a> ChangeLogWrite<'a> {
-    /// Build a change-log write descriptor.
+    /// Build a change-log write descriptor with no envelope stamps (`tenant_id`
+    /// NULL). Chain [`with_tenant_id`](Self::with_tenant_id) to stamp the tenant.
     #[must_use]
     pub const fn new(object_type: &'a str, modification_type: &'a str) -> Self {
         Self {
             object_type,
             modification_type,
+            tenant_id: None,
         }
+    }
+
+    /// Stamp the tenant partition id (the Trinity public-facing UUID) onto the
+    /// outbox row. `None` leaves `tenant_id` NULL — for system / unauthenticated
+    /// rows, or a tenant identifier that is not UUID-shaped.
+    #[must_use]
+    pub const fn with_tenant_id(mut self, tenant_id: Option<uuid::Uuid>) -> Self {
+        self.tenant_id = tenant_id;
+        self
     }
 }
 
@@ -913,10 +936,17 @@ pub trait DatabaseAdapter: Send + Sync {
     /// When `changelog` is `None`, behaviour is identical to
     /// [`execute_function_call_with_session`](Self::execute_function_call_with_session).
     ///
-    /// Adapters that do not support the outbox write (MySQL, SQLite, SQL Server,
-    /// mocks) inherit the default implementation, which drops `changelog` and
-    /// delegates — multi-database parity lands in phase-03. PostgreSQL overrides
-    /// this with the real in-txn write.
+    /// PostgreSQL overrides this with the real in-txn write (a `MATERIALIZED`
+    /// CTE that runs the function once and INSERTs the outbox row atomically).
+    /// Every other adapter (MySQL, SQL Server, SQLite, mocks) inherits the
+    /// default, which drops `changelog` and delegates — so those mutations still
+    /// run, they just write no outbox row yet. The dialect-portable building
+    /// blocks for their in-txn outbox ship alongside PostgreSQL — the parameterized
+    /// INSERT builder ([`crate::changelog::build_changelog_insert_sql`]) and the
+    /// MySQL / SQL Server contract DDL (`migrations/09_*`, `10_*`) — leaving only
+    /// the per-driver wiring (hold a transaction, parse the `app.mutation_response`
+    /// row, bind the INSERT) as a follow-up. SQLite is read-only, so it never
+    /// writes an outbox row.
     ///
     /// # Errors
     ///

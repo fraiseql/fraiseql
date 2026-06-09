@@ -19,6 +19,7 @@ use fraiseql_core::{
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, RuntimeConfig},
     schema::CompiledSchema,
+    security::SecurityContext,
 };
 use serde_json::json;
 
@@ -56,6 +57,14 @@ async fn provision(adapter: &PostgresAdapter) {
         .await
         .unwrap();
     adapter
+        .execute_raw_query("DROP SEQUENCE IF EXISTS core.seq_entity_change_log")
+        .await
+        .unwrap();
+    adapter
+        .execute_raw_query("CREATE SEQUENCE core.seq_entity_change_log")
+        .await
+        .unwrap();
+    adapter
         .execute_raw_query(
             "CREATE TABLE core.tb_entity_change_log (\
              pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
@@ -63,7 +72,9 @@ async fn provision(adapter: &PostgresAdapter) {
              id UUID NOT NULL DEFAULT gen_random_uuid(), \
              created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
              object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-             duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB)",
+             duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
+             tenant_id UUID, commit_time TIMESTAMPTZ, \
+             seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
         )
         .await
         .unwrap();
@@ -199,6 +210,87 @@ async fn executor_writes_one_outbox_row_per_mutation() {
         row.get("duration_ms")
     );
     assert_eq!(row.get("calc_version"), Some(&json!("2")), "data-quality marker stamped");
+}
+
+/// A `SecurityContext` carrying `tenant`, the way the authenticated mutation
+/// entry point (`execute_with_security`) receives it from a validated JWT.
+fn security_ctx_with_tenant(tenant: &str) -> SecurityContext {
+    use fraiseql_core::types::{TenantId, UserId};
+    SecurityContext {
+        user_id:          UserId::new("user-e2e"),
+        roles:            vec![],
+        tenant_id:        Some(TenantId::new(tenant)),
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-e2e".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+#[tokio::test]
+async fn executor_stamps_tenant_id_from_the_security_context() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // Drive the mutation through the authenticated entry point with a UUID tenant.
+    // The runner stamps tenant_id EXPLICITLY from the SecurityContext (not from any
+    // RLS/session GUC), written to the contract's tenant_id UUID column.
+    let tenant = uuid::Uuid::new_v4();
+    let ctx = security_ctx_with_tenant(&tenant.to_string());
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query("SELECT tenant_id::text AS tenant_id FROM core.tb_entity_change_log")
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("tenant_id"),
+        Some(&json!(tenant.to_string())),
+        "tenant_id stamped from the SecurityContext"
+    );
+}
+
+#[tokio::test]
+async fn non_uuid_tenant_leaves_tenant_id_null_without_aborting() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // A non-UUID tenant identifier (the framework does not constrain TenantId to
+    // UUID) must NOT abort the mutation — tenant_id is simply left NULL.
+    let ctx = security_ctx_with_tenant("acme_corp_not_a_uuid");
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .expect("mutation succeeds despite a non-UUID tenant id");
+
+    let rows = adapter
+        .execute_raw_query("SELECT tenant_id FROM core.tb_entity_change_log")
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "the mutation + outbox row still happen");
+    assert!(
+        rows[0].get("tenant_id").is_none_or(serde_json::Value::is_null),
+        "tenant_id is NULL for a non-UUID tenant, got {:?}",
+        rows[0].get("tenant_id")
+    );
 }
 
 #[tokio::test]

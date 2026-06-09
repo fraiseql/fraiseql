@@ -189,9 +189,33 @@ fn changelog_cte_maps_mutation_response_columns_to_contract_columns() {
     // app.mutation_response row (object_id<-entity_id, object_data<-entity, …).
     for needle in [
         "(object_type, modification_type, object_id, object_data, updated_fields, cascade, \
-         started_at, duration_ms, extra_metadata)",
+         started_at, duration_ms, extra_metadata, tenant_id, commit_time)",
         "r.entity_id, r.entity, r.updated_fields, r.cascade",
     ] {
         assert!(sql.contains(needle), "expected `{needle}` in: {sql}");
     }
+}
+
+#[test]
+fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
+    // 2 function args => tenant_id is the $5 envelope param ($n+3), appended
+    // AFTER object_type ($3) and modification_type ($4) so the SQL text is stable
+    // for prepare_cached regardless of the tenant value.
+    let sql = super::database::build_changelog_cte_sql(r#""fn_e""#, 2);
+    assert!(
+        sql.contains("$5::uuid"),
+        "tenant_id is the $n+3 envelope param, cast to uuid: {sql}"
+    );
+    // commit_time is the DB clock at INSERT (durable ordering basis).
+    assert!(
+        sql.contains("clock_timestamp()"),
+        "commit_time stamped with clock_timestamp(): {sql}"
+    );
+    // seq is NOT in the INSERT column list — the table's SEQUENCE default fires,
+    // so any INSERTer (incl. cooperative external producers) gets a monotonic
+    // value. The column list ends at `commit_time)`.
+    assert!(
+        sql.contains("tenant_id, commit_time)"),
+        "INSERT column list ends at commit_time, omitting seq for its DEFAULT: {sql}"
+    );
 }

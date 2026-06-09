@@ -56,3 +56,62 @@ pub fn duration_ms_sql(started_at_var: &str) -> String {
         "(EXTRACT(EPOCH FROM (clock_timestamp() - current_setting('{started_at_var}')::timestamptz)) * 1000)::INTEGER"
     )
 }
+
+/// The columns a **portable** (non-PostgreSQL) outbox INSERT writes.
+///
+/// The changed-entity identity + the Change Spine envelope subset that any
+/// dialect — and any cooperative external producer — can supply by value.
+///
+/// PostgreSQL writes a richer set via its in-txn `MATERIALIZED` CTE (it also
+/// stamps `started_at`/`duration_ms` from the request-scoped GUC, computed in
+/// SQL). Those two columns are PostgreSQL-request-scoped and are **legitimately
+/// omitted (NULL)** on the portable path — exactly the rows #392's `null-rate`
+/// subcommand expects from non-FraiseQL producers. `seq` is supplied by the
+/// table's sequence/identity default, never by the INSERT.
+pub const CHANGELOG_PORTABLE_INSERT_COLUMNS: &[&str] = &[
+    "object_type",
+    "modification_type",
+    "object_id",
+    "object_data",
+    "updated_fields",
+    "cascade",
+    "tenant_id",
+    "commit_time",
+];
+
+/// Build a portable, fully-parameterized outbox INSERT for a non-PostgreSQL dialect.
+///
+/// The multi-DB counterpart of PostgreSQL's in-txn CTE: the row values are bound
+/// from the parsed `app.mutation_response` row in Rust, since MySQL / SQL Server
+/// cannot reference a `CALL`/`EXEC` result set in a following `INSERT ... SELECT`.
+///
+/// Placeholders are dialect-specific: PostgreSQL `$1, $2, …`, SQL Server
+/// `@P1, @P2, …`, MySQL / SQLite `?`. The column list is
+/// [`CHANGELOG_PORTABLE_INSERT_COLUMNS`], so every dialect writes the same
+/// contract shape.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_db::{changelog::build_changelog_insert_sql, DatabaseType};
+/// let sql = build_changelog_insert_sql("core.tb_entity_change_log", DatabaseType::MySQL);
+/// assert!(sql.starts_with("INSERT INTO core.tb_entity_change_log ("));
+/// assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?)"));
+/// ```
+#[must_use]
+pub fn build_changelog_insert_sql(table: &str, dialect: crate::types::DatabaseType) -> String {
+    use crate::types::DatabaseType;
+    let columns = CHANGELOG_PORTABLE_INSERT_COLUMNS;
+    let placeholders: Vec<String> = (1..=columns.len())
+        .map(|i| match dialect {
+            DatabaseType::PostgreSQL => format!("${i}"),
+            DatabaseType::SQLServer => format!("@P{i}"),
+            DatabaseType::MySQL | DatabaseType::SQLite => "?".to_string(),
+        })
+        .collect();
+    format!(
+        "INSERT INTO {table} ({}) VALUES ({})",
+        columns.join(", "),
+        placeholders.join(", ")
+    )
+}

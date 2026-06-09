@@ -46,8 +46,10 @@ ALTER TABLE core.tb_entity_change_log
     -- Defaulted backbone (backfills on a pre-existing table that lacks them).
     ADD COLUMN IF NOT EXISTS id                 UUID        NOT NULL DEFAULT gen_random_uuid(),
     ADD COLUMN IF NOT EXISTS created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- Spine envelope: RLS/JWT partition stamp (complementary to fk_customer_org).
-    ADD COLUMN IF NOT EXISTS tenant_id          BIGINT,
+    -- Spine envelope: RLS/JWT partition stamp, the Trinity public-facing
+    -- identifier (UUID), complementary to the internal join FK fk_customer_org
+    -- (BIGINT). Stamped explicitly from SecurityContext.tenant_id at write time.
+    ADD COLUMN IF NOT EXISTS tenant_id          UUID,
     -- Internal join FKs (Trinity fk_{entity}) — existing observer schema, kept.
     ADD COLUMN IF NOT EXISTS fk_customer_org    BIGINT,
     ADD COLUMN IF NOT EXISTS fk_contact         BIGINT,
@@ -75,6 +77,18 @@ ALTER TABLE core.tb_entity_change_log
     ADD COLUMN IF NOT EXISTS extra_metadata     JSONB,
     ADD COLUMN IF NOT EXISTS nats_published_at  TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS nats_event_id      UUID;
+
+-- ----------------------------------------------------------------------------
+-- Monotonic `seq` source (Change Spine durable ordering / dedup on
+-- (object_type, seq)). A plain global SEQUENCE defaulted on the column, so ANY
+-- INSERTer gets a value — the FraiseQL executor AND cooperative external
+-- producers writing contract-conforming rows (the seq is not an executor-only
+-- counter). Re-run safe: CREATE SEQUENCE IF NOT EXISTS + idempotent SET DEFAULT.
+-- ----------------------------------------------------------------------------
+CREATE SEQUENCE IF NOT EXISTS core.seq_entity_change_log;
+ALTER TABLE core.tb_entity_change_log
+    ALTER COLUMN seq SET DEFAULT nextval('core.seq_entity_change_log');
+ALTER SEQUENCE core.seq_entity_change_log OWNED BY core.tb_entity_change_log.seq;
 
 -- ----------------------------------------------------------------------------
 -- Indexes (re-run safe).

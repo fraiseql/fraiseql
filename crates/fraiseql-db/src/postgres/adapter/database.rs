@@ -215,17 +215,25 @@ pub(super) async fn apply_session_vars(
 /// returns the function's row unchanged to the caller. The changed-entity
 /// columns (`object_id`, `object_data`, `updated_fields`, `cascade`) come from
 /// the function's own `app.mutation_response` row; `$<n+1>` is the NOT-NULL
-/// `object_type` fallback and `$<n+2>` is the `modification_type` verb, where
-/// `n` = `n_args` (the number of function arguments).
+/// `object_type` fallback, `$<n+2>` is the `modification_type` verb, and
+/// `$<n+3>` is the envelope `tenant_id` (the Trinity public-facing UUID, NULL
+/// for system / unauthenticated / non-UUID-tenant rows), where `n` = `n_args`
+/// (the number of function arguments). The envelope params are appended **after**
+/// the function args so the SQL text stays deterministic per `(function, n_args)`
+/// — `prepare_cached` keys the statement by text, so the column list and
+/// placeholder positions must never depend on the param *values*.
 ///
 /// `started_at`/`duration_ms` read `fraiseql.started_at` (set txn-locally by the
 /// caller) on the DB clock — the canonical computation from
 /// [`crate::changelog::duration_ms_sql`], stamped with
-/// [`crate::changelog::DURATION_CALC_VERSION`].
+/// [`crate::changelog::DURATION_CALC_VERSION`]. `commit_time` is the DB clock at
+/// INSERT; `seq` is omitted so the column's `SEQUENCE` default fires (so any
+/// INSERTer, incl. cooperative external producers, gets a monotonic value).
 pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String {
     let placeholders: Vec<String> = (1..=n_args).map(|i| format!("${i}")).collect();
     let object_type_idx = n_args + 1;
     let modification_type_idx = n_args + 2;
+    let tenant_id_idx = n_args + 3;
     let started_var = crate::changelog::STARTED_AT_VAR;
     let duration = crate::changelog::duration_ms_sql(started_var);
     let calc_version = crate::changelog::DURATION_CALC_VERSION;
@@ -234,14 +242,17 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
          _changelog AS ( \
            INSERT INTO core.tb_entity_change_log \
              (object_type, modification_type, object_id, object_data, \
-              updated_fields, cascade, started_at, duration_ms, extra_metadata) \
+              updated_fields, cascade, started_at, duration_ms, extra_metadata, \
+              tenant_id, commit_time) \
            SELECT \
              COALESCE(r.entity_type, ${object_type_idx}), \
              ${modification_type_idx}, \
              r.entity_id, r.entity, r.updated_fields, r.cascade, \
              current_setting('{started_var}')::timestamptz, \
              {duration}, \
-             jsonb_build_object('duration_calc_version', {calc_version}::int) \
+             jsonb_build_object('duration_calc_version', {calc_version}::int), \
+             ${tenant_id_idx}::uuid, \
+             clock_timestamp() \
            FROM r \
            WHERE r.succeeded AND r.state_changed \
            RETURNING 1 \
@@ -646,9 +657,11 @@ impl DatabaseAdapter for PostgresAdapter {
         // same txn, atomically, with no extra connection acquire (Change Spine).
         let sql = build_changelog_cte_sql(&quoted_fn, args.len());
 
-        // Function args first; then the two threaded change-log params —
-        // object_type fallback ($n+1) and modification_type verb ($n+2). See
-        // build_changelog_cte_sql for the positional contract.
+        // Function args first; then the threaded change-log envelope params —
+        // object_type fallback ($n+1), modification_type verb ($n+2), and the
+        // tenant_id stamp ($n+3, bound against `::uuid`). Order matches
+        // build_changelog_cte_sql's positional contract; appending the envelope
+        // params keeps the SQL text stable for prepare_cached.
         let mut flex_args: Vec<FlexParam> = args
             .iter()
             .map(|v| match v {
@@ -659,6 +672,10 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect();
         flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
         flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
+        // tenant_id: bound as text and serialised by FlexParam's UUID branch
+        // (the `::uuid` cast pins the param type); None → SQL NULL.
+        flex_args
+            .push(changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
         let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
             .iter()
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))

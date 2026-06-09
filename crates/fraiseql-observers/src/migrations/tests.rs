@@ -40,6 +40,21 @@ fn migration_declares_both_tenant_id_and_fk_customer_org() {
 }
 
 #[test]
+fn migration_installs_the_global_seq_sequence() {
+    let sql = entity_change_log_contract_sql();
+    // `seq` is fed by a plain global SEQUENCE default, so ANY INSERTer (the
+    // executor AND cooperative external producers) gets a monotonic value.
+    assert!(
+        sql.contains("CREATE SEQUENCE IF NOT EXISTS core.seq_entity_change_log"),
+        "global seq sequence is created"
+    );
+    assert!(
+        sql.contains("ALTER COLUMN seq SET DEFAULT nextval('core.seq_entity_change_log')"),
+        "seq defaults to nextval of the sequence"
+    );
+}
+
+#[test]
 fn migration_creates_the_five_contract_indexes() {
     let sql = entity_change_log_contract_sql();
     for index in [

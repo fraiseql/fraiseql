@@ -19,8 +19,9 @@
 #![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used)] // Reason: integration test file
 
-use fraiseql_observers::migrations::{
-    ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql,
+use fraiseql_observers::{
+    listener::{ChangeLogListener, ChangeLogListenerConfig},
+    migrations::{ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql},
 };
 use fraiseql_test_utils::database_url;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -198,6 +199,119 @@ async fn migration_creates_seq_indexes() {
     .collect();
     assert!(names.iter().any(|n| n == "idx_entity_log_tenant_seq"), "(tenant_id, seq) index");
     assert!(names.iter().any(|n| n == "idx_entity_log_type_seq"), "(object_type, seq) index");
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn poller_decodes_executor_written_contract_rows() {
+    let pool = pool().await;
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+
+    // An executor-written contract row: object_id is a UUID, fk_customer_org /
+    // fk_contact are BIGINT, plus the additive perf/envelope columns. The poller
+    // previously decoded object_id/fk_customer_org as String and would fail the
+    // sqlx type-check here; the Trinity-typed decode reconciles it. object_data
+    // may legitimately be NULL on the contract — proved by omitting it.
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log
+           (object_type, modification_type, object_id, fk_customer_org, fk_contact,
+            tenant_id, duration_ms, commit_time)
+         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7,
+            gen_random_uuid(), 5, now())",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mut listener = ChangeLogListener::new(ChangeLogListenerConfig::new(pool.clone()));
+    let batch = listener.next_batch().await.expect("poller decodes the contract row");
+
+    assert_eq!(batch.len(), 1, "poller surfaced the executor-written row");
+    let entry = &batch[0];
+    assert_eq!(entry.object_type, "User");
+    assert_eq!(entry.modification_type, "INSERT");
+    assert_eq!(
+        entry.fk_customer_org, "42",
+        "BIGINT fk_customer_org surfaced as its decimal string"
+    );
+    assert_eq!(entry.fk_contact.as_deref(), Some("7"), "BIGINT fk_contact surfaced as a string");
+    assert!(
+        uuid::Uuid::parse_str(&entry.object_id).is_ok(),
+        "object_id decoded from the UUID column: {}",
+        entry.object_id
+    );
+    // seq / tenant_id are additive columns the poller's projection ignores — it
+    // must still decode the row (no widening required for correctness).
+    assert!(
+        entry.object_data.is_null(),
+        "NULL object_data decodes to JSON null, not an error"
+    );
+}
+
+/// The `data_type` of a `core.tb_entity_change_log` column from the catalog.
+async fn column_type(pool: &PgPool, column: &str) -> String {
+    sqlx::query(
+        "SELECT data_type FROM information_schema.columns
+         WHERE table_schema = 'core' AND table_name = 'tb_entity_change_log'
+           AND column_name = $1",
+    )
+    .bind(column)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+    .get::<String, _>("data_type")
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn tenant_id_is_uuid_and_fk_customer_org_is_bigint() {
+    let pool = pool().await;
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+
+    // Trinity: tenant_id is the public-facing UUID (the RLS/JWT partition stamp);
+    // fk_customer_org is the internal BIGINT join FK. Complementary, not a rename.
+    assert_eq!(column_type(&pool, "tenant_id").await, "uuid", "tenant_id is UUID");
+    assert_eq!(
+        column_type(&pool, "fk_customer_org").await,
+        "bigint",
+        "fk_customer_org is BIGINT"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn seq_default_assigns_monotonic_values_to_any_insert() {
+    let pool = pool().await;
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+
+    // A cooperative external producer INSERT that omits seq still gets one from
+    // the SEQUENCE default — the contract guarantees seq for ANY INSERTer, not
+    // just the FraiseQL executor (the dedup basis is (object_type, seq)).
+    for object_type in ["A", "B", "C"] {
+        sqlx::query(
+            "INSERT INTO core.tb_entity_change_log (object_type, modification_type)
+             VALUES ($1, 'INSERT')",
+        )
+        .bind(object_type)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let seqs: Vec<i64> =
+        sqlx::query("SELECT seq FROM core.tb_entity_change_log ORDER BY pk_entity_change_log")
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.get::<i64, _>("seq"))
+            .collect();
+    assert_eq!(seqs.len(), 3, "every insert got a row");
+    assert!(seqs.iter().all(|&s| s > 0), "seq populated by the default: {seqs:?}");
+    assert!(seqs.windows(2).all(|w| w[1] > w[0]), "seq is monotonic: {seqs:?}");
 }
 
 #[tokio::test]

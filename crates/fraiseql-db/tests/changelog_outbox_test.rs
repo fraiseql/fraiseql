@@ -57,13 +57,19 @@ async fn provision(client: &tokio_postgres::Client) {
              EXCEPTION WHEN duplicate_object THEN NULL; END $$;
              CREATE SCHEMA IF NOT EXISTS core;
              DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE;
+             DROP SEQUENCE IF EXISTS core.seq_entity_change_log;
+             CREATE SEQUENCE core.seq_entity_change_log;
              CREATE TABLE core.tb_entity_change_log (\
                pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
                object_type TEXT NOT NULL, modification_type TEXT NOT NULL, \
                id UUID NOT NULL DEFAULT gen_random_uuid(), \
                created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
                object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-               duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB);",
+               duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
+               tenant_id UUID, commit_time TIMESTAMPTZ, \
+               seq BIGINT DEFAULT nextval('core.seq_entity_change_log'), \
+               actor_type TEXT, acting_for BIGINT, schema_version TEXT, \
+               trace_id TEXT, trace_context JSONB);",
         )
         .await
         .unwrap();
@@ -347,4 +353,183 @@ async fn object_type_falls_back_to_return_type_when_entity_type_is_null() {
         .unwrap()
         .get("object_type");
     assert_eq!(object_type, obj_type, "object_type falls back to the return type");
+}
+
+/// A successful, state-changing mutation function returning a fixed identity —
+/// the workhorse used by the envelope-stamping tests below.
+async fn create_ok_fn(client: &tokio_postgres::Client, fn_name: &str, etype: &str) {
+    client
+        .batch_execute(&format!(
+            "CREATE OR REPLACE FUNCTION public.{fn_name}(p_id uuid) \
+             RETURNS app.mutation_response LANGUAGE plpgsql AS $$ \
+             DECLARE v app.mutation_response; BEGIN \
+             v.succeeded := true; v.state_changed := true; \
+             v.entity_type := '{etype}'; v.entity_id := p_id; \
+             RETURN v; END; $$;"
+        ))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn tenant_id_stamped_explicitly_from_the_envelope() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxTenant";
+    create_ok_fn(&client, "fn_outbox_tenant", obj_type).await;
+
+    // The tenant partition id is carried on the ChangeLogWrite (sourced from the
+    // SecurityContext in production) and written to the tenant_id UUID column —
+    // NOT reconstructed from any RLS/session GUC.
+    let tenant = uuid::Uuid::new_v4();
+    let id = uuid::Uuid::new_v4();
+    let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_tenant_id(Some(tenant));
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_tenant",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let stamped: uuid::Uuid = client
+        .query_one("SELECT tenant_id FROM core.tb_entity_change_log WHERE object_id = $1", &[&id])
+        .await
+        .unwrap()
+        .get("tenant_id");
+    assert_eq!(stamped, tenant, "tenant_id stamped verbatim from the envelope");
+}
+
+#[tokio::test]
+async fn tenant_id_is_null_when_unset() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxNoTenant";
+    create_ok_fn(&client, "fn_outbox_no_tenant", obj_type).await;
+
+    // No tenant on the envelope (unauthenticated / no-tenant / non-UUID tenant) →
+    // the column is NULL, never a lossy cast and never an aborted mutation.
+    let id = uuid::Uuid::new_v4();
+    let changelog = ChangeLogWrite::new(obj_type, "INSERT");
+    assert_eq!(changelog.tenant_id, None);
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_no_tenant",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let stamped: Option<uuid::Uuid> = client
+        .query_one("SELECT tenant_id FROM core.tb_entity_change_log WHERE object_id = $1", &[&id])
+        .await
+        .unwrap()
+        .get("tenant_id");
+    assert_eq!(stamped, None, "tenant_id is NULL when the envelope carries none");
+}
+
+#[tokio::test]
+async fn seq_is_monotonic_and_distinct_from_the_sequence_default() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxSeq";
+    create_ok_fn(&client, "fn_outbox_seq", obj_type).await;
+
+    // The executor INSERT omits `seq`, so the column's SEQUENCE default fires on
+    // every row — proving any INSERTer (incl. cooperative external producers)
+    // gets a monotonic value without the executor managing a counter.
+    for _ in 0..3 {
+        adapter
+            .execute_function_call_with_changelog(
+                "public.fn_outbox_seq",
+                &[json!(uuid::Uuid::new_v4().to_string())],
+                STARTED_AT,
+                Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+            )
+            .await
+            .unwrap();
+    }
+
+    let seqs: Vec<i64> = client
+        .query(
+            "SELECT seq FROM core.tb_entity_change_log WHERE object_type = $1 \
+             ORDER BY pk_entity_change_log",
+            &[&obj_type],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get::<_, i64>("seq"))
+        .collect();
+
+    assert_eq!(seqs.len(), 3, "one seq per row");
+    assert!(
+        seqs.windows(2).all(|w| w[1] > w[0]),
+        "seq is strictly increasing (monotonic, gap-tolerant): {seqs:?}"
+    );
+    let mut distinct = seqs.clone();
+    distinct.dedup();
+    assert_eq!(
+        distinct.len(),
+        3,
+        "seq values are distinct (dedup on (object_type, seq)): {seqs:?}"
+    );
+}
+
+#[tokio::test]
+async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxEnvelope";
+    create_ok_fn(&client, "fn_outbox_envelope", obj_type).await;
+
+    let id = uuid::Uuid::new_v4();
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_envelope",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+        )
+        .await
+        .unwrap();
+
+    let row = client
+        .query_one(
+            "SELECT commit_time IS NOT NULL AS has_commit_time, \
+             actor_type, acting_for, schema_version, trace_id, trace_context \
+             FROM core.tb_entity_change_log WHERE object_id = $1",
+            &[&id],
+        )
+        .await
+        .unwrap();
+
+    // commit_time is the DB clock at INSERT — the durable-ordering basis.
+    assert!(
+        row.get::<_, bool>("has_commit_time"),
+        "commit_time stamped with clock_timestamp()"
+    );
+    // Envelope columns whose upstream issues (#390/#377/#375) have not landed are
+    // left NULL — and the INSERT never errors on a missing source.
+    assert!(
+        row.get::<_, Option<String>>("actor_type").is_none(),
+        "actor_type NULL pending #390"
+    );
+    assert!(
+        row.get::<_, Option<i64>>("acting_for").is_none(),
+        "acting_for NULL pending #390"
+    );
+    assert!(
+        row.get::<_, Option<String>>("schema_version").is_none(),
+        "schema_version NULL pending #377"
+    );
+    assert!(row.get::<_, Option<String>>("trace_id").is_none(), "trace_id NULL pending #375");
+    assert!(
+        row.get::<_, Option<serde_json::Value>>("trace_context").is_none(),
+        "trace_context NULL pending #375"
+    );
 }

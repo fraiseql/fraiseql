@@ -29,18 +29,27 @@ use crate::{
 };
 
 /// Row type returned from the `tb_entity_change_log` query.
+///
+/// Decoded with the framework-owned contract's **Trinity types** —
+/// `fk_customer_org`/`fk_contact` are `BIGINT` (internal join FKs) and
+/// `object_id` is the public-facing `UUID` — reconciling the pre-existing
+/// `String`/`String` mismatch so the poller decodes executor-written rows. The
+/// type-typed values are projected back into [`ChangeLogEntry`]'s string fields
+/// so downstream consumers are unchanged. `object_data` is nullable on the
+/// contract (an effective change may carry no entity payload), so it is decoded
+/// as `Option`.
 type ChangeLogRow = (
-    i64,
-    Uuid,
-    Option<String>,
-    Option<String>,
-    String,
-    String,
-    String,
-    Option<String>,
-    Value,
-    Option<Value>,
-    Option<DateTime<Utc>>,
+    i64,                   // pk_entity_change_log
+    Uuid,                  // id
+    Option<i64>,           // fk_customer_org (BIGINT join FK)
+    Option<i64>,           // fk_contact (BIGINT)
+    String,                // object_type
+    Uuid,                  // object_id (public-facing UUID)
+    String,                // modification_type
+    Option<String>,        // change_status
+    Option<Value>,         // object_data (nullable)
+    Option<Value>,         // extra_metadata
+    Option<DateTime<Utc>>, // created_at
 );
 
 /// Configuration for the change log listener
@@ -377,13 +386,15 @@ impl ChangeLogListener {
             entries.push(ChangeLogEntry {
                 id:                   pk,
                 pk_entity_change_log: id.to_string(),
-                fk_customer_org:      org.unwrap_or_default(),
-                fk_contact:           contact,
+                // BIGINT/UUID contract values projected into the string-typed
+                // public fields (reconcile without breaking downstream readers).
+                fk_customer_org:      org.map(|n| n.to_string()).unwrap_or_default(),
+                fk_contact:           contact.map(|n| n.to_string()),
                 object_type:          obj_type,
-                object_id:            obj_id,
+                object_id:            obj_id.to_string(),
                 modification_type:    mod_type,
                 change_status:        status.unwrap_or_default(),
-                object_data:          data,
+                object_data:          data.unwrap_or(Value::Null),
                 extra_metadata:       meta,
                 created_at:           created_at_str,
             });
