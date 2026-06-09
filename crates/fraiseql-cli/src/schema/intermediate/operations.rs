@@ -106,7 +106,7 @@ pub struct IntermediateQuery {
 }
 
 /// Mutation definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMutation {
     /// Mutation name (e.g., "createUser")
     pub name: String,
@@ -166,6 +166,29 @@ pub struct IntermediateMutation {
     /// authored before this field existed keeps logging.
     #[serde(default = "default_changelog")]
     pub changelog: bool,
+}
+
+impl Default for IntermediateMutation {
+    /// Hand-written so `changelog` defaults to `true` (matching the serde default),
+    /// not `bool`'s `false`. A `#[derive(Default)]` would silently opt
+    /// `..Default::default()`-built mutations out of the change log.
+    fn default() -> Self {
+        Self {
+            name:                    String::new(),
+            return_type:             String::new(),
+            returns_list:            false,
+            nullable:                false,
+            arguments:               Vec::new(),
+            description:             None,
+            sql_source:              None,
+            operation:               None,
+            deprecated:              None,
+            inject:                  IndexMap::new(),
+            invalidates_fact_tables: Vec::new(),
+            invalidates_views:       Vec::new(),
+            changelog:               default_changelog(),
+        }
+    }
 }
 
 /// Serde default for [`IntermediateMutation::changelog`]: log by default (opt-out).

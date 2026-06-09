@@ -509,4 +509,28 @@ mod intermediate_tests {
         assert_eq!(employee.fields[3].name, "ssn");
         assert_eq!(employee.fields[3].requires_scope, Some("admin".to_string()));
     }
+
+    #[test]
+    fn intermediate_mutation_default_logs_by_default() {
+        // A `Default`-constructed mutation must agree with the serde default
+        // (`default_changelog` = true), so test helpers that build mutations via
+        // `..Default::default()` don't silently opt them out of the change log.
+        assert!(IntermediateMutation::default().changelog);
+    }
+
+    #[test]
+    fn intermediate_mutation_default_matches_serde_absent_changelog() {
+        // Deserializing a mutation with no `changelog` key falls back to the serde
+        // default; the struct `Default` must produce the same value.
+        let json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": [
+                {"name": "createUser", "return_type": "User", "sql_source": "fn_create_user"}
+            ]
+        }"#;
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        assert_eq!(schema.mutations[0].changelog, IntermediateMutation::default().changelog);
+        assert!(schema.mutations[0].changelog);
+    }
 }
