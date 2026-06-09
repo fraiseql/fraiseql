@@ -53,8 +53,10 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 1. Create core schema
     sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
-    // 2. Create tb_entity_change_log (with Debezium envelope) DROP first to avoid stale schema from
-    //    prior runs (e.g. object_id UUID→TEXT migration).
+    // 2. Create tb_entity_change_log (with Debezium envelope). DROP first so a stale shape from a
+    //    prior run can't survive — the columns the poller decodes must match the change-log
+    //    contract types: object_id is UUID and fk_customer_org / fk_contact are BIGINT (the
+    //    poller's ChangeLogRow decodes them as Uuid / Option<i64>).
     sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
         .execute(pool)
         .await?;
@@ -63,10 +65,10 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
             pk_entity_change_log BIGSERIAL PRIMARY KEY,
             id UUID NOT NULL DEFAULT gen_random_uuid(),
-            fk_customer_org TEXT,
-            fk_contact TEXT,
+            fk_customer_org BIGINT,
+            fk_contact BIGINT,
             object_type TEXT NOT NULL,
-            object_id TEXT NOT NULL,
+            object_id UUID NOT NULL,
             modification_type TEXT NOT NULL,
             change_status TEXT,
             object_data JSONB NOT NULL,
@@ -392,7 +394,7 @@ pub async fn insert_change_log_entry(
         INSERT INTO core.tb_entity_change_log (
             object_type, object_id, modification_type, object_data
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2::uuid, $3, $4)
         RETURNING pk_entity_change_log
         ",
     )
