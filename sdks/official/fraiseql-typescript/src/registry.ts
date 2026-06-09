@@ -286,6 +286,12 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
     }
   }
 
+  // changelog opt-out flag must be a real boolean so the compiler's typed field
+  // deserialises; omitting it lets the compiler default it to true.
+  if ("changelog" in config && typeof config.changelog !== "boolean") {
+    throw new Error(`changelog must be a boolean (got ${typeof config.changelog})`);
+  }
+
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
     if (key === "restPath" || key === "restMethod") {

@@ -897,6 +897,71 @@ def test_mutation_invalidates_views_invalid_identifier_raises() -> None:
             pass
 
 
+# ── @fraiseql.mutation changelog tests ────────────────────────────────────────
+
+
+def test_mutation_changelog_false_passes_through() -> None:
+    """changelog=False opts the mutation out of the Change-Spine outbox in JSON."""
+
+    @fraiseql.type
+    class Pulse:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_record_pulse", changelog=False)
+    def record_pulse(value: int) -> Pulse:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "recordPulse")
+    assert mut["changelog"] is False
+
+
+def test_mutation_changelog_true_passes_through() -> None:
+    """changelog=True is accepted and emitted (explicit opt-in)."""
+
+    @fraiseql.type
+    class Ledger:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_append_ledger", changelog=True)
+    def append_ledger(amount: int) -> Ledger:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "appendLedger")
+    assert mut["changelog"] is True
+
+
+def test_mutation_changelog_omitted_absent_from_json() -> None:
+    """Omitting changelog leaves the key out — the compiler defaults it to true."""
+
+    @fraiseql.type
+    class Entry:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_entry")
+    def create_entry(name: str) -> Entry:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "createEntry")
+    assert "changelog" not in mut
+
+
+def test_mutation_changelog_non_bool_raises() -> None:
+    """A non-boolean changelog value is rejected at authoring time."""
+
+    @fraiseql.type
+    class Gauge:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a bool"):
+
+        @fraiseql.mutation(sql_source="fn_create_gauge", changelog="no")
+        def create_gauge(name: str) -> Gauge:
+            pass
+
+
 # ============================================================================
 # sql_source identifier validation
 # ============================================================================

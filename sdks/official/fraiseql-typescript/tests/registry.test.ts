@@ -286,4 +286,34 @@ describe("SchemaRegistry", () => {
       expect(mutation["sqlSource"]).toBeUndefined();
     });
   });
+
+  describe("changelog opt-out flag", () => {
+    it("should emit changelog=false in mutation output", () => {
+      SchemaRegistry.registerMutation("recordPulse", "Pulse", false, false, [], undefined, {
+        sqlSource: "fn_record_pulse",
+        changelog: false,
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect(mutation["changelog"]).toBe(false);
+    });
+
+    it("should leave changelog out of mutation output when omitted", () => {
+      SchemaRegistry.registerMutation("createEntry", "Entry", false, false, [], undefined, {
+        sqlSource: "fn_create_entry",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect("changelog" in mutation).toBe(false);
+    });
+
+    it("should reject a non-boolean changelog value", () => {
+      expect(() => {
+        SchemaRegistry.registerMutation("createGauge", "Gauge", false, false, [], undefined, {
+          sqlSource: "fn_create_gauge",
+          changelog: "no",
+        });
+      }).toThrow("changelog must be a boolean");
+    });
+  });
 });

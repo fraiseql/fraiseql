@@ -183,9 +183,10 @@ The write is on by default. Two levels, AND-composed by the runner:
   `FRAISEQL_CHANGELOG_ENABLED` (env) → `[changelog] write_enabled` (compiled
   schema, default `true`) → `true`.
 - **Per-mutation** — `MutationDefinition.changelog` (compiled, serde-default
-  `true`). The authoring-side surface
-  (`@fraiseql.mutation(changelog=False)`) is an open follow-up; the runtime and
-  compiler already honor the compiled field.
+  `true`), authored as `@fraiseql.mutation(changelog=False)` (Python) or
+  `@Mutation({ changelog: false })` (TypeScript). The decorators validate the
+  value is a boolean and emit the key only when set, so a schema authored
+  without it keeps logging.
 
 `changelog_enabled && mutation_def.changelog` decides whether the row is written
 for a given mutation.
@@ -261,9 +262,6 @@ Tracked, not yet built:
   (no outbox row written), so there is no regression — but no row either. Wiring
   them needs the two drivers' in-transaction call semantics (MySQL's
   `CALL`-in-txn caveat) and per-DB test infrastructure.
-- **SDK `@fraiseql.mutation(changelog=False)` authoring surface.** The runtime
-  and compiler already honor `MutationDefinition.changelog`; the Python/TS
-  decorator argument to set it is not yet exposed.
 - **Poller projection widening.** The change-log poller
   (`crates/fraiseql-observers/src/listener/change_log.rs`) could surface
   `duration_ms` / `tenant_id` / `seq` top-level for richer fan-out filtering.

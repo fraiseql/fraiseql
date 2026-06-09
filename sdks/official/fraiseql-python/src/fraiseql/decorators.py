@@ -124,6 +124,25 @@ def _validate_rest_annotations(
         cfg["rest"] = {"path": rest_path, "method": method}
 
 
+def _validate_changelog(cfg: dict[str, Any], context: str) -> None:
+    """Validate the ``changelog`` opt-out flag in *cfg* if present.
+
+    The flag controls whether a successful mutation writes a Change-Spine
+    change-log row; it must be a real ``bool`` so the compiler's typed field
+    deserialises. Absent is fine — the compiler defaults it to ``True``.
+
+    Args:
+        cfg: Config dict that may contain ``changelog``.
+        context: Human-readable decorator description for error messages.
+
+    Raises:
+        TypeError: If ``changelog`` is present but not a ``bool``.
+    """
+    if "changelog" in cfg and not isinstance(cfg["changelog"], bool):
+        msg = f"{context}: changelog= must be a bool (got {cfg['changelog'].__class__.__name__!r})."
+        raise TypeError(msg)
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -623,6 +642,11 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
         - Function must have type annotations for all parameters and return type
         - Pass configuration as decorator arguments: @mutation(sql_source="...", operation="CREATE")
         - operation: CREATE, UPDATE, DELETE, or CUSTOM
+        - changelog: bool (default true). Set ``changelog=False`` to opt this single
+          mutation out of the Change-Spine in-transaction change-log outbox while the
+          rest of the schema keeps logging. Omitting it leaves the key out of the JSON,
+          and the compiler defaults it to true (a row is written only when the global
+          ``[changelog]`` switch and this per-mutation flag are both on).
 
     Database support:
         - PostgreSQL: full support
@@ -706,6 +730,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                         "letter or underscore)."
                     )
                     raise ValueError(msg)
+
+        # changelog= validation — fail fast at authoring time
+        _validate_changelog(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # Register mutation with schema registry
         # description= in cfg overrides the docstring

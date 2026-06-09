@@ -182,6 +182,16 @@ export function Query(config?: OperationConfig) {
  */
 export interface MutationConfig extends OperationConfig {
   operation?: "CREATE" | "UPDATE" | "DELETE" | "CUSTOM";
+  /**
+   * Whether a successful run of this mutation writes a Change-Spine change-log row.
+   *
+   * Defaults to `true`. Set `changelog: false` to opt this single mutation out of the
+   * in-transaction change-log outbox while the rest of the schema keeps logging.
+   * Omitting it leaves the key out of the JSON, and the compiler defaults it to `true`
+   * (a row is written only when the global `[changelog]` switch and this per-mutation
+   * flag are both on).
+   */
+  changelog?: boolean;
 }
 
 /**

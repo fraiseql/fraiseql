@@ -31,10 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outbox lands for the other backends in a follow-up). **Opt-out (default-on):** the write can be
   disabled globally — `[changelog] write_enabled = false` in `fraiseql.toml`, or
   `FRAISEQL_CHANGELOG_ENABLED=false` at runtime — and per endpoint via the compiled-schema
-  `MutationDefinition.changelog` flag (serde-defaults to `true`; the authoring-SDK surface
-  `@fraiseql.mutation(changelog=False)` is a follow-up). A row is written only when the global
-  switch and the per-mutation flag are both on. The contract is documented in
-  `docs/architecture/change-log-contract.md`.
+  `MutationDefinition.changelog` flag (serde-defaults to `true`), authored as
+  `@fraiseql.mutation(changelog=False)` (Python) or `@Mutation({ changelog: false })`
+  (TypeScript). A row is written only when the global switch and the per-mutation flag
+  are both on. The contract is documented in `docs/architecture/change-log-contract.md`.
 
 - **Prepared-statement caching on the mutation function-call path — large mutation-throughput
   win.** The PostgreSQL adapter now uses deadpool's per-connection `prepare_cached` for
@@ -66,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sourced from the single typed contract definition shared with the migration DDL
   (`fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT`). Runs alongside the #409
   PL/pgSQL body-resolution pass under the same `--against-db` flag.
+
+- **Authoring-SDK surface for the per-mutation change-log opt-out.** The Change-Spine
+  per-mutation flag can now be set from the authoring decorators —
+  `@fraiseql.mutation(changelog=False)` in the Python SDK and
+  `@Mutation({ changelog: false })` (or the typed `MutationConfig.changelog`) in the
+  TypeScript SDK — instead of hand-editing the compiled schema. Both decorators validate
+  the value is a boolean and fail fast at authoring time on anything else, and emit the
+  `changelog` key only when it is set, so a schema authored without it keeps logging (the
+  compiler serde-defaults `MutationDefinition.changelog` to `true`).
 
 ### Breaking
 
