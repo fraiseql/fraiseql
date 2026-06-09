@@ -24,6 +24,39 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// The framework-owned change-log row the mutation executor writes in-txn.
+///
+/// Carries only the fields the adapter cannot derive from the
+/// `app.mutation_response` row it already holds: the DML verb and a NOT-NULL
+/// `object_type` fallback. The changed-entity identity + payload (`object_id`,
+/// `object_data`, `updated_fields`, `cascade`) are read from the function's own
+/// returned row inside the same transaction (see
+/// [`DatabaseAdapter::execute_function_call_with_changelog`]).
+///
+/// This is the Change Spine transactional-outbox contract (phase-02). Envelope
+/// columns (`tenant_id`, `actor_type`, `seq`, `schema_version`, trace context)
+/// are stamped in phase-03 and left NULL here.
+#[derive(Debug, Clone, Copy)]
+pub struct ChangeLogWrite<'a> {
+    /// NOT-NULL fallback for `object_type` when the row's `entity_type` is NULL.
+    /// Sourced from `MutationDefinition.return_type` (always present).
+    pub object_type:       &'a str,
+    /// The DML verb written to `modification_type` (e.g. `"INSERT"`,
+    /// `"UPDATE"`, `"DELETE"`, `"CUSTOM"`), from `MutationOperation`.
+    pub modification_type: &'a str,
+}
+
+impl<'a> ChangeLogWrite<'a> {
+    /// Build a change-log write descriptor.
+    #[must_use]
+    pub const fn new(object_type: &'a str, modification_type: &'a str) -> Self {
+        Self {
+            object_type,
+            modification_type,
+        }
+    }
+}
+
 /// Database adapter for executing queries against views.
 ///
 /// This trait abstracts over different database backends (PostgreSQL, MySQL, SQLite, SQL Server).
@@ -859,6 +892,48 @@ pub trait DatabaseAdapter: Send + Sync {
         // Default: ignore session_vars and delegate. Safe for non-PostgreSQL
         // adapters, which never applied session variables in the first place.
         self.execute_function_call(function_name, args).await
+    }
+
+    /// Connection-affine variant of
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
+    /// that **also writes one `core.tb_entity_change_log` row in the same
+    /// transaction** as the mutation function — the Change Spine transactional
+    /// outbox (phase-02).
+    ///
+    /// When `changelog` is `Some`, the framework owns the change-log write: a
+    /// single statement runs the function and INSERTs the outbox row atomically
+    /// on the same connection, so `fraiseql.started_at` (set txn-locally for the
+    /// `duration_ms` computation) is visible and a crash leaves neither the
+    /// mutation nor the log row. The changed-entity columns are read from the
+    /// function's own `app.mutation_response` row; only the DML verb and a
+    /// NOT-NULL `object_type` fallback are threaded in via [`ChangeLogWrite`].
+    /// The row is written only for an effective change (`succeeded` AND
+    /// `state_changed`).
+    ///
+    /// When `changelog` is `None`, behaviour is identical to
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session).
+    ///
+    /// Adapters that do not support the outbox write (MySQL, SQLite, SQL Server,
+    /// mocks) inherit the default implementation, which drops `changelog` and
+    /// delegates — multi-database parity lands in phase-03. PostgreSQL overrides
+    /// this with the real in-txn write.
+    ///
+    /// # Errors
+    ///
+    /// Same as
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session);
+    /// additionally returns `FraiseQLError::Database` if the outbox INSERT fails
+    /// (e.g. the contract migration has not been applied).
+    async fn execute_function_call_with_changelog(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        _changelog: Option<&ChangeLogWrite<'_>>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Default: ignore the change-log write and delegate. Non-PostgreSQL
+        // adapters gain the in-txn outbox in phase-03 (multi-DB parity).
+        self.execute_function_call_with_session(function_name, args, session_vars).await
     }
 
     /// Connection-affine variant of [`execute_where_query_arc`](Self::execute_where_query_arc).

@@ -308,35 +308,47 @@ pub struct EventHandler {
 #[serde(default)]
 pub struct ChangelogConfig {
     /// Master switch. When `false`, no changelog types are registered (default).
-    pub expose:     bool,
+    pub expose:        bool,
     /// PostgreSQL schema holding `tb_entity_change_log` and `tb_transport_checkpoint`.
     /// Default `"core"` (the observer install convention).
-    pub schema:     String,
+    pub schema:        String,
     /// Role required to query the changelog (`entity_change_logs`, `transport_checkpoint`).
     ///
     /// Matched against `SecurityContext.roles`. `None` disables the read gate (not
     /// recommended for production). Default `Some("changelog_reader")`.
-    pub read_role:  Option<String>,
+    pub read_role:     Option<String>,
     /// Role required to upsert checkpoints (`upsert_transport_checkpoint`).
     ///
     /// Matched against `SecurityContext.roles`. `None` disables the write gate.
     /// Default `Some("changelog_writer")`.
-    pub write_role: Option<String>,
+    pub write_role:    Option<String>,
     /// Maximum rows a single `entity_change_logs` page should return.
     ///
     /// Enforced as a documented/runtime clamp rather than a GraphQL argument
     /// constraint (the argument system has no max). Default `1000`.
-    pub max_limit:  u32,
+    pub max_limit:     u32,
+    /// Whether the mutation executor writes the `tb_entity_change_log` outbox row
+    /// in-transaction (the Change-Spine transactional outbox). Default `true`.
+    ///
+    /// Distinct from [`expose`](Self::expose), which gates the *read* path (the
+    /// #149 GraphQL changelog types): `write_enabled` gates the *write* path. Set
+    /// `false` to disable the outbox write **globally** — e.g. for an application
+    /// that does not consume the Change Spine — so no mutation pays the write.
+    /// Overridable at runtime by `FRAISEQL_CHANGELOG_ENABLED`; composes (AND) with
+    /// the per-mutation
+    /// [`MutationDefinition.changelog`](crate::schema::MutationDefinition) flag.
+    pub write_enabled: bool,
 }
 
 impl Default for ChangelogConfig {
     fn default() -> Self {
         Self {
-            expose:     false,
-            schema:     "core".to_string(),
-            read_role:  Some("changelog_reader".to_string()),
-            write_role: Some("changelog_writer".to_string()),
-            max_limit:  1_000,
+            expose:        false,
+            schema:        "core".to_string(),
+            read_role:     Some("changelog_reader".to_string()),
+            write_role:    Some("changelog_writer".to_string()),
+            max_limit:     1_000,
+            write_enabled: true,
         }
     }
 }
@@ -782,11 +794,12 @@ mod changelog_config_tests {
     #[test]
     fn changelog_round_trips_through_json() {
         let cfg = ChangelogConfig {
-            expose:     true,
-            schema:     "audit".to_string(),
-            read_role:  Some("ops".to_string()),
-            write_role: None,
-            max_limit:  250,
+            expose:        true,
+            schema:        "audit".to_string(),
+            read_role:     Some("ops".to_string()),
+            write_role:    None,
+            max_limit:     250,
+            write_enabled: false,
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: ChangelogConfig = serde_json::from_str(&json).unwrap();

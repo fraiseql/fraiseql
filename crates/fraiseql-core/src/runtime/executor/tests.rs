@@ -75,6 +75,7 @@ mod query {
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
             audit_mutations:      false,
+            changelog_enabled:    true,
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -442,6 +443,7 @@ mod config {
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
             audit_mutations:      false,
+            changelog_enabled:    true,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -469,6 +471,7 @@ mod config {
             jsonb_optimization:   custom_options,
             query_validation:     None,
             audit_mutations:      false,
+            changelog_enabled:    true,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);

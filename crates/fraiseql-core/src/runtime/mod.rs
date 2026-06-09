@@ -231,6 +231,21 @@ pub struct RuntimeConfig {
     /// Set to `true` when `audit_logging_enabled = true` in the compiled schema's
     /// `[security.enterprise]` section (threaded through `Server::new()` at startup).
     pub audit_mutations: bool,
+
+    /// Global switch for the Change-Spine change-log outbox write (default `true`).
+    ///
+    /// When `true`, every successful state-changing mutation writes one
+    /// `core.tb_entity_change_log` row in-transaction (the framework owns the
+    /// write). Set `false` to disable the outbox **globally** — e.g. for an
+    /// application that does not consume the Change Spine — so no mutation pays
+    /// the write. The per-mutation
+    /// [`MutationDefinition.changelog`](crate::schema::MutationDefinition) flag
+    /// composes as a logical AND on top of this: a row is written only when the
+    /// global switch is on **and** the mutation is not individually opted out.
+    ///
+    /// Sourced from `[changelog] enabled` in `fraiseql.toml`, overridable at
+    /// runtime by `FRAISEQL_CHANGELOG_ENABLED`.
+    pub changelog_enabled: bool,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -249,6 +264,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
             .field("audit_mutations", &self.audit_mutations)
+            .field("changelog_enabled", &self.changelog_enabled)
             .finish()
     }
 }
@@ -269,6 +285,7 @@ impl Default for RuntimeConfig {
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
             audit_mutations:      false,
+            changelog_enabled:    true,
         }
     }
 }

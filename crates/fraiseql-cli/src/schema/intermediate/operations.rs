@@ -157,6 +157,20 @@ pub struct IntermediateMutation {
     /// mutation succeeds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_views: Vec<String>,
+
+    /// Whether this mutation writes a Change-Spine change-log row (default `true`).
+    ///
+    /// Set `false` (via the authoring SDK's `@fraiseql.mutation(changelog=False)`)
+    /// to opt a single mutation out of the in-transaction change-log outbox while
+    /// the rest of the schema keeps logging. Defaults to `true` so a schema
+    /// authored before this field existed keeps logging.
+    #[serde(default = "default_changelog")]
+    pub changelog: bool,
+}
+
+/// Serde default for [`IntermediateMutation::changelog`]: log by default (opt-out).
+const fn default_changelog() -> bool {
+    true
 }
 
 /// Auto-params configuration in intermediate format.

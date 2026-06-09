@@ -164,11 +164,12 @@ async fn insert_rows(adapter: &PostgresAdapter, object_type: &str, count: usize)
 fn changelog_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.changelog = Some(ChangelogConfig {
-        expose:     true,
-        schema:     SCHEMA.to_string(),
-        read_role:  Some(READ_ROLE.to_string()),
-        write_role: Some(WRITE_ROLE.to_string()),
-        max_limit:  1_000,
+        expose:        true,
+        schema:        SCHEMA.to_string(),
+        read_role:     Some(READ_ROLE.to_string()),
+        write_role:    Some(WRITE_ROLE.to_string()),
+        max_limit:     1_000,
+        write_enabled: true,
     });
     inject_changelog(&mut schema);
     schema

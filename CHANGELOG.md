@@ -210,7 +210,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `plpgsql_check` is not installed (the common case on managed Postgres), the pass is skipped
   with a `Warn` and an install hint rather than failing.
 
+- **Change Spine: the mutation executor writes the `core.tb_entity_change_log` outbox row
+  in-transaction.** Every successful, state-changing mutation now records exactly one
+  change-log row **inside the mutation function's own transaction, on the same connection** —
+  a transactional outbox, the first runtime step of the Change Spine (after the phase-00
+  contract table and the phase-01 `duration_ms` timing fix). The write is a single statement:
+  the function call is wrapped in a `MATERIALIZED` CTE (so a volatile mutation function runs
+  exactly once) whose data-modifying CTE INSERTs the row and whose primary query returns the
+  function's row unchanged to the caller — no extra connection acquire, atomic with the
+  mutation (a crash leaves neither the change nor the log row). The row carries the
+  changed-entity columns straight off the `app.mutation_response` row (`object_id`,
+  `object_data`, `updated_fields`, `cascade`), the DML verb in `modification_type` (`INSERT` /
+  `UPDATE` / `DELETE` / `CUSTOM`, from the mutation's `operation`), `object_type` (the entity
+  type, falling back to the GraphQL return type), and a wall-clock `duration_ms` computed on
+  the DB clock from the txn-local `fraiseql.started_at` and stamped with
+  `extra_metadata.duration_calc_version = 2`. Only an effective change (`succeeded AND
+  state_changed`) is logged — no-ops and business-logic failures do not produce a spine event.
+  PostgreSQL only for now (the in-txn outbox lands for the other backends in a follow-up);
+  envelope columns (`tenant_id`, `actor_type`, `seq`, `schema_version`, trace context) are
+  added by the contract migration but left NULL until a later step stamps them.
+  **Opt-out (default-on):** the write can be disabled globally — `[changelog] write_enabled =
+  false` in `fraiseql.toml`, or `FRAISEQL_CHANGELOG_ENABLED=false` at runtime — and per
+  endpoint via the compiled-schema `MutationDefinition.changelog` flag (serde-defaults to
+  `true`; the authoring-SDK surface `@fraiseql.mutation(changelog=False)` is a follow-up). A
+  row is written only when the global switch and the per-mutation flag are both on.
+
+- **Prepared-statement caching on the mutation function-call path — large mutation-throughput
+  win.** The PostgreSQL adapter now uses deadpool's per-connection `prepare_cached` for
+  `execute_function_call` and its session-affine / change-log variants, so PostgreSQL parses
+  and plans each mutation's statement **once per connection** instead of re-parsing it on every
+  call. In a 40-worker concurrent benchmark this lifted baseline mutation throughput by roughly
+  **+60%** (≈20k→33k RPS on the test box). It is also what makes the in-transaction change-log
+  outbox above effectively free: the outbox CTE's ~33% apparent cost was almost entirely
+  repeated parse/plan, not the durable write — with caching the outbox penalty collapses to
+  within noise on a PK-only table (the residual on the fully-indexed contract table is
+  secondary-index maintenance, a write-vs-read tradeoff in the index strategy).
+
 ### Breaking
+
+- **The framework now owns the `core.tb_entity_change_log` write — remove app-side
+  hand-rolled inserts.** Before, FraiseQL apps populated the change log themselves, typically
+  with a per-mutation-function `INSERT INTO core.tb_entity_change_log …`. The mutation
+  executor now writes that row itself, in-transaction, for every successful state-changing
+  mutation (see Added, above). **On upgrade, delete the hand-rolled inserts from your mutation
+  functions** — otherwise each mutation logs the row twice (one app row + one framework row).
+  There is no opt-out flag and no `ON CONFLICT` cutover guard: owning the write *is* the
+  feature, and the duplicate-write window closes as soon as the app-side insert is removed.
+  External *cooperative* producers (ETL / jobs / sister services writing
+  contract-conforming rows directly into the table) remain first-class and are unaffected —
+  that is a distinct, supported pattern, not the app double-writing its own mutation output.
 
 - **Compiled-schema format: input-object fields now carry `nullable` (#414).** Each
   `InputFieldDefinition` in `schema.compiled.json` gains a `nullable` boolean (mirroring the

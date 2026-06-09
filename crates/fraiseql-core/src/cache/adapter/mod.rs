@@ -77,7 +77,7 @@ use super::{
 use crate::{
     cache::config::RlsEnforcement,
     db::{
-        DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
+        ChangeLogWrite, DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
         types::{JsonbValue, OrderByClause},
     },
     error::{FraiseQLError, Result},
@@ -735,6 +735,20 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // Mutations are never cached; pass through with session affinity.
         self.adapter
             .execute_function_call_with_session(function_name, args, session_vars)
+            .await
+    }
+
+    async fn execute_function_call_with_changelog(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&ChangeLogWrite<'_>>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Mutations are never cached; pass through so the in-txn outbox write
+        // reaches the underlying adapter (the Change Spine transactional outbox).
+        self.adapter
+            .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
             .await
     }
 

@@ -118,6 +118,24 @@ pub struct MutationDefinition {
     /// [`QueryDefinition::requires_role`](super::query::QueryDefinition).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Whether a successful run of this mutation writes a Change-Spine change-log
+    /// row (default `true`).
+    ///
+    /// Composes as a logical AND with the global
+    /// [`RuntimeConfig.changelog_enabled`](crate::runtime::RuntimeConfig): a row
+    /// is written only when the global switch is on **and** this flag is `true`.
+    /// Set `false` to opt a single mutation out of the in-transaction outbox
+    /// write — e.g. a hot endpoint that need not appear in the Change Spine —
+    /// while leaving the rest of the schema logging. Serde-defaults to `true`, so
+    /// a compiled schema produced before this field existed keeps logging.
+    #[serde(default = "default_changelog")]
+    pub changelog: bool,
+}
+
+/// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
+const fn default_changelog() -> bool {
+    true
 }
 
 impl MutationDefinition {
@@ -139,6 +157,7 @@ impl MutationDefinition {
             rest_method:             None,
             upsert_function:         None,
             requires_role:           None,
+            changelog:               true,
         }
     }
 

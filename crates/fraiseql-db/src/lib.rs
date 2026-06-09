@@ -112,9 +112,9 @@ pub use sqlite::{SqliteAdapter, SqliteIntrospector};
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
 pub use traits::{
-    ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    DirectMutationContext, DirectMutationOp, MutationStrategy, ProjectionRequest,
-    RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
+    ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite, CursorValue, DatabaseAdapter,
+    DatabaseCapabilities, DirectMutationContext, DirectMutationOp, MutationStrategy,
+    ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

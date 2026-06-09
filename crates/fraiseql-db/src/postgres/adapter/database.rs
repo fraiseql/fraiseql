@@ -204,6 +204,74 @@ pub(super) async fn apply_session_vars(
     Ok(())
 }
 
+/// Build the single statement that runs a mutation function and writes its
+/// `core.tb_entity_change_log` outbox row in the same transaction (phase-02,
+/// the Change Spine transactional outbox).
+///
+/// The function call is materialised once (`WITH r AS MATERIALIZED`, so a
+/// volatile mutation function executes **exactly once** even though two CTEs
+/// read it), a data-modifying CTE INSERTs the change-log row for an effective
+/// change (`succeeded AND state_changed`), and the primary `SELECT * FROM r`
+/// returns the function's row unchanged to the caller. The changed-entity
+/// columns (`object_id`, `object_data`, `updated_fields`, `cascade`) come from
+/// the function's own `app.mutation_response` row; `$<n+1>` is the NOT-NULL
+/// `object_type` fallback and `$<n+2>` is the `modification_type` verb, where
+/// `n` = `n_args` (the number of function arguments).
+///
+/// `started_at`/`duration_ms` read `fraiseql.started_at` (set txn-locally by the
+/// caller) on the DB clock — the canonical computation from
+/// [`crate::changelog::duration_ms_sql`], stamped with
+/// [`crate::changelog::DURATION_CALC_VERSION`].
+pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String {
+    let placeholders: Vec<String> = (1..=n_args).map(|i| format!("${i}")).collect();
+    let object_type_idx = n_args + 1;
+    let modification_type_idx = n_args + 2;
+    let started_var = crate::changelog::STARTED_AT_VAR;
+    let duration = crate::changelog::duration_ms_sql(started_var);
+    let calc_version = crate::changelog::DURATION_CALC_VERSION;
+    format!(
+        "WITH r AS MATERIALIZED (SELECT * FROM {quoted_fn}({args})), \
+         _changelog AS ( \
+           INSERT INTO core.tb_entity_change_log \
+             (object_type, modification_type, object_id, object_data, \
+              updated_fields, cascade, started_at, duration_ms, extra_metadata) \
+           SELECT \
+             COALESCE(r.entity_type, ${object_type_idx}), \
+             ${modification_type_idx}, \
+             r.entity_id, r.entity, r.updated_fields, r.cascade, \
+             current_setting('{started_var}')::timestamptz, \
+             {duration}, \
+             jsonb_build_object('duration_calc_version', {calc_version}::int) \
+           FROM r \
+           WHERE r.succeeded AND r.state_changed \
+           RETURNING 1 \
+         ) \
+         SELECT * FROM r",
+        args = placeholders.join(", "),
+    )
+}
+
+/// Prepare `sql` on `client` using deadpool's **per-connection statement cache**.
+///
+/// The mutation function-call path sends the same statement (a fixed
+/// `SELECT * FROM fn(...)` or the change-log CTE) on every call, so without
+/// caching PostgreSQL re-parses and re-plans it for each mutation — the dominant
+/// hot-path cost (the complex outbox CTE in particular). `prepare_cached` keys
+/// the parsed/planned [`tokio_postgres::Statement`] by SQL text per connection
+/// and reuses it across calls, so the parse/plan happens once per connection.
+///
+/// Returns an owned `Statement` (releasing the `&client` borrow), so it can be
+/// prepared before `client.build_transaction()` and used inside that transaction.
+async fn prepare_cached_stmt(
+    client: &deadpool_postgres::Client,
+    sql: &str,
+) -> Result<tokio_postgres::Statement> {
+    client.prepare_cached(sql).await.map_err(|e| FraiseQLError::Database {
+        message:   format!("Failed to prepare statement: {e}"),
+        sql_state: e.code().map(|c| c.code().to_string()),
+    })
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -423,6 +491,11 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
+        // Parse/plan the statement once per connection and reuse it (deadpool's
+        // statement cache); prepared before any transaction so the owned Statement
+        // is usable inside it.
+        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
+
         if self.mutation_timing_enabled {
             // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
             // `set_config(name, value, is_local)` with is_local=true is equivalent to
@@ -443,7 +516,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
-            let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+            let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
                 let detail = e.as_db_error().map_or("", |d| d.message());
                 FraiseQLError::Database {
                     message:   format!("Function call {function_name} failed: {e}: {detail}"),
@@ -461,14 +534,13 @@ impl DatabaseAdapter for PostgresAdapter {
 
             Ok(results)
         } else {
-            let rows: Vec<Row> =
-                client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-                    let detail = e.as_db_error().map_or("", |d| d.message());
-                    FraiseQLError::Database {
-                        message:   format!("Function call {function_name} failed: {e}: {detail}"),
-                        sql_state: e.code().map(|c| c.code().to_string()),
-                    }
-                })?;
+            let rows: Vec<Row> = client.query(&stmt, params.as_slice()).await.map_err(|e| {
+                let detail = e.as_db_error().map_or("", |d| d.message());
+                FraiseQLError::Database {
+                    message:   format!("Function call {function_name} failed: {e}: {detail}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                }
+            })?;
 
             let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
                 rows.iter().map(row_to_map).collect();
@@ -514,6 +586,8 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect();
 
         let mut client = self.acquire_connection_with_retry().await?;
+        // Parse/plan once per connection (statement cache), before the txn.
+        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start session-var transaction: {e}"),
@@ -536,7 +610,7 @@ impl DatabaseAdapter for PostgresAdapter {
             })?;
         }
 
-        let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
             let detail = e.as_db_error().map_or("", |d| d.message());
             FraiseQLError::Database {
                 message:   format!("Function call {function_name} failed: {e}: {detail}"),
@@ -546,6 +620,111 @@ impl DatabaseAdapter for PostgresAdapter {
 
         txn.commit().await.map_err(|e| FraiseQLError::Database {
             message:   format!("Failed to commit session-var transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows.iter().map(row_to_map).collect())
+    }
+
+    async fn execute_function_call_with_changelog(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // No outbox write requested => identical to the session-affine path
+        // (and inherits its no-session/no-timing fast path).
+        let Some(changelog) = changelog else {
+            return self
+                .execute_function_call_with_session(function_name, args, session_vars)
+                .await;
+        };
+
+        let quoted_fn = quote_postgres_identifier(function_name);
+        // One statement: run the function once and INSERT its outbox row in the
+        // same txn, atomically, with no extra connection acquire (Change Spine).
+        let sql = build_changelog_cte_sql(&quoted_fn, args.len());
+
+        // Function args first; then the two threaded change-log params —
+        // object_type fallback ($n+1) and modification_type verb ($n+2). See
+        // build_changelog_cte_sql for the positional contract.
+        let mut flex_args: Vec<FlexParam> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => FlexParam::Null,
+                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                _ => FlexParam::Text(v.to_string()),
+            })
+            .collect();
+        flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
+        flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let mut client = self.acquire_connection_with_retry().await?;
+        // Parse/plan the (complex) CTE once per connection (statement cache) — this
+        // is the dominant outbox hot-path cost; cached, the in-txn write is ~free.
+        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start change-log outbox transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        // Apply session variables FIRST so the function body sees them (and so
+        // the started_at directive stamps the DB clock on this very txn).
+        apply_session_vars(&txn, session_vars).await?;
+
+        // If mutation timing is on, stamp the timing variable in the same txn.
+        if self.mutation_timing_enabled {
+            txn.execute(
+                "SELECT set_config($1, clock_timestamp()::text, true)",
+                &[&self.timing_variable_name],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to set mutation timing variable: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        }
+
+        // The outbox INSERT reads `fraiseql.started_at` with current_setting()
+        // (no missing_ok), so the GUC MUST exist on this txn. The mutation runner
+        // injects it via session_vars on the authenticated path; guarantee it on
+        // every other path (e.g. an unauthenticated mutation that resolves no
+        // session vars) so the duration computation never hits an unset
+        // parameter and aborts the mutation.
+        let started_at_set =
+            session_vars.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
+                || (self.mutation_timing_enabled
+                    && self.timing_variable_name == crate::changelog::STARTED_AT_VAR);
+        if !started_at_set {
+            txn.execute(
+                "SELECT set_config($1, clock_timestamp()::text, true)",
+                &[&crate::changelog::STARTED_AT_VAR],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to stamp change-log started_at: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        }
+
+        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
+            let detail = e.as_db_error().map_or("", |d| d.message());
+            FraiseQLError::Database {
+                message:   format!(
+                    "Function call {function_name} (with change-log outbox) failed: {e}: {detail}"
+                ),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit change-log outbox transaction: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 

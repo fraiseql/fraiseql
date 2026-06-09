@@ -76,6 +76,7 @@ impl SchemaConverter {
             rest_method: None,
             upsert_function: None,
             requires_role: None,
+            changelog: intermediate.changelog,
         })
     }
 

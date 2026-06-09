@@ -318,6 +318,7 @@ fn test_executor_runtime_config_with_field_filter() {
         jsonb_optimization:   JsonbOptimizationOptions::default(),
         query_validation:     None,
         audit_mutations:      false,
+        changelog_enabled:    true,
     };
 
     // WHEN: Config is created

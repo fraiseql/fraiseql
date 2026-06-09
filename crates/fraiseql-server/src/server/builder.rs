@@ -208,9 +208,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             std::env::var("FRAISEQL_MAX_PAGE_SIZE").ok().as_deref(),
             schema.validation_config.as_ref().and_then(|v| v.max_page_size),
         );
+        // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
+        // overrides the compiled `[changelog] write_enabled`. Composes (AND) with
+        // each mutation's per-endpoint `changelog` flag in the runner.
+        let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
+            .ok()
+            .map(|v| {
+                !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
+            })
+            .or_else(|| schema.changelog.as_ref().map(|c| c.write_enabled))
+            .unwrap_or(true);
+        if !changelog_enabled {
+            info!(
+                "Change-log outbox write disabled (FRAISEQL_CHANGELOG_ENABLED / [changelog] write_enabled)"
+            );
+        }
         let executor_config = RuntimeConfig {
             audit_mutations,
             max_page_size,
+            changelog_enabled,
             ..RuntimeConfig::default()
         };
         let executor =

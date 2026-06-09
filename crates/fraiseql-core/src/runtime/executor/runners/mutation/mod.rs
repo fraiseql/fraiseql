@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use fraiseql_db::ViewName;
+use fraiseql_db::{ChangeLogWrite, ViewName};
 
 use super::{
     super::{context::ExecutorContext, resolve_inject_value},
@@ -455,10 +455,26 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let session_pairs: Vec<(&str, &str)> =
         resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
-    // 4. Call the database function (session variables pinned to its connection).
+    // 4. Call the database function (session variables pinned to its connection) AND write the
+    //    change-log outbox row in the same transaction — the Change Spine transactional outbox. The
+    //    framework owns this write by default; apps drop their hand-rolled per-mutation-function
+    //    inserts on upgrade (a documented breaking change). The adapter reads the changed-entity
+    //    columns (object_id / object_data / updated_fields / cascade) from the function's own
+    //    mutation_response row; only the DML verb and a NOT-NULL object_type fallback (the GraphQL
+    //    return type) are threaded down here. Non-PostgreSQL adapters ignore the change-log
+    //    descriptor (multi-DB parity lands in phase-03).
+    //
+    //    Opt-out (default-on): a row is written only when the global switch
+    //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
+    //    individually opted out (`MutationDefinition.changelog`). Passing `None`
+    //    makes the adapter behave exactly like the session-affine path.
+    let modification_type = mutation_def.operation.kind_str().to_uppercase();
+    let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
+    let changelog =
+        write_changelog.then(|| ChangeLogWrite::new(&mutation_def.return_type, &modification_type));
     let rows = ctx
         .adapter
-        .execute_function_call_with_session(sql_source, &args, &session_pairs)
+        .execute_function_call_with_changelog(sql_source, &args, &session_pairs, changelog.as_ref())
         .await?;
 
     // 5. Expect at least one row
