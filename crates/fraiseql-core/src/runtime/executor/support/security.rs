@@ -25,18 +25,24 @@ use crate::{
 /// - [`SessionVariableSource::Literal`] — uses the fixed value as-is.
 ///
 /// When `config.inject_started_at` is `true`, the pair
-/// `("fraiseql.started_at", <RFC 3339 now>)` is **prepended** to the returned list.
+/// `(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)` is **prepended** to the returned
+/// list. The adapter resolves that directive by stamping the variable with the
+/// database's `clock_timestamp()` at apply time — so the start timestamp is on
+/// the **DB clock**, the same clock used to close the interval at the change-log
+/// outbox write (no app↔DB skew). This replaces the former app-clock
+/// `Utc::now()` RFC-3339 value.
 #[must_use]
 pub(in super::super) fn resolve_session_variables(
     config: &SessionVariablesConfig,
     security_context: &SecurityContext,
 ) -> Vec<(String, String)> {
-    use chrono::Utc;
-
     let mut vars: Vec<(String, String)> = Vec::new();
 
     if config.inject_started_at {
-        vars.push(("fraiseql.started_at".to_string(), Utc::now().to_rfc3339()));
+        vars.push((
+            fraiseql_db::STARTED_AT_VAR.to_string(),
+            fraiseql_db::CLOCK_TIMESTAMP_DIRECTIVE.to_string(),
+        ));
     }
 
     for mapping in &config.variables {

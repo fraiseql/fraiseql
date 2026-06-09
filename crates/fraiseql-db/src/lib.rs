@@ -37,6 +37,7 @@
 pub type Result<T> = std::result::Result<T, fraiseql_error::FraiseQLError>;
 
 // New modules (types extracted from fraiseql-core)
+pub mod changelog;
 pub mod collation_config;
 pub mod dialect;
 pub mod filters;
@@ -79,6 +80,9 @@ pub mod wire_pool;
 pub mod fraiseql_wire_adapter;
 
 // Re-export commonly used types
+pub use changelog::{
+    CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION, STARTED_AT_VAR, duration_ms_sql,
+};
 pub use collation::{CollationCapabilities, CollationMapper};
 pub use collation_config::{
     CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,

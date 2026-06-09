@@ -439,9 +439,10 @@ mod session_variable_tests {
         let vars = resolve_session_variables(&config, &ctx);
         // started_at must come first
         assert_eq!(vars.len(), 2);
-        assert_eq!(vars[0].0, "fraiseql.started_at");
-        // Verify it's an ISO 8601 / RFC 3339 string (contains 'T')
-        assert!(vars[0].1.contains('T'), "started_at should be ISO 8601");
+        assert_eq!(vars[0].0, fraiseql_db::STARTED_AT_VAR);
+        // It carries the clock-timestamp directive (DB-clock-stamped at apply
+        // time), NOT an app-clock literal — see resolve_session_variables.
+        assert_eq!(vars[0].1, fraiseql_db::CLOCK_TIMESTAMP_DIRECTIVE);
         assert_eq!(vars[1].0, "app.locale");
     }
 

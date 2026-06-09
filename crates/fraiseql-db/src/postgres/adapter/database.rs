@@ -181,12 +181,25 @@ pub(super) async fn apply_session_vars(
     session_vars: &[(&str, &str)],
 ) -> Result<()> {
     for (name, value) in session_vars {
-        txn.execute("SELECT set_config($1, $2, true)", &[name, value])
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("set_config({name:?}) failed: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        // A var carrying the clock-timestamp directive (e.g. fraiseql.started_at)
+        // is stamped with the DB clock at apply time, on this very transaction, so
+        // the start timestamp and the close-of-interval at the outbox write share
+        // one clock (no app↔DB skew). All other vars bind their literal value.
+        if *value == crate::changelog::CLOCK_TIMESTAMP_DIRECTIVE {
+            txn.execute("SELECT set_config($1, clock_timestamp()::text, true)", &[name])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("set_config({name:?}, clock_timestamp()) failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+        } else {
+            txn.execute("SELECT set_config($1, $2, true)", &[name, value])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("set_config({name:?}) failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+        }
     }
     Ok(())
 }
