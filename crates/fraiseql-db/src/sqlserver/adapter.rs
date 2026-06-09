@@ -55,6 +55,35 @@ pub(super) fn map_mssql_error_code(code: u32) -> Option<String> {
     Some(sqlstate.to_string())
 }
 
+/// Convert a tiberius result row to a `HashMap`, decoding each column by trying the
+/// SQL Server scalar types in turn (`i32`/`i64`/`f64`/`bool`, then `&str` parsed as
+/// JSON or kept as a string). Shared by [`SqlServerAdapter::execute_function_call`]
+/// and the change-log outbox path so a procedure's `mutation_response` row is parsed
+/// identically whether or not an outbox row is written.
+fn sqlserver_row_to_map(
+    row: &tiberius::Row,
+) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    for (idx, column) in row.columns().iter().enumerate() {
+        let col = column.name().to_string();
+        let value: serde_json::Value = if let Some(v) = row.try_get::<i32, _>(idx).ok().flatten() {
+            serde_json::json!(v)
+        } else if let Some(v) = row.try_get::<i64, _>(idx).ok().flatten() {
+            serde_json::json!(v)
+        } else if let Some(v) = row.try_get::<f64, _>(idx).ok().flatten() {
+            serde_json::json!(v)
+        } else if let Some(v) = row.try_get::<bool, _>(idx).ok().flatten() {
+            serde_json::json!(v)
+        } else if let Some(s) = row.try_get::<&str, _>(idx).ok().flatten() {
+            serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!(s))
+        } else {
+            serde_json::Value::Null
+        };
+        map.insert(col, value);
+    }
+    map
+}
+
 /// SQL Server database adapter with connection pooling.
 ///
 /// Uses `tiberius` for native TDS protocol support and `bb8` for connection pooling.
@@ -585,31 +614,142 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
-        let results = rows
-            .into_iter()
-            .map(|row| {
-                let mut map = std::collections::HashMap::new();
-                for (idx, column) in row.columns().iter().enumerate() {
-                    let col = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Some(v) = row.try_get::<i32, _>(idx).ok().flatten() {
-                            serde_json::json!(v)
-                        } else if let Some(v) = row.try_get::<i64, _>(idx).ok().flatten() {
-                            serde_json::json!(v)
-                        } else if let Some(v) = row.try_get::<f64, _>(idx).ok().flatten() {
-                            serde_json::json!(v)
-                        } else if let Some(v) = row.try_get::<bool, _>(idx).ok().flatten() {
-                            serde_json::json!(v)
-                        } else if let Some(s) = row.try_get::<&str, _>(idx).ok().flatten() {
-                            serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!(s))
-                        } else {
-                            serde_json::Value::Null
-                        };
-                    map.insert(col, value);
-                }
-                map
-            })
-            .collect();
+        let results = rows.iter().map(sqlserver_row_to_map).collect();
+
+        Ok(results)
+    }
+
+    async fn execute_function_call_with_changelog(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // No outbox write requested => identical to the session-affine default,
+        // which for SQL Server drops session_vars and delegates to execute_function_call.
+        let Some(changelog) = changelog else {
+            return self
+                .execute_function_call_with_session(function_name, args, session_vars)
+                .await;
+        };
+
+        // SQL Server cannot reference an EXEC result set in a following
+        // `INSERT ... SELECT` (the PostgreSQL CTE path), so run the procedure in a
+        // transaction, parse its `mutation_response` row in Rust, and INSERT the
+        // outbox row on the same connection before commit — atomic with the mutation
+        // (the Change Spine transactional outbox). `SET XACT_ABORT ON` dooms AND
+        // rolls back the whole transaction on any runtime error (a raised procedure,
+        // a failed INSERT), so an early return leaves neither the mutation nor the
+        // log row, and no open transaction on the pooled connection. `session_vars`
+        // are dropped — SQL Server has no transaction-local GUCs, so
+        // `duration_ms`/`started_at` are NULL on this path.
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("@p{i}")).collect();
+        let exec_sql = format!(
+            "EXEC {}{}",
+            quote_sqlserver_identifier(function_name),
+            if placeholders.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", placeholders.join(", "))
+            }
+        );
+
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        conn.simple_query("SET XACT_ABORT ON; BEGIN TRANSACTION")
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start SQL Server change-log outbox transaction: {e}"),
+                sql_state: e.code().and_then(map_mssql_error_code),
+            })?
+            .into_results()
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start SQL Server change-log outbox transaction: {e}"),
+                sql_state: e.code().and_then(map_mssql_error_code),
+            })?;
+
+        // EXEC the procedure, capturing its single mutation_response result set.
+        let string_params = serialise_complex_params(args);
+        let mut query = tiberius::Query::new(exec_sql);
+        bind_json_params(&mut query, args, &string_params)?;
+        let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("SQL Server function call failed ({function_name}): {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get result set from {function_name}: {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            rows.iter().map(sqlserver_row_to_map).collect();
+
+        // Write the outbox row only for an effective change (succeeded AND state_changed).
+        if let Some(first) = results.first() {
+            if crate::changelog::value_is_truthy(first.get("succeeded"))
+                && crate::changelog::value_is_truthy(first.get("state_changed"))
+            {
+                // Bind in CHANGELOG_PORTABLE_INSERT_COLUMNS order: object_type,
+                // modification_type, object_id, object_data, updated_fields, cascade,
+                // tenant_id, commit_time. The changed-entity columns are read from the
+                // procedure's own mutation_response row; `object_type` falls back to the
+                // threaded GraphQL return type when the row omits `entity_type`. `seq`
+                // fires from the table default; `duration_ms`/`started_at` stay NULL (no
+                // request-scoped DB clock on SQL Server); `commit_time` is the app-clock
+                // write time (ISO 8601, implicitly converted to DATETIME2).
+                let object_type = first
+                    .get("entity_type")
+                    .and_then(serde_json::Value::as_str)
+                    .map_or_else(|| changelog.object_type.to_string(), str::to_string);
+                let modification_type = changelog.modification_type.to_string();
+                let object_id =
+                    first.get("entity_id").and_then(serde_json::Value::as_str).map(str::to_string);
+                let object_data = crate::changelog::json_column_text(first.get("entity"));
+                let updated_fields =
+                    crate::changelog::json_column_text(first.get("updated_fields"));
+                let cascade = crate::changelog::json_column_text(first.get("cascade"));
+                let tenant_id = changelog.tenant_id.map(|t| t.to_string());
+                let commit_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3f").to_string();
+                let insert_sql = crate::changelog::build_changelog_insert_sql(
+                    "core.tb_entity_change_log",
+                    DatabaseType::SQLServer,
+                );
+
+                let mut iq = tiberius::Query::new(insert_sql);
+                iq.bind(object_type.as_str());
+                iq.bind(modification_type.as_str());
+                iq.bind(object_id.as_deref());
+                iq.bind(object_data.as_deref());
+                iq.bind(updated_fields.as_deref());
+                iq.bind(cascade.as_deref());
+                iq.bind(tenant_id.as_deref());
+                iq.bind(commit_time.as_str());
+                iq.execute(&mut *conn).await.map_err(|e| FraiseQLError::Database {
+                    message:   format!("SQL Server change-log outbox INSERT failed: {e}"),
+                    sql_state: e.code().and_then(map_mssql_error_code),
+                })?;
+            }
+        }
+
+        conn.simple_query("COMMIT TRANSACTION")
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Failed to commit SQL Server change-log outbox transaction: {e}"
+                ),
+                sql_state: e.code().and_then(map_mssql_error_code),
+            })?
+            .into_results()
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Failed to commit SQL Server change-log outbox transaction: {e}"
+                ),
+                sql_state: e.code().and_then(map_mssql_error_code),
+            })?;
 
         Ok(results)
     }

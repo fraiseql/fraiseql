@@ -1300,6 +1300,411 @@ mod mysql_error_tests {
 }
 
 // ============================================================================
+// MySQL Change-Spine Outbox Tests
+// ============================================================================
+
+/// Behavioural proof of the Change Spine transactional outbox on MySQL: the
+/// MySQL adapter's `execute_function_call_with_changelog` runs the mutation
+/// procedure and writes exactly one `tb_entity_change_log` row **in the same
+/// transaction**, atomically, and only for an effective change. The portable
+/// path (no PG `MATERIALIZED` CTE): CALL the proc, parse its `mutation_response`
+/// row in Rust, then INSERT the outbox row before commit. `duration_ms` /
+/// `started_at` are legitimately NULL (no request-scoped DB clock on MySQL).
+///
+/// Self-provisions the contract table + procedures at runtime (mirrors the PG
+/// `changelog_outbox_test.rs::provision`); each test isolates on a unique
+/// `object_type`. Run with `--test-threads=1` (the file's contract).
+#[cfg(feature = "test-mysql")]
+mod mysql_outbox_tests {
+    use fraiseql_core::db::mysql::MySqlAdapter;
+    use fraiseql_db::{ChangeLogWrite, DatabaseAdapter};
+    use serde_json::json;
+    use sqlx::{MySqlPool, Row};
+
+    fn mysql_url() -> String {
+        std::env::var("MYSQL_URL")
+            .expect("MYSQL_URL must be set (e.g. via `dagger call test-integration --suite=mysql`)")
+    }
+
+    /// A raw sqlx pool (provisioning + assertions) plus the adapter under test.
+    async fn connect() -> (MySqlPool, MySqlAdapter) {
+        let url = mysql_url();
+        let pool = MySqlPool::connect(&url).await.expect("raw sqlx pool");
+        let adapter = MySqlAdapter::new(&url).await.expect("Failed to create MySQL adapter");
+        (pool, adapter)
+    }
+
+    /// DROP+CREATE the MySQL change-log contract table (the `09_*` DDL shape,
+    /// trimmed to the columns these tests assert). `id` carries `DEFAULT (UUID())`
+    /// — the portable INSERT omits it, exactly as on PG/MSSQL.
+    async fn provision(pool: &MySqlPool) {
+        sqlx::raw_sql("DROP TABLE IF EXISTS tb_entity_change_log")
+            .execute(pool)
+            .await
+            .expect("drop contract table");
+        sqlx::raw_sql(
+            "CREATE TABLE tb_entity_change_log (
+                 pk_entity_change_log BIGINT AUTO_INCREMENT PRIMARY KEY,
+                 object_type       VARCHAR(255) NOT NULL,
+                 modification_type VARCHAR(50)  NOT NULL,
+                 id                CHAR(36)     NOT NULL DEFAULT (UUID()),
+                 created_at        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                 tenant_id         CHAR(36)     NULL,
+                 object_id         CHAR(36)     NULL,
+                 object_data       JSON         NULL,
+                 updated_fields    JSON         NULL,
+                 `cascade`         JSON         NULL,
+                 duration_ms       INT          NULL,
+                 started_at        TIMESTAMP(6) NULL,
+                 commit_time       TIMESTAMP(6) NULL,
+                 seq               BIGINT       NULL)",
+        )
+        .execute(pool)
+        .await
+        .expect("create contract table");
+    }
+
+    /// (Re)create a stored procedure returning a `mutation_response`-shaped row.
+    async fn create_proc(pool: &MySqlPool, name: &str, create_sql: &str) {
+        sqlx::raw_sql(&format!("DROP PROCEDURE IF EXISTS {name}"))
+            .execute(pool)
+            .await
+            .expect("drop proc");
+        // A lone CREATE PROCEDURE statement via COM_QUERY needs no DELIMITER.
+        sqlx::raw_sql(create_sql).execute(pool).await.expect("create proc");
+    }
+
+    async fn count_rows(pool: &MySqlPool, object_type: &str) -> i64 {
+        sqlx::query("SELECT COUNT(*) AS c FROM tb_entity_change_log WHERE object_type = ?")
+            .bind(object_type)
+            .fetch_one(pool)
+            .await
+            .expect("count")
+            .get::<i64, _>("c")
+    }
+
+    #[tokio::test]
+    async fn mysql_executor_writes_changelog_in_txn() {
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+        let obj_type = "MyOutboxUser";
+
+        create_proc(
+            &pool,
+            "fn_my_outbox_create",
+            "CREATE PROCEDURE fn_my_outbox_create(IN p_id CHAR(36))
+             BEGIN
+               SELECT TRUE AS succeeded, TRUE AS state_changed,
+                      p_id AS entity_id, 'MyOutboxUser' AS entity_type,
+                      JSON_OBJECT('id', p_id, 'name', 'Ada') AS entity,
+                      JSON_ARRAY('name') AS updated_fields,
+                      NULL AS `cascade`;
+             END",
+        )
+        .await;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let changelog = ChangeLogWrite::new(obj_type, "INSERT");
+        let rows = adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_create",
+                &[json!(id)],
+                &[],
+                Some(&changelog),
+            )
+            .await
+            .expect("mutation + outbox write");
+
+        // The procedure's row is still returned to the caller, unchanged.
+        assert_eq!(rows.len(), 1, "procedure row returned to the caller");
+
+        // Exactly one outbox row, with the mutation's identity + payload.
+        let row = sqlx::query(
+            "SELECT object_type, modification_type, object_id, object_data, updated_fields, \
+             duration_ms FROM tb_entity_change_log WHERE object_id = ?",
+        )
+        .bind(&id)
+        .fetch_one(&pool)
+        .await
+        .expect("exactly one outbox row");
+        assert_eq!(row.get::<String, _>("object_type"), obj_type);
+        assert_eq!(row.get::<String, _>("modification_type"), "INSERT");
+        assert_eq!(row.get::<String, _>("object_id"), id);
+        let data: serde_json::Value = row.get("object_data");
+        assert_eq!(data["name"], json!("Ada"), "object_data is the entity payload");
+        let updated: serde_json::Value = row.get("updated_fields");
+        assert_eq!(updated, json!(["name"]), "updated_fields carried through");
+        // duration_ms is legitimately NULL on the portable path (no DB-clock GUC).
+        assert!(
+            row.get::<Option<i32>, _>("duration_ms").is_none(),
+            "duration_ms NULL on MySQL (no request-scoped clock)"
+        );
+    }
+
+    #[tokio::test]
+    async fn mysql_changelog_row_atomic_with_mutation() {
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+        let obj_type = "MyOutboxAtomic";
+
+        // The procedure raises — the whole txn (incl. any outbox INSERT) rolls back.
+        create_proc(
+            &pool,
+            "fn_my_outbox_boom",
+            "CREATE PROCEDURE fn_my_outbox_boom()
+             BEGIN
+               SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'boom';
+             END",
+        )
+        .await;
+
+        let changelog = ChangeLogWrite::new(obj_type, "INSERT");
+        let result = adapter
+            .execute_function_call_with_changelog("fn_my_outbox_boom", &[], &[], Some(&changelog))
+            .await;
+
+        assert!(result.is_err(), "raising procedure surfaces an error");
+        assert_eq!(count_rows(&pool, obj_type).await, 0, "no outbox row after rollback");
+    }
+
+    #[tokio::test]
+    async fn mysql_noop_and_failed_mutations_write_no_changelog_row() {
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+
+        // succeeded=true but state_changed=false (a no-op) → no spine event.
+        create_proc(
+            &pool,
+            "fn_my_outbox_noop",
+            "CREATE PROCEDURE fn_my_outbox_noop()
+             BEGIN
+               SELECT TRUE AS succeeded, FALSE AS state_changed,
+                      NULL AS entity_id, 'MyOutboxNoop' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS `cascade`;
+             END",
+        )
+        .await;
+        // succeeded=false (a business-logic failure that still commits) → no event.
+        create_proc(
+            &pool,
+            "fn_my_outbox_fail",
+            "CREATE PROCEDURE fn_my_outbox_fail()
+             BEGIN
+               SELECT FALSE AS succeeded, FALSE AS state_changed,
+                      NULL AS entity_id, 'MyOutboxFail' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS `cascade`;
+             END",
+        )
+        .await;
+
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_noop",
+                &[],
+                &[],
+                Some(&ChangeLogWrite::new("MyOutboxNoop", "UPDATE")),
+            )
+            .await
+            .unwrap();
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_fail",
+                &[],
+                &[],
+                Some(&ChangeLogWrite::new("MyOutboxFail", "INSERT")),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(count_rows(&pool, "MyOutboxNoop").await, 0, "no-op writes no spine event");
+        assert_eq!(count_rows(&pool, "MyOutboxFail").await, 0, "failure writes no spine event");
+    }
+
+    #[tokio::test]
+    async fn mysql_object_type_falls_back_to_return_type_when_entity_type_is_null() {
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+        let obj_type = "MyOutboxFallback";
+
+        // A state-changing mutation that returns NO entity_type — the NOT-NULL
+        // object_type must fall back to the threaded value (the GraphQL return type).
+        create_proc(
+            &pool,
+            "fn_my_outbox_noetype",
+            "CREATE PROCEDURE fn_my_outbox_noetype(IN p_id CHAR(36))
+             BEGIN
+               SELECT TRUE AS succeeded, TRUE AS state_changed,
+                      p_id AS entity_id, NULL AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS `cascade`;
+             END",
+        )
+        .await;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_noetype",
+                &[json!(id)],
+                &[],
+                Some(&ChangeLogWrite::new(obj_type, "DELETE")),
+            )
+            .await
+            .unwrap();
+
+        let object_type: String =
+            sqlx::query("SELECT object_type FROM tb_entity_change_log WHERE object_id = ?")
+                .bind(&id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                .get("object_type");
+        assert_eq!(object_type, obj_type, "object_type falls back to the return type");
+    }
+
+    #[tokio::test]
+    async fn mysql_outbox_atomic_with_procedure_dml() {
+        async fn probe_count(pool: &MySqlPool, id: &str) -> i64 {
+            sqlx::query("SELECT COUNT(*) AS c FROM tb_my_probe WHERE id = ?")
+                .bind(id)
+                .fetch_one(pool)
+                .await
+                .unwrap()
+                .get::<i64, _>("c")
+        }
+
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+        // A probe table the procedure writes to: proves the procedure's OWN DML and
+        // the outbox row commit (or roll back) together, and that a procedure doing
+        // DML-then-SELECT does not desync the connection before the outbox INSERT.
+        sqlx::raw_sql("DROP TABLE IF EXISTS tb_my_probe").execute(&pool).await.unwrap();
+        sqlx::raw_sql("CREATE TABLE tb_my_probe (id CHAR(36) PRIMARY KEY, note VARCHAR(50))")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Commit path: the procedure INSERTs a probe row, then returns an effective
+        // change → BOTH the probe row and the outbox row persist.
+        create_proc(
+            &pool,
+            "fn_my_dml_ok",
+            "CREATE PROCEDURE fn_my_dml_ok(IN p_id CHAR(36))
+             BEGIN
+               INSERT INTO tb_my_probe (id, note) VALUES (p_id, 'ok');
+               SELECT TRUE AS succeeded, TRUE AS state_changed, p_id AS entity_id,
+                      'MyDml' AS entity_type, NULL AS entity, NULL AS updated_fields,
+                      NULL AS `cascade`;
+             END",
+        )
+        .await;
+        let ok_id = uuid::Uuid::new_v4().to_string();
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_dml_ok",
+                &[json!(ok_id)],
+                &[],
+                Some(&ChangeLogWrite::new("MyDml", "INSERT")),
+            )
+            .await
+            .unwrap();
+        assert_eq!(probe_count(&pool, &ok_id).await, 1, "procedure DML committed");
+        assert_eq!(
+            count_rows(&pool, "MyDml").await,
+            1,
+            "outbox row committed atomically with the procedure DML"
+        );
+
+        // Rollback path: the procedure INSERTs a probe row, then RAISES → neither the
+        // probe row nor the outbox row survives.
+        create_proc(
+            &pool,
+            "fn_my_dml_boom",
+            "CREATE PROCEDURE fn_my_dml_boom(IN p_id CHAR(36))
+             BEGIN
+               INSERT INTO tb_my_probe (id, note) VALUES (p_id, 'boom');
+               SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'boom';
+             END",
+        )
+        .await;
+        let boom_id = uuid::Uuid::new_v4().to_string();
+        let res = adapter
+            .execute_function_call_with_changelog(
+                "fn_my_dml_boom",
+                &[json!(boom_id)],
+                &[],
+                Some(&ChangeLogWrite::new("MyDmlBoom", "INSERT")),
+            )
+            .await;
+        assert!(res.is_err(), "raising procedure surfaces an error");
+        assert_eq!(probe_count(&pool, &boom_id).await, 0, "procedure DML rolled back");
+        assert_eq!(count_rows(&pool, "MyDmlBoom").await, 0, "no outbox row after rollback");
+    }
+
+    #[tokio::test]
+    async fn mysql_tenant_id_stamped_and_null_paths() {
+        let (pool, adapter) = connect().await;
+        provision(&pool).await;
+        let obj_type = "MyOutboxTenant";
+
+        create_proc(
+            &pool,
+            "fn_my_outbox_tenant",
+            "CREATE PROCEDURE fn_my_outbox_tenant(IN p_id CHAR(36))
+             BEGIN
+               SELECT TRUE AS succeeded, TRUE AS state_changed,
+                      p_id AS entity_id, 'MyOutboxTenant' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS `cascade`;
+             END",
+        )
+        .await;
+
+        // Stamped explicitly from the envelope (NOT reconstructed from any session).
+        let tenant = uuid::Uuid::new_v4().to_string();
+        let stamped_id = uuid::Uuid::new_v4().to_string();
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_tenant",
+                &[json!(stamped_id)],
+                &[],
+                Some(
+                    &ChangeLogWrite::new(obj_type, "INSERT")
+                        .with_tenant_id(Some(tenant.parse().unwrap())),
+                ),
+            )
+            .await
+            .unwrap();
+        let got: String =
+            sqlx::query("SELECT tenant_id FROM tb_entity_change_log WHERE object_id = ?")
+                .bind(&stamped_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                .get("tenant_id");
+        assert_eq!(got, tenant, "tenant_id stamped verbatim from the envelope");
+
+        // No tenant on the envelope → the column is NULL (never a lossy cast).
+        let null_id = uuid::Uuid::new_v4().to_string();
+        adapter
+            .execute_function_call_with_changelog(
+                "fn_my_outbox_tenant",
+                &[json!(null_id)],
+                &[],
+                Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+            )
+            .await
+            .unwrap();
+        let got: Option<String> =
+            sqlx::query("SELECT tenant_id FROM tb_entity_change_log WHERE object_id = ?")
+                .bind(&null_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                .get("tenant_id");
+        assert_eq!(got, None, "tenant_id is NULL when the envelope carries none");
+    }
+}
+
+// ============================================================================
 // SQL Server Advanced Query Tests (window functions, CTEs, aggregations)
 // ============================================================================
 
@@ -1450,6 +1855,404 @@ mod sqlserver_mutation_tests {
         assert!(
             matches!(err, FraiseQLError::Database { .. }),
             "Expected Database error, got {err:?}"
+        );
+    }
+}
+
+// ============================================================================
+// SQL Server Change-Spine Outbox Tests
+// ============================================================================
+
+/// Behavioural proof of the Change Spine transactional outbox on SQL Server: the
+/// tiberius adapter's `execute_function_call_with_changelog` runs the mutation
+/// procedure and writes exactly one `core.tb_entity_change_log` row **in the same
+/// transaction** (`SET XACT_ABORT ON; BEGIN TRAN … COMMIT`), atomically, and only
+/// for an effective change. `duration_ms`/`started_at` are legitimately NULL (no
+/// request-scoped DB clock on SQL Server).
+///
+/// Self-provisions the contract table + procedures at runtime; each test isolates
+/// on a unique `object_type`. Run with `--test-threads=1`.
+#[cfg(feature = "test-sqlserver")]
+mod sqlserver_outbox_tests {
+    use fraiseql_core::db::sqlserver::SqlServerAdapter;
+    use fraiseql_db::{ChangeLogWrite, DatabaseAdapter};
+    use serde_json::json;
+
+    async fn adapter() -> SqlServerAdapter {
+        let url = super::sqlserver_conn("fraiseql_test").await.expect(
+            "SQLSERVER_URL must be set (e.g. via `dagger call test-integration --suite=sqlserver`)",
+        );
+        SqlServerAdapter::new(&url).await.expect("Failed to connect to SQL Server")
+    }
+
+    /// DROP+CREATE the SQL Server change-log contract table (the `10_*` DDL shape,
+    /// trimmed to the columns these tests assert). `id`/`seq` carry defaults; the
+    /// portable INSERT omits them. `[cascade]` is bracket-quoted (reserved word).
+    async fn provision(a: &SqlServerAdapter) {
+        a.execute_raw_query("IF SCHEMA_ID('core') IS NULL EXEC('CREATE SCHEMA core')")
+            .await
+            .expect("create core schema");
+        a.execute_raw_query(
+            "IF OBJECT_ID('core.tb_entity_change_log','U') IS NOT NULL \
+                 DROP TABLE core.tb_entity_change_log",
+        )
+        .await
+        .expect("drop contract table");
+        a.execute_raw_query(
+            "IF OBJECT_ID('core.seq_entity_change_log') IS NOT NULL \
+                 DROP SEQUENCE core.seq_entity_change_log",
+        )
+        .await
+        .expect("drop sequence");
+        a.execute_raw_query(
+            "CREATE SEQUENCE core.seq_entity_change_log AS BIGINT START WITH 1 INCREMENT BY 1",
+        )
+        .await
+        .expect("create sequence");
+        a.execute_raw_query(
+            "CREATE TABLE core.tb_entity_change_log (
+                 pk_entity_change_log BIGINT IDENTITY(1,1) PRIMARY KEY,
+                 object_type       NVARCHAR(255) NOT NULL,
+                 modification_type NVARCHAR(50)  NOT NULL,
+                 id                UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+                 created_at        DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME(),
+                 tenant_id         UNIQUEIDENTIFIER NULL,
+                 object_id         UNIQUEIDENTIFIER NULL,
+                 object_data       NVARCHAR(MAX) NULL,
+                 updated_fields    NVARCHAR(MAX) NULL,
+                 [cascade]         NVARCHAR(MAX) NULL,
+                 duration_ms       INT           NULL,
+                 started_at        DATETIME2     NULL,
+                 commit_time       DATETIME2     NULL,
+                 seq               BIGINT NOT NULL DEFAULT (NEXT VALUE FOR core.seq_entity_change_log))",
+        )
+        .await
+        .expect("create contract table");
+    }
+
+    async fn create_proc(a: &SqlServerAdapter, body: &str) {
+        a.execute_raw_query(body).await.expect("create proc");
+    }
+
+    async fn count_rows(a: &SqlServerAdapter, object_type: &str) -> i64 {
+        let rows = a
+            .execute_raw_query(&format!(
+                "SELECT COUNT(*) AS c FROM core.tb_entity_change_log WHERE object_type = '{object_type}'"
+            ))
+            .await
+            .expect("count");
+        rows[0].get("c").and_then(serde_json::Value::as_i64).expect("count value")
+    }
+
+    #[tokio::test]
+    async fn sqlserver_executor_writes_changelog_in_txn() {
+        let a = adapter().await;
+        provision(&a).await;
+        let obj_type = "SsOutboxUser";
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_create @p_id NVARCHAR(36) AS
+             BEGIN
+               SET NOCOUNT ON;
+               SELECT CAST(1 AS BIT) AS succeeded, CAST(1 AS BIT) AS state_changed,
+                      @p_id AS entity_id, 'SsOutboxUser' AS entity_type,
+                      '{\"name\":\"Ada\"}' AS entity, '[\"name\"]' AS updated_fields,
+                      NULL AS [cascade];
+             END",
+        )
+        .await;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let rows = a
+            .execute_function_call_with_changelog(
+                "fn_ss_outbox_create",
+                &[json!(id)],
+                &[],
+                Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+            )
+            .await
+            .expect("mutation + outbox write");
+        assert_eq!(rows.len(), 1, "procedure row returned to the caller");
+
+        let got = a
+            .execute_raw_query(&format!(
+                "SELECT object_type, modification_type, CONVERT(NVARCHAR(36), object_id) AS object_id, \
+                 object_data, updated_fields, duration_ms \
+                 FROM core.tb_entity_change_log WHERE object_id = '{id}'"
+            ))
+            .await
+            .expect("read outbox row");
+        assert_eq!(got.len(), 1, "exactly one outbox row");
+        let row = &got[0];
+        assert_eq!(row.get("object_type"), Some(&json!(obj_type)));
+        assert_eq!(row.get("modification_type"), Some(&json!("INSERT")));
+        // SQL Server canonicalises UNIQUEIDENTIFIER to uppercase → compare case-insensitively.
+        assert_eq!(
+            row.get("object_id").and_then(serde_json::Value::as_str).map(str::to_lowercase),
+            Some(id.clone()),
+            "object_id round-trips through the UNIQUEIDENTIFIER column"
+        );
+        assert_eq!(row["object_data"]["name"], json!("Ada"), "object_data is the entity payload");
+        assert_eq!(row.get("updated_fields"), Some(&json!(["name"])), "updated_fields carried");
+        // duration_ms is legitimately NULL on the portable path (no DB-clock GUC).
+        assert!(
+            row.get("duration_ms").is_none_or(serde_json::Value::is_null),
+            "duration_ms NULL on SQL Server (no request-scoped clock)"
+        );
+    }
+
+    #[tokio::test]
+    async fn sqlserver_changelog_row_atomic_with_mutation() {
+        let a = adapter().await;
+        provision(&a).await;
+        let obj_type = "SsOutboxAtomic";
+        // The procedure raises — XACT_ABORT rolls back the whole transaction.
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_boom AS
+             BEGIN
+               SET NOCOUNT ON;
+               THROW 50000, 'boom', 1;
+             END",
+        )
+        .await;
+        let result = a
+            .execute_function_call_with_changelog(
+                "fn_ss_outbox_boom",
+                &[],
+                &[],
+                Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+            )
+            .await;
+        assert!(result.is_err(), "raising procedure surfaces an error");
+        assert_eq!(count_rows(&a, obj_type).await, 0, "no outbox row after rollback");
+    }
+
+    #[tokio::test]
+    async fn sqlserver_noop_and_failed_mutations_write_no_changelog_row() {
+        let a = adapter().await;
+        provision(&a).await;
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_noop AS
+             BEGIN
+               SET NOCOUNT ON;
+               SELECT CAST(1 AS BIT) AS succeeded, CAST(0 AS BIT) AS state_changed,
+                      NULL AS entity_id, 'SsOutboxNoop' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS [cascade];
+             END",
+        )
+        .await;
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_fail AS
+             BEGIN
+               SET NOCOUNT ON;
+               SELECT CAST(0 AS BIT) AS succeeded, CAST(0 AS BIT) AS state_changed,
+                      NULL AS entity_id, 'SsOutboxFail' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS [cascade];
+             END",
+        )
+        .await;
+        a.execute_function_call_with_changelog(
+            "fn_ss_outbox_noop",
+            &[],
+            &[],
+            Some(&ChangeLogWrite::new("SsOutboxNoop", "UPDATE")),
+        )
+        .await
+        .unwrap();
+        a.execute_function_call_with_changelog(
+            "fn_ss_outbox_fail",
+            &[],
+            &[],
+            Some(&ChangeLogWrite::new("SsOutboxFail", "INSERT")),
+        )
+        .await
+        .unwrap();
+        assert_eq!(count_rows(&a, "SsOutboxNoop").await, 0, "no-op writes no spine event");
+        assert_eq!(count_rows(&a, "SsOutboxFail").await, 0, "failure writes no spine event");
+    }
+
+    #[tokio::test]
+    async fn sqlserver_object_type_falls_back_to_return_type_when_entity_type_is_null() {
+        let a = adapter().await;
+        provision(&a).await;
+        let obj_type = "SsOutboxFallback";
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_noetype @p_id NVARCHAR(36) AS
+             BEGIN
+               SET NOCOUNT ON;
+               SELECT CAST(1 AS BIT) AS succeeded, CAST(1 AS BIT) AS state_changed,
+                      @p_id AS entity_id, NULL AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS [cascade];
+             END",
+        )
+        .await;
+        let id = uuid::Uuid::new_v4().to_string();
+        a.execute_function_call_with_changelog(
+            "fn_ss_outbox_noetype",
+            &[json!(id)],
+            &[],
+            Some(&ChangeLogWrite::new(obj_type, "DELETE")),
+        )
+        .await
+        .unwrap();
+        let got = a
+            .execute_raw_query(&format!(
+                "SELECT object_type FROM core.tb_entity_change_log WHERE object_id = '{id}'"
+            ))
+            .await
+            .unwrap();
+        assert_eq!(got[0].get("object_type"), Some(&json!(obj_type)), "object_type falls back");
+    }
+
+    #[tokio::test]
+    async fn sqlserver_outbox_atomic_with_procedure_dml() {
+        async fn probe_count(a: &SqlServerAdapter, id: &str) -> i64 {
+            let rows = a
+                .execute_raw_query(&format!(
+                    "SELECT COUNT(*) AS c FROM dbo.tb_ss_probe WHERE id = '{id}'"
+                ))
+                .await
+                .unwrap();
+            rows[0].get("c").and_then(serde_json::Value::as_i64).unwrap()
+        }
+
+        let a = adapter().await;
+        provision(&a).await;
+        // A probe table the procedure writes to: proves the procedure's OWN DML and
+        // the outbox row commit (or roll back) together.
+        a.execute_raw_query(
+            "IF OBJECT_ID('dbo.tb_ss_probe','U') IS NOT NULL DROP TABLE dbo.tb_ss_probe",
+        )
+        .await
+        .unwrap();
+        a.execute_raw_query(
+            "CREATE TABLE dbo.tb_ss_probe (id NVARCHAR(36) PRIMARY KEY, note NVARCHAR(50))",
+        )
+        .await
+        .unwrap();
+
+        // Commit path: procedure INSERTs a probe row + returns an effective change.
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_dml_ok @p_id NVARCHAR(36) AS
+             BEGIN
+               SET NOCOUNT ON;
+               INSERT INTO dbo.tb_ss_probe (id, note) VALUES (@p_id, 'ok');
+               SELECT CAST(1 AS BIT) AS succeeded, CAST(1 AS BIT) AS state_changed,
+                      @p_id AS entity_id, 'SsDml' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS [cascade];
+             END",
+        )
+        .await;
+        let ok_id = uuid::Uuid::new_v4().to_string();
+        a.execute_function_call_with_changelog(
+            "fn_ss_dml_ok",
+            &[json!(ok_id)],
+            &[],
+            Some(&ChangeLogWrite::new("SsDml", "INSERT")),
+        )
+        .await
+        .unwrap();
+        assert_eq!(probe_count(&a, &ok_id).await, 1, "procedure DML committed");
+        assert_eq!(count_rows(&a, "SsDml").await, 1, "outbox row committed atomically");
+
+        // Rollback path: procedure INSERTs then THROWs → neither survives.
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_dml_boom @p_id NVARCHAR(36) AS
+             BEGIN
+               SET NOCOUNT ON;
+               INSERT INTO dbo.tb_ss_probe (id, note) VALUES (@p_id, 'boom');
+               THROW 50000, 'boom', 1;
+             END",
+        )
+        .await;
+        let boom_id = uuid::Uuid::new_v4().to_string();
+        let res = a
+            .execute_function_call_with_changelog(
+                "fn_ss_dml_boom",
+                &[json!(boom_id)],
+                &[],
+                Some(&ChangeLogWrite::new("SsDmlBoom", "INSERT")),
+            )
+            .await;
+        assert!(res.is_err(), "raising procedure surfaces an error");
+        assert_eq!(probe_count(&a, &boom_id).await, 0, "procedure DML rolled back");
+        assert_eq!(count_rows(&a, "SsDmlBoom").await, 0, "no outbox row after rollback");
+    }
+
+    #[tokio::test]
+    async fn sqlserver_tenant_id_stamped_and_null_paths() {
+        let a = adapter().await;
+        provision(&a).await;
+        let obj_type = "SsOutboxTenant";
+        create_proc(
+            &a,
+            "CREATE OR ALTER PROCEDURE dbo.fn_ss_outbox_tenant @p_id NVARCHAR(36) AS
+             BEGIN
+               SET NOCOUNT ON;
+               SELECT CAST(1 AS BIT) AS succeeded, CAST(1 AS BIT) AS state_changed,
+                      @p_id AS entity_id, 'SsOutboxTenant' AS entity_type,
+                      NULL AS entity, NULL AS updated_fields, NULL AS [cascade];
+             END",
+        )
+        .await;
+
+        // Stamped explicitly from the envelope.
+        let tenant = uuid::Uuid::new_v4().to_string();
+        let stamped_id = uuid::Uuid::new_v4().to_string();
+        a.execute_function_call_with_changelog(
+            "fn_ss_outbox_tenant",
+            &[json!(stamped_id)],
+            &[],
+            Some(
+                &ChangeLogWrite::new(obj_type, "INSERT")
+                    .with_tenant_id(Some(tenant.parse().unwrap())),
+            ),
+        )
+        .await
+        .unwrap();
+        let got = a
+            .execute_raw_query(&format!(
+                "SELECT CONVERT(NVARCHAR(36), tenant_id) AS tenant_id \
+                 FROM core.tb_entity_change_log WHERE object_id = '{stamped_id}'"
+            ))
+            .await
+            .unwrap();
+        // MSSQL upper-cases UNIQUEIDENTIFIER → compare case-insensitively.
+        assert_eq!(
+            got[0]
+                .get("tenant_id")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_lowercase),
+            Some(tenant.clone()),
+            "tenant_id stamped verbatim from the envelope"
+        );
+
+        // No tenant on the envelope → the column is NULL.
+        let null_id = uuid::Uuid::new_v4().to_string();
+        a.execute_function_call_with_changelog(
+            "fn_ss_outbox_tenant",
+            &[json!(null_id)],
+            &[],
+            Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+        )
+        .await
+        .unwrap();
+        let got = a
+            .execute_raw_query(&format!(
+                "SELECT CONVERT(NVARCHAR(36), tenant_id) AS tenant_id \
+                 FROM core.tb_entity_change_log WHERE object_id = '{null_id}'"
+            ))
+            .await
+            .unwrap();
+        assert!(
+            got[0].get("tenant_id").is_none_or(serde_json::Value::is_null),
+            "tenant_id is NULL when the envelope carries none"
         );
     }
 }

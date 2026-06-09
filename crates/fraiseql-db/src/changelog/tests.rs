@@ -76,13 +76,29 @@ fn portable_insert_uses_dialect_specific_placeholders() {
 #[test]
 fn portable_insert_writes_the_identity_and_envelope_subset() {
     let sql = build_changelog_insert_sql("t", DatabaseType::MySQL);
-    // Target table + the contract column list, in lockstep with the constant.
+    // Target table + the contract column list (backtick-quoted for MySQL), in
+    // lockstep with the constant.
     assert!(sql.starts_with("INSERT INTO t ("), "names the target table: {sql}");
-    let cols = CHANGELOG_PORTABLE_INSERT_COLUMNS.join(", ");
+    let cols = CHANGELOG_PORTABLE_INSERT_COLUMNS
+        .iter()
+        .map(|c| format!("`{c}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
     assert!(sql.contains(&cols), "writes the portable contract columns `{cols}`: {sql}");
     // started_at/duration_ms are PG-request-scoped → omitted on the portable path.
     assert!(!sql.contains("started_at"), "started_at is omitted (PG-only): {sql}");
     assert!(!sql.contains("duration_ms"), "duration_ms is omitted (PG-only): {sql}");
     // seq comes from the table default, never the INSERT.
     assert!(!CHANGELOG_PORTABLE_INSERT_COLUMNS.contains(&"seq"), "seq is not in the INSERT");
+}
+
+#[test]
+fn portable_insert_quotes_identifiers_per_dialect() {
+    // `cascade` is a reserved keyword in MySQL and SQL Server → must be quoted.
+    let mysql = build_changelog_insert_sql("t", DatabaseType::MySQL);
+    assert!(mysql.contains("`cascade`"), "MySQL backtick-quotes columns: {mysql}");
+    let mssql = build_changelog_insert_sql("t", DatabaseType::SQLServer);
+    assert!(mssql.contains("[cascade]"), "SQL Server bracket-quotes columns: {mssql}");
+    let pg = build_changelog_insert_sql("t", DatabaseType::PostgreSQL);
+    assert!(pg.contains("\"cascade\""), "PostgreSQL double-quotes columns: {pg}");
 }

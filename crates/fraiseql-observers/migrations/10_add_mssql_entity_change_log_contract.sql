@@ -43,7 +43,9 @@ CREATE TABLE core.tb_entity_change_log (
     object_id            UNIQUEIDENTIFIER NULL,
     object_data          NVARCHAR(MAX) NULL,
     updated_fields       NVARCHAR(MAX) NULL,
-    cascade              NVARCHAR(MAX) NULL,
+    -- `cascade` is a reserved keyword in SQL Server → bracket-quoted (an unquoted
+    -- `cascade` is a syntax error). The portable outbox INSERT quotes it likewise.
+    [cascade]            NVARCHAR(MAX) NULL,
     -- Perf observability (#392): NULL on SQL Server (no request-scoped GUC clock).
     duration_ms          INT           NULL,
     started_at           DATETIME2     NULL,

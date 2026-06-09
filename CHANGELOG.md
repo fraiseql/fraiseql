@@ -27,8 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the mutation) and `commit_time`, while `seq` comes from the table's global sequence default;
   `actor_type`, `schema_version`, and trace context ship as columns but stay NULL pending
   #390 / #377 / #375. Only an effective change (`succeeded AND state_changed`) is logged — no-ops
-  and business-logic failures do not produce a spine event. PostgreSQL only for now (the in-txn
-  outbox lands for the other backends in a follow-up). **Opt-out (default-on):** the write can be
+  and business-logic failures do not produce a spine event. Implemented for PostgreSQL, MySQL,
+  and SQL Server (see the multi-DB outbox-wiring entry below). **Opt-out (default-on):** the write can be
   disabled globally — `[changelog] write_enabled = false` in `fraiseql.toml`, or
   `FRAISEQL_CHANGELOG_ENABLED=false` at runtime — and per endpoint via the compiled-schema
   `MutationDefinition.changelog` flag (serde-defaults to `true`), authored as
@@ -51,11 +51,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fully-parameterized outbox INSERT builder (`fraiseql_db::changelog::build_changelog_insert_sql`
   over `CHANGELOG_PORTABLE_INSERT_COLUMNS`) emits the contract shape for PostgreSQL / MySQL /
   SQLite / SQL Server, and the contract migration now ships MySQL (`09_*`) and SQL Server
-  (`10_*`) DDL variants — so cooperative external producers (and the follow-up non-PostgreSQL
-  adapters) write the same shape. The change-log poller's row decoder is reconciled to the
-  Trinity column types (`fk_* = BIGINT`, public id = `UUID`, nullable `object_data`); its public
-  string-based API is unchanged. Live MySQL / SQL Server adapter wiring remains a tracked
-  follow-up (those adapters currently delegate to the no-op default — no regression).
+  (`10_*`) DDL variants — so cooperative external producers (and the non-PostgreSQL adapters,
+  now wired — see below) write the same shape. The change-log poller's row decoder is reconciled
+  to the Trinity column types (`fk_* = BIGINT`, public id = `UUID`, nullable `object_data`); its
+  public string-based API is unchanged.
+
+- **Change Spine: live MySQL and SQL Server in-transaction outbox.** The MySQL (sqlx) and SQL
+  Server (tiberius) adapters now write the `tb_entity_change_log` outbox row themselves, atomic
+  with the mutation — the multi-DB counterpart of PostgreSQL's in-txn CTE. Since neither dialect
+  can reference a `CALL`/`EXEC` result set in a following `INSERT … SELECT`, each opens a
+  transaction, parses the `mutation_response` row in Rust, and INSERTs the outbox row on the same
+  connection before commit (a raised procedure or a failed INSERT rolls back both). `duration_ms`
+  / `started_at` are legitimately NULL on these dialects (no request-scoped DB clock); `seq` fires
+  from the table default. Wiring against live MySQL 8.3 and SQL Server 2022 surfaced and fixed
+  three latent bugs: the MySQL `09_*` DDL gave `id CHAR(36)` no default (the portable INSERT omits
+  `id`, like PG/MSSQL); both the `09_*`/`10_*` DDL and the portable INSERT builder emitted the
+  reserved word `cascade` unquoted (a syntax error on MySQL and SQL Server) — the builder now
+  quotes column identifiers per dialect; and the MySQL `CALL` runs over sqlx's binary protocol
+  (the text-protocol `raw_sql` cannot form a `Send` future over `&mut MySqlConnection`), reading
+  its result columns by ordinal. SQLite (read-only) and mock adapters keep the no-op default.
 
 - **`fraiseql doctor --against-db` — change-log contract drift check (#380).** Reports drift
   between a live `core.tb_entity_change_log` and the shipped contract: missing columns the

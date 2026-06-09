@@ -154,11 +154,31 @@ Spine.
 
 Writes every request-scoped column: identity + change columns, `duration_ms`,
 `started_at`, `commit_time`, `tenant_id`, `updated_fields`, `cascade`, and the
-`duration_calc_version` marker. The write is the in-transaction `MATERIALIZED`
-CTE in the PostgreSQL adapter
+`duration_calc_version` marker. On PostgreSQL the write is the in-transaction
+`MATERIALIZED` CTE in the adapter
 (`crates/fraiseql-db/src/postgres/adapter/database.rs`), prepared once and cached
 (`prepare_cached`) so the per-mutation cost is dominated by index maintenance,
 not statement re-parse.
+
+**MySQL and SQL Server** write the same outbox row, but the portable way: they
+cannot reference a `CALL`/`EXEC` result set in a following `INSERT … SELECT`, so
+the adapter opens a transaction, runs the procedure, parses the
+`app.mutation_response` row in Rust, and INSERTs the outbox row
+([`build_changelog_insert_sql`]) on the same connection before commit — atomic
+with the mutation (a raised procedure or a failed INSERT rolls back both). On
+these two dialects `duration_ms` / `started_at` are legitimately **NULL** (no
+request-scoped DB clock). Dialect notes the wiring surfaced:
+
+- **MySQL** runs the `CALL` over sqlx's **binary** protocol (`sqlx::query`): the
+  text-protocol `raw_sql` cannot form a `Send` future over a `&mut MySqlConnection`,
+  which the connection-affine transaction requires. A binary `CALL` result set's
+  columns are addressable only **by ordinal**, not by name.
+- **SQL Server** wraps the work in `SET XACT_ABORT ON; BEGIN TRAN … COMMIT`, so any
+  runtime error dooms and rolls back the whole transaction (and leaves no open
+  transaction on the pooled connection).
+- The portable INSERT **quotes column identifiers per dialect** (`` `cascade` `` /
+  `[cascade]` / `"cascade"`) because `cascade` is a reserved keyword in MySQL and
+  SQL Server.
 
 ### Cooperative external producer (ETL / jobs / sister services)
 
@@ -256,12 +276,6 @@ and the shipped contract, sourced from the same
 
 Tracked, not yet built:
 
-- **Live MySQL / SQL Server adapter outbox wiring + per-DB tests.** The portable
-  builder ([`build_changelog_insert_sql`]) and the `09_*`/`10_*` DDL ship; the
-  MySQL (sqlx) and MSSQL (tiberius) adapters still delegate to the no-op default
-  (no outbox row written), so there is no regression — but no row either. Wiring
-  them needs the two drivers' in-transaction call semantics (MySQL's
-  `CALL`-in-txn caveat) and per-DB test infrastructure.
 - **Poller projection widening.** The change-log poller
   (`crates/fraiseql-observers/src/listener/change_log.rs`) could surface
   `duration_ms` / `tenant_id` / `seq` top-level for richer fan-out filtering.

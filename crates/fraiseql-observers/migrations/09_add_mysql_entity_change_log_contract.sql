@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS tb_entity_change_log (
     pk_entity_change_log BIGINT AUTO_INCREMENT PRIMARY KEY,
     object_type          VARCHAR(255) NOT NULL,
     modification_type    VARCHAR(50)  NOT NULL,
-    id                   CHAR(36)     NOT NULL,
+    -- DEFAULT (UUID()) so the portable outbox INSERT (which omits `id`, exactly
+    -- as on PG/MSSQL) is well-formed; MySQL 8.0.13+ allows expression defaults.
+    id                   CHAR(36)     NOT NULL DEFAULT (UUID()),
     created_at           TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     -- Spine envelope: RLS/JWT partition stamp (public-facing UUID).
     tenant_id            CHAR(36)     NULL,

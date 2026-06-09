@@ -90,18 +90,29 @@ pub const CHANGELOG_PORTABLE_INSERT_COLUMNS: &[&str] = &[
 /// [`CHANGELOG_PORTABLE_INSERT_COLUMNS`], so every dialect writes the same
 /// contract shape.
 ///
+/// Column identifiers are quoted per dialect (PostgreSQL/SQLite `"col"`, MySQL
+/// `` `col` ``, SQL Server `[col]`) because `cascade` is a reserved keyword in
+/// MySQL and SQL Server — an unquoted `cascade` is a syntax error there.
+///
 /// # Example
 ///
 /// ```
 /// use fraiseql_db::{changelog::build_changelog_insert_sql, DatabaseType};
 /// let sql = build_changelog_insert_sql("core.tb_entity_change_log", DatabaseType::MySQL);
 /// assert!(sql.starts_with("INSERT INTO core.tb_entity_change_log ("));
+/// assert!(sql.contains("`cascade`"), "reserved word quoted for MySQL");
 /// assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?)"));
 /// ```
 #[must_use]
 pub fn build_changelog_insert_sql(table: &str, dialect: crate::types::DatabaseType) -> String {
     use crate::types::DatabaseType;
     let columns = CHANGELOG_PORTABLE_INSERT_COLUMNS;
+    let quote_col = |c: &str| match dialect {
+        DatabaseType::PostgreSQL | DatabaseType::SQLite => format!("\"{c}\""),
+        DatabaseType::MySQL => format!("`{c}`"),
+        DatabaseType::SQLServer => format!("[{c}]"),
+    };
+    let quoted_columns: Vec<String> = columns.iter().map(|c| quote_col(c)).collect();
     let placeholders: Vec<String> = (1..=columns.len())
         .map(|i| match dialect {
             DatabaseType::PostgreSQL => format!("${i}"),
@@ -111,7 +122,39 @@ pub fn build_changelog_insert_sql(table: &str, dialect: crate::types::DatabaseTy
         .collect();
     format!(
         "INSERT INTO {table} ({}) VALUES ({})",
-        columns.join(", "),
+        quoted_columns.join(", "),
         placeholders.join(", ")
     )
+}
+
+/// Permissive truthiness for a `mutation_response` boolean column, shared by the
+/// portable (MySQL / SQL Server) outbox paths. Dialects surface `succeeded` /
+/// `state_changed` differently — MySQL's `TRUE`/`FALSE` literals come back as
+/// integers (binary protocol), SQL Server's `BIT` as a bool — so `true`, a
+/// non-zero number, and the string forms all read as the same flag.
+#[cfg(any(feature = "mysql", feature = "sqlserver"))]
+#[must_use]
+pub(crate) fn value_is_truthy(v: Option<&serde_json::Value>) -> bool {
+    match v {
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::Number(n)) => {
+            n.as_i64().is_some_and(|i| i != 0) || n.as_f64().is_some_and(|f| f != 0.0)
+        },
+        Some(serde_json::Value::String(s)) => s == "1" || s.eq_ignore_ascii_case("true"),
+        _ => false,
+    }
+}
+
+/// Serialise a JSON-bearing `mutation_response` column (`object_data`,
+/// `updated_fields`, `cascade`) to text for binding to the portable outbox
+/// INSERT's JSON / text column. A JSON `null` (or an absent column) binds as SQL
+/// NULL; a non-string JSON value is re-serialised; a plain string passes through.
+#[cfg(any(feature = "mysql", feature = "sqlserver"))]
+#[must_use]
+pub(crate) fn json_column_text(v: Option<&serde_json::Value>) -> Option<String> {
+    match v {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(s)) => Some(s.clone()),
+        Some(other) => Some(other.to_string()),
+    }
 }

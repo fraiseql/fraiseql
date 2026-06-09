@@ -936,17 +936,18 @@ pub trait DatabaseAdapter: Send + Sync {
     /// When `changelog` is `None`, behaviour is identical to
     /// [`execute_function_call_with_session`](Self::execute_function_call_with_session).
     ///
-    /// PostgreSQL overrides this with the real in-txn write (a `MATERIALIZED`
-    /// CTE that runs the function once and INSERTs the outbox row atomically).
-    /// Every other adapter (MySQL, SQL Server, SQLite, mocks) inherits the
-    /// default, which drops `changelog` and delegates — so those mutations still
-    /// run, they just write no outbox row yet. The dialect-portable building
-    /// blocks for their in-txn outbox ship alongside PostgreSQL — the parameterized
-    /// INSERT builder ([`crate::changelog::build_changelog_insert_sql`]) and the
-    /// MySQL / SQL Server contract DDL (`migrations/09_*`, `10_*`) — leaving only
-    /// the per-driver wiring (hold a transaction, parse the `app.mutation_response`
-    /// row, bind the INSERT) as a follow-up. SQLite is read-only, so it never
-    /// writes an outbox row.
+    /// PostgreSQL, MySQL, and SQL Server each override this with a real in-txn
+    /// write. PostgreSQL runs one `MATERIALIZED` CTE that calls the function and
+    /// INSERTs the outbox row atomically; MySQL and SQL Server cannot reference a
+    /// `CALL`/`EXEC` result set in a following `INSERT … SELECT`, so they open a
+    /// transaction, parse the `app.mutation_response` row in Rust, and INSERT the
+    /// outbox row (via [`crate::changelog::build_changelog_insert_sql`]) on the same
+    /// connection before commit. On those two dialects `duration_ms` / `started_at`
+    /// are legitimately NULL (no request-scoped DB clock).
+    ///
+    /// SQLite (read-only) and mocks inherit the default below, which drops
+    /// `changelog` and delegates — so those mutations still run, they just write no
+    /// outbox row.
     ///
     /// # Errors
     ///
@@ -961,8 +962,8 @@ pub trait DatabaseAdapter: Send + Sync {
         session_vars: &[(&str, &str)],
         _changelog: Option<&ChangeLogWrite<'_>>,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Default: ignore the change-log write and delegate. Non-PostgreSQL
-        // adapters gain the in-txn outbox in phase-03 (multi-DB parity).
+        // Default: ignore the change-log write and delegate. SQLite (read-only) and
+        // mocks keep this no-op; PostgreSQL / MySQL / SQL Server override it.
         self.execute_function_call_with_session(function_name, args, session_vars).await
     }
 

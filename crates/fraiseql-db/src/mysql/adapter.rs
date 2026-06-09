@@ -204,6 +204,123 @@ fn mysql_escape_json_value(v: &serde_json::Value) -> String {
     }
 }
 
+/// Decode one MySQL column to JSON, dispatched on its wire type
+/// (`type_info().name()`) for deterministic extraction. Generic over the column
+/// index so the same logic serves name-addressed (text-protocol) and
+/// ordinal-addressed (binary-protocol) rows — see [`mysql_call_row_to_map`].
+fn mysql_extract<I>(row: &MySqlRow, idx: I, type_name: &str) -> serde_json::Value
+where
+    I: sqlx::ColumnIndex<MySqlRow>,
+{
+    match type_name {
+        "BOOLEAN" | "BIT" | "TINYINT(1)" => row
+            .try_get::<bool, _>(idx)
+            .map(|v| serde_json::json!(v))
+            .unwrap_or(serde_json::Value::Null),
+        "BIGINT UNSIGNED" => row
+            .try_get::<u64, _>(idx)
+            .map(|v| serde_json::json!(v))
+            .unwrap_or(serde_json::Value::Null),
+        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT" | "MEDIUMINT UNSIGNED" | "SMALLINT"
+        | "SMALLINT UNSIGNED" | "TINYINT" | "TINYINT UNSIGNED" => row
+            .try_get::<i64, _>(idx)
+            .map(|v| serde_json::json!(v))
+            .unwrap_or(serde_json::Value::Null),
+        "DOUBLE" | "FLOAT" => row
+            .try_get::<f64, _>(idx)
+            .map(|v| serde_json::json!(v))
+            .unwrap_or(serde_json::Value::Null),
+        "NEWDECIMAL" | "DECIMAL" => row
+            .try_get::<String, _>(idx)
+            .map(|v| serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v)))
+            .unwrap_or(serde_json::Value::Null),
+        "JSON" => row.try_get::<serde_json::Value, _>(idx).unwrap_or(serde_json::Value::Null),
+        // VARCHAR, CHAR, TEXT, DATE, DATETIME, TIMESTAMP, BLOB, etc.
+        _ => row
+            .try_get::<String, _>(idx)
+            .map(|v| serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v)))
+            .unwrap_or(serde_json::Value::Null),
+    }
+}
+
+/// Convert a MySQL result row to a `HashMap`, addressing columns **by name** (the
+/// text protocol used by `raw_sql` / [`MySqlAdapter::execute_function_call`]).
+fn mysql_row_to_map(row: &MySqlRow) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    for column in row.columns() {
+        let col = column.name().to_string();
+        let value = mysql_extract(row, col.as_str(), column.type_info().name());
+        map.insert(col, value);
+    }
+    map
+}
+
+/// Convert a row from a `CALL` run over the **binary** protocol (`sqlx::query`) to
+/// a `HashMap`. A binary `CALL` result set's columns are addressable only **by
+/// ordinal** — a `try_get` by name silently yields NULL — so this reads by
+/// ordinal, the one difference from [`mysql_row_to_map`]. The change-log outbox
+/// path runs the `CALL` over the binary protocol because it must share the
+/// connection/transaction with the outbox INSERT, and sqlx's text-protocol
+/// `raw_sql` cannot form a `Send` future over a `&mut MySqlConnection`.
+fn mysql_call_row_to_map(row: &MySqlRow) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    for column in row.columns() {
+        let value = mysql_extract(row, column.ordinal(), column.type_info().name());
+        map.insert(column.name().to_string(), value);
+    }
+    map
+}
+
+/// INSERT one `tb_entity_change_log` outbox row from a parsed `mutation_response`
+/// `row`, on the transaction's connection `conn` (the portable, multi-DB
+/// counterpart of PostgreSQL's in-txn CTE). The changed-entity columns are read
+/// from the procedure's own row; `object_type` falls back to the threaded GraphQL
+/// return type when the row omits `entity_type`. `seq` fires from the table
+/// default; `duration_ms`/`started_at` stay NULL (no request-scoped DB clock on
+/// MySQL); `commit_time` is the app-clock write time.
+async fn mysql_write_outbox_row(
+    conn: &mut sqlx::MySqlConnection,
+    row: &std::collections::HashMap<String, serde_json::Value>,
+    changelog: &crate::traits::ChangeLogWrite<'_>,
+) -> Result<()> {
+    let insert_sql =
+        crate::changelog::build_changelog_insert_sql("tb_entity_change_log", DatabaseType::MySQL);
+    // Bind in CHANGELOG_PORTABLE_INSERT_COLUMNS order: object_type,
+    // modification_type, object_id, object_data, updated_fields, cascade, tenant_id,
+    // commit_time.
+    let object_type = row
+        .get("entity_type")
+        .and_then(serde_json::Value::as_str)
+        .map_or_else(|| changelog.object_type.to_string(), str::to_string);
+    let object_id = row.get("entity_id").and_then(serde_json::Value::as_str).map(str::to_string);
+    let commit_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+
+    sqlx::query(&insert_sql)
+        .bind(object_type)
+        .bind(changelog.modification_type.to_string())
+        .bind(object_id)
+        .bind(crate::changelog::json_column_text(row.get("entity")))
+        .bind(crate::changelog::json_column_text(row.get("updated_fields")))
+        .bind(crate::changelog::json_column_text(row.get("cascade")))
+        .bind(changelog.tenant_id.map(|t| t.to_string()))
+        .bind(commit_time)
+        .execute(conn)
+        .await
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("MySQL change-log outbox INSERT failed: {e}"),
+            sql_state: mysql_sql_state(&e),
+        })?;
+    Ok(())
+}
+
+/// Extract the MySQL `SQLSTATE` from a sqlx error, if any.
+fn mysql_sql_state(e: &sqlx::Error) -> Option<String> {
+    match e {
+        sqlx::Error::Database(db_err) => db_err.code().map(|c| c.into_owned()),
+        _ => None,
+    }
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -544,53 +661,71 @@ impl DatabaseAdapter for MySqlAdapter {
                 }
             })?;
 
-        let results = rows
-            .into_iter()
-            .map(|row| {
-                let mut map = std::collections::HashMap::new();
-                for column in row.columns() {
-                    let col = column.name().to_string();
-                    let type_name = column.type_info().name();
-                    let value = match type_name {
-                        "BOOLEAN" | "BIT" | "TINYINT(1)" => row
-                            .try_get::<bool, _>(col.as_str())
-                            .map(|v| serde_json::json!(v))
-                            .unwrap_or(serde_json::Value::Null),
-                        "BIGINT UNSIGNED" => row
-                            .try_get::<u64, _>(col.as_str())
-                            .map(|v| serde_json::json!(v))
-                            .unwrap_or(serde_json::Value::Null),
-                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT" | "MEDIUMINT UNSIGNED"
-                        | "SMALLINT" | "SMALLINT UNSIGNED" | "TINYINT" | "TINYINT UNSIGNED" => row
-                            .try_get::<i64, _>(col.as_str())
-                            .map(|v| serde_json::json!(v))
-                            .unwrap_or(serde_json::Value::Null),
-                        "DOUBLE" | "FLOAT" => row
-                            .try_get::<f64, _>(col.as_str())
-                            .map(|v| serde_json::json!(v))
-                            .unwrap_or(serde_json::Value::Null),
-                        "NEWDECIMAL" | "DECIMAL" => row
-                            .try_get::<String, _>(col.as_str())
-                            .map(|v| {
-                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
-                            })
-                            .unwrap_or(serde_json::Value::Null),
-                        "JSON" => row
-                            .try_get::<serde_json::Value, _>(col.as_str())
-                            .unwrap_or(serde_json::Value::Null),
-                        // VARCHAR, CHAR, TEXT, DATE, DATETIME, TIMESTAMP, BLOB, etc.
-                        _ => row
-                            .try_get::<String, _>(col.as_str())
-                            .map(|v| {
-                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
-                            })
-                            .unwrap_or(serde_json::Value::Null),
-                    };
-                    map.insert(col, value);
+        let results = rows.iter().map(mysql_row_to_map).collect();
+
+        Ok(results)
+    }
+
+    async fn execute_function_call_with_changelog(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // No outbox write requested => identical to the session-affine default,
+        // which for MySQL drops session_vars and delegates to execute_function_call.
+        let Some(changelog) = changelog else {
+            return self
+                .execute_function_call_with_session(function_name, args, session_vars)
+                .await;
+        };
+
+        // MySQL cannot reference a CALL result set in a following `INSERT ... SELECT`
+        // (the PostgreSQL CTE path), so run the CALL in a transaction, parse its
+        // `mutation_response` row in Rust, and INSERT the outbox row on the same
+        // connection before commit — atomic with the mutation (the Change Spine
+        // transactional outbox). The `Transaction` auto-rolls-back on drop, so an
+        // early `?` (a raised procedure, a failed INSERT) leaves neither the mutation
+        // nor the log row. `session_vars` are dropped — MySQL has no transaction-local
+        // GUCs, so `duration_ms`/`started_at` are NULL on this path.
+        //
+        // The CALL runs over the BINARY protocol (`sqlx::query`): unlike text-protocol
+        // `raw_sql` (used by `execute_function_call`), it forms a `Send` future over a
+        // `&mut MySqlConnection`, which the connection-affine transaction requires. Its
+        // result columns are addressable only by ordinal — hence `mysql_call_row_to_map`.
+        let escaped: Vec<String> = args.iter().map(mysql_escape_json_value).collect();
+        let call_sql =
+            format!("CALL {}({})", quote_mysql_identifier(function_name), escaped.join(", "));
+
+        let mut tx = self.pool.begin().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to start MySQL change-log outbox transaction: {e}"),
+            sql_state: None,
+        })?;
+
+        let rows: Vec<MySqlRow> =
+            sqlx::query(&call_sql).fetch_all(&mut *tx).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("MySQL stored procedure call failed ({function_name}): {e}"),
+                    sql_state: mysql_sql_state(&e),
                 }
-                map
-            })
-            .collect();
+            })?;
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            rows.iter().map(mysql_call_row_to_map).collect();
+
+        // Write the outbox row only for an effective change (succeeded AND state_changed).
+        if let Some(first) = results.first() {
+            if crate::changelog::value_is_truthy(first.get("succeeded"))
+                && crate::changelog::value_is_truthy(first.get("state_changed"))
+            {
+                mysql_write_outbox_row(tx.as_mut(), first, changelog).await?;
+            }
+        }
+
+        tx.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to commit MySQL change-log outbox transaction: {e}"),
+            sql_state: None,
+        })?;
 
         Ok(results)
     }
