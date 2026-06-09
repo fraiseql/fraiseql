@@ -7,11 +7,12 @@
 
 use std::{net::TcpStream, path::Path, time::Duration};
 
+use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     config::toml_schema::TomlSchema,
-    schema::pg_catalog::{PgCatalog, PlpgsqlCheckOutcome},
+    schema::pg_catalog::{LiveColumn, PgCatalog, PlpgsqlCheckOutcome},
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -476,12 +477,14 @@ pub fn run_checks(
 ///
 /// Returns `true` if all checks passed (exit 0), `false` if any check failed
 /// (exit 1). Warnings do not trigger an exit-1.
-/// Execute the doctor command including the optional `--against-db` PL/pgSQL
+/// Execute the doctor command including the optional `--against-db` live-DB
+/// passes: the change-log contract drift check (#380) and the PL/pgSQL
 /// body-resolution pass (#409).
 ///
 /// Runs the standard checks, then — when `against_db` is set — appends the
-/// internal-call resolution results for `schemas`. Returns `true` if all checks
-/// passed (exit 0), `false` if any failed (exit 1).
+/// change-log contract drift report and the internal-call resolution results
+/// for `schemas`. Returns `true` if all checks passed (exit 0), `false` if any
+/// failed (exit 1).
 pub async fn run_with_db_checks(
     config: &Path,
     schema: &Path,
@@ -492,6 +495,7 @@ pub async fn run_with_db_checks(
 ) -> bool {
     let mut checks = run_checks(config, schema, db_url);
     if let Some(url) = against_db {
+        checks.extend(changelog_contract_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
     }
 
@@ -550,4 +554,126 @@ async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorC
             })
             .collect(),
     }
+}
+
+const CHANGELOG_CONTRACT_NAME: &str = "Change-log contract";
+
+/// Run the change-log contract drift check against a live database (#380).
+///
+/// Connects, reads `core.tb_entity_change_log` from `information_schema.columns`,
+/// and classifies the drift via [`changelog_contract_drift`]. A connection or
+/// introspection failure becomes a single `Fail` check (never panics).
+async fn changelog_contract_checks(db_url: &str) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                CHANGELOG_CONTRACT_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match catalog.table_columns("core", "tb_entity_change_log").await {
+        Ok(live) => changelog_contract_drift(&live),
+        Err(e) => vec![DoctorCheck::fail(
+            CHANGELOG_CONTRACT_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read information_schema for the core schema",
+        )],
+    }
+}
+
+/// Compare a live `core.tb_entity_change_log` against the shipped contract and
+/// map the drift to doctor checks.
+///
+/// Pure — no database access — so the full classification matrix is unit-tested
+/// without a connection. The expected column set is the single source of truth
+/// in [`fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT`].
+///
+/// - **Type mismatch** on a pre-existing column → `Fail`. The contract migration is purely additive
+///   (`ADD COLUMN IF NOT EXISTS`), so it no-ops on a column that already exists and **cannot retype
+///   it** — e.g. a legacy `object_id text` the contract wants as `uuid` (this bit the #149 e2e). A
+///   manual `ALTER COLUMN … TYPE` is required.
+/// - **Missing** contract column → `Warn`: `fraiseql migrate up` adds it.
+/// - **Extra** non-contract column → `Warn`: the migration leaves it untouched.
+/// - Otherwise → `Pass`.
+///
+/// An empty `live` means the table is absent → a single `Warn` pointing at the
+/// migration.
+pub(crate) fn changelog_contract_drift(live: &[LiveColumn]) -> Vec<DoctorCheck> {
+    if live.is_empty() {
+        return vec![DoctorCheck::warn(
+            CHANGELOG_CONTRACT_NAME,
+            "core.tb_entity_change_log not found",
+            "Run `fraiseql migrate up` to install the change-log contract",
+        )];
+    }
+
+    let mut checks = Vec::new();
+
+    // Type drift on pre-existing columns — the additive migration cannot fix it.
+    for contract in ENTITY_CHANGE_LOG_CONTRACT {
+        let Some(col) = live.iter().find(|c| c.name == contract.name) else {
+            continue;
+        };
+        if col.udt_name == contract.udt {
+            continue;
+        }
+        checks.push(DoctorCheck::fail(
+            CHANGELOG_CONTRACT_NAME,
+            format!(
+                "column `{}` is `{}`, contract expects `{}`",
+                contract.name, col.udt_name, contract.udt
+            ),
+            format!(
+                "The additive migration cannot retype an existing column; ALTER it manually, \
+                 e.g. ALTER TABLE core.tb_entity_change_log ALTER COLUMN {name} TYPE {udt} \
+                 USING {name}::{udt};",
+                name = contract.name,
+                udt = contract.udt,
+            ),
+        ));
+    }
+
+    // Missing contract columns — the migration adds them (additive).
+    let missing: Vec<&str> = ENTITY_CHANGE_LOG_CONTRACT
+        .iter()
+        .map(|c| c.name)
+        .filter(|name| !live.iter().any(|c| c.name == *name))
+        .collect();
+    if !missing.is_empty() {
+        checks.push(DoctorCheck::warn(
+            CHANGELOG_CONTRACT_NAME,
+            format!("{} contract column(s) missing: {}", missing.len(), missing.join(", ")),
+            "Run `fraiseql migrate up` — the additive migration adds these columns",
+        ));
+    }
+
+    // Extra columns — present live, not in the contract; the migration keeps them.
+    let extra: Vec<&str> = live
+        .iter()
+        .map(|c| c.name.as_str())
+        .filter(|name| !ENTITY_CHANGE_LOG_CONTRACT.iter().any(|c| c.name == *name))
+        .collect();
+    if !extra.is_empty() {
+        checks.push(DoctorCheck::warn(
+            CHANGELOG_CONTRACT_NAME,
+            format!("{} non-contract column(s) present: {}", extra.len(), extra.join(", ")),
+            "Left untouched by the migration — app-specific columns are safe to keep",
+        ));
+    }
+
+    if checks.is_empty() {
+        checks.push(DoctorCheck::pass(
+            CHANGELOG_CONTRACT_NAME,
+            format!(
+                "all {} contract columns present and correctly typed",
+                ENTITY_CHANGE_LOG_CONTRACT.len()
+            ),
+        ));
+    }
+
+    checks
 }

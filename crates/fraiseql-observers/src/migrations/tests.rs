@@ -1,6 +1,44 @@
 //! Unit tests for the change-log contract DDL (no database required).
 
-use super::{ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql};
+use super::{
+    ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql,
+};
+
+#[test]
+fn contract_columns_match_typed_contract() {
+    // The name-only projection must stay in lockstep with the typed contract —
+    // same names, same order — so the doctor drift check (typed) and the
+    // DDL-coverage test (names) can never disagree about the column set.
+    let typed_names: Vec<&str> = ENTITY_CHANGE_LOG_CONTRACT.iter().map(|c| c.name).collect();
+    assert_eq!(
+        typed_names.as_slice(),
+        ENTITY_CHANGE_LOG_CONTRACT_COLUMNS,
+        "ENTITY_CHANGE_LOG_CONTRACT_COLUMNS must mirror ENTITY_CHANGE_LOG_CONTRACT names in order"
+    );
+}
+
+#[test]
+fn typed_contract_uses_known_udt_names() {
+    // Guard against a typo in an expected `udt` (e.g. "uuids" or "bigint"):
+    // every value must be a real information_schema.columns.udt_name token.
+    const KNOWN: &[&str] = &[
+        "uuid",
+        "int8",
+        "int4",
+        "text",
+        "_text",
+        "jsonb",
+        "timestamptz",
+    ];
+    for col in ENTITY_CHANGE_LOG_CONTRACT {
+        assert!(
+            KNOWN.contains(&col.udt),
+            "column `{}` has unknown expected udt `{}`",
+            col.name,
+            col.udt
+        );
+    }
+}
 
 #[test]
 fn migration_targets_the_owned_table_and_view() {

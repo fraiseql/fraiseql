@@ -214,3 +214,11 @@ pub struct MutationResponse {
 
 Extra columns in the row (e.g. from older DB functions) are silently ignored
 by the `serde` deserializer.
+
+---
+
+## See also
+
+[`change-log-contract.md`](./change-log-contract.md) — the Change Spine outbox
+the executor writes in-transaction from this row (`entity_id` → `object_id`,
+`entity` → `object_data`, `updated_fields`, `cascade`).

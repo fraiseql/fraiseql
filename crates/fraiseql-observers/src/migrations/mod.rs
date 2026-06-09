@@ -30,13 +30,145 @@ pub const fn entity_change_log_contract_sql() -> &'static str {
     include_str!("../../migrations/08_create_entity_change_log_contract.sql")
 }
 
-/// The canonical column set of the `core.tb_entity_change_log` contract.
+/// One column of the `core.tb_entity_change_log` contract: its name and the
+/// canonical PostgreSQL base type the migration installs it as.
 ///
-/// This is the authoritative list the migration installs and the
+/// `udt` is the `information_schema.columns.udt_name` the column carries once the
+/// contract migration has run — the lower-case PG base type, e.g. `"uuid"`,
+/// `"int8"` (BIGINT), `"int4"` (INTEGER), `"text"`, `"jsonb"`, `"timestamptz"`,
+/// or `"_text"` (the array element form of `TEXT[]`).
+///
+/// The `fraiseql doctor` `changelog-contract` drift check compares a live
+/// table's `udt_name` against this so it can flag a **pre-existing** column the
+/// additive migration cannot reconcile: `ADD COLUMN IF NOT EXISTS` no-ops on a
+/// column that already exists, so a legacy `object_id text` survives even though
+/// the contract wants `object_id uuid` (this bit the #149 change-log e2e). A
+/// missing column is harmless — the migration adds it with the right type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContractColumn {
+    /// Column name.
+    pub name: &'static str,
+    /// Expected `information_schema.columns.udt_name` after the migration runs.
+    pub udt:  &'static str,
+}
+
+/// The canonical, **typed** column set of the `core.tb_entity_change_log`
+/// contract — the authoritative source.
+///
+/// The migration DDL is checked against the names here by the
+/// `migration_sql_covers_every_contract_column` unit test, and the
 /// `fraiseql doctor` `changelog-contract` check compares live
-/// `information_schema.columns` against. Keep it in lockstep with
-/// [`entity_change_log_contract_sql`] — the `migration_sql_covers_every_contract_column`
-/// unit test fails if a column here is missing from the DDL.
+/// `information_schema.columns` (name + `udt_name`) against it.
+/// [`ENTITY_CHANGE_LOG_CONTRACT_COLUMNS`] is the name-only projection, kept in
+/// lockstep by `contract_columns_match_typed_contract`.
+pub const ENTITY_CHANGE_LOG_CONTRACT: &[ContractColumn] = &[
+    ContractColumn {
+        name: "pk_entity_change_log",
+        udt:  "int8",
+    },
+    ContractColumn {
+        name: "id",
+        udt:  "uuid",
+    },
+    ContractColumn {
+        name: "tenant_id",
+        udt:  "uuid",
+    },
+    ContractColumn {
+        name: "fk_customer_org",
+        udt:  "int8",
+    },
+    ContractColumn {
+        name: "fk_contact",
+        udt:  "int8",
+    },
+    ContractColumn {
+        name: "object_type",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "modification_type",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "object_id",
+        udt:  "uuid",
+    },
+    ContractColumn {
+        name: "object_data",
+        udt:  "jsonb",
+    },
+    ContractColumn {
+        name: "updated_fields",
+        udt:  "_text",
+    },
+    ContractColumn {
+        name: "cascade",
+        udt:  "jsonb",
+    },
+    ContractColumn {
+        name: "duration_ms",
+        udt:  "int4",
+    },
+    ContractColumn {
+        name: "started_at",
+        udt:  "timestamptz",
+    },
+    ContractColumn {
+        name: "created_at",
+        udt:  "timestamptz",
+    },
+    ContractColumn {
+        name: "commit_time",
+        udt:  "timestamptz",
+    },
+    ContractColumn {
+        name: "seq",
+        udt:  "int8",
+    },
+    ContractColumn {
+        name: "actor_type",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "acting_for",
+        udt:  "int8",
+    },
+    ContractColumn {
+        name: "schema_version",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "trace_id",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "trace_context",
+        udt:  "jsonb",
+    },
+    ContractColumn {
+        name: "change_status",
+        udt:  "text",
+    },
+    ContractColumn {
+        name: "extra_metadata",
+        udt:  "jsonb",
+    },
+    ContractColumn {
+        name: "nats_published_at",
+        udt:  "timestamptz",
+    },
+    ContractColumn {
+        name: "nats_event_id",
+        udt:  "uuid",
+    },
+];
+
+/// The canonical column **names** of the `core.tb_entity_change_log` contract.
+///
+/// The name-only projection of [`ENTITY_CHANGE_LOG_CONTRACT`]; kept in lockstep
+/// with it by the `contract_columns_match_typed_contract` unit test and with the
+/// migration DDL by `migration_sql_covers_every_contract_column`.
 pub const ENTITY_CHANGE_LOG_CONTRACT_COLUMNS: &[&str] = &[
     "pk_entity_change_log",
     "id",

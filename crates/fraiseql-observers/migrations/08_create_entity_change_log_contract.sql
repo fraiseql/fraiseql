@@ -19,8 +19,8 @@
 --     internal join FK) — the two are complementary under the Trinity pattern,
 --     NOT a rename.
 --
--- PostgreSQL DDL. MySQL / SQLite / SQL Server variants land in phase-03
--- (mirroring migrations 04_*/05_*). The view is the portable read surface.
+-- PostgreSQL DDL. MySQL / SQL Server variants are 09_*/10_* (mirroring
+-- migrations 04_*/05_*). The view is the portable read surface.
 
 CREATE SCHEMA IF NOT EXISTS core;
 
@@ -58,7 +58,7 @@ ALTER TABLE core.tb_entity_change_log
     ADD COLUMN IF NOT EXISTS object_data        JSONB,
     ADD COLUMN IF NOT EXISTS updated_fields     TEXT[],
     ADD COLUMN IF NOT EXISTS cascade            JSONB,
-    -- Perf observability (#392): populated by the executor in phase-01/02.
+    -- Perf observability (#392): populated by the executor's in-txn write.
     ADD COLUMN IF NOT EXISTS duration_ms        INTEGER,
     ADD COLUMN IF NOT EXISTS started_at         TIMESTAMPTZ,
     -- Durable ordering / dedup (#382 broker fan-out).

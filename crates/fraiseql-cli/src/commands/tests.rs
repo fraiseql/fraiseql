@@ -1149,6 +1149,92 @@ mod doctor_tests {
         assert_eq!(parsed[1]["status"], "warn");
         assert_eq!(parsed[2]["status"], "fail");
     }
+
+    // ── Change-log contract drift check (#380) ──────────────────────────────
+    use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
+
+    use crate::schema::pg_catalog::LiveColumn;
+
+    /// A live table that exactly matches the shipped contract (name + udt).
+    fn clean_live() -> Vec<LiveColumn> {
+        ENTITY_CHANGE_LOG_CONTRACT
+            .iter()
+            .map(|c| LiveColumn {
+                name:     c.name.to_string(),
+                udt_name: c.udt.to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn changelog_contract_clean_passes() {
+        let checks = changelog_contract_drift(&clean_live());
+        assert_eq!(checks.len(), 1, "a clean contract yields exactly one check");
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        assert!(checks[0].detail.contains("contract columns present"));
+    }
+
+    #[test]
+    fn changelog_contract_absent_table_warns() {
+        let checks = changelog_contract_drift(&[]);
+        assert_eq!(checks.len(), 1, "an absent table yields a single warning");
+        assert_eq!(checks[0].status, CheckStatus::Warn);
+        assert!(checks[0].detail.contains("not found"));
+        assert!(checks[0].hint.as_deref().unwrap().contains("migrate up"));
+    }
+
+    #[test]
+    fn changelog_contract_missing_tenant_id_warns() {
+        let live: Vec<LiveColumn> =
+            clean_live().into_iter().filter(|c| c.name != "tenant_id").collect();
+        let checks = changelog_contract_drift(&live);
+        // No type mismatch, so no Fail — only the additive-reconcile Warn.
+        assert!(checks.iter().all(|c| c.status != CheckStatus::Fail), "missing != fatal");
+        let warn = checks
+            .iter()
+            .find(|c| c.status == CheckStatus::Warn)
+            .expect("missing column produces a warning");
+        assert!(warn.detail.contains("tenant_id"));
+        assert!(warn.detail.contains("missing"));
+    }
+
+    #[test]
+    fn changelog_contract_object_id_text_fails() {
+        // The #149 hazard: a legacy `object_id text` the additive migration
+        // cannot retype to the contract's `uuid`.
+        let mut live = clean_live();
+        for col in &mut live {
+            if col.name == "object_id" {
+                col.udt_name = "text".to_string();
+            }
+        }
+        let checks = changelog_contract_drift(&live);
+        let fail = checks
+            .iter()
+            .find(|c| c.status == CheckStatus::Fail)
+            .expect("a type mismatch is fatal");
+        assert!(fail.detail.contains("object_id"));
+        assert!(fail.detail.contains("text"));
+        assert!(fail.detail.contains("uuid"));
+        assert!(fail.hint.as_deref().unwrap().contains("cannot retype"));
+    }
+
+    #[test]
+    fn changelog_contract_extra_column_warns() {
+        let mut live = clean_live();
+        live.push(LiveColumn {
+            name:     "app_custom_col".to_string(),
+            udt_name: "text".to_string(),
+        });
+        let checks = changelog_contract_drift(&live);
+        assert!(checks.iter().all(|c| c.status != CheckStatus::Fail), "extra column != fatal");
+        let warn = checks
+            .iter()
+            .find(|c| c.detail.contains("app_custom_col"))
+            .expect("extra column is reported");
+        assert_eq!(warn.status, CheckStatus::Warn);
+        assert!(warn.detail.contains("non-contract"));
+    }
 }
 
 mod explain_tests {

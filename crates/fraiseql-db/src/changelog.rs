@@ -3,7 +3,7 @@
 //!
 //! These are the single source of truth shared by the session-var resolver
 //! (`fraiseql-core`), the adapter's `set_config` application (`fraiseql-db`), and
-//! the executor's in-txn outbox write (Change Spine, phase-02). See
+//! the executor's in-txn outbox write (the Change Spine). See
 //! `docs/architecture/change-log-contract.md`.
 
 #[cfg(test)]

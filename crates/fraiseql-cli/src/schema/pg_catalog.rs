@@ -73,6 +73,19 @@ pub struct BodyError {
     pub message: String,
 }
 
+/// A single live column of a table, as the change-log contract drift check
+/// (#380) reads it from `information_schema.columns`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveColumn {
+    /// Column name (`information_schema.columns.column_name`).
+    pub name:     String,
+    /// PostgreSQL base type (`information_schema.columns.udt_name`): the
+    /// lower-case underlying type, e.g. `"uuid"`, `"int8"`, `"text"`, `"jsonb"`,
+    /// `"timestamptz"`, `"_text"` (the element form of `text[]`). Compared
+    /// against [`fraiseql_observers::migrations::ContractColumn::udt`].
+    pub udt_name: String,
+}
+
 /// Outcome of the PL/pgSQL body-resolution pass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlpgsqlCheckOutcome {
@@ -304,6 +317,36 @@ impl PgCatalog {
             })
             .collect();
         Ok(PlpgsqlCheckOutcome::Ran { errors })
+    }
+
+    /// Read the columns of `schema.table` from `information_schema.columns`
+    /// (name + `udt_name`), in declaration order.
+    ///
+    /// Returns an **empty** vec when the table does not exist (or is invisible to
+    /// the connecting role) — the change-log contract drift check (#380) reads
+    /// that as "table absent, the migration will install it" rather than an
+    /// error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or the catalog query fails.
+    pub async fn table_columns(&self, schema: &str, table: &str) -> Result<Vec<LiveColumn>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rows = client
+            .query(
+                "SELECT column_name, udt_name FROM information_schema.columns \
+                 WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
+                &[&schema, &table],
+            )
+            .await
+            .context("failed to query information_schema.columns")?;
+        Ok(rows
+            .iter()
+            .map(|row| LiveColumn {
+                name:     row.get("column_name"),
+                udt_name: row.get("udt_name"),
+            })
+            .collect())
     }
 }
 

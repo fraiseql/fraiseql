@@ -607,11 +607,14 @@ EXAMPLES:
         #[arg(long)]
         db_url: Option<String>,
 
-        /// Run the PL/pgSQL body-resolution pass against this PostgreSQL
-        /// database, reporting internal calls that no longer resolve.
+        /// Run the live-database passes against this PostgreSQL database: the
+        /// change-log contract drift check (compares core.tb_entity_change_log
+        /// against the shipped contract — #380) and the PL/pgSQL
+        /// body-resolution pass (reports internal calls that no longer resolve
+        /// — #409).
         ///
-        /// Requires the `plpgsql_check` extension; skips with a hint when it is
-        /// unavailable. (#409)
+        /// The body-resolution pass requires the `plpgsql_check` extension and
+        /// skips with a hint when it is unavailable.
         #[arg(long, value_name = "DATABASE_URL")]
         against_db: Option<String>,
 

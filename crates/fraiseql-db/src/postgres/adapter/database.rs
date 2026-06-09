@@ -205,8 +205,8 @@ pub(super) async fn apply_session_vars(
 }
 
 /// Build the single statement that runs a mutation function and writes its
-/// `core.tb_entity_change_log` outbox row in the same transaction (phase-02,
-/// the Change Spine transactional outbox).
+/// `core.tb_entity_change_log` outbox row in the same transaction (the Change
+/// Spine transactional outbox).
 ///
 /// The function call is materialised once (`WITH r AS MATERIALIZED`, so a
 /// volatile mutation function executes **exactly once** even though two CTEs
