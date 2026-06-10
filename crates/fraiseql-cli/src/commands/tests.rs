@@ -2016,15 +2016,23 @@ mod run_tests {
 
     #[test]
     fn test_build_config_sets_db_url() {
-        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let config = build_config_from(
-            "postgres://localhost/test",
-            addr,
-            &ServerRuntimeConfig::default(),
-            &DatabaseRuntimeConfig::default(),
-            false,
-        );
-        assert_eq!(config.database_url, "postgres://localhost/test");
+        // `build_config_from` -> `ServerArgs::from_env()` reads `DATABASE_URL` directly. Wrap the
+        // assertion in `temp_env` so it holds temp_env's global lock and observes a clean (unset)
+        // env, instead of racing with the parallel `resolve_database_url` tests that set
+        // `DATABASE_URL` inside their own temp_env closures (those serialize against each other but
+        // not against a bare direct reader — the env-race class fixed the same way for the observers
+        // SSRF guard).
+        temp_env::with_var_unset("DATABASE_URL", || {
+            let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+            let config = build_config_from(
+                "postgres://localhost/test",
+                addr,
+                &ServerRuntimeConfig::default(),
+                &DatabaseRuntimeConfig::default(),
+                false,
+            );
+            assert_eq!(config.database_url, "postgres://localhost/test");
+        });
     }
 
     #[test]
