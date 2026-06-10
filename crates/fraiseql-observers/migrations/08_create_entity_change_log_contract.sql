@@ -64,9 +64,11 @@ ALTER TABLE core.tb_entity_change_log
     -- Durable ordering / dedup (#382 broker fan-out).
     ADD COLUMN IF NOT EXISTS commit_time        TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS seq                BIGINT,
-    -- Actor model (#390): columns now, values when #390 lands.
+    -- Actor model (#390): the request's actor classification + the delegated
+    -- human a delegated agent acts for. `acting_for` is the Trinity public-facing
+    -- UUID (like tenant_id), so the executor stamps it without a DB lookup.
     ADD COLUMN IF NOT EXISTS actor_type         TEXT,
-    ADD COLUMN IF NOT EXISTS acting_for         BIGINT,
+    ADD COLUMN IF NOT EXISTS acting_for         UUID,
     -- Replay correctness (#377/#378): column now, value when #377 lands.
     ADD COLUMN IF NOT EXISTS schema_version     TEXT,
     -- W3C trace context (#375): columns now, values when #375 lands.
@@ -77,6 +79,28 @@ ALTER TABLE core.tb_entity_change_log
     ADD COLUMN IF NOT EXISTS extra_metadata     JSONB,
     ADD COLUMN IF NOT EXISTS nats_published_at  TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS nats_event_id      UUID;
+
+-- ----------------------------------------------------------------------------
+-- Retype `acting_for` BIGINT -> UUID (#390). v2.6.0 shipped this column as
+-- BIGINT (NULL-by-design, no producer), so on a DB that already ran that form
+-- the ADD COLUMN IF NOT EXISTS above is a no-op and leaves it BIGINT. This
+-- guarded ALTER brings it to the contract UUID type. `USING NULL` is the only
+-- valid conversion (int8 -> uuid has no cast) and is LOSSLESS here precisely
+-- because the column has always been NULL — no #390-era row exists yet. Guarded
+-- on udt_name so it is a no-op on a fresh (already-UUID) table and re-run safe.
+-- ----------------------------------------------------------------------------
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'core'
+          AND table_name = 'tb_entity_change_log'
+          AND column_name = 'acting_for'
+          AND udt_name <> 'uuid'
+    ) THEN
+        ALTER TABLE core.tb_entity_change_log
+            ALTER COLUMN acting_for TYPE UUID USING NULL;
+    END IF;
+END $$;
 
 -- ----------------------------------------------------------------------------
 -- Monotonic `seq` source (Change Spine durable ordering / dedup on
@@ -125,6 +149,8 @@ SELECT
     duration_ms,
     started_at,
     trace_id,
+    actor_type,
+    acting_for,
     seq,
     created_at,
     jsonb_build_object(
@@ -142,6 +168,8 @@ SELECT
         'cascade',              cascade,
         'duration_ms',          duration_ms,
         'started_at',           started_at,
+        'actor_type',           actor_type,
+        'acting_for',           acting_for,
         'extra_metadata',       extra_metadata,
         'created_at',           created_at
     ) AS data

@@ -58,8 +58,8 @@ Placement: schema `core` (matches the existing reader and the
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | `timestamptz` | perf + reader | always |
 | `commit_time` | `TIMESTAMPTZ` | `timestamptz` | envelope (durable ordering) | executor |
 | `seq` | `BIGINT` | `int8` | envelope (monotonic order; dedup on `(object_type, seq)`) | sequence default |
-| `actor_type` | `TEXT` | `text` | #390 actor model | column now, value later |
-| `acting_for` | `BIGINT` | `int8` | #390 acting-on-behalf-of | column now, value later |
+| `actor_type` | `TEXT` | `text` | **#390 actor model** (`human_user`/`service_account`/`ai_agent`/`system_job`) | executor (from `SecurityContext`) |
+| `acting_for` | `UUID` | `uuid` | **#390 acting-on-behalf-of** (delegated human, public-facing UUID) | executor (from `SecurityContext`) |
 | `schema_version` | `TEXT` | `text` | #377/#378 replay-correctness | executor (schema content hash) |
 | `trace_id` | `TEXT` | `text` | perf #392 + #375 W3C trace | executor (from `traceparent`) |
 | `trace_context` | `JSONB` | `jsonb` | #375 full W3C `traceparent`/`tracestate` | executor (parsed traceparent + tracestate) |
@@ -298,8 +298,15 @@ and the shipped contract, sourced from the same
   to reject a row replayed under a different schema rather than corrupt data. It is
   the same content hash that keys the query cache, the `/health` schema digest, and
   hot-reload diffing — so it changes on **any** schema change.
-- **Future consumers** (columns shipped now, populated later): #390 audit-actor
-  (`actor_type`/`acting_for`) — the only envelope columns still NULL-by-design.
+- **#390 actor model** (`actor_type` / `acting_for`): the executor stamps the
+  request's actor classification (`human_user` / `service_account` / `ai_agent` /
+  `system_job`, derived onto the `SecurityContext` at authentication) and, for a
+  delegated agent (RFC 8693 `act` claim), the underlying human's public-facing
+  UUID. NULL only for an unauthenticated mutation (no `SecurityContext` to stamp)
+  or a cooperative external producer. `acting_for` mirrors `tenant_id`'s UUID shape
+  (a Trinity public id, **not** an internal `fk_*` BIGINT). The classification is
+  *recorded* for forensics, not an authorization input. With these populated, no
+  envelope column is NULL-by-design.
 
 ---
 
@@ -330,9 +337,15 @@ scan without parsing prose:
 The contract foundation is complete: the executor in-transaction write
 (PostgreSQL / MySQL / SQL Server), multi-DB portability, the reader projection
 (the poller surfaces `tenant_id` / `duration_ms` / `seq` top-level on the
-`EntityEvent`), the SDK `changelog=False` opt-out, and the `doctor` drift check
-have all shipped. No tracked follow-ups remain for the contract itself; new work
-arrives via its downstream consumers (#392 / #382 / #374 / #390 / #377 / #375).
+`EntityEvent`), the SDK `changelog=False` opt-out, the `doctor` drift check, and
+the #390 actor-model stamp (`actor_type` / `acting_for`) have all shipped. No
+tracked follow-ups remain for the contract itself; new work arrives via its
+downstream consumers (#392 / #382 / #374 / #377 / #375).
+
+The **broader #390 surface** — beyond the audit/change-log stamp this slice
+delivers — remains follow-up work: the RBAC policy DSL gaining `actor_type`
+predicates, per-`(tenant, actor_type)` rate-limit budgets, and a durable
+Postgres-backed tenant audit log (only the in-memory log exists today).
 
 ---
 

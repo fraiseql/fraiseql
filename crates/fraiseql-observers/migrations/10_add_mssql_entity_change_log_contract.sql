@@ -52,9 +52,10 @@ CREATE TABLE core.tb_entity_change_log (
     -- Durable ordering / dedup (#382). seq: native sequence default below.
     commit_time          DATETIME2     NULL,
     seq                  BIGINT        NOT NULL DEFAULT (NEXT VALUE FOR core.seq_entity_change_log),
-    -- Actor model (#390): columns now, values when #390 lands.
+    -- Actor model (#390): the request's actor classification + the delegated
+    -- human a delegated agent acts for (public-facing UUID, UNIQUEIDENTIFIER).
     actor_type           NVARCHAR(50)  NULL,
-    acting_for           BIGINT        NULL,
+    acting_for           UNIQUEIDENTIFIER NULL,
     -- Replay correctness (#377/#378): column now, value when #377 lands.
     schema_version       NVARCHAR(255) NULL,
     -- W3C trace context (#375): columns now, values when #375 lands.
@@ -66,6 +67,24 @@ CREATE TABLE core.tb_entity_change_log (
     nats_published_at    DATETIME2     NULL,
     nats_event_id        UNIQUEIDENTIFIER NULL
 );
+GO
+
+-- Retype `acting_for` BIGINT -> UNIQUEIDENTIFIER (#390) on a table that ran the
+-- v2.6.0 BIGINT form (the CREATE above is skipped when the table exists). Done as
+-- DROP + ADD because the column has always been NULL (lossless) and SQL Server
+-- has no bigint -> uniqueidentifier conversion for ALTER COLUMN. Guarded on the
+-- live column type, so it is a no-op on a fresh (already-UNIQUEIDENTIFIER) table.
+IF EXISTS (
+    SELECT 1 FROM sys.columns c
+    JOIN sys.types t ON c.user_type_id = t.user_type_id
+    WHERE c.object_id = OBJECT_ID('core.tb_entity_change_log')
+      AND c.name = 'acting_for'
+      AND t.name <> 'uniqueidentifier'
+)
+BEGIN
+    ALTER TABLE core.tb_entity_change_log DROP COLUMN acting_for;
+    ALTER TABLE core.tb_entity_change_log ADD acting_for UNIQUEIDENTIFIER NULL;
+END
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_entity_log_type'

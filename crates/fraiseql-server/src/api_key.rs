@@ -231,7 +231,10 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
     };
+    // An API key is a non-human credential: classify it ServiceAccount explicitly
+    // (compile-checked) rather than relying on a token marker (#390).
     SecurityContext::from_user(&user, format!("apikey-{}", uuid::Uuid::new_v4()))
+        .with_actor_type(fraiseql_core::security::ActorType::ServiceAccount)
 }
 
 /// Build an `ApiKeyAuthenticator` from the compiled schema's `security.api_keys` JSON.

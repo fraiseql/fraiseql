@@ -79,6 +79,8 @@ pub const CHANGELOG_PORTABLE_INSERT_COLUMNS: &[&str] = &[
     "trace_id",
     "schema_version",
     "trace_context",
+    "actor_type",
+    "acting_for",
     "commit_time",
 ];
 
@@ -104,7 +106,7 @@ pub const CHANGELOG_PORTABLE_INSERT_COLUMNS: &[&str] = &[
 /// let sql = build_changelog_insert_sql("core.tb_entity_change_log", DatabaseType::MySQL);
 /// assert!(sql.starts_with("INSERT INTO core.tb_entity_change_log ("));
 /// assert!(sql.contains("`cascade`"), "reserved word quoted for MySQL");
-/// assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+/// assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 /// ```
 #[must_use]
 pub fn build_changelog_insert_sql(table: &str, dialect: crate::types::DatabaseType) -> String {

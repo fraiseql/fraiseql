@@ -96,7 +96,16 @@ where
                 // Forward JWT extra_claims to security context attributes.
                 // This makes custom claims (org_id, roles, etc.) available to RLS policies
                 // and session variable injection.
+                //
+                // Framework-reserved `fraiseql.`-namespaced attributes (the derived
+                // actor classification, trace context, etc.) are NOT overwritable by
+                // a JWT claim — a token that carried a claim literally named
+                // `fraiseql.actor_type` must not be able to forge the recorded actor
+                // (#390). Such a claim is skipped here.
                 for (key, value) in &authenticated_user.extra_claims {
+                    if key.starts_with("fraiseql.") {
+                        continue;
+                    }
                     context.attributes.insert(key.clone(), value.clone());
                 }
 

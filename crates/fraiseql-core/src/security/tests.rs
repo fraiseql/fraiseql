@@ -3619,3 +3619,95 @@ mod validation_audit_tests {
         assert_eq!(logger.failure_count(), 1);
     }
 }
+
+mod actor_context_tests {
+    use std::collections::HashMap;
+
+    use chrono::Utc;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use crate::{
+        security::{ActorType, AuthenticatedUser, SecurityContext},
+        types::UserId,
+    };
+
+    fn user(
+        sub: &str,
+        scopes: &[&str],
+        extra: HashMap<String, serde_json::Value>,
+    ) -> AuthenticatedUser {
+        AuthenticatedUser {
+            user_id:      UserId::new(sub),
+            scopes:       scopes.iter().map(ToString::to_string).collect(),
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: extra,
+        }
+    }
+
+    /// A delegated agent JWT (`act` claim) derives AiAgent + acting_for = the
+    /// underlying human subject.
+    #[test]
+    fn from_user_derives_ai_agent_acting_for_subject() {
+        let sub = "550e8400-e29b-41d4-a716-446655440000";
+        let mut extra = HashMap::new();
+        extra.insert("act".to_string(), json!({ "sub": "agent-7" }));
+
+        let ctx = SecurityContext::from_user(&user(sub, &[], extra), "req-1".to_string());
+
+        assert_eq!(ctx.actor_type(), ActorType::AiAgent);
+        assert_eq!(ctx.acting_for(), Some(Uuid::parse_str(sub).unwrap()));
+    }
+
+    /// An ordinary user JWT derives HumanUser with no delegated user.
+    #[test]
+    fn from_user_derives_human_user_by_default() {
+        let ctx = SecurityContext::from_user(
+            &user("user-1", &["read:user"], HashMap::new()),
+            "req-2".to_string(),
+        );
+
+        assert_eq!(ctx.actor_type(), ActorType::HumanUser);
+        assert_eq!(ctx.acting_for(), None);
+    }
+
+    /// A `service_account` scope derives ServiceAccount.
+    #[test]
+    fn from_user_derives_service_account_from_scope() {
+        let ctx = SecurityContext::from_user(
+            &user("svc-1", &["service_account"], HashMap::new()),
+            "req-3".to_string(),
+        );
+
+        assert_eq!(ctx.actor_type(), ActorType::ServiceAccount);
+    }
+
+    /// `with_actor_type` overrides the derived classification (the API-key path).
+    #[test]
+    fn with_actor_type_overrides_and_round_trips() {
+        let ctx = SecurityContext::from_user(&user("u", &[], HashMap::new()), "r".to_string())
+            .with_actor_type(ActorType::ServiceAccount);
+
+        assert_eq!(ctx.actor_type(), ActorType::ServiceAccount);
+    }
+
+    /// `with_acting_for(None)` clears a previously stamped delegated user.
+    #[test]
+    fn with_acting_for_none_clears() {
+        let uuid = Uuid::new_v4();
+        let ctx = SecurityContext::from_user(&user("u", &[], HashMap::new()), "r".to_string())
+            .with_acting_for(Some(uuid))
+            .with_acting_for(None);
+
+        assert_eq!(ctx.acting_for(), None);
+    }
+
+    /// A context built without delegation reports the default actor type.
+    #[test]
+    fn unset_actor_type_defaults_to_human_user() {
+        let ctx = SecurityContext::from_user(&user("u", &[], HashMap::new()), "r".to_string());
+        assert_eq!(ctx.actor_type(), ActorType::HumanUser);
+    }
+}

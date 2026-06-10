@@ -57,14 +57,16 @@ fn portable_insert_uses_dialect_specific_placeholders() {
     // PostgreSQL: $1..$N positional.
     let pg = build_changelog_insert_sql(table, DatabaseType::PostgreSQL);
     assert!(
-        pg.contains("VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"),
+        pg.contains("VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"),
         "PG placeholders: {pg}"
     );
 
     // SQL Server: @P1..@PN.
     let mssql = build_changelog_insert_sql(table, DatabaseType::SQLServer);
     assert!(
-        mssql.contains("VALUES (@P1, @P2, @P3, @P4, @P5, @P6, @P7, @P8, @P9, @P10, @P11)"),
+        mssql.contains(
+            "VALUES (@P1, @P2, @P3, @P4, @P5, @P6, @P7, @P8, @P9, @P10, @P11, @P12, @P13)"
+        ),
         "MSSQL placeholders: {mssql}"
     );
 
@@ -72,7 +74,10 @@ fn portable_insert_uses_dialect_specific_placeholders() {
     for dialect in [DatabaseType::MySQL, DatabaseType::SQLite] {
         let sql = build_changelog_insert_sql(table, dialect);
         assert_eq!(sql.matches('?').count(), n, "{dialect} uses one `?` per column: {sql}");
-        assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"), "{dialect}: {sql}");
+        assert!(
+            sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+            "{dialect}: {sql}"
+        );
     }
 }
 

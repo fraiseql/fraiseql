@@ -31,7 +31,7 @@ use fraiseql_server::{
         AppState, DomainRegistry, TenantExecutorRegistry, TenantKeyResolver,
         tenant_registry::{TenantQuota, TenantStatus},
     },
-    tenancy::audit::{InMemoryAuditLog, TenantAuditLog, TenantEventKind},
+    tenancy::audit::{AuditActor, InMemoryAuditLog, TenantAuditLog, TenantEventKind},
 };
 
 // ── Stub adapter ────────────────────────────────────────────────────────
@@ -594,31 +594,39 @@ fn test_tenant_rate_limit_independence() {
 #[tokio::test]
 async fn test_audit_trail_records_full_lifecycle() {
     let audit_log = Arc::new(InMemoryAuditLog::new());
+    let admin = AuditActor {
+        id: Some("admin".to_string()),
+        ..Default::default()
+    };
+    let user42 = AuditActor {
+        id: Some("user-42".to_string()),
+        ..Default::default()
+    };
 
     // Simulate lifecycle events
     audit_log
-        .record("tenant-a", TenantEventKind::Created, Some("admin"), None)
+        .record("tenant-a", TenantEventKind::Created, Some(&admin), None)
         .await
         .unwrap();
     audit_log
-        .record("tenant-a", TenantEventKind::Suspended, Some("admin"), None)
+        .record("tenant-a", TenantEventKind::Suspended, Some(&admin), None)
         .await
         .unwrap();
     audit_log
-        .record("tenant-a", TenantEventKind::Resumed, Some("admin"), None)
+        .record("tenant-a", TenantEventKind::Resumed, Some(&admin), None)
         .await
         .unwrap();
     audit_log
         .record(
             "tenant-a",
             TenantEventKind::ConfigChanged,
-            Some("user-42"),
+            Some(&user42),
             Some(serde_json::json!({"max_concurrent": {"old": 5, "new": 10}})),
         )
         .await
         .unwrap();
     audit_log
-        .record("tenant-a", TenantEventKind::Deleted, Some("admin"), None)
+        .record("tenant-a", TenantEventKind::Deleted, Some(&admin), None)
         .await
         .unwrap();
 

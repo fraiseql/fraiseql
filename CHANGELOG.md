@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Actor model on the Change-Spine envelope (#390).** Every audited operation now
+  carries a first-class actor classification — `human_user`, `service_account`,
+  `ai_agent`, or `system_job` — derived onto the `SecurityContext` at
+  authentication and stamped into the change-log `actor_type` column by the
+  in-transaction outbox write. For a delegated agent request (RFC 8693 `act`
+  claim), the change-log `acting_for` column records the underlying human's
+  public-facing UUID. The tenant lifecycle audit log (`TenantEvent`) gains the same
+  `actor_type` / `acting_for_user_id` fields, now populated from the request
+  principal at every tenant-admin endpoint (previously the actor was always NULL).
+  API-key requests classify as `service_account`. The classification is recorded
+  for forensics, not consumed as an authorization input.
+
+### Changed
+
+- **BREAKING (change-log contract):** the `acting_for` column is retyped
+  `BIGINT → UUID` across the PostgreSQL / MySQL / SQL Server contract DDL to hold
+  the delegated human's public-facing UUID (mirroring `tenant_id`). The column
+  shipped NULL-by-design in v2.6.0 with no producer, so the migration's guarded
+  retype is lossless; re-run migration `08` (and the `09`/`10` variants) to adopt
+  it. `doctor --against-db` reports the type drift until a database is re-migrated.
+
 ## [2.6.0] - 2026-06-10
 
 ### Added

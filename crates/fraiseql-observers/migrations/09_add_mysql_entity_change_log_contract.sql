@@ -44,9 +44,10 @@ CREATE TABLE IF NOT EXISTS tb_entity_change_log (
     -- Durable ordering / dedup (#382). seq: producer-supplied (no native SEQUENCE).
     commit_time          TIMESTAMP(6) NULL,
     seq                  BIGINT       NULL,
-    -- Actor model (#390): columns now, values when #390 lands.
+    -- Actor model (#390): the request's actor classification + the delegated
+    -- human a delegated agent acts for (public-facing UUID, CHAR(36)).
     actor_type           VARCHAR(50)  NULL,
-    acting_for           BIGINT       NULL,
+    acting_for           CHAR(36)     NULL,
     -- Replay correctness (#377/#378): column now, value when #377 lands.
     schema_version       VARCHAR(255) NULL,
     -- W3C trace context (#375): columns now, values when #375 lands.
@@ -63,6 +64,24 @@ CREATE TABLE IF NOT EXISTS tb_entity_change_log (
     INDEX idx_entity_log_tenant_seq (tenant_id, seq),
     INDEX idx_entity_log_type_seq (object_type, seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Retype `acting_for` BIGINT -> CHAR(36) (#390) on a table that ran the v2.6.0
+-- BIGINT form (CREATE TABLE IF NOT EXISTS above is a no-op there). Lossless: the
+-- column has always been NULL. Guarded on the live column type via a prepared
+-- statement (MySQL has no anonymous DO block / conditional ALTER); a fresh table
+-- is already CHAR(36), so the guard yields a no-op `SELECT 1`.
+SET @retype_acting_for := (
+    SELECT IF(DATA_TYPE = 'char',
+              'SELECT 1',
+              'ALTER TABLE tb_entity_change_log MODIFY COLUMN acting_for CHAR(36) NULL')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tb_entity_change_log'
+      AND COLUMN_NAME = 'acting_for'
+);
+PREPARE retype_stmt FROM @retype_acting_for;
+EXECUTE retype_stmt;
+DEALLOCATE PREPARE retype_stmt;
 
 ALTER TABLE tb_entity_change_log
     COMMENT = 'FraiseQL change-log contract (Change Spine Tier 0 outbox), MySQL variant. Superset of perf (#392) + envelope columns. See docs/architecture/change-log-contract.md.';

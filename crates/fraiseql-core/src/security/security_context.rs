@@ -30,9 +30,10 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
-    security::AuthenticatedUser,
+    security::{ActorType, AuthenticatedUser, derive_actor},
     types::{TenantId, UserId},
 };
 
@@ -127,6 +128,14 @@ pub struct SecurityContext {
 }
 
 impl SecurityContext {
+    /// Attribute key under which the delegated user's UUID is carried (string
+    /// form), for an agent request acting on behalf of a human. Read back via
+    /// [`acting_for`](Self::acting_for) (#390).
+    pub const ACTING_FOR_ATTRIBUTE: &'static str = "fraiseql.acting_for";
+    /// Attribute key under which the request's [`ActorType`] is carried (the
+    /// `snake_case` token), derived at [`from_user`](Self::from_user) and read
+    /// back via [`actor_type`](Self::actor_type) (#390).
+    pub const ACTOR_TYPE_ATTRIBUTE: &'static str = "fraiseql.actor_type";
     /// Attribute key under which the originating request's full W3C trace context
     /// is carried (a JSON object), used to populate the change-log `trace_context`
     /// JSONB column (#375).
@@ -155,6 +164,12 @@ impl SecurityContext {
     /// ```
     #[must_use]
     pub fn from_user(user: &AuthenticatedUser, request_id: String) -> Self {
+        // Classify the actor from the (signature-verified) JWT material at
+        // construction time, so every auth path (OIDC, HS256, gRPC, MCP) that
+        // builds a context from a user gets it. The API-key path overrides to
+        // ServiceAccount at its own construction site (#390).
+        let (actor_type, acting_for) =
+            derive_actor(user.user_id.as_str(), &user.scopes, &user.extra_claims);
         SecurityContext {
             user_id: user.user_id.clone(),
             roles: vec![], // Will be populated from JWT claims
@@ -170,6 +185,8 @@ impl SecurityContext {
             email: user.email.clone(),
             display_name: user.display_name.clone(),
         }
+        .with_actor_type(actor_type)
+        .with_acting_for(acting_for)
     }
 
     /// Check if the user has a specific role.
@@ -270,6 +287,58 @@ impl SecurityContext {
     #[must_use]
     pub fn with_trace_context(mut self, trace_context: serde_json::Value) -> Self {
         self.attributes.insert(Self::TRACE_CONTEXT_ATTRIBUTE.to_string(), trace_context);
+        self
+    }
+
+    /// The request's actor classification (#390). Derived at
+    /// [`from_user`](Self::from_user); [`ActorType::HumanUser`] when unset (e.g. a
+    /// context built directly without derivation).
+    #[must_use]
+    pub fn actor_type(&self) -> ActorType {
+        self.attributes
+            .get(Self::ACTOR_TYPE_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+            .and_then(ActorType::from_token)
+            .unwrap_or_default()
+    }
+
+    /// Stamp the request's [`ActorType`] onto the context (carried in
+    /// `attributes`). Read back via [`actor_type`](Self::actor_type).
+    #[must_use]
+    pub fn with_actor_type(mut self, actor_type: ActorType) -> Self {
+        self.attributes.insert(
+            Self::ACTOR_TYPE_ATTRIBUTE.to_string(),
+            serde_json::Value::String(actor_type.as_str().to_string()),
+        );
+        self
+    }
+
+    /// The delegated user (the human a delegated agent acts for), when the request
+    /// carried an RFC 8693 `act` claim (#390). `None` for a non-delegated request,
+    /// or when the underlying subject was not UUID-shaped.
+    #[must_use]
+    pub fn acting_for(&self) -> Option<Uuid> {
+        self.attributes
+            .get(Self::ACTING_FOR_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+            .and_then(|s| Uuid::parse_str(s).ok())
+    }
+
+    /// Stamp the delegated user's UUID onto the context (carried in `attributes`).
+    /// `None` removes any prior stamp. Read back via [`acting_for`](Self::acting_for).
+    #[must_use]
+    pub fn with_acting_for(mut self, acting_for: Option<Uuid>) -> Self {
+        match acting_for {
+            Some(uuid) => {
+                self.attributes.insert(
+                    Self::ACTING_FOR_ATTRIBUTE.to_string(),
+                    serde_json::Value::String(uuid.to_string()),
+                );
+            },
+            None => {
+                self.attributes.remove(Self::ACTING_FOR_ATTRIBUTE);
+            },
+        }
         self
     }
 

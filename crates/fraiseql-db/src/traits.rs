@@ -38,10 +38,10 @@ use crate::{
 /// envelope: `tenant_id` (carried here, from `SecurityContext`),
 /// `trace_id` (the W3C trace id of the originating request), `schema_version`
 /// (the compiled schema's content hash — a per-deployment constant),
-/// `trace_context` (the full W3C trace context as JSON), `commit_time`
-/// (`clock_timestamp()` at INSERT), and `seq` (the table's `SEQUENCE` default).
-/// The remaining envelope columns (`actor_type`, `acting_for`) stay NULL pending
-/// their upstream issue (#390).
+/// `trace_context` (the full W3C trace context as JSON), `actor_type` /
+/// `acting_for` (the request's actor classification and, for a delegated agent,
+/// the underlying human — #390), `commit_time` (`clock_timestamp()` at INSERT),
+/// and `seq` (the table's `SEQUENCE` default).
 #[derive(Debug, Clone, Copy)]
 pub struct ChangeLogWrite<'a> {
     /// NOT-NULL fallback for `object_type` when the row's `entity_type` is NULL.
@@ -83,15 +83,29 @@ pub struct ChangeLogWrite<'a> {
     /// write time; `None` (→ SQL NULL) for a request without a valid trace context,
     /// consistent with `trace_id`.
     pub trace_context:     Option<&'a str>,
+    /// The request's actor classification written to the `actor_type` column (the
+    /// `snake_case` `ActorType` token: `"human_user"`, `"service_account"`,
+    /// `"ai_agent"`, `"system_job"`), from `SecurityContext.actor_type()` at write
+    /// time (#390). `None` (→ SQL NULL) for a request with no `SecurityContext` to
+    /// stamp (an unauthenticated mutation), or a cooperative external producer.
+    pub actor_type:        Option<&'a str>,
+    /// For a delegated agent request, the **underlying human** the agent acts for
+    /// — the public-facing UUID, written to the `acting_for UUID` column from
+    /// `SecurityContext.acting_for()` (#390). Mirrors `tenant_id`'s UUID shape so
+    /// it is stamped without a DB lookup. `None` (→ SQL NULL) for a non-delegated
+    /// request, an unauthenticated mutation, or a subject that is not UUID-shaped.
+    pub acting_for:        Option<uuid::Uuid>,
 }
 
 impl<'a> ChangeLogWrite<'a> {
     /// Build a change-log write descriptor with no envelope stamps (`tenant_id`,
-    /// `trace_id`, `schema_version` and `trace_context` NULL). Chain
-    /// [`with_tenant_id`](Self::with_tenant_id) /
+    /// `trace_id`, `schema_version`, `trace_context`, `actor_type` and
+    /// `acting_for` NULL). Chain [`with_tenant_id`](Self::with_tenant_id) /
     /// [`with_trace_id`](Self::with_trace_id) /
     /// [`with_schema_version`](Self::with_schema_version) /
-    /// [`with_trace_context`](Self::with_trace_context) to stamp them.
+    /// [`with_trace_context`](Self::with_trace_context) /
+    /// [`with_actor_type`](Self::with_actor_type) /
+    /// [`with_acting_for`](Self::with_acting_for) to stamp them.
     #[must_use]
     pub const fn new(object_type: &'a str, modification_type: &'a str) -> Self {
         Self {
@@ -101,6 +115,8 @@ impl<'a> ChangeLogWrite<'a> {
             trace_id: None,
             schema_version: None,
             trace_context: None,
+            actor_type: None,
+            acting_for: None,
         }
     }
 
@@ -138,6 +154,24 @@ impl<'a> ChangeLogWrite<'a> {
     #[must_use]
     pub const fn with_trace_context(mut self, trace_context: Option<&'a str>) -> Self {
         self.trace_context = trace_context;
+        self
+    }
+
+    /// Stamp the request's actor classification (the `snake_case` `ActorType`
+    /// token) onto the outbox row's `actor_type` column (#390). `None` leaves it
+    /// NULL — for an unauthenticated mutation or a cooperative producer.
+    #[must_use]
+    pub const fn with_actor_type(mut self, actor_type: Option<&'a str>) -> Self {
+        self.actor_type = actor_type;
+        self
+    }
+
+    /// Stamp the delegated user's UUID (the human a delegated agent acts for) onto
+    /// the outbox row's `acting_for` column (#390). `None` leaves it NULL — for a
+    /// non-delegated request, an unauthenticated mutation, or a non-UUID subject.
+    #[must_use]
+    pub const fn with_acting_for(mut self, acting_for: Option<uuid::Uuid>) -> Self {
+        self.acting_for = acting_for;
         self
     }
 }

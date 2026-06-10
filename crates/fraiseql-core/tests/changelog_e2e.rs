@@ -101,7 +101,8 @@ async fn provision(adapter: &PostgresAdapter) {
              created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
              object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
              duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-             tenant_id UUID, commit_time TIMESTAMPTZ, \
+             tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
+             actor_type TEXT, acting_for UUID, commit_time TIMESTAMPTZ, \
              seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
         )
         .await

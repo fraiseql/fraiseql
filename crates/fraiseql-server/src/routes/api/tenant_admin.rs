@@ -10,17 +10,43 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::{db::traits::DatabaseAdapter, security::ActorType};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
+    extractors::OptionalSecurityContext,
     routes::{
         api::types::ApiError,
         graphql::{AppState, tenant_registry::TenantQuota},
     },
-    tenancy::{audit::TenantEventKind, pool_factory::TenantPoolConfig},
+    tenancy::{
+        audit::{AuditActor, TenantEventKind},
+        pool_factory::TenantPoolConfig,
+    },
 };
+
+/// Resolve the actor behind a tenant-admin operation for the audit trail (#390).
+///
+/// Prefers the request's `SecurityContext` (a JWT principal, with its derived
+/// actor classification + any delegated user). Admin endpoints gated only by the
+/// static admin token carry no `SecurityContext`, so they record a synthetic
+/// `admin_token` service-account actor — honest, and it fills the field that
+/// would otherwise stay NULL.
+fn audit_actor(ctx: &OptionalSecurityContext) -> AuditActor {
+    ctx.0.as_ref().map_or_else(
+        || AuditActor {
+            id:         Some("admin_token".to_string()),
+            actor_type: Some(ActorType::ServiceAccount.as_str().to_string()),
+            acting_for: None,
+        },
+        |c| AuditActor {
+            id:         Some(c.user_id.as_str().to_string()),
+            actor_type: Some(c.actor_type().as_str().to_string()),
+            acting_for: c.acting_for(),
+        },
+    )
+}
 
 // ── Request / Response types ─────────────────────────────────────────────
 
@@ -162,6 +188,7 @@ pub struct DomainMapping {
 pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Path(key): Path<String>,
+    ctx: OptionalSecurityContext,
     Json(body): Json<TenantRegistrationRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
     // Reject keys that the header validator would accept but schema-mode
@@ -210,7 +237,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         } else {
             TenantEventKind::ConfigChanged
         };
-        if let Err(e) = audit_log.record(&key, event, None, None).await {
+        if let Err(e) = audit_log.record(&key, event, Some(&audit_actor(&ctx)), None).await {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }
@@ -229,6 +256,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Path(key): Path<String>,
+    ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let registry = state
         .tenant_registry()
@@ -241,7 +269,10 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     info!(tenant_key = %key, "tenant executor removed");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log.record(&key, TenantEventKind::Deleted, None, None).await {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Deleted, Some(&audit_actor(&ctx)), None)
+            .await
+        {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }
@@ -264,6 +295,7 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Path(key): Path<String>,
+    ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let registry = state
         .tenant_registry()
@@ -276,7 +308,10 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
     info!(tenant_key = %key, "tenant suspended");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log.record(&key, TenantEventKind::Suspended, None, None).await {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Suspended, Some(&audit_actor(&ctx)), None)
+            .await
+        {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }
@@ -298,6 +333,7 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
 pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Path(key): Path<String>,
+    ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let registry = state
         .tenant_registry()
@@ -310,7 +346,10 @@ pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     info!(tenant_key = %key, "tenant resumed");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log.record(&key, TenantEventKind::Resumed, None, None).await {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Resumed, Some(&audit_actor(&ctx)), None)
+            .await
+        {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }

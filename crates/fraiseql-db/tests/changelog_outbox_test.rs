@@ -68,7 +68,7 @@ async fn provision(client: &tokio_postgres::Client) {
                duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
                tenant_id UUID, commit_time TIMESTAMPTZ, \
                seq BIGINT DEFAULT nextval('core.seq_entity_change_log'), \
-               actor_type TEXT, acting_for BIGINT, schema_version TEXT, \
+               actor_type TEXT, acting_for UUID, schema_version TEXT, \
                trace_id TEXT, trace_context JSONB);",
         )
         .await
@@ -403,6 +403,50 @@ async fn tenant_id_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+async fn actor_type_and_acting_for_stamped_explicitly_from_the_envelope() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxActor";
+    create_ok_fn(&client, "fn_outbox_actor", obj_type).await;
+
+    // An agent acting for a human: the actor classification + the delegated human's
+    // UUID are carried on the ChangeLogWrite (sourced from the SecurityContext in
+    // production) and written to the actor_type/acting_for columns (#390).
+    let human = uuid::Uuid::new_v4();
+    let id = uuid::Uuid::new_v4();
+    let changelog = ChangeLogWrite::new(obj_type, "INSERT")
+        .with_actor_type(Some("ai_agent"))
+        .with_acting_for(Some(human));
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_actor",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let row = client
+        .query_one(
+            "SELECT actor_type, acting_for FROM core.tb_entity_change_log WHERE object_id = $1",
+            &[&id],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        row.get::<_, Option<String>>("actor_type").as_deref(),
+        Some("ai_agent"),
+        "actor_type stamped verbatim from the envelope"
+    );
+    assert_eq!(
+        row.get::<_, Option<uuid::Uuid>>("acting_for"),
+        Some(human),
+        "acting_for stamped as the delegated human's UUID"
+    );
+}
+
+#[tokio::test]
 async fn trace_id_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -622,18 +666,17 @@ async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
         "commit_time stamped with clock_timestamp()"
     );
     // Envelope columns this ChangeLogWrite does not stamp are left NULL — and the
-    // INSERT never errors on a missing source. `actor_type`/`acting_for` have no
-    // producer yet (#390); `trace_id` + `trace_context` (#375) and `schema_version`
-    // (#377) DO have one but are NULL here because this descriptor stamps none of
-    // them (their populated paths are covered by the dedicated
-    // `*_stamped_explicitly_from_the_envelope` tests).
+    // INSERT never errors on a missing source. This bare descriptor stamps none of
+    // `actor_type`/`acting_for` (#390), `trace_id`/`trace_context` (#375) or
+    // `schema_version` (#377); their populated paths are covered by the dedicated
+    // `*_stamped_explicitly_from_the_envelope` tests.
     assert!(
         row.get::<_, Option<String>>("actor_type").is_none(),
-        "actor_type NULL pending #390"
+        "actor_type NULL when the envelope does not stamp it"
     );
     assert!(
-        row.get::<_, Option<i64>>("acting_for").is_none(),
-        "acting_for NULL pending #390"
+        row.get::<_, Option<uuid::Uuid>>("acting_for").is_none(),
+        "acting_for NULL when the envelope does not stamp it"
     );
     assert!(
         row.get::<_, Option<String>>("schema_version").is_none(),

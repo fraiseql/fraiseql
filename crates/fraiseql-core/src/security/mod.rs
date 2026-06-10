@@ -14,6 +14,7 @@
 //! - Introspection control
 //! - Error formatting
 
+pub mod actor_type;
 pub mod audit;
 #[cfg(feature = "audit-syslog")]
 pub mod audit_export_syslog;
@@ -38,6 +39,7 @@ pub mod tls_enforcer;
 pub mod validation_audit;
 
 // Re-export key types for convenience
+pub use actor_type::{ActorType, derive_actor};
 pub use audit::{
     AuditEntry, AuditExportConfig, AuditExporter, AuditLevel, AuditLogger, AuditStats,
     SyslogExportConfig, WebhookExportConfig,

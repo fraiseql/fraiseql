@@ -74,6 +74,7 @@ async fn provision(adapter: &PostgresAdapter) {
              object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
              duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
              tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
+             actor_type TEXT, acting_for UUID, \
              commit_time TIMESTAMPTZ, \
              seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
         )
@@ -262,6 +263,47 @@ async fn executor_stamps_tenant_id_from_the_security_context() {
         rows[0].get("tenant_id"),
         Some(&json!(tenant.to_string())),
         "tenant_id stamped from the SecurityContext"
+    );
+}
+
+#[tokio::test]
+async fn executor_stamps_actor_type_and_acting_for_from_the_security_context() {
+    use fraiseql_core::security::ActorType;
+
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // A SecurityContext classified as an agent acting for a human — the runner
+    // stamps actor_type + acting_for from it onto the outbox row (#390).
+    let human = uuid::Uuid::new_v4();
+    let ctx = security_ctx_with_tenant(&uuid::Uuid::new_v4().to_string())
+        .with_actor_type(ActorType::AiAgent)
+        .with_acting_for(Some(human));
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT actor_type, acting_for::text AS acting_for FROM core.tb_entity_change_log",
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("actor_type"),
+        Some(&json!("ai_agent")),
+        "actor_type stamped from the SecurityContext"
+    );
+    assert_eq!(
+        rows[0].get("acting_for"),
+        Some(&json!(human.to_string())),
+        "acting_for stamped as the delegated human's UUID"
     );
 }
 

@@ -694,7 +694,8 @@ impl DatabaseAdapter for SqlServerAdapter {
             {
                 // Bind in CHANGELOG_PORTABLE_INSERT_COLUMNS order: object_type,
                 // modification_type, object_id, object_data, updated_fields, cascade,
-                // tenant_id, trace_id, schema_version, trace_context, commit_time. The
+                // tenant_id, trace_id, schema_version, trace_context, actor_type,
+                // acting_for, commit_time. The
                 // changed-entity columns are read from the procedure's own mutation_response row;
                 // `object_type` falls back to the threaded GraphQL return type when the
                 // row omits `entity_type`. `seq`
@@ -713,6 +714,7 @@ impl DatabaseAdapter for SqlServerAdapter {
                     crate::changelog::json_column_text(first.get("updated_fields"));
                 let cascade = crate::changelog::json_column_text(first.get("cascade"));
                 let tenant_id = changelog.tenant_id.map(|t| t.to_string());
+                let acting_for = changelog.acting_for.map(|u| u.to_string());
                 let commit_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3f").to_string();
                 let insert_sql = crate::changelog::build_changelog_insert_sql(
                     "core.tb_entity_change_log",
@@ -730,6 +732,8 @@ impl DatabaseAdapter for SqlServerAdapter {
                 iq.bind(changelog.trace_id);
                 iq.bind(changelog.schema_version);
                 iq.bind(changelog.trace_context);
+                iq.bind(changelog.actor_type);
+                iq.bind(acting_for.as_deref());
                 iq.bind(commit_time.as_str());
                 iq.execute(&mut *conn).await.map_err(|e| FraiseQLError::Database {
                     message:   format!("SQL Server change-log outbox INSERT failed: {e}"),

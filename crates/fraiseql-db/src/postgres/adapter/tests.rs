@@ -156,6 +156,21 @@ fn changelog_cte_threads_object_type_fallback_and_modification_type_after_args()
 }
 
 #[test]
+fn changelog_cte_threads_actor_envelope_after_trace_context() {
+    // 2 function args => trace_context is $8, actor_type $9, acting_for $10.
+    let sql = super::database::build_changelog_cte_sql(r#""fn_x""#, 2);
+    // Both actor columns are in the INSERT list, after trace_context and before
+    // commit_time.
+    assert!(
+        sql.contains("actor_type, acting_for, commit_time)"),
+        "actor_type/acting_for INSERT columns thread before commit_time: {sql}"
+    );
+    // acting_for is the last appended envelope param ($n+8) and cast to uuid.
+    assert!(sql.contains("$9,"), "actor_type is $n+7: {sql}");
+    assert!(sql.contains("$10::uuid,"), "acting_for is $n+8, bound as uuid: {sql}");
+}
+
+#[test]
 fn changelog_cte_only_logs_effective_changes_and_stamps_the_duration_marker() {
     let sql = super::database::build_changelog_cte_sql(r#""fn_z""#, 1);
     // Only an effective change (succeeded AND state_changed) is logged — no-ops
@@ -190,7 +205,7 @@ fn changelog_cte_maps_mutation_response_columns_to_contract_columns() {
     for needle in [
         "(object_type, modification_type, object_id, object_data, updated_fields, cascade, \
          started_at, duration_ms, extra_metadata, tenant_id, trace_id, schema_version, \
-         trace_context, commit_time)",
+         trace_context, actor_type, acting_for, commit_time)",
         "r.entity_id, r.entity, r.updated_fields, r.cascade",
     ] {
         assert!(sql.contains(needle), "expected `{needle}` in: {sql}");
@@ -216,6 +231,13 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
         sql.contains("$8::jsonb"),
         "trace_context is the $n+6 envelope param, cast jsonb: {sql}"
     );
+    // actor_type is the $n+7 envelope param (plain text — #390).
+    assert!(sql.contains("$9,"), "actor_type is the $n+7 envelope param: {sql}");
+    // acting_for is the $n+8 envelope param, cast to uuid (#390).
+    assert!(
+        sql.contains("$10::uuid"),
+        "acting_for is the $n+8 envelope param, cast uuid: {sql}"
+    );
     // commit_time is the DB clock at INSERT (durable ordering basis).
     assert!(
         sql.contains("clock_timestamp()"),
@@ -225,7 +247,7 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
     // so any INSERTer (incl. cooperative external producers) gets a monotonic
     // value. The column list ends at `commit_time)`.
     assert!(
-        sql.contains("trace_context, commit_time)"),
+        sql.contains("acting_for, commit_time)"),
         "INSERT column list ends at commit_time, omitting seq for its DEFAULT: {sql}"
     );
 }

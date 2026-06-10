@@ -1359,6 +1359,8 @@ mod mysql_outbox_tests {
                  trace_id          VARCHAR(64)  NULL,
                  schema_version    VARCHAR(64)  NULL,
                  trace_context     JSON         NULL,
+                 actor_type        VARCHAR(50)  NULL,
+                 acting_for        CHAR(36)     NULL,
                  commit_time       TIMESTAMP(6) NULL,
                  seq               BIGINT       NULL)",
         )
@@ -1929,6 +1931,8 @@ mod sqlserver_outbox_tests {
                  trace_id          NVARCHAR(64)  NULL,
                  schema_version    NVARCHAR(64)  NULL,
                  trace_context     NVARCHAR(MAX) NULL,
+                 actor_type        NVARCHAR(50)  NULL,
+                 acting_for        UNIQUEIDENTIFIER NULL,
                  commit_time       DATETIME2     NULL,
                  seq               BIGINT NOT NULL DEFAULT (NEXT VALUE FOR core.seq_entity_change_log))",
         )

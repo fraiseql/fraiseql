@@ -240,6 +240,8 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
     let trace_id_idx = n_args + 4;
     let schema_version_idx = n_args + 5;
     let trace_context_idx = n_args + 6;
+    let actor_type_idx = n_args + 7;
+    let acting_for_idx = n_args + 8;
     let started_var = crate::changelog::STARTED_AT_VAR;
     let duration = crate::changelog::duration_ms_sql(started_var);
     let calc_version = crate::changelog::DURATION_CALC_VERSION;
@@ -249,7 +251,8 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
            INSERT INTO core.tb_entity_change_log \
              (object_type, modification_type, object_id, object_data, \
               updated_fields, cascade, started_at, duration_ms, extra_metadata, \
-              tenant_id, trace_id, schema_version, trace_context, commit_time) \
+              tenant_id, trace_id, schema_version, trace_context, \
+              actor_type, acting_for, commit_time) \
            SELECT \
              COALESCE(r.entity_type, ${object_type_idx}), \
              ${modification_type_idx}, \
@@ -261,6 +264,8 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
              ${trace_id_idx}, \
              ${schema_version_idx}, \
              ${trace_context_idx}::jsonb, \
+             ${actor_type_idx}, \
+             ${acting_for_idx}::uuid, \
              clock_timestamp() \
            FROM r \
            WHERE r.succeeded AND r.state_changed \
@@ -669,7 +674,9 @@ impl DatabaseAdapter for PostgresAdapter {
         // Function args first; then the threaded change-log envelope params —
         // object_type fallback ($n+1), modification_type verb ($n+2), the
         // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
-        // ($n+4, plain text), and the schema_version ($n+5, plain text). Order
+        // ($n+4, plain text), the schema_version ($n+5, plain text), the
+        // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
+        // plain text) and the acting_for ($n+8, bound against `::uuid`). Order
         // matches build_changelog_cte_sql's positional contract; appending the
         // envelope params keeps the SQL text stable for prepare_cached.
         let mut flex_args: Vec<FlexParam> = args
@@ -701,6 +708,13 @@ impl DatabaseAdapter for PostgresAdapter {
                 .trace_context
                 .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
         );
+        // actor_type ($n+7): plain text, None → SQL NULL.
+        flex_args
+            .push(changelog.actor_type.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
+        // acting_for ($n+8): bound as text + serialised by FlexParam's UUID branch
+        // (the `::uuid` cast pins the param type); None → SQL NULL.
+        flex_args
+            .push(changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())));
         let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
             .iter()
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))

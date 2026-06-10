@@ -13,6 +13,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 /// Tenant lifecycle event types.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -44,20 +45,42 @@ impl TenantEventKind {
     }
 }
 
+/// The principal that triggered an audited tenant lifecycle operation (#390).
+///
+/// Bundled so the audit `record` call stays a single actor argument. Built at the
+/// admin handler from the request's `SecurityContext` (a JWT principal) or, for
+/// the static-admin-token path, a synthetic service-account actor.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AuditActor {
+    /// The actor's identity (JWT `sub`, or `"admin_token"` for the static admin
+    /// path). `None` when no principal could be determined.
+    pub id:         Option<String>,
+    /// The actor classification — the `snake_case`
+    /// [`ActorType`](fraiseql_core::security::ActorType) token (`"human_user"`,
+    /// `"service_account"`, `"ai_agent"`, `"system_job"`).
+    pub actor_type: Option<String>,
+    /// For a delegated agent, the underlying human the agent acts for.
+    pub acting_for: Option<Uuid>,
+}
+
 /// A single audit trail event.
 #[derive(Debug, Clone, Serialize)]
 pub struct TenantEvent {
     /// The tenant key this event relates to.
-    pub tenant_key:  String,
+    pub tenant_key:         String,
     /// The kind of lifecycle event.
-    pub event:       TenantEventKind,
+    pub event:              TenantEventKind,
     /// The actor who triggered the event (JWT `sub` claim or `"admin_token"`).
-    pub actor:       Option<String>,
+    pub actor:              Option<String>,
+    /// The actor's classification (the `snake_case` `ActorType` token — #390).
+    pub actor_type:         Option<String>,
+    /// For a delegated agent actor, the underlying human's UUID (#390).
+    pub acting_for_user_id: Option<Uuid>,
     /// Event-specific metadata (e.g., quota changes, config diffs).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload:     Option<serde_json::Value>,
+    pub payload:            Option<serde_json::Value>,
     /// When the event occurred (ISO 8601).
-    pub occurred_at: String,
+    pub occurred_at:        String,
 }
 
 /// Trait for tenant audit log backends.
@@ -76,7 +99,7 @@ pub trait TenantAuditLog: Send + Sync {
         &self,
         tenant_key: &str,
         event: TenantEventKind,
-        actor: Option<&str>,
+        actor: Option<&AuditActor>,
         payload: Option<serde_json::Value>,
     ) -> fraiseql_error::Result<()>;
 
@@ -124,13 +147,15 @@ impl TenantAuditLog for InMemoryAuditLog {
         &self,
         tenant_key: &str,
         event: TenantEventKind,
-        actor: Option<&str>,
+        actor: Option<&AuditActor>,
         payload: Option<serde_json::Value>,
     ) -> fraiseql_error::Result<()> {
         let entry = TenantEvent {
             tenant_key: tenant_key.to_string(),
             event,
-            actor: actor.map(ToString::to_string),
+            actor: actor.and_then(|a| a.id.clone()),
+            actor_type: actor.and_then(|a| a.actor_type.clone()),
+            acting_for_user_id: actor.and_then(|a| a.acting_for),
             payload,
             occurred_at: chrono::Utc::now().to_rfc3339(),
         };
@@ -166,12 +191,14 @@ pub type AuditLogHandle = Arc<dyn TenantAuditLog>;
 /// The table is designed for the control plane database (not tenant databases).
 pub const TENANT_EVENTS_DDL: &str = "\
 CREATE TABLE IF NOT EXISTS _fraiseql_tenant_events (
-    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    tenant_key   TEXT NOT NULL,
-    event        TEXT NOT NULL,
-    actor        TEXT,
-    payload      JSONB,
-    occurred_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_key          TEXT NOT NULL,
+    event               TEXT NOT NULL,
+    actor               TEXT,
+    actor_type          TEXT,
+    acting_for_user_id  UUID,
+    payload             JSONB,
+    occurred_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_events_key
     ON _fraiseql_tenant_events (tenant_key, occurred_at);

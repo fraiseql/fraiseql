@@ -132,7 +132,7 @@ pub const ENTITY_CHANGE_LOG_CONTRACT: &[ContractColumn] = &[
     },
     ContractColumn {
         name: "acting_for",
-        udt:  "int8",
+        udt:  "uuid",
     },
     ContractColumn {
         name: "schema_version",

@@ -484,7 +484,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // produced it (the #378 replay-correctness handle). `trace_context` is the
     // request's full W3C trace context (#375), serialized JSON from the
     // SecurityContext — NULL for a request with no trace context. `actor_type`
-    // stays NULL here pending #390.
+    // is the request's actor classification and `acting_for` the delegated human
+    // an agent acts for (#390), both derived onto the SecurityContext at auth time
+    // — NULL for an unauthenticated mutation (no SecurityContext to stamp).
     let tenant_uuid = security_ctx
         .and_then(|c| c.tenant_id.as_ref())
         .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
@@ -494,12 +496,16 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let trace_context_json = security_ctx
         .and_then(SecurityContext::trace_context)
         .map(serde_json::Value::to_string);
+    let actor_type = security_ctx.map(|c| c.actor_type().as_str());
+    let acting_for = security_ctx.and_then(SecurityContext::acting_for);
     let changelog = write_changelog.then(|| {
         ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
             .with_tenant_id(tenant_uuid)
             .with_trace_id(trace_id)
             .with_schema_version(Some(&ctx.schema_version))
             .with_trace_context(trace_context_json.as_deref())
+            .with_actor_type(actor_type)
+            .with_acting_for(acting_for)
     });
     let rows = ctx
         .adapter

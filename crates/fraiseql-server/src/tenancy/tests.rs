@@ -12,7 +12,12 @@ mod audit_tests {
     #[tokio::test]
     async fn record_and_retrieve_event() {
         let log = InMemoryAuditLog::new();
-        log.record("tenant-abc", TenantEventKind::Created, Some("admin"), None)
+        let actor = AuditActor {
+            id:         Some("admin".to_string()),
+            actor_type: Some("service_account".to_string()),
+            acting_for: None,
+        };
+        log.record("tenant-abc", TenantEventKind::Created, Some(&actor), None)
             .await
             .unwrap();
 
@@ -21,6 +26,26 @@ mod audit_tests {
         assert_eq!(events[0].tenant_key, "tenant-abc");
         assert_eq!(events[0].event, TenantEventKind::Created);
         assert_eq!(events[0].actor.as_deref(), Some("admin"));
+        assert_eq!(events[0].actor_type.as_deref(), Some("service_account"));
+        assert_eq!(events[0].acting_for_user_id, None);
+    }
+
+    #[tokio::test]
+    async fn record_captures_delegated_actor() {
+        let log = InMemoryAuditLog::new();
+        let human = uuid::Uuid::new_v4();
+        let actor = AuditActor {
+            id:         Some("agent-7".to_string()),
+            actor_type: Some("ai_agent".to_string()),
+            acting_for: Some(human),
+        };
+        log.record("t", TenantEventKind::ConfigChanged, Some(&actor), None)
+            .await
+            .unwrap();
+
+        let events = log.events_for("t", 10, 0).await.unwrap();
+        assert_eq!(events[0].actor_type.as_deref(), Some("ai_agent"));
+        assert_eq!(events[0].acting_for_user_id, Some(human));
     }
 
     #[tokio::test]
@@ -73,10 +98,14 @@ mod audit_tests {
         let payload = serde_json::json!({
             "max_concurrent": {"old": 5, "new": 10}
         });
+        let actor = AuditActor {
+            id: Some("user-42".to_string()),
+            ..Default::default()
+        };
         log.record(
             "tenant-abc",
             TenantEventKind::ConfigChanged,
-            Some("user-42"),
+            Some(&actor),
             Some(payload.clone()),
         )
         .await
