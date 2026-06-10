@@ -2020,8 +2020,8 @@ mod run_tests {
         // assertion in `temp_env` so it holds temp_env's global lock and observes a clean (unset)
         // env, instead of racing with the parallel `resolve_database_url` tests that set
         // `DATABASE_URL` inside their own temp_env closures (those serialize against each other but
-        // not against a bare direct reader — the env-race class fixed the same way for the observers
-        // SSRF guard).
+        // not against a bare direct reader — the env-race class fixed the same way for the
+        // observers SSRF guard).
         temp_env::with_var_unset("DATABASE_URL", || {
             let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
             let config = build_config_from(
