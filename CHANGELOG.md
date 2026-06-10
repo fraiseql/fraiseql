@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-06-10
+
 ### Added
 
 - **Change Spine: the mutation executor writes the `core.tb_entity_change_log` outbox row
