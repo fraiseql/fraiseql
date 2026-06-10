@@ -273,6 +273,9 @@ mod e2e_tests {
                 "after": { "id": entity_id.to_string(), "total": 250.00, "status": "new" }
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           "2026-01-22T12:00:00+00:00".to_string(),
         };
 
@@ -315,6 +318,9 @@ mod e2e_tests {
                 "after": { "status": "shipped", "total": 250.00 }
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           "2026-01-22T13:00:00+00:00".to_string(),
         };
 
@@ -351,6 +357,9 @@ mod e2e_tests {
                 "after": null
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           "2026-01-22T14:00:00+00:00".to_string(),
         };
 
@@ -386,6 +395,9 @@ mod e2e_tests {
                     "after": { "id": entity_id.to_string() }
                 }),
                 extra_metadata:       None,
+                tenant_id:            None,
+                duration_ms:          None,
+                seq:                  None,
                 created_at:           "2026-01-22T15:00:00+00:00".to_string(),
             };
 
@@ -418,6 +430,9 @@ mod e2e_tests {
                     "after": { "id": entity_id.to_string(), "org": org_id }
                 }),
                 extra_metadata:       None,
+                tenant_id:            None,
+                duration_ms:          None,
+                seq:                  None,
                 created_at:           "2026-01-22T16:00:00+00:00".to_string(),
             };
 
@@ -455,6 +470,9 @@ mod e2e_tests {
                 }
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           "2026-01-22T16:30:00+00:00".to_string(),
         };
 
@@ -500,6 +518,9 @@ mod e2e_tests {
                 "after": { "id": entity_id.to_string() }
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           timestamp_str.to_string(),
         };
 
@@ -528,6 +549,9 @@ mod e2e_tests {
                 "after": { "id": "invalid" }
             }),
             extra_metadata:       None,
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             created_at:           "2026-01-22T17:00:00+00:00".to_string(),
         };
 

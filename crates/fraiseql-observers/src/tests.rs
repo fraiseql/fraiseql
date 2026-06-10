@@ -780,6 +780,8 @@ mod elasticsearch_sink_tests {
             changes:     None,
             user_id:     None,
             tenant_id:   Some("tenant-1".to_string()),
+            duration_ms: None,
+            seq:         None,
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");
@@ -1007,6 +1009,50 @@ mod event_tests {
         .with_tenant_id("tenant-2");
 
         assert_ne!(event1.tenant_id, event2.tenant_id);
+    }
+
+    #[test]
+    fn test_create_entity_event_defaults_perf_envelope_to_none() {
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
+
+        // The Change-Spine perf/envelope columns are absent until stamped.
+        assert_eq!(event.duration_ms, None);
+        assert_eq!(event.seq, None);
+    }
+
+    #[test]
+    fn test_entity_event_with_duration_ms() {
+        let event =
+            EntityEvent::new(EventKind::Updated, "Order".to_string(), Uuid::new_v4(), json!({}))
+                .with_duration_ms(42);
+
+        assert_eq!(event.duration_ms, Some(42));
+    }
+
+    #[test]
+    fn test_entity_event_with_seq() {
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}))
+                .with_seq(1_007);
+
+        assert_eq!(event.seq, Some(1_007));
+    }
+
+    #[test]
+    fn test_entity_event_serde_roundtrip_preserves_perf_envelope() {
+        let event =
+            EntityEvent::new(EventKind::Updated, "Order".to_string(), Uuid::new_v4(), json!({}))
+                .with_duration_ms(7)
+                .with_seq(99);
+
+        let json = serde_json::to_value(&event).expect("serialize EntityEvent");
+        assert_eq!(json["duration_ms"], json!(7));
+        assert_eq!(json["seq"], json!(99));
+
+        let decoded: EntityEvent = serde_json::from_value(json).expect("deserialize EntityEvent");
+        assert_eq!(decoded.duration_ms, Some(7));
+        assert_eq!(decoded.seq, Some(99));
     }
 }
 

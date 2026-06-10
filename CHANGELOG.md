@@ -90,6 +90,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `changelog` key only when it is set, so a schema authored without it keeps logging (the
   compiler serde-defaults `MutationDefinition.changelog` to `true`).
 
+- **Change Spine: the change-log poller surfaces the envelope/perf columns on the observer
+  event path.** `fraiseql_observers`'s `ChangeLogListener` now projects three more contract
+  columns top-level — `tenant_id` (the public-facing UUID partition stamp), `duration_ms`, and
+  `seq` (the monotonic Change-Spine sequence) — onto `ChangeLogEntry`, and carries
+  `duration_ms` / `seq` through to the `EntityEvent` it emits. NATS subscribers, the deduped
+  executor's `TenantScope`, and the search / Arrow sinks now see the perf and ordering metadata,
+  not just the GraphQL `data` JSONB. (The `core.v_entity_change_log` read view already exposed
+  these for the #149 GraphQL / #392 perf path; this closes the gap on the Rust event path.) All
+  three are contract-nullable and decode as `None` for cooperative external producers that do not
+  stamp them.
+
 ### Breaking
 
 - **The framework now owns the `core.tb_entity_change_log` write — remove app-side
@@ -103,6 +114,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   External *cooperative* producers (ETL / jobs / sister services writing
   contract-conforming rows directly into the table) remain first-class and are unaffected —
   that is a distinct, supported pattern, not the app double-writing its own mutation output.
+
+- **The observer `EntityEvent.tenant_id` is now the UUID `tenant_id`, not `fk_customer_org`;
+  `EntityEvent` also gains `duration_ms` / `seq` (wire-format change).** The change-log poller
+  previously copied the internal `fk_customer_org` BIGINT (as a decimal string) into
+  `EntityEvent.tenant_id`, collapsing the Trinity pair — so tenant isolation that keys off it
+  (the NATS subscription tenant filter, the deduped executor's `TenantScope`) matched on an
+  integer that never equals the JWT/RLS tenant. The poller now surfaces the contract's
+  public-facing `tenant_id` UUID instead, and `None` when it is NULL (no more `fk_customer_org`
+  fallback). **If you filter observer events by tenant, switch your configured tenant
+  identifiers from the `fk_customer_org` integer to the UUID `tenant_id`.** Separately,
+  `EntityEvent` now serializes two new fields — `duration_ms` and `seq` — with no serde
+  default, so a consumer deserializing an `EntityEvent` produced by an older build (e.g. a
+  message already resident in a durable NATS stream across a rolling upgrade) must be upgraded
+  in lockstep; the change-log table is the source of truth and events are re-derivable, so
+  drain the stream or accept the brief gap rather than mixing versions.
 
 ### Fixed
 

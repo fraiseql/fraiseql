@@ -56,7 +56,9 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 2. Create tb_entity_change_log (with Debezium envelope). DROP first so a stale shape from a
     //    prior run can't survive — the columns the poller decodes must match the change-log
     //    contract types: object_id is UUID and fk_customer_org / fk_contact are BIGINT (the
-    //    poller's ChangeLogRow decodes them as Uuid / Option<i64>).
+    //    poller's ChangeLogRow decodes them as Uuid / Option<i64>). The poller also projects the
+    //    Change-Spine envelope columns top-level: tenant_id (public-facing UUID, distinct from the
+    //    fk_customer_org BIGINT join FK), duration_ms (int4) and seq (int8).
     sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
         .execute(pool)
         .await?;
@@ -73,7 +75,10 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             change_status TEXT,
             object_data JSONB NOT NULL,
             extra_metadata JSONB,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            tenant_id UUID,
+            duration_ms INTEGER,
+            seq BIGINT
         )
         ",
     )

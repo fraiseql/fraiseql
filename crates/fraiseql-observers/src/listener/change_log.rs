@@ -38,6 +38,12 @@ use crate::{
 /// so downstream consumers are unchanged. `object_data` is nullable on the
 /// contract (an effective change may carry no entity payload), so it is decoded
 /// as `Option`.
+///
+/// The trailing three columns are the Change-Spine envelope/perf projection
+/// surfaced top-level: `tenant_id` (public-facing UUID partition stamp, decoded
+/// as `Uuid` — **distinct from `fk_customer_org`**, the internal BIGINT join FK),
+/// `duration_ms` (`int4`), and `seq` (`int8`, monotonic ordering / dedup). All
+/// three are contract-nullable.
 type ChangeLogRow = (
     i64,                   // pk_entity_change_log
     Uuid,                  // id
@@ -50,6 +56,9 @@ type ChangeLogRow = (
     Option<Value>,         // object_data (nullable)
     Option<Value>,         // extra_metadata
     Option<DateTime<Utc>>, // created_at
+    Option<Uuid>,          // tenant_id (public-facing UUID partition stamp)
+    Option<i32>,           // duration_ms (perf column, int4)
+    Option<i64>,           // seq (Change-Spine ordering / dedup, int8)
 );
 
 /// Configuration for the change log listener
@@ -137,6 +146,19 @@ pub struct ChangeLogEntry {
 
     /// When the change was recorded
     pub created_at: String,
+
+    /// Public-facing tenant UUID — the RLS/JWT partition stamp. Distinct from
+    /// [`fk_customer_org`](Self::fk_customer_org) (the internal BIGINT join FK)
+    /// per the Trinity contract; `None` when the contract column is `NULL`.
+    pub tenant_id: Option<String>,
+
+    /// Wall-clock duration of the originating mutation in milliseconds, when the
+    /// producer stamped it; `None` for cooperative producers without timing.
+    pub duration_ms: Option<i32>,
+
+    /// Monotonic Change-Spine sequence for durable ordering and dedup on
+    /// `(object_type, seq)`; `None` when the source row carried no sequence.
+    pub seq: Option<i64>,
 }
 
 impl ChangeLogEntry {
@@ -235,12 +257,11 @@ impl ChangeLogEntry {
         // Use fk_contact as user_id if available
         let user_id = self.fk_contact.clone();
 
-        // Propagate fk_customer_org as tenant_id for multi-tenant filtering
-        let tenant_id = if self.fk_customer_org.is_empty() {
-            None
-        } else {
-            Some(self.fk_customer_org.clone())
-        };
+        // Trinity: the multi-tenant partition stamp is the public-facing UUID
+        // `tenant_id` — NOT `fk_customer_org` (the internal BIGINT join FK).
+        // Surfacing the wrong one would key tenant isolation off an integer that
+        // never matches the JWT/RLS tenant.
+        let tenant_id = self.tenant_id.clone();
 
         Ok(EntityEvent {
             id: Uuid::parse_str(&self.pk_entity_change_log).unwrap_or_else(|_| Uuid::new_v4()),
@@ -252,6 +273,8 @@ impl ChangeLogEntry {
             user_id,
             tenant_id,
             timestamp,
+            duration_ms: self.duration_ms,
+            seq: self.seq,
         })
     }
 
@@ -361,7 +384,10 @@ impl ChangeLogListener {
                     change_status,
                     object_data,
                     extra_metadata,
-                    created_at
+                    created_at,
+                    tenant_id,
+                    duration_ms,
+                    seq
                 FROM core.tb_entity_change_log
                 WHERE pk_entity_change_log > $1
                 ORDER BY pk_entity_change_log ASC
@@ -378,25 +404,45 @@ impl ChangeLogListener {
 
         let mut entries = Vec::new();
 
-        for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows
+        for (
+            pk,
+            id,
+            org,
+            contact,
+            obj_type,
+            obj_id,
+            mod_type,
+            status,
+            data,
+            meta,
+            created,
+            tenant,
+            duration_ms,
+            seq,
+        ) in rows
         {
             let created_at_str =
                 created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             entries.push(ChangeLogEntry {
-                id:                   pk,
+                id: pk,
                 pk_entity_change_log: id.to_string(),
                 // BIGINT/UUID contract values projected into the string-typed
                 // public fields (reconcile without breaking downstream readers).
-                fk_customer_org:      org.map(|n| n.to_string()).unwrap_or_default(),
-                fk_contact:           contact.map(|n| n.to_string()),
-                object_type:          obj_type,
-                object_id:            obj_id.to_string(),
-                modification_type:    mod_type,
-                change_status:        status.unwrap_or_default(),
-                object_data:          data.unwrap_or(Value::Null),
-                extra_metadata:       meta,
-                created_at:           created_at_str,
+                fk_customer_org: org.map(|n| n.to_string()).unwrap_or_default(),
+                fk_contact: contact.map(|n| n.to_string()),
+                object_type: obj_type,
+                object_id: obj_id.to_string(),
+                modification_type: mod_type,
+                change_status: status.unwrap_or_default(),
+                object_data: data.unwrap_or(Value::Null),
+                extra_metadata: meta,
+                created_at: created_at_str,
+                // Trinity: tenant_id is the public-facing UUID partition stamp,
+                // kept distinct from fk_customer_org above.
+                tenant_id: tenant.map(|t| t.to_string()),
+                duration_ms,
+                seq,
             });
 
             // Update checkpoint for recovery

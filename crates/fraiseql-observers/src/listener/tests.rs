@@ -38,6 +38,9 @@ mod change_log_tests {
             id:                   1,
             pk_entity_change_log: "uuid".to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            "order-id".to_string(),
@@ -61,6 +64,9 @@ mod change_log_tests {
             id:                   1,
             pk_entity_change_log: "uuid".to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            "user-id".to_string(),
@@ -85,6 +91,9 @@ mod change_log_tests {
             id:                   1,
             pk_entity_change_log: "uuid".to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            "prod-id".to_string(),
@@ -138,6 +147,9 @@ mod change_log_tests {
             id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           Some("user-123".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -169,6 +181,9 @@ mod change_log_tests {
             id:                   2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           Some("user-456".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -204,6 +219,9 @@ mod change_log_tests {
             id:                   3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -233,6 +251,9 @@ mod change_log_tests {
             id:                   4,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            entity_id.to_string(),
@@ -263,6 +284,9 @@ mod change_log_tests {
             id:                   5,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -293,6 +317,9 @@ mod change_log_tests {
             id:                   6,
             pk_entity_change_log: Uuid::new_v4().to_string(),
             fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -311,6 +338,71 @@ mod change_log_tests {
 
         // Verify timestamp was parsed correctly
         assert!(event.timestamp.to_rfc3339().contains("2026-01-22T15:30:45"));
+    }
+
+    /// Build a minimal `INSERT` entry, overriding only the Trinity/envelope
+    /// columns under test. The Debezium payload is a valid `op:c` so
+    /// `to_entity_event` succeeds.
+    fn entry_with_envelope(
+        fk_customer_org: &str,
+        tenant_id: Option<&str>,
+        duration_ms: Option<i32>,
+        seq: Option<i64>,
+    ) -> ChangeLogEntry {
+        let entity_id = Uuid::new_v4();
+        ChangeLogEntry {
+            id: 1,
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org: fk_customer_org.to_string(),
+            tenant_id: tenant_id.map(str::to_string),
+            duration_ms,
+            seq,
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
+                "op": "c",
+                "before": null,
+                "after": { "id": entity_id.to_string() }
+            }),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:00:00+00:00".to_string(),
+        }
+    }
+
+    #[test]
+    fn to_entity_event_surfaces_contract_tenant_id_not_fk_customer_org() {
+        let tenant = Uuid::new_v4();
+        // fk_customer_org (internal BIGINT join FK) must NOT leak in as the
+        // tenant partition stamp — that is the public-facing UUID tenant_id.
+        let entry = entry_with_envelope("999", Some(&tenant.to_string()), Some(42), Some(7));
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.tenant_id, Some(tenant.to_string()));
+        assert_ne!(event.tenant_id, Some("999".to_string()));
+    }
+
+    #[test]
+    fn to_entity_event_tenant_id_is_none_when_contract_tenant_id_absent() {
+        // With no UUID tenant_id stamped, fk_customer_org must no longer leak in.
+        let entry = entry_with_envelope("999", None, None, None);
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.tenant_id, None);
+    }
+
+    #[test]
+    fn to_entity_event_surfaces_duration_ms_and_seq() {
+        let entry = entry_with_envelope("org", None, Some(123), Some(1_007));
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.duration_ms, Some(123));
+        assert_eq!(event.seq, Some(1_007));
     }
 }
 

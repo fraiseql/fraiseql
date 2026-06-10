@@ -187,6 +187,10 @@ pub mod postgres {
                         user_id: row.user_id,
                         tenant_id: row.tenant_id,
                         timestamp: row.timestamp,
+                        // The search-storage schema does not persist the
+                        // Change-Spine perf/envelope columns.
+                        duration_ms: None,
+                        seq: None,
                     }
                 })
                 .collect();

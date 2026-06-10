@@ -66,6 +66,13 @@ pub struct EntityEvent {
     pub tenant_id:   Option<String>,
     /// When the event occurred
     pub timestamp:   DateTime<Utc>,
+    /// Wall-clock duration of the originating mutation in milliseconds, when the
+    /// producer stamped it (Change-Spine perf column `duration_ms`). `None` for
+    /// cooperative external producers that do not record timing.
+    pub duration_ms: Option<i32>,
+    /// Monotonic Change-Spine sequence (`seq`) for durable ordering and dedup on
+    /// `(object_type, seq)`. `None` when the source row carried no sequence.
+    pub seq:         Option<i64>,
 }
 
 impl EntityEvent {
@@ -87,6 +94,8 @@ impl EntityEvent {
             user_id: None,
             tenant_id: None,
             timestamp: Utc::now(),
+            duration_ms: None,
+            seq: None,
         }
     }
 
@@ -101,6 +110,20 @@ impl EntityEvent {
     #[must_use]
     pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
         self.tenant_id = Some(tenant_id.into());
+        self
+    }
+
+    /// Set the mutation `duration_ms` for this event (Change-Spine perf column)
+    #[must_use]
+    pub const fn with_duration_ms(mut self, duration_ms: i32) -> Self {
+        self.duration_ms = Some(duration_ms);
+        self
+    }
+
+    /// Set the Change-Spine `seq` for this event (durable ordering / dedup)
+    #[must_use]
+    pub const fn with_seq(mut self, seq: i64) -> Self {
+        self.seq = Some(seq);
         self
     }
 

@@ -266,6 +266,12 @@ and the shipped contract, sourced from the same
   PG/MySQL/SQLite/MSSQL.
 - **#366 WAL-CDC** — demoted to an opt-in PG-only producer behind this same
   envelope; the Kafka firehose is ceded to Debezium.
+- **Observer fan-out** (NATS subscribers, the deduped executor's `TenantScope`,
+  search / Arrow sinks) — the change-log poller projects `tenant_id` (the
+  public-facing UUID partition stamp), `duration_ms` and `seq` top-level onto the
+  `EntityEvent` it emits, so tenant filtering keys off the UUID `tenant_id` (not
+  the internal `fk_customer_org` BIGINT) and consumers see the perf / ordering
+  metadata, not just the GraphQL `data` JSONB.
 - **Future consumers** (columns shipped now, populated later): #390 audit-actor
   (`actor_type`/`acting_for`), #377/#378 replay (`schema_version`), #375
   OpenTelemetry (`trace_id`/`trace_context`).
@@ -274,11 +280,12 @@ and the shipped contract, sourced from the same
 
 ## Open follow-ups
 
-Tracked, not yet built:
-
-- **Poller projection widening.** The change-log poller
-  (`crates/fraiseql-observers/src/listener/change_log.rs`) could surface
-  `duration_ms` / `tenant_id` / `seq` top-level for richer fan-out filtering.
+The contract foundation is complete: the executor in-transaction write
+(PostgreSQL / MySQL / SQL Server), multi-DB portability, the reader projection
+(the poller surfaces `tenant_id` / `duration_ms` / `seq` top-level on the
+`EntityEvent`), the SDK `changelog=False` opt-out, and the `doctor` drift check
+have all shipped. No tracked follow-ups remain for the contract itself; new work
+arrives via its downstream consumers (#392 / #382 / #374 / #390 / #377 / #375).
 
 ---
 

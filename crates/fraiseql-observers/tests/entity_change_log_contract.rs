@@ -212,14 +212,16 @@ async fn poller_decodes_executor_written_contract_rows() {
     // fk_contact are BIGINT, plus the additive perf/envelope columns. The poller
     // previously decoded object_id/fk_customer_org as String and would fail the
     // sqlx type-check here; the Trinity-typed decode reconciles it. object_data
-    // may legitimately be NULL on the contract — proved by omitting it.
+    // may legitimately be NULL on the contract — proved by omitting it. seq is
+    // omitted so the SEQUENCE default assigns it.
+    let tenant = uuid::Uuid::new_v4();
     sqlx::query(
         "INSERT INTO core.tb_entity_change_log
            (object_type, modification_type, object_id, fk_customer_org, fk_contact,
             tenant_id, duration_ms, commit_time)
-         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7,
-            gen_random_uuid(), 5, now())",
+         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7, $1, 5, now())",
     )
+    .bind(tenant)
     .execute(&pool)
     .await
     .unwrap();
@@ -241,11 +243,28 @@ async fn poller_decodes_executor_written_contract_rows() {
         "object_id decoded from the UUID column: {}",
         entry.object_id
     );
-    // seq / tenant_id are additive columns the poller's projection ignores — it
-    // must still decode the row (no widening required for correctness).
     assert!(
         entry.object_data.is_null(),
         "NULL object_data decodes to JSON null, not an error"
+    );
+
+    // The Change-Spine envelope/perf columns are now projected top-level. Trinity:
+    // tenant_id is the public-facing UUID partition stamp, NOT fk_customer_org.
+    assert_eq!(
+        entry.tenant_id.as_deref(),
+        Some(tenant.to_string().as_str()),
+        "tenant_id surfaced as the public-facing UUID"
+    );
+    assert_ne!(
+        entry.tenant_id.as_deref(),
+        Some("42"),
+        "tenant_id must not be the fk_customer_org BIGINT"
+    );
+    assert_eq!(entry.duration_ms, Some(5), "duration_ms projected top-level");
+    assert!(
+        entry.seq.is_some_and(|s| s > 0),
+        "seq projected from the SEQUENCE default: {:?}",
+        entry.seq
     );
 }
 
