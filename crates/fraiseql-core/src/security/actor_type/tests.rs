@@ -1,4 +1,6 @@
 //! Unit tests for [`ActorType`] and [`derive_actor`].
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::doc_markdown)] // Reason: informal test doc comments
 
 use std::collections::HashMap;
 

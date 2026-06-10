@@ -3621,6 +3621,9 @@ mod validation_audit_tests {
 }
 
 mod actor_context_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::doc_markdown)] // Reason: informal test doc comments
+
     use std::collections::HashMap;
 
     use chrono::Utc;
