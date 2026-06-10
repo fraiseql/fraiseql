@@ -105,6 +105,11 @@ mod bridge_tests {
                 object_data JSONB,
                 extra_metadata JSONB,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                tenant_id UUID,
+                duration_ms INTEGER,
+                seq BIGINT,
+                actor_type TEXT,
+                acting_for UUID,
                 nats_published_at TIMESTAMPTZ,
                 nats_event_id UUID
             )

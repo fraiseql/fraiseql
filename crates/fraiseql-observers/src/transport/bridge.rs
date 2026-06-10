@@ -176,6 +176,28 @@ pub struct ChangeLogEntry {
     /// When the change was created
     pub created_at: DateTime<Utc>,
 
+    /// Public-facing tenant UUID — the Change-Spine `tenant_id` partition stamp.
+    /// Distinct from `fk_customer_org` (the internal BIGINT join FK); `None` when
+    /// the contract column is `NULL`.
+    pub tenant_id: Option<Uuid>,
+
+    /// Wall-clock duration of the originating mutation in milliseconds
+    /// (Change-Spine perf column `duration_ms`); `None` when unstamped.
+    pub duration_ms: Option<i32>,
+
+    /// Monotonic Change-Spine sequence (`seq`) for durable ordering / dedup on
+    /// `(object_type, seq)`; `None` when the source row carried no sequence.
+    pub seq: Option<i64>,
+
+    /// The request's actor classification (#390 envelope column `actor_type`):
+    /// `"human_user"` / `"service_account"` / `"ai_agent"` / `"system_job"`;
+    /// `None` when unstamped. Recorded for fan-out, never an authz input.
+    pub actor_type: Option<String>,
+
+    /// For a delegated-agent request, the delegated human's public-facing UUID
+    /// (#390 envelope column `acting_for`); `None` for non-delegated requests.
+    pub acting_for: Option<Uuid>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -221,6 +243,16 @@ impl ChangeLogEntry {
         if let Some(contact_id) = self.fk_contact {
             event.user_id = Some(contact_id.to_string());
         }
+
+        // Surface the full Change-Spine envelope so NATS consumers see the same
+        // partition / perf / ordering / actor context as the in-process listener.
+        // Trinity: tenant_id is the public-facing UUID, NOT fk_customer_org. UUID
+        // columns project to their string form (mirrors tenant_id).
+        event.tenant_id = self.tenant_id.map(|t| t.to_string());
+        event.duration_ms = self.duration_ms;
+        event.seq = self.seq;
+        event.actor_type.clone_from(&self.actor_type);
+        event.acting_for = self.acting_for.map(|u| u.to_string());
 
         Ok(event)
     }
@@ -343,6 +375,7 @@ impl PostgresNatsBridge {
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,
                    object_type, object_id, modification_type, change_status,
                    object_data, extra_metadata, created_at,
+                   tenant_id, duration_ms, seq, actor_type, acting_for,
                    nats_published_at, nats_event_id
             FROM core.tb_entity_change_log
             WHERE pk_entity_change_log > $1

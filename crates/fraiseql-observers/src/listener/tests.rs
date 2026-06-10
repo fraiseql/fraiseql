@@ -41,6 +41,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            "order-id".to_string(),
@@ -67,6 +69,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            "user-id".to_string(),
@@ -94,6 +98,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            "prod-id".to_string(),
@@ -150,6 +156,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           Some("user-123".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -184,6 +192,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           Some("user-456".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -222,6 +232,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -254,6 +266,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            entity_id.to_string(),
@@ -287,6 +301,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -320,6 +336,8 @@ mod change_log_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -348,6 +366,8 @@ mod change_log_tests {
         tenant_id: Option<&str>,
         duration_ms: Option<i32>,
         seq: Option<i64>,
+        actor_type: Option<&str>,
+        acting_for: Option<&str>,
     ) -> ChangeLogEntry {
         let entity_id = Uuid::new_v4();
         ChangeLogEntry {
@@ -357,6 +377,8 @@ mod change_log_tests {
             tenant_id: tenant_id.map(str::to_string),
             duration_ms,
             seq,
+            actor_type: actor_type.map(str::to_string),
+            acting_for: acting_for.map(str::to_string),
             fk_contact: None,
             object_type: "Order".to_string(),
             object_id: entity_id.to_string(),
@@ -377,7 +399,8 @@ mod change_log_tests {
         let tenant = Uuid::new_v4();
         // fk_customer_org (internal BIGINT join FK) must NOT leak in as the
         // tenant partition stamp — that is the public-facing UUID tenant_id.
-        let entry = entry_with_envelope("999", Some(&tenant.to_string()), Some(42), Some(7));
+        let entry =
+            entry_with_envelope("999", Some(&tenant.to_string()), Some(42), Some(7), None, None);
 
         let event = entry.to_entity_event().unwrap();
 
@@ -388,7 +411,7 @@ mod change_log_tests {
     #[test]
     fn to_entity_event_tenant_id_is_none_when_contract_tenant_id_absent() {
         // With no UUID tenant_id stamped, fk_customer_org must no longer leak in.
-        let entry = entry_with_envelope("999", None, None, None);
+        let entry = entry_with_envelope("999", None, None, None, None, None);
 
         let event = entry.to_entity_event().unwrap();
 
@@ -397,12 +420,44 @@ mod change_log_tests {
 
     #[test]
     fn to_entity_event_surfaces_duration_ms_and_seq() {
-        let entry = entry_with_envelope("org", None, Some(123), Some(1_007));
+        let entry = entry_with_envelope("org", None, Some(123), Some(1_007), None, None);
 
         let event = entry.to_entity_event().unwrap();
 
         assert_eq!(event.duration_ms, Some(123));
         assert_eq!(event.seq, Some(1_007));
+    }
+
+    #[test]
+    fn to_entity_event_surfaces_actor_type_and_acting_for() {
+        // #390: the actor envelope is surfaced on the EntityEvent for out-of-session
+        // consumers. acting_for is a UUID column — it must round-trip as its string.
+        let human = Uuid::new_v4();
+        let entry = entry_with_envelope(
+            "org",
+            None,
+            None,
+            None,
+            Some("ai_agent"),
+            Some(&human.to_string()),
+        );
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.actor_type.as_deref(), Some("ai_agent"));
+        assert_eq!(event.acting_for, Some(human.to_string()));
+    }
+
+    #[test]
+    fn to_entity_event_actor_envelope_is_none_when_unstamped() {
+        // A cooperative external producer that did not stamp the actor columns
+        // surfaces None — never a fabricated default.
+        let entry = entry_with_envelope("org", None, None, None, None, None);
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.actor_type, None);
+        assert_eq!(event.acting_for, None);
     }
 }
 

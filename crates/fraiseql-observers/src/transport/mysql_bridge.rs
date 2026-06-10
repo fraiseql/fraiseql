@@ -163,6 +163,26 @@ pub struct MySQLChangeLogEntry {
     /// When the change was created
     pub created_at: DateTime<Utc>,
 
+    /// Public-facing tenant UUID (Change-Spine `tenant_id`, stored as CHAR(36));
+    /// distinct from `fk_customer_org`. `None` when the column is `NULL`.
+    pub tenant_id: Option<String>,
+
+    /// Wall-clock duration of the originating mutation in milliseconds
+    /// (Change-Spine perf column `duration_ms`); `None` when unstamped.
+    pub duration_ms: Option<i32>,
+
+    /// Monotonic Change-Spine sequence (`seq`) for durable ordering / dedup;
+    /// `None` when the source row carried no sequence.
+    pub seq: Option<i64>,
+
+    /// The request's actor classification (#390 envelope column `actor_type`);
+    /// `None` when unstamped. Recorded for fan-out, never an authz input.
+    pub actor_type: Option<String>,
+
+    /// For a delegated-agent request, the delegated human's public-facing UUID
+    /// (#390 envelope column `acting_for`, stored as CHAR(36)); `None` otherwise.
+    pub acting_for: Option<String>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -219,6 +239,15 @@ impl MySQLChangeLogEntry {
             event.user_id = Some(contact_id.to_string());
         }
 
+        // Surface the full Change-Spine envelope (parity with the listener / PG
+        // bridge). tenant_id and acting_for are CHAR(36) — already the public
+        // UUID string form, so they pass through directly.
+        event.tenant_id.clone_from(&self.tenant_id);
+        event.duration_ms = self.duration_ms;
+        event.seq = self.seq;
+        event.actor_type.clone_from(&self.actor_type);
+        event.acting_for.clone_from(&self.acting_for);
+
         Ok(event)
     }
 }
@@ -241,6 +270,11 @@ impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for MySQLChangeLogEntry {
             object_data:          row.try_get("object_data")?,
             extra_metadata:       row.try_get("extra_metadata")?,
             created_at:           row.try_get("created_at")?,
+            tenant_id:            row.try_get("tenant_id")?,
+            duration_ms:          row.try_get("duration_ms")?,
+            seq:                  row.try_get("seq")?,
+            actor_type:           row.try_get("actor_type")?,
+            acting_for:           row.try_get("acting_for")?,
             nats_published_at:    row.try_get("nats_published_at")?,
             nats_event_id:        row.try_get("nats_event_id")?,
         })
@@ -357,6 +391,7 @@ impl MySQLNatsBridge {
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,
                    object_type, object_id, modification_type, change_status,
                    object_data, extra_metadata, created_at,
+                   tenant_id, duration_ms, seq, actor_type, acting_for,
                    nats_published_at, nats_event_id
             FROM tb_entity_change_log
             WHERE pk_entity_change_log > ?

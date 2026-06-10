@@ -782,6 +782,8 @@ mod elasticsearch_sink_tests {
             tenant_id:   Some("tenant-1".to_string()),
             duration_ms: None,
             seq:         None,
+            actor_type:  None,
+            acting_for:  None,
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");

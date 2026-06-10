@@ -58,7 +58,8 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     //    contract types: object_id is UUID and fk_customer_org / fk_contact are BIGINT (the
     //    poller's ChangeLogRow decodes them as Uuid / Option<i64>). The poller also projects the
     //    Change-Spine envelope columns top-level: tenant_id (public-facing UUID, distinct from the
-    //    fk_customer_org BIGINT join FK), duration_ms (int4) and seq (int8).
+    //    fk_customer_org BIGINT join FK), duration_ms (int4), seq (int8), plus the #390 actor
+    //    columns actor_type (TEXT) and acting_for (UUID, the delegated human).
     sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
         .execute(pool)
         .await?;
@@ -78,7 +79,9 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             tenant_id UUID,
             duration_ms INTEGER,
-            seq BIGINT
+            seq BIGINT,
+            actor_type TEXT,
+            acting_for UUID
         )
         ",
     )

@@ -191,6 +191,8 @@ pub mod postgres {
                         // Change-Spine perf/envelope columns.
                         duration_ms: None,
                         seq: None,
+                        actor_type: None,
+                        acting_for: None,
                     }
                 })
                 .collect();

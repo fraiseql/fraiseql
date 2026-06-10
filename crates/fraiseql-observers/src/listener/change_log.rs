@@ -39,11 +39,14 @@ use crate::{
 /// contract (an effective change may carry no entity payload), so it is decoded
 /// as `Option`.
 ///
-/// The trailing three columns are the Change-Spine envelope/perf projection
-/// surfaced top-level: `tenant_id` (public-facing UUID partition stamp, decoded
-/// as `Uuid` — **distinct from `fk_customer_org`**, the internal BIGINT join FK),
-/// `duration_ms` (`int4`), and `seq` (`int8`, monotonic ordering / dedup). All
-/// three are contract-nullable.
+/// The trailing columns are the Change-Spine envelope/perf projection surfaced
+/// top-level: `tenant_id` (public-facing UUID partition stamp, decoded as `Uuid`
+/// — **distinct from `fk_customer_org`**, the internal BIGINT join FK),
+/// `duration_ms` (`int4`), `seq` (`int8`, monotonic ordering / dedup), and the
+/// #390 actor columns `actor_type` (`TEXT`, the request's actor classification)
+/// and `acting_for` (`UUID`, the delegated human a delegated agent acts for —
+/// decoded as `Uuid` like `tenant_id`, since the contract types it UUID). All are
+/// contract-nullable.
 type ChangeLogRow = (
     i64,                   // pk_entity_change_log
     Uuid,                  // id
@@ -59,6 +62,8 @@ type ChangeLogRow = (
     Option<Uuid>,          // tenant_id (public-facing UUID partition stamp)
     Option<i32>,           // duration_ms (perf column, int4)
     Option<i64>,           // seq (Change-Spine ordering / dedup, int8)
+    Option<String>,        // actor_type (#390 actor classification, TEXT)
+    Option<Uuid>,          // acting_for (#390 delegated-human public UUID)
 );
 
 /// Configuration for the change log listener
@@ -159,6 +164,18 @@ pub struct ChangeLogEntry {
     /// Monotonic Change-Spine sequence for durable ordering and dedup on
     /// `(object_type, seq)`; `None` when the source row carried no sequence.
     pub seq: Option<i64>,
+
+    /// The request's actor classification (#390 envelope column `actor_type`):
+    /// `"human_user"`, `"service_account"`, `"ai_agent"`, or `"system_job"`.
+    /// Recorded for forensics / downstream fan-out, never an authorization input;
+    /// `None` when the producer did not stamp it.
+    pub actor_type: Option<String>,
+
+    /// For a delegated-agent request (RFC 8693 `act` claim), the delegated
+    /// human's public-facing UUID (#390 envelope column `acting_for`), projected
+    /// as a string like [`tenant_id`](Self::tenant_id); `None` for non-delegated
+    /// requests.
+    pub acting_for: Option<String>,
 }
 
 impl ChangeLogEntry {
@@ -275,6 +292,11 @@ impl ChangeLogEntry {
             timestamp,
             duration_ms: self.duration_ms,
             seq: self.seq,
+            // #390 actor envelope: recorded-only classification + the delegated
+            // human a delegated agent acts for, surfaced for out-of-session
+            // consumers (NATS bridge / CDC fan-out).
+            actor_type: self.actor_type.clone(),
+            acting_for: self.acting_for.clone(),
         })
     }
 
@@ -387,7 +409,9 @@ impl ChangeLogListener {
                     created_at,
                     tenant_id,
                     duration_ms,
-                    seq
+                    seq,
+                    actor_type,
+                    acting_for
                 FROM core.tb_entity_change_log
                 WHERE pk_entity_change_log > $1
                 ORDER BY pk_entity_change_log ASC
@@ -419,6 +443,8 @@ impl ChangeLogListener {
             tenant,
             duration_ms,
             seq,
+            actor_type,
+            acting_for,
         ) in rows
         {
             let created_at_str =
@@ -443,6 +469,10 @@ impl ChangeLogListener {
                 tenant_id: tenant.map(|t| t.to_string()),
                 duration_ms,
                 seq,
+                // #390 actor envelope. acting_for is a UUID column; project it to
+                // a string like tenant_id so downstream readers stay string-typed.
+                actor_type,
+                acting_for: acting_for.map(|u| u.to_string()),
             });
 
             // Update checkpoint for recovery

@@ -62,17 +62,34 @@ pub struct EntityEvent {
     pub changes:     Option<std::collections::HashMap<String, FieldChanges>>,
     /// User ID from auth context (if available)
     pub user_id:     Option<String>,
-    /// Tenant ID for multi-tenant isolation (if applicable)
+    /// Tenant ID for multi-tenant isolation (if applicable). Public-facing UUID
+    /// partition stamp (Change-Spine envelope column `tenant_id`).
+    #[serde(default)]
     pub tenant_id:   Option<String>,
     /// When the event occurred
     pub timestamp:   DateTime<Utc>,
     /// Wall-clock duration of the originating mutation in milliseconds, when the
     /// producer stamped it (Change-Spine perf column `duration_ms`). `None` for
     /// cooperative external producers that do not record timing.
+    #[serde(default)]
     pub duration_ms: Option<i32>,
     /// Monotonic Change-Spine sequence (`seq`) for durable ordering and dedup on
     /// `(object_type, seq)`. `None` when the source row carried no sequence.
+    #[serde(default)]
     pub seq:         Option<i64>,
+    /// Actor classification of the request that produced this change
+    /// (Change-Spine envelope column `actor_type`): `"human_user"`,
+    /// `"service_account"`, `"ai_agent"`, or `"system_job"` (#390). Recorded for
+    /// forensics / downstream fan-out, never an authorization input. `None` for
+    /// cooperative external producers that did not stamp it.
+    #[serde(default)]
+    pub actor_type:  Option<String>,
+    /// For a delegated-agent request (RFC 8693 `act` claim), the public-facing
+    /// UUID of the underlying human the agent acts for (Change-Spine envelope
+    /// column `acting_for`, #390). Mirrors [`tenant_id`](Self::tenant_id)'s
+    /// stringified-UUID shape. `None` for non-delegated requests.
+    #[serde(default)]
+    pub acting_for:  Option<String>,
 }
 
 impl EntityEvent {
@@ -96,6 +113,8 @@ impl EntityEvent {
             timestamp: Utc::now(),
             duration_ms: None,
             seq: None,
+            actor_type: None,
+            acting_for: None,
         }
     }
 
@@ -124,6 +143,20 @@ impl EntityEvent {
     #[must_use]
     pub const fn with_seq(mut self, seq: i64) -> Self {
         self.seq = Some(seq);
+        self
+    }
+
+    /// Set the Change-Spine `actor_type` classification for this event (#390)
+    #[must_use]
+    pub fn with_actor_type(mut self, actor_type: impl Into<String>) -> Self {
+        self.actor_type = Some(actor_type.into());
+        self
+    }
+
+    /// Set the Change-Spine `acting_for` delegated-human UUID for this event (#390)
+    #[must_use]
+    pub fn with_acting_for(mut self, acting_for: impl Into<String>) -> Self {
+        self.acting_for = Some(acting_for.into());
         self
     }
 
@@ -173,3 +206,6 @@ impl EntityEvent {
         self.event_type == EventKind::Deleted
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -190,6 +190,26 @@ pub struct MSSQLChangeLogEntry {
     /// When the change was created
     pub created_at: DateTime<Utc>,
 
+    /// Public-facing tenant UUID (Change-Spine `tenant_id`, UNIQUEIDENTIFIER);
+    /// distinct from `fk_customer_org`. `None` when the column is `NULL`.
+    pub tenant_id: Option<Uuid>,
+
+    /// Wall-clock duration of the originating mutation in milliseconds
+    /// (Change-Spine perf column `duration_ms`); `None` when unstamped.
+    pub duration_ms: Option<i32>,
+
+    /// Monotonic Change-Spine sequence (`seq`) for durable ordering / dedup;
+    /// `None` when the source row carried no sequence.
+    pub seq: Option<i64>,
+
+    /// The request's actor classification (#390 envelope column `actor_type`);
+    /// `None` when unstamped. Recorded for fan-out, never an authz input.
+    pub actor_type: Option<String>,
+
+    /// For a delegated-agent request, the delegated human's public-facing UUID
+    /// (#390 envelope column `acting_for`, UNIQUEIDENTIFIER); `None` otherwise.
+    pub acting_for: Option<Uuid>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -235,6 +255,14 @@ impl MSSQLChangeLogEntry {
         if let Some(contact_id) = self.fk_contact {
             event.user_id = Some(contact_id.to_string());
         }
+
+        // Surface the full Change-Spine envelope (parity with the listener / PG
+        // bridge). UUID columns project to their string form (mirrors tenant_id).
+        event.tenant_id = self.tenant_id.map(|t| t.to_string());
+        event.duration_ms = self.duration_ms;
+        event.seq = self.seq;
+        event.actor_type.clone_from(&self.actor_type);
+        event.acting_for = self.acting_for.map(|u| u.to_string());
 
         Ok(event)
     }
@@ -301,6 +329,14 @@ impl MSSQLChangeLogEntry {
 
         let nats_event_id: Option<Uuid> = row.get(12);
 
+        // Change-Spine envelope columns, appended to the SELECT (indices 13-17)
+        // so the existing positional indices above stay stable.
+        let tenant_id: Option<Uuid> = row.get(13);
+        let duration_ms: Option<i32> = row.get(14);
+        let seq: Option<i64> = row.get(15);
+        let actor_type: Option<&str> = row.get(16);
+        let acting_for: Option<Uuid> = row.get(17);
+
         Ok(Self {
             pk_entity_change_log: pk,
             id,
@@ -313,6 +349,11 @@ impl MSSQLChangeLogEntry {
             object_data,
             extra_metadata,
             created_at,
+            tenant_id,
+            duration_ms,
+            seq,
+            actor_type: actor_type.map(ToString::to_string),
+            acting_for,
             nats_published_at,
             nats_event_id,
         })
@@ -438,7 +479,8 @@ impl MSSQLNatsBridge {
                 pk_entity_change_log, id, fk_customer_org, fk_contact,
                 object_type, object_id, modification_type, change_status,
                 object_data, extra_metadata, created_at,
-                nats_published_at, nats_event_id
+                nats_published_at, nats_event_id,
+                tenant_id, duration_ms, seq, actor_type, acting_for
             FROM tb_entity_change_log
             WHERE pk_entity_change_log > @P1
             ORDER BY pk_entity_change_log ASC

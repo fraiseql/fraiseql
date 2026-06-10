@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   principal at every tenant-admin endpoint (previously the actor was always NULL).
   API-key requests classify as `service_account`. The classification is recorded
   for forensics, not consumed as an authorization input.
+- **Change-log reader surfaces the full Change-Spine envelope (#390 follow-up).**
+  The observer change-log reader now projects the `actor_type` and `acting_for`
+  columns onto `ChangeLogEntry` and the emitted `EntityEvent`, so out-of-session
+  consumers (the NATS bridges, CDC fan-out, DLQ handlers) receive the actor
+  classification and delegated-human UUID — not just the in-process listener. The
+  PostgreSQL, MySQL, and SQL Server NATS bridges are brought to full envelope
+  parity in the same pass: they now also carry `tenant_id`, `duration_ms`, and
+  `seq` (previously only `user_id` survived the bridge). `EntityEvent`'s envelope
+  fields gained `#[serde(default)]` so a consumer can decode an event serialized
+  before these fields existed (forward/backward wire tolerance over NATS).
 
 ### Changed
 

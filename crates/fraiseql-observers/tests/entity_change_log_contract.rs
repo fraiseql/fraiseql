@@ -215,13 +215,15 @@ async fn poller_decodes_executor_written_contract_rows() {
     // may legitimately be NULL on the contract — proved by omitting it. seq is
     // omitted so the SEQUENCE default assigns it.
     let tenant = uuid::Uuid::new_v4();
+    let acting_for = uuid::Uuid::new_v4();
     sqlx::query(
         "INSERT INTO core.tb_entity_change_log
            (object_type, modification_type, object_id, fk_customer_org, fk_contact,
-            tenant_id, duration_ms, commit_time)
-         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7, $1, 5, now())",
+            tenant_id, duration_ms, commit_time, actor_type, acting_for)
+         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7, $1, 5, now(), 'ai_agent', $2)",
     )
     .bind(tenant)
+    .bind(acting_for)
     .execute(&pool)
     .await
     .unwrap();
@@ -265,6 +267,18 @@ async fn poller_decodes_executor_written_contract_rows() {
         entry.seq.is_some_and(|s| s > 0),
         "seq projected from the SEQUENCE default: {:?}",
         entry.seq
+    );
+
+    // #390 actor envelope surfaced top-level from the live DB columns. actor_type
+    // is TEXT; acting_for is a UUID column projected to its string form (like
+    // tenant_id). The ChangeLogEntry -> EntityEvent mapping of these fields is
+    // covered by the listener unit tests (this row carries NULL object_data, which
+    // intentionally has no Debezium envelope to convert).
+    assert_eq!(entry.actor_type.as_deref(), Some("ai_agent"), "actor_type projected top-level");
+    assert_eq!(
+        entry.acting_for.as_deref(),
+        Some(acting_for.to_string().as_str()),
+        "acting_for surfaced as the delegated human's public-facing UUID"
     );
 }
 

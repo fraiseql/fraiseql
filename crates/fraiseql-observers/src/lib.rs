@@ -276,6 +276,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           "2026-01-22T12:00:00+00:00".to_string(),
         };
 
@@ -321,6 +323,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           "2026-01-22T13:00:00+00:00".to_string(),
         };
 
@@ -360,6 +364,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           "2026-01-22T14:00:00+00:00".to_string(),
         };
 
@@ -398,6 +404,8 @@ mod e2e_tests {
                 tenant_id:            None,
                 duration_ms:          None,
                 seq:                  None,
+                actor_type:           None,
+                acting_for:           None,
                 created_at:           "2026-01-22T15:00:00+00:00".to_string(),
             };
 
@@ -433,6 +441,8 @@ mod e2e_tests {
                 tenant_id:            None,
                 duration_ms:          None,
                 seq:                  None,
+                actor_type:           None,
+                acting_for:           None,
                 created_at:           "2026-01-22T16:00:00+00:00".to_string(),
             };
 
@@ -473,6 +483,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           "2026-01-22T16:30:00+00:00".to_string(),
         };
 
@@ -521,6 +533,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           timestamp_str.to_string(),
         };
 
@@ -552,6 +566,8 @@ mod e2e_tests {
             tenant_id:            None,
             duration_ms:          None,
             seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
             created_at:           "2026-01-22T17:00:00+00:00".to_string(),
         };
 
