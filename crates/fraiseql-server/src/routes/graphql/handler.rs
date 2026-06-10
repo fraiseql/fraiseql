@@ -315,6 +315,23 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         }
     }
 
+    // Stamp the originating request's W3C trace id onto the principal so the
+    // change-log write records it (#375) and the perf tooling can surface it as an
+    // investigation handle. Only when both a `traceparent` and a `SecurityContext`
+    // are present — an anonymous request carries no principal to stamp, so its
+    // change-log rows keep `trace_id` NULL (consistent with `tenant_id`).
+    if let Some(trace_id) = tracing_utils::extract_trace_id(headers) {
+        security_context = security_context.map(|ctx| ctx.with_trace_id(trace_id));
+    }
+
+    // Stamp the full W3C trace context (the parsed traceparent + tracestate) onto
+    // the principal so the change-log write records it in the `trace_context` JSONB
+    // column (#375) — the re-propagation / full-trace handle beyond the scalar
+    // `trace_id`. Same gate as `trace_id`: NULL for an anonymous / trace-less request.
+    if let Some(trace_context) = tracing_utils::extract_trace_context_json(headers) {
+        security_context = security_context.map(|ctx| ctx.with_trace_context(trace_context));
+    }
+
     // Resolve query body — trusted documents take priority over APQ.
     // If a trusted document store is configured, resolve the document ID first.
     if let Some(ref td_store) = state.trusted_docs {

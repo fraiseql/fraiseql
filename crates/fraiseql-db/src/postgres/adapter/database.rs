@@ -215,13 +215,16 @@ pub(super) async fn apply_session_vars(
 /// returns the function's row unchanged to the caller. The changed-entity
 /// columns (`object_id`, `object_data`, `updated_fields`, `cascade`) come from
 /// the function's own `app.mutation_response` row; `$<n+1>` is the NOT-NULL
-/// `object_type` fallback, `$<n+2>` is the `modification_type` verb, and
+/// `object_type` fallback, `$<n+2>` is the `modification_type` verb,
 /// `$<n+3>` is the envelope `tenant_id` (the Trinity public-facing UUID, NULL
-/// for system / unauthenticated / non-UUID-tenant rows), where `n` = `n_args`
-/// (the number of function arguments). The envelope params are appended **after**
-/// the function args so the SQL text stays deterministic per `(function, n_args)`
-/// — `prepare_cached` keys the statement by text, so the column list and
-/// placeholder positions must never depend on the param *values*.
+/// for system / unauthenticated / non-UUID-tenant rows), `$<n+4>` is the
+/// `trace_id` (the request's W3C trace id, plain text), `$<n+5>` is the
+/// `schema_version` (the compiled schema's content hash, plain text), and
+/// `$<n+6>` is the `trace_context` (the full W3C trace context, cast `::jsonb`),
+/// where `n` = `n_args` (the number of function arguments). The envelope params are
+/// appended **after** the function args so the SQL text stays deterministic per
+/// `(function, n_args)` — `prepare_cached` keys the statement by text, so the
+/// column list and placeholder positions must never depend on the param *values*.
 ///
 /// `started_at`/`duration_ms` read `fraiseql.started_at` (set txn-locally by the
 /// caller) on the DB clock — the canonical computation from
@@ -234,6 +237,9 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
     let object_type_idx = n_args + 1;
     let modification_type_idx = n_args + 2;
     let tenant_id_idx = n_args + 3;
+    let trace_id_idx = n_args + 4;
+    let schema_version_idx = n_args + 5;
+    let trace_context_idx = n_args + 6;
     let started_var = crate::changelog::STARTED_AT_VAR;
     let duration = crate::changelog::duration_ms_sql(started_var);
     let calc_version = crate::changelog::DURATION_CALC_VERSION;
@@ -243,7 +249,7 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
            INSERT INTO core.tb_entity_change_log \
              (object_type, modification_type, object_id, object_data, \
               updated_fields, cascade, started_at, duration_ms, extra_metadata, \
-              tenant_id, commit_time) \
+              tenant_id, trace_id, schema_version, trace_context, commit_time) \
            SELECT \
              COALESCE(r.entity_type, ${object_type_idx}), \
              ${modification_type_idx}, \
@@ -252,6 +258,9 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
              {duration}, \
              jsonb_build_object('duration_calc_version', {calc_version}::int), \
              ${tenant_id_idx}::uuid, \
+             ${trace_id_idx}, \
+             ${schema_version_idx}, \
+             ${trace_context_idx}::jsonb, \
              clock_timestamp() \
            FROM r \
            WHERE r.succeeded AND r.state_changed \
@@ -658,10 +667,11 @@ impl DatabaseAdapter for PostgresAdapter {
         let sql = build_changelog_cte_sql(&quoted_fn, args.len());
 
         // Function args first; then the threaded change-log envelope params —
-        // object_type fallback ($n+1), modification_type verb ($n+2), and the
-        // tenant_id stamp ($n+3, bound against `::uuid`). Order matches
-        // build_changelog_cte_sql's positional contract; appending the envelope
-        // params keeps the SQL text stable for prepare_cached.
+        // object_type fallback ($n+1), modification_type verb ($n+2), the
+        // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
+        // ($n+4, plain text), and the schema_version ($n+5, plain text). Order
+        // matches build_changelog_cte_sql's positional contract; appending the
+        // envelope params keeps the SQL text stable for prepare_cached.
         let mut flex_args: Vec<FlexParam> = args
             .iter()
             .map(|v| match v {
@@ -676,6 +686,21 @@ impl DatabaseAdapter for PostgresAdapter {
         // (the `::uuid` cast pins the param type); None → SQL NULL.
         flex_args
             .push(changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
+        // trace_id ($n+4): plain text, None → SQL NULL.
+        flex_args
+            .push(changelog.trace_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
+        // schema_version ($n+5): plain text, None → SQL NULL.
+        flex_args.push(
+            changelog
+                .schema_version
+                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+        );
+        // trace_context ($n+6): JSON text bound against `::jsonb`, None → SQL NULL.
+        flex_args.push(
+            changelog
+                .trace_context
+                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+        );
         let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
             .iter()
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))

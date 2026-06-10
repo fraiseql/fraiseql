@@ -141,8 +141,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Compute the schema version (content hash) once — it is stamped onto
+        // every change-log outbox row and is too expensive to recompute per call.
+        let schema_version: Arc<str> = Arc::from(schema.content_hash());
+
         let ctx = Arc::new(ExecutorContext {
             schema,
+            schema_version,
             adapter,
             relay: None,
             matcher,
@@ -379,8 +384,13 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             }
         }
 
+        // Compute the schema version (content hash) once — it is stamped onto
+        // every change-log outbox row and is too expensive to recompute per call.
+        let schema_version: Arc<str> = Arc::from(schema.content_hash());
+
         let ctx = Arc::new(ExecutorContext {
             schema,
+            schema_version,
             adapter,
             relay: Some(relay_dispatch),
             matcher,

@@ -25,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `extra_metadata.duration_calc_version = 2`. The executor also stamps `tenant_id` (the UUID
   tenant from the request's `SecurityContext` — left NULL for a non-UUID tenant, never aborting
   the mutation) and `commit_time`, while `seq` comes from the table's global sequence default;
-  `actor_type`, `schema_version`, and trace context ship as columns but stay NULL pending
-  #390 / #377 / #375. Only an effective change (`succeeded AND state_changed`) is logged — no-ops
+  it also stamps the envelope `trace_id` + `trace_context` (#375) and `schema_version` (#377) — see
+  the dedicated entries below. `actor_type` / `acting_for` ship as columns but stay NULL pending
+  #390. Only an effective change (`succeeded AND state_changed`) is logged — no-ops
   and business-logic failures do not produce a spine event. Implemented for PostgreSQL, MySQL,
   and SQL Server (see the multi-DB outbox-wiring entry below). **Opt-out (default-on):** the write can be
   disabled globally — `[changelog] write_enabled = false` in `fraiseql.toml`, or
@@ -100,6 +101,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   these for the #149 GraphQL / #392 perf path; this closes the gap on the Rust event path.) All
   three are contract-nullable and decode as `None` for cooperative external producers that do not
   stamp them.
+- **`fraiseql perf` — change-log performance observability (#392).** The first Change-Spine
+  consumer. A new CLI command group reads the framework-owned change-log
+  (`core.v_entity_change_log`) and turns it into operator forensics. `perf regression-scan`
+  flags mutations whose p50 latency regressed between a baseline and a recent window, per
+  `(object_type, modification_type)` — never aggregating across modification types (a shift in
+  the operation mix can otherwise mask a regression as a false improvement) and comparing only
+  rows carrying the current `duration_calc_version` (pre-fix `EXTRACT(MILLISECONDS)` rows are
+  excluded, not mixed). `perf explore slowest | null-rate | summary` are ad-hoc reads of the
+  slowest mutations, `duration_ms` completeness, and per-operation percentiles. The scan exits 0
+  even when it finds regressions (a report, not a gate; `--fail-on-regression` opts into exit 1);
+  `--json` emits a stable `findings`/`skipped`/`summary` shape and the human report prints
+  greppable `WARN` / `SKIP` lines — the seam the `fraisier` orchestrator schedules against.
+  PostgreSQL-only.
+- **Change Spine: the change-log `trace_id` is now populated from the request trace (#375).**
+  The mutation executor stamps the originating request's W3C trace id — parsed from the inbound
+  `traceparent` header onto the `SecurityContext` — into the change-log `trace_id` column, on every
+  dialect (it is a plain text column, unlike the PostgreSQL-only `duration_ms`). A change-log row now
+  links back to its distributed trace, and the #392 `perf explore slowest` / regression findings
+  surface it as the investigation handle. `trace_id` is `NULL` for a request with no trace context
+  (e.g. an anonymous mutation, which carries no `SecurityContext`) — a best-effort stamp that never
+  aborts the mutation, consistent with `tenant_id`. The full W3C `trace_context` JSONB is also now
+  populated — see the dedicated entry below; #375 is fully landed.
+
+- **Change Spine: the change-log `schema_version` is now populated from the compiled schema (#377).**
+  The mutation executor stamps the compiled schema's content hash
+  (`CompiledSchema::content_hash()`) into the change-log `schema_version` column, on every dialect
+  (a plain text column, like `trace_id`). Unlike `trace_id` / `tenant_id`, this is **not** a request
+  value but a per-deployment constant — the same hash on every row a given deployment writes — so it
+  is computed **once** at executor construction and cached on the `ExecutorContext` rather than
+  recomputed per mutation. It is the same content hash that already keys the query cache, the
+  `/health` schema digest, and hot-reload diffing, so it changes on any schema change. A change-log
+  row now records which deployment produced it, the correctness handle that unblocks #378
+  (zero-downtime deploys / DLQ replay: reject a row replayed under a different schema rather than
+  corrupt data). `schema_version` is `NULL` only for producers with no compiled schema in scope —
+  cooperative external producers (ETL) and the non-PostgreSQL no-op path.
+
+- **Change Spine: the change-log `trace_context` JSONB is now populated — #375 fully closed.**
+  Beyond the scalar `trace_id`, the mutation executor now stamps the **full W3C trace context** into
+  the `trace_context` JSONB column: the parsed `traceparent`
+  (`{version, trace_id, parent_id, trace_flags}`, hex lower-cased) plus the `tracestate` header when
+  present. A change-log row therefore carries enough to **re-propagate / reconstruct** the
+  distributed trace, not merely link to it. The context is parsed feature-independently from the
+  request headers onto the `SecurityContext` (alongside `trace_id`) and written on every dialect —
+  JSONB on PostgreSQL, JSON on MySQL, `NVARCHAR(MAX)` on SQL Server. It is `NULL` for a request with
+  no well-formed `traceparent` (same gate as `trace_id`), never aborting the mutation. With this, the
+  only envelope columns still NULL-by-design are `actor_type` / `acting_for` (#390).
 
 ### Breaking
 

@@ -189,7 +189,8 @@ fn changelog_cte_maps_mutation_response_columns_to_contract_columns() {
     // app.mutation_response row (object_id<-entity_id, object_data<-entity, …).
     for needle in [
         "(object_type, modification_type, object_id, object_data, updated_fields, cascade, \
-         started_at, duration_ms, extra_metadata, tenant_id, commit_time)",
+         started_at, duration_ms, extra_metadata, tenant_id, trace_id, schema_version, \
+         trace_context, commit_time)",
         "r.entity_id, r.entity, r.updated_fields, r.cascade",
     ] {
         assert!(sql.contains(needle), "expected `{needle}` in: {sql}");
@@ -206,6 +207,15 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
         sql.contains("$5::uuid"),
         "tenant_id is the $n+3 envelope param, cast to uuid: {sql}"
     );
+    // trace_id is the $n+4 envelope param (plain text, no cast — #375).
+    assert!(sql.contains("$6,"), "trace_id is the $n+4 envelope param: {sql}");
+    // schema_version is the $n+5 envelope param (plain text, no cast — #377).
+    assert!(sql.contains("$7,"), "schema_version is the $n+5 envelope param: {sql}");
+    // trace_context is the $n+6 envelope param, cast to jsonb (#375).
+    assert!(
+        sql.contains("$8::jsonb"),
+        "trace_context is the $n+6 envelope param, cast jsonb: {sql}"
+    );
     // commit_time is the DB clock at INSERT (durable ordering basis).
     assert!(
         sql.contains("clock_timestamp()"),
@@ -215,7 +225,7 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
     // so any INSERTer (incl. cooperative external producers) gets a monotonic
     // value. The column list ends at `commit_time)`.
     assert!(
-        sql.contains("tenant_id, commit_time)"),
+        sql.contains("trace_context, commit_time)"),
         "INSERT column list ends at commit_time, omitting seq for its DEFAULT: {sql}"
     );
 }

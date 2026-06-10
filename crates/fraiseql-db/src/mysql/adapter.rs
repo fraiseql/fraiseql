@@ -287,7 +287,7 @@ async fn mysql_write_outbox_row(
         crate::changelog::build_changelog_insert_sql("tb_entity_change_log", DatabaseType::MySQL);
     // Bind in CHANGELOG_PORTABLE_INSERT_COLUMNS order: object_type,
     // modification_type, object_id, object_data, updated_fields, cascade, tenant_id,
-    // commit_time.
+    // trace_id, schema_version, trace_context, commit_time.
     let object_type = row
         .get("entity_type")
         .and_then(serde_json::Value::as_str)
@@ -303,6 +303,9 @@ async fn mysql_write_outbox_row(
         .bind(crate::changelog::json_column_text(row.get("updated_fields")))
         .bind(crate::changelog::json_column_text(row.get("cascade")))
         .bind(changelog.tenant_id.map(|t| t.to_string()))
+        .bind(changelog.trace_id.map(str::to_string))
+        .bind(changelog.schema_version.map(str::to_string))
+        .bind(changelog.trace_context.map(str::to_string))
         .bind(commit_time)
         .execute(conn)
         .await

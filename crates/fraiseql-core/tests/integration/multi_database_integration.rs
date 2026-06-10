@@ -1356,6 +1356,9 @@ mod mysql_outbox_tests {
                  `cascade`         JSON         NULL,
                  duration_ms       INT          NULL,
                  started_at        TIMESTAMP(6) NULL,
+                 trace_id          VARCHAR(64)  NULL,
+                 schema_version    VARCHAR(64)  NULL,
+                 trace_context     JSON         NULL,
                  commit_time       TIMESTAMP(6) NULL,
                  seq               BIGINT       NULL)",
         )
@@ -1923,6 +1926,9 @@ mod sqlserver_outbox_tests {
                  [cascade]         NVARCHAR(MAX) NULL,
                  duration_ms       INT           NULL,
                  started_at        DATETIME2     NULL,
+                 trace_id          NVARCHAR(64)  NULL,
+                 schema_version    NVARCHAR(64)  NULL,
+                 trace_context     NVARCHAR(MAX) NULL,
                  commit_time       DATETIME2     NULL,
                  seq               BIGINT NOT NULL DEFAULT (NEXT VALUE FOR core.seq_entity_change_log))",
         )

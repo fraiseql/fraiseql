@@ -33,13 +33,15 @@ use crate::{
 /// returned row inside the same transaction (see
 /// [`DatabaseAdapter::execute_function_call_with_changelog`]).
 ///
-/// This is the Change Spine transactional-outbox contract. Phase-02 wrote the
-/// `object_type`/`modification_type` + the changed-entity columns; phase-03
-/// stamps the envelope: `tenant_id` (carried here, from `SecurityContext`),
-/// `commit_time` (`clock_timestamp()` at INSERT), and `seq` (the table's
-/// `SEQUENCE` default). The remaining envelope columns (`actor_type`,
-/// `schema_version`, trace context) stay NULL pending their upstream issues
-/// (#390 / #377 / #375).
+/// This is the Change Spine transactional-outbox contract. Beyond the
+/// `object_type`/`modification_type` + changed-entity columns, it stamps the
+/// envelope: `tenant_id` (carried here, from `SecurityContext`),
+/// `trace_id` (the W3C trace id of the originating request), `schema_version`
+/// (the compiled schema's content hash — a per-deployment constant),
+/// `trace_context` (the full W3C trace context as JSON), `commit_time`
+/// (`clock_timestamp()` at INSERT), and `seq` (the table's `SEQUENCE` default).
+/// The remaining envelope columns (`actor_type`, `acting_for`) stay NULL pending
+/// their upstream issue (#390).
 #[derive(Debug, Clone, Copy)]
 pub struct ChangeLogWrite<'a> {
     /// NOT-NULL fallback for `object_type` when the row's `entity_type` is NULL.
@@ -56,17 +58,49 @@ pub struct ChangeLogWrite<'a> {
     /// unauthenticated request, a request with no tenant, or a tenant
     /// identifier that is not a UUID.
     pub tenant_id:         Option<uuid::Uuid>,
+    /// The W3C trace id of the originating request, written to the `trace_id`
+    /// column so an outbox row links back to its distributed trace (the #392
+    /// perf tooling surfaces it as the investigation handle). Read from the
+    /// request's `traceparent` header at write time; `None` (→ SQL NULL) for a
+    /// request without a trace context — e.g. an unauthenticated mutation, which
+    /// carries no `SecurityContext` to stamp.
+    pub trace_id:          Option<&'a str>,
+    /// The compiled schema's version written to the `schema_version` column so an
+    /// outbox row records which deployment produced it — the replay /
+    /// zero-downtime correctness handle for #378 (reject a row replayed under a
+    /// different schema). A per-deployment constant derived from the compiled
+    /// schema (`CompiledSchema::content_hash()`), **not** from the request, so it
+    /// changes on any schema change. `None` (→ SQL NULL) for producers with no
+    /// compiled schema in scope — cooperative external producers (ETL) and the
+    /// non-PostgreSQL no-op path.
+    pub schema_version:    Option<&'a str>,
+    /// The originating request's **full W3C trace context** as a JSON object
+    /// (`{version, trace_id, parent_id, trace_flags, tracestate?}`), written to the
+    /// `trace_context` JSONB column so a row carries enough to re-propagate /
+    /// reconstruct the distributed trace — not just the scalar `trace_id`. Carried
+    /// here as pre-serialized JSON **text** (the adapter binds it to the JSONB
+    /// column). Built from the request's `traceparent` / `tracestate` headers at
+    /// write time; `None` (→ SQL NULL) for a request without a valid trace context,
+    /// consistent with `trace_id`.
+    pub trace_context:     Option<&'a str>,
 }
 
 impl<'a> ChangeLogWrite<'a> {
-    /// Build a change-log write descriptor with no envelope stamps (`tenant_id`
-    /// NULL). Chain [`with_tenant_id`](Self::with_tenant_id) to stamp the tenant.
+    /// Build a change-log write descriptor with no envelope stamps (`tenant_id`,
+    /// `trace_id`, `schema_version` and `trace_context` NULL). Chain
+    /// [`with_tenant_id`](Self::with_tenant_id) /
+    /// [`with_trace_id`](Self::with_trace_id) /
+    /// [`with_schema_version`](Self::with_schema_version) /
+    /// [`with_trace_context`](Self::with_trace_context) to stamp them.
     #[must_use]
     pub const fn new(object_type: &'a str, modification_type: &'a str) -> Self {
         Self {
             object_type,
             modification_type,
             tenant_id: None,
+            trace_id: None,
+            schema_version: None,
+            trace_context: None,
         }
     }
 
@@ -76,6 +110,34 @@ impl<'a> ChangeLogWrite<'a> {
     #[must_use]
     pub const fn with_tenant_id(mut self, tenant_id: Option<uuid::Uuid>) -> Self {
         self.tenant_id = tenant_id;
+        self
+    }
+
+    /// Stamp the originating request's W3C trace id onto the outbox row. `None`
+    /// leaves `trace_id` NULL — for a request with no trace context.
+    #[must_use]
+    pub const fn with_trace_id(mut self, trace_id: Option<&'a str>) -> Self {
+        self.trace_id = trace_id;
+        self
+    }
+
+    /// Stamp the compiled schema's version (its content hash) onto the outbox
+    /// row. `None` leaves `schema_version` NULL — for producers with no compiled
+    /// schema in scope (cooperative external producers, the non-PostgreSQL no-op
+    /// path).
+    #[must_use]
+    pub const fn with_schema_version(mut self, schema_version: Option<&'a str>) -> Self {
+        self.schema_version = schema_version;
+        self
+    }
+
+    /// Stamp the originating request's full W3C trace context (pre-serialized JSON
+    /// text) onto the outbox row's `trace_context` JSONB column. `None` leaves it
+    /// NULL — for a request with no valid trace context, or a non-PostgreSQL
+    /// no-op / cooperative producer.
+    #[must_use]
+    pub const fn with_trace_context(mut self, trace_context: Option<&'a str>) -> Self {
+        self.trace_context = trace_context;
         self
     }
 }
@@ -921,7 +983,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
     /// that **also writes one `core.tb_entity_change_log` row in the same
     /// transaction** as the mutation function — the Change Spine transactional
-    /// outbox (phase-02).
+    /// outbox.
     ///
     /// When `changelog` is `Some`, the framework owns the change-log write: a
     /// single statement runs the function and INSERTs the outbox row atomically

@@ -403,6 +403,114 @@ async fn tenant_id_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+async fn trace_id_stamped_explicitly_from_the_envelope() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxTrace";
+    create_ok_fn(&client, "fn_outbox_trace", obj_type).await;
+
+    // The originating request's W3C trace id is carried on the ChangeLogWrite
+    // (sourced from SecurityContext.trace_id in production) and written verbatim to
+    // the text trace_id column (#375) — the #392 perf tooling's investigation handle.
+    let trace = "4bf92f3577b34da6a3ce929d0e0e4736";
+    let id = uuid::Uuid::new_v4();
+    let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_trace_id(Some(trace));
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_trace",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let stamped: String = client
+        .query_one("SELECT trace_id FROM core.tb_entity_change_log WHERE object_id = $1", &[&id])
+        .await
+        .unwrap()
+        .get("trace_id");
+    assert_eq!(stamped, trace, "trace_id stamped verbatim from the envelope");
+}
+
+#[tokio::test]
+async fn schema_version_stamped_explicitly_from_the_envelope() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxSchemaVersion";
+    create_ok_fn(&client, "fn_outbox_schema_version", obj_type).await;
+
+    // The per-deployment compiled-schema version is carried on the ChangeLogWrite
+    // (sourced from CompiledSchema::content_hash() in production) and written verbatim
+    // to the text schema_version column (#377) — the replay/zero-downtime correctness
+    // handle for #378.
+    let version = "9f8e7d6c5b4a39281706a5b4c3d2e1f0";
+    let id = uuid::Uuid::new_v4();
+    let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_schema_version(Some(version));
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_schema_version",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let stamped: String = client
+        .query_one(
+            "SELECT schema_version FROM core.tb_entity_change_log WHERE object_id = $1",
+            &[&id],
+        )
+        .await
+        .unwrap()
+        .get("schema_version");
+    assert_eq!(stamped, version, "schema_version stamped verbatim from the envelope");
+}
+
+#[tokio::test]
+async fn trace_context_stamped_explicitly_from_the_envelope() {
+    let (client, adapter, _svc) = connect().await;
+    provision(&client).await;
+    let obj_type = "OutboxTraceContext";
+    create_ok_fn(&client, "fn_outbox_trace_context", obj_type).await;
+
+    // The full W3C trace context is carried on the ChangeLogWrite as JSON text
+    // (built from the request traceparent/tracestate in production) and written to
+    // the JSONB trace_context column (#375) — the re-propagation / full-trace handle.
+    let trace_context = json!({
+        "version": "00",
+        "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "parent_id": "00f067aa0ba902b7",
+        "trace_flags": "01",
+        "tracestate": "congo=t61rcWkgMzE"
+    });
+    let trace_context_text = trace_context.to_string();
+    let id = uuid::Uuid::new_v4();
+    let changelog =
+        ChangeLogWrite::new(obj_type, "INSERT").with_trace_context(Some(&trace_context_text));
+    adapter
+        .execute_function_call_with_changelog(
+            "public.fn_outbox_trace_context",
+            &[json!(id.to_string())],
+            STARTED_AT,
+            Some(&changelog),
+        )
+        .await
+        .unwrap();
+
+    let stamped: serde_json::Value = client
+        .query_one(
+            "SELECT trace_context FROM core.tb_entity_change_log WHERE object_id = $1",
+            &[&id],
+        )
+        .await
+        .unwrap()
+        .get("trace_context");
+    assert_eq!(stamped, trace_context, "trace_context stamped verbatim from the envelope");
+}
+
+#[tokio::test]
 async fn tenant_id_is_null_when_unset() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -513,8 +621,12 @@ async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
         row.get::<_, bool>("has_commit_time"),
         "commit_time stamped with clock_timestamp()"
     );
-    // Envelope columns whose upstream issues (#390/#377/#375) have not landed are
-    // left NULL — and the INSERT never errors on a missing source.
+    // Envelope columns this ChangeLogWrite does not stamp are left NULL — and the
+    // INSERT never errors on a missing source. `actor_type`/`acting_for` have no
+    // producer yet (#390); `trace_id` + `trace_context` (#375) and `schema_version`
+    // (#377) DO have one but are NULL here because this descriptor stamps none of
+    // them (their populated paths are covered by the dedicated
+    // `*_stamped_explicitly_from_the_envelope` tests).
     assert!(
         row.get::<_, Option<String>>("actor_type").is_none(),
         "actor_type NULL pending #390"
@@ -525,11 +637,14 @@ async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
     );
     assert!(
         row.get::<_, Option<String>>("schema_version").is_none(),
-        "schema_version NULL pending #377"
+        "schema_version NULL when the envelope does not stamp it"
     );
-    assert!(row.get::<_, Option<String>>("trace_id").is_none(), "trace_id NULL pending #375");
+    assert!(
+        row.get::<_, Option<String>>("trace_id").is_none(),
+        "trace_id NULL when the envelope does not stamp it"
+    );
     assert!(
         row.get::<_, Option<serde_json::Value>>("trace_context").is_none(),
-        "trace_context NULL pending #375"
+        "trace_context NULL when the envelope does not stamp it"
     );
 }

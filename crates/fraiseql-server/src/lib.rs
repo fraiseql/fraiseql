@@ -70,6 +70,58 @@ pub mod tracing_utils {
     pub fn extract_trace_context(_headers: &HeaderMap) -> Option<()> {
         None
     }
+
+    /// Extract the W3C trace id from the inbound `traceparent` header.
+    ///
+    /// Feature-independent (used to stamp the change-log `trace_id`, #375), so it
+    /// is a real implementation even without federation — identical to the
+    /// federation-enabled [`tracing_utils::extract_trace_id`](super::tracing_utils).
+    #[must_use]
+    pub fn extract_trace_id(headers: &HeaderMap) -> Option<String> {
+        let value = headers.get("traceparent")?.to_str().ok()?;
+        let trace_id = value.split('-').nth(1)?;
+        let valid = trace_id.len() == 32
+            && trace_id.bytes().all(|b| b.is_ascii_hexdigit())
+            && trace_id.bytes().any(|b| b != b'0');
+        valid.then(|| trace_id.to_ascii_lowercase())
+    }
+
+    /// Extract the full W3C trace context as a JSON object for the change-log
+    /// `trace_context` column (#375).
+    ///
+    /// Feature-independent — identical to the federation-enabled
+    /// [`tracing_utils::extract_trace_context_json`](super::tracing_utils).
+    #[must_use]
+    pub fn extract_trace_context_json(headers: &HeaderMap) -> Option<serde_json::Value> {
+        let traceparent = headers.get("traceparent")?.to_str().ok()?;
+        let mut parts = traceparent.split('-');
+        let (version, trace_id, parent_id, trace_flags) =
+            (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
+        let is_hex =
+            |s: &str, len: usize| s.len() == len && s.bytes().all(|b| b.is_ascii_hexdigit());
+        let valid = is_hex(version, 2)
+            && is_hex(trace_id, 32)
+            && trace_id.bytes().any(|b| b != b'0')
+            && is_hex(parent_id, 16)
+            && is_hex(trace_flags, 2);
+        if !valid {
+            return None;
+        }
+        let mut obj = serde_json::Map::with_capacity(5);
+        obj.insert("version".to_owned(), version.to_ascii_lowercase().into());
+        obj.insert("trace_id".to_owned(), trace_id.to_ascii_lowercase().into());
+        obj.insert("parent_id".to_owned(), parent_id.to_ascii_lowercase().into());
+        obj.insert("trace_flags".to_owned(), trace_flags.to_ascii_lowercase().into());
+        if let Some(tracestate) = headers
+            .get("tracestate")
+            .and_then(|h| h.to_str().ok())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            obj.insert("tracestate".to_owned(), tracestate.into());
+        }
+        Some(serde_json::Value::Object(obj))
+    }
 }
 
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`

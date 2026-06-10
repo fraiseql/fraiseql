@@ -127,6 +127,15 @@ pub struct SecurityContext {
 }
 
 impl SecurityContext {
+    /// Attribute key under which the originating request's full W3C trace context
+    /// is carried (a JSON object), used to populate the change-log `trace_context`
+    /// JSONB column (#375).
+    pub const TRACE_CONTEXT_ATTRIBUTE: &'static str = "fraiseql.trace_context";
+    /// Attribute key under which the originating request's W3C trace id is
+    /// stamped. Set by the server's request pipeline from the inbound
+    /// `traceparent` header; read back via [`trace_id`](Self::trace_id).
+    pub const TRACE_ID_ATTRIBUTE: &'static str = "fraiseql.trace_id";
+
     /// Create a security context from an authenticated user and request metadata.
     ///
     /// # Arguments
@@ -218,6 +227,50 @@ impl SecurityContext {
     #[must_use]
     pub fn get_attribute(&self, key: &str) -> Option<&serde_json::Value> {
         self.attributes.get(key)
+    }
+
+    /// The originating request's W3C trace id, when the server stamped one from
+    /// the inbound `traceparent` header.
+    ///
+    /// Used to populate the change-log `trace_id` column so an outbox row links
+    /// back to its distributed trace (#375); the #392 perf tooling surfaces it as
+    /// the investigation handle. `None` when the request carried no trace context.
+    #[must_use]
+    pub fn trace_id(&self) -> Option<&str> {
+        self.attributes
+            .get(Self::TRACE_ID_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+    }
+
+    /// Stamp the originating request's W3C trace id onto the context (carried in
+    /// `attributes`). Read back via [`trace_id`](Self::trace_id).
+    #[must_use]
+    pub fn with_trace_id(mut self, trace_id: impl Into<String>) -> Self {
+        self.attributes.insert(
+            Self::TRACE_ID_ATTRIBUTE.to_string(),
+            serde_json::Value::String(trace_id.into()),
+        );
+        self
+    }
+
+    /// The originating request's full W3C trace context (a JSON object), when the
+    /// server stamped one from the inbound `traceparent`/`tracestate` headers.
+    ///
+    /// Used to populate the change-log `trace_context` JSONB column so an outbox
+    /// row carries enough to re-propagate the distributed trace (#375). `None` when
+    /// the request carried no valid trace context.
+    #[must_use]
+    pub fn trace_context(&self) -> Option<&serde_json::Value> {
+        self.attributes.get(Self::TRACE_CONTEXT_ATTRIBUTE)
+    }
+
+    /// Stamp the originating request's full W3C trace context (a JSON object) onto
+    /// the context (carried in `attributes`). Read back via
+    /// [`trace_context`](Self::trace_context).
+    #[must_use]
+    pub fn with_trace_context(mut self, trace_context: serde_json::Value) -> Self {
+        self.attributes.insert(Self::TRACE_CONTEXT_ATTRIBUTE.to_string(), trace_context);
+        self
     }
 
     /// Check if the token has expired.

@@ -7,7 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::cli::{
     Cli, Commands, FederationCommands, GenerateClientCommands, IntrospectCommands, MigrateCommands,
-    SchemaCommands, ValidateCommands,
+    PerfCommands, PerfExploreCommands, SchemaCommands, ValidateCommands,
 };
 
 /// Run the FraiseQL CLI. Called from both the `fraiseql-cli` and `fraiseql` binary entry points.
@@ -461,6 +461,83 @@ pub async fn run() {
             } else {
                 process::exit(1);
             }
+        },
+
+        Commands::Perf { command } => match command {
+            PerfCommands::RegressionScan {
+                database,
+                recent_days,
+                baseline_days,
+                min_samples,
+                threshold_pct,
+                min_delta_ms,
+                object_type,
+                fail_on_regression,
+            } => {
+                let args = commands::perf::RegressionScanArgs {
+                    database,
+                    recent_days,
+                    baseline_days,
+                    min_samples,
+                    threshold_pct,
+                    min_delta_ms,
+                    object_type,
+                    fail_on_regression,
+                    json: cli.json,
+                    quiet: cli.quiet,
+                };
+                match commands::perf::run_regression_scan(args).await {
+                    Ok(true) => Ok(()),
+                    Ok(false) => process::exit(1),
+                    Err(e) => Err(e),
+                }
+            },
+            PerfCommands::Explore { command } => match command {
+                PerfExploreCommands::Slowest {
+                    database,
+                    days,
+                    object_type,
+                    limit,
+                } => {
+                    commands::perf::run_explore_slowest(
+                        database,
+                        days,
+                        object_type,
+                        limit,
+                        cli.json,
+                        cli.quiet,
+                    )
+                    .await
+                },
+                PerfExploreCommands::NullRate {
+                    database,
+                    days,
+                    object_type,
+                } => {
+                    commands::perf::run_explore_null_rate(
+                        database,
+                        days,
+                        object_type,
+                        cli.json,
+                        cli.quiet,
+                    )
+                    .await
+                },
+                PerfExploreCommands::Summary {
+                    database,
+                    days,
+                    object_type,
+                } => {
+                    commands::perf::run_explore_summary(
+                        database,
+                        days,
+                        object_type,
+                        cli.json,
+                        cli.quiet,
+                    )
+                    .await
+                },
+            },
         },
     };
 

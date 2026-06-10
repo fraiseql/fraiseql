@@ -2657,6 +2657,47 @@ mod rls_policy_tests {
         }
     }
 
+    #[test]
+    fn trace_id_is_none_without_a_stamp() {
+        let ctx = make_context("u1", vec![], None);
+        assert_eq!(ctx.trace_id(), None);
+    }
+
+    #[test]
+    fn with_trace_id_round_trips_through_the_attribute_bag() {
+        let tid = "4bf92f3577b34da6a3ce929d0e0e4736";
+        let ctx = make_context("u1", vec![], None).with_trace_id(tid);
+        assert_eq!(ctx.trace_id(), Some(tid));
+        // Stored under the documented key so the server (writer) and the change-log
+        // stamp (reader) agree.
+        assert_eq!(
+            ctx.get_attribute(SecurityContext::TRACE_ID_ATTRIBUTE)
+                .and_then(serde_json::Value::as_str),
+            Some(tid),
+        );
+    }
+
+    #[test]
+    fn trace_context_is_none_without_a_stamp() {
+        let ctx = make_context("u1", vec![], None);
+        assert_eq!(ctx.trace_context(), None);
+    }
+
+    #[test]
+    fn with_trace_context_round_trips_through_the_attribute_bag() {
+        let tc = serde_json::json!({
+            "version": "00",
+            "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+            "parent_id": "00f067aa0ba902b7",
+            "trace_flags": "01"
+        });
+        let ctx = make_context("u1", vec![], None).with_trace_context(tc.clone());
+        assert_eq!(ctx.trace_context(), Some(&tc));
+        // Stored under the documented key (as a real JSON object, not double-encoded)
+        // so the server (writer) and the change-log stamp (reader) agree.
+        assert_eq!(ctx.get_attribute(SecurityContext::TRACE_CONTEXT_ATTRIBUTE), Some(&tc));
+    }
+
     fn cacheable_owner_rule() -> RLSRule {
         RLSRule {
             name:              "owner_only".to_string(),

@@ -3392,6 +3392,7 @@ dependencies = [
  "deadpool-postgres",
  "fraiseql-codegen",
  "fraiseql-core",
+ "fraiseql-db",
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-test-support",

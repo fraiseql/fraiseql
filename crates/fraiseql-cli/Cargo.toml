@@ -19,6 +19,10 @@ tiberius = {version = "0.12", default-features = false, features = ["tds73", "na
 # Workspace dependencies
 fraiseql-codegen = {workspace = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
+# The change-log `duration_calc_version` marker — the single source of truth the
+# `perf` command (#392) gates regression analysis on (only the const `changelog`
+# module is used here, not the database adapters).
+fraiseql-db = {workspace = true}
 # The change-log contract column set (the single source of truth the doctor
 # `changelog-contract` drift check compares a live table against — only the
 # const `migrations` module is used here, not the observer runtime).

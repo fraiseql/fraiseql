@@ -1635,3 +1635,141 @@ mod trusted_documents_tests {
             .unwrap_or_else(|e| panic!("small valid manifest must be accepted: {e}"));
     }
 }
+
+// ── trace_id_extraction_tests (feature-independent, #375) ─────────────────────
+
+mod trace_id_extraction_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use axum::http::HeaderMap;
+
+    use crate::tracing_utils::extract_trace_id;
+
+    fn headers_with(traceparent: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("traceparent", traceparent.parse().unwrap());
+        h
+    }
+
+    #[test]
+    fn extracts_the_trace_id_field() {
+        let h = headers_with("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        assert_eq!(extract_trace_id(&h).as_deref(), Some("4bf92f3577b34da6a3ce929d0e0e4736"));
+    }
+
+    #[test]
+    fn lowercases_hex_trace_id() {
+        let h = headers_with("00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01");
+        assert_eq!(extract_trace_id(&h).as_deref(), Some("4bf92f3577b34da6a3ce929d0e0e4736"));
+    }
+
+    #[test]
+    fn missing_header_is_none() {
+        assert_eq!(extract_trace_id(&HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn malformed_or_all_zero_is_none() {
+        assert_eq!(extract_trace_id(&headers_with("garbage")), None);
+        assert_eq!(extract_trace_id(&headers_with("00-tooshort-00f067aa0ba902b7-01")), None);
+        // The all-zero trace id is the W3C "invalid" sentinel.
+        assert_eq!(
+            extract_trace_id(&headers_with(
+                "00-00000000000000000000000000000000-00f067aa0ba902b7-01"
+            )),
+            None
+        );
+    }
+}
+
+// ── trace_context_extraction_tests (feature-independent, #375) ────────────────
+
+mod trace_context_extraction_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use axum::http::HeaderMap;
+    use serde_json::json;
+
+    use crate::tracing_utils::extract_trace_context_json;
+
+    fn headers(traceparent: Option<&str>, tracestate: Option<&str>) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        if let Some(tp) = traceparent {
+            h.insert("traceparent", tp.parse().unwrap());
+        }
+        if let Some(ts) = tracestate {
+            h.insert("tracestate", ts.parse().unwrap());
+        }
+        h
+    }
+
+    #[test]
+    fn parses_a_well_formed_traceparent_into_the_object() {
+        let h = headers(Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"), None);
+        assert_eq!(
+            extract_trace_context_json(&h),
+            Some(json!({
+                "version": "00",
+                "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+                "parent_id": "00f067aa0ba902b7",
+                "trace_flags": "01"
+            }))
+        );
+    }
+
+    #[test]
+    fn includes_tracestate_when_present_and_lowercases_hex() {
+        let h = headers(
+            Some("00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01"),
+            Some("congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"),
+        );
+        assert_eq!(
+            extract_trace_context_json(&h),
+            Some(json!({
+                "version": "00",
+                "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+                "parent_id": "00f067aa0ba902b7",
+                "trace_flags": "01",
+                "tracestate": "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"
+            }))
+        );
+    }
+
+    #[test]
+    fn blank_tracestate_is_omitted() {
+        let h =
+            headers(Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"), Some("   "));
+        let v = extract_trace_context_json(&h).unwrap();
+        assert!(v.get("tracestate").is_none(), "blank tracestate omitted: {v}");
+    }
+
+    #[test]
+    fn missing_or_malformed_is_none() {
+        assert_eq!(extract_trace_context_json(&HeaderMap::new()), None);
+        assert_eq!(extract_trace_context_json(&headers(Some("garbage"), None)), None);
+        // Too few fields (no trace_flags).
+        assert_eq!(
+            extract_trace_context_json(&headers(
+                Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7"),
+                None
+            )),
+            None
+        );
+        // All-zero trace id (the W3C "invalid" sentinel).
+        assert_eq!(
+            extract_trace_context_json(&headers(
+                Some("00-00000000000000000000000000000000-00f067aa0ba902b7-01"),
+                None
+            )),
+            None
+        );
+        // Malformed parent_id (wrong length).
+        assert_eq!(
+            extract_trace_context_json(&headers(
+                Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f0-01"),
+                None
+            )),
+            None
+        );
+    }
+}

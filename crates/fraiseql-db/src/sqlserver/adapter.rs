@@ -694,9 +694,10 @@ impl DatabaseAdapter for SqlServerAdapter {
             {
                 // Bind in CHANGELOG_PORTABLE_INSERT_COLUMNS order: object_type,
                 // modification_type, object_id, object_data, updated_fields, cascade,
-                // tenant_id, commit_time. The changed-entity columns are read from the
-                // procedure's own mutation_response row; `object_type` falls back to the
-                // threaded GraphQL return type when the row omits `entity_type`. `seq`
+                // tenant_id, trace_id, schema_version, trace_context, commit_time. The
+                // changed-entity columns are read from the procedure's own mutation_response row;
+                // `object_type` falls back to the threaded GraphQL return type when the
+                // row omits `entity_type`. `seq`
                 // fires from the table default; `duration_ms`/`started_at` stay NULL (no
                 // request-scoped DB clock on SQL Server); `commit_time` is the app-clock
                 // write time (ISO 8601, implicitly converted to DATETIME2).
@@ -726,6 +727,9 @@ impl DatabaseAdapter for SqlServerAdapter {
                 iq.bind(updated_fields.as_deref());
                 iq.bind(cascade.as_deref());
                 iq.bind(tenant_id.as_deref());
+                iq.bind(changelog.trace_id);
+                iq.bind(changelog.schema_version);
+                iq.bind(changelog.trace_context);
                 iq.bind(commit_time.as_str());
                 iq.execute(&mut *conn).await.map_err(|e| FraiseQLError::Database {
                     message:   format!("SQL Server change-log outbox INSERT failed: {e}"),

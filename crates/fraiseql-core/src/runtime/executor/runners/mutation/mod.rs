@@ -476,14 +476,30 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // re-authz fan-out from the row itself. `tenant_id` is the Trinity
     // public-facing UUID; a request with no tenant, or a tenant identifier that
     // is not UUID-shaped, leaves it NULL (we never abort a user's mutation over a
-    // log-row stamp). `actor_type`/`schema_version`/trace context stay NULL here
-    // pending #390 / #377 / #375.
+    // log-row stamp). `trace_id` is the originating request's W3C trace id (#375),
+    // stamped onto the SecurityContext from the inbound `traceparent` header — NULL
+    // for a request with no trace context. `schema_version` is the compiled
+    // schema's content hash (#377), a per-deployment constant precomputed once on
+    // the ExecutorContext — NOT request-scoped — so a row records which deployment
+    // produced it (the #378 replay-correctness handle). `trace_context` is the
+    // request's full W3C trace context (#375), serialized JSON from the
+    // SecurityContext — NULL for a request with no trace context. `actor_type`
+    // stays NULL here pending #390.
     let tenant_uuid = security_ctx
         .and_then(|c| c.tenant_id.as_ref())
         .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
+    let trace_id = security_ctx.and_then(SecurityContext::trace_id);
+    // Serialize the trace context once, into a binding that outlives the write call
+    // (ChangeLogWrite borrows it as JSON text).
+    let trace_context_json = security_ctx
+        .and_then(SecurityContext::trace_context)
+        .map(serde_json::Value::to_string);
     let changelog = write_changelog.then(|| {
         ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
             .with_tenant_id(tenant_uuid)
+            .with_trace_id(trace_id)
+            .with_schema_version(Some(&ctx.schema_version))
+            .with_trace_context(trace_context_json.as_deref())
     });
     let rows = ctx
         .adapter

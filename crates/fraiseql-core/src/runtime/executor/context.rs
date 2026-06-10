@@ -25,6 +25,14 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     /// Compiled schema with optimized SQL templates.
     pub(super) schema: CompiledSchema,
 
+    /// The compiled schema's version (its content hash), computed **once** here
+    /// at construction (`CompiledSchema::content_hash()` re-serialises + hashes
+    /// the whole schema — far too expensive to call per-mutation). Stamped onto
+    /// every change-log outbox row's `schema_version` column so a row records the
+    /// deployment that produced it (the #378 replay / zero-downtime correctness
+    /// handle). A per-deployment constant — it changes on any schema change.
+    pub(super) schema_version: Arc<str>,
+
     /// Shared database adapter for query execution.
     pub(super) adapter: Arc<A>,
 

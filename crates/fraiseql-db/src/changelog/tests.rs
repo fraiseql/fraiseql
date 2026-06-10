@@ -56,12 +56,15 @@ fn portable_insert_uses_dialect_specific_placeholders() {
 
     // PostgreSQL: $1..$N positional.
     let pg = build_changelog_insert_sql(table, DatabaseType::PostgreSQL);
-    assert!(pg.contains("VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"), "PG placeholders: {pg}");
+    assert!(
+        pg.contains("VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"),
+        "PG placeholders: {pg}"
+    );
 
     // SQL Server: @P1..@PN.
     let mssql = build_changelog_insert_sql(table, DatabaseType::SQLServer);
     assert!(
-        mssql.contains("VALUES (@P1, @P2, @P3, @P4, @P5, @P6, @P7, @P8)"),
+        mssql.contains("VALUES (@P1, @P2, @P3, @P4, @P5, @P6, @P7, @P8, @P9, @P10, @P11)"),
         "MSSQL placeholders: {mssql}"
     );
 
@@ -69,7 +72,7 @@ fn portable_insert_uses_dialect_specific_placeholders() {
     for dialect in [DatabaseType::MySQL, DatabaseType::SQLite] {
         let sql = build_changelog_insert_sql(table, dialect);
         assert_eq!(sql.matches('?').count(), n, "{dialect} uses one `?` per column: {sql}");
-        assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?)"), "{dialect}: {sql}");
+        assert!(sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"), "{dialect}: {sql}");
     }
 }
 
@@ -90,6 +93,21 @@ fn portable_insert_writes_the_identity_and_envelope_subset() {
     assert!(!sql.contains("duration_ms"), "duration_ms is omitted (PG-only): {sql}");
     // seq comes from the table default, never the INSERT.
     assert!(!CHANGELOG_PORTABLE_INSERT_COLUMNS.contains(&"seq"), "seq is not in the INSERT");
+    // trace_id is a plain text column → portable across every dialect (#375).
+    assert!(
+        CHANGELOG_PORTABLE_INSERT_COLUMNS.contains(&"trace_id"),
+        "trace_id is written: {sql}"
+    );
+    // schema_version is a plain text column → portable across every dialect (#377).
+    assert!(
+        CHANGELOG_PORTABLE_INSERT_COLUMNS.contains(&"schema_version"),
+        "schema_version is written: {sql}"
+    );
+    // trace_context is written as JSON text (JSON/JSONB/NVARCHAR(MAX) per dialect) (#375).
+    assert!(
+        CHANGELOG_PORTABLE_INSERT_COLUMNS.contains(&"trace_context"),
+        "trace_context is written: {sql}"
+    );
 }
 
 #[test]

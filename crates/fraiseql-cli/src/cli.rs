@@ -631,6 +631,124 @@ EXAMPLES:
         #[arg(long)]
         json: bool,
     },
+
+    /// Change-log performance observability (#392)
+    ///
+    /// Reads the framework-owned change-log (`core.v_entity_change_log`) and turns
+    /// it into operator-facing forensics: latency regressions between two time
+    /// windows, and ad-hoc reads of the slowest mutations / duration completeness
+    /// / per-operation percentiles.
+    Perf {
+        #[command(subcommand)]
+        command: PerfCommands,
+    },
+}
+
+/// `fraiseql perf` subcommands.
+#[derive(Subcommand)]
+pub(crate) enum PerfCommands {
+    /// Flag mutations whose latency regressed between a baseline and a recent
+    /// window, per `(object_type, modification_type)`.
+    ///
+    /// Only rows carrying the current `duration_calc_version` are compared, and
+    /// latency is never aggregated across modification types — so a shift in the
+    /// operation mix cannot mask a regression as a false improvement. Exits 0 even
+    /// when regressions are found (it is a report); pass `--fail-on-regression`
+    /// for CI gating.
+    RegressionScan {
+        /// PostgreSQL URL (defaults to `fraiseql.toml` / `DATABASE_URL`).
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Recent window size, in days.
+        #[arg(long, default_value_t = 7)]
+        recent_days: i64,
+
+        /// Baseline window size (immediately before the recent window), in days.
+        #[arg(long, default_value_t = 7)]
+        baseline_days: i64,
+
+        /// Minimum comparable samples required on each side; thinner groups are
+        /// skipped rather than flagged.
+        #[arg(long, default_value_t = 20)]
+        min_samples: usize,
+
+        /// Minimum p50 increase to flag, in percent.
+        #[arg(long, default_value_t = 25.0)]
+        threshold_pct: f64,
+
+        /// Minimum absolute p50 increase to flag, in milliseconds (the noise floor).
+        #[arg(long, default_value_t = 5.0)]
+        min_delta_ms: f64,
+
+        /// Restrict the scan to a single object_type.
+        #[arg(long, value_name = "TYPE")]
+        object_type: Option<String>,
+
+        /// Exit non-zero when any regression is found (for CI gating).
+        #[arg(long)]
+        fail_on_regression: bool,
+    },
+
+    /// Ad-hoc forensic reads of the change-log.
+    Explore {
+        #[command(subcommand)]
+        command: PerfExploreCommands,
+    },
+}
+
+/// `fraiseql perf explore` subcommands — read-only views over comparable (v2)
+/// change-log rows in a trailing window.
+#[derive(Subcommand)]
+pub(crate) enum PerfExploreCommands {
+    /// The slowest individual mutations, slowest first.
+    Slowest {
+        /// PostgreSQL URL (defaults to `fraiseql.toml` / `DATABASE_URL`).
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Trailing window to scan, in days.
+        #[arg(long, default_value_t = 7)]
+        days: i32,
+
+        /// Restrict to a single object_type.
+        #[arg(long, value_name = "TYPE")]
+        object_type: Option<String>,
+
+        /// Maximum rows to return.
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+
+    /// `duration_ms` completeness (NULL / pre-fix rates), per operation.
+    NullRate {
+        /// PostgreSQL URL (defaults to `fraiseql.toml` / `DATABASE_URL`).
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Trailing window to scan, in days.
+        #[arg(long, default_value_t = 7)]
+        days: i32,
+
+        /// Restrict to a single object_type.
+        #[arg(long, value_name = "TYPE")]
+        object_type: Option<String>,
+    },
+
+    /// Latency percentiles (p50/p95/p99/max), per operation.
+    Summary {
+        /// PostgreSQL URL (defaults to `fraiseql.toml` / `DATABASE_URL`).
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Trailing window to scan, in days.
+        #[arg(long, default_value_t = 7)]
+        days: i32,
+
+        /// Restrict to a single object_type.
+        #[arg(long, value_name = "TYPE")]
+        object_type: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]

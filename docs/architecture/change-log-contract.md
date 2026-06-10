@@ -60,9 +60,9 @@ Placement: schema `core` (matches the existing reader and the
 | `seq` | `BIGINT` | `int8` | envelope (monotonic order; dedup on `(object_type, seq)`) | sequence default |
 | `actor_type` | `TEXT` | `text` | #390 actor model | column now, value later |
 | `acting_for` | `BIGINT` | `int8` | #390 acting-on-behalf-of | column now, value later |
-| `schema_version` | `TEXT` | `text` | #377/#378 replay-correctness | column now, value later |
-| `trace_id` | `TEXT` | `text` | perf #392 + #375 W3C trace | column now, value later |
-| `trace_context` | `JSONB` | `jsonb` | #375 full W3C `traceparent`/`tracestate` | column now, value later |
+| `schema_version` | `TEXT` | `text` | #377/#378 replay-correctness | executor (schema content hash) |
+| `trace_id` | `TEXT` | `text` | perf #392 + #375 W3C trace | executor (from `traceparent`) |
+| `trace_context` | `JSONB` | `jsonb` | #375 full W3C `traceparent`/`tracestate` | executor (parsed traceparent + tracestate) |
 | `change_status` | `TEXT` | `text` | reader | app / producer |
 | `extra_metadata` | `JSONB` | `jsonb` | reader + the `duration_calc_version` marker | executor |
 | `nats_published_at` | `TIMESTAMPTZ` | `timestamptz` | NATS bridge | bridge |
@@ -153,8 +153,11 @@ Spine.
 ### Full — the FraiseQL executor
 
 Writes every request-scoped column: identity + change columns, `duration_ms`,
-`started_at`, `commit_time`, `tenant_id`, `updated_fields`, `cascade`, and the
-`duration_calc_version` marker. On PostgreSQL the write is the in-transaction
+`started_at`, `commit_time`, `tenant_id`, `trace_id`, `schema_version`,
+`trace_context`, `updated_fields`, `cascade`, and the `duration_calc_version`
+marker. `schema_version` is the per-deployment constant — the compiled schema's
+content hash — not a request value, so it is the same on every row this
+deployment writes. On PostgreSQL the write is the in-transaction
 `MATERIALIZED` CTE in the adapter
 (`crates/fraiseql-db/src/postgres/adapter/database.rs`), prepared once and cached
 (`prepare_cached`) so the per-mutation cost is dominated by index maintenance,
@@ -257,9 +260,14 @@ and the shipped contract, sourced from the same
 
 ## This is the Change Spine first step — consumer map
 
-- **#392 perf-observability** — the first consumer. Reads `duration_ms` via
+- **#392 perf-observability** — the first consumer, **shipped** as the
+  `fraiseql perf` CLI command group. Reads `duration_ms` via
   `v_entity_change_log`; the `duration_calc_version` marker gates pre/post-fix
-  mixing.
+  mixing. `perf regression-scan` flags per-`(object_type, modification_type)`
+  latency regressions between a baseline and a recent window; `perf explore
+  slowest | null-rate | summary` are ad-hoc forensic reads. See
+  [perf-observability seam](#perf-observability-seam-392) for the orchestration
+  contract.
 - **#382 CDC broker fan-out** — drains this executor-written outbox
   (`FOR UPDATE SKIP LOCKED`); no WAL needed.
 - **#374 multi-DB parity** — the outbox is a plain INSERT → portable across
@@ -272,9 +280,48 @@ and the shipped contract, sourced from the same
   `EntityEvent` it emits, so tenant filtering keys off the UUID `tenant_id` (not
   the internal `fk_customer_org` BIGINT) and consumers see the perf / ordering
   metadata, not just the GraphQL `data` JSONB.
+- **#375 OpenTelemetry** — **fully populated**: the executor stamps both the
+  scalar `trace_id` (the inbound `traceparent`'s 32-hex trace-id, the #392 `perf
+  explore slowest` / regression investigation handle) **and** the full
+  `trace_context` JSONB — the parsed `traceparent`
+  (`{version, trace_id, parent_id, trace_flags}`) plus the `tracestate` header
+  when present — so a change-log row carries enough to re-propagate / reconstruct
+  the distributed trace, not just link to it. Both are parsed from the request
+  headers onto the `SecurityContext` and written on every dialect (`trace_context`
+  as JSONB on PostgreSQL, JSON / `NVARCHAR(MAX)` on MySQL / SQL Server); both are
+  NULL for a request with no valid trace context, never aborting the mutation.
+- **#377/#378 schema versioning / zero-downtime replay** — the `schema_version`
+  column is **populated**: the executor stamps the compiled schema's content hash
+  (`CompiledSchema::content_hash()`, a per-deployment constant precomputed once on
+  the `ExecutorContext`) on every outbox row, on every dialect, so a row records
+  which deployment produced it. #378 (DLQ replay / zero-downtime deploys) reads it
+  to reject a row replayed under a different schema rather than corrupt data. It is
+  the same content hash that keys the query cache, the `/health` schema digest, and
+  hot-reload diffing — so it changes on **any** schema change.
 - **Future consumers** (columns shipped now, populated later): #390 audit-actor
-  (`actor_type`/`acting_for`), #377/#378 replay (`schema_version`), #375
-  OpenTelemetry (`trace_id`/`trace_context`).
+  (`actor_type`/`acting_for`) — the only envelope columns still NULL-by-design.
+
+---
+
+## perf-observability seam (#392)
+
+`perf` is the *capability*; the `fraisier` orchestrator is the *scheduler*. The
+boundary between them is a stable contract so a cadence runner can consume the
+scan without parsing prose:
+
+- **Exit code.** A successful scan exits **0 even when it finds regressions** — it
+  is a report, not a gate. `--fail-on-regression` opts into exit **1** when any
+  regression is found (for CI). Operational errors (unreachable DB, bad URL) exit
+  non-zero via the normal CLI error path.
+- **`--json`.** `regression-scan --json` emits a stable object — `findings[]`,
+  `skipped[]`, and a `summary` (`groups_analyzed` / `regressions` /
+  `total_samples` / `excluded_samples`). Each `explore` subcommand emits its own
+  array / object. This is the machine-readable seam fraisier ingests.
+- **Human output.** Each regression prints a `WARN ` line and each unevaluated
+  group a `SKIP ` line — greppable severity markers for log-scraping setups.
+- **Comparability.** Only rows carrying the current `duration_calc_version` enter
+  the duration math, and latency is split per `(object_type, modification_type)`
+  so a shift in the operation mix can never mask a regression as an improvement.
 
 ---
 
@@ -301,4 +348,7 @@ arrives via its downstream consumers (#392 / #382 / #374 / #390 / #377 / #375).
 - Executor in-txn write: `crates/fraiseql-db/src/postgres/adapter/database.rs`.
 - Reader / poller: `crates/fraiseql-observers/src/listener/change_log.rs`.
 - Drift check: `crates/fraiseql-cli/src/commands/doctor.rs` (`fraiseql doctor --against-db`).
+- perf-observability (#392): `crates/fraiseql-cli/src/commands/perf/` (`reader.rs`
+  reads `core.v_entity_change_log`; `analysis.rs` holds the pure, unit-tested
+  regression / slowest / null-rate / summary logic).
 - Related: [`mutation-response.md`](./mutation-response.md) — the row the executor parses to fill the envelope.

@@ -73,7 +73,8 @@ async fn provision(adapter: &PostgresAdapter) {
              created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
              object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
              duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-             tenant_id UUID, commit_time TIMESTAMPTZ, \
+             tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
+             commit_time TIMESTAMPTZ, \
              seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
         )
         .await
@@ -261,6 +262,103 @@ async fn executor_stamps_tenant_id_from_the_security_context() {
         rows[0].get("tenant_id"),
         Some(&json!(tenant.to_string())),
         "tenant_id stamped from the SecurityContext"
+    );
+}
+
+#[tokio::test]
+async fn executor_stamps_trace_id_from_the_security_context() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // A SecurityContext carrying a W3C trace id (stamped by the server from the
+    // inbound `traceparent`) → the runner writes it to the trace_id column (#375),
+    // the #392 perf tooling's investigation handle.
+    let trace = "4bf92f3577b34da6a3ce929d0e0e4736";
+    let ctx = security_ctx_with_tenant(&uuid::Uuid::new_v4().to_string()).with_trace_id(trace);
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query("SELECT trace_id FROM core.tb_entity_change_log")
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("trace_id"),
+        Some(&json!(trace)),
+        "trace_id stamped from the SecurityContext"
+    );
+}
+
+#[tokio::test]
+async fn executor_stamps_schema_version_from_the_compiled_schema() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // schema_version is a per-deployment constant derived from the COMPILED SCHEMA
+    // (its content hash), NOT from the request — the executor stamps it on every
+    // outbox row so #378 (zero-downtime / DLQ replay) can detect a row produced
+    // under a different schema and reject loudly.
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let expected = executor.schema().content_hash();
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor.execute("mutation { updateThing { id } }", Some(&vars)).await.unwrap();
+
+    let rows = adapter
+        .execute_raw_query("SELECT schema_version FROM core.tb_entity_change_log")
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("schema_version"),
+        Some(&json!(expected)),
+        "schema_version stamped from the compiled schema's content hash"
+    );
+}
+
+#[tokio::test]
+async fn executor_stamps_trace_context_from_the_security_context() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // A SecurityContext carrying the full W3C trace context (the server builds it
+    // from the inbound traceparent/tracestate) → the runner writes it verbatim to
+    // the JSONB trace_context column (#375), completing the trace linkage beyond the
+    // scalar trace_id.
+    let trace_context = json!({
+        "version": "00",
+        "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "parent_id": "00f067aa0ba902b7",
+        "trace_flags": "01"
+    });
+    let ctx = security_ctx_with_tenant(&uuid::Uuid::new_v4().to_string())
+        .with_trace_context(trace_context.clone());
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query("SELECT trace_context FROM core.tb_entity_change_log")
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("trace_context"),
+        Some(&trace_context),
+        "trace_context stamped from the SecurityContext"
     );
 }
 
