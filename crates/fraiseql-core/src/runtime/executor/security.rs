@@ -250,7 +250,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {
-                self.execute_federation_query(&query_name, query, variables).await
+                // Authenticated entrypoint: thread the SecurityContext so the `_entities`
+                // path enforces requires_role / RLS / inject_params gates (C1b).
+                self.execute_federation_query(&query_name, query, variables, Some(security_context))
+                    .await
             },
             #[cfg(not(feature = "federation"))]
             QueryType::Federation(_) => {

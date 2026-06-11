@@ -304,6 +304,200 @@ mod classify {
     }
 }
 
+// ── mod entities_authz: federation `_entities` authorization (Phase 03 C1b) ─
+//
+// The federation `_entities` resolver builds its own SQL in `fraiseql-federation`
+// with no slot for a per-row RLS / `inject_params` predicate. Before C1b it applied
+// none of the backing query's `requires_role` / RLS / `inject_params` gates, so any
+// caller — including an anonymous one under an RLS-configured deployment — could
+// resolve gated entities by id. It now fails closed; an authenticated request resolves
+// RLS-/inject-backed types under the documented trusted-gateway assumption.
+#[cfg(feature = "federation")]
+mod entities_authz {
+    use super::*;
+    use crate::{
+        schema::{FederationConfig, FederationEntity},
+        security::DefaultRLSPolicy,
+    };
+
+    /// Federation-enabled schema exposing `User` (view `v_user`) via one query,
+    /// configurable for the gates the `_entities` path enforces.
+    fn entities_user_schema(
+        requires_role: Option<&str>,
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            version: Some("v2".to_string()),
+            entities: vec![FederationEntity {
+                name:       "User".to_string(),
+                key_fields: vec!["id".to_string()],
+            }],
+            ..Default::default()
+        });
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: CursorType::default(),
+            inject_params,
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: requires_role.map(str::to_string),
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
+        });
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::String),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+        schema
+    }
+
+    /// `{ _entities(representations: ...) { ... on User { id name } } }`
+    fn entities_query() -> &'static str {
+        r#"{ _entities(representations: [{ __typename: "User", id: "1" }]) { ... on User { id name } } }"#
+    }
+
+    fn representations() -> serde_json::Value {
+        serde_json::json!({
+            "representations": [
+                { "__typename": "User", "id": "11111111-1111-1111-1111-111111111111" }
+            ]
+        })
+    }
+
+    fn ctx_with_roles(roles: &[&str]) -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            roles.iter().map(|r| (*r).to_string()).collect(),
+            tenant_id:        Some("tenant-abc".into()),
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn is_authz(err: &FraiseQLError) -> bool {
+        matches!(err, FraiseQLError::Authorization { .. })
+    }
+
+    #[tokio::test]
+    async fn entities_rls_anonymous_fails_closed() {
+        let schema = entities_user_schema(None, IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let vars = representations();
+        let err = executor.execute(entities_query(), Some(&vars)).await.unwrap_err();
+        assert!(is_authz(&err), "anonymous _entities under RLS must be denied, got: {err}");
+        assert!(
+            adapter.captured_aggregate_sql().is_none(),
+            "resolver must run no SQL when denied (fail closed)"
+        );
+    }
+
+    #[tokio::test]
+    async fn entities_requires_role_authenticated_without_role_denied() {
+        let schema = entities_user_schema(Some("admin"), IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let vars = representations();
+        let err = executor
+            .execute_with_security(entities_query(), Some(&vars), &ctx)
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err));
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    #[tokio::test]
+    async fn entities_requires_role_anonymous_denied() {
+        let schema = entities_user_schema(Some("admin"), IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = representations();
+        let err = executor.execute(entities_query(), Some(&vars)).await.unwrap_err();
+        assert!(is_authz(&err));
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    #[tokio::test]
+    async fn entities_inject_anonymous_fails_closed() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = entities_user_schema(None, inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = representations();
+        let err = executor.execute(entities_query(), Some(&vars)).await.unwrap_err();
+        assert!(is_authz(&err));
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    #[tokio::test]
+    async fn entities_ungated_anonymous_resolves() {
+        // No RLS, no inject, no role → the gate must not block; the resolver runs.
+        let schema = entities_user_schema(None, IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = representations();
+        let result = executor.execute(entities_query(), Some(&vars)).await.unwrap();
+        assert!(result["data"].get("_entities").is_some());
+        assert!(
+            adapter.captured_aggregate_sql().is_some(),
+            "ungated entity resolution must reach the resolver"
+        );
+    }
+
+    #[tokio::test]
+    async fn entities_rls_authenticated_resolves_trusted_gateway() {
+        // Authenticated request: an RLS-backed type resolves under the trusted-gateway
+        // assumption (per-row RLS on this path is a tracked follow-up, not enforced here).
+        let schema = entities_user_schema(None, IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let vars = representations();
+        let result = executor
+            .execute_with_security(entities_query(), Some(&vars), &ctx)
+            .await
+            .unwrap();
+        assert!(result["data"].get("_entities").is_some());
+        assert!(adapter.captured_aggregate_sql().is_some());
+    }
+}
+
 // ── mod context: ExecutionContext lifecycle ───────────────────────────────
 
 mod context {

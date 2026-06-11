@@ -22,6 +22,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anonymous callers, leaking every row — now also fails closed. **Behavioral change:**
   in deployments that configure RLS, anonymous `node(id:)` and anonymous relay
   pagination of protected types now return nothing / error rather than leaking rows.
+- **Federation `_entities` now fails closed for gated entity types (M-fed-entities-rls).**
+  The `_entities` resolver resolved entities by `__typename` while applying none of the
+  backing query's `requires_role` / RLS / `inject_params` gates, so an anonymous caller
+  under an RLS-configured deployment, or any caller requesting a role-gated type, could
+  resolve protected entities by id. The path now denies (403) when: row-level security is
+  configured and the request is unauthenticated; a requested type's backing query
+  declares `requires_role` the request does not hold; or a requested type is
+  `inject_params`-scoped (tenant/owner) and the request is unauthenticated — denials run
+  before any SQL. When the request **is** authenticated, RLS-/`inject_params`-backed types
+  are still resolved under the federation *trusted-gateway* assumption (the resolver
+  builds its own SQL in `fraiseql-federation` with no slot for a per-row predicate);
+  composing per-row RLS into the subgraph resolver is a tracked follow-up. The existing
+  field-level fail-closed guard (deny when the schema declares any policy-gated field) is
+  retained. **Behavioral change:** anonymous `_entities` resolution of RLS-/inject-gated
+  types, and any `_entities` resolution of role-gated types without the role, now error
+  rather than returning the entity.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's

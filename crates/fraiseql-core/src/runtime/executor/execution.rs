@@ -130,7 +130,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {
-                self.execute_federation_query(&query_name, query, variables).await
+                // Anonymous entrypoint: no SecurityContext. The `_entities` path fails
+                // closed for RLS-/inject-/role-gated types (C1b).
+                self.execute_federation_query(&query_name, query, variables, None).await
             },
             #[cfg(not(feature = "federation"))]
             QueryType::Federation(_) => {
