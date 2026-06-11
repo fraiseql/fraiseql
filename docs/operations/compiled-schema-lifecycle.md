@@ -122,20 +122,26 @@ The server loads `schema.compiled.json` at startup. Configuration priority (high
 2. **Compiled schema values** — security config, cache TTLs, observer settings
 3. **Built-in defaults**
 
-There is **no hot reload**. Schema changes require a server restart. Rolling deployments
-work correctly: new pods start with the new schema while old pods drain existing connections.
+The server serves one compiled schema at any instant, but it **can** be swapped without a
+restart: send `SIGUSR1` (auto-installed when a schema path is configured) or call
+`POST /api/v1/admin/reload-schema`, and the server re-reads + validates the file and
+atomically swaps the executor — in-flight requests finish on the old schema, new requests get
+the new one, and a failed reload keeps the previous schema. Rolling deployments also work
+correctly: new pods start with the new schema while old pods drain existing connections. See
+[zero-downtime-deploys.md](zero-downtime-deploys.md) for the full deploy story.
 
 ---
 
 ## Schema Versioning
 
-`schema.compiled.json` includes a `fraiseql_version` field matching the `fraiseql-cli`
-version that compiled it:
+`schema.compiled.json` carries an integer `schema_format_version` describing the compiled-schema
+binary format. At startup the server checks it against the version it expects:
 
-- **Major version mismatch**: Server refuses to start and logs a fatal error.
-- **Minor version mismatch**: Server starts and emits a `WARN` log.
+- **Version mismatch**: Server refuses to start and logs a fatal error.
+- **Field absent**: Server starts and emits a `WARN` log (legacy schema, format assumed current).
 
-Always compile with the same major version of `fraiseql-cli` as the server you are deploying.
+Always compile with a `fraiseql-cli` whose `schema_format_version` matches the server you are
+deploying — in practice, keep the CLI and server versions in lockstep.
 
 ---
 

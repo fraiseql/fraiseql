@@ -40,7 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retype is lossless; re-run migration `08` (and the `09`/`10` variants) to adopt
   it. `doctor --against-db` reports the type drift until a database is re-migrated.
 
-## [2.6.0] - 2026-06-10
+### Documentation
+
+- **Zero-downtime deploy guide (#378).** New `docs/operations/zero-downtime-deploys.md`
+  documents rolling, blue-green, and canary deploys behind a load balancer, the
+  expand/contract migration discipline, and the in-process primitives FraiseQL already
+  provides: in-place atomic schema reload (`SIGUSR1` / `POST /api/v1/admin/reload-schema`),
+  the graceful shutdown drain, the `schema_format_version` boot guard, and schema-decoupled
+  observer DLQ retry. Establishes that deploy-time version coherence belongs in the deploy/LB
+  layer (with [fraisier](https://github.com/fraiseql/fraisier) as the worked example), not in
+  per-request dual-schema routing inside the server. Corrects two stale claims in
+  `compiled-schema-lifecycle.md` (it asserted "no hot reload" and a non-existent
+  `fraiseql_version` major/minor guard).
 
 ### Added
 
