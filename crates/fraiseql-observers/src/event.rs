@@ -49,47 +49,55 @@ pub struct FieldChanges {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityEvent {
     /// Unique event identifier
-    pub id:          Uuid,
+    pub id:             Uuid,
     /// Type of event (INSERT, UPDATE, DELETE, CUSTOM)
-    pub event_type:  EventKind,
+    pub event_type:     EventKind,
     /// Entity type name (e.g., "Order", "User", "Product")
-    pub entity_type: String,
+    pub entity_type:    String,
     /// Entity instance ID
-    pub entity_id:   Uuid,
+    pub entity_id:      Uuid,
     /// Current entity data
-    pub data:        serde_json::Value,
+    pub data:           serde_json::Value,
     /// Field changes (for UPDATE events)
-    pub changes:     Option<std::collections::HashMap<String, FieldChanges>>,
+    pub changes:        Option<std::collections::HashMap<String, FieldChanges>>,
     /// User ID from auth context (if available)
-    pub user_id:     Option<String>,
+    pub user_id:        Option<String>,
     /// Tenant ID for multi-tenant isolation (if applicable). Public-facing UUID
     /// partition stamp (Change-Spine envelope column `tenant_id`).
     #[serde(default)]
-    pub tenant_id:   Option<String>,
+    pub tenant_id:      Option<String>,
     /// When the event occurred
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp:      DateTime<Utc>,
     /// Wall-clock duration of the originating mutation in milliseconds, when the
     /// producer stamped it (Change-Spine perf column `duration_ms`). `None` for
     /// cooperative external producers that do not record timing.
     #[serde(default)]
-    pub duration_ms: Option<i32>,
+    pub duration_ms:    Option<i32>,
     /// Monotonic Change-Spine sequence (`seq`) for durable ordering and dedup on
     /// `(object_type, seq)`. `None` when the source row carried no sequence.
     #[serde(default)]
-    pub seq:         Option<i64>,
+    pub seq:            Option<i64>,
     /// Actor classification of the request that produced this change
     /// (Change-Spine envelope column `actor_type`): `"human_user"`,
     /// `"service_account"`, `"ai_agent"`, or `"system_job"` (#390). Recorded for
     /// forensics / downstream fan-out, never an authorization input. `None` for
     /// cooperative external producers that did not stamp it.
     #[serde(default)]
-    pub actor_type:  Option<String>,
+    pub actor_type:     Option<String>,
     /// For a delegated-agent request (RFC 8693 `act` claim), the public-facing
     /// UUID of the underlying human the agent acts for (Change-Spine envelope
     /// column `acting_for`, #390). Mirrors [`tenant_id`](Self::tenant_id)'s
     /// stringified-UUID shape. `None` for non-delegated requests.
     #[serde(default)]
-    pub acting_for:  Option<String>,
+    pub acting_for:     Option<String>,
+    /// Schema version of the producer that wrote this change (Change-Spine
+    /// envelope column `schema_version`, #377) — the application schema the
+    /// originating mutation ran against. Recorded for cross-version forensics and
+    /// deploy audit (e.g. "which schema produced this dead-lettered action"); see
+    /// `docs/operations/zero-downtime-deploys.md`. `None` when the producer did
+    /// not stamp it.
+    #[serde(default)]
+    pub schema_version: Option<String>,
 }
 
 impl EntityEvent {
@@ -115,6 +123,7 @@ impl EntityEvent {
             seq: None,
             actor_type: None,
             acting_for: None,
+            schema_version: None,
         }
     }
 
@@ -157,6 +166,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_acting_for(mut self, acting_for: impl Into<String>) -> Self {
         self.acting_for = Some(acting_for.into());
+        self
+    }
+
+    /// Set the Change-Spine `schema_version` for this event (#377)
+    #[must_use]
+    pub fn with_schema_version(mut self, schema_version: impl Into<String>) -> Self {
+        self.schema_version = Some(schema_version.into());
         self
     }
 

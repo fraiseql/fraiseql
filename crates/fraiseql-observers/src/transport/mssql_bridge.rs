@@ -210,6 +210,10 @@ pub struct MSSQLChangeLogEntry {
     /// (#390 envelope column `acting_for`, UNIQUEIDENTIFIER); `None` otherwise.
     pub acting_for: Option<Uuid>,
 
+    /// The producer's application schema version (#377 envelope column
+    /// `schema_version`, NVARCHAR); `None` when unstamped.
+    pub schema_version: Option<String>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -263,6 +267,7 @@ impl MSSQLChangeLogEntry {
         event.seq = self.seq;
         event.actor_type.clone_from(&self.actor_type);
         event.acting_for = self.acting_for.map(|u| u.to_string());
+        event.schema_version.clone_from(&self.schema_version);
 
         Ok(event)
     }
@@ -329,13 +334,14 @@ impl MSSQLChangeLogEntry {
 
         let nats_event_id: Option<Uuid> = row.get(12);
 
-        // Change-Spine envelope columns, appended to the SELECT (indices 13-17)
+        // Change-Spine envelope columns, appended to the SELECT (indices 13-18)
         // so the existing positional indices above stay stable.
         let tenant_id: Option<Uuid> = row.get(13);
         let duration_ms: Option<i32> = row.get(14);
         let seq: Option<i64> = row.get(15);
         let actor_type: Option<&str> = row.get(16);
         let acting_for: Option<Uuid> = row.get(17);
+        let schema_version: Option<&str> = row.get(18);
 
         Ok(Self {
             pk_entity_change_log: pk,
@@ -354,6 +360,7 @@ impl MSSQLChangeLogEntry {
             seq,
             actor_type: actor_type.map(ToString::to_string),
             acting_for,
+            schema_version: schema_version.map(ToString::to_string),
             nats_published_at,
             nats_event_id,
         })
@@ -480,7 +487,8 @@ impl MSSQLNatsBridge {
                 object_type, object_id, modification_type, change_status,
                 object_data, extra_metadata, created_at,
                 nats_published_at, nats_event_id,
-                tenant_id, duration_ms, seq, actor_type, acting_for
+                tenant_id, duration_ms, seq, actor_type, acting_for,
+                schema_version
             FROM tb_entity_change_log
             WHERE pk_entity_change_log > @P1
             ORDER BY pk_entity_change_log ASC

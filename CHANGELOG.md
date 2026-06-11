@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `seq` (previously only `user_id` survived the bridge). `EntityEvent`'s envelope
   fields gained `#[serde(default)]` so a consumer can decode an event serialized
   before these fields existed (forward/backward wire tolerance over NATS).
+- **Change-log reader surfaces `schema_version` (#377 follow-up).** The observer
+  change-log reader now projects the Change-Spine `schema_version` envelope column
+  onto `ChangeLogEntry` and the emitted `EntityEvent`, and all three NATS bridges
+  (PostgreSQL / MySQL / SQL Server) carry it across the bridge — so out-of-session
+  consumers can audit which producer schema version wrote a change (e.g. "which
+  schema produced this dead-lettered action"; see
+  `docs/operations/zero-downtime-deploys.md`). The listener's row decode was
+  converted from a positional tuple to a named `sqlx::FromRow` struct, removing the
+  16-column tuple ceiling it had reached and the positional fragility. The field is
+  `#[serde(default)]` for NATS wire tolerance.
 
 ### Changed
 

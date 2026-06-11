@@ -193,6 +193,7 @@ pub mod postgres {
                         seq: None,
                         actor_type: None,
                         acting_for: None,
+                        schema_version: None,
                     }
                 })
                 .collect();

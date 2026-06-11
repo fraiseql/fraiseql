@@ -183,6 +183,10 @@ pub struct MySQLChangeLogEntry {
     /// (#390 envelope column `acting_for`, stored as CHAR(36)); `None` otherwise.
     pub acting_for: Option<String>,
 
+    /// The producer's application schema version (#377 envelope column
+    /// `schema_version`, stored as VARCHAR); `None` when unstamped.
+    pub schema_version: Option<String>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -247,6 +251,7 @@ impl MySQLChangeLogEntry {
         event.seq = self.seq;
         event.actor_type.clone_from(&self.actor_type);
         event.acting_for.clone_from(&self.acting_for);
+        event.schema_version.clone_from(&self.schema_version);
 
         Ok(event)
     }
@@ -275,6 +280,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for MySQLChangeLogEntry {
             seq:                  row.try_get("seq")?,
             actor_type:           row.try_get("actor_type")?,
             acting_for:           row.try_get("acting_for")?,
+            schema_version:       row.try_get("schema_version")?,
             nats_published_at:    row.try_get("nats_published_at")?,
             nats_event_id:        row.try_get("nats_event_id")?,
         })
@@ -392,6 +398,7 @@ impl MySQLNatsBridge {
                    object_type, object_id, modification_type, change_status,
                    object_data, extra_metadata, created_at,
                    tenant_id, duration_ms, seq, actor_type, acting_for,
+                   schema_version,
                    nats_published_at, nats_event_id
             FROM tb_entity_change_log
             WHERE pk_entity_change_log > ?

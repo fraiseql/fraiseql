@@ -63,6 +63,7 @@ mod bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -71,6 +72,45 @@ mod bridge_tests {
         assert_eq!(event.entity_type, "Order");
         assert_eq!(event.event_type, EventKind::Created);
         assert_eq!(event.user_id, Some("456".to_string()));
+    }
+
+    #[test]
+    fn pg_bridge_surfaces_full_change_spine_envelope() {
+        // The NATS bridge must carry the full Change-Spine envelope to out-of-session
+        // consumers, not just user_id — including #377 schema_version and the #390
+        // actor columns. UUID columns project to their string form (like tenant_id).
+        let tenant = Uuid::new_v4();
+        let human = Uuid::new_v4();
+        let entry = ChangeLogEntry {
+            pk_entity_change_log: 9,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          Some(serde_json::json!({"total": 1})),
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            tenant_id:            Some(tenant),
+            duration_ms:          Some(42),
+            seq:                  Some(1_007),
+            actor_type:           Some("ai_agent".to_string()),
+            acting_for:           Some(human),
+            schema_version:       Some("v2.7.0".to_string()),
+            nats_published_at:    None,
+            nats_event_id:        None,
+        };
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.tenant_id, Some(tenant.to_string()));
+        assert_eq!(event.duration_ms, Some(42));
+        assert_eq!(event.seq, Some(1_007));
+        assert_eq!(event.actor_type.as_deref(), Some("ai_agent"));
+        assert_eq!(event.acting_for, Some(human.to_string()));
+        assert_eq!(event.schema_version.as_deref(), Some("v2.7.0"));
     }
 
     #[test]
@@ -94,6 +134,7 @@ mod bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -123,6 +164,7 @@ mod bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -150,6 +192,7 @@ mod bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -318,6 +361,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -349,6 +393,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -378,6 +423,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -405,6 +451,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -442,6 +489,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -469,6 +517,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -497,6 +546,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        Some(fixed_id),
         };
@@ -525,6 +575,7 @@ mod mssql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -571,6 +622,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -602,6 +654,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -631,6 +684,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -658,6 +712,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -695,6 +750,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -722,6 +778,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -749,6 +806,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        None,
         };
@@ -777,6 +835,7 @@ mod mysql_bridge_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             nats_published_at:    None,
             nats_event_id:        Some(fixed_id.to_string()),
         };

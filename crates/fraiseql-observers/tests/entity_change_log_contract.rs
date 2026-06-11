@@ -219,8 +219,8 @@ async fn poller_decodes_executor_written_contract_rows() {
     sqlx::query(
         "INSERT INTO core.tb_entity_change_log
            (object_type, modification_type, object_id, fk_customer_org, fk_contact,
-            tenant_id, duration_ms, commit_time, actor_type, acting_for)
-         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7, $1, 5, now(), 'ai_agent', $2)",
+            tenant_id, duration_ms, commit_time, actor_type, acting_for, schema_version)
+         VALUES ('User', 'INSERT', gen_random_uuid(), 42, 7, $1, 5, now(), 'ai_agent', $2, 'v2.7.0')",
     )
     .bind(tenant)
     .bind(acting_for)
@@ -279,6 +279,13 @@ async fn poller_decodes_executor_written_contract_rows() {
         entry.acting_for.as_deref(),
         Some(acting_for.to_string().as_str()),
         "acting_for surfaced as the delegated human's public-facing UUID"
+    );
+
+    // #377 producer schema version surfaced top-level from the live TEXT column.
+    assert_eq!(
+        entry.schema_version.as_deref(),
+        Some("v2.7.0"),
+        "schema_version projected top-level from the contract column"
     );
 }
 

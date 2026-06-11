@@ -42,29 +42,36 @@ use crate::{
 /// The trailing columns are the Change-Spine envelope/perf projection surfaced
 /// top-level: `tenant_id` (public-facing UUID partition stamp, decoded as `Uuid`
 /// — **distinct from `fk_customer_org`**, the internal BIGINT join FK),
-/// `duration_ms` (`int4`), `seq` (`int8`, monotonic ordering / dedup), and the
+/// `duration_ms` (`int4`), `seq` (`int8`, monotonic ordering / dedup), the
 /// #390 actor columns `actor_type` (`TEXT`, the request's actor classification)
 /// and `acting_for` (`UUID`, the delegated human a delegated agent acts for —
-/// decoded as `Uuid` like `tenant_id`, since the contract types it UUID). All are
-/// contract-nullable.
-type ChangeLogRow = (
-    i64,                   // pk_entity_change_log
-    Uuid,                  // id
-    Option<i64>,           // fk_customer_org (BIGINT join FK)
-    Option<i64>,           // fk_contact (BIGINT)
-    String,                // object_type
-    Uuid,                  // object_id (public-facing UUID)
-    String,                // modification_type
-    Option<String>,        // change_status
-    Option<Value>,         // object_data (nullable)
-    Option<Value>,         // extra_metadata
-    Option<DateTime<Utc>>, // created_at
-    Option<Uuid>,          // tenant_id (public-facing UUID partition stamp)
-    Option<i32>,           // duration_ms (perf column, int4)
-    Option<i64>,           // seq (Change-Spine ordering / dedup, int8)
-    Option<String>,        // actor_type (#390 actor classification, TEXT)
-    Option<Uuid>,          // acting_for (#390 delegated-human public UUID)
-);
+/// decoded as `Uuid` like `tenant_id`, since the contract types it UUID), and
+/// `schema_version` (`TEXT`, #377, the producer's application schema version).
+/// All are contract-nullable.
+///
+/// Decoded **by column name** via `sqlx::FromRow`, so `SELECT` column order is
+/// immaterial and the projection can grow past sqlx's 16-element tuple `FromRow`
+/// ceiling (it reached exactly 16 at #390).
+#[derive(sqlx::FromRow)]
+struct ChangeLogRow {
+    pk_entity_change_log: i64,
+    id:                   Uuid,
+    fk_customer_org:      Option<i64>, // BIGINT join FK
+    fk_contact:           Option<i64>, // BIGINT
+    object_type:          String,
+    object_id:            Uuid, // public-facing UUID
+    modification_type:    String,
+    change_status:        Option<String>,
+    object_data:          Option<Value>, // nullable on the contract
+    extra_metadata:       Option<Value>,
+    created_at:           Option<DateTime<Utc>>,
+    tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
+    duration_ms:          Option<i32>,  // perf column, int4
+    seq:                  Option<i64>,  // Change-Spine ordering / dedup, int8
+    actor_type:           Option<String>, // #390 actor classification, TEXT
+    acting_for:           Option<Uuid>, // #390 delegated-human public UUID
+    schema_version:       Option<String>, // #377 producer schema version, TEXT
+}
 
 /// Configuration for the change log listener
 #[derive(Debug, Clone)]
@@ -176,6 +183,12 @@ pub struct ChangeLogEntry {
     /// as a string like [`tenant_id`](Self::tenant_id); `None` for non-delegated
     /// requests.
     pub acting_for: Option<String>,
+
+    /// The producer's application schema version (#377 envelope column
+    /// `schema_version`) — the schema the originating mutation ran against, for
+    /// cross-version forensics / deploy audit; `None` when the producer did not
+    /// stamp it.
+    pub schema_version: Option<String>,
 }
 
 impl ChangeLogEntry {
@@ -297,6 +310,8 @@ impl ChangeLogEntry {
             // consumers (NATS bridge / CDC fan-out).
             actor_type: self.actor_type.clone(),
             acting_for: self.acting_for.clone(),
+            // #377 producer schema version, surfaced for deploy / cross-version audit.
+            schema_version: self.schema_version.clone(),
         })
     }
 
@@ -411,7 +426,8 @@ impl ChangeLogListener {
                     duration_ms,
                     seq,
                     actor_type,
-                    acting_for
+                    acting_for,
+                    schema_version
                 FROM core.tb_entity_change_log
                 WHERE pk_entity_change_log > $1
                 ORDER BY pk_entity_change_log ASC
@@ -428,24 +444,25 @@ impl ChangeLogListener {
 
         let mut entries = Vec::new();
 
-        for (
-            pk,
+        for ChangeLogRow {
+            pk_entity_change_log: pk,
             id,
-            org,
-            contact,
-            obj_type,
-            obj_id,
-            mod_type,
-            status,
-            data,
-            meta,
-            created,
-            tenant,
+            fk_customer_org: org,
+            fk_contact: contact,
+            object_type: obj_type,
+            object_id: obj_id,
+            modification_type: mod_type,
+            change_status: status,
+            object_data: data,
+            extra_metadata: meta,
+            created_at: created,
+            tenant_id: tenant,
             duration_ms,
             seq,
             actor_type,
             acting_for,
-        ) in rows
+            schema_version,
+        } in rows
         {
             let created_at_str =
                 created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
@@ -473,6 +490,8 @@ impl ChangeLogListener {
                 // a string like tenant_id so downstream readers stay string-typed.
                 actor_type,
                 acting_for: acting_for.map(|u| u.to_string()),
+                // #377 producer schema version (TEXT) — already string-typed.
+                schema_version,
             });
 
             // Update checkpoint for recovery

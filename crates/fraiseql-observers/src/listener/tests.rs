@@ -43,6 +43,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            "order-id".to_string(),
@@ -71,6 +72,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            "user-id".to_string(),
@@ -100,6 +102,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            "prod-id".to_string(),
@@ -158,6 +161,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           Some("user-123".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -194,6 +198,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           Some("user-456".to_string()),
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -234,6 +239,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -268,6 +274,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "Product".to_string(),
             object_id:            entity_id.to_string(),
@@ -303,6 +310,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "User".to_string(),
             object_id:            entity_id.to_string(),
@@ -338,6 +346,7 @@ mod change_log_tests {
             seq:                  None,
             actor_type:           None,
             acting_for:           None,
+            schema_version:       None,
             fk_contact:           None,
             object_type:          "Order".to_string(),
             object_id:            entity_id.to_string(),
@@ -379,6 +388,7 @@ mod change_log_tests {
             seq,
             actor_type: actor_type.map(str::to_string),
             acting_for: acting_for.map(str::to_string),
+            schema_version: None,
             fk_contact: None,
             object_type: "Order".to_string(),
             object_id: entity_id.to_string(),
@@ -458,6 +468,29 @@ mod change_log_tests {
 
         assert_eq!(event.actor_type, None);
         assert_eq!(event.acting_for, None);
+    }
+
+    #[test]
+    fn to_entity_event_surfaces_schema_version() {
+        // #377: the producer's schema version is surfaced on the EntityEvent for
+        // deploy / cross-version audit by out-of-session consumers.
+        let mut entry = entry_with_envelope("org", None, None, None, None, None);
+        entry.schema_version = Some("v2.7.0".to_string());
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.schema_version.as_deref(), Some("v2.7.0"));
+    }
+
+    #[test]
+    fn to_entity_event_schema_version_is_none_when_unstamped() {
+        // A cooperative external producer that did not stamp schema_version
+        // surfaces None — never a fabricated default.
+        let entry = entry_with_envelope("org", None, None, None, None, None);
+
+        let event = entry.to_entity_event().unwrap();
+
+        assert_eq!(event.schema_version, None);
     }
 }
 

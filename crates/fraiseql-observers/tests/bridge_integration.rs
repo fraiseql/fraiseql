@@ -110,6 +110,7 @@ mod bridge_tests {
                 seq BIGINT,
                 actor_type TEXT,
                 acting_for UUID,
+                schema_version TEXT,
                 nats_published_at TIMESTAMPTZ,
                 nats_event_id UUID
             )

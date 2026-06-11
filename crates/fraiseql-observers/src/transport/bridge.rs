@@ -198,6 +198,11 @@ pub struct ChangeLogEntry {
     /// (#390 envelope column `acting_for`); `None` for non-delegated requests.
     pub acting_for: Option<Uuid>,
 
+    /// The producer's application schema version (#377 envelope column
+    /// `schema_version`, `TEXT`); `None` when unstamped. Recorded for deploy /
+    /// cross-version audit.
+    pub schema_version: Option<String>,
+
     /// When the change was published to NATS (None = not published)
     pub nats_published_at: Option<DateTime<Utc>>,
 
@@ -253,6 +258,7 @@ impl ChangeLogEntry {
         event.seq = self.seq;
         event.actor_type.clone_from(&self.actor_type);
         event.acting_for = self.acting_for.map(|u| u.to_string());
+        event.schema_version.clone_from(&self.schema_version);
 
         Ok(event)
     }
@@ -376,6 +382,7 @@ impl PostgresNatsBridge {
                    object_type, object_id, modification_type, change_status,
                    object_data, extra_metadata, created_at,
                    tenant_id, duration_ms, seq, actor_type, acting_for,
+                   schema_version,
                    nats_published_at, nats_event_id
             FROM core.tb_entity_change_log
             WHERE pk_entity_change_log > $1

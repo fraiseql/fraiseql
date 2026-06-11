@@ -81,7 +81,8 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             duration_ms INTEGER,
             seq BIGINT,
             actor_type TEXT,
-            acting_for UUID
+            acting_for UUID,
+            schema_version TEXT
         )
         ",
     )

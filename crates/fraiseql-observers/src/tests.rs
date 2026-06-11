@@ -771,19 +771,20 @@ mod elasticsearch_sink_tests {
         // Drive the private try_bulk_index path via flush_buffer through a mock event.
         // We create a minimal event buffer and call the internal path indirectly.
         let event = crate::event::EntityEvent {
-            id:          uuid::Uuid::nil(),
-            event_type:  crate::event::EventKind::Created,
-            entity_type: "Order".to_string(),
-            entity_id:   uuid::Uuid::nil(),
-            timestamp:   chrono::Utc::now(),
-            data:        serde_json::json!({}),
-            changes:     None,
-            user_id:     None,
-            tenant_id:   Some("tenant-1".to_string()),
-            duration_ms: None,
-            seq:         None,
-            actor_type:  None,
-            acting_for:  None,
+            id:             uuid::Uuid::nil(),
+            event_type:     crate::event::EventKind::Created,
+            entity_type:    "Order".to_string(),
+            entity_id:      uuid::Uuid::nil(),
+            timestamp:      chrono::Utc::now(),
+            data:           serde_json::json!({}),
+            changes:        None,
+            user_id:        None,
+            tenant_id:      Some("tenant-1".to_string()),
+            duration_ms:    None,
+            seq:            None,
+            actor_type:     None,
+            acting_for:     None,
+            schema_version: None,
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");
