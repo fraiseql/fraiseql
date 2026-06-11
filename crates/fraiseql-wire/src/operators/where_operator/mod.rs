@@ -655,10 +655,23 @@ impl WhereOperator {
                 field.validate()
             }
 
-            WhereOperator::Matches { field, .. }
-            | WhereOperator::PlainQuery { field, .. }
-            | WhereOperator::PhraseQuery { field, .. }
-            | WhereOperator::WebsearchQuery { field, .. }
+            WhereOperator::Matches {
+                field, language, ..
+            }
+            | WhereOperator::PhraseQuery {
+                field, language, ..
+            }
+            | WhereOperator::WebsearchQuery {
+                field, language, ..
+            } => {
+                // H41: the regconfig is spliced into `plainto_tsquery('{lang}', $n)`,
+                // so reject anything that is not a lowercase regconfig identifier
+                // before it can reach the SQL generator.
+                Self::validate_text_search_language(language.as_deref())?;
+                field.validate()
+            }
+
+            WhereOperator::PlainQuery { field, .. }
             | WhereOperator::IsIPv4(field)
             | WhereOperator::IsIPv6(field)
             | WhereOperator::IsPrivate { field, .. }
@@ -686,6 +699,34 @@ impl WhereOperator {
             | WhereOperator::DescendantOfId { field, .. }
             | WhereOperator::AncestorOfId { field, .. } => field.validate(),
         }
+    }
+
+    /// Validate a full-text-search `language` regconfig name against `[a-z_]+`.
+    ///
+    /// The language is spliced into `plainto_tsquery('{lang}', $n)` (and the
+    /// phrase/websearch variants) in the SQL generator, so an unvalidated value
+    /// enables quote-escape SQL injection (H41). PostgreSQL text-search
+    /// configuration names are lowercase identifiers (`english`, `simple`,
+    /// `german`, …), so a strict `[a-z_]+` allowlist closes the hole and still
+    /// accepts every real regconfig. `None` (the `english` default) is allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `language` is `Some` and not a non-empty
+    /// `[a-z_]+` token of at most 64 bytes.
+    pub(crate) fn validate_text_search_language(language: Option<&str>) -> Result<(), String> {
+        if let Some(lang) = language {
+            let valid = !lang.is_empty()
+                && lang.len() <= 64
+                && lang.bytes().all(|b| b.is_ascii_lowercase() || b == b'_');
+            if !valid {
+                return Err(format!(
+                    "Full-text search language '{lang}' is not a valid regconfig name \
+                     (expected [a-z_]+)"
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

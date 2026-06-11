@@ -2,6 +2,7 @@
 //!
 //! Shared utilities for SQL generation across federation modules.
 
+use fraiseql_db::DatabaseType;
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
@@ -43,8 +44,11 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 pub fn value_to_sql_literal(value: &Value) -> Result<String> {
     match value {
         Value::String(s) => {
-            let escaped = escape_sql_string(s);
-            Ok(format!("'{}'", escaped))
+            // Single-quote-doubling for the literal-building used by the federation
+            // mutation builders (`mutation_query_builder`). The `_entities` read path
+            // no longer builds literals — it binds parameters (see `query_builder`).
+            let escaped = s.replace('\'', "''");
+            Ok(format!("'{escaped}'"))
         },
         Value::Number(n) => Ok(n.to_string()),
         Value::Bool(b) => Ok(if *b { "true" } else { "false" }.to_string()),
@@ -85,20 +89,45 @@ pub fn value_to_string(value: &Value) -> Result<String> {
     }
 }
 
-/// Escape single quotes in SQL string values to prevent SQL injection.
+/// Bind-parameter placeholder for position `index` (0-based) in `db_type`'s
+/// dialect.
 ///
-/// Uses PostgreSQL/SQL Server style escaping where single quotes are doubled.
-///
-/// # Examples
-///
-/// ```
-/// # use fraiseql_federation::sql_utils::escape_sql_string;
-/// assert_eq!(escape_sql_string("O'Brien"), "O''Brien");
-/// assert_eq!(escape_sql_string("test"), "test");
-/// ```
+/// Matches the convention `DatabaseAdapter::execute_parameterized_aggregate`
+/// expects: 1-based `$N` for PostgreSQL, `@PN` for SQL Server, and `?` otherwise
+/// (MySQL/SQLite). Federation entity resolution binds key-field values as
+/// parameters rather than interpolating them, so the generated SQL must use the
+/// dialect-native placeholder.
 #[must_use]
-pub fn escape_sql_string(value: &str) -> String {
-    value.replace('\'', "''")
+pub fn placeholder(db_type: DatabaseType, index: usize) -> String {
+    match db_type {
+        DatabaseType::PostgreSQL => format!("${}", index + 1),
+        DatabaseType::SQLServer => format!("@P{}", index + 1),
+        _ => "?".to_string(),
+    }
+}
+
+/// Validate that `identifier` is a safe SQL identifier for unquoted
+/// interpolation into a federation query (column / key-field names cannot be
+/// bound as parameters).
+///
+/// The `_entities` read path interpolates identifiers **unquoted** to preserve
+/// PostgreSQL case-folding (the entity views rely on it), so the charset guard
+/// — restricting to `[A-Za-z0-9_]` via [`is_safe_sql_identifier`] — is what
+/// keeps interpolation injection-safe.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `identifier` is not a safe SQL
+/// identifier.
+pub fn validate_sql_identifier(identifier: &str) -> Result<()> {
+    if is_safe_sql_identifier(identifier) {
+        Ok(())
+    } else {
+        Err(FraiseQLError::Validation {
+            message: format!("Unsafe SQL identifier for federation query: '{identifier}'"),
+            path:    None,
+        })
+    }
 }
 
 /// Helper trait to get string representation of JSON value type for error messages.

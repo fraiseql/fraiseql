@@ -9,12 +9,13 @@ use std::collections::HashMap;
 use fraiseql_core::federation::{
     query_builder::construct_where_in_clause, types::EntityRepresentation,
 };
+use fraiseql_db::DatabaseType;
 use serde_json::json;
 
 use super::common;
 
 // ============================================================================
-// WHERE Clause Construction
+// WHERE Clause Construction — values are bound as parameters, never interpolated
 // ============================================================================
 
 #[test]
@@ -41,8 +42,11 @@ fn test_where_clause_single_key_field() {
         all_fields: rep2_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep1, rep2], &metadata).unwrap();
-    assert_eq!(where_clause, "id IN ('123', '456')");
+    let (where_clause, params) =
+        construct_where_in_clause("User", &[rep1, rep2], &metadata, DatabaseType::PostgreSQL)
+            .unwrap();
+    assert_eq!(where_clause, "id IN ($1, $2)");
+    assert_eq!(params, vec![json!("123"), json!("456")]);
 }
 
 #[test]
@@ -61,12 +65,14 @@ fn test_where_clause_composite_keys() {
         all_fields: rep1_all,
     };
 
-    let where_clause = construct_where_in_clause("Order", &[rep1], &metadata).unwrap();
-    assert_eq!(where_clause, "(user_id, order_id) IN (('user1', 'order1'))");
+    let (where_clause, params) =
+        construct_where_in_clause("Order", &[rep1], &metadata, DatabaseType::PostgreSQL).unwrap();
+    assert_eq!(where_clause, "(user_id, order_id) IN (($1, $2))");
+    assert_eq!(params, vec![json!("user1"), json!("order1")]);
 }
 
 #[test]
-fn test_where_clause_string_escaping() {
+fn test_where_clause_value_with_quote_is_bound_not_escaped() {
     let metadata = common::metadata_single_key("User", "name");
 
     let mut rep_keys = HashMap::new();
@@ -79,26 +85,34 @@ fn test_where_clause_string_escaping() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "name IN ('O''Brien')");
+    let (where_clause, params) =
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    // The value is bound verbatim — no inline escaping in the SQL text.
+    assert_eq!(where_clause, "name IN ($1)");
+    assert_eq!(params, vec![json!("O'Brien")]);
 }
 
 #[test]
 fn test_where_clause_sql_injection_prevention() {
     let metadata = common::metadata_single_key("User", "id");
 
+    let payload = "'; DROP TABLE users; --";
     let mut rep_keys = HashMap::new();
-    rep_keys.insert("id".to_string(), json!("'; DROP TABLE users; --"));
+    rep_keys.insert("id".to_string(), json!(payload));
     let mut rep_all = HashMap::new();
-    rep_all.insert("id".to_string(), json!("'; DROP TABLE users; --"));
+    rep_all.insert("id".to_string(), json!(payload));
     let rep = EntityRepresentation {
         typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "id IN ('''; DROP TABLE users; --')");
+    let (where_clause, params) =
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    // The injection payload is carried as a bound parameter, never spliced into SQL.
+    assert_eq!(where_clause, "id IN ($1)");
+    assert!(!where_clause.contains("DROP"));
+    assert_eq!(params, vec![json!(payload)]);
 }
 
 #[test]
@@ -115,6 +129,10 @@ fn test_where_clause_type_coercion() {
         all_fields: rep_all,
     };
 
-    let where_clause = construct_where_in_clause("Order", &[rep], &metadata).unwrap();
-    assert_eq!(where_clause, "order_id IN ('789')");
+    let (where_clause, params) =
+        construct_where_in_clause("Order", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+    // Numeric keys are stringified (matching the prior literal-comparison semantics)
+    // and bound as text parameters.
+    assert_eq!(where_clause, "order_id IN ($1)");
+    assert_eq!(params, vec![json!("789")]);
 }

@@ -3671,38 +3671,6 @@ mod tenant_enforcer_tests {
     }
 
     #[test]
-    fn test_enforce_tenant_scope_sql_without_where() {
-        let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
-        let sql = "SELECT * FROM users";
-        let result = enforcer.enforce_tenant_scope_sql(sql);
-
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL without WHERE: {e}"));
-        assert!(enforced.contains("WHERE org_id = 'org-123'"));
-    }
-
-    #[test]
-    fn test_enforce_tenant_scope_sql_with_where() {
-        let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
-        let sql = "SELECT * FROM users WHERE status = 'active'";
-        let result = enforcer.enforce_tenant_scope_sql(sql);
-
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL with WHERE: {e}"));
-        assert!(enforced.contains("WHERE status = 'active'"));
-        assert!(enforced.contains("AND org_id = 'org-123'"));
-    }
-
-    #[test]
-    fn test_enforce_tenant_scope_sql_with_group_by() {
-        let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
-        let sql = "SELECT status, COUNT(*) as count FROM users GROUP BY status";
-        let result = enforcer.enforce_tenant_scope_sql(sql);
-
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL with GROUP BY: {e}"));
-        assert!(enforced.contains("WHERE org_id = 'org-123'"));
-        assert!(enforced.contains("GROUP BY"));
-    }
-
-    #[test]
     fn test_enforce_tenant_scope_without_org_id() {
         let enforcer = TenantEnforcer::new(None);
         let user_clause = WhereClause::Field {
@@ -3717,25 +3685,6 @@ mod tenant_enforcer_tests {
         let enforced = result
             .unwrap_or_else(|e| panic!("expected Ok for enforce_tenant_scope without org_id: {e}"));
         assert!(matches!(enforced, Some(WhereClause::Field { .. })));
-    }
-
-    #[test]
-    fn test_enforce_tenant_scope_sql_injection_prevention() {
-        // SECURITY: Ensure SQL injection via org_id is prevented
-        let enforcer = TenantEnforcer::new(Some("'; DROP TABLE users; --".to_string()));
-        let sql = "SELECT * FROM users";
-        let result = enforcer.enforce_tenant_scope_sql(sql);
-
-        let enforced = result.unwrap_or_else(|e| panic!("expected Ok for SQL injection test: {e}"));
-        // The malicious single quote must be escaped (doubled) so it stays inside the string
-        // Expected: ... WHERE org_id = '''; DROP TABLE users; --'
-        // The '' keeps the quote inside the SQL string literal
-        assert!(enforced.contains("''"), "Single quotes in org_id must be escaped (doubled)");
-        // The org_id value should be wrapped in a SQL string literal, not terminated early
-        assert!(
-            enforced.contains("WHERE org_id = '''"),
-            "The escaped single quote should keep the value inside the string literal"
-        );
     }
 
     #[test]

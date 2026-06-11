@@ -103,30 +103,28 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Find type definition using metadata helpers (whitelist check)
         let fed_type = find_federation_type(typename, &self.metadata)?;
 
-        // Get table name from typename (already validated as safe identifier above)
+        // Get table name from typename (already validated as a safe identifier
+        // above). The table identifier is quoted — its lowercased form has no
+        // embedded quotes after the `is_safe_sql_identifier` check — so reserved-word
+        // type names like `User` -> `user` still produce valid SQL.
         let table_name = typename.to_lowercase();
-
-        // Build WHERE IN clause for batch query
-        let where_clause = construct_where_in_clause(typename, representations, &self.metadata)?;
-
-        // Build SELECT list from field selection + always include key fields
-        let mut select_fields = selection.fields.clone();
-        for key in &fed_type.keys {
-            for field in &key.fields {
-                if !select_fields.contains(field) {
-                    select_fields.push(field.clone());
-                }
-            }
-        }
-
-        // Filter __typename from SQL SELECT — it is a GraphQL meta-field not stored
-        // in the database. The project_results() function injects it into each entity.
-        select_fields.retain(|f| f != "__typename");
-
-        // Execute query. The table identifier is quoted so entity type names that map
-        // to a reserved word (e.g. `User` -> `user`) produce valid SQL; `table_name` is
-        // already validated as a safe identifier above, and any embedded `"` is doubled.
         let quoted_table = format!("\"{}\"", table_name.replace('"', "\"\""));
+
+        // Build the parameterized WHERE IN clause. Key-field values are bound (not
+        // interpolated), so the dialect must match the executing adapter.
+        let db_type = self.adapter.database_type();
+        let (where_clause, params) =
+            construct_where_in_clause(typename, representations, &self.metadata, db_type)?;
+
+        // Build the SELECT list. Each requested field must be a safe SQL identifier
+        // AND exposed: `@inaccessible` / `@external` fields are never selected, so a
+        // client naming them cannot exfiltrate them via `_entities` (M-fed-select-
+        // list). The selection comes from a text scanner, so any token that is not a
+        // plain identifier is dropped here too. Fields are interpolated unquoted (the
+        // entity views rely on PostgreSQL case-folding); the charset guard is what
+        // keeps that interpolation injection-safe.
+        let select_fields = build_select_fields(selection, fed_type);
+
         let sql = format!(
             "SELECT {} FROM {} WHERE {}",
             select_fields.join(", "),
@@ -134,12 +132,49 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             where_clause
         );
 
-        // Execute the query (using raw query execution)
-        let rows = self.adapter.execute_raw_query(&sql).await?;
+        // Execute with bound parameters (no value interpolation).
+        let rows = self.adapter.execute_parameterized_aggregate(&sql, &params).await?;
 
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)
     }
+}
+
+/// Build the validated, exposure-filtered SELECT field list for an `_entities`
+/// query.
+///
+/// A requested field is kept only if it is a safe SQL identifier AND exposed:
+/// `@inaccessible` (via either `field_directives` or the `inaccessible_fields`
+/// list) and `@external` fields are dropped, so a client naming them cannot
+/// exfiltrate them via `_entities` (M-fed-select-list). `__typename` and any
+/// non-identifier scanner token are dropped too. The type's key fields are
+/// always appended — they are schema-defined identifiers and `project_results`
+/// needs them to match rows to representations.
+fn build_select_fields(selection: &FieldSelection, fed_type: &FederatedType) -> Vec<String> {
+    let mut select_fields: Vec<String> = Vec::new();
+    for field in &selection.fields {
+        if field == "__typename" {
+            continue;
+        }
+        if !is_safe_sql_identifier(field)
+            || fed_type.field_is_inaccessible(field)
+            || fed_type.inaccessible_fields.iter().any(|f| f == field)
+            || fed_type.external_fields.iter().any(|e| e == field)
+        {
+            continue;
+        }
+        if !select_fields.contains(field) {
+            select_fields.push(field.clone());
+        }
+    }
+    for key in &fed_type.keys {
+        for field in &key.fields {
+            if is_safe_sql_identifier(field) && !select_fields.contains(field) {
+                select_fields.push(field.clone());
+            }
+        }
+    }
+    select_fields
 }
 
 /// Project database results to federation format, maintaining order of representations.

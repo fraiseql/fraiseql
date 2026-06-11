@@ -1,69 +1,78 @@
 //! SQL query construction for federation entity resolution.
 //!
-//! Builds WHERE IN clauses for batch entity queries, with SQL injection prevention
-//! through proper escaping and parameterization.
+//! Builds parameterized WHERE IN clauses for batch entity queries. Key-field
+//! values are bound as parameters (never interpolated) and key-field identifiers
+//! are validated, preventing SQL injection across every supported backend —
+//! including MySQL's default backslash-escape mode, where the former
+//! single-quote-only escaping was unsafe (H3).
 
+use fraiseql_db::DatabaseType;
 use fraiseql_error::{FraiseQLError, Result};
+use serde_json::Value;
 
 use crate::{
     metadata_helpers::{find_federation_type, get_key_directive},
-    sql_utils::{escape_sql_string, value_to_string},
+    sql_utils::{placeholder, validate_sql_identifier, value_to_string},
     types::{EntityRepresentation, FederationMetadata},
 };
 
-/// Build a WHERE IN clause for batch entity resolution.
+/// Build a parameterized WHERE IN clause for batch entity resolution.
 ///
-/// Example:
-/// ```text
-/// SELECT id, name, email FROM users WHERE id IN ('123', '456', '789')
-/// ```
+/// Returns the SQL fragment (with dialect-native bind placeholders) and the
+/// ordered parameter values to bind. Key-field values are bound, not
+/// interpolated, so attacker-controlled `representations` cannot inject SQL.
+///
+/// Example (PostgreSQL): `id IN ($1, $2, $3)` with params `["a", "b", "c"]`.
 ///
 /// # Arguments
 ///
 /// * `typename` - The entity type name (e.g., "User")
 /// * `representations` - Entity representations with key field values
 /// * `metadata` - Federation metadata for the schema
-///
-/// # Returns
-///
-/// WHERE clause string ready for SQL query
+/// * `db_type` - The target backend dialect (controls placeholder syntax)
 ///
 /// # Errors
 ///
-/// Returns error if type not found in metadata or key fields missing
+/// Returns error if the type is not found, a key field is missing, or a key
+/// field name is not a safe SQL identifier.
 pub fn construct_where_in_clause(
     typename: &str,
     representations: &[EntityRepresentation],
     metadata: &FederationMetadata,
-) -> Result<String> {
+    db_type: DatabaseType,
+) -> Result<(String, Vec<Value>)> {
     // Find the entity type and its key directive
     let fed_type = find_federation_type(typename, metadata)?;
     let key_directive = get_key_directive(fed_type)?;
 
-    // For single-field keys, build simple WHERE IN
+    // For single-field keys, build a simple WHERE IN
     if key_directive.fields.len() == 1 {
         let key_field = &key_directive.fields[0];
+        validate_sql_identifier(key_field)?;
         let key_values = extract_key_values(representations, key_field)?;
 
         if key_values.is_empty() {
-            return Ok("1 = 0".to_string()); // No entities to resolve
+            return Ok(("1 = 0".to_string(), Vec::new())); // No entities to resolve
         }
 
-        // Build: key_field IN ('val1', 'val2', ...)
-        let values_str = key_values
-            .iter()
-            .map(|v| format!("'{}'", escape_sql_string(v)))
+        // Build: key_field IN ($1, $2, ...) with values bound separately.
+        let placeholders = (0..key_values.len())
+            .map(|i| placeholder(db_type, i))
             .collect::<Vec<_>>()
             .join(", ");
+        let params = key_values.into_iter().map(Value::String).collect();
 
-        Ok(format!("{} IN ({})", key_field, values_str))
+        Ok((format!("{key_field} IN ({placeholders})"), params))
     } else {
-        // For composite keys, build: (key1, key2) IN ((val1a, val1b), ...)
-        construct_composite_where_in(&key_directive.fields, representations)
+        // For composite keys, build: (key1, key2) IN (($1, $2), ...)
+        construct_composite_where_in(&key_directive.fields, representations, db_type)
     }
 }
 
 /// Extract values of a specific key field from entity representations.
+///
+/// Values are stringified (matching the legacy literal-comparison semantics) and
+/// later bound as `Value::String` parameters by the caller.
 fn extract_key_values(
     representations: &[EntityRepresentation],
     key_field: &str,
@@ -85,34 +94,44 @@ fn extract_key_values(
         .collect()
 }
 
-/// Build WHERE IN clause for composite keys.
+/// Build a parameterized WHERE IN clause for composite keys.
 fn construct_composite_where_in(
     key_fields: &[String],
     representations: &[EntityRepresentation],
-) -> Result<String> {
+    db_type: DatabaseType,
+) -> Result<(String, Vec<Value>)> {
     if representations.is_empty() {
-        return Ok("1 = 0".to_string());
+        return Ok(("1 = 0".to_string(), Vec::new()));
     }
 
-    // Extract all key value combinations
+    // Validate each key-field identifier once (interpolated unquoted, like the
+    // single-key path, to preserve PostgreSQL case-folding).
+    for field in key_fields {
+        validate_sql_identifier(field)?;
+    }
+
+    let mut params: Vec<Value> = Vec::new();
     let mut value_tuples = Vec::new();
 
     for rep in representations {
-        let mut tuple_values = Vec::new();
+        let mut placeholders = Vec::new();
         for field in key_fields {
             let value = rep.key_fields.get(field).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Key field '{}' missing in representation", field),
                 path:    None,
             })?;
-            tuple_values.push(format!("'{}'", escape_sql_string(&value_to_string(value)?)));
+            // The placeholder index is the position this value occupies in the flat
+            // `params` vector (0-based), so it must be read before the push.
+            placeholders.push(placeholder(db_type, params.len()));
+            params.push(Value::String(value_to_string(value)?));
         }
-        value_tuples.push(format!("({})", tuple_values.join(", ")));
+        value_tuples.push(format!("({})", placeholders.join(", ")));
     }
 
     let fields_list = key_fields.join(", ");
     let tuples_str = value_tuples.join(", ");
 
-    Ok(format!("({}) IN ({})", fields_list, tuples_str))
+    Ok((format!("({fields_list}) IN ({tuples_str})"), params))
 }
 
 #[cfg(test)]

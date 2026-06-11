@@ -961,6 +961,27 @@ fn bind_json_params<'a>(
 // Relay cursor pagination
 // ============================================================================
 
+/// Validate the field names of relay ORDER BY clauses before they are
+/// interpolated into `JSON_VALUE(data, '$.{field}')` paths.
+///
+/// The SQL Server relay builders (`build_relay_order_sql` and the backward-page
+/// inner `_relay_sort_*` projection) splice `clause.field` without escaping.
+/// `OrderByClause::from_graphql_json` already validates field names, so this is
+/// defense-in-depth that also covers any directly-constructed `OrderByClause`.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if any field name is not a safe
+/// `[_A-Za-z][_0-9A-Za-z]*` identifier.
+fn validate_relay_order_fields(order_by: Option<&[OrderByClause]>) -> Result<()> {
+    if let Some(clauses) = order_by {
+        for clause in clauses {
+            OrderByClause::validate_field_name(&clause.field)?;
+        }
+    }
+    Ok(())
+}
+
 /// Custom sort columns come first, then the cursor column as tiebreaker.
 /// For backward pagination every direction is flipped so the inner `FETCH NEXT` subquery
 /// retrieves the correct `N` rows before the cursor; the outer re-sort in
@@ -1074,6 +1095,12 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
     ) -> Result<RelayPageResult> {
         let quoted_view = quote_sqlserver_identifier(view);
         let quoted_col = quote_sqlserver_identifier(cursor_column);
+
+        // Validate ORDER BY field names before they reach the relay builders, which
+        // interpolate them into `JSON_VALUE(data, '$.{field}')` unescaped on SQL
+        // Server. The validating caller (`OrderByClause::from_graphql_json`) already
+        // rejects unsafe names; this guards any directly-constructed `OrderByClause`.
+        validate_relay_order_fields(order_by)?;
 
         // ── Cursor condition ─────────────────────────────────────────────────
         let active_cursor = if forward { after } else { before };

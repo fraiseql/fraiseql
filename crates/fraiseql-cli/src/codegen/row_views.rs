@@ -30,7 +30,11 @@ pub fn generate_row_view_sql(dialect: &dyn SqlDialect, type_def: &TypeDefinition
     let columns: Vec<(String, String)> = type_def
         .fields
         .iter()
-        .filter(|f| f.field_type.is_scalar())
+        // Each field name is interpolated into the JSONB extraction path
+        // (`data->>'{name}'`) by the dialect, so a name containing a single quote
+        // would break out of that literal. A compiled schema should only carry
+        // valid GraphQL identifiers; drop anything else defensively.
+        .filter(|f| f.field_type.is_scalar() && is_safe_field_name(f.name.as_ref()))
         .map(|f| {
             let col_type = graphql_to_row_view_type(&f.field_type.to_graphql_string());
             let expr =
@@ -79,4 +83,30 @@ pub fn generate_all_row_views(
     }
 
     ddl_parts.join("\n\n")
+}
+
+/// A field name is safe to interpolate into a row-view JSONB extraction path only
+/// if it is a plain SQL identifier (`[A-Za-z0-9_]`, non-empty, ≤128 chars).
+fn is_safe_field_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+#[cfg(test)]
+mod field_name_tests {
+    use super::is_safe_field_name;
+
+    #[test]
+    fn is_safe_field_name_accepts_identifiers_rejects_injection() {
+        assert!(is_safe_field_name("email"));
+        assert!(is_safe_field_name("created_at"));
+        assert!(is_safe_field_name("_private"));
+
+        assert!(!is_safe_field_name(""));
+        assert!(!is_safe_field_name("evil'; DROP VIEW vr_user; --"));
+        assert!(!is_safe_field_name("a'b"));
+        assert!(!is_safe_field_name("with space"));
+        assert!(!is_safe_field_name("dotted.path"));
+    }
 }

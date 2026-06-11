@@ -1,156 +1,105 @@
-//! Entity resolution tests - Performance benchmarks.
+//! Entity resolution at scale against **real PostgreSQL** — single, batch-100,
+//! and repeated resolution over a reused pool.
 //!
-//! Tests validate single entity resolution latency, batch resolution
-//! latency, and concurrent entity resolution.
+//! Micro-latency benchmarking lives in `benches/`; these assert correctness of
+//! the parameterized `_entities` path against a real database.
 
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use std::{collections::HashMap, sync::Arc, time::Instant};
-
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code (skip notes to stderr)
 use fraiseql_core::federation::{
     database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
-    types::EntityRepresentation,
 };
 use serde_json::json;
 
 use super::common;
 
-// ============================================================================
-// Performance
-// ============================================================================
+fn id_name_selection() -> FieldSelection {
+    FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+    ])
+}
 
-#[test]
-fn test_single_entity_resolution_latency() {
-    let mut user = HashMap::new();
-    user.insert("id".to_string(), json!("user1"));
-    user.insert("name".to_string(), json!("John"));
-
-    let mock_adapter = Arc::new(
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]),
-    );
-
-    let metadata = common::metadata_single_key("User", "id");
-
-    let mut rep_keys = HashMap::new();
-    rep_keys.insert("id".to_string(), json!("user1"));
-    let mut rep_all = HashMap::new();
-    rep_all.insert("id".to_string(), json!("user1"));
-
-    let representation = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: rep_keys,
-        all_fields: rep_all,
+#[tokio::test]
+async fn test_single_entity_resolution() {
+    let rows = vec![common::row(&[
+        ("id", json!("user1")),
+        ("name", json!("John")),
+    ])];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_single_entity_resolution: no postgres (set DATABASE_URL)");
+        return;
     };
 
-    let selection = FieldSelection::new(vec![
-        "__typename".to_string(),
-        "id".to_string(),
-        "name".to_string(),
-    ]);
+    let resolver = DatabaseEntityResolver::new(adapter, common::metadata_single_key("User", "id"));
+    let entities = resolver
+        .resolve_entities_from_db(
+            "User",
+            &[common::rep("User", &[("id", json!("user1"))])],
+            &id_name_selection(),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("resolve failed: {e}"));
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-
-    let start = Instant::now();
-    let _result =
-        runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
-    let duration = start.elapsed();
-
-    assert!(duration.as_millis() < 10, "Single entity resolution took {:?}", duration);
+    assert_eq!(entities.len(), 1);
+    assert_eq!(entities[0].as_ref().expect("entity must resolve")["name"], "John");
 }
 
-#[test]
-fn test_batch_100_entities_resolution_latency() {
+#[tokio::test]
+async fn test_batch_100_entities_resolution() {
     let mut rows = Vec::new();
     let mut reps = Vec::new();
-
     for i in 0..100 {
-        let mut row = HashMap::new();
-        let id = format!("user{}", i);
-        row.insert("id".to_string(), json!(id.clone()));
-        row.insert("name".to_string(), json!(format!("User {}", i)));
-        rows.push(row);
-
-        let mut rep_keys = HashMap::new();
-        rep_keys.insert("id".to_string(), json!(id.clone()));
-        let mut rep_all = HashMap::new();
-        rep_all.insert("id".to_string(), json!(id));
-
-        reps.push(EntityRepresentation {
-            typename:   "User".to_string(),
-            key_fields: rep_keys,
-            all_fields: rep_all,
-        });
+        let id = format!("user{i}");
+        rows.push(common::row(&[("id", json!(id)), ("name", json!(format!("User {i}")))]));
+        reps.push(common::rep("User", &[("id", json!(id))]));
     }
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_batch_100_entities_resolution: no postgres");
+        return;
+    };
 
-    let mock_adapter =
-        Arc::new(common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows));
+    let resolver = DatabaseEntityResolver::new(adapter, common::metadata_single_key("User", "id"));
+    let entities = resolver
+        .resolve_entities_from_db("User", &reps, &id_name_selection())
+        .await
+        .unwrap_or_else(|e| panic!("resolve failed: {e}"));
 
-    let metadata = common::metadata_single_key("User", "id");
-
-    let selection = FieldSelection::new(vec![
-        "__typename".to_string(),
-        "id".to_string(),
-        "name".to_string(),
-    ]);
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-
-    let start = Instant::now();
-    let result = runtime.block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
-    let duration = start.elapsed();
-
-    let entities =
-        result.unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
     assert_eq!(entities.len(), 100);
-
-    assert!(duration.as_millis() < 100, "Batch resolution took {:?}", duration);
+    assert!(entities.iter().all(Option::is_some));
 }
 
-#[test]
-fn test_concurrent_entity_resolution() {
-    let mut users = Vec::new();
-    for i in 0..10 {
-        let mut user = HashMap::new();
-        user.insert("id".to_string(), json!(format!("user{}", i)));
-        user.insert("name".to_string(), json!(format!("User {}", i)));
-        users.push(user);
+#[tokio::test]
+async fn test_repeated_resolution_over_reused_pool() {
+    let mut rows = Vec::new();
+    for i in 0..5 {
+        rows.push(common::row(&[
+            ("id", json!(format!("user{i}"))),
+            ("name", json!(format!("User {i}"))),
+        ]));
     }
-
-    let mock_adapter =
-        Arc::new(common::MockDatabaseAdapter::new().with_table_data("user".to_string(), users));
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_repeated_resolution_over_reused_pool: no postgres");
+        return;
+    };
 
     let metadata = common::metadata_single_key("User", "id");
-
-    let selection = FieldSelection::new(vec![
-        "__typename".to_string(),
-        "id".to_string(),
-        "name".to_string(),
-    ]);
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
     for i in 0..5 {
-        let mut rep_keys = HashMap::new();
-        rep_keys.insert("id".to_string(), json!(format!("user{}", i)));
-        let mut rep_all = HashMap::new();
-        rep_all.insert("id".to_string(), json!(format!("user{}", i)));
-
-        let representation = EntityRepresentation {
-            typename:   "User".to_string(),
-            key_fields: rep_keys,
-            all_fields: rep_all,
-        };
-
-        let resolver = DatabaseEntityResolver::new(mock_adapter.clone(), metadata.clone());
-        let result = runtime.block_on(resolver.resolve_entities_from_db(
-            "User",
-            &[representation],
-            &selection,
-        ));
-
-        let entities =
-            result.unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
+        let resolver = DatabaseEntityResolver::new(adapter.clone(), metadata.clone());
+        let entities = resolver
+            .resolve_entities_from_db(
+                "User",
+                &[common::rep("User", &[("id", json!(format!("user{i}")))])],
+                &id_name_selection(),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("resolve failed on attempt {i}: {e}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }

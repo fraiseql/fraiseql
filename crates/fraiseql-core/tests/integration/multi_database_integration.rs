@@ -1252,6 +1252,31 @@ mod mysql_mutation_tests {
             "Expected Database error, got {err:?}"
         );
     }
+
+    /// C1 regression (CRITICAL SQL injection): a stored-procedure argument that
+    /// looks like an injection payload — backslash-quote breakout + statement
+    /// terminator + comment — must be **bound as a literal string**, not parsed
+    /// as SQL. The procedure echoes its argument back via a SELECT, so the value
+    /// must round-trip byte-for-byte. Under the pre-fix inline text-protocol
+    /// escaping (which doubled `'` only and left `\` alone), MySQL's default
+    /// backslash mode let `\'` close the quote and the trailing `; …` execute as
+    /// raw SQL, so the call errored or stored a mangled value; the parameterized
+    /// CALL binds the exact bytes.
+    #[tokio::test]
+    async fn test_mysql_function_call_arg_is_not_sql_injectable() {
+        let a = MySqlAdapter::new(&mysql_url()).await.expect("connect");
+        let payload = r"\', SELECT 1; -- injected";
+        let result = a
+            .execute_function_call("fn_create_tag", &[serde_json::json!(payload)])
+            .await
+            .expect("parameterized CALL must succeed even with an injection-shaped argument");
+        assert!(!result.is_empty(), "procedure must return the inserted row");
+        let name = result[0].get("name").and_then(|v| v.as_str()).unwrap_or_default();
+        assert_eq!(
+            name, payload,
+            "argument must round-trip as a literal string, proving it was bound, not executed"
+        );
+    }
 }
 
 // ============================================================================

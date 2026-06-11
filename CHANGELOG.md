@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
+  `CALL` statements on the MySQL backend bound arguments by inline string-escaping
+  that doubled single quotes only and left backslashes untouched; under MySQL's
+  default SQL mode a GraphQL mutation argument like `\', …; -- ` could break out of
+  the string literal and execute injected SQL (the driver negotiates
+  `MULTI_STATEMENTS`). Both call paths (`execute_function_call` and the Change-Spine
+  outbox variant) now bind arguments as prepared-statement parameters
+  (`CALL fn(?, …)`) and the inline escaper is removed. Affects every published
+  release with the MySQL backend.
+- **Webhook `body_template` values are JSON-escaped (H11).** Observer webhook bodies
+  were built by substituting entity-field values into a string template and
+  re-parsing the result, so an attacker-controlled string field (a username,
+  comment, …) could break out of its JSON string and inject or override keys in the
+  HMAC-signed (`X-FraiseQL-Signature-256`) payload. String values are now
+  JSON-escaped into their surrounding string context; typed (number/bool) slots and
+  plain-text bodies are preserved. The Slack and email paths were already safe.
+- **Aggregation, federation, full-text, and relay SQL paths hardened against
+  injection (H1, H3, H41, and latent M-/L- sites).**
+  - GROUP BY dimension aliases — echoed verbatim from GraphQL variable JSON keys
+    into the SELECT list — are validated as `[_A-Za-z][_0-9A-Za-z]*` at parse time,
+    independent of the compile-time dimension allowlist (H1).
+  - Federation `_entities` resolution binds key-field values as dialect-native
+    parameters instead of single-quote-escaping them (unsafe on MySQL), validates
+    key/field identifiers, and never selects `@inaccessible` / `@external` fields
+    (H3, M-fed-select-list); the federation `escape_sql_string` helper is removed.
+  - Full-text search `language` (regconfig) is validated against `[a-z_]+` in
+    `WhereOperator::validate()` before it reaches `plainto_tsquery` in the published
+    `fraiseql-wire` crate (H41).
+  - The SQL Server relay ORDER BY builders validate order-by field names before
+    interpolating them into `JSON_VALUE` paths (M-relay-orderby), and the row-view
+    DDL codegen skips field names that are not safe identifiers (L-row-views).
+- **Removed a dead, dialect-incomplete tenant-filter helper.** The unused
+  `TenantEnforcer::enforce_tenant_scope_sql` (string-concatenation tenant filter
+  with incomplete escaping) was deleted; the parameterized AST-based
+  `enforce_tenant_scope` is the supported path (L-tenant-enforcer).
+
 ### Added
 
 - **External-write capture for subscriptions (#366).** Uncooperative external

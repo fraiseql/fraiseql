@@ -56,10 +56,3 @@ fn test_value_to_string() {
     assert_eq!(value_to_string(&Value::Bool(true)).unwrap(), "true");
     assert_eq!(value_to_string(&Value::Null).unwrap(), "null");
 }
-
-#[test]
-fn test_escape_sql_string() {
-    assert_eq!(escape_sql_string("O'Brien"), "O''Brien");
-    assert_eq!(escape_sql_string("test"), "test");
-    assert_eq!(escape_sql_string("test''; DROP--"), "test''''; DROP--");
-}

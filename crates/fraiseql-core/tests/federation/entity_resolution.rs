@@ -1,10 +1,14 @@
-//! Entity resolution tests — single, batch, composite key, null handling,
-//! and large result set resolution from PostgreSQL.
+//! Entity resolution tests — single, batch, composite key, null handling, and
+//! large-result-set resolution against **real PostgreSQL**.
 //!
-//! Split from `federation_database_integration.rs`.
+//! Each test provisions a real table via `common::pg_entity_fixture` and skips
+//! cleanly when no Postgres is configured (the non-DB preflight leg); they run
+//! for real on the Dagger `integration --suite=postgres` leg, where the
+//! federation test target is invoked with a bound `DATABASE_URL`. This exercises
+//! the parameterized `_entities` SQL path end-to-end (H3).
 
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use std::{collections::HashMap, sync::Arc};
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code (skip notes to stderr)
+use std::collections::HashMap;
 
 use fraiseql_core::federation::{
     database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
@@ -14,33 +18,37 @@ use serde_json::{Value, json};
 
 use super::common;
 
-// ============================================================================
-// Database Entity Resolution (PostgreSQL)
-// ============================================================================
+/// Build a row / key map from (column, value) pairs.
+fn map(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
+    pairs.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect()
+}
 
-#[test]
-fn test_resolve_entity_from_postgres_table() {
-    let mut user_row = HashMap::new();
-    user_row.insert("id".to_string(), json!("user123"));
-    user_row.insert("name".to_string(), json!("John Doe"));
-    user_row.insert("email".to_string(), json!("john@example.com"));
+/// Build a representation for `typename` from its key (column, value) pairs.
+fn rep(typename: &str, keys: &[(&str, Value)]) -> EntityRepresentation {
+    let key_fields = map(keys);
+    EntityRepresentation {
+        typename: typename.to_string(),
+        all_fields: key_fields.clone(),
+        key_fields,
+    }
+}
 
-    let mock_adapter =
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user_row]);
-
-    let metadata = common::metadata_single_key("User", "id");
-
-    let mut rep_keys = HashMap::new();
-    rep_keys.insert("id".to_string(), json!("user123"));
-    let mut rep_all = HashMap::new();
-    rep_all.insert("id".to_string(), json!("user123"));
-
-    let representation = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: rep_keys,
-        all_fields: rep_all,
+#[tokio::test]
+async fn test_resolve_entity_from_postgres_table() {
+    let rows = vec![map(&[
+        ("id", json!("user123")),
+        ("name", json!("John Doe")),
+        ("email", json!("john@example.com")),
+    ])];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text", "email text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_entity_from_postgres_table: no postgres (set DATABASE_URL)");
+        return;
     };
 
+    let metadata = common::metadata_single_key("User", "id");
+    let representation = rep("User", &[("id", json!("user123"))]);
     let selection = FieldSelection::new(vec![
         "__typename".to_string(),
         "id".to_string(),
@@ -48,106 +56,72 @@ fn test_resolve_entity_from_postgres_table() {
         "email".to_string(),
     ]);
 
-    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
-    let result = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db("User", &[representation], &selection)
+        .await
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres table) failed: {e}"));
 
-    let entities =
-        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres table) failed: {e}"));
     assert_eq!(entities.len(), 1);
-    assert!(entities[0].is_some());
-
-    let entity = &entities[0].as_ref().unwrap();
+    let entity = entities[0].as_ref().expect("entity must resolve");
     assert_eq!(entity["__typename"], "User");
     assert_eq!(entity["id"], "user123");
     assert_eq!(entity["name"], "John Doe");
 }
 
-#[test]
-fn test_resolve_entities_batch_from_postgres() {
-    let mut user1 = HashMap::new();
-    user1.insert("id".to_string(), json!("user1"));
-    user1.insert("name".to_string(), json!("Alice"));
-
-    let mut user2 = HashMap::new();
-    user2.insert("id".to_string(), json!("user2"));
-    user2.insert("name".to_string(), json!("Bob"));
-
-    let mock_adapter =
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user1, user2]);
+#[tokio::test]
+async fn test_resolve_entities_batch_from_postgres() {
+    let rows = vec![
+        map(&[("id", json!("user1")), ("name", json!("Alice"))]),
+        map(&[("id", json!("user2")), ("name", json!("Bob"))]),
+    ];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_entities_batch_from_postgres: no postgres (set DATABASE_URL)");
+        return;
+    };
 
     let metadata = common::metadata_single_key("User", "id");
-
-    let mut rep1_keys = HashMap::new();
-    rep1_keys.insert("id".to_string(), json!("user1"));
-    let mut rep1_all = HashMap::new();
-    rep1_all.insert("id".to_string(), json!("user1"));
-
-    let mut rep2_keys = HashMap::new();
-    rep2_keys.insert("id".to_string(), json!("user2"));
-    let mut rep2_all = HashMap::new();
-    rep2_all.insert("id".to_string(), json!("user2"));
-
     let reps = vec![
-        EntityRepresentation {
-            typename:   "User".to_string(),
-            key_fields: rep1_keys,
-            all_fields: rep1_all,
-        },
-        EntityRepresentation {
-            typename:   "User".to_string(),
-            key_fields: rep2_keys,
-            all_fields: rep2_all,
-        },
+        rep("User", &[("id", json!("user1"))]),
+        rep("User", &[("id", json!("user2"))]),
     ];
-
     let selection = FieldSelection::new(vec![
         "__typename".to_string(),
         "id".to_string(),
         "name".to_string(),
     ]);
 
-    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
-    let result = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db("User", &reps, &selection)
+        .await
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (batch) failed: {e}"));
 
-    let entities =
-        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (batch) failed: {e}"));
     assert_eq!(entities.len(), 2);
-    assert!(entities[0].is_some());
-    assert!(entities[1].is_some());
-
-    assert_eq!(entities[0].as_ref().unwrap()["name"], "Alice");
-    assert_eq!(entities[1].as_ref().unwrap()["name"], "Bob");
+    // project_results preserves representation order, independent of DB row order.
+    assert_eq!(entities[0].as_ref().expect("entity 0")["name"], "Alice");
+    assert_eq!(entities[1].as_ref().expect("entity 1")["name"], "Bob");
 }
 
-#[test]
-fn test_resolve_entity_composite_key_from_postgres() {
-    let mut row = HashMap::new();
-    row.insert("tenant_id".to_string(), json!("t1"));
-    row.insert("user_id".to_string(), json!("u1"));
-    row.insert("name".to_string(), json!("John"));
-
-    let mock_adapter =
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![row]);
-
-    let metadata = common::metadata_composite_key("User", &["tenant_id", "user_id"]);
-
-    let mut rep_keys = HashMap::new();
-    rep_keys.insert("tenant_id".to_string(), json!("t1"));
-    rep_keys.insert("user_id".to_string(), json!("u1"));
-    let mut rep_all = HashMap::new();
-    rep_all.insert("tenant_id".to_string(), json!("t1"));
-    rep_all.insert("user_id".to_string(), json!("u1"));
-
-    let representation = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: rep_keys,
-        all_fields: rep_all,
+#[tokio::test]
+async fn test_resolve_entity_composite_key_from_postgres() {
+    let rows = vec![map(&[
+        ("tenant_id", json!("t1")),
+        ("user_id", json!("u1")),
+        ("name", json!("John")),
+    ])];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["tenant_id text", "user_id text", "name text"], &rows)
+            .await
+    else {
+        eprintln!("SKIP test_resolve_entity_composite_key_from_postgres: no postgres");
+        return;
     };
 
+    let metadata = common::metadata_composite_key("User", &["tenant_id", "user_id"]);
+    let representation = rep("User", &[("tenant_id", json!("t1")), ("user_id", json!("u1"))]);
     let selection = FieldSelection::new(vec![
         "__typename".to_string(),
         "tenant_id".to_string(),
@@ -155,41 +129,32 @@ fn test_resolve_entity_composite_key_from_postgres() {
         "name".to_string(),
     ]);
 
-    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
-    let result = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db("User", &[representation], &selection)
+        .await
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (composite key) failed: {e}"));
 
-    let entities =
-        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (composite key) failed: {e}"));
     assert_eq!(entities.len(), 1);
-    assert!(entities[0].is_some());
-    assert_eq!(entities[0].as_ref().unwrap()["name"], "John");
+    assert_eq!(entities[0].as_ref().expect("entity must resolve")["name"], "John");
 }
 
-#[test]
-fn test_resolve_entity_with_null_values_from_postgres() {
-    let mut row = HashMap::new();
-    row.insert("id".to_string(), json!("user123"));
-    row.insert("name".to_string(), json!("John"));
-    row.insert("email".to_string(), Value::Null);
-
-    let mock_adapter =
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![row]);
-
-    let metadata = common::metadata_single_key("User", "id");
-
-    let mut rep_keys = HashMap::new();
-    rep_keys.insert("id".to_string(), json!("user123"));
-    let mut rep_all = HashMap::new();
-    rep_all.insert("id".to_string(), json!("user123"));
-
-    let representation = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: rep_keys,
-        all_fields: rep_all,
+#[tokio::test]
+async fn test_resolve_entity_with_null_values_from_postgres() {
+    let rows = vec![map(&[
+        ("id", json!("user123")),
+        ("name", json!("John")),
+        ("email", Value::Null),
+    ])];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text", "email text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_entity_with_null_values_from_postgres: no postgres");
+        return;
     };
 
+    let metadata = common::metadata_single_key("User", "id");
+    let representation = rep("User", &[("id", json!("user123"))]);
     let selection = FieldSelection::new(vec![
         "__typename".to_string(),
         "id".to_string(),
@@ -197,62 +162,47 @@ fn test_resolve_entity_with_null_values_from_postgres() {
         "email".to_string(),
     ]);
 
-    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
-    let result = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db("User", &[representation], &selection)
+        .await
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (null values) failed: {e}"));
 
-    let entities =
-        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (null values) failed: {e}"));
     assert_eq!(entities.len(), 1);
-    assert!(entities[0].is_some());
-
-    let entity = &entities[0].as_ref().unwrap();
+    let entity = entities[0].as_ref().expect("entity must resolve");
     assert_eq!(entity["name"], "John");
     assert_eq!(entity["email"], Value::Null);
 }
 
-#[test]
-fn test_resolve_entity_large_result_set_from_postgres() {
+#[tokio::test]
+async fn test_resolve_entity_large_result_set_from_postgres() {
     let mut rows = Vec::new();
     let mut reps = Vec::new();
-
     for i in 0..100 {
-        let mut row = HashMap::new();
-        let id = format!("user{}", i);
-        row.insert("id".to_string(), json!(id.clone()));
-        row.insert("name".to_string(), json!(format!("User {}", i)));
-        rows.push(row);
-
-        let mut rep_keys = HashMap::new();
-        rep_keys.insert("id".to_string(), json!(id.clone()));
-        let mut rep_all = HashMap::new();
-        rep_all.insert("id".to_string(), json!(id));
-
-        reps.push(EntityRepresentation {
-            typename:   "User".to_string(),
-            key_fields: rep_keys,
-            all_fields: rep_all,
-        });
+        let id = format!("user{i}");
+        rows.push(map(&[("id", json!(id)), ("name", json!(format!("User {i}")))]));
+        reps.push(rep("User", &[("id", json!(id))]));
     }
-
-    let mock_adapter = common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows);
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_entity_large_result_set_from_postgres: no postgres");
+        return;
+    };
 
     let metadata = common::metadata_single_key("User", "id");
-
     let selection = FieldSelection::new(vec![
         "__typename".to_string(),
         "id".to_string(),
         "name".to_string(),
     ]);
 
-    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
-    let result = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
-
-    let entities = result
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db("User", &reps, &selection)
+        .await
         .unwrap_or_else(|e| panic!("resolve_entities_from_db (large result set) failed: {e}"));
+
     assert_eq!(entities.len(), 100);
     for entity in &entities {
         assert!(entity.is_some());

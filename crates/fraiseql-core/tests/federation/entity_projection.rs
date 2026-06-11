@@ -1,18 +1,12 @@
-//! Entity resolution tests - Field selection, projection, and error handling.
-//!
-//! Tests validate field selection parsing, external field exclusion,
-//! key field inclusion, federation format projection, query timeout,
-//! connection failure, syntax error, and constraint violation handling.
+//! Field selection / projection logic (pure) and query execution + error
+//! handling against **real PostgreSQL**.
 
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use std::{collections::HashMap, sync::Arc};
-
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code (skip notes to stderr)
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     federation::{
         database_resolver::DatabaseEntityResolver,
         selection_parser::{FieldSelection, parse_field_selection},
-        types::EntityRepresentation,
     },
 };
 use serde_json::json;
@@ -20,7 +14,7 @@ use serde_json::json;
 use super::common;
 
 // ============================================================================
-// Field Selection and Projection
+// Field Selection and Projection (pure)
 // ============================================================================
 
 #[test]
@@ -92,82 +86,68 @@ fn test_result_projection_to_federation_format() {
 }
 
 // ============================================================================
-// Error Handling
+// Query Execution and Error Handling (real PostgreSQL)
 // ============================================================================
 
-#[test]
-fn test_database_query_timeout() {
-    let mock_adapter = Arc::new(common::MockDatabaseAdapter::new());
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    runtime
-        .block_on(mock_adapter.execute_raw_query("SELECT 1"))
-        .unwrap_or_else(|e| panic!("execute_raw_query(SELECT 1) (timeout test) failed: {e}"));
+#[tokio::test]
+async fn test_trivial_query_executes() {
+    let Some((_pg, adapter)) = common::pg_adapter().await else {
+        eprintln!("SKIP test_trivial_query_executes: no postgres (set DATABASE_URL)");
+        return;
+    };
+    adapter.execute_raw_query("SELECT 1").await.expect("SELECT 1 must execute");
 }
 
-#[test]
-fn test_database_connection_failure() {
-    let mock_adapter = Arc::new(common::MockDatabaseAdapter::new());
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    runtime
-        .block_on(mock_adapter.health_check())
-        .unwrap_or_else(|e| panic!("health_check (connection failure test) failed: {e}"));
-
-    runtime
-        .block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent"))
-        .unwrap_or_else(|e| panic!("execute_raw_query(nonexistent) failed: {e}"));
+#[tokio::test]
+async fn test_health_check_succeeds() {
+    let Some((_pg, adapter)) = common::pg_adapter().await else {
+        eprintln!("SKIP test_health_check_succeeds: no postgres");
+        return;
+    };
+    adapter
+        .health_check()
+        .await
+        .expect("health check must succeed against a live database");
 }
 
-#[test]
-fn test_database_query_syntax_error() {
-    let mock_adapter = Arc::new(common::MockDatabaseAdapter::new());
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    runtime
-        .block_on(mock_adapter.execute_raw_query("INVALID SQL SYNTAX ;;;"))
-        .unwrap_or_else(|e| panic!("execute_raw_query(invalid sql) failed: {e}"));
+#[tokio::test]
+async fn test_invalid_sql_returns_error() {
+    // The mock faked success for any SQL; a real adapter surfaces the parse error.
+    let Some((_pg, adapter)) = common::pg_adapter().await else {
+        eprintln!("SKIP test_invalid_sql_returns_error: no postgres");
+        return;
+    };
+    let result = adapter.execute_raw_query("INVALID SQL SYNTAX ;;;").await;
+    assert!(result.is_err(), "invalid SQL must return an error against a real database");
 }
 
-#[test]
-fn test_database_constraint_violation() {
-    let mut user = HashMap::new();
-    user.insert("id".to_string(), json!("user1"));
-    user.insert("email".to_string(), json!("test@example.com"));
-
-    let mock_adapter = Arc::new(
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]),
-    );
-
-    let metadata = common::metadata_single_key("User", "id");
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let mut rep_keys = HashMap::new();
-    rep_keys.insert("id".to_string(), json!("user1"));
-    let mut rep_all = HashMap::new();
-    rep_all.insert("id".to_string(), json!("user1"));
-
-    let representation = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: rep_keys,
-        all_fields: rep_all,
+#[tokio::test]
+async fn test_resolution_against_real_table() {
+    let rows = vec![common::row(&[
+        ("id", json!("user1")),
+        ("email", json!("test@example.com")),
+    ])];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "email text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolution_against_real_table: no postgres");
+        return;
     };
 
-    let selection = FieldSelection::new(vec![
-        "__typename".to_string(),
-        "id".to_string(),
-        "email".to_string(),
-    ]);
+    let resolver = DatabaseEntityResolver::new(adapter, common::metadata_single_key("User", "id"));
+    let entities = resolver
+        .resolve_entities_from_db(
+            "User",
+            &[common::rep("User", &[("id", json!("user1"))])],
+            &FieldSelection::new(vec![
+                "__typename".to_string(),
+                "id".to_string(),
+                "email".to_string(),
+            ]),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("resolve failed: {e}"));
 
-    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result =
-        runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
-
-    result.unwrap_or_else(|e| {
-        panic!("resolve_entities_from_db (constraint violation test) failed: {e}")
-    });
+    assert_eq!(entities.len(), 1);
+    assert_eq!(entities[0].as_ref().expect("entity")["email"], "test@example.com");
 }

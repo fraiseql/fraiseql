@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use fraiseql_db::DatabaseType;
 use fraiseql_federation::{
     FederatedType, FederationMetadata, KeyDirective, construct_where_in_clause,
     parse_field_selection, parse_representations, validate_representations, validate_subgraph_url,
@@ -82,8 +83,13 @@ fn where_in_clause(c: &mut Criterion) {
         let reps = parse_representations(&input, &metadata).unwrap();
         group.bench_with_input(BenchmarkId::from_parameter(count), &reps, |b, reps| {
             b.iter(|| {
-                construct_where_in_clause(black_box("Type0"), black_box(reps), black_box(&metadata))
-                    .unwrap()
+                construct_where_in_clause(
+                    black_box("Type0"),
+                    black_box(reps),
+                    black_box(&metadata),
+                    black_box(DatabaseType::PostgreSQL),
+                )
+                .unwrap()
             });
         });
     }

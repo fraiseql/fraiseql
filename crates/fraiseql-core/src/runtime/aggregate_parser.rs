@@ -280,7 +280,16 @@ impl AggregateQueryParser {
                             pg_cast: pg_cast.clone(),
                         });
                     } else {
-                        // Priority 5: Regular JSONB dimension
+                        // Priority 5: Regular JSONB dimension. Unlike priorities 1-4
+                        // (each gated by a lookup against server-defined calendar/
+                        // temporal/native metadata), this fallback echoes the raw
+                        // GraphQL key verbatim as the SELECT alias (`… AS {key}`),
+                        // which is interpolated into SQL without quoting. Reject keys
+                        // that are not safe identifiers so an attacker cannot inject an
+                        // extra SELECT column (H1) — e.g. `a, (SELECT …) AS leak`. This
+                        // fires at parse time, independent of the compiler's dimension
+                        // allowlist (which is skipped when `dimensions.paths` is empty).
+                        validate_dimension_key(key)?;
                         selections.push(GroupBySelection::Dimension {
                             path:  key.clone(),
                             alias: key.clone(),
@@ -708,5 +717,101 @@ impl AggregateQueryParser {
         }
 
         Ok(clauses)
+    }
+}
+
+/// Validate that a regular-JSONB-dimension GraphQL key is a safe SQL identifier
+/// (`[_A-Za-z][_0-9A-Za-z]*`).
+///
+/// Regular dimensions echo this key verbatim as the SELECT-list alias
+/// (`… AS {key}`), interpolated into SQL with no quoting; a key containing
+/// commas, parentheses, or a subquery would inject an extra SELECT column (H1).
+/// Calendar/temporal/native dimensions are gated by lookups against server-
+/// defined metadata, so only this fallback path needs the charset guard.
+/// Rejecting (rather than quoting) keeps the response key — which equals the SQL
+/// column name — unchanged for legitimate identifiers.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if `key` is empty or contains a
+/// character outside `[_A-Za-z][_0-9A-Za-z]*`.
+fn validate_dimension_key(key: &str) -> Result<()> {
+    let mut chars = key.chars();
+    let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if first_ok && rest_ok {
+        Ok(())
+    } else {
+        Err(FraiseQLError::Validation {
+            message: format!(
+                "groupBy dimension '{key}' contains invalid characters; \
+                 only [_A-Za-z][_0-9A-Za-z]* is allowed"
+            ),
+            path:    None,
+        })
+    }
+}
+
+#[cfg(test)]
+mod alias_injection_tests {
+    #![allow(clippy::unwrap_used)]
+    use std::collections::HashMap;
+
+    use super::*;
+
+    fn empty_metadata() -> FactTableMetadata {
+        // `dimensions.paths` is empty on purpose: the compiler's dimension
+        // allowlist is skipped in that state (the realistic empty-table-at-
+        // compile-time default), so parse-time validation is the live guard.
+        serde_json::from_value(serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [],
+            "dimensions": { "name": "dimensions", "paths": [] },
+            "denormalized_filters": []
+        }))
+        .expect("valid empty fact-table metadata")
+    }
+
+    #[test]
+    fn validate_dimension_key_accepts_plain_identifiers() {
+        assert!(validate_dimension_key("category").is_ok());
+        assert!(validate_dimension_key("occurred_at_day").is_ok());
+        assert!(validate_dimension_key("_private").is_ok());
+    }
+
+    #[test]
+    fn validate_dimension_key_rejects_injection_shapes() {
+        assert!(validate_dimension_key("a, (SELECT 1) AS x").is_err());
+        assert!(validate_dimension_key("x; DROP TABLE t").is_err());
+        assert!(validate_dimension_key("1leading_digit").is_err());
+        assert!(validate_dimension_key("dotted.path").is_err());
+        assert!(validate_dimension_key("").is_err());
+    }
+
+    #[test]
+    fn parse_rejects_hostile_group_by_key_with_empty_allowlist() {
+        // The H1 exploit: an alias that appends a scalar-subquery column. With
+        // `dimensions.paths` empty the compiler allowlist never fires, so parse-
+        // time validation must reject this on its own.
+        let query = serde_json::json!({
+            "table": "tf_sales",
+            "groupBy": {
+                "a, (SELECT string_agg(rolpassword, ',') FROM pg_authid) AS leak": true
+            }
+        });
+        let err = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())
+            .expect_err("hostile groupBy key must be rejected at parse time");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn parse_accepts_plain_group_by_key() {
+        let query = serde_json::json!({
+            "table": "tf_sales",
+            "groupBy": { "category": true }
+        });
+        let req = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())
+            .expect("plain groupBy key must parse");
+        assert_eq!(req.group_by.len(), 1);
     }
 }

@@ -443,16 +443,41 @@ impl WebhookAction {
         if let Value::Object(map) = data {
             for (key, value) in map {
                 let placeholder = format!("{{{{ {key} }}}}");
-                let value_str = match value {
-                    Value::String(s) => s.clone(),
-                    _ => value.to_string(),
+                let replacement = match value {
+                    // H11: JSON-escape string values WITHOUT the wrapping quotes so the
+                    // substituted text stays inside its surrounding JSON string context.
+                    // An attacker-controlled field value can no longer break out of the
+                    // string and inject sibling keys into the (HMAC-signed) payload.
+                    Value::String(s) => json_escape_inner(s),
+                    // Numbers/bools/null/arrays/objects serialize to valid JSON tokens
+                    // with no breakout characters, preserving the unquoted-typed-slot
+                    // contract (e.g. `"amount": {{ total }}` -> `"amount": 150`).
+                    other => other.to_string(),
                 };
-                rendered = rendered.replace(&placeholder, &value_str);
+                rendered = rendered.replace(&placeholder, &replacement);
             }
         }
 
+        // Every substituted value is now context-safe, so re-parsing yields the
+        // intended structure; non-JSON templates (plain-text bodies) fall back to a
+        // JSON string, exactly as before.
         serde_json::from_str(&rendered).or(Ok(Value::String(rendered)))
     }
+}
+
+/// JSON-escape `s` for embedding inside a surrounding JSON string literal,
+/// returning the escaped content WITHOUT the wrapping quotes.
+///
+/// Used to substitute attacker-controlled string field values into a webhook
+/// body template so they cannot break out of their JSON string context and
+/// inject sibling keys (H11).
+fn json_escape_inner(s: &str) -> String {
+    let quoted = Value::String(s.to_owned()).to_string();
+    quoted
+        .strip_prefix('"')
+        .and_then(|q| q.strip_suffix('"'))
+        .unwrap_or(&quoted)
+        .to_owned()
 }
 
 impl Default for WebhookAction {

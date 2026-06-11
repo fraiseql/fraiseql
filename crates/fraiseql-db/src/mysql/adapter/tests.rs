@@ -154,6 +154,30 @@ fn mysql_identifier_schema_qualified_name() {
     assert_eq!(quote_mysql_identifier("mydb.v_user"), "`mydb`.`v_user`");
 }
 
+// ========================================================================
+// C1: stored-procedure CALL is parameterized (no inline value interpolation)
+// ========================================================================
+
+#[test]
+fn mysql_call_sql_uses_placeholders_not_inline_values() {
+    let sql = build_mysql_call_sql("fn_create_user", 2);
+    assert_eq!(sql, "CALL `fn_create_user`(?, ?)");
+    // One placeholder per argument; values are bound separately, never spliced.
+    assert_eq!(sql.matches('?').count(), 2);
+}
+
+#[test]
+fn mysql_call_sql_zero_args_has_empty_parens() {
+    assert_eq!(build_mysql_call_sql("fn_noop", 0), "CALL `fn_noop`()");
+}
+
+#[test]
+fn mysql_call_sql_quotes_procedure_name() {
+    // A hostile procedure name is identifier-quoted (backtick-doubled), so it
+    // cannot break out of the CALL target.
+    assert_eq!(build_mysql_call_sql("ev`il", 1), "CALL `ev``il`(?)");
+}
+
 // ── EP-6: Connection pool failure paths ───────────────────────────────────
 
 #[tokio::test]

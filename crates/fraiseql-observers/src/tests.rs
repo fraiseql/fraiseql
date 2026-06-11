@@ -102,6 +102,38 @@ mod actions_tests {
     }
 
     #[test]
+    fn test_webhook_body_template_string_value_cannot_inject_keys() {
+        // H11: an attacker controls a string field; the value tries to break out
+        // of its JSON string and inject a forged "verified": true into the signed
+        // body. After the fix the value must arrive as a single STRING with no
+        // injected sibling key.
+        let webhook = WebhookAction::new();
+        let data = json!({"name": r#"alice", "verified": true, "x": "y"#});
+        let template = r#"{"user": "{{ name }}"}"#;
+
+        let rendered = webhook.render_body_template(template, &data).unwrap();
+
+        assert!(rendered.get("verified").is_none(), "attacker must not inject a 'verified' key");
+        assert_eq!(
+            rendered.get("user").and_then(|v| v.as_str()),
+            Some(r#"alice", "verified": true, "x": "y"#),
+            "the field value must round-trip intact as one string"
+        );
+    }
+
+    #[test]
+    fn test_webhook_body_template_escapes_quotes_and_backslashes() {
+        // Quotes and backslashes in a string field round-trip intact (no breakout).
+        let webhook = WebhookAction::new();
+        let data = json!({"name": r#"a"b\c"#});
+        let template = r#"{"user": "{{ name }}"}"#;
+
+        let rendered = webhook.render_body_template(template, &data).unwrap();
+
+        assert_eq!(rendered.get("user").and_then(|v| v.as_str()), Some(r#"a"b\c"#));
+    }
+
+    #[test]
     fn test_slack_render_message_template() {
         let slack = SlackAction::new();
         let data = json!({"status": "shipped", "order_id": "12345"});

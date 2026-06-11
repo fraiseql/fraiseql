@@ -48,3 +48,58 @@ fn test_network_operator_creation() {
     };
     assert_eq!(op.name(), "InSubnet");
 }
+
+#[test]
+fn test_full_text_search_language_rejected_by_validate() {
+    // H41: the regconfig is spliced into plainto_tsquery('{lang}', $n), so a
+    // hostile language must be rejected by validate() before SQL generation.
+    let hostile = WhereOperator::Matches {
+        field: Field::JsonbField("body".to_string()),
+        query: "hello".to_string(),
+        language: Some("english', $1) OR 1=1 --".to_string()),
+    };
+    assert!(
+        hostile.validate().is_err(),
+        "hostile full-text language must be rejected"
+    );
+
+    // Legitimate regconfigs and the default (None) are accepted.
+    let ok = WhereOperator::WebsearchQuery {
+        field: Field::JsonbField("body".to_string()),
+        query: "hello".to_string(),
+        language: Some("english".to_string()),
+    };
+    ok.validate()
+        .unwrap_or_else(|e| panic!("expected Ok for 'english': {e}"));
+
+    let default = WhereOperator::PhraseQuery {
+        field: Field::JsonbField("body".to_string()),
+        query: "hello world".to_string(),
+        language: None,
+    };
+    default
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for None language: {e}"));
+}
+
+#[test]
+fn test_validate_text_search_language_helper() {
+    assert!(WhereOperator::validate_text_search_language(None).is_ok());
+    assert!(WhereOperator::validate_text_search_language(Some("english")).is_ok());
+    assert!(WhereOperator::validate_text_search_language(Some("simple")).is_ok());
+    assert!(WhereOperator::validate_text_search_language(Some("german_de")).is_ok());
+
+    for bad in [
+        "english', $1) OR 1=1 --",
+        "",
+        "English",
+        "en glish",
+        "a'b",
+        "x;y",
+    ] {
+        assert!(
+            WhereOperator::validate_text_search_language(Some(bad)).is_err(),
+            "language {bad:?} must be rejected"
+        );
+    }
+}

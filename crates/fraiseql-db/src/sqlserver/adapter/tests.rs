@@ -89,6 +89,25 @@ mod relay_sql_tests {
     }
 
     #[test]
+    fn validate_relay_order_fields_rejects_injection() {
+        // Latent relay injection: a hostile order-by field name must be rejected
+        // before it reaches the unescaped JSON_VALUE('$.{field}') interpolation
+        // in build_relay_order_sql / the backward-page inner projection.
+        let hostile = vec![OrderByClause::new(
+            "id') OR 1=1 --".to_string(),
+            OrderDirection::Asc,
+        )];
+        assert!(validate_relay_order_fields(Some(&hostile)).is_err());
+
+        let ok = vec![OrderByClause::new(
+            "created_at".to_string(),
+            OrderDirection::Desc,
+        )];
+        assert!(validate_relay_order_fields(Some(&ok)).is_ok());
+        assert!(validate_relay_order_fields(None).is_ok());
+    }
+
+    #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
         let order_by = vec![OrderByClause::new(
             "created_at".to_string(),

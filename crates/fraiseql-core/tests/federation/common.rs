@@ -13,6 +13,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
+        postgres::PostgresAdapter,
         traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
@@ -23,109 +24,94 @@ use fraiseql_core::{
 };
 use serde_json::{Value, json};
 
+/// Connect to the harness Postgres and (re)provision `table` from `column_ddl`
+/// (e.g. `["id text", "amount integer"]`), seeded from `rows`. Returns the
+/// connected adapter.
+///
+/// Returns `None` when no Postgres is configured (`DATABASE_URL` unset and no
+/// local-testcontainers spawn) so the caller skips cleanly on the non-DB
+/// preflight leg; the bound `Service` is returned alongside the adapter so a
+/// locally-spawned container, if any, is held for the test's lifetime.
+///
+/// Seed values come from each row's matching column name (the first token of the
+/// DDL); strings/numbers/bools render as the obvious SQL literal, missing/`Null`
+/// as SQL `NULL`. Seed data is test-controlled, so it is inline-rendered and run
+/// via `execute_raw_query`.
+pub async fn pg_entity_fixture(
+    table: &str,
+    column_ddl: &[&str],
+    rows: &[HashMap<String, Value>],
+) -> Option<(fraiseql_test_support::Service, Arc<PostgresAdapter>)> {
+    let (pg, adapter) = pg_adapter().await?;
+
+    adapter
+        .execute_raw_query(&format!(r#"DROP TABLE IF EXISTS "{table}" CASCADE"#))
+        .await
+        .expect("drop fixture table");
+    adapter
+        .execute_raw_query(&format!(r#"CREATE TABLE "{table}" ({})"#, column_ddl.join(", ")))
+        .await
+        .expect("create fixture table");
+
+    let col_names: Vec<&str> = column_ddl
+        .iter()
+        .map(|c| c.split_whitespace().next().expect("non-empty column ddl"))
+        .collect();
+    let col_list = col_names.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+    for row in rows {
+        let vals = col_names
+            .iter()
+            .map(|c| sql_literal(row.get(*c)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        adapter
+            .execute_raw_query(&format!(r#"INSERT INTO "{table}" ({col_list}) VALUES ({vals})"#))
+            .await
+            .expect("seed fixture row");
+    }
+
+    Some((pg, adapter))
+}
+
+/// Connect to the harness Postgres, returning the adapter with no table
+/// provisioned. `None` when no Postgres is configured (skip on the non-DB
+/// preflight leg); the bound `Service` is returned so a locally-spawned
+/// container, if any, is held for the test's lifetime.
+pub async fn pg_adapter() -> Option<(fraiseql_test_support::Service, Arc<PostgresAdapter>)> {
+    let pg = fraiseql_test_support::postgres().await?;
+    let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to harness postgres");
+    Some((pg, Arc::new(adapter)))
+}
+
+/// Build a column→value map (a seed row, or a representation's key fields).
+pub fn row(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
+    pairs.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect()
+}
+
+/// Build an `EntityRepresentation` for `typename` from its key (column, value) pairs.
+pub fn rep(typename: &str, keys: &[(&str, Value)]) -> EntityRepresentation {
+    let key_fields = row(keys);
+    EntityRepresentation {
+        typename: typename.to_string(),
+        all_fields: key_fields.clone(),
+        key_fields,
+    }
+}
+
+/// Render a JSON value as a SQL literal for test seed data (test-controlled).
+fn sql_literal(value: Option<&Value>) -> String {
+    match value {
+        Some(Value::String(s)) => format!("'{}'", s.replace('\'', "''")),
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Bool(b)) => b.to_string(),
+        Some(Value::Null) | None => "NULL".to_string(),
+        Some(other) => format!("'{}'", other.to_string().replace('\'', "''")),
+    }
+}
+
 // =============================================================================
 // Mock Database Adapters
 // =============================================================================
-
-/// Mock database adapter for entity resolution tests.
-///
-/// Parses simple `SELECT ... FROM <table>` queries and returns pre-loaded data.
-pub struct MockDatabaseAdapter {
-    data: HashMap<String, Vec<HashMap<String, Value>>>,
-}
-
-impl MockDatabaseAdapter {
-    pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
-
-    pub fn with_table_data(mut self, table: String, rows: Vec<HashMap<String, Value>>) -> Self {
-        self.data.insert(table, rows);
-        self
-    }
-}
-
-// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-// its transformed method signatures to satisfy the trait contract
-#[async_trait]
-impl DatabaseAdapter for MockDatabaseAdapter {
-    async fn execute_with_projection(
-        &self,
-        view: &str,
-        _projection: Option<&SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
-    ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
-    }
-
-    async fn execute_where_query(
-        &self,
-        _view: &str,
-        _where_clause: Option<&WhereClause>,
-        _limit: Option<u32>,
-        _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
-    ) -> Result<Vec<JsonbValue>> {
-        Ok(Vec::new())
-    }
-
-    fn database_type(&self) -> DatabaseType {
-        DatabaseType::PostgreSQL
-    }
-
-    async fn health_check(&self) -> Result<()> {
-        Ok(())
-    }
-
-    fn pool_metrics(&self) -> PoolMetrics {
-        PoolMetrics {
-            total_connections:  10,
-            idle_connections:   8,
-            active_connections: 2,
-            waiting_requests:   0,
-        }
-    }
-
-    async fn execute_raw_query(&self, sql: &str) -> Result<Vec<HashMap<String, Value>>> {
-        if let Some(start) = sql.to_uppercase().find("FROM ") {
-            let after_from = &sql[start + 5..].trim();
-            let raw = match after_from.find(' ') {
-                Some(space_pos) => &after_from[..space_pos],
-                None => after_from,
-            };
-            // The resolver quotes the table identifier (`FROM "user"`); strip the quotes
-            // so the lookup matches the unquoted key registered via with_table_data().
-            let table = raw.trim().trim_matches('"').to_lowercase();
-            if let Some(rows) = self.data.get(&table) {
-                return Ok(rows.clone());
-            }
-        }
-        Ok(Vec::new())
-    }
-
-    async fn execute_parameterized_aggregate(
-        &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
-    }
-
-    async fn execute_function_call(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<HashMap<String, Value>>> {
-        Ok(vec![])
-    }
-}
-
-impl SupportsMutations for MockDatabaseAdapter {}
 
 /// Mock database adapter for mutation tests (returns empty results).
 pub struct MockMutationDatabaseAdapter {
