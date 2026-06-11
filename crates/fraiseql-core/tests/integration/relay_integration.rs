@@ -263,6 +263,28 @@ fn executor() -> Executor<RelayMockAdapter> {
     Executor::new_with_relay(relay_schema(), Arc::new(RelayMockAdapter::new()))
 }
 
+/// Executor with relay support AND an RLS policy configured.
+fn rls_executor() -> Executor<RelayMockAdapter> {
+    let config = fraiseql_core::runtime::RuntimeConfig::default()
+        .with_rls_policy(Arc::new(fraiseql_core::security::DefaultRLSPolicy::new()));
+    Executor::with_config_and_relay(relay_schema(), Arc::new(RelayMockAdapter::new()), config)
+}
+
+/// B2: an anonymous relay query against an RLS-protected deployment must fail closed.
+/// Previously the RLS clause was silently dropped to `None` when no security context
+/// was present, leaking every row to unauthenticated relay pagination.
+#[tokio::test]
+async fn test_relay_anonymous_with_rls_fails_closed() {
+    let exec = rls_executor();
+    let result = exec
+        .execute("{ users { edges { cursor node { id name } } } }", Some(&json!({"first": 2})))
+        .await;
+    assert!(
+        result.is_err(),
+        "anonymous relay query under RLS must fail closed, got: {result:?}"
+    );
+}
+
 // =============================================================================
 // Relay pagination tests
 // =============================================================================

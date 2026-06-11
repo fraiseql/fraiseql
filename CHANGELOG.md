@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
+  object lookup `node(id: …)` resolved any type by opaque id while applying none of the
+  backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id
+  returned the row with no access control — an authenticated low-privilege user could
+  read role-gated types or other tenants' rows, and an anonymous caller could read any
+  registered type. The node path now enforces all three gates for the resolved type and
+  fails closed: an anonymous lookup of an RLS-/inject-/role-gated type returns "not
+  found" (null) instead of the raw row, and an authenticated lookup ANDs the RLS /
+  `inject_params` filter onto the id. Relay connection pagination carried the same
+  latent fail-open — an RLS-configured deployment silently dropped the RLS filter for
+  anonymous callers, leaking every row — now also fails closed. **Behavioral change:**
+  in deployments that configure RLS, anonymous `node(id:)` and anonymous relay
+  pagination of protected types now return nothing / error rather than leaking rows.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's

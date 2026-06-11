@@ -152,7 +152,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.execute_mutation_query(&name, variables, &selections).await
             },
             QueryType::NodeQuery { selections } => {
-                self.query_runner().execute_node_query(query, variables, &selections).await
+                // Anonymous entrypoint: no SecurityContext. The node runner fails closed for
+                // any RLS/inject/role-gated type (H2 IDOR fix).
+                self.query_runner()
+                    .execute_node_query(query, variables, &selections, None)
+                    .await
             },
         }
     }

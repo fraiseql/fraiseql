@@ -1000,3 +1000,183 @@ mod pg_type_cast_tests {
         assert_eq!(pg_type_to_cast("unknown_type"), "");
     }
 }
+
+// ── mod node_authz: Relay `node(id:)` authorization (H2 IDOR) ──────────────
+//
+// The `node(id:)` lookup resolves an arbitrary type by opaque global id, so it
+// must apply the same `requires_role` / RLS / `inject_params` gates as the regular
+// query path for the backing query. Before the fix it applied none of them — a
+// leaked node id returned the row with no access control.
+mod node_authz {
+    use super::*;
+
+    /// Schema exposing `User` (view `v_user`) via a single query, configurable for
+    /// the three gates the node path enforces.
+    fn node_user_schema(
+        requires_role: Option<&str>,
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: CursorType::default(),
+            inject_params,
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: requires_role.map(str::to_string),
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
+        });
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::String),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+        schema
+    }
+
+    /// A `{ node(id: <encoded "User:uuid">) { id name } }` query string.
+    fn node_query() -> String {
+        let id =
+            crate::runtime::relay::encode_node_id("User", "11111111-1111-1111-1111-111111111111");
+        format!("{{ node(id: \"{id}\") {{ id name }} }}")
+    }
+
+    fn ctx_with_roles(roles: &[&str]) -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            roles.iter().map(|r| (*r).to_string()).collect(),
+            tenant_id:        Some("tenant-abc".into()),
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    #[tokio::test]
+    async fn node_requires_role_anonymous_is_not_found() {
+        let schema = node_user_schema(Some("admin"), IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let err = executor.execute(&node_query(), None).await.unwrap_err();
+        assert!(
+            err.to_string().contains("not found"),
+            "expected enumeration-hiding error, got: {err}"
+        );
+        assert!(
+            adapter.captured_where().is_none(),
+            "DB must not be queried when role check fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn node_requires_role_authenticated_without_role_is_not_found() {
+        let schema = node_user_schema(Some("admin"), IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let err = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap_err();
+        assert!(err.to_string().contains("not found"));
+        assert!(adapter.captured_where().is_none());
+    }
+
+    #[tokio::test]
+    async fn node_requires_role_with_role_resolves() {
+        let schema = node_user_schema(Some("admin"), IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["admin"]);
+        let result = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap();
+        assert!(result["data"].get("node").is_some());
+        assert!(adapter.captured_where().is_some(), "role holder reaches the DB");
+    }
+
+    #[tokio::test]
+    async fn node_rls_anonymous_fails_closed() {
+        let schema = node_user_schema(None, IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let result = executor.execute(&node_query(), None).await.unwrap();
+        assert_eq!(
+            result["data"]["node"],
+            serde_json::Value::Null,
+            "anonymous node lookup of an RLS-backed type must be null"
+        );
+        assert!(adapter.captured_where().is_none(), "DB must not be queried (fail closed)");
+    }
+
+    #[tokio::test]
+    async fn node_rls_authenticated_applies_rls_filter() {
+        let schema = node_user_schema(None, IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+        let executor = Executor::with_config(schema, adapter.clone(), config);
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let _ = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap();
+        match adapter.captured_where().expect("authenticated node reaches the DB") {
+            WhereClause::And(clauses) => {
+                assert!(clauses.len() >= 2, "expected AND(rls, id), got {clauses:?}");
+            },
+            other => panic!("expected AND(rls, id), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn node_inject_anonymous_fails_closed() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = node_user_schema(None, inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let result = executor.execute(&node_query(), None).await.unwrap();
+        assert_eq!(result["data"]["node"], serde_json::Value::Null);
+        assert!(adapter.captured_where().is_none());
+    }
+
+    #[tokio::test]
+    async fn node_inject_authenticated_applies_filter() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = node_user_schema(None, inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let _ = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap();
+        match adapter.captured_where().expect("authenticated node reaches the DB") {
+            WhereClause::And(clauses) => {
+                assert!(clauses.len() >= 2, "expected AND(inject, id), got {clauses:?}");
+            },
+            other => panic!("expected AND(inject, id), got {other:?}"),
+        }
+    }
+}

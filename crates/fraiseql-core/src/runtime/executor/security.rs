@@ -277,7 +277,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .await
             },
             QueryType::NodeQuery { selections } => {
-                self.query_runner().execute_node_query(query, variables, &selections).await
+                // Authenticated entrypoint: thread the SecurityContext so the node runner
+                // enforces requires_role/RLS/inject_params for the resolved type (H2).
+                self.query_runner()
+                    .execute_node_query(query, variables, &selections, Some(security_context))
+                    .await
             },
         }
     }

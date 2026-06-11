@@ -122,13 +122,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
         // Evaluate RLS policy to generate security WHERE clause.
-        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.ctx.config.rls_policy, security_context)
-        {
-            rls_policy.evaluate(ctx, &query_def.name)?
-        } else {
-            None
-        };
+        let rls_where_clause: Option<RlsWhereClause> =
+            match (&self.ctx.config.rls_policy, security_context) {
+                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(ctx, &query_def.name)?,
+                (Some(_), None) => {
+                    // Fail closed: an RLS-protected deployment must not serve a relay page to an
+                    // anonymous caller. Previously this fell through to `None` (no RLS clause),
+                    // leaking every row to unauthenticated relay queries.
+                    return Err(FraiseQLError::Validation {
+                        message: format!("Query '{}' not found in schema", query_def.name),
+                        path:    None,
+                    });
+                },
+                (None, _) => None,
+            };
 
         // Resolve inject_params from JWT claims and compose with RLS.
         let security_where: Option<WhereClause> = if query_def.inject_params.is_empty() {
@@ -412,6 +419,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         selections: &[FieldSelection],
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         use crate::{
             db::{WhereClause, where_clause::WhereOperator},
@@ -462,11 +470,82 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 }
             })?;
 
-        // 4. Build WHERE clause: data->>'id' = uuid
-        let where_clause = WhereClause::Field {
+        // 3b. Authorization (H2). The Relay `node(id:)` lookup resolves an arbitrary type by
+        //     opaque global id, so — like the regular query path — it must apply the backing
+        //     query's `requires_role`, RLS, and `inject_params` gates. Without this it is an
+        //     IDOR: a leaked node id returns the row with no access control.
+        //
+        //     The type is exposed by the query that registered its node view (same first-wins
+        //     rule as `node_type_index`). A type with no backing read query is not resolvable.
+        let node_qdef = self
+            .ctx
+            .schema
+            .queries
+            .iter()
+            .find(|q| q.return_type == type_name && q.sql_source.is_some())
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("node query: no registered SQL view for type '{type_name}'"),
+                path:    Some("node.id".to_string()),
+            })?;
+
+        // requires_role: invisible (enumeration-hiding "not found") unless the context holds it.
+        if let Some(ref required_role) = node_qdef.requires_role {
+            let has_role =
+                security_context.is_some_and(|sc| sc.roles.iter().any(|r| r == required_role));
+            if !has_role {
+                return Err(FraiseQLError::Validation {
+                    message: format!("Query '{}' not found in schema", node_qdef.name),
+                    path:    None,
+                });
+            }
+        }
+
+        // Build the security WHERE (RLS ∧ inject_params). Fail closed when a policy is
+        // configured but no security context is present: such a type is never resolvable by
+        // opaque id without a principal, so return "not found" (null) — never the raw row.
+        let security_where: Option<WhereClause> = match security_context {
+            Some(sc) => {
+                let rls = if let Some(ref rls_policy) = self.ctx.config.rls_policy {
+                    rls_policy.evaluate(sc, &node_qdef.name)?.map(RlsWhereClause::into_where_clause)
+                } else {
+                    None
+                };
+                let mut conditions: Vec<WhereClause> = node_qdef
+                    .inject_params
+                    .iter()
+                    .map(|(col, source)| {
+                        let value = resolve_inject_value(col, source, sc)?;
+                        Ok(inject_param_where_clause(col, value, &node_qdef.native_columns))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if let Some(rls) = rls {
+                    conditions.insert(0, rls);
+                }
+                match conditions.len() {
+                    0 => None,
+                    1 => Some(conditions.remove(0)),
+                    _ => Some(WhereClause::And(conditions)),
+                }
+            },
+            None if self.ctx.config.rls_policy.is_some() || !node_qdef.inject_params.is_empty() => {
+                // Fail closed: anonymous lookup of a policy-gated type yields nothing.
+                let response =
+                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node");
+                return Ok(response);
+            },
+            None => None,
+        };
+
+        // 4. Build WHERE clause: data->>'id' = uuid, AND'd under the security filter (which always
+        //    comes first so it cannot be bypassed).
+        let id_where = WhereClause::Field {
             path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
             value:    serde_json::Value::String(uuid),
+        };
+        let where_clause = match security_where {
+            Some(sec) => WhereClause::And(vec![sec, id_where]),
+            None => id_where,
         };
 
         // 5. Build projection hint from selections (mirrors regular query path).
@@ -487,10 +566,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         };
 
         // 6. Execute the query (limit 1) with projection.
-        // No session vars: the Relay `node(id:)` lookup is a separate entrypoint
-        // that does not receive a SecurityContext, so session variables cannot be
-        // resolved here. Threading a SecurityContext through node resolution to
-        // enable current_setting()-backed RLS is a follow-up (#329).
+        // The FraiseQL `rls_policy` and `inject_params` gates are enforced above as an
+        // explicit WHERE filter. Session variables are not resolved here, so DB-side
+        // `current_setting()`-backed RLS on the node path remains a follow-up (#329).
         let rows = self
             .ctx
             .adapter
