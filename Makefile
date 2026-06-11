@@ -661,14 +661,19 @@ coverage:
 	cargo llvm-cov --all-features --workspace --html
 	@echo "Coverage report generated in target/llvm-cov/html/index.html"
 
-# Security audit (cargo-audit only)
+# Security audit (cargo-audit only).
+# Lockstep check first: deny.toml and .cargo/audit.toml ignore lists must agree,
+# otherwise `cargo audit` fails on advisories that deny.toml already accepts.
+.PHONY: audit
 audit:
+	bash tools/check-audit-lockstep.sh
 	cargo audit
 
 # Full security checks: advisory scan + supply-chain policy gate.
 # Run before opening a PR to catch new advisories early.
 .PHONY: security
 security:
+	bash tools/check-audit-lockstep.sh
 	cargo deny check
 	cargo audit
 	@echo "Security checks passed"
