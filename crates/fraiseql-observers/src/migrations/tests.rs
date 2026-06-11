@@ -1,7 +1,8 @@
 //! Unit tests for the change-log contract DDL (no database required).
 
 use super::{
-    ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, entity_change_log_contract_sql,
+    ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS,
+    entity_change_log_capture_trigger_sql, entity_change_log_contract_sql,
 };
 
 #[test]
@@ -104,4 +105,86 @@ fn migration_creates_the_five_contract_indexes() {
     ] {
         assert!(sql.contains(index), "index `{index}` is created");
     }
+}
+
+// ── #366 external-write capture trigger ──────────────────────────────────────
+
+#[test]
+fn capture_trigger_function_is_idempotent_and_named() {
+    let sql = entity_change_log_capture_trigger_sql();
+    assert!(
+        sql.contains("CREATE OR REPLACE FUNCTION core.fn_entity_change_log_capture()"),
+        "installs the capture function idempotently"
+    );
+    assert!(sql.contains("RETURNS trigger"), "is a trigger function");
+}
+
+#[test]
+fn capture_trigger_suppresses_app_mediated_writes() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // The suppression contract: an exact match against the executor's marker GUC
+    // short-circuits before any INSERT, so an app-path write is never captured
+    // twice. The GUC name/value mirror fraiseql_db::CDC_MEDIATED_VAR /
+    // CDC_MEDIATED_ON (observers does not depend on fraiseql-db, so the literal
+    // here is the lockstep — a change on either side trips this test).
+    assert!(
+        sql.contains("current_setting('fraiseql.cdc_mediated', true) = 'on'"),
+        "checks the cdc_mediated marker for app-path suppression"
+    );
+}
+
+#[test]
+fn capture_trigger_writes_the_debezium_envelope_per_op() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // The reader decodes object_data as a Debezium envelope keyed by lowercase op
+    // ('c'/'u'/'d') with before/after — the trigger must emit exactly that.
+    assert!(sql.contains("'op', 'c'"), "INSERT → op 'c'");
+    assert!(sql.contains("'op', 'u'"), "UPDATE → op 'u'");
+    assert!(sql.contains("'op', 'd'"), "DELETE → op 'd'");
+    assert!(
+        sql.contains("jsonb_build_object('op'"),
+        "builds the op/before/after Debezium envelope"
+    );
+}
+
+#[test]
+fn capture_trigger_is_statement_level_with_transition_tables() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // Bulk efficiency: one set-based INSERT...SELECT over the transition tables,
+    // not a per-row invocation.
+    assert!(sql.contains("FROM new_table"), "reads the NEW transition table");
+    assert!(sql.contains("FROM old_table"), "reads the OLD transition table");
+    assert!(
+        sql.contains("JOIN old_table o ON"),
+        "UPDATE pairs OLD/NEW on the PK (transition tables are unordered)"
+    );
+}
+
+#[test]
+fn capture_trigger_guards_object_id_to_a_uuid() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // object_id is decoded as a non-null uuid over the whole batch, so a NULL/
+    // non-UUID PK would stall the poller — the capture SELECT must filter to
+    // UUID-shaped PKs.
+    assert!(
+        sql.contains("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}"),
+        "filters captured rows to a strict UUID PK shape"
+    );
+    assert!(sql.contains("v_pk_col"), "uses the configurable PK column");
+}
+
+#[test]
+fn capture_trigger_stamps_tenant_and_marks_its_source() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // Per-tenant subscription filtering needs tenant_id: column else session GUC.
+    assert!(sql.contains("v_tenant_col"), "reads the configurable tenant column");
+    assert!(
+        sql.contains("current_setting('fraiseql.tenant_id'"),
+        "falls back to the cooperative tenant session GUC"
+    );
+    // Captured rows are distinguishable from executor-written ones.
+    assert!(
+        sql.contains("'cdc_source', 'fallback_trigger'"),
+        "marks captured rows with extra_metadata.cdc_source"
+    );
 }

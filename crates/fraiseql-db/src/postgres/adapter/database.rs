@@ -204,6 +204,33 @@ pub(super) async fn apply_session_vars(
     Ok(())
 }
 
+/// Mark the in-progress mutation transaction as **FraiseQL-mediated** (#366).
+///
+/// Sets [`crate::changelog::CDC_MEDIATED_VAR`] to
+/// [`crate::changelog::CDC_MEDIATED_ON`] transaction-locally
+/// (`set_config(..., true)`), so the value auto-resets on commit and is invisible
+/// to other connections. The shipped fallback-capture trigger reads it and
+/// suppresses its own change-log row for this write, so an app-path mutation —
+/// already logged by the in-transaction outbox — is never double-captured. Set
+/// on every mutation transaction (independent of whether the outbox row is
+/// written), so an opted-out mutation (`changelog=false`) also suppresses the
+/// trigger rather than leaving a degraded fallback row.
+pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> Result<()> {
+    txn.execute(
+        "SELECT set_config($1, $2, true)",
+        &[
+            &crate::changelog::CDC_MEDIATED_VAR,
+            &crate::changelog::CDC_MEDIATED_ON,
+        ],
+    )
+    .await
+    .map_err(|e| FraiseQLError::Database {
+        message:   format!("Failed to set {} marker: {e}", crate::changelog::CDC_MEDIATED_VAR),
+        sql_state: e.code().map(|c| c.code().to_string()),
+    })?;
+    Ok(())
+}
+
 /// Build the single statement that runs a mutation function and writes its
 /// `core.tb_entity_change_log` outbox row in the same transaction (the Change
 /// Spine transactional outbox).
@@ -622,6 +649,12 @@ impl DatabaseAdapter for PostgresAdapter {
         // Apply session variables FIRST so the function body sees them.
         apply_session_vars(&txn, session_vars).await?;
 
+        // Mark the txn FraiseQL-mediated (#366). Even on the no-outbox path
+        // (e.g. a `changelog=false` mutation), a mutation routed through the
+        // executor must suppress the fallback-capture trigger — the opt-out means
+        // "no change-log row," not "let the trigger write a degraded one."
+        mark_cdc_mediated(&txn).await?;
+
         // If mutation timing is on, stamp the timing variable in the same txn.
         if self.mutation_timing_enabled {
             txn.execute(
@@ -733,6 +766,10 @@ impl DatabaseAdapter for PostgresAdapter {
         // Apply session variables FIRST so the function body sees them (and so
         // the started_at directive stamps the DB clock on this very txn).
         apply_session_vars(&txn, session_vars).await?;
+
+        // Mark the txn FraiseQL-mediated so the #366 fallback-capture trigger
+        // suppresses its row — this write is already logged by the outbox below.
+        mark_cdc_mediated(&txn).await?;
 
         // If mutation timing is on, stamp the timing variable in the same txn.
         if self.mutation_timing_enabled {

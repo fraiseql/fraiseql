@@ -44,6 +44,30 @@ use crate::{
 /// backward-incompatible way so that startup rejects stale compiled schemas.
 pub const CURRENT_SCHEMA_FORMAT_VERSION: u32 = 1;
 
+/// A `@subscribable` declaration in the compiled schema (#366).
+///
+/// Maps a GraphQL type to the physical base table(s) whose **external** writes
+/// (a raw `INSERT`/`UPDATE`/`DELETE` from psql / a migration / a third-party
+/// tool) should be captured onto the Change Spine by the shipped fallback trigger
+/// `core.fn_entity_change_log_capture`. The compiler aggregates one of these per
+/// type carrying `@subscribable(tables=[...])`; the
+/// [`generate_capture_trigger_ddl`](crate::schema::generate_capture_trigger_ddl)
+/// generator turns them into per-table statement-level triggers that stamp
+/// `object_type = entity_type` — the GraphQL type name the reader and the
+/// subscription matcher key on, never the table name — so a captured external
+/// write fans out through the existing poller with no table→type lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscribableEntity {
+    /// The GraphQL type name (e.g. `"Post"`) stamped as `object_type` on every
+    /// captured change-log row.
+    pub entity_type: String,
+
+    /// The physical base table(s) backing `entity_type` (e.g. `["tb_post"]`,
+    /// optionally schema-qualified `["public.tb_post"]`). A capture trigger is
+    /// installed on each.
+    pub tables: Vec<String>,
+}
+
 /// Complete compiled schema - all type information for serving.
 ///
 /// This is the central type that holds the entire GraphQL schema
@@ -111,6 +135,18 @@ pub struct CompiledSchema {
     /// Observer definitions (database change event listeners).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observers: Vec<ObserverDefinition>,
+
+    /// `@subscribable` declarations (#366): GraphQL types whose underlying
+    /// table(s) get the shipped external-write capture trigger.
+    ///
+    /// Aggregated by the compiler from each type's `@subscribable(tables=[...])`
+    /// annotation; consumed by
+    /// [`generate_capture_trigger_ddl`](crate::schema::generate_capture_trigger_ddl)
+    /// to emit per-table capture triggers. Empty (and omitted from the compiled
+    /// JSON) when no type is subscribable — so a schema that predates this field
+    /// deserializes and re-serializes byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subscribable: Vec<SubscribableEntity>,
 
     /// Federation metadata for Apollo Federation v2 support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -249,6 +285,7 @@ impl PartialEq for CompiledSchema {
             && self.directives == other.directives
             && self.fact_tables == other.fact_tables
             && self.observers == other.observers
+            && self.subscribable == other.subscribable
             && self.federation == other.federation
             && self.security == other.security
             && self.observers_config == other.observers_config

@@ -1,6 +1,9 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::{query::QueryDefinition, schema::CompiledSchema};
+use super::{
+    query::QueryDefinition,
+    schema::{CompiledSchema, SubscribableEntity},
+};
 #[cfg(feature = "federation")]
 use crate::schema::config_types::FederationEntity;
 use crate::schema::{
@@ -185,6 +188,61 @@ fn test_content_hash_changes_on_field_rename() {
         schema_a.content_hash(),
         schema_b.content_hash(),
         "Schemas with different view names must produce different hashes"
+    );
+}
+
+// =========================================================================
+// #366 @subscribable tests
+// =========================================================================
+
+#[test]
+fn subscribable_defaults_empty_when_absent() {
+    // A compiled schema that predates #366 has no `subscribable` key — it must
+    // deserialize to an empty list (back-compat), mirroring the `authorize` field.
+    let json = r#"{ "types": [], "queries": [], "mutations": [], "subscriptions": [] }"#;
+    let schema: CompiledSchema = serde_json::from_str(json).unwrap();
+    assert!(schema.subscribable.is_empty(), "absent subscribable defaults to empty");
+}
+
+#[test]
+fn subscribable_empty_is_not_serialized_so_hash_is_unchanged() {
+    // skip_serializing_if = "Vec::is_empty" keeps a non-subscribable schema's JSON
+    // (and therefore its content_hash) byte-identical to a pre-#366 schema — so
+    // existing golden/insta fixtures need no re-blessing.
+    let schema = CompiledSchema::default();
+    let json = serde_json::to_string(&schema).unwrap();
+    assert!(!json.contains("subscribable"), "empty subscribable is omitted: {json}");
+}
+
+#[test]
+fn subscribable_round_trips_when_present() {
+    let schema = CompiledSchema {
+        subscribable: vec![SubscribableEntity {
+            entity_type: "Post".to_string(),
+            tables:      vec!["tb_post".to_string(), "public.tb_post_archive".to_string()],
+        }],
+        ..CompiledSchema::default()
+    };
+    let json = serde_json::to_string(&schema).unwrap();
+    assert!(json.contains("subscribable"), "present subscribable is serialized");
+    let back: CompiledSchema = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.subscribable, schema.subscribable, "subscribable round-trips");
+}
+
+#[test]
+fn subscribable_participates_in_content_hash() {
+    let plain = CompiledSchema::default();
+    let with_sub = CompiledSchema {
+        subscribable: vec![SubscribableEntity {
+            entity_type: "Post".to_string(),
+            tables:      vec!["tb_post".to_string()],
+        }],
+        ..CompiledSchema::default()
+    };
+    assert_ne!(
+        plain.content_hash(),
+        with_sub.content_hash(),
+        "adding a subscribable entity changes the content hash"
     );
 }
 

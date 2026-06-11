@@ -308,6 +308,30 @@ EXAMPLES:
         gen_verbose: bool,
     },
 
+    /// Generate external-write capture-trigger DDL for @subscribable types (#366)
+    ///
+    /// Emits a self-contained, idempotent PostgreSQL script (the capture function
+    /// plus per-table statement-level triggers) that brings raw external writes
+    /// (psql / migrations / third-party tools) to a `@subscribable` type's table(s)
+    /// onto the Change Spine, without double-emitting for FraiseQL-mediated writes.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate-capture-triggers -s schema.compiled.json | psql \"$DATABASE_URL\"
+    fraiseql generate-capture-triggers -s schema.compiled.json -o capture.sql")]
+    GenerateCaptureTriggers {
+        /// Path to the compiled schema (schema.compiled.json)
+        #[arg(short, long, value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output file path (default: stdout, for piping into psql)
+        #[arg(short, long, value_name = "PATH")]
+        output: Option<String>,
+
+        /// Omit the capture function definition (emit only the per-table triggers)
+        #[arg(long)]
+        no_function: bool,
+    },
+
     /// Validate schema.json or fact tables
     ///
     /// Performs comprehensive schema validation including:

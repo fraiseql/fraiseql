@@ -22,6 +22,27 @@ pub const STARTED_AT_VAR: &str = "fraiseql.started_at";
 /// uses control characters so it can never collide with a real session value.
 pub const CLOCK_TIMESTAMP_DIRECTIVE: &str = "\u{1}fraiseql:clock_timestamp\u{1}";
 
+/// The transaction-local PostgreSQL session variable that marks a write as
+/// **FraiseQL-mediated** (#366).
+///
+/// The mutation executor sets this to [`CDC_MEDIATED_ON`] at the start of every
+/// mutation transaction (PostgreSQL only). The shipped fallback-capture trigger
+/// `core.fn_entity_change_log_capture()` reads it with
+/// `current_setting('fraiseql.cdc_mediated', true)` and **suppresses** its own
+/// change-log row when it equals [`CDC_MEDIATED_ON`] — so an app-path mutation,
+/// already logged by the in-transaction outbox, is never double-captured. A raw
+/// external write (psql / a migration / a third-party tool) leaves the GUC unset,
+/// so the trigger fires and captures the change. Dotted custom GUC: no
+/// `postgresql.conf` declaration is required, exactly like [`STARTED_AT_VAR`].
+pub const CDC_MEDIATED_VAR: &str = "fraiseql.cdc_mediated";
+
+/// The value [`CDC_MEDIATED_VAR`] carries when a write is FraiseQL-mediated.
+///
+/// The fallback-capture trigger suppresses its row only on an exact match, so the
+/// unset state (raw external writes → `current_setting(..., true)` is NULL) never
+/// suppresses capture.
+pub const CDC_MEDIATED_ON: &str = "on";
+
 /// Data-quality marker for the `duration_ms` computation.
 ///
 /// Stamped into a framework-written change-log row's

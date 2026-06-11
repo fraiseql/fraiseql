@@ -81,7 +81,8 @@ pub mod fraiseql_wire_adapter;
 
 // Re-export commonly used types
 pub use changelog::{
-    CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION, STARTED_AT_VAR, duration_ms_sql,
+    CDC_MEDIATED_ON, CDC_MEDIATED_VAR, CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION,
+    STARTED_AT_VAR, duration_ms_sql,
 };
 pub use collation::{CollationCapabilities, CollationMapper};
 pub use collation_config::{

@@ -1087,6 +1087,48 @@ def test_type_requires_role_absent_by_default() -> None:
     assert "requires_role" not in t
 
 
+def test_type_subscribable_tables_is_set() -> None:
+    """@type(subscribable_tables=[...]) emits subscribable_tables in schema (#366)."""
+
+    @fraiseql.type(subscribable_tables=["tb_post", "public.tb_post_archive"])
+    class Post:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Post")
+    assert t["subscribable_tables"] == ["tb_post", "public.tb_post_archive"]
+
+
+def test_type_subscribable_tables_absent_by_default() -> None:
+    """@type without subscribable_tables does not emit the key."""
+
+    @fraiseql.type
+    class Comment:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Comment")
+    assert "subscribable_tables" not in t
+
+
+def test_type_subscribable_tables_must_be_list_of_strings() -> None:
+    """A non-list / non-string subscribable_tables is rejected at decoration time."""
+    with pytest.raises(TypeError, match="subscribable_tables must be a list of strings"):
+
+        @fraiseql.type(subscribable_tables="tb_post")  # type: ignore[arg-type]
+        class BadPost:
+            id: int
+
+
+def test_type_subscribable_tables_must_not_be_empty() -> None:
+    """An empty subscribable_tables list is rejected (use None to opt out)."""
+    with pytest.raises(ValueError, match="subscribable_tables must not be empty"):
+
+        @fraiseql.type(subscribable_tables=[])
+        class EmptyPost:
+            id: int
+
+
 def test_query_requires_role_is_set() -> None:
     """@query(requires_role='admin') emits requires_role in schema."""
 

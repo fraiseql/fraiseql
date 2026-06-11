@@ -209,6 +209,20 @@ pub async fn run() {
             Err(e) => Err(anyhow::anyhow!(e)),
         },
 
+        Commands::GenerateCaptureTriggers {
+            schema,
+            output,
+            no_function,
+        } => {
+            let config = commands::generate_capture_triggers::GenerateCaptureTriggersConfig {
+                schema_path: schema,
+                output,
+                include_function: !no_function,
+            };
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            commands::generate_capture_triggers::run(config, &formatter)
+        },
+
         Commands::Validate {
             command,
             input,
@@ -600,7 +614,10 @@ fn init_logging(verbose: bool, debug: bool) {
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| filter.into()),
         )
-        .with(tracing_subscriber::fmt::layer())
+        // Diagnostics go to stderr, never stdout — so a command whose stdout is
+        // the payload (e.g. `generate-capture-triggers … | psql`) is never
+        // corrupted by a stray WARN/INFO line.
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
 }
 

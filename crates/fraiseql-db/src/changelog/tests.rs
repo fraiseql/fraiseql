@@ -1,8 +1,9 @@
 //! Unit tests for the change-log duration computation (no database required).
 
 use super::{
-    CHANGELOG_PORTABLE_INSERT_COLUMNS, CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION,
-    STARTED_AT_VAR, build_changelog_insert_sql, duration_ms_sql,
+    CDC_MEDIATED_ON, CDC_MEDIATED_VAR, CHANGELOG_PORTABLE_INSERT_COLUMNS,
+    CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION, STARTED_AT_VAR, build_changelog_insert_sql,
+    duration_ms_sql,
 };
 use crate::types::DatabaseType;
 
@@ -45,6 +46,26 @@ fn clock_directive_is_not_a_plausible_real_value() {
 #[test]
 fn duration_calc_version_is_the_post_fix_marker() {
     assert_eq!(DURATION_CALC_VERSION, 2);
+}
+
+// ── #366 CDC-mediated marker ─────────────────────────────────────────────────
+
+#[test]
+fn cdc_mediated_marker_is_a_dotted_custom_guc() {
+    // Same dotted-custom shape as STARTED_AT_VAR, so `set_config`/`current_setting`
+    // work with no postgresql.conf declaration. A dotted prefix is what PostgreSQL
+    // requires for a user-defined GUC.
+    assert_eq!(CDC_MEDIATED_VAR, "fraiseql.cdc_mediated");
+    assert!(CDC_MEDIATED_VAR.contains('.'), "a custom GUC needs a dotted prefix");
+    assert!(STARTED_AT_VAR.contains('.'), "sibling GUC is also dotted");
+}
+
+#[test]
+fn cdc_mediated_on_value_is_an_exact_match_token() {
+    // The trigger suppresses only on an exact equality to this token, so the unset
+    // state (NULL from `current_setting(..., true)`) never suppresses capture.
+    assert_eq!(CDC_MEDIATED_ON, "on");
+    assert!(!CDC_MEDIATED_ON.is_empty(), "must be a non-empty truthy token");
 }
 
 // ── Portable outbox INSERT builder (multi-DB parity smoke construct) ─────────

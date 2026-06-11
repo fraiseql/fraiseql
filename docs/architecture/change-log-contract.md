@@ -272,8 +272,12 @@ and the shipped contract, sourced from the same
   (`FOR UPDATE SKIP LOCKED`); no WAL needed.
 - **#374 multi-DB parity** — the outbox is a plain INSERT → portable across
   PG/MySQL/SQLite/MSSQL.
-- **#366 WAL-CDC** — demoted to an opt-in PG-only producer behind this same
-  envelope; the Kafka firehose is ceded to Debezium.
+- **#366 external-write capture** — a shipped, suppressible PL/pgSQL fallback
+  trigger (`core.fn_entity_change_log_capture`) writes a contract-conforming row
+  for an *uncooperative external write* (raw psql / migration / third-party tool)
+  only when the executor's transaction-local `fraiseql.cdc_mediated` marker is
+  absent, so app-path writes are never double-captured. No `wal_level=logical`, no
+  slots. See [external-write-capture.md](./external-write-capture.md).
 - **Observer fan-out** (NATS subscribers, the deduped executor's `TenantScope`,
   search / Arrow sinks) — the change-log poller projects `tenant_id` (the
   public-facing UUID partition stamp), `duration_ms` and `seq` top-level onto the

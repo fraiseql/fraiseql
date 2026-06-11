@@ -137,8 +137,8 @@ fn sample_schema() -> IntermediateSchema {
     IntermediateSchema {
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
-            name:          "Author".to_string(),
-            fields:        vec![
+            name:                "Author".to_string(),
+            fields:              vec![
                 IntermediateField {
                     name:           "pk".to_string(),
                     field_type:     "Int".to_string(),
@@ -184,11 +184,12 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
             ],
-            description:   None,
-            implements:    Vec::new(),
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         queries: vec![
             IntermediateQuery {

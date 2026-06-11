@@ -56,13 +56,14 @@ pub mod introspection_types;
 mod observer_types;
 mod scalar_types;
 pub mod security_config;
+mod subscribable_ddl;
 mod subscription_types;
 
 pub use changelog::inject_changelog;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
-    QueryDefinition, canonicalize_json, is_safe_sql_identifier,
+    QueryDefinition, SubscribableEntity, canonicalize_json, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,
@@ -93,6 +94,7 @@ pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
 pub use security_config::{
     InjectedParamSource, RoleDefinition, SecurityConfig, TenancyConfig, TenancyMode,
 };
+pub use subscribable_ddl::generate_capture_trigger_ddl;
 pub use subscription_types::{
     FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
 };

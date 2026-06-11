@@ -77,6 +77,7 @@ class SchemaRegistry:
         sql_source: str | None = None,
         key_fields: list[str] | None = None,
         extends: bool = False,
+        subscribable_tables: list[str] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -94,6 +95,10 @@ class SchemaRegistry:
                 ``v_{snake_case(name)}``.
             key_fields: Federation entity key fields (e.g., ``["id", "region"]``).
             extends: Whether this type extends a type from another subgraph.
+            subscribable_tables: Physical base table(s) whose external writes feed
+                this type's subscriptions (#366). Emitted as ``subscribable_tables``
+                only when non-empty; the compiler aggregates these into the
+                compiled schema's capture-trigger declarations.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -127,6 +132,12 @@ class SchemaRegistry:
 
         if extends:
             type_def["extends"] = True
+
+        # #366: emit only when non-empty (snake_case, like requires_role); the
+        # compiler reads it from the type JSON and aggregates the capture-trigger
+        # declarations into the compiled schema.
+        if subscribable_tables:
+            type_def["subscribable_tables"] = subscribable_tables
 
         cls._types[name] = type_def
 

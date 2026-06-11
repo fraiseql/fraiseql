@@ -312,6 +312,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     plural_name: str | None = None,
     key_fields: list[str] | None = None,
     extends: bool = False,
+    subscribable_tables: list[str] | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -332,6 +333,14 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
         plural_name: Override the auto-pluralized name for the CRUD list query.
             Only used when ``crud`` includes ``"read"``. When ``None``, the name
             is derived by pluralizing the snake_case class name.
+        subscribable_tables: Physical base table(s) backing this type whose
+            *external* writes (a raw ``INSERT``/``UPDATE``/``DELETE`` from psql, a
+            migration, or a third-party tool) should reach GraphQL subscribers
+            (#366). The compiler emits per-table capture triggers for these via
+            ``fraiseql generate-capture-triggers``; writes through FraiseQL's own
+            mutation executor are de-duplicated automatically. Each table must
+            expose a UUID ``id`` column. When ``None`` (the default), the type's
+            tables are not captured.
 
     Returns:
         The original class (unmodified)
@@ -375,6 +384,23 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 )
                 raise ValueError(msg)
 
+        # Validate subscribable_tables if provided
+        if subscribable_tables is not None:
+            if not isinstance(subscribable_tables, list) or not all(
+                isinstance(t, str) for t in subscribable_tables
+            ):
+                msg = (
+                    f"@fraiseql.type on {c.__name__!r}: subscribable_tables must be "
+                    "a list of strings."
+                )
+                raise TypeError(msg)
+            if not subscribable_tables:
+                msg = (
+                    f"@fraiseql.type on {c.__name__!r}: subscribable_tables must not "
+                    "be empty when provided."
+                )
+                raise ValueError(msg)
+
         # Validate sql_source if provided
         if sql_source is not None:
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
@@ -412,6 +438,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             sql_source=sql_source,
             key_fields=key_fields,
             extends=extends,
+            subscribable_tables=subscribable_tables,
         )
 
         # Generate CRUD operations if requested

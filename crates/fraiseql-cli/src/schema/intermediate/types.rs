@@ -36,6 +36,26 @@ pub struct IntermediateType {
     /// and validates that `pk_{entity}` (BIGINT) is present in the view's data JSONB.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// `@subscribable(tables=[...])` — the underlying base table(s) whose external
+    /// writes should be captured onto the Change Spine (#366).
+    ///
+    /// The compiler aggregates the set of `(name, tables)` for every type carrying
+    /// this into `CompiledSchema.subscribable`, which the
+    /// `generate_capture_trigger_ddl` generator turns into per-table capture
+    /// triggers. `None`/absent (the default) when the type is not subscribable.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "Post",
+    ///   "fields": [],
+    ///   "subscribable_tables": ["tb_post"]
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscribable_tables: Option<Vec<String>>,
 }
 
 /// Field definition in intermediate format

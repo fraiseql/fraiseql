@@ -38,6 +38,7 @@ impl SchemaExtractor for JavaExtractor {
                 requires_role: None,
                 is_error: false,
                 relay: false,
+                subscribable_tables: None,
             });
         }
 

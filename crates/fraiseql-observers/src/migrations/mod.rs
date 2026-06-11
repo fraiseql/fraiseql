@@ -30,6 +30,36 @@ pub const fn entity_change_log_contract_sql() -> &'static str {
     include_str!("../../migrations/08_create_entity_change_log_contract.sql")
 }
 
+/// SQL DDL that installs the suppressible external-write capture trigger function
+/// `core.fn_entity_change_log_capture()` (#366).
+///
+/// The shipped fallback that brings *uncooperative external writes* (raw
+/// `INSERT INTO tb_post` from psql / a migration / a third-party tool) onto the
+/// Change Spine without double-emitting for writes already handled by the
+/// mutation executor: it suppresses its row when the executor's transaction-local
+/// marker `fraiseql.cdc_mediated = 'on'` is set, and otherwise writes a
+/// contract-conforming `core.tb_entity_change_log` row with a Debezium-style
+/// `{op, before, after}` envelope. Statement-level + transition tables, so a bulk
+/// statement captures all its rows in one set-based INSERT.
+///
+/// This installs only the *function*; per-table triggers are generated from a
+/// compiled schema's `@subscribable` declarations by
+/// `fraiseql_core::schema::generate_capture_trigger_ddl`. PostgreSQL only;
+/// idempotent (`CREATE OR REPLACE`). Requires the contract table from
+/// [`entity_change_log_contract_sql`] to exist first.
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_observers::migrations::entity_change_log_capture_trigger_sql();
+/// assert!(sql.contains("core.fn_entity_change_log_capture"));
+/// assert!(sql.contains("fraiseql.cdc_mediated"));
+/// ```
+#[must_use]
+pub const fn entity_change_log_capture_trigger_sql() -> &'static str {
+    include_str!("../../migrations/11_create_change_log_capture_trigger.sql")
+}
+
 /// One column of the `core.tb_entity_change_log` contract: its name and the
 /// canonical PostgreSQL base type the migration installs it as.
 ///

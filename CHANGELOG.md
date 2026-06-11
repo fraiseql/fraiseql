@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **External-write capture for subscriptions (#366).** Uncooperative external
+  writes — a raw `INSERT`/`UPDATE`/`DELETE` from psql, a migration, or a
+  third-party tool — now reach GraphQL subscribers, without double-emitting for
+  writes that already flow through FraiseQL's mutation executor. The executor sets
+  a transaction-local marker (`fraiseql.cdc_mediated = 'on'`) at the start of every
+  mutation transaction; a shipped, suppressible fallback trigger
+  (`core.fn_entity_change_log_capture`) writes a contract-conforming
+  `core.tb_entity_change_log` row only when that marker is absent — so an app-path
+  write keeps its rich in-transaction outbox row and the trigger no-ops, while an
+  external write is captured with a Debezium-style `{op, before, after}` envelope
+  and fans out through the existing change-log reader and NATS bridges. The
+  triggers are statement-level with transition tables, so a bulk statement captures
+  all its rows in a single set-based INSERT (one event per changed row) rather than
+  firing per row. Declare which tables feed a type with
+  `@fraiseql.type(subscribable_tables=["tb_post"])`; the new
+  `fraiseql generate-capture-triggers -s schema.compiled.json | psql "$DATABASE_URL"`
+  command emits the self-contained, idempotent install DDL. No new infrastructure:
+  plain triggers, no `wal_level=logical`, no replication slots — works on any
+  managed PostgreSQL. See `docs/architecture/external-write-capture.md`.
 - **Actor model on the Change-Spine envelope (#390).** Every audited operation now
   carries a first-class actor classification — `human_user`, `service_account`,
   `ai_agent`, or `system_job` — derived onto the `SecurityContext` at

@@ -51,6 +51,23 @@ impl SchemaConverter {
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
+        // Aggregate the per-type `@subscribable(tables=[...])` annotations (#366)
+        // into the top-level `CompiledSchema.subscribable` list BEFORE the types
+        // are consumed below. Empty `tables` is treated as "not subscribable".
+        let subscribable: Vec<fraiseql_core::schema::SubscribableEntity> = intermediate
+            .types
+            .iter()
+            .filter_map(|t| {
+                t.subscribable_tables
+                    .as_ref()
+                    .filter(|tables| !tables.is_empty())
+                    .map(|tables| fraiseql_core::schema::SubscribableEntity {
+                        entity_type: t.name.clone(),
+                        tables:      tables.clone(),
+                    })
+            })
+            .collect();
+
         // Convert types
         let types = intermediate
             .types
@@ -143,6 +160,7 @@ impl SchemaConverter {
             fact_tables, // Analytics metadata
             observers: Vec::new(), /* Observer definitions (populated from
                           * IntermediateSchema) */
+            subscribable, // @subscribable capture-trigger declarations (#366)
             federation: intermediate
                 .federation_config
                 .map(serde_json::from_value)

@@ -10,6 +10,59 @@ use crate::schema::intermediate::{
     IntermediateSchema, IntermediateType,
 };
 
+// ── #366 @subscribable threading ─────────────────────────────────────────────
+
+#[test]
+fn intermediate_type_subscribable_tables_defaults_none() {
+    // A type authored before #366 has no `subscribable_tables` key.
+    let json = r#"{ "name": "Post", "fields": [] }"#;
+    let t: IntermediateType = serde_json::from_str(json).unwrap();
+    assert!(t.subscribable_tables.is_none(), "absent subscribable_tables defaults to None");
+}
+
+#[test]
+fn intermediate_type_reads_subscribable_tables() {
+    let json = r#"{ "name": "Post", "fields": [], "subscribable_tables": ["tb_post"] }"#;
+    let t: IntermediateType = serde_json::from_str(json).unwrap();
+    assert_eq!(t.subscribable_tables, Some(vec!["tb_post".to_string()]));
+}
+
+#[test]
+fn convert_aggregates_subscribable_tables_into_compiled() {
+    let intermediate = IntermediateSchema {
+        types: vec![
+            IntermediateType {
+                name: "Post".to_string(),
+                subscribable_tables: Some(vec![
+                    "tb_post".to_string(),
+                    "public.tb_post_archive".to_string(),
+                ]),
+                ..Default::default()
+            },
+            // Not subscribable → excluded.
+            IntermediateType {
+                name: "Comment".to_string(),
+                ..Default::default()
+            },
+            // Empty list → treated as not subscribable.
+            IntermediateType {
+                name: "Tag".to_string(),
+                subscribable_tables: Some(vec![]),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    assert_eq!(compiled.subscribable.len(), 1, "only Post is subscribable");
+    assert_eq!(compiled.subscribable[0].entity_type, "Post");
+    assert_eq!(
+        compiled.subscribable[0].tables,
+        vec!["tb_post".to_string(), "public.tb_post_archive".to_string()]
+    );
+}
+
 #[test]
 fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
@@ -89,8 +142,8 @@ fn test_convert_type_with_fields() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![
+            name:                "User".to_string(),
+            fields:              vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "Int".to_string(),
@@ -114,11 +167,12 @@ fn test_convert_type_with_fields() {
                     hierarchy:      None,
                 },
             ],
-            description:   Some("User type".to_string()),
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         Some("User type".to_string()),
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -216,13 +270,14 @@ fn test_convert_query_with_arguments() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![],
-            description:   None,
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            name:                "User".to_string(),
+            fields:              vec![],
+            description:         None,
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -292,13 +347,14 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "Item".to_string(),
-            fields:        vec![],
-            description:   None,
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            name:                "Item".to_string(),
+            fields:              vec![],
+            description:         None,
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -358,13 +414,14 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "Item".to_string(),
-            fields:        vec![],
-            description:   None,
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            name:                "Item".to_string(),
+            fields:              vec![],
+            description:         None,
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -426,8 +483,8 @@ fn test_convert_field_with_deprecated_directive() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![
+            name:                "User".to_string(),
+            fields:              vec![
                 IntermediateField {
                     name:           "oldId".to_string(),
                     field_type:     "Int".to_string(),
@@ -454,11 +511,12 @@ fn test_convert_field_with_deprecated_directive() {
                     hierarchy:      None,
                 },
             ],
-            description:   None,
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -978,8 +1036,8 @@ fn test_convert_type_implements_interface() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![
+            name:                "User".to_string(),
+            fields:              vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1003,11 +1061,12 @@ fn test_convert_type_implements_interface() {
                     hierarchy:      None,
                 },
             ],
-            description:   None,
-            implements:    vec!["Node".to_string()],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          vec!["Node".to_string()],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1069,8 +1128,8 @@ fn test_validate_unknown_interface() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![IntermediateField {
+            name:                "User".to_string(),
+            fields:              vec![IntermediateField {
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1081,11 +1140,12 @@ fn test_validate_unknown_interface() {
                 authorize:      None,
                 hierarchy:      None,
             }],
-            description:   None,
-            implements:    vec!["UnknownInterface".to_string()],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          vec!["UnknownInterface".to_string()],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1127,8 +1187,8 @@ fn test_validate_missing_interface_field() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "User".to_string(),
-            fields:        vec![
+            name:                "User".to_string(),
+            fields:              vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
                     name:           "name".to_string(),
@@ -1142,11 +1202,12 @@ fn test_validate_missing_interface_field() {
                     hierarchy:      None,
                 },
             ],
-            description:   None,
-            implements:    vec!["Node".to_string()],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          vec!["Node".to_string()],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1203,8 +1264,8 @@ fn test_convert_union() {
         version:              "2.0.0".to_string(),
         types:                vec![
             IntermediateType {
-                name:          "User".to_string(),
-                fields:        vec![IntermediateField {
+                name:                "User".to_string(),
+                fields:              vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1215,15 +1276,16 @@ fn test_convert_union() {
                     authorize:      None,
                     hierarchy:      None,
                 }],
-                description:   None,
-                implements:    vec![],
-                requires_role: None,
-                is_error:      false,
-                relay:         false,
+                description:         None,
+                implements:          vec![],
+                requires_role:       None,
+                is_error:            false,
+                relay:               false,
+                subscribable_tables: None,
             },
             IntermediateType {
-                name:          "Post".to_string(),
-                fields:        vec![IntermediateField {
+                name:                "Post".to_string(),
+                fields:              vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1234,11 +1296,12 @@ fn test_convert_union() {
                     authorize:      None,
                     hierarchy:      None,
                 }],
-                description:   None,
-                implements:    vec![],
-                requires_role: None,
-                is_error:      false,
-                relay:         false,
+                description:         None,
+                implements:          vec![],
+                requires_role:       None,
+                is_error:            false,
+                relay:               false,
+                subscribable_tables: None,
             },
         ],
         enums:                vec![],
@@ -1290,8 +1353,8 @@ fn test_convert_field_requires_scope() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:          "Employee".to_string(),
-            fields:        vec![
+            name:                "Employee".to_string(),
+            fields:              vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1337,11 +1400,12 @@ fn test_convert_field_requires_scope() {
                     hierarchy:      None,
                 },
             ],
-            description:   None,
-            implements:    vec![],
-            requires_role: None,
-            is_error:      false,
-            relay:         false,
+            description:         None,
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            subscribable_tables: None,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1414,6 +1478,7 @@ mod tenancy_tests {
             requires_role: None,
             is_error: false,
             relay: false,
+            subscribable_tables: None,
         }
     }
 
