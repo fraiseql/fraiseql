@@ -28,7 +28,9 @@ There are two ways to move a process — or a fleet of them — to the next sche
   schema file, validates it, and atomically swaps the executor. In-flight requests holding the
   old executor finish on it; new requests get the new schema. No dropped connections, no
   restart. A reload that fails validation **keeps the previous schema** and logs an error
-  (`schema_reload_errors_total`) — fail-safe.
+  (`schema_reload_errors_total`) — fail-safe. See
+  [runbooks/13-schema-hot-reload-failure.md](../runbooks/13-schema-hot-reload-failure.md) for
+  the trigger commands and failure diagnosis.
 - **Fleet roll** (multi-instance, the production default). Start new processes on the new
   schema and drain the old ones behind a load balancer ([Patterns 1–3](#pattern-1--rolling-deploy-single-fleet-in-place) below).
 
@@ -255,5 +257,7 @@ unnecessary:
   checks, and rollback commands.
 - [runbooks/11-schema-migration.md](../runbooks/11-schema-migration.md) — compatibility
   analysis and rollback for a compiled-schema update.
+- [runbooks/13-schema-hot-reload-failure.md](../runbooks/13-schema-hot-reload-failure.md) —
+  triggering an in-place `SIGUSR1` / admin-endpoint reload and diagnosing a failed reload.
 - [observer-idempotency.md](observer-idempotency.md) — `EffectivelyOnce` checkpoints, which
   keep observer delivery correct across a fleet roll.

@@ -128,7 +128,9 @@ restart: send `SIGUSR1` (auto-installed when a schema path is configured) or cal
 atomically swaps the executor — in-flight requests finish on the old schema, new requests get
 the new one, and a failed reload keeps the previous schema. Rolling deployments also work
 correctly: new pods start with the new schema while old pods drain existing connections. See
-[zero-downtime-deploys.md](zero-downtime-deploys.md) for the full deploy story.
+[zero-downtime-deploys.md](zero-downtime-deploys.md) for the full deploy story and
+[../runbooks/13-schema-hot-reload-failure.md](../runbooks/13-schema-hot-reload-failure.md) for
+the reload trigger commands and failure diagnosis.
 
 ---
 
