@@ -1,7 +1,6 @@
 //! Mutation response format and return selection.
 
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use fraiseql_core::federation::mutation_executor::FederationMutationExecutor;
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code, panics + skip notes acceptable
 use serde_json::json;
 
 use super::common;
@@ -143,10 +142,27 @@ fn test_mutation_response_subscription_trigger() {
     assert_eq!(deserialized, mutation_response);
 }
 
-#[test]
-fn test_mutation_return_all_requested_fields() {
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_return_all_requested_fields() {
     let metadata = common::metadata_single_key("User", "id");
+    let Some((_pg, executor)) = common::pg_mutation_executor(
+        metadata,
+        &[(
+            "user",
+            &[
+                "id text",
+                "email text",
+                "name text",
+                "phone text",
+                "address text",
+            ],
+        )],
+    )
+    .await
+    else {
+        eprintln!("SKIP test_mutation_return_all_requested_fields: no postgres");
+        return;
+    };
 
     // Mutation with multiple fields
     let variables = json!({
@@ -157,11 +173,7 @@ fn test_mutation_return_all_requested_fields() {
         "address": "123 Main St"
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result =
-        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
-
+    let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(User/updateUser) multi-field failed: {e}")
     });
@@ -175,10 +187,26 @@ fn test_mutation_return_all_requested_fields() {
     assert_eq!(response["address"], "123 Main St");
 }
 
-#[test]
-fn test_mutation_return_computed_fields() {
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_return_computed_fields() {
     let metadata = common::metadata_single_key("Order", "order_id");
+    let Some((_pg, executor)) = common::pg_mutation_executor(
+        metadata,
+        &[(
+            "order",
+            &[
+                "order_id text",
+                "subtotal numeric",
+                "tax numeric",
+                "total numeric",
+            ],
+        )],
+    )
+    .await
+    else {
+        eprintln!("SKIP test_mutation_return_computed_fields: no postgres");
+        return;
+    };
 
     let variables = json!({
         "order_id": "order123",
@@ -187,11 +215,7 @@ fn test_mutation_return_computed_fields() {
         "total": 110.00  // Computed field
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result =
-        runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
-
+    let result = executor.execute_local_mutation("Order", "updateOrder", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(Order/updateOrder) computed fields failed: {e}")
     });
@@ -202,10 +226,18 @@ fn test_mutation_return_computed_fields() {
     assert_eq!(response["tax"], 10.00);
 }
 
-#[test]
-fn test_mutation_return_related_entities() {
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_return_related_entities() {
     let metadata = common::metadata_single_key("Order", "order_id");
+    let Some((_pg, executor)) = common::pg_mutation_executor(
+        metadata,
+        &[("order", &["order_id text", "customer_id text", "status text"])],
+    )
+    .await
+    else {
+        eprintln!("SKIP test_mutation_return_related_entities: no postgres");
+        return;
+    };
 
     let variables = json!({
         "order_id": "order123",
@@ -213,11 +245,7 @@ fn test_mutation_return_related_entities() {
         "status": "confirmed"
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result =
-        runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
-
+    let result = executor.execute_local_mutation("Order", "updateOrder", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(Order/updateOrder) related entities failed: {e}")
     });

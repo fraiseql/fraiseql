@@ -10,17 +10,12 @@
 #![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use async_trait::async_trait;
 use fraiseql_core::{
-    db::{
-        postgres::PostgresAdapter,
-        traits::{DatabaseAdapter, SupportsMutations},
-        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
-        where_clause::WhereClause,
+    db::{postgres::PostgresAdapter, traits::DatabaseAdapter},
+    federation::{
+        mutation_executor::FederationMutationExecutor,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
     },
-    error::Result,
-    federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
-    schema::SqlProjectionHint,
 };
 use serde_json::{Value, json};
 
@@ -110,90 +105,45 @@ fn sql_literal(value: Option<&Value>) -> String {
 }
 
 // =============================================================================
-// Mock Database Adapters
+// Mutation Executor Fixture (real PostgreSQL)
 // =============================================================================
 
-/// Mock database adapter for mutation tests (returns empty results).
-pub struct MockMutationDatabaseAdapter {
-    #[allow(dead_code)]
-    // Reason: field held for potential state-inspection in future mutation tests
-    data: HashMap<String, Vec<HashMap<String, Value>>>,
+/// Connect to the harness Postgres, provision each `(table, column_ddl)` as a
+/// fresh empty table, and return a [`FederationMutationExecutor`] over the real
+/// adapter.
+///
+/// `FederationMutationExecutor::execute_local_mutation` builds a plain
+/// `INSERT`/`UPDATE`/`DELETE` against the lowercased entity type name and runs
+/// it via `execute_raw_query`, so each test provisions exactly the columns its
+/// variables reference. The table name is lowercased here to match the builder
+/// (`quote_postgres_identifier(typename.to_lowercase())`), so callers can pass
+/// either case without drift. `execute_extended_mutation` never touches the
+/// adapter, so its tests pass an empty `tables` slice.
+///
+/// Returns `None` when no Postgres is configured (`DATABASE_URL` unset and no
+/// local-testcontainers spawn) so the caller skips cleanly on the non-DB
+/// preflight leg; the bound `Service` is returned alongside the executor so a
+/// locally-spawned container, if any, is held for the test's lifetime.
+pub async fn pg_mutation_executor(
+    metadata: FederationMetadata,
+    tables: &[(&str, &[&str])],
+) -> Option<(fraiseql_test_support::Service, FederationMutationExecutor<PostgresAdapter>)> {
+    let (pg, adapter) = pg_adapter().await?;
+
+    for (table, column_ddl) in tables {
+        let table = table.to_lowercase();
+        adapter
+            .execute_raw_query(&format!(r#"DROP TABLE IF EXISTS "{table}" CASCADE"#))
+            .await
+            .expect("drop mutation table");
+        adapter
+            .execute_raw_query(&format!(r#"CREATE TABLE "{table}" ({})"#, column_ddl.join(", ")))
+            .await
+            .expect("create mutation table");
+    }
+
+    Some((pg, FederationMutationExecutor::new(adapter, metadata)))
 }
-
-impl MockMutationDatabaseAdapter {
-    pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
-}
-
-// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
-// its transformed method signatures to satisfy the trait contract
-#[async_trait]
-impl DatabaseAdapter for MockMutationDatabaseAdapter {
-    async fn execute_with_projection(
-        &self,
-        view: &str,
-        _projection: Option<&SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
-    ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
-    }
-
-    async fn execute_where_query(
-        &self,
-        _view: &str,
-        _where_clause: Option<&WhereClause>,
-        _limit: Option<u32>,
-        _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
-    ) -> Result<Vec<JsonbValue>> {
-        Ok(Vec::new())
-    }
-
-    fn database_type(&self) -> DatabaseType {
-        DatabaseType::PostgreSQL
-    }
-
-    async fn health_check(&self) -> Result<()> {
-        Ok(())
-    }
-
-    fn pool_metrics(&self) -> PoolMetrics {
-        PoolMetrics {
-            total_connections:  10,
-            idle_connections:   8,
-            active_connections: 2,
-            waiting_requests:   0,
-        }
-    }
-
-    async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, Value>>> {
-        Ok(Vec::new())
-    }
-
-    async fn execute_parameterized_aggregate(
-        &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
-    }
-
-    async fn execute_function_call(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<HashMap<String, Value>>> {
-        Ok(vec![])
-    }
-}
-
-impl SupportsMutations for MockMutationDatabaseAdapter {}
 
 // =============================================================================
 // FederationMetadata Builders
@@ -268,11 +218,6 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     }
-}
-
-/// Create a mock mutation database adapter wrapped in Arc.
-pub fn mock_mutation_adapter() -> Arc<MockMutationDatabaseAdapter> {
-    Arc::new(MockMutationDatabaseAdapter::new())
 }
 
 // =============================================================================

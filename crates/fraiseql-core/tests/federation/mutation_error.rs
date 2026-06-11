@@ -1,8 +1,7 @@
 //! Mutation error scenarios.
 
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code, panics + skip notes acceptable
 use fraiseql_core::federation::{
-    mutation_executor::FederationMutationExecutor,
     mutation_query_builder::{build_insert_query, build_update_query},
     types::FederationMetadata,
 };
@@ -56,87 +55,90 @@ fn test_mutation_missing_required_fields() {
     assert!(result.unwrap_err().to_string().contains("missing"));
 }
 
-#[test]
-fn test_mutation_authorization_error() {
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_authorization_error() {
     let metadata = common::metadata_single_key("User", "id");
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("user", &["id text", "role text"])]).await
+    else {
+        eprintln!("SKIP test_mutation_authorization_error: no postgres");
+        return;
+    };
 
     let variables = json!({
         "id": "admin_user",
         "role": "superadmin"
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-
     // Execute mutation (authorization would be checked at application level)
-    let result =
-        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
+    let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
-    // Query builds successfully
+    // Query builds and executes successfully
     result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(User/updateUser) authorization check failed: {e}")
     });
 }
 
-#[test]
-fn test_mutation_duplicate_key_error() {
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_duplicate_key_error() {
     let metadata = common::metadata_single_key("User", "id");
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("user", &["id text", "email text"])]).await
+    else {
+        eprintln!("SKIP test_mutation_duplicate_key_error: no postgres");
+        return;
+    };
 
     let variables = json!({
         "id": "existing_id",
         "email": "test@example.com"
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
+    // Execute mutation (duplicate key would be caught at DB level if constrained)
+    let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
-    // Execute mutation (duplicate key would be caught at DB level)
-    let result =
-        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
-
-    // Query builds successfully
+    // Query builds and executes successfully
     result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(User/updateUser) duplicate key check failed: {e}")
     });
 }
 
-#[test]
-fn test_mutation_latency_single_entity() {
-    use std::time::Instant;
-
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_latency_single_entity() {
+    // The original sub-10ms assertion measured the in-memory mock; against real
+    // Postgres over a service binding a micro-benchmark is meaningless, so this
+    // now just asserts the single mutation completes.
     let metadata = common::metadata_single_key("User", "id");
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("user", &["id text", "name text"])]).await
+    else {
+        eprintln!("SKIP test_mutation_latency_single_entity: no postgres");
+        return;
+    };
 
     let variables = json!({
         "id": "user1",
         "name": "Updated User"
     });
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-
-    let start = Instant::now();
-    let _result =
-        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
-    let duration = start.elapsed();
-
-    // Mock mutation should be very fast (<10ms)
-    assert!(duration.as_millis() < 10, "Single mutation took {:?}", duration);
+    let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
+    result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) single entity failed: {e}")
+    });
 }
 
-#[test]
-fn test_mutation_latency_batch_updates() {
-    use std::time::Instant;
-
-    let mock_adapter = common::mock_mutation_adapter();
+#[tokio::test]
+async fn test_mutation_latency_batch_updates() {
+    // The original sub-100ms assertion measured the in-memory mock; against real
+    // Postgres a batch-timing micro-benchmark is meaningless, so this now just
+    // asserts all batch mutations complete.
     let metadata = common::metadata_single_key("User", "id");
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-
-    let start = Instant::now();
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("user", &["id text", "name text"])]).await
+    else {
+        eprintln!("SKIP test_mutation_latency_batch_updates: no postgres");
+        return;
+    };
 
     // Execute 10 mutations
     for i in 0..10 {
@@ -145,12 +147,9 @@ fn test_mutation_latency_batch_updates() {
             "name": format!("Updated User {}", i)
         });
 
-        let _result =
-            runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
+        let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
+        result.unwrap_or_else(|e| {
+            panic!("execute_local_mutation(User/updateUser) batch iteration {i} failed: {e}")
+        });
     }
-
-    let duration = start.elapsed();
-
-    // 10 batch mutations should be reasonable (<100ms for mock)
-    assert!(duration.as_millis() < 100, "Batch mutations took {:?}", duration);
 }
