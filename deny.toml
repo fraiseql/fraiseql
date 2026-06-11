@@ -5,12 +5,12 @@
 # Pending resolution (tracked with deadlines in the [advisories] section):
 # - rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency.
 # Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
-# Deadline: 2026-10-01
+# Re-evaluate by: 2026-10-01
 # - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
 # Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
-# Deadline: 2026-10-01
+# Re-evaluate by: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
-# Deadline: 2026-12-01 — migrate off graphql-parser if still blocked.
+# Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
 #
 # See docs/dependency-risk-policy.md for the full acceptance policy.
 
@@ -20,25 +20,29 @@ ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only).
   # Resolution path: upgrade sqlx to 0.9+ when released (sqlx tracks rsa fix upstream).
   # Mitigation: mysql feature is non-default; TLS termination at load balancer layer.
-  # DEADLINE: 2026-10-01 — re-evaluate sqlx 0.9 release status; escalate if still blocked.
+  # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status; escalate if still blocked.
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path; deadline 2026-10-01"},
   # rustls-pemfile: blocked on upstream bollard migration from pem 0.x to rustls-pem.
-  # DEADLINE: 2026-07-01 — check bollard release cadence; drop bollard if unmaintained.
+  # deadline: 2026-07-01 — check bollard release cadence; drop bollard if unmaintained.
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem; deadline 2026-07-01"},
   # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects optional aws-s3 feature only; no exploit path in default configuration.
-  # DEADLINE: 2026-06-15 — if aws-sdk-s3 has not migrated to rustls 0.23, evaluate removal.
-  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."},
-  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Deadline 2026-06-15."},
+  # 2026-06-11 spike: aws-config's HTTP-client features (default-https-client / client-hyper /
+  # rustls) ALL route to aws-smithy-runtime's legacy rustls-0.21 connector (legacy-rustls-ring);
+  # no clean feature selects rustls 0.23 — the modern client needs a code-level HttpClient swap
+  # or an aws-* version bump. Tracked as the Phase 12 aws-stack rustls-0.23 migration.
+  # deadline: 2026-09-01 — re-evaluate when the Phase 12 aws-* bump lands (v2.8.0 train).
+  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."},
+  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Deadline 2026-09-01."},
   # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects optional aws-s3 feature only; same root cause as RUSTSEC-2026-0098/0099.
-  # DEADLINE: 2026-06-15 — resolved when aws-sdk migrates to rustls 0.23.
-  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."},
+  # deadline: 2026-09-01 — resolved when aws-sdk migrates to rustls 0.23.
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."},
   # lru: IterMut Stacked Borrows soundness issue (low severity, panic only if IterMut is used on dropped node).
   # We pull lru 0.12.5 transitively via aws-sdk-s3 1.119; bumping to aws-sdk-s3 1.133 (with patched lru) conflicts with
   # locked aws-config 1.8.x / aws-smithy-json 0.62.5. fraiseql does not use IterMut through aws-sdk-s3.
   # GitHub dependabot alert #43 dismissed 2026-05-22 as tolerable_risk.
-  # DEADLINE: 2026-10-01 — re-evaluate when the aws-* dep graph permits lru ≥ 0.16.3.
+  # deadline: 2026-10-01 — re-evaluate when the aws-* dep graph permits lru ≥ 0.16.3.
   {id = "RUSTSEC-2026-0002", reason = "lru IterMut soundness; transitive via aws-sdk-s3; not reachable from our code; deadline 2026-10-01"}
 ]
 unmaintained = "workspace"

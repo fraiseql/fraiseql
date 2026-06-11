@@ -23,4 +23,6 @@ ignore = [
   # Deadline 2026-10-01.
   "RUSTSEC-2026-0002"
 ]
-informational_warnings = ["unmaintained"]
+# Surface unsound + unmaintained advisories as warnings (e.g. lru's RUSTSEC-2026-0002,
+# already ignored above) so new soundness issues are visible in `cargo audit` output.
+informational_warnings = ["unmaintained", "unsound"]

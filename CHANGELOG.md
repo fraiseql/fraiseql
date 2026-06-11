@@ -44,6 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TenantEnforcer::enforce_tenant_scope_sql` (string-concatenation tenant filter
   with incomplete escaping) was deleted; the parameterized AST-based
   `enforce_tenant_scope` is the supported path (L-tenant-enforcer).
+- **Advisory-gate hardening (Phase 02).** `make audit` / `make security` no longer
+  fail on a clean tree: `.cargo/audit.toml` and `deny.toml` ignore lists are now
+  kept in lockstep by `tools/check-audit-lockstep.sh` (wired into both targets and
+  the Dagger ShellGates). A new `tools/check-deadlines.sh` fails the build once an
+  accepted-advisory deadline in `deny.toml` lapses, and the Dagger security leg now
+  runs `cargo audit` alongside `cargo deny`. The rustls-webpki advisories
+  (RUSTSEC-2026-0098/0099/0104, behind the opt-in `aws-s3` feature) had their
+  acceptance deadline extended to 2026-09-01: a spike confirmed no aws-config
+  feature selects rustls 0.23 over the legacy rustls-0.21 connector, so the
+  migration is tracked as Phase 12 (aws-stack bump).
 
 ### Added
 

@@ -669,11 +669,17 @@ audit:
 	bash tools/check-audit-lockstep.sh
 	cargo audit
 
+# Gate: fail if any accepted-advisory deadline in deny.toml has lapsed.
+.PHONY: lint-deadlines
+lint-deadlines:
+	bash tools/check-deadlines.sh
+
 # Full security checks: advisory scan + supply-chain policy gate.
 # Run before opening a PR to catch new advisories early.
 .PHONY: security
 security:
 	bash tools/check-audit-lockstep.sh
+	bash tools/check-deadlines.sh
 	cargo deny check
 	cargo audit
 	@echo "Security checks passed"

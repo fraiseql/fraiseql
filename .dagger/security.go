@@ -45,6 +45,7 @@ func (m *FraiseqlCi) Security(
 	}{
 		{"compliance", m.Compliance},
 		{"cargo-deny", m.CargoDeny},
+		{"cargo-audit", m.CargoAudit},
 	}
 
 	var report strings.Builder
@@ -74,6 +75,25 @@ func (m *FraiseqlCi) CargoDeny(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"cargo-deny", "check"}).
+		Stdout(ctx)
+}
+
+// CargoAudit runs `cargo audit` over Cargo.lock, governed by .cargo/audit.toml
+// (kept in lockstep with deny.toml by tools/check-audit-lockstep.sh). It closes
+// the gap where Dagger ran cargo-deny but never cargo-audit, so `make audit`
+// could disagree with CI. Runs on denyBase (cargo on PATH + the persistent
+// RustSec advisory-db cache); cargo-audit is installed from crates.io. Nothing
+// in the workspace compiles — only the lockfile is scanned.
+func (m *FraiseqlCi) CargoAudit(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.denyBase().
+		WithExec([]string{"cargo", "install", "cargo-audit", "--locked"}).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"cargo", "audit"}).
 		Stdout(ctx)
 }
 
