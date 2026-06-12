@@ -44,6 +44,16 @@ fn parse_select_entries_inner(
     let mut entries = Vec::new();
     let chars: Vec<char> = input.chars().collect();
     let len = chars.len();
+    // Byte offset of each char, plus a sentinel at index `len` equal to the
+    // string's byte length. The walk indexes `chars` by char position, but
+    // those positions MUST be translated to byte offsets before slicing
+    // `input` — conflating char index and byte index panics on any multi-byte
+    // UTF-8 char (e.g. `?select=%C3%A9`), a remotely-triggerable abort (H17).
+    let byte_offsets: Vec<usize> = input
+        .char_indices()
+        .map(|(b, _)| b)
+        .chain(std::iter::once(input.len()))
+        .collect();
     let mut i = 0;
 
     while i < len {
@@ -60,7 +70,7 @@ fn parse_select_entries_inner(
         while i < len && chars[i] != '(' && chars[i] != ',' && chars[i] != '.' && chars[i] != ' ' {
             i += 1;
         }
-        let name = &input[name_start..i];
+        let name = &input[byte_offsets[name_start]..byte_offsets[i]];
         let name = name.trim();
 
         if name.is_empty() {
@@ -79,7 +89,7 @@ fn parse_select_entries_inner(
             while i < len && chars[i] != ',' && chars[i] != ' ' {
                 i += 1;
             }
-            let suffix = &input[suffix_start..i];
+            let suffix = &input[byte_offsets[suffix_start]..byte_offsets[i]];
             if suffix == "count" {
                 entries.push(SelectEntry::Count(name.to_string()));
             } else {
@@ -95,29 +105,35 @@ fn parse_select_entries_inner(
                 (None, name.to_string())
             };
 
-            // Find matching closing paren (handle nesting).
+            // Find matching closing paren (handle nesting). This counter is
+            // distinct from the recursion `depth` parameter: a previous
+            // `let mut depth = 1` here shadowed `depth`, and the loop drove the
+            // shadow to 0, so the recursive call below always passed `1` and
+            // the `MAX_PARSE_DEPTH` guard never fired — unbounded recursion on
+            // `?select=a(a(a(…)))` overflowed the stack and aborted the process
+            // (H18).
             i += 1; // skip '('
             let inner_start = i;
-            let mut depth = 1;
-            while i < len && depth > 0 {
+            let mut paren_depth = 1;
+            while i < len && paren_depth > 0 {
                 if chars[i] == '(' {
-                    depth += 1;
+                    paren_depth += 1;
                 } else if chars[i] == ')' {
-                    depth -= 1;
+                    paren_depth -= 1;
                 }
-                if depth > 0 {
+                if paren_depth > 0 {
                     i += 1;
                 }
             }
-            if depth != 0 {
+            if paren_depth != 0 {
                 return Err(validation_error(format!(
                     "Unbalanced parentheses in `select` for '{relationship}'"
                 )));
             }
-            let inner = &input[inner_start..i];
+            let inner = &input[byte_offsets[inner_start]..byte_offsets[i]];
             i += 1; // skip ')'
 
-            // Recursively parse the inner fields with depth tracking.
+            // Recurse with the real nesting depth so `MAX_PARSE_DEPTH` bounds it.
             let sub_entries = parse_select_entries_inner(inner, depth + 1)?;
 
             entries.push(SelectEntry::Embedded(EmbeddedSpec {

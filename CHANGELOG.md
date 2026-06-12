@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fragment spread many times never counted toward `max_aliases`; each spread now contributes
   the fragment's own alias count per occurrence. No configuration change; depth, complexity,
   and alias metrics are unchanged for all non-pathological queries.
+- **REST `?select=` parser no longer panics on multi-byte UTF-8 or unbounded nesting
+  (H17, H18; `rest` feature).** The parser walked a `Vec<char>` by character position but
+  then byte-sliced the original `&str` with those positions, so any multi-byte UTF-8
+  character before a slice boundary panicked with "byte index N is not a char boundary" —
+  `GET /<resource>?select=%C3%A9` (decodes to `é`) aborted the request task (H17). Separately,
+  a local `let mut depth = 1` inside the embedded-resource branch shadowed the recursion-depth
+  parameter, so the recursive call always received `1` and the `MAX_PARSE_DEPTH` guard never
+  fired; `?select=a(a(a(…)))` recursed without bound and a deep value overflowed the worker
+  stack, aborting the **whole process** (SIGSEGV) (H18). The parser now translates character
+  positions to byte offsets before slicing (no desync at any site) and propagates the true
+  recursion depth so the nesting guard rejects over-deep input. A proptest asserts the parser
+  returns a `Result` — never panics — over arbitrary UTF-8.
 - **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
   object lookup `node(id: …)` resolved any type by opaque id while applying none of the
   backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id

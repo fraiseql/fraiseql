@@ -711,6 +711,54 @@ fn parse_select_entries_invalid_dot_suffix() {
 }
 
 // -----------------------------------------------------------------------
+// Panic surface: multi-byte UTF-8 (H17) and recursion-depth guard (H18)
+// -----------------------------------------------------------------------
+
+#[test]
+fn parse_select_entries_multibyte_field_does_not_panic() {
+    // H17: char positions were used as byte indices, so any multi-byte char
+    // before a slice boundary panicked ("byte index N is not a char boundary").
+    // `?select=é,id` (percent-decoded) must parse, not abort the worker.
+    let entries = parse_select_entries("é,id").expect("multi-byte select must not panic");
+    assert_eq!(entries.len(), 2);
+    assert!(matches!(&entries[0], SelectEntry::Field(f) if f == "é"));
+    assert!(matches!(&entries[1], SelectEntry::Field(f) if f == "id"));
+}
+
+#[test]
+fn parse_select_entries_multibyte_inside_embedding() {
+    // Multi-byte char inside the parenthesised inner slice (H17 site at `inner`).
+    let entries = parse_select_entries("posts(café,id)").expect("must not panic");
+    let SelectEntry::Embedded(spec) = &entries[0] else {
+        panic!("expected embedded spec, got {:?}", entries[0]);
+    };
+    assert_eq!(spec.relationship, "posts");
+    assert_eq!(spec.fields.len(), 2);
+    assert!(matches!(&spec.fields[0], SelectEntry::Field(f) if f == "café"));
+}
+
+#[test]
+fn parse_select_entries_multibyte_count_suffix() {
+    // Multi-byte char before a `.count` dot-suffix slice (H17 site at `suffix`).
+    let entries = parse_select_entries("café.count").expect("must not panic");
+    assert!(matches!(&entries[0], SelectEntry::Count(n) if n == "café"));
+}
+
+#[test]
+fn parse_select_entries_excessive_nesting_is_rejected_not_overflow() {
+    // H18: a shadowed paren counter defeated the recursion-depth guard, so the
+    // recursive call always received depth 1 and `MAX_PARSE_DEPTH` never fired —
+    // deep `?select=a(a(a(…)))` overflowed the stack (process abort). 40 levels
+    // must now be rejected with the depth-limit error, never recursed into.
+    let deep = format!("{}{}", "a(".repeat(40), ")".repeat(40));
+    let err = parse_select_entries(&deep).expect_err("deep nesting must be rejected");
+    assert!(
+        err.to_string().contains("nesting depth exceeds maximum"),
+        "expected depth-limit error, got: {err}"
+    );
+}
+
+// -----------------------------------------------------------------------
 // Embedding depth validation
 // -----------------------------------------------------------------------
 
@@ -1080,4 +1128,19 @@ fn logical_invalid_syntax() {
         msg.contains("must be enclosed in parentheses") || msg.contains("syntax"),
         "got: {msg}"
     );
+}
+
+// -----------------------------------------------------------------------
+// Property test: the select parser never panics on arbitrary UTF-8 (H17/H18)
+// -----------------------------------------------------------------------
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(2048))]
+
+    /// Arbitrary UTF-8 (including multi-byte chars and adversarial parenthesis
+    /// nesting) must produce a `Result`, never a panic or stack overflow.
+    #[test]
+    fn parse_select_entries_never_panics(input in ".*") {
+        let _ = parse_select_entries(&input);
+    }
 }
