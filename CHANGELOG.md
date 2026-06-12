@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Complexity validator no longer pins a worker on crafted fragment spreads (H4, DoS).**
+  The depth/complexity analyzer re-walked every fragment spread with no memoization, so a
+  ~1 KB query with N chained fragments each spread `b` times forced `b^N` recursive walks —
+  the audit's 31-fragment / branch-2 construction pins a Tokio worker for ~88 s, and because
+  the full metric was computed *before* any limit comparison, the configured depth/complexity
+  limits never got a chance to reject it (the validation step itself was the DoS, and the
+  opt-in `TimeoutLayer` cannot preempt synchronous CPU-bound work). Each fragment's
+  depth/complexity/alias contribution is now resolved exactly once and memoized by name, with
+  fragment cycles detected and treated as over-limit (rejected, never recursed into) and an
+  over-long spread chain capped as before — making validation linear in document size
+  regardless of fragment topology. The same pass also closes a companion alias-amplification
+  bypass: the old alias counter scored fragment spreads as 0, so aliases hidden inside a
+  fragment spread many times never counted toward `max_aliases`; each spread now contributes
+  the fragment's own alias count per occurrence. No configuration change; depth, complexity,
+  and alias metrics are unchanged for all non-pathological queries.
 - **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
   object lookup `node(id: …)` resolved any type by opaque id while applying none of the
   backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id

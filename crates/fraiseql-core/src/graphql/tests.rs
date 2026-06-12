@@ -1189,4 +1189,117 @@ mod complexity_tests {
             "expected QueryTooDeep for depth-6 query with max 5, got: {result:?}"
         );
     }
+
+    // ── Fragment-spread amplification & cycles (audit H4 DoS) ──
+
+    /// Builds the audit's worker-pinning construction: `chain` fragments where
+    /// each spreads the next `branch` times, fronted by `query { ...f0 }`.
+    /// Without memoization this forces `branch^chain` recursive walks
+    /// (`31`/`2` ≈ 2.1 billion, ~88 s single-threaded). With memoization each
+    /// fragment is walked once.
+    fn fragment_bomb(chain: usize, branch: usize) -> String {
+        use std::fmt::Write;
+        let mut q = String::from("query { ...f0 }\n");
+        for i in 0..chain {
+            let spreads = (0..branch).fold(String::new(), |mut s, _| {
+                let _ = write!(s, "...f{} ", i + 1);
+                s
+            });
+            let _ = writeln!(q, "fragment f{i} on T {{ {spreads} }}");
+        }
+        // Terminal fragment with a scalar leaf so the chain is well-formed.
+        let _ = writeln!(q, "fragment f{chain} on T {{ leaf }}");
+        q
+    }
+
+    #[test]
+    fn fragment_amplification_does_not_pin_the_worker() {
+        // The validation step itself must stay cheap regardless of fragment
+        // topology. Pre-fix this call runs for ~88 s; memoized it is sub-ms. A
+        // generous 2 s bound catches a regression without flaking under load.
+        let validator = RequestValidator::default();
+        let query = fragment_bomb(31, 2);
+        let start = std::time::Instant::now();
+        let result = validator.validate_query(&query);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "complexity validation must be bounded; took {elapsed:?}"
+        );
+        // Depth ~31 also exceeds the default max_depth (10), so it is rejected.
+        assert!(
+            matches!(result, Err(ComplexityValidationError::QueryTooDeep { .. })),
+            "deep fragment chain must be rejected, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn fragment_cycle_is_rejected_not_recursed() {
+        // A→B→A is invalid GraphQL and a non-terminating walk pre-fix; the
+        // analyzer must terminate and reject (over-limit), never hang or
+        // overflow the stack.
+        let validator = RequestValidator::default();
+        let query = "
+            query { ...A }
+            fragment A on T { ...B }
+            fragment B on T { ...A }
+        ";
+        let start = std::time::Instant::now();
+        let result = validator.validate_query(query);
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "fragment cycle must terminate quickly"
+        );
+        assert!(
+            result.is_err(),
+            "fragment cycle must be rejected as over-limit, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn self_referential_fragment_is_rejected() {
+        let validator = RequestValidator::default();
+        let query = "query { ...A } fragment A on T { x ...A }";
+        let result = validator.validate_query(query);
+        assert!(result.is_err(), "self-referential fragment must be rejected, got: {result:?}");
+    }
+
+    #[test]
+    fn aliases_inside_spread_fragments_are_counted() {
+        // Pre-fix the alias counter scored fragment spreads as 0, so aliases
+        // hidden in a fragment spread N times bypassed the limit entirely. Now
+        // each spread contributes the fragment's aliases per occurrence:
+        // 3 spreads × 2 aliases = 6.
+        let validator = RequestValidator::new().with_max_aliases(5);
+        let query = "
+            query { ...F ...F ...F }
+            fragment F on T { x: a y: b }
+        ";
+        assert!(
+            matches!(
+                validator.validate_query(query),
+                Err(ComplexityValidationError::TooManyAliases {
+                    actual_aliases: 6,
+                    ..
+                })
+            ),
+            "aliases expanded from fragment spreads must count toward the limit"
+        );
+    }
+
+    #[test]
+    fn shared_fragment_metrics_are_consistent_when_memoized() {
+        // A fragment spread twice must contribute its metrics once per
+        // occurrence (memoized, no drift): complexity for `...F ...F` is exactly
+        // double a single `...F`, depth is unchanged.
+        let validator = RequestValidator::new();
+        let once = validator.analyze("query { ...F } fragment F on T { a b c }").expect("valid");
+        let twice = validator
+            .analyze("query { ...F ...F } fragment F on T { a b c }")
+            .expect("valid");
+        assert_eq!(once.depth, 2, "single spread depth");
+        assert_eq!(once.complexity, 3, "single spread complexity (a,b,c)");
+        assert_eq!(twice.depth, once.depth, "spreading twice must not change depth");
+        assert_eq!(twice.complexity, once.complexity * 2, "each spread contributes once");
+    }
 }

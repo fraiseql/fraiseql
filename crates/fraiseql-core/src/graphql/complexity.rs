@@ -4,6 +4,8 @@
 // operation names, arguments, fragment spreads, and aliases (which a
 // character-scan approach cannot distinguish from field names).
 
+use std::collections::{HashMap, HashSet};
+
 use graphql_parser::query::{
     Definition, Document, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
 };
@@ -203,12 +205,20 @@ impl RequestValidator {
         }
         let document = graphql_parser::parse_query::<String>(query)
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
-        let fragments = collect_fragments(&document);
-        Ok(QueryMetrics {
-            depth:       self.calculate_depth_ast(&document, &fragments),
-            complexity:  self.calculate_complexity_ast(&document, &fragments),
-            alias_count: self.count_aliases_ast(&document),
-        })
+        Ok(self.document_metrics(&document))
+    }
+
+    /// Compute depth, complexity, and alias count in a single memoizing pass.
+    ///
+    /// Resolving each fragment's contribution exactly once (and rejecting
+    /// fragment cycles) keeps this linear in document size regardless of
+    /// fragment-spread topology — without it, B-way branching across D chained
+    /// spreads costs B^D walks and the validation step itself becomes the `DoS`
+    /// (audit H4).
+    fn document_metrics<'a>(&self, document: &'a Document<'a, String>) -> QueryMetrics {
+        let fragments = collect_fragments(document);
+        let mut analyzer = DocumentAnalyzer::new(&fragments, self.max_depth, self.max_complexity);
+        analyzer.analyze_document(document)
     }
 
     /// Returns true when every configured validation knob is disabled and the
@@ -261,33 +271,26 @@ impl RequestValidator {
             return Ok(());
         }
 
-        let fragments = collect_fragments(document);
+        let metrics = self.document_metrics(document);
 
-        if self.validate_depth {
-            let depth = self.calculate_depth_ast(document, &fragments);
-            if depth > self.max_depth {
-                return Err(ComplexityValidationError::QueryTooDeep {
-                    max_depth:    self.max_depth,
-                    actual_depth: depth,
-                });
-            }
+        if self.validate_depth && metrics.depth > self.max_depth {
+            return Err(ComplexityValidationError::QueryTooDeep {
+                max_depth:    self.max_depth,
+                actual_depth: metrics.depth,
+            });
         }
 
-        if self.validate_complexity {
-            let complexity = self.calculate_complexity_ast(document, &fragments);
-            if complexity > self.max_complexity {
-                return Err(ComplexityValidationError::QueryTooComplex {
-                    max_complexity:    self.max_complexity,
-                    actual_complexity: complexity,
-                });
-            }
+        if self.validate_complexity && metrics.complexity > self.max_complexity {
+            return Err(ComplexityValidationError::QueryTooComplex {
+                max_complexity:    self.max_complexity,
+                actual_complexity: metrics.complexity,
+            });
         }
 
-        let alias_count = self.count_aliases_ast(document);
-        if alias_count > self.max_aliases_per_query {
+        if metrics.alias_count > self.max_aliases_per_query {
             return Err(ComplexityValidationError::TooManyAliases {
                 max_aliases:    self.max_aliases_per_query,
-                actual_aliases: alias_count,
+                actual_aliases: metrics.alias_count,
             });
         }
 
@@ -328,173 +331,209 @@ impl RequestValidator {
         }
         Ok(())
     }
+}
 
-    fn calculate_depth_ast(
-        &self,
-        document: &Document<String>,
-        fragments: &[&FragmentDefinition<String>],
-    ) -> usize {
-        document
-            .definitions
-            .iter()
-            .map(|def| match def {
-                Definition::Operation(op) => match op {
-                    OperationDefinition::Query(q) => {
-                        self.selection_set_depth(&q.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::Mutation(m) => {
-                        self.selection_set_depth(&m.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::Subscription(s) => {
-                        self.selection_set_depth(&s.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::SelectionSet(ss) => {
-                        self.selection_set_depth(ss, fragments, 0)
-                    },
-                },
-                Definition::Fragment(f) => self.selection_set_depth(&f.selection_set, fragments, 0),
-            })
-            .max()
-            .unwrap_or(0)
-    }
+/// Hard ceiling on fragment-spread chain length the analyzer resolves before
+/// declaring the document over-limit. Mirrors the pre-memoization 32-hop
+/// recursion guard: a document nesting fragment spreads beyond this is rejected
+/// (real APIs never approach it), which also bounds the analyzer's own
+/// recursion depth so a long fragment chain cannot overflow the stack. Fragment
+/// cycles are caught earlier by the [`DocumentAnalyzer`] `visiting` set.
+const FRAGMENT_SPREAD_DEPTH_LIMIT: usize = 32;
 
-    fn selection_set_depth(
-        &self,
-        selection_set: &SelectionSet<String>,
-        fragments: &[&FragmentDefinition<String>],
-        recursion_depth: usize,
-    ) -> usize {
-        if recursion_depth > 32 {
-            return self.max_depth + 1;
+/// Depth, complexity, and alias contribution of one selection set (or one
+/// fragment). Computed once per fragment and memoized by name so a fragment
+/// spread costs a map lookup instead of a re-walk.
+#[derive(Debug, Clone, Copy)]
+struct SelectionMetrics {
+    depth:      usize,
+    complexity: usize,
+    aliases:    usize,
+}
+
+/// Single-pass, memoizing analyzer shared by depth, complexity, and alias
+/// counting.
+///
+/// Each fragment's metrics are resolved exactly once (on demand) and cached by
+/// name; fragment cycles are detected via `visiting` and treated as over-limit
+/// rather than recursed into. This is what bounds the validator's own cost —
+/// the previous per-spread re-walk made the validation step itself a `DoS`:
+/// B-way branching across D chained fragment spreads cost B^D walks (audit H4),
+/// and aliases hidden inside spread fragments were never counted, bypassing the
+/// alias-amplification limit (audit H4, alias counter).
+struct DocumentAnalyzer<'a> {
+    by_name:        HashMap<&'a str, &'a FragmentDefinition<'a, String>>,
+    memo:           HashMap<&'a str, SelectionMetrics>,
+    visiting:       HashSet<&'a str>,
+    max_depth:      usize,
+    max_complexity: usize,
+}
+
+impl<'a> DocumentAnalyzer<'a> {
+    fn new(
+        fragments: &[&'a FragmentDefinition<'a, String>],
+        max_depth: usize,
+        max_complexity: usize,
+    ) -> Self {
+        let mut by_name = HashMap::with_capacity(fragments.len());
+        for frag in fragments {
+            // First definition wins, matching the previous `.find()` lookup.
+            by_name.entry(frag.name.as_str()).or_insert(*frag);
         }
-        if selection_set.items.is_empty() {
-            return 0;
+        Self {
+            by_name,
+            memo: HashMap::new(),
+            visiting: HashSet::new(),
+            max_depth,
+            max_complexity,
         }
-        let max_child = selection_set
-            .items
-            .iter()
-            .map(|sel| match sel {
-                Selection::Field(field) => {
-                    if field.selection_set.items.is_empty() {
-                        0
-                    } else {
-                        self.selection_set_depth(&field.selection_set, fragments, recursion_depth)
-                    }
-                },
-                Selection::InlineFragment(inline) => {
-                    self.selection_set_depth(&inline.selection_set, fragments, recursion_depth)
-                },
-                Selection::FragmentSpread(spread) => {
-                    if let Some(frag) = fragments.iter().find(|f| f.name == spread.fragment_name) {
-                        self.selection_set_depth(
-                            &frag.selection_set,
-                            fragments,
-                            recursion_depth + 1,
-                        )
-                    } else {
-                        self.max_depth
-                    }
-                },
-            })
-            .max()
-            .unwrap_or(0);
-        1 + max_child
     }
 
-    fn calculate_complexity_ast(
-        &self,
-        document: &Document<String>,
-        fragments: &[&FragmentDefinition<String>],
-    ) -> usize {
-        document
-            .definitions
-            .iter()
-            .map(|def| match def {
-                Definition::Operation(op) => match op {
-                    OperationDefinition::Query(q) => {
-                        self.selection_set_complexity(&q.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::Mutation(m) => {
-                        self.selection_set_complexity(&m.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::Subscription(s) => {
-                        self.selection_set_complexity(&s.selection_set, fragments, 0)
-                    },
-                    OperationDefinition::SelectionSet(ss) => {
-                        self.selection_set_complexity(ss, fragments, 0)
-                    },
-                },
-                Definition::Fragment(_) => 0,
-            })
-            .fold(0usize, usize::saturating_add)
-    }
-
-    fn selection_set_complexity(
-        &self,
-        selection_set: &SelectionSet<String>,
-        fragments: &[&FragmentDefinition<String>],
-        recursion_depth: usize,
-    ) -> usize {
-        if recursion_depth > 32 {
-            return self.max_complexity + 1;
+    /// Metrics that force rejection on both the depth and complexity gates,
+    /// used for fragment cycles and over-long spread chains (never executable).
+    const fn over_limit(&self) -> SelectionMetrics {
+        SelectionMetrics {
+            depth:      self.max_depth.saturating_add(1),
+            complexity: self.max_complexity.saturating_add(1),
+            aliases:    0,
         }
-        selection_set
-            .items
-            .iter()
-            .map(|sel| match sel {
-                Selection::Field(field) => {
-                    let multiplier = extract_limit_multiplier(&field.arguments);
-                    if field.selection_set.items.is_empty() {
-                        1
-                    } else {
-                        let nested = self.selection_set_complexity(
-                            &field.selection_set,
-                            fragments,
-                            recursion_depth,
-                        );
-                        // Saturating: the multiplier compounds per nesting level,
-                        // so a crafted deep query overflows `usize`. Saturating to
-                        // `usize::MAX` keeps the score monotonic and fail-closed
-                        // (the limit always rejects it) instead of wrapping under
-                        // the limit (release) or panicking (overflow-checked builds).
-                        1usize.saturating_add(nested.saturating_mul(multiplier))
-                    }
-                },
-                Selection::InlineFragment(inline) => {
-                    self.selection_set_complexity(&inline.selection_set, fragments, recursion_depth)
-                },
-                Selection::FragmentSpread(spread) => {
-                    if let Some(frag) = fragments.iter().find(|f| f.name == spread.fragment_name) {
-                        self.selection_set_complexity(
-                            &frag.selection_set,
-                            fragments,
-                            recursion_depth + 1,
-                        )
-                    } else {
-                        10
-                    }
-                },
-            })
-            .fold(0usize, usize::saturating_add)
     }
 
-    fn count_aliases_ast(&self, document: &Document<String>) -> usize {
-        document
-            .definitions
-            .iter()
-            .map(|def| match def {
+    /// Reduce the whole document to a single [`QueryMetrics`].
+    ///
+    /// Depth is the max across every definition (operations *and* fragment
+    /// definitions, preserving legacy behaviour); complexity sums operations
+    /// only; the alias total sums operations only, where each fragment spread
+    /// contributes the fragment's own alias count *per occurrence* — that is
+    /// the alias-amplification fix (the old counter scored spreads as 0).
+    fn analyze_document(&mut self, document: &'a Document<'a, String>) -> QueryMetrics {
+        let mut depth = 0usize;
+        let mut complexity = 0usize;
+        let mut aliases = 0usize;
+        for def in &document.definitions {
+            match def {
                 Definition::Operation(op) => {
-                    let ss = match op {
-                        OperationDefinition::Query(q) => &q.selection_set,
-                        OperationDefinition::Mutation(m) => &m.selection_set,
-                        OperationDefinition::Subscription(s) => &s.selection_set,
-                        OperationDefinition::SelectionSet(ss) => ss,
-                    };
-                    count_aliases_in_selection_set(ss)
+                    let m = self.selection_metrics(
+                        operation_selection_set(op),
+                        FRAGMENT_SPREAD_DEPTH_LIMIT,
+                    );
+                    depth = depth.max(m.depth);
+                    complexity = complexity.saturating_add(m.complexity);
+                    aliases = aliases.saturating_add(m.aliases);
                 },
-                Definition::Fragment(f) => count_aliases_in_selection_set(&f.selection_set),
-            })
-            .sum()
+                Definition::Fragment(f) => {
+                    let m = self.resolve_fragment(f.name.as_str(), FRAGMENT_SPREAD_DEPTH_LIMIT);
+                    depth = depth.max(m.depth);
+                },
+            }
+        }
+        QueryMetrics {
+            depth,
+            complexity,
+            alias_count: aliases,
+        }
+    }
+
+    /// Memoized metrics for a fragment by name.
+    ///
+    /// `budget` is the remaining fragment-spread hops; it decrements on each
+    /// spread resolution and a cycle (`visiting`) or exhausted budget yields the
+    /// over-limit sentinel without recursing. Cut/cycle results are deliberately
+    /// not memoized — they are context-dependent, not the fragment's intrinsic
+    /// metric.
+    fn resolve_fragment(&mut self, name: &'a str, budget: usize) -> SelectionMetrics {
+        if let Some(m) = self.memo.get(name) {
+            return *m;
+        }
+        if self.visiting.contains(name) || budget == 0 {
+            return self.over_limit();
+        }
+        let Some(frag) = self.by_name.get(name).copied() else {
+            // Unknown fragment: preserve the legacy contribution — depth =
+            // max_depth (so the enclosing selection set trips the depth gate),
+            // complexity = 10, no aliases.
+            let m = SelectionMetrics {
+                depth:      self.max_depth,
+                complexity: 10,
+                aliases:    0,
+            };
+            self.memo.insert(name, m);
+            return m;
+        };
+        self.visiting.insert(name);
+        let m = self.selection_metrics(&frag.selection_set, budget - 1);
+        self.visiting.remove(name);
+        self.memo.insert(name, m);
+        m
+    }
+
+    fn selection_metrics(
+        &mut self,
+        selection_set: &'a SelectionSet<'a, String>,
+        budget: usize,
+    ) -> SelectionMetrics {
+        let mut max_child_depth = 0usize;
+        let mut complexity = 0usize;
+        let mut aliases = 0usize;
+        for sel in &selection_set.items {
+            let child = match sel {
+                Selection::Field(field) => {
+                    let self_alias = usize::from(field.alias.is_some());
+                    if field.selection_set.items.is_empty() {
+                        SelectionMetrics {
+                            depth:      0,
+                            complexity: 1,
+                            aliases:    self_alias,
+                        }
+                    } else {
+                        let nested = self.selection_metrics(&field.selection_set, budget);
+                        let multiplier = extract_limit_multiplier(&field.arguments);
+                        SelectionMetrics {
+                            depth:      nested.depth,
+                            // Saturating: the multiplier compounds per nesting
+                            // level, so a crafted deep query overflows `usize`.
+                            // Saturating to `usize::MAX` keeps the score
+                            // monotonic and fail-closed (the limit always
+                            // rejects it) rather than wrapping under the limit.
+                            complexity: 1usize
+                                .saturating_add(nested.complexity.saturating_mul(multiplier)),
+                            aliases:    self_alias.saturating_add(nested.aliases),
+                        }
+                    }
+                },
+                Selection::InlineFragment(inline) => {
+                    self.selection_metrics(&inline.selection_set, budget)
+                },
+                Selection::FragmentSpread(spread) => {
+                    self.resolve_fragment(spread.fragment_name.as_str(), budget)
+                },
+            };
+            max_child_depth = max_child_depth.max(child.depth);
+            complexity = complexity.saturating_add(child.complexity);
+            aliases = aliases.saturating_add(child.aliases);
+        }
+        let depth = if selection_set.items.is_empty() {
+            0
+        } else {
+            max_child_depth.saturating_add(1)
+        };
+        SelectionMetrics {
+            depth,
+            complexity,
+            aliases,
+        }
+    }
+}
+
+/// The top-level selection set of any operation kind.
+const fn operation_selection_set<'a>(
+    op: &'a OperationDefinition<'a, String>,
+) -> &'a SelectionSet<'a, String> {
+    match op {
+        OperationDefinition::Query(q) => &q.selection_set,
+        OperationDefinition::Mutation(m) => &m.selection_set,
+        OperationDefinition::Subscription(s) => &s.selection_set,
+        OperationDefinition::SelectionSet(ss) => ss,
     }
 }
 
@@ -541,22 +580,4 @@ fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<S
         }
     }
     1
-}
-
-/// Recursively count aliases in a selection set.
-fn count_aliases_in_selection_set(selection_set: &SelectionSet<String>) -> usize {
-    selection_set
-        .items
-        .iter()
-        .map(|sel| match sel {
-            Selection::Field(field) => {
-                let self_alias = usize::from(field.alias.is_some());
-                self_alias + count_aliases_in_selection_set(&field.selection_set)
-            },
-            Selection::InlineFragment(inline) => {
-                count_aliases_in_selection_set(&inline.selection_set)
-            },
-            Selection::FragmentSpread(_) => 0,
-        })
-        .sum()
 }
