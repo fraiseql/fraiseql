@@ -339,10 +339,12 @@ pub struct FieldDefinition {
 
     /// Encryption configuration for this field.
     ///
-    /// When set, the field's value is transparently encrypted before being
-    /// stored in the database and decrypted when read back. Encryption
-    /// uses the key referenced by `key_reference` (fetched from the secrets
-    /// manager) with the specified algorithm.
+    /// **Not supported in this release.** End-to-end field-level at-rest encryption is
+    /// not implemented: the mutation/write path does not encrypt field values, so a field
+    /// marked for encryption would be stored in plaintext and then fail to decrypt on read.
+    /// To avoid silently storing sensitive data unencrypted, the server **refuses to start**
+    /// when any field declares this. The field is retained so existing compiled schemas
+    /// still deserialize and produce that boot-time error rather than a silent plaintext write.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub encryption: Option<FieldEncryptionConfig>,
 
@@ -357,9 +359,10 @@ pub struct FieldDefinition {
 
 /// Encryption configuration for a field in the compiled schema.
 ///
-/// Specifies how a field should be encrypted at rest. The key is fetched
-/// from the configured secrets backend (Vault, environment, or file) using
-/// the `key_reference` path.
+/// **Not supported in this release** — see the [`FieldDefinition`] `encryption` field. The
+/// write path does not encrypt, so a field carrying this config would be stored in plaintext;
+/// the server refuses to boot rather than do so. This type describes the *intended* shape
+/// (key reference + algorithm) for when end-to-end field encryption is implemented.
 ///
 /// # Example
 ///

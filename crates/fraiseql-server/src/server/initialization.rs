@@ -764,3 +764,46 @@ pub(super) fn is_manifest_url_ssrf_blocked(url: &str) -> bool {
     }
     false
 }
+
+/// Refuse to boot when the compiled schema marks any field for at-rest encryption.
+///
+/// Write-path field encryption is **not implemented** in this release (H12): the mutation
+/// executor never encrypts on write — `FieldEncryptionService::encrypt_variables` has no
+/// caller — so a field marked `encryption` is stored in **plaintext** while the read path
+/// attempts to decrypt it, returning a 500 (`Field decryption failed`) on every read. Worse,
+/// when the `secrets` feature is absent the field round-trips silently in plaintext, so an
+/// operator believes sensitive columns are encrypted at rest when they are not.
+///
+/// Rather than silently storing sensitive data in plaintext, the server refuses to start and
+/// names the offending field(s). This is the honest interim until end-to-end field encryption
+/// (write-path call, array/nested recursion, `(type, field)` keying, ciphertext versioning,
+/// and key KDF/zeroize) is implemented.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when any field in the schema declares `encryption`.
+pub(super) fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Result<()> {
+    let encrypted: Vec<String> = schema
+        .types
+        .iter()
+        .flat_map(|t| {
+            t.fields
+                .iter()
+                .filter(|f| f.encryption.is_some())
+                .map(move |f| format!("{}.{}", t.name, f.name))
+        })
+        .collect();
+
+    if encrypted.is_empty() {
+        return Ok(());
+    }
+
+    Err(crate::ServerError::ConfigError(format!(
+        "Field-level at-rest encryption is configured for {} but is not supported in this \
+         release: the mutation path does not encrypt on write, so these field(s) would be \
+         stored in plaintext and then fail to decrypt on read (HTTP 500). Remove the \
+         `encryption` marker from these field(s) — and any `[security.field_encryption]` \
+         config — to start the server.",
+        encrypted.join(", ")
+    )))
+}

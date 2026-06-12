@@ -244,6 +244,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation, auth, not-found, and SQLSTATE 22/23 client-input faults (#413) — are
   intentional and pass through unchanged. The orphaned middleware module was deleted
   (two sanitization layers with divergent body-shape assumptions invite drift).
+- **The server now refuses to boot when a field is marked for at-rest encryption,
+  instead of silently storing it in plaintext (H12).** Field-level at-rest encryption
+  was advertised but never worked end-to-end: the write/mutation path does not encrypt
+  (`FieldEncryptionService::encrypt_variables` has no caller), so a field marked
+  `encryption` was written to the database in **plaintext** and the read path then
+  failed to decrypt it, returning HTTP 500 on every read — and when the `secrets`
+  feature was absent the field round-tripped silently in plaintext, so operators
+  believed sensitive columns were encrypted at rest when they were not. Rather than
+  ship a security control that silently does the opposite of what it claims, the server
+  now performs a startup check and **refuses to start** when any compiled-schema field
+  declares `encryption`, naming the offending field(s) and how to remove the marker.
+  The false "transparently encrypted… decrypted when read back" claims on
+  `FieldDefinition.encryption` / `FieldEncryptionConfig` and in the `fraiseql-secrets`
+  README were corrected. End-to-end field encryption (write-path call, array/nested
+  recursion, `(type, field)` keying, ciphertext versioning, key KDF/zeroize) remains
+  unimplemented and is tracked for a future release.
+  **Breaking change:** a deployment whose compiled schema marks any field for
+  encryption will now fail to start (it was previously 500-ing on every read of that
+  field, or silently storing plaintext); remove the `encryption` marker and any
+  `[security.field_encryption]` config to boot.
 
 ### Added
 

@@ -101,6 +101,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
         })?;
 
+        // Refuse to boot if any field is marked for at-rest encryption: the write path does
+        // not encrypt (H12), so those fields would be stored in plaintext. Fail loud rather
+        // than silently storing sensitive data unencrypted.
+        crate::server::initialization::field_encryption_unsupported_check(&schema)?;
+
         // Read security configs from compiled schema BEFORE schema is moved.
         #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(

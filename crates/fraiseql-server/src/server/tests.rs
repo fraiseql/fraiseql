@@ -35,6 +35,54 @@ mod page_size_precedence_tests {
 mod initialization_tests {
     use super::super::initialization::is_manifest_url_ssrf_blocked;
 
+    /// H12: a field marked for at-rest encryption must refuse to boot — the write path does
+    /// not encrypt, so it would be stored in plaintext.
+    #[test]
+    fn field_encryption_marker_refuses_boot() {
+        use fraiseql_core::schema::{
+            CompiledSchema, FieldDefinition, FieldEncryptionConfig, FieldType, TypeDefinition,
+        };
+
+        use super::super::initialization::field_encryption_unsupported_check;
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields
+            .push(FieldDefinition::new("email", FieldType::String).with_encryption(
+                FieldEncryptionConfig {
+                    key_reference: "keys/user-email".to_string(),
+                    algorithm:     "AES-256-GCM".to_string(),
+                },
+            ));
+        let schema = CompiledSchema {
+            types: vec![user],
+            ..CompiledSchema::default()
+        };
+
+        let result = field_encryption_unsupported_check(&schema);
+        assert!(
+            matches!(&result, Err(crate::ServerError::ConfigError(msg)) if msg.contains("User.email")),
+            "a field marked for encryption must refuse to boot and name the field (H12): {result:?}"
+        );
+    }
+
+    #[test]
+    fn no_field_encryption_boots_fine() {
+        use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+
+        use super::super::initialization::field_encryption_unsupported_check;
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields.push(FieldDefinition::new("email", FieldType::String));
+        let schema = CompiledSchema {
+            types: vec![user],
+            ..CompiledSchema::default()
+        };
+        assert!(
+            field_encryption_unsupported_check(&schema).is_ok(),
+            "a schema with no encryption-marked fields boots normally"
+        );
+    }
+
     #[test]
     fn ssrf_blocks_localhost_by_name() {
         assert!(is_manifest_url_ssrf_blocked("http://localhost/manifest.json"));
