@@ -38,12 +38,6 @@ ignore = [
   # Affects optional aws-s3 feature only; same root cause as RUSTSEC-2026-0098/0099.
   # deadline: 2026-09-01 — resolved when aws-sdk migrates to rustls 0.23.
   {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."},
-  # lru: IterMut Stacked Borrows soundness issue (low severity, panic only if IterMut is used on dropped node).
-  # We pull lru 0.12.5 transitively via aws-sdk-s3 1.119; bumping to aws-sdk-s3 1.133 (with patched lru) conflicts with
-  # locked aws-config 1.8.x / aws-smithy-json 0.62.5. fraiseql does not use IterMut through aws-sdk-s3.
-  # GitHub dependabot alert #43 dismissed 2026-05-22 as tolerable_risk.
-  # deadline: 2026-10-01 — re-evaluate when the aws-* dep graph permits lru ≥ 0.16.3.
-  {id = "RUSTSEC-2026-0002", reason = "lru IterMut soundness; transitive via aws-sdk-s3; not reachable from our code; deadline 2026-10-01"}
 ]
 unmaintained = "workspace"
 

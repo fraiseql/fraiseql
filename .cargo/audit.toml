@@ -19,10 +19,7 @@ ignore = [
   "RUSTSEC-2026-0099",
   # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099. Deadline 2026-06-15.
   "RUSTSEC-2026-0104",
-  # lru: IterMut violates Stacked Borrows; transitive via aws-sdk-s3, not on our code path.
-  # Deadline 2026-10-01.
-  "RUSTSEC-2026-0002"
 ]
-# Surface unsound + unmaintained advisories as warnings (e.g. lru's RUSTSEC-2026-0002,
-# already ignored above) so new soundness issues are visible in `cargo audit` output.
+# Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
+# in `cargo audit` output.
 informational_warnings = ["unmaintained", "unsound"]

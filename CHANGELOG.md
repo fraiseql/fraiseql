@@ -307,6 +307,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Breaking change:** a deployment that set `[tls]` expecting the server to terminate TLS
   will now fail to start (it never actually terminated TLS — it served plaintext);
   terminate TLS in front of the server and remove `[tls]`.
+- **Patched Postgres-protocol denial-of-service advisories.** Bumped `tokio-postgres`
+  0.7.17 → 0.7.18 and `postgres-protocol` 0.6.11 → 0.6.12 (semver-compatible) to pick up
+  fixes for RUSTSEC-2026-0178 (unbounded SCRAM iteration count → CPU-exhaustion DoS),
+  RUSTSEC-2026-0179 (panic decoding a malformed `hstore` value), and RUSTSEC-2026-0180
+  (panic on a `DataRow` with fewer fields than columns). Also dropped the now-stale
+  `RUSTSEC-2026-0002` (lru) ignore from `deny.toml` / `.cargo/audit.toml`, which no longer
+  matches any crate in the tree.
 
 ### Added
 
