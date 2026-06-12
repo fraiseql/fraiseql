@@ -10,9 +10,12 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code (skip notes to stderr)
 use std::collections::HashMap;
 
-use fraiseql_core::federation::{
-    database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
-    types::EntityRepresentation,
+use fraiseql_core::{
+    db::{WhereClause, WhereOperator},
+    federation::{
+        database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
+        types::EntityRepresentation,
+    },
 };
 use serde_json::{Value, json};
 
@@ -207,4 +210,72 @@ async fn test_resolve_entity_large_result_set_from_postgres() {
     for entity in &entities {
         assert!(entity.is_some());
     }
+}
+
+/// C1b/R1: a per-row enforcement filter (tenant scoping) added to the key `IN`
+/// clause must filter cross-tenant rows out **at the database**. Two users live in
+/// separate tenants; an `_entities` request scoped to tenant A resolves A's user
+/// and returns `None` for B's — proving the composed `(id IN (…)) AND
+/// ("tenant_id" = $N)` SQL is valid and binds correctly against real PostgreSQL.
+#[tokio::test]
+async fn test_resolve_entities_enforced_filters_cross_tenant() {
+    let rows = vec![
+        map(&[
+            ("id", json!("u-a")),
+            ("name", json!("Alice")),
+            ("tenant_id", json!("tenant-a")),
+        ]),
+        map(&[
+            ("id", json!("u-b")),
+            ("name", json!("Bob")),
+            ("tenant_id", json!("tenant-b")),
+        ]),
+    ];
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("user", &["id text", "name text", "tenant_id text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_entities_enforced_filters_cross_tenant: no postgres");
+        return;
+    };
+
+    let metadata = common::metadata_single_key("User", "id");
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+    ]);
+    // The caller is in tenant A; resolve both tenants' ids in one batch.
+    let reps = vec![
+        rep("User", &[("id", json!("u-a"))]),
+        rep("User", &[("id", json!("u-b"))]),
+    ];
+    let tenant_filter = WhereClause::NativeField {
+        column:   "tenant_id".to_string(),
+        pg_cast:  String::new(),
+        operator: WhereOperator::Eq,
+        value:    json!("tenant-a"),
+    };
+
+    let resolver = DatabaseEntityResolver::new(adapter, metadata);
+    let entities = resolver
+        .resolve_entities_from_db_enforced(
+            "User",
+            &reps,
+            &selection,
+            None,
+            Some(&tenant_filter),
+            &[],
+        )
+        .await
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db_enforced failed: {e}"));
+
+    assert_eq!(entities.len(), 2, "order preserved: one slot per representation");
+    let alice = entities[0].as_ref().expect("tenant A's own user must resolve");
+    assert_eq!(alice["id"], "u-a");
+    assert_eq!(alice["name"], "Alice");
+    assert!(
+        entities[1].is_none(),
+        "tenant B's user must be filtered out by the per-row tenant predicate, got: {:?}",
+        entities[1]
+    );
 }

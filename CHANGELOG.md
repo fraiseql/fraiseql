@@ -30,14 +30,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configured and the request is unauthenticated; a requested type's backing query
   declares `requires_role` the request does not hold; or a requested type is
   `inject_params`-scoped (tenant/owner) and the request is unauthenticated — denials run
-  before any SQL. When the request **is** authenticated, RLS-/`inject_params`-backed types
-  are still resolved under the federation *trusted-gateway* assumption (the resolver
-  builds its own SQL in `fraiseql-federation` with no slot for a per-row predicate);
-  composing per-row RLS into the subgraph resolver is a tracked follow-up. The existing
-  field-level fail-closed guard (deny when the schema declares any policy-gated field) is
-  retained. **Behavioral change:** anonymous `_entities` resolution of RLS-/inject-gated
-  types, and any `_entities` resolution of role-gated types without the role, now error
-  rather than returning the entity.
+  before any SQL. When the request **is** authenticated, `inject_params`-scoped types are now
+  row-filtered at the resolver (see the next entry); an app-level `rls_policy` `WhereClause`
+  remains under the federation *trusted-gateway* assumption. The existing field-level
+  fail-closed guard (deny when the schema declares any policy-gated field) is retained.
+  **Behavioral change:** anonymous `_entities` resolution of RLS-/inject-gated types, and any
+  `_entities` resolution of role-gated types without the role, now error rather than returning
+  the entity.
+- **Federation `_entities` now applies per-row tenant/owner scoping to authenticated requests
+  (M-fed-entities-rls follow-up, C1b/R1).** Closing the `_entities` per-row gap left by the
+  fail-closed C1b gate: for an authenticated caller, the resolver no longer resolves
+  `inject_params`-scoped entity types "under the trusted-gateway assumption" (i.e. with no
+  per-row filter). The runtime now composes the backing query's `inject_params` (tenant/owner
+  scoping) into a columnar predicate — `"tenant_id" = $N` — and ANDs it onto the key `IN`
+  lookup, and threads the caller's session variables onto the resolver's connection so
+  `current_setting()` DB-native row-level security is enforced (the federation counterpart of
+  the #329 connection-affine RLS fix). A direct `_entities` hit with arbitrary ids is therefore
+  scoped to the caller's tenant/owner instead of resolving every requested row. The predicate is
+  built as a native-column equality (never a JSONB `data->>` path), so it composes onto the
+  columnar entity table; an app-level `rls_policy` `WhereClause`, which targets the JSONB view
+  shape, is **not** composable onto that table and remains a documented trusted-gateway
+  limitation. **Behavioral change:** in a multi-tenant deployment, an authenticated `_entities`
+  request now returns only the caller-scoped rows for `inject_params`-scoped types; a foreign
+  tenant's id resolves to `null`.
 - **Admin-plane endpoints now enforce mandatory auth + admin scope (H5, H6).** The OIDC
   middleware (`oidc_auth_middleware`) defers to the validator's global `required` flag,
   which governs only the anonymous data plane — so any deployment that allowed anonymous

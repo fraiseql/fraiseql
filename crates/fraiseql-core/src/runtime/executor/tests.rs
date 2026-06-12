@@ -480,8 +480,10 @@ mod entities_authz {
 
     #[tokio::test]
     async fn entities_rls_authenticated_resolves_trusted_gateway() {
-        // Authenticated request: an RLS-backed type resolves under the trusted-gateway
-        // assumption (per-row RLS on this path is a tracked follow-up, not enforced here).
+        // Authenticated request: an app-level `rls_policy` (JSONB-shaped, targeting the
+        // `data->>` view) cannot be composed onto the columnar federation entity table, so
+        // it resolves under the documented trusted-gateway assumption. DB-native RLS keyed
+        // on session variables is enforced separately (see entities_inject_* below).
         let schema = entities_user_schema(None, IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
@@ -495,6 +497,47 @@ mod entities_authz {
             .unwrap();
         assert!(result["data"].get("_entities").is_some());
         assert!(adapter.captured_aggregate_sql().is_some());
+    }
+
+    #[tokio::test]
+    async fn entities_inject_authenticated_composes_tenant_filter() {
+        // C1b/R1 follow-up: an authenticated request for a tenant-scoped (`inject_params`)
+        // type must have the per-row tenant predicate composed into the resolver SQL and the
+        // caller's tenant bound as a parameter — not resolve every row under the
+        // trusted-gateway assumption. The predicate is a columnar `NativeField`
+        // (`"tenant_id" = $N`), ANDed onto the key `IN` clause.
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = entities_user_schema(None, inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]); // tenant_id = "tenant-abc"
+        let vars = representations();
+        let result = executor
+            .execute_with_security(entities_query(), Some(&vars), &ctx)
+            .await
+            .unwrap();
+        assert!(result["data"].get("_entities").is_some());
+
+        let sql = adapter.captured_aggregate_sql().expect("resolver must run");
+        assert!(
+            sql.contains("tenant_id"),
+            "resolver SQL must compose the per-row tenant inject predicate, got: {sql}"
+        );
+        // The predicate is ANDed onto the key IN-clause with its placeholder numbered
+        // after the IN params (one key → IN uses $1, the tenant predicate uses $2).
+        assert!(
+            sql.contains(" AND ") && sql.contains("$2"),
+            "tenant predicate must be ANDed with a post-IN-clause placeholder, got: {sql}"
+        );
+        let params = adapter.captured_aggregate_params().unwrap_or_default();
+        // Param order must match placeholder order: the key value first, the tenant second.
+        assert_eq!(
+            params.get(1),
+            Some(&serde_json::json!("tenant-abc")),
+            "the caller's tenant id must bind to $2 (offset past the IN clause), got: {params:?}"
+        );
     }
 }
 

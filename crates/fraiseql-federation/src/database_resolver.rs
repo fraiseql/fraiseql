@@ -6,7 +6,10 @@
 use std::sync::Arc;
 
 use ::tracing::warn;
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::{
+    DatabaseType, GenericWhereGenerator, MySqlDialect, PostgresDialect, SqlServerDialect,
+    SqliteDialect, WhereClause, traits::DatabaseAdapter,
+};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
@@ -81,7 +84,52 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         typename: &str,
         representations: &[EntityRepresentation],
         selection: &FieldSelection,
+        trace_context: Option<FederationTraceContext>,
+    ) -> Result<Vec<Option<Value>>> {
+        self.resolve_entities_from_db_enforced(
+            typename,
+            representations,
+            selection,
+            trace_context,
+            None,
+            &[],
+        )
+        .await
+    }
+
+    /// Resolve entities from database with an optional per-row enforcement filter
+    /// and connection-affine session variables (Phase 03 C1b/R1 follow-up).
+    ///
+    /// This is the per-row-enforced counterpart of
+    /// [`resolve_entities_from_db_with_tracing`](Self::resolve_entities_from_db_with_tracing).
+    /// It closes the federation `_entities` per-row gap: the caller (the core
+    /// runtime, which holds the `SecurityContext`) composes a `row_filter`
+    /// predicate — a columnar `NativeField` equality such as `"tenant_id" = $N`
+    /// derived from the backing query's `inject_params` (tenant/owner scoping) —
+    /// and this resolver adds it to the key `IN` clause so a direct `_entities`
+    /// hit with arbitrary ids is still row-filtered.
+    ///
+    /// * `row_filter` — an already-composed WHERE predicate to AND onto the key lookup. Its bind
+    ///   placeholders are renumbered to start **after** the key `IN`-clause parameters, and its
+    ///   parameters are appended in order, so the combined parameter vector stays positionally
+    ///   aligned with the SQL.
+    /// * `session_vars` — session variables applied transaction-locally on the aggregate's
+    ///   connection (`current_setting()` DB-native RLS), mirroring the regular query path (#329).
+    ///   An empty slice runs the plain aggregate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the typename is not a safe SQL
+    /// identifier; propagates rendering errors from the `row_filter`; returns
+    /// [`FraiseQLError::Database`] if the underlying query fails.
+    pub async fn resolve_entities_from_db_enforced(
+        &self,
+        typename: &str,
+        representations: &[EntityRepresentation],
+        selection: &FieldSelection,
         _trace_context: Option<FederationTraceContext>,
+        row_filter: Option<&WhereClause>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<Option<Value>>> {
         if representations.is_empty() {
             return Ok(Vec::new());
@@ -113,8 +161,21 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Build the parameterized WHERE IN clause. Key-field values are bound (not
         // interpolated), so the dialect must match the executing adapter.
         let db_type = self.adapter.database_type();
-        let (where_clause, params) =
+        let (where_clause, mut params) =
             construct_where_in_clause(typename, representations, &self.metadata, db_type)?;
+
+        // Compose the per-row enforcement predicate (tenant/owner scoping) onto the
+        // key lookup. Placeholders are offset past the IN-clause params, and the
+        // filter's bound values are appended so positions stay aligned.
+        let where_clause = match row_filter {
+            Some(filter) => {
+                let (fragment, mut filter_params) =
+                    render_row_filter(filter, db_type, params.len())?;
+                params.append(&mut filter_params);
+                format!("({where_clause}) AND ({fragment})")
+            },
+            None => where_clause,
+        };
 
         // Build the SELECT list. Each requested field must be a safe SQL identifier
         // AND exposed: `@inaccessible` / `@external` fields are never selected, so a
@@ -132,11 +193,41 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             where_clause
         );
 
-        // Execute with bound parameters (no value interpolation).
-        let rows = self.adapter.execute_parameterized_aggregate(&sql, &params).await?;
+        // Execute with bound parameters (no value interpolation), pinning session
+        // variables to the read's connection so `current_setting()` RLS is effective.
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate_with_session(&sql, &params, session_vars)
+            .await?;
 
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)
+    }
+}
+
+/// Render an already-composed per-row WHERE predicate to a dialect-native SQL
+/// fragment plus its bound parameters, numbering placeholders so they start
+/// **after** `param_offset` existing parameters.
+///
+/// The predicate is built by the core runtime (which holds the `SecurityContext`)
+/// as a columnar [`WhereClause::NativeField`] equality, so it renders to
+/// `"column" = $N` (or a dialect cast). Reusing the audited
+/// [`GenericWhereGenerator`] keeps cast/quoting/dialect handling consistent with
+/// the regular query path rather than re-implementing SQL assembly here.
+fn render_row_filter(
+    filter: &WhereClause,
+    db_type: DatabaseType,
+    param_offset: usize,
+) -> Result<(String, Vec<Value>)> {
+    match db_type {
+        DatabaseType::PostgreSQL => GenericWhereGenerator::new(PostgresDialect)
+            .generate_with_param_offset(filter, param_offset),
+        DatabaseType::MySQL => GenericWhereGenerator::new(MySqlDialect)
+            .generate_with_param_offset(filter, param_offset),
+        DatabaseType::SQLite => GenericWhereGenerator::new(SqliteDialect)
+            .generate_with_param_offset(filter, param_offset),
+        DatabaseType::SQLServer => GenericWhereGenerator::new(SqlServerDialect)
+            .generate_with_param_offset(filter, param_offset),
     }
 }
 

@@ -7,7 +7,7 @@ use std::{
 };
 
 use ::tracing::info;
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::{WhereClause, traits::DatabaseAdapter};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 use uuid::Uuid;
@@ -150,6 +150,40 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     selection: &FieldSelection,
     trace_context: Option<FederationTraceContext>,
 ) -> EntityResolutionResult {
+    resolve_entities_from_db_enforced(
+        representations,
+        typename,
+        adapter,
+        fed_resolver,
+        selection,
+        trace_context,
+        None,
+        &[],
+    )
+    .await
+}
+
+/// Resolve entities for a typename with an optional per-row enforcement filter and
+/// connection-affine session variables (Phase 03 C1b/R1 follow-up).
+///
+/// `row_filter` is the already-composed per-row predicate (tenant/owner
+/// `inject_params` scoping) added to the key lookup; `session_vars` are applied
+/// transaction-locally so `current_setting()` DB-native RLS is effective. See
+/// [`DatabaseEntityResolver::resolve_entities_from_db_enforced`].
+#[allow(clippy::too_many_arguments)]
+// Reason: mirrors resolve_entities_from_db_with_tracing's positional API, plus the
+// per-row enforcement inputs (row_filter + session_vars); an extra struct would add
+// indirection without clarifying these internal resolver entry points.
+pub async fn resolve_entities_from_db_enforced<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    typename: &str,
+    adapter: Arc<A>,
+    fed_resolver: &FederationResolver,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+    row_filter: Option<&WhereClause>,
+    session_vars: &[(&str, &str)],
+) -> EntityResolutionResult {
     if representations.is_empty() {
         return EntityResolutionResult {
             entities: Vec::new(),
@@ -160,9 +194,16 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     // Create database entity resolver
     let db_resolver = DatabaseEntityResolver::new(adapter, fed_resolver.metadata.clone());
 
-    // Resolve from database with tracing
+    // Resolve from database with tracing and the composed per-row enforcement
     match db_resolver
-        .resolve_entities_from_db_with_tracing(typename, representations, selection, trace_context)
+        .resolve_entities_from_db_enforced(
+            typename,
+            representations,
+            selection,
+            trace_context,
+            row_filter,
+            session_vars,
+        )
         .await
     {
         Ok(entities) => EntityResolutionResult {
@@ -215,6 +256,48 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     Ok(result.entities)
 }
 
+/// Batch load entities applying per-row enforcement (Phase 03 C1b/R1 follow-up).
+///
+/// The per-row-enforced counterpart of [`batch_load_entities_with_tracing`]. The
+/// core runtime composes, per entity type, a `row_filter` predicate from the
+/// backing query's `inject_params` (tenant/owner scoping) and resolves the
+/// caller's session variables; both are threaded into the SQL so a direct
+/// `_entities` hit is row-filtered (`inject_params`) and DB-native `current_setting()`
+/// RLS is enforced (`session_vars`).
+///
+/// * `row_filters` — map of `typename` → composed WHERE predicate; a type absent from the map is
+///   resolved with no extra predicate.
+/// * `session_vars` — applied transaction-locally on each batch's connection.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
+/// Returns `FraiseQLError` if the database query fails.
+#[allow(clippy::implicit_hasher)]
+// Reason: the core runtime always builds `row_filters` with the default hasher; a
+// generic `S` would leak a hasher type parameter through every call site for no gain.
+pub async fn batch_load_entities_enforced<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    fed_resolver: &FederationResolver,
+    adapter: Arc<A>,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+    row_filters: &HashMap<String, WhereClause>,
+    session_vars: &[(&str, &str)],
+) -> Result<Vec<Option<Value>>> {
+    let result = batch_load_entities_with_tracing_and_metrics_enforced(
+        representations,
+        fed_resolver,
+        adapter,
+        selection,
+        trace_context,
+        row_filters,
+        session_vars,
+    )
+    .await?;
+    Ok(result.entities)
+}
+
 /// Batch load entities with full metrics for observability.
 ///
 /// Returns both entities and timing information for metrics recording.
@@ -223,13 +306,51 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 ///
 /// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
 /// Returns `FraiseQLError` if the database query fails.
-#[allow(clippy::cognitive_complexity)] // Reason: sequential batch resolution with per-typename tracing spans and metrics; splitting would lose the linear flow
 pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,
     selection: &FieldSelection,
     trace_context: Option<FederationTraceContext>,
+) -> Result<EntityResolutionMetrics> {
+    batch_load_entities_with_tracing_and_metrics_enforced(
+        representations,
+        fed_resolver,
+        adapter,
+        selection,
+        trace_context,
+        &HashMap::new(),
+        &[],
+    )
+    .await
+}
+
+/// Batch load entities with full metrics, applying per-row enforcement
+/// (Phase 03 C1b/R1 follow-up).
+///
+/// Workhorse for [`batch_load_entities_enforced`]. For each typename batch it
+/// looks up the composed `row_filter` predicate and applies the resolved
+/// `session_vars`, so federation entity resolution honours `inject_params`
+/// (tenant/owner) scoping and `current_setting()` DB-native RLS.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
+/// Returns `FraiseQLError` if the database query fails.
+#[allow(clippy::cognitive_complexity)]
+// Reason: sequential batch resolution with per-typename tracing spans and metrics; splitting would
+// lose the linear flow
+#[allow(clippy::implicit_hasher)]
+// Reason: the core runtime always builds `row_filters` with the default hasher; a
+// generic `S` would leak a hasher type parameter through every call site for no gain.
+pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    fed_resolver: &FederationResolver,
+    adapter: Arc<A>,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+    row_filters: &HashMap<String, WhereClause>,
+    session_vars: &[(&str, &str)],
 ) -> Result<EntityResolutionMetrics> {
     // Reject oversized batches immediately to prevent resource exhaustion.
     if representations.len() > MAX_ENTITIES_BATCH_SIZE {
@@ -305,13 +426,15 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
         // local database resolution below — never delegated to another subgraph.
         // The @override directive means "I am taking this field from X" — routing
         // client requests is Apollo Router's responsibility, not the subgraph's.
-        let result = resolve_entities_from_db_with_tracing(
+        let result = resolve_entities_from_db_enforced(
             &reps,
             &typename,
             Arc::clone(&adapter),
             fed_resolver,
             selection,
             Some(trace_ctx.clone()),
+            row_filters.get(&typename),
+            session_vars,
         )
         .await;
 

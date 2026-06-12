@@ -1,6 +1,11 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use std::collections::HashMap;
 
-use super::build_select_fields;
+use fraiseql_db::{DatabaseType, WhereClause, WhereOperator};
+use serde_json::json;
+
+use super::{build_select_fields, render_row_filter};
 use crate::{
     selection_parser::FieldSelection,
     types::{FederatedType, KeyDirective},
@@ -58,4 +63,41 @@ fn build_select_fields_drops_inaccessible_external_and_injection() {
         !fields.iter().any(|f| f.contains("SELECT")),
         "injection-shaped token must be dropped"
     );
+}
+
+/// C1b/R1: the per-row enforcement predicate renders to a columnar `NativeField`
+/// equality whose bind placeholder is numbered **after** the key IN-clause
+/// parameters, so it can be added to the lookup without colliding.
+#[test]
+fn render_row_filter_offsets_placeholder_past_in_clause() {
+    let filter = WhereClause::NativeField {
+        column:   "tenant_id".to_string(),
+        pg_cast:  String::new(),
+        operator: WhereOperator::Eq,
+        value:    json!("tenant-abc"),
+    };
+
+    // Two key params already bound ($1, $2) → the filter must use $3 (PostgreSQL).
+    let (sql, params) = render_row_filter(&filter, DatabaseType::PostgreSQL, 2).unwrap();
+    assert_eq!(sql, "\"tenant_id\" = $3");
+    assert_eq!(params, vec![json!("tenant-abc")]);
+
+    // No prior params → placeholder starts at $1.
+    let (sql0, _) = render_row_filter(&filter, DatabaseType::PostgreSQL, 0).unwrap();
+    assert_eq!(sql0, "\"tenant_id\" = $1");
+}
+
+/// A native column carrying a PostgreSQL cast renders the two-step `$N::text::<type>`
+/// form so a text-bound value compares correctly against a typed (e.g. `uuid`) column.
+#[test]
+fn render_row_filter_applies_native_cast() {
+    let filter = WhereClause::NativeField {
+        column:   "tenant_id".to_string(),
+        pg_cast:  "uuid".to_string(),
+        operator: WhereOperator::Eq,
+        value:    json!("11111111-1111-1111-1111-111111111111"),
+    };
+    let (sql, params) = render_row_filter(&filter, DatabaseType::PostgreSQL, 1).unwrap();
+    assert_eq!(sql, "\"tenant_id\" = $2::text::uuid");
+    assert_eq!(params.len(), 1);
 }
