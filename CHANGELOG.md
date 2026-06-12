@@ -293,6 +293,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   limiter keys only on the validated transport peer, and when that is absent all callers
   share one bucket (fail-closed, not bypassable). The shipped binary always supplies
   `ConnectInfo`, so its behaviour is unchanged.
+- **The server refuses to boot under an enabled server-side `[tls]` config instead of
+  serving plaintext while claiming TLS (M-tls-enforce).** FraiseQL does not terminate TLS
+  itself — it serves plaintext HTTP and expects a reverse proxy / load balancer / service
+  mesh in front. The `[tls]` section was parsed and validated, a rustls `ServerConfig` was
+  built from it and then **silently discarded**, the listener kept serving plaintext, and
+  startup logged `mtls_required = true` — a server that claimed mutual TLS while doing no
+  certificate check at all. The server now **refuses to start** when `[tls].enabled` is set,
+  with a message directing operators to terminate TLS at a proxy (or remove `[tls]`). The
+  dead server-side TLS plumbing (`TlsEnforcer`, `create_rustls_config`, certificate/key
+  loaders) was removed; **database** connection TLS (`[database_tls]`:
+  `postgres_ssl_mode`, `redis_ssl`, …) is fully retained.
+  **Breaking change:** a deployment that set `[tls]` expecting the server to terminate TLS
+  will now fail to start (it never actually terminated TLS — it served plaintext);
+  terminate TLS in front of the server and remove `[tls]`.
 
 ### Added
 

@@ -171,8 +171,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
-        // Initialize TLS setup
-        let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone())?;
+        // Initialize TLS setup (database connection TLS; server-side TLS is unsupported).
+        let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone());
+
+        // Refuse to boot if server-side `[tls]` is enabled. FraiseQL does not terminate TLS
+        // itself — it serves plaintext and expects a reverse proxy / load balancer / service
+        // mesh to terminate TLS in front of it. Previously an enabled `[tls]` built a rustls
+        // config that was silently discarded while the server kept serving plaintext and
+        // logged `mtls_required = true` (M-tls-enforce); failing loud is honest.
+        if tls_setup.is_tls_enabled() {
+            return Err(ServerError::ConfigError(
+                "[tls] (server-side TLS termination) is enabled but not supported: FraiseQL \
+                 serves plaintext HTTP and expects TLS to be terminated by a reverse proxy, \
+                 load balancer, or service mesh. Remove the [tls] section (or set its \
+                 `enabled = false`) and terminate TLS in front of the server. Database \
+                 connection TLS ([database_tls]) is unaffected."
+                    .to_string(),
+            ));
+        }
 
         info!(
             bind_addr = %self.config.bind_addr,
@@ -268,18 +284,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     }
                 }
             }
-        }
-
-        // Log TLS configuration
-        if tls_setup.is_tls_enabled() {
-            // Verify TLS setup is valid (will error if certificates are missing/invalid)
-            let _ = tls_setup.create_rustls_config()?;
-            info!(
-                cert_path = ?tls_setup.cert_path(),
-                key_path = ?tls_setup.key_path(),
-                mtls_required = tls_setup.is_mtls_required(),
-                "Server TLS configuration loaded (note: use reverse proxy for server-side TLS termination)"
-            );
         }
 
         // Log database TLS configuration

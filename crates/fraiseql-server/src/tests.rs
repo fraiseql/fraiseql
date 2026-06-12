@@ -1095,19 +1095,29 @@ mod tls_tests {
 
     #[test]
     fn test_tls_setup_disabled() {
-        let setup = TlsSetup::new(None, None)
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
-
+        let setup = TlsSetup::new(None, None);
         assert!(!setup.is_tls_enabled());
-        assert!(!setup.is_mtls_required());
-        assert!(setup.cert_path().is_none());
-        assert!(setup.key_path().is_none());
+    }
+
+    #[test]
+    fn test_server_tls_enabled_is_detected_for_boot_refusal() {
+        // M-tls-enforce: an enabled server-side [tls] config is detectable so the boot path
+        // can refuse to start (FraiseQL does not terminate TLS; it serves plaintext).
+        let tls_config = TlsServerConfig {
+            enabled:             true,
+            cert_path:           PathBuf::from("/etc/ssl/cert.pem"),
+            key_path:            PathBuf::from("/etc/ssl/key.pem"),
+            require_client_cert: false,
+            client_ca_path:      None,
+            min_version:         "1.2".to_string(),
+        };
+        let setup = TlsSetup::new(Some(tls_config), None);
+        assert!(setup.is_tls_enabled(), "an enabled [tls] config must be detected");
     }
 
     #[test]
     fn test_database_tls_defaults() {
-        let setup = TlsSetup::new(None, None)
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, None);
 
         assert_eq!(setup.postgres_ssl_mode(), "prefer");
         assert!(!setup.redis_ssl_enabled());
@@ -1127,8 +1137,7 @@ mod tls_tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         let url = "postgresql://localhost/fraiseql";
         let tls_url = setup.apply_postgres_tls(url);
@@ -1147,8 +1156,7 @@ mod tls_tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         let url = "redis://localhost:6379";
         let tls_url = setup.apply_redis_tls(url);
@@ -1167,8 +1175,7 @@ mod tls_tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         let url = "http://localhost:8123";
         let tls_url = setup.apply_clickhouse_tls(url);
@@ -1187,8 +1194,7 @@ mod tls_tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         let url = "http://localhost:9200";
         let tls_url = setup.apply_elasticsearch_tls(url);
@@ -1207,8 +1213,7 @@ mod tls_tests {
             ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         assert_eq!(setup.postgres_ssl_mode(), "require");
         assert!(setup.redis_ssl_enabled());
@@ -1232,8 +1237,7 @@ mod tls_tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         let url = "postgresql://localhost/fraiseql?application_name=fraiseql";
         let tls_url = setup.apply_postgres_tls(url);
@@ -1253,8 +1257,7 @@ mod tls_tests {
             ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
         };
 
-        let setup = TlsSetup::new(None, Some(db_config))
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
+        let setup = TlsSetup::new(None, Some(db_config));
 
         assert!(
             setup.db_config().is_some(),
@@ -1265,35 +1268,6 @@ mod tls_tests {
         assert!(setup.clickhouse_https_enabled());
         assert!(!setup.elasticsearch_https_enabled());
         assert_eq!(setup.ca_bundle_path(), Some(Path::new("/etc/ssl/certs/ca.pem")));
-    }
-
-    #[test]
-    fn test_create_rustls_config_without_tls_enabled() {
-        let setup = TlsSetup::new(None, None)
-            .expect("TlsSetup::new is infallible when cert and db_config are None");
-
-        let result = setup.create_rustls_config();
-        assert!(result.is_err(), "expected Err when TLS not enabled, got: {result:?}");
-        assert!(result.unwrap_err().to_string().contains("TLS not enabled"));
-    }
-
-    #[test]
-    fn test_create_rustls_config_with_missing_cert() {
-        let tls_config = TlsServerConfig {
-            enabled:             true,
-            cert_path:           PathBuf::from("/nonexistent/cert.pem"),
-            key_path:            PathBuf::from("/nonexistent/key.pem"),
-            require_client_cert: false,
-            client_ca_path:      None,
-            min_version:         "1.2".to_string(),
-        };
-
-        let setup = TlsSetup::new(Some(tls_config), None)
-            .expect("TlsSetup::new succeeds with enabled=true when min_version is valid; cert reading happens later in create_rustls_config");
-
-        let result = setup.create_rustls_config();
-        assert!(result.is_err(), "expected Err for missing cert file, got: {result:?}");
-        assert!(result.unwrap_err().to_string().contains("Failed to open"));
     }
 }
 
