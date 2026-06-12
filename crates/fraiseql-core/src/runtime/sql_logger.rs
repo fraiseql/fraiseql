@@ -112,11 +112,9 @@ impl SqlQueryLogBuilder {
     /// * `sql` - The SQL statement (will be truncated if > 2000 chars)
     /// * `param_count` - Number of bound parameters
     pub fn new(query_id: &str, sql: &str, param_count: usize) -> Self {
-        let truncated_sql = if sql.len() > 2000 {
-            format!("{}...", &sql[..2000])
-        } else {
-            sql.to_string()
-        };
+        // Char-boundary-safe: generated SQL can embed multi-byte literals from
+        // user input, so a fixed byte cut could panic (audit H20 class).
+        let truncated_sql = crate::utils::text::truncate_for_display(sql, 2000);
 
         Self {
             query_id: query_id.to_string(),

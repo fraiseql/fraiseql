@@ -95,11 +95,7 @@ impl QueryTraceBuilder {
     /// * `query_id` - Unique ID for query correlation
     /// * `query` - Query string (will be truncated if very long)
     pub fn new(query_id: &str, query: &str) -> Self {
-        let query_str = if query.len() > 500 {
-            format!("{}...", &query[..500])
-        } else {
-            query.to_string()
-        };
+        let query_str = crate::utils::text::truncate_for_display(query, 500);
 
         Self {
             query_id: query_id.to_string(),
@@ -269,13 +265,9 @@ pub fn create_phase_span(phase_name: &str, query_id: &str) -> tracing::Span {
     span!(Level::DEBUG, "query_phase", phase = phase_name, query_id = query_id)
 }
 
-/// Truncate query string to specified length.
+/// Truncate query string to at most `max_len` bytes for logging.
 ///
-/// Useful for logging to avoid truncating long queries.
+/// Char-boundary-safe wrapper over [`crate::utils::text::truncate_for_display`].
 pub(crate) fn truncate_query(query: &str, max_len: usize) -> String {
-    if query.len() > max_len {
-        format!("{}...", &query[..max_len])
-    } else {
-        query.to_string()
-    }
+    crate::utils::text::truncate_for_display(query, max_len)
 }

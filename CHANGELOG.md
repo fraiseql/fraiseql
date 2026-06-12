@@ -36,6 +36,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   positions to byte offsets before slicing (no desync at any site) and propagates the true
   recursion depth so the nesting guard rejects over-deep input. A proptest asserts the parser
   returns a `Result` — never panics — over arbitrary UTF-8.
+- **Error/log/audit paths no longer panic when truncating user-controlled text (H20).**
+  Six display paths truncated strings with a fixed byte offset (`&s[..N]`), which panics when
+  the cut lands inside a multi-byte UTF-8 character. The live ones were the query-timeout
+  handler (`format!("{}...", &query[..100])`, duplicated across the anonymous and
+  authenticated executors) — an attacker sends a slow query with a multi-byte char at byte
+  99–100 so the timeout handler *itself* panics — and the syslog audit-export path, where a
+  caller could place a multi-byte char at byte 200 to abort (and so suppress) their own audit
+  record. A new `utils::text::truncate_at_char_boundary` / `truncate_for_display` helper
+  truncates on character boundaries; the copy-pasted timeout snippet and the SQL-logger,
+  query-trace, and error-formatter truncations now route through it. The same sweep fixed two
+  stragglers of the class: the API-key `Authorization: ApiKey …` prefix check (`raw_key[..7]`
+  on an attacker-controlled header) now compares on bytes, and the SQL logger's 2000-byte cut
+  is char-safe. No behavioural change for ASCII input.
 - **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
   object lookup `node(id: …)` resolved any type by opaque id while applying none of the
   backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id

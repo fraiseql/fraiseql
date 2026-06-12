@@ -47,12 +47,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             tokio::time::timeout(timeout_duration, self.execute_internal(query, variables))
                 .await
                 .map_err(|_| {
-                    // Truncate query if too long for error reporting
-                    let query_snippet = if query.len() > 100 {
-                        format!("{}...", &query[..100])
-                    } else {
-                        query.to_string()
-                    };
+                    // Truncate query (char-boundary-safe) for error reporting.
+                    let query_snippet = crate::utils::text::truncate_for_display(query, 100);
                     FraiseQLError::Timeout {
                         timeout_ms: self.ctx.config.query_timeout_ms,
                         query:      Some(query_snippet),

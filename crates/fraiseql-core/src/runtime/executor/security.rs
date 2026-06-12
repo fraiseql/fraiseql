@@ -189,11 +189,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await
             .map_err(|_| {
-                let query_snippet = if query.len() > 100 {
-                    format!("{}...", &query[..100])
-                } else {
-                    query.to_string()
-                };
+                let query_snippet = crate::utils::text::truncate_for_display(query, 100);
                 FraiseQLError::Timeout {
                     timeout_ms: self.ctx.config.query_timeout_ms,
                     query:      Some(query_snippet),

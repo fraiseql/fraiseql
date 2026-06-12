@@ -116,12 +116,10 @@ impl SyslogAuditExporter {
             entry.level.as_str(),
         );
 
-        // Truncate query for the message body to avoid oversized syslog messages.
-        let query_preview = if entry.query.len() > 200 {
-            format!("{}...", &entry.query[..200])
-        } else {
-            entry.query.clone()
-        };
+        // Truncate query for the message body to avoid oversized syslog
+        // messages (char-boundary-safe: a caller controls their own query text
+        // and could otherwise abort their own audit export — audit H20).
+        let query_preview = crate::utils::text::truncate_for_display(&entry.query, 200);
 
         format!(
             "<{priority}>1 {timestamp} {} fraiseql - AUDIT {sd} {query_preview}",

@@ -175,8 +175,12 @@ impl ApiKeyAuthenticator {
             None => return ApiKeyResult::NotPresent,
         };
 
-        // Strip optional "ApiKey " prefix (case-insensitive, for Authorization header usage).
-        let key = if raw_key.len() > 7 && raw_key[..7].eq_ignore_ascii_case("apikey ") {
+        // Strip optional "ApiKey " prefix (case-insensitive, for Authorization
+        // header usage). Compare on bytes, not a `str` slice: `raw_key[..7]`
+        // panics when byte 7 lands inside a multi-byte UTF-8 char in the
+        // attacker-controlled header value (audit H20 class). A matched prefix
+        // is ASCII, so the `[7..]` slice that follows is on a char boundary.
+        let key = if raw_key.len() > 7 && raw_key.as_bytes()[..7].eq_ignore_ascii_case(b"apikey ") {
             &raw_key[7..]
         } else {
             raw_key

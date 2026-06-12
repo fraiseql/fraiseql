@@ -321,12 +321,9 @@ impl ErrorFormatter {
     fn extract_error_type_and_sanitize(&self, error_msg: &str) -> String {
         let sanitized = self.sanitize_error(error_msg);
 
-        // Keep the first 100 characters if error is short, or first meaningful part
-        if sanitized.len() > 100 {
-            format!("{}...", &sanitized[..100])
-        } else {
-            sanitized
-        }
+        // Keep a leading slice for display (char-boundary-safe; the input may
+        // carry user-controlled, multi-byte text — audit H20).
+        crate::utils::text::truncate_for_display(&sanitized, 100)
     }
 
     /// Hide a pattern in a string by replacing it
