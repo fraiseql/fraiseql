@@ -1,10 +1,13 @@
-//! Secrets management and field-level encryption for FraiseQL.
+//! Secrets management for FraiseQL.
 //!
 //! This crate provides the secrets management implementation directly:
 //!
 //! - Multiple secrets backends (Vault, environment variables, files)
-//! - AES-256-GCM field-level encryption for sensitive database fields
-//! - Key rotation, audit logging, and compliance utilities
+//! - Key rotation utilities
+//!
+//! **Field-level at-rest encryption is not supported in this release** (the write path
+//! does not encrypt; the server refuses to boot when a field is marked for encryption).
+//! The AES-256-GCM primitives are retained for the in-progress implementation.
 //!
 //! # Crate structure
 //!

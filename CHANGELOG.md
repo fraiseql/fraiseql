@@ -264,6 +264,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   encryption will now fail to start (it was previously 500-ing on every read of that
   field, or silently storing plaintext); remove the `encryption` marker and any
   `[security.field_encryption]` config to boot.
+- **Removed dead field-encryption audit logging and its false compliance claims (H13).**
+  `fraiseql-secrets` advertised "audit logging — track all secret access for compliance
+  (HIPAA/PCI-DSS/GDPR/SOC 2)," but `AuditLogger` was an in-memory `Vec` commented "for
+  testing" with no persistence or tracing sink, invoked from nowhere — it audited
+  field-encryption operations that, after the H12 fix, cannot occur at all. The dead
+  module was deleted and the false at-rest-encryption / audit-logging claims were excised
+  from the `fraiseql-secrets` crate docs and README. (This does **not** affect the
+  separate, genuinely-wired server/auth audit system configured via
+  `[security.audit_logging]`, which continues to record mutations and admin operations.)
 
 ### Added
 

@@ -1,12 +1,10 @@
-//! Encryption for sensitive database fields using AES-256-GCM
+//! AES-256-GCM encryption primitives for sensitive database fields.
 //!
-//! Provides transparent encryption/decryption for:
-//! - User emails
-//! - Phone numbers
-//! - SSN/tax IDs
-//! - Credit card data
-//! - API keys
-//! - OAuth tokens
+//! **End-to-end transparent field encryption is not supported in this release.** The
+//! write path does not encrypt, so the server refuses to boot when any schema field is
+//! marked for encryption (see `fraiseql_core::schema::FieldDefinition`). The primitives
+//! and read path here are retained for the in-progress implementation and must not be
+//! relied on for at-rest confidentiality.
 
 use aes_gcm::{
     Aes256Gcm, Nonce,
@@ -16,7 +14,6 @@ use rand::RngCore as _;
 
 use crate::secrets_manager::SecretsError;
 
-pub mod audit_logging;
 pub mod compliance;
 pub mod credential_rotation;
 pub mod dashboard;

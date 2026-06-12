@@ -14,7 +14,6 @@ Secrets management for FraiseQL. This crate provides pluggable backends for stor
 - Environment variable backend
 - File-based secrets
 - Credential rotation with monitoring
-- Audit logging for secret access
 
 ## Usage
 
