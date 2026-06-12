@@ -229,6 +229,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tokens (losing per-token revocation, keeping the revoke-all epoch). The
   `POST /auth/revoke-all` response body changed from `{ "revoked_count": N }` to
   `{ "revoked": true }` (the epoch design has no per-token count).
+- **REST error responses no longer leak raw database error text (H7).** With error
+  sanitization enabled, GraphQL stripped internal detail from `DatabaseError` /
+  `InternalServerError` responses, but the REST surface had **zero** sanitization: a
+  server fault (undefined function `42883`, `XX000`, a connection error, …) rendered
+  `FraiseQLError`'s raw message — schema names, constraint details, SQL fragments —
+  verbatim into the `{"error":{"message":…}}` body. (The dedicated sanitization
+  middleware meant to cover this was orphaned: never declared in `mod.rs`, never
+  layered, and its body-shape matcher did not even recognise the nested REST error
+  shape.) REST now applies the **same** sanitization gate as GraphQL at its
+  error-rendering site: when `[security.error_sanitization]` is enabled, 5xx bodies
+  carry the generic `custom_error_message` (default `"An internal error occurred"`)
+  and the raw detail is logged server-side instead. Client-facing 4xx messages —
+  validation, auth, not-found, and SQLSTATE 22/23 client-input faults (#413) — are
+  intentional and pass through unchanged. The orphaned middleware module was deleted
+  (two sanitization layers with divergent body-shape assumptions invite drift).
 
 ### Added
 

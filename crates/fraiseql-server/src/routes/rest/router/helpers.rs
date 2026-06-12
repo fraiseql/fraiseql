@@ -7,6 +7,7 @@ use axum::response::Response;
 use serde_json::json;
 
 use super::{RestError, RestResponse, StatusCode};
+use crate::config::error_sanitization::ErrorSanitizer;
 
 /// Join a base path and route path into an Axum-compatible path pattern.
 ///
@@ -49,7 +50,16 @@ pub(super) fn parse_query_pairs(query: &str) -> Vec<(String, String)> {
 }
 
 /// Convert a REST handler result into an Axum HTTP response.
-pub(super) fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response {
+///
+/// On the error path, server faults (5xx) are sanitized when the operator enabled error
+/// sanitization: the raw message — which for `FraiseQLError::Database` carries schema
+/// names, constraint details, and SQL fragments — is replaced with the generic message
+/// and logged server-side instead (H7). Client-facing 4xx messages (validation, auth,
+/// not-found, SQLSTATE 22/23 client-input faults) are intentional and pass through.
+pub(super) fn rest_result_to_response(
+    result: Result<RestResponse, RestError>,
+    sanitizer: &ErrorSanitizer,
+) -> Response {
     match result {
         Ok(rest_resp) => {
             let body = rest_resp.body.unwrap_or(json!({}));
@@ -69,7 +79,18 @@ pub(super) fn rest_result_to_response(result: Result<RestResponse, RestError>) -
 
             response
         },
-        Err(e) => error_response(e.status, e.code, &e.message),
+        Err(mut e) => {
+            if e.status.is_server_error() && sanitizer.should_sanitize_internal() {
+                tracing::error!(
+                    status = %e.status,
+                    code = e.code,
+                    "REST internal error (message sanitized before client response): {}",
+                    e.message
+                );
+                e.message = sanitizer.internal_error_message();
+            }
+            error_response(e.status, e.code, &e.message)
+        },
     }
 }
 
@@ -87,4 +108,95 @@ pub(super) fn error_response(status: StatusCode, code: &str, message: &str) -> R
         .header("content-type", "application/json")
         .body(axum::body::Body::from(body.to_string()))
         .expect("Unable to construct error response")
+}
+
+#[cfg(test)]
+mod sanitization_tests {
+    //! H7: REST internal (5xx) error bodies must not leak raw DB/SQL text when error
+    //! sanitization is enabled — previously the REST path wrote `err.to_string()`
+    //! (schema names, constraint detail, SQL fragments) verbatim into the body.
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use fraiseql_error::FraiseQLError;
+
+    use super::{RestError, RestResponse, rest_result_to_response};
+    use crate::config::error_sanitization::{ErrorSanitizationConfig, ErrorSanitizer};
+
+    fn enabled_sanitizer() -> ErrorSanitizer {
+        ErrorSanitizer::new(ErrorSanitizationConfig {
+            enabled: true,
+            ..ErrorSanitizationConfig::default()
+        })
+    }
+
+    /// A realistic raw Postgres error for a non-22/23 SQLSTATE (undefined function),
+    /// which the `From<FraiseQLError>` mapper routes to a 500.
+    fn raw_db_error() -> FraiseQLError {
+        FraiseQLError::Database {
+            message:   "function app.fn_secret(integer) does not exist in SELECT app.fn_secret($1)"
+                .into(),
+            sql_state: Some("42883".into()),
+        }
+    }
+
+    async fn body_message(response: axum::response::Response) -> String {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        json["error"]["message"].as_str().unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn internal_db_error_is_sanitized_when_enabled() {
+        let err = RestError::from(raw_db_error());
+        assert_eq!(err.status, axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+
+        let response = rest_result_to_response(Err(err), &enabled_sanitizer());
+        let message = body_message(response).await;
+
+        assert_eq!(message, "An internal error occurred");
+        for leak in ["fn_secret", "does not exist", "SELECT", "app."] {
+            assert!(!message.contains(leak), "client body must not leak `{leak}`: {message}");
+        }
+    }
+
+    #[tokio::test]
+    async fn internal_db_error_passes_through_when_sanitization_disabled() {
+        // Without sanitization, behaviour is unchanged (matches the GraphQL surface):
+        // the raw message is still rendered — this is the leak the gate now closes.
+        let err = RestError::from(raw_db_error());
+        let response = rest_result_to_response(Err(err), &ErrorSanitizer::disabled());
+        let message = body_message(response).await;
+        assert!(
+            message.contains("fn_secret") && message.contains("does not exist"),
+            "disabled sanitizer must render the raw message: {message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn client_input_4xx_message_is_preserved_even_when_enabled() {
+        // SQLSTATE 22 (client-input data exception) maps to a 400 whose message tells the
+        // caller what they did wrong — it must NOT be clobbered by internal sanitization.
+        let err = RestError::from(FraiseQLError::Database {
+            message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
+            sql_state: Some("22P02".into()),
+        });
+        assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
+
+        let response = rest_result_to_response(Err(err), &enabled_sanitizer());
+        let message = body_message(response).await;
+        assert!(message.contains("not-a-uuid"), "client-input 4xx message preserved: {message}");
+    }
+
+    #[tokio::test]
+    async fn ok_responses_are_unaffected() {
+        let response = rest_result_to_response(
+            Ok(RestResponse {
+                status:  axum::http::StatusCode::OK,
+                headers: axum::http::HeaderMap::new(),
+                body:    Some(serde_json::json!({"data": {"id": 1}})),
+            }),
+            &enabled_sanitizer(),
+        );
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
 }

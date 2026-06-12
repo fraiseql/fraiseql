@@ -101,6 +101,7 @@ where
         executor: state.executor.load_full(),
         route_table: route_table.clone(),
         idempotency_store,
+        error_sanitizer: Arc::clone(&state.error_sanitizer),
         #[cfg(feature = "observers")]
         event_transport: None,
         #[cfg(feature = "export-xlsx")]
@@ -332,6 +333,9 @@ struct RestState<A: DatabaseAdapter> {
     executor:          Arc<Executor<A>>,
     route_table:       Arc<RestRouteTable>,
     idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
+    /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
+    /// detail from 5xx response bodies before they reach the client (H7).
+    error_sanitizer:   Arc<crate::config::error_sanitization::ErrorSanitizer>,
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
     event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
@@ -395,7 +399,7 @@ where
                         .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                 })
             },
-            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+            Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
 
@@ -450,7 +454,7 @@ where
                         .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                 })
             },
-            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+            Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
 
@@ -487,7 +491,7 @@ where
                         .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                 })
             },
-            Err(rest_err) => rest_result_to_response(Err(rest_err)),
+            Err(rest_err) => rest_result_to_response(Err(rest_err), &rest.error_sanitizer),
         };
     }
 
@@ -499,7 +503,7 @@ where
         .handle_get(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())
         .await;
 
-    rest_result_to_response(result)
+    rest_result_to_response(result, &rest.error_sanitizer)
 }
 
 /// POST handler — create mutation or custom action.
@@ -528,7 +532,7 @@ where
         .handle_post(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
         .await;
 
-    rest_result_to_response(result)
+    rest_result_to_response(result, &rest.error_sanitizer)
 }
 
 /// PUT handler — full update mutation.
@@ -556,7 +560,7 @@ where
         .handle_put(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
         .await;
 
-    rest_result_to_response(result)
+    rest_result_to_response(result, &rest.error_sanitizer)
 }
 
 /// PATCH handler — partial update mutation or bulk update.
@@ -594,7 +598,7 @@ where
         )
         .await;
 
-    rest_result_to_response(result)
+    rest_result_to_response(result, &rest.error_sanitizer)
 }
 
 /// DELETE handler — single-resource delete or bulk delete.
@@ -621,7 +625,7 @@ where
         .handle_delete(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())
         .await;
 
-    rest_result_to_response(result)
+    rest_result_to_response(result, &rest.error_sanitizer)
 }
 
 /// SSE handler — stream entity change events in real-time.
@@ -643,9 +647,10 @@ where
     let resource_name = match super::sse::extract_stream_resource(&relative_path) {
         Some(name) => name.to_string(),
         None => {
-            return rest_result_to_response(Err(super::handler::RestError::not_found(
-                "Stream endpoint not found",
-            )));
+            return rest_result_to_response(
+                Err(super::handler::RestError::not_found("Stream endpoint not found")),
+                &rest.error_sanitizer,
+            );
         },
     };
 
@@ -654,20 +659,26 @@ where
     let has_resource = rest.route_table.resources.iter().any(|r| r.name == resource_name);
 
     if !has_resource {
-        return rest_result_to_response(Err(super::handler::RestError::not_found(format!(
-            "Resource not found: {resource_name}"
-        ))));
+        return rest_result_to_response(
+            Err(super::handler::RestError::not_found(format!(
+                "Resource not found: {resource_name}"
+            ))),
+            &rest.error_sanitizer,
+        );
     }
 
     // Check auth if required
     if let Some(config) = &schema.rest_config {
         if config.require_auth && security_ctx.is_none() {
-            return rest_result_to_response(Err(super::handler::RestError {
-                status:  StatusCode::UNAUTHORIZED,
-                code:    "UNAUTHENTICATED",
-                message: "Authentication required".to_string(),
-                details: None,
-            }));
+            return rest_result_to_response(
+                Err(super::handler::RestError {
+                    status:  StatusCode::UNAUTHORIZED,
+                    code:    "UNAUTHENTICATED",
+                    message: "Authentication required".to_string(),
+                    details: None,
+                }),
+                &rest.error_sanitizer,
+            );
         }
     }
 
@@ -681,7 +692,7 @@ where
     #[cfg(not(feature = "observers"))]
     {
         let _ = heartbeat_secs; // suppress unused warning
-        rest_result_to_response(Err(super::sse::observers_not_available()))
+        rest_result_to_response(Err(super::sse::observers_not_available()), &rest.error_sanitizer)
     }
 
     // With observers feature: set up SSE stream with real event subscription.
@@ -740,12 +751,15 @@ where
                 },
                 Err(e) => {
                     tracing::warn!(error = %e, resource = %resource_name, "Failed to subscribe to event stream");
-                    return rest_result_to_response(Err(super::handler::RestError {
-                        status:  StatusCode::SERVICE_UNAVAILABLE,
-                        code:    "EVENT_STREAM_UNAVAILABLE",
-                        message: "Could not connect to event stream".to_string(),
-                        details: None,
-                    }));
+                    return rest_result_to_response(
+                        Err(super::handler::RestError {
+                            status:  StatusCode::SERVICE_UNAVAILABLE,
+                            code:    "EVENT_STREAM_UNAVAILABLE",
+                            message: "Could not connect to event stream".to_string(),
+                            details: None,
+                        }),
+                        &rest.error_sanitizer,
+                    );
                 },
             }
         }

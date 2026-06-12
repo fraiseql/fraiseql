@@ -99,4 +99,28 @@ impl ErrorSanitizer {
     pub const fn is_enabled(&self) -> bool {
         self.config.enabled
     }
+
+    /// Whether an internal/server-fault error message should be replaced with a generic
+    /// one before reaching the client.
+    ///
+    /// This is the same gate [`sanitize`](Self::sanitize) applies to
+    /// `InternalServerError`/`DatabaseError` on the GraphQL path, exposed so the REST
+    /// surface can apply identical sanitization at its error-rendering site (H7 — the
+    /// REST path previously wrote raw DB error text into 5xx bodies).
+    #[must_use]
+    pub const fn should_sanitize_internal(&self) -> bool {
+        self.config.enabled && self.config.sanitize_database_errors
+    }
+
+    /// The generic, client-safe message used to replace internal error detail.
+    ///
+    /// Matches the replacement [`sanitize`](Self::sanitize) uses on the GraphQL path
+    /// (the configured `custom_error_message`, or `"An internal error occurred"`).
+    #[must_use]
+    pub fn internal_error_message(&self) -> String {
+        self.config
+            .custom_error_message
+            .clone()
+            .unwrap_or_else(|| "An internal error occurred".to_string())
+    }
 }
