@@ -16,6 +16,9 @@ use fraiseql_error::FraiseQLError;
 use serde::Deserialize;
 use tokio::sync::Semaphore;
 
+#[cfg(feature = "auth")]
+use crate::auth::rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter};
+
 /// Tenant lifecycle status.
 ///
 /// Stored as an `AtomicU8` in the registry for lock-free reads.
@@ -89,6 +92,16 @@ struct TenantEntry<A: DatabaseAdapter> {
     status:         AtomicU8,
     /// Concurrency semaphore — `None` when `max_concurrent` is unset.
     concurrency:    Option<Arc<Semaphore>>,
+    /// Per-second request-rate limiter — `None` when `max_requests_per_sec` is
+    /// unset. Built from `max_requests_per_sec` as a fixed one-second window.
+    ///
+    /// Gated on the `auth` feature because it reuses the audited
+    /// [`KeyedRateLimiter`](crate::auth::rate_limiting::KeyedRateLimiter) from
+    /// `fraiseql-auth`. In `--no-default-features` builds the limit is parsed
+    /// but not enforced; [`with_quota`](TenantEntry::with_quota) logs a warning
+    /// in that case so the gap is never silent.
+    #[cfg(feature = "auth")]
+    rps:            Option<Arc<KeyedRateLimiter>>,
     /// Soft quota exceeded flag (set by background task, blocks mutations).
     quota_exceeded: AtomicBool,
     /// Quota configuration (cloned from registration request).
@@ -98,16 +111,38 @@ struct TenantEntry<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter> TenantEntry<A> {
     fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor:       Arc::new(ArcSwap::from(executor)),
-            status:         AtomicU8::new(TenantStatus::Active as u8),
-            concurrency:    None,
+            executor: Arc::new(ArcSwap::from(executor)),
+            status: AtomicU8::new(TenantStatus::Active as u8),
+            concurrency: None,
+            #[cfg(feature = "auth")]
+            rps: None,
             quota_exceeded: AtomicBool::new(false),
-            quota:          TenantQuota::default(),
+            quota: TenantQuota::default(),
         }
     }
 
     fn with_quota(mut self, quota: TenantQuota) -> Self {
         self.concurrency = quota.max_concurrent.map(|n| Arc::new(Semaphore::new(n as usize)));
+        #[cfg(feature = "auth")]
+        {
+            // Reuse the audited sliding-window limiter from `fraiseql-auth`,
+            // configured as a fixed one-second window: at most
+            // `max_requests_per_sec` requests are admitted per wall-clock second.
+            self.rps = quota.max_requests_per_sec.map(|n| {
+                Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
+                    enabled:      true,
+                    max_requests: n,
+                    window_secs:  1,
+                }))
+            });
+        }
+        #[cfg(not(feature = "auth"))]
+        if quota.max_requests_per_sec.is_some() {
+            tracing::warn!(
+                "Tenant quota sets `max_requests_per_sec`, but per-second rate limiting requires \
+                 the `auth` feature; the limit will NOT be enforced in this build."
+            );
+        }
         self.quota = quota;
         self
     }
@@ -292,6 +327,37 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         }
     }
 
+    /// Try to admit a request under the tenant's per-second rate limit.
+    ///
+    /// Returns `Ok(())` when the request is within the configured
+    /// `max_requests_per_sec` for the current one-second window, or when no
+    /// per-second limit is configured. Like
+    /// [`try_acquire_concurrency`](Self::try_acquire_concurrency), this is only
+    /// meaningful for an explicitly-keyed, registered tenant — the default
+    /// (`None`-key) executor is unlimited and its key must not be passed here.
+    ///
+    /// Unlike the concurrency permit, nothing is returned to hold: the limiter
+    /// is a counter, so admission is recorded immediately and there is no guard
+    /// to release.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::NotFound`] if the tenant key is not registered,
+    /// or [`FraiseQLError::RateLimited`] if the current one-second window is
+    /// exhausted.
+    #[cfg(feature = "auth")]
+    pub fn try_acquire_rps(&self, key: &str) -> fraiseql_error::Result<()> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        match entry.value().rps {
+            Some(ref limiter) => rps_gate_check(
+                limiter.as_ref(),
+                key,
+                entry.value().quota.max_requests_per_sec.unwrap_or(0),
+            ),
+            None => Ok(()),
+        }
+    }
+
     /// Returns `true` if the tenant's soft storage quota has been exceeded.
     ///
     /// When exceeded, mutations should be rejected (reads still allowed).
@@ -402,5 +468,81 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
         let executor = entry.value().executor.load();
         executor.adapter().health_check().await
+    }
+}
+
+/// Map an exhausted per-tenant request-rate window onto a
+/// [`FraiseQLError::RateLimited`] carrying a one-second retry hint.
+///
+/// Generic over the limiter's [`Clock`](crate::auth::rate_limiting::Clock) so
+/// unit tests can drive window rollover deterministically with a mock clock,
+/// while production uses the default system clock.
+#[cfg(feature = "auth")]
+fn rps_gate_check<C: Clock>(
+    limiter: &KeyedRateLimiter<C>,
+    key: &str,
+    max_per_sec: u32,
+) -> fraiseql_error::Result<()> {
+    limiter.check(key).map_err(|_| FraiseQLError::RateLimited {
+        message:          format!(
+            "Tenant '{key}' request-rate limit reached (max {max_per_sec} req/s)"
+        ),
+        retry_after_secs: 1,
+    })
+}
+
+#[cfg(all(test, feature = "auth"))]
+mod rps_tests {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code.
+
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    };
+
+    use fraiseql_error::FraiseQLError;
+
+    use super::rps_gate_check;
+    use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
+
+    const fn one_second_window(max: u32) -> AuthRateLimitConfig {
+        AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: max,
+            window_secs:  1,
+        }
+    }
+
+    #[test]
+    fn admits_up_to_limit_then_rejects_within_window() {
+        // Frozen clock → every call lands in the same one-second window.
+        let now = Arc::new(AtomicU64::new(1_000));
+        let clock = move || now.load(Ordering::Relaxed);
+        let limiter = KeyedRateLimiter::with_clock(one_second_window(2), clock);
+
+        // 2 req/s configured → the first two are admitted...
+        assert!(rps_gate_check(&limiter, "acme", 2).is_ok());
+        assert!(rps_gate_check(&limiter, "acme", 2).is_ok());
+        // ...the third in the same second is rejected as RateLimited.
+        assert!(matches!(
+            rps_gate_check(&limiter, "acme", 2),
+            Err(FraiseQLError::RateLimited { .. })
+        ));
+    }
+
+    #[test]
+    fn window_resets_on_next_second() {
+        let now = Arc::new(AtomicU64::new(1_000));
+        let clock = {
+            let n = now.clone();
+            move || n.load(Ordering::Relaxed)
+        };
+        let limiter = KeyedRateLimiter::with_clock(one_second_window(1), clock);
+
+        assert!(rps_gate_check(&limiter, "acme", 1).is_ok());
+        assert!(rps_gate_check(&limiter, "acme", 1).is_err()); // window exhausted
+
+        now.store(1_001, Ordering::Relaxed); // advance one second
+        assert!(rps_gate_check(&limiter, "acme", 1).is_ok(), "window must reset");
     }
 }

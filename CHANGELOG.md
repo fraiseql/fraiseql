@@ -135,8 +135,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concurrency permit (held for the duration of the request) after resolving the tenant executor,
   for explicitly-keyed registered tenants; exceeding the limit returns HTTP 429 Too Many Requests
   (previously a tenant-dispatch `RateLimited` collapsed to 403). Requests with no explicit tenant
-  key (the default executor) are unlimited, as before. Per-second rate limiting (`max_requests_per_sec`)
-  remains a tracked follow-up — no enforcement primitive exists for it yet.
+  key (the default executor) are unlimited, as before.
+- **Per-tenant per-second rate limiting is now enforced (M-quotas, RPS follow-up).**
+  `TenantQuota.max_requests_per_sec` was configurable but had no enforcement primitive and was
+  silently ignored. Each tenant now carries a fixed one-second-window rate limiter (the audited
+  `KeyedRateLimiter` from `fraiseql-auth`), and the GraphQL request path checks it at the same
+  chokepoint as the concurrency permit — for explicitly-keyed registered tenants only. Exceeding
+  the configured requests-per-second returns HTTP 429 Too Many Requests (reusing the C7
+  `RateLimited` → 429 dispatch mapping); the default executor and tenants without a per-second
+  quota are unaffected. Enforcement requires the default-on `auth` feature (which provides the
+  limiter); a `--no-default-features` build parses `max_requests_per_sec` but logs a warning at
+  registration that it is not enforced. The limiter is per-process, so an *N*-replica deployment
+  enforces *N* × the configured rate — configure a distributed backend for true global limiting.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's

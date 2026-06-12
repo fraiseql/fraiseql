@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fraiseql_core::{
+    FraiseQLError,
     db::{
         WhereClause,
         traits::DatabaseAdapter,
@@ -587,6 +588,74 @@ fn test_tenant_rate_limit_independence() {
     // Tenant-b is independent — still has permits
     let pb = registry.try_acquire_concurrency("tenant-b").unwrap();
     assert!(pb.is_some());
+}
+
+// --- Cross-cutting: per-tenant per-second rate limiting (M-quotas RPS) ---
+
+#[cfg(feature = "auth")]
+#[test]
+fn test_tenant_rps_limit_enforced_and_independent() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    let quota = TenantQuota {
+        max_concurrent:       None,
+        max_requests_per_sec: Some(1),
+        max_storage_bytes:    None,
+    };
+    registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota.clone());
+    registry.upsert_with_quota("tenant-b", make_executor("b", "orders"), quota);
+
+    // A 3-call burst against a 1 req/s gate cannot all pass: across microseconds
+    // the burst spans at most two wall-clock seconds, and only the first call in
+    // each second is admitted, so at least one of the two follow-up calls is
+    // RateLimited — deterministic regardless of where the burst falls relative to
+    // a second boundary.
+    assert!(registry.try_acquire_rps("tenant-a").is_ok());
+    let follow_up = [
+        registry.try_acquire_rps("tenant-a"),
+        registry.try_acquire_rps("tenant-a"),
+    ];
+    let rejections: Vec<FraiseQLError> = follow_up.into_iter().filter_map(Result::err).collect();
+    assert!(!rejections.is_empty(), "1 req/s gate must reject part of a 3-call burst");
+    assert!(
+        rejections.iter().all(|e| matches!(e, FraiseQLError::RateLimited { .. })),
+        "exhaustion must surface as RateLimited (→ HTTP 429), got: {rejections:?}"
+    );
+
+    // Tenant-b has its own independent window — its first call is admitted even
+    // while tenant-a is throttled.
+    assert!(registry.try_acquire_rps("tenant-b").is_ok());
+}
+
+#[cfg(feature = "auth")]
+#[test]
+fn test_tenant_rps_unset_is_unlimited() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    let quota = TenantQuota {
+        max_concurrent:       None,
+        max_requests_per_sec: None,
+        max_storage_bytes:    None,
+    };
+    registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota);
+
+    // No per-second limit configured → every call is admitted.
+    for _ in 0..50 {
+        assert!(registry.try_acquire_rps("tenant-a").is_ok());
+    }
+}
+
+#[cfg(feature = "auth")]
+#[test]
+fn test_tenant_rps_unknown_tenant_is_not_found() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    // Mirrors try_acquire_concurrency: an unregistered key is NotFound, never a
+    // silent pass.
+    assert!(matches!(registry.try_acquire_rps("ghost"), Err(FraiseQLError::NotFound { .. })));
 }
 
 // --- Cross-cutting: Audit trail records lifecycle events ---

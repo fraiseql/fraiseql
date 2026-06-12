@@ -609,6 +609,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         _ => None,
     };
 
+    // M-quotas (RPS): enforce the per-tenant per-second request-rate limit at the
+    // same chokepoint. Like the concurrency permit, this is meaningful only for an
+    // explicitly-keyed, registered tenant — the default executor is unlimited. An
+    // exhausted one-second window surfaces as `RateLimited` → HTTP 429.
+    #[cfg(feature = "auth")]
+    if let (Some(key), Some(registry)) = (tenant_key.as_deref(), state.tenant_registry()) {
+        registry
+            .try_acquire_rps(key)
+            .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    }
+
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
