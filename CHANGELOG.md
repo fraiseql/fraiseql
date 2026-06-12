@@ -370,6 +370,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retype is lossless; re-run migration `08` (and the `09`/`10` variants) to adopt
   it. `doctor --against-db` reports the type drift until a database is re-migrated.
 
+### Fixed
+
+- **gRPC mutations always reported failure.** The gRPC mutation handler read a
+  non-existent `status == "success"` column from the `mutation_response` row instead of
+  the canonical `succeeded` boolean (see `core::runtime::mutation_result`), so every gRPC
+  mutation returned `success = false` regardless of the actual outcome. It now reads
+  `succeeded`.
+- **REST 204 No Content responses carried a `{}` body.** The REST response renderer wrote
+  `{}` for an absent body (`None.unwrap_or(json!({}))`), giving 204 No Content (e.g. a
+  `DELETE`) a 2-byte body in violation of the HTTP spec. A `None` body now emits an empty
+  body.
+- **REST error responses dropped structured `details`.** The REST error renderer wrote
+  only `code` + `message`, discarding `RestError.details` — so a 422 validation failure's
+  `missing_fields`, and any other structured error detail, never reached the client.
+  Errors now render via `RestError::to_json`, preserving `details` (internal-error details
+  are still stripped when error sanitization is enabled).
+
 ### Documentation
 
 - **Zero-downtime deploy guide (#378).** New `docs/operations/zero-downtime-deploys.md`

@@ -62,12 +62,16 @@ pub(super) fn rest_result_to_response(
 ) -> Response {
     match result {
         Ok(rest_resp) => {
-            let body = rest_resp.body.unwrap_or(json!({}));
-            let body_str = body.to_string();
+            // A `None` body means "no content" (e.g. a 204 DELETE) — emit an empty body, not
+            // `{}`. Writing `{}` gave 204 No Content a 2-byte body, violating the HTTP spec.
+            let body = match rest_resp.body {
+                Some(value) => axum::body::Body::from(value.to_string()),
+                None => axum::body::Body::empty(),
+            };
 
             let mut response = Response::builder()
                 .status(rest_resp.status)
-                .body(axum::body::Body::from(body_str))
+                .body(body)
                 .expect("Unable to construct response");
 
             let headers = response.headers_mut();
@@ -88,8 +92,16 @@ pub(super) fn rest_result_to_response(
                     e.message
                 );
                 e.message = sanitizer.internal_error_message();
+                // Drop any structured detail too, so internal specifics never leak.
+                e.details = None;
             }
-            error_response(e.status, e.code, &e.message)
+            // Render via `RestError::to_json` so structured `details` (e.g. a 422's
+            // `missing_fields`) reach the client — `error_response` drops them.
+            Response::builder()
+                .status(e.status)
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(e.to_json().to_string()))
+                .expect("Unable to construct error response")
         },
     }
 }

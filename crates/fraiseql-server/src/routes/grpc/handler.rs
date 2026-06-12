@@ -426,9 +426,12 @@ pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
     // execute_function_call_with_session.
     let rows = adapter.execute_function_call(function_name, &args).await?;
 
-    // The Trinity pattern returns a single row with status/entity_id columns.
+    // The mutation function returns a single `app.mutation_response` composite row whose
+    // terminal outcome is the `succeeded` boolean (see
+    // `fraiseql_core::runtime::mutation_result::MutationResponse`) — NOT a `status` string.
+    // Reading the wrong column made every gRPC mutation report `success = false`.
     let row = rows.into_iter().next().unwrap_or_default();
-    let success = row.get("status").and_then(|v| v.as_str()).is_some_and(|s| s == "success");
+    let success = row.get("succeeded").and_then(serde_json::Value::as_bool).unwrap_or(false);
     let id = row.get("entity_id").and_then(|v| v.as_str()).map(String::from);
     let error = if success {
         None

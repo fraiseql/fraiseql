@@ -37,7 +37,9 @@ fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
     row.insert("message".to_string(), json!(""));
     row.insert("entity".to_string(), entity);
     row.insert("entity_type".to_string(), json!("User"));
-    row.insert("entity_id".to_string(), json!("42"));
+    // `mutation_response.entity_id` is a UUID (see core::runtime::mutation_result) — a
+    // non-UUID string fails to deserialize and surfaces as a 400, not the mutation result.
+    row.insert("entity_id".to_string(), json!("00000000-0000-0000-0000-000000000042"));
     vec![row]
 }
 
@@ -575,8 +577,10 @@ async fn test_post_custom_action_returns_200() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_delete_returns_204() {
-    let adapter = FailingAdapter::new()
-        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
+    let adapter = FailingAdapter::new().with_function_response(
+        "fn_delete_user",
+        mutation_success_row_with_id(json!(null), "00000000-0000-0000-0000-000000000042"),
+    );
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -619,7 +623,7 @@ async fn test_delete_with_prefer_return_representation() {
         row.insert("message".to_string(), json!(""));
         row.insert("entity".to_string(), entity);
         row.insert("entity_type".to_string(), json!("User"));
-        row.insert("entity_id".to_string(), json!("42"));
+        row.insert("entity_id".to_string(), json!("00000000-0000-0000-0000-000000000042"));
         vec![row]
     });
 
@@ -883,8 +887,10 @@ async fn test_patch_with_invalid_content_type_returns_400() {
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn test_delete_with_prefer_return_minimal() {
-    let adapter = FailingAdapter::new()
-        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
+    let adapter = FailingAdapter::new().with_function_response(
+        "fn_delete_user",
+        mutation_success_row_with_id(json!(null), "00000000-0000-0000-0000-000000000042"),
+    );
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
