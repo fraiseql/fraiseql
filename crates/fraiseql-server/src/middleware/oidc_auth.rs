@@ -14,6 +14,8 @@ use axum::{
 };
 use fraiseql_core::security::{AuthenticatedUser, OidcValidator};
 
+use crate::middleware::admin_scope::ADMIN_SCOPE;
+
 /// State for OIDC authentication middleware.
 #[derive(Clone)]
 pub struct OidcAuthState {
@@ -197,5 +199,151 @@ pub async fn oidc_auth_middleware(
                 },
             }
         },
+    }
+}
+
+/// Outcome of pulling a bearer token from a request (header first, cookie fallback).
+enum TokenExtraction {
+    /// A token string was found (`Authorization: Bearer …` or `__Host-access_token`).
+    Found(String),
+    /// An `Authorization` header was present but not in `Bearer <token>` form.
+    Malformed,
+    /// No token in either the header or the `__Host-access_token` cookie.
+    Absent,
+}
+
+/// Extract the bearer token from the `Authorization` header, falling back to the
+/// `__Host-access_token` cookie. Distinguishes a malformed header from an absent
+/// token so callers can return the right 401 body.
+fn extract_bearer_or_cookie(headers: &axum::http::HeaderMap) -> TokenExtraction {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok());
+    match auth_header {
+        Some(value) => match value.strip_prefix("Bearer ") {
+            Some(token) => TokenExtraction::Found(token.to_owned()),
+            None => TokenExtraction::Malformed,
+        },
+        None => match extract_access_token_cookie(headers) {
+            Some(token) => TokenExtraction::Found(token),
+            None => TokenExtraction::Absent,
+        },
+    }
+}
+
+/// Mandatory authentication shared by [`admin_auth_middleware`] and
+/// [`required_auth_middleware`].
+///
+/// Extracts a bearer token (header or cookie) and rejects with 401 when it is absent,
+/// malformed, or invalid; on success it inserts `AuthUser` / `SessionJti` into the
+/// request extensions and returns the validated user.
+///
+/// Unlike [`oidc_auth_middleware`], the token is **always** required regardless of the
+/// validator's global `is_required()` flag. That flag governs only the anonymous data
+/// plane; honouring it on the admin plane is exactly the H5 bypass this layer closes
+/// (an admin router silently un-authed whenever a deployment runs with optional data
+/// auth).
+async fn authenticate_required(
+    auth_state: &OidcAuthState,
+    request: &mut Request<Body>,
+) -> Result<AuthenticatedUser, Response> {
+    let token = match extract_bearer_or_cookie(request.headers()) {
+        TokenExtraction::Found(token) => token,
+        TokenExtraction::Malformed => {
+            tracing::debug!("Admin/required auth: malformed Authorization header");
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                [(header::WWW_AUTHENTICATE, "Bearer error=\"invalid_request\"".to_string())],
+                "Invalid Authorization header format",
+            )
+                .into_response());
+        },
+        TokenExtraction::Absent => {
+            tracing::debug!("Admin/required auth: no token (header or cookie)");
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                [(
+                    header::WWW_AUTHENTICATE,
+                    format!("Bearer realm=\"{}\"", auth_state.validator.issuer()),
+                )],
+                "Authentication required",
+            )
+                .into_response());
+        },
+    };
+
+    match auth_state.validator.validate_token(&token).await {
+        Ok(user) => {
+            let jti = jsonwebtoken::dangerous::insecure_decode::<JtiOnlyClaims>(&token)
+                .ok()
+                .and_then(|d| d.claims.jti);
+            request.extensions_mut().insert(AuthUser(user.clone()));
+            request.extensions_mut().insert(SessionJti(jti));
+            Ok(user)
+        },
+        Err(e) => {
+            tracing::debug!(error = %e, "Admin/required auth: token validation failed");
+            let (www_authenticate, body) = match &e {
+                fraiseql_core::security::SecurityError::TokenExpired { .. } => (
+                    "Bearer error=\"invalid_token\", error_description=\"Token has expired\"",
+                    "Token has expired",
+                ),
+                fraiseql_core::security::SecurityError::InvalidToken => (
+                    "Bearer error=\"invalid_token\", error_description=\"Token is invalid\"",
+                    "Token is invalid",
+                ),
+                _ => ("Bearer error=\"invalid_token\"", "Invalid or expired token"),
+            };
+            Err((
+                StatusCode::UNAUTHORIZED,
+                [(header::WWW_AUTHENTICATE, www_authenticate.to_string())],
+                body,
+            )
+                .into_response())
+        },
+    }
+}
+
+/// Admin-plane authentication **and** authorization middleware (Phase 03 C3).
+///
+/// Requires a valid bearer token (always — see `authenticate_required`) **and** the
+/// `fraiseql:admin` scope. A missing/invalid token returns 401; a valid token without
+/// the admin scope returns 403. Applied to the true admin plane (observer admin API,
+/// design-audit API), it closes both H5 (admin routers un-authed when the global data
+/// plane is optional) and H6 (admin routers authenticated but not authorized — e.g. any
+/// end-user token could read observer `actions[].headers` webhook secrets or drive DLQ
+/// retry/delete).
+pub async fn admin_auth_middleware(
+    State(auth_state): State<OidcAuthState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    match authenticate_required(&auth_state, &mut request).await {
+        Ok(user) => {
+            if user.has_scope(ADMIN_SCOPE) {
+                next.run(request).await
+            } else {
+                tracing::debug!(user_id = %user.user_id, "Admin scope missing — denying");
+                (StatusCode::FORBIDDEN, format!("Admin API requires '{ADMIN_SCOPE}' scope"))
+                    .into_response()
+            }
+        },
+        Err(response) => response,
+    }
+}
+
+/// Mandatory-authentication middleware (Phase 03 C3).
+///
+/// Requires a valid bearer token (any scope). Unlike [`oidc_auth_middleware`] it never
+/// defers to the validator's global `is_required()` flag, so a route an operator marked
+/// "require auth" actually rejects anonymous callers even when the data plane is
+/// optional (H5). Applied to the schema-exposing operator endpoints (introspection,
+/// schema export, schema metadata) where a valid non-admin token is still legitimate.
+pub async fn required_auth_middleware(
+    State(auth_state): State<OidcAuthState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    match authenticate_required(&auth_state, &mut request).await {
+        Ok(_user) => next.run(request).await,
+        Err(response) => response,
     }
 }

@@ -1,3 +1,79 @@
+mod redaction_tests {
+    use super::super::redact_action_secrets;
+
+    #[test]
+    fn webhook_header_values_are_redacted_keys_preserved() {
+        let mut actions = serde_json::json!([
+            {
+                "type": "webhook",
+                "url": "https://hook.example/path",
+                "method": "POST",
+                "headers": { "Authorization": "Bearer super-secret", "X-Api-Key": "k-123" }
+            }
+        ]);
+        redact_action_secrets(&mut actions);
+
+        let headers = &actions[0]["headers"];
+        assert_eq!(headers["Authorization"], "[REDACTED]");
+        assert_eq!(headers["X-Api-Key"], "[REDACTED]");
+        // Non-secret fields are preserved verbatim.
+        assert_eq!(actions[0]["url"], "https://hook.example/path");
+        assert_eq!(actions[0]["method"], "POST");
+    }
+
+    #[test]
+    fn actions_without_headers_are_untouched() {
+        let mut actions = serde_json::json!([
+            { "type": "slack", "webhook_url": "https://slack/x", "message_template": "hi" },
+            { "type": "log", "level": "info", "message_template": "m" }
+        ]);
+        let before = actions.clone();
+        redact_action_secrets(&mut actions);
+        assert_eq!(actions, before, "actions with no headers must be unchanged");
+    }
+
+    #[test]
+    fn non_array_actions_are_ignored() {
+        let mut actions = serde_json::json!({ "headers": { "k": "v" } });
+        let before = actions.clone();
+        redact_action_secrets(&mut actions);
+        assert_eq!(actions, before, "a non-array actions value must not be mutated");
+    }
+
+    #[test]
+    fn with_redacted_secrets_redacts_observer_actions() {
+        use chrono::Utc;
+
+        use super::super::Observer;
+
+        let observer = Observer {
+            pk_observer:          1,
+            id:                   uuid::Uuid::nil(),
+            name:                 "n".to_string(),
+            description:          None,
+            entity_type:          None,
+            event_type:           None,
+            condition_expression: None,
+            actions:              serde_json::json!([
+                { "type": "webhook", "url": "u", "headers": { "Authorization": "Bearer s" } }
+            ]),
+            enabled:              true,
+            priority:             100,
+            retry_config:         serde_json::json!({}),
+            timeout_ms:           30_000,
+            fk_customer_org:      None,
+            created_at:           Utc::now(),
+            updated_at:           Utc::now(),
+            created_by:           None,
+            updated_by:           None,
+            deleted_at:           None,
+        };
+
+        let redacted = observer.with_redacted_secrets();
+        assert_eq!(redacted.actions[0]["headers"]["Authorization"], "[REDACTED]");
+    }
+}
+
 mod config_tests {
     use super::super::config::ObserverManagementConfig;
 

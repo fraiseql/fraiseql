@@ -38,6 +38,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retained. **Behavioral change:** anonymous `_entities` resolution of RLS-/inject-gated
   types, and any `_entities` resolution of role-gated types without the role, now error
   rather than returning the entity.
+- **Admin-plane endpoints now enforce mandatory auth + admin scope (H5, H6).** The OIDC
+  middleware (`oidc_auth_middleware`) defers to the validator's global `required` flag,
+  which governs only the anonymous data plane — so any deployment that allowed anonymous
+  GraphQL silently un-authed the admin routers too (H5). The observer admin API was also
+  authenticated but not authorized: any valid end-user token could read observer
+  `actions[].headers` (webhook bearer secrets) and drive DLQ retry-all / delete / observer
+  mutation (H6). Two net-new middlewares fix this independently of the global flag:
+  `admin_auth_middleware` (valid token **and** `fraiseql:admin` scope) now gates the
+  observer admin API and the design-audit API; `required_auth_middleware` (valid token,
+  any scope) now gates the introspection, schema-export, and schema-metadata endpoints so
+  that "require auth" actually rejects anonymous callers. Endpoints already configured
+  with `*_require_auth = false` keep their explicit open-mount behavior. As defense in
+  depth (R8), observer read/write responses now redact webhook secret values in
+  `actions[].headers` (`[REDACTED]`) so secrets never travel in a response body.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's
@@ -301,6 +315,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only envelope columns still NULL-by-design are `actor_type` / `acting_for` (#390).
 
 ### Breaking
+
+- **The observer admin API and design-audit API now require the `fraiseql:admin`
+  scope; introspection / schema-export / schema-metadata now require a valid token
+  whenever their `*_require_auth` flag is set.** Previously these admin-plane routes
+  were authenticated only by the global OIDC middleware, which let anonymous callers
+  through whenever the data plane allowed anonymous queries, and the observer API
+  performed no scope check at all. Callers of the observer admin API
+  (`/api/observers/*`) and design-audit API (`/api/v1/design/*`) must now present a
+  JWT carrying the `fraiseql:admin` scope; tokens without it receive `403`. Tooling
+  that reads introspection / schema export / metadata must present a valid token (any
+  scope) when those endpoints are configured to require auth. Routes left at
+  `*_require_auth = false` are unchanged.
 
 - **The framework now owns the `core.tb_entity_change_log` write — remove app-side
   hand-rolled inserts.** Before, FraiseQL apps populated the change log themselves, typically

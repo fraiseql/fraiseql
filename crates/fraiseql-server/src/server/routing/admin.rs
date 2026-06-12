@@ -11,9 +11,9 @@ use tracing::{info, warn};
 
 use super::super::{
     BearerAuthState, BroadcastState, OidcAuthState, PlaygroundState, Server, SubscriptionState,
-    api, bearer_auth_middleware, broadcast_handler, health_handler, introspection_handler,
-    metrics_handler, metrics_json_handler, oidc_auth_middleware, playground_handler,
-    readiness_handler, subscription_handler,
+    admin_auth_middleware, api, bearer_auth_middleware, broadcast_handler, health_handler,
+    introspection_handler, metrics_handler, metrics_json_handler, oidc_auth_middleware,
+    playground_handler, readiness_handler, required_auth_middleware, subscription_handler,
 };
 use crate::routes::graphql::AppState;
 
@@ -337,7 +337,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let introspection_router = Router::new()
                     .route(&self.config.introspection_path, get(introspection_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        required_auth_middleware,
+                    ))
                     .with_state(state.clone());
                 app = app.merge(introspection_router);
             } else {
@@ -364,7 +367,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        required_auth_middleware,
+                    ))
                     .with_state(state.clone());
                 app = app.merge(schema_router);
             } else {
@@ -388,7 +394,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let metadata_router = Router::new()
                     .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        required_auth_middleware,
+                    ))
                     .with_state(state.clone());
                 app = app.merge(metadata_router);
             } else {
@@ -541,7 +550,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     fn mount_design_audit(&self, mut app: Router, state: &AppState<A>) -> Router {
         if self.config.design_api_require_auth {
             if let Some(ref validator) = self.oidc_validator {
-                info!("Design audit API endpoints enabled (OIDC auth required)");
+                info!("Design audit API endpoints enabled (admin scope 'fraiseql:admin' required)");
                 let auth_state = OidcAuthState::new(validator.clone());
                 let design_router = Router::new()
                     .route(
@@ -556,7 +565,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         post(api::design::compilation_audit_handler::<A>),
                     )
                     .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
                     .with_state(state.clone());
                 app = app.nest("/api/v1", design_router);
             } else {

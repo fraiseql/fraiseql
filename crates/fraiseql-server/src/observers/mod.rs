@@ -108,6 +108,48 @@ pub struct Observer {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+/// Placeholder substituted for secret-bearing values in API response bodies.
+const REDACTED_PLACEHOLDER: &str = "[REDACTED]";
+
+/// Redact secret-bearing values from an observer `actions` JSON array in place.
+///
+/// Each webhook action may carry custom `headers` (e.g. `Authorization: Bearer …`).
+/// This replaces every header **value** with [`REDACTED_PLACEHOLDER`] while preserving
+/// the header names and the rest of the action, so an operator can still see which
+/// headers are configured without the secret leaving the server (R8). Non-array
+/// `actions` and non-object entries are left untouched.
+fn redact_action_secrets(actions: &mut serde_json::Value) {
+    let Some(entries) = actions.as_array_mut() else {
+        return;
+    };
+    for entry in entries {
+        let Some(obj) = entry.as_object_mut() else {
+            continue;
+        };
+        if let Some(headers) = obj.get_mut("headers").and_then(serde_json::Value::as_object_mut) {
+            for value in headers.values_mut() {
+                *value = serde_json::Value::String(REDACTED_PLACEHOLDER.to_string());
+            }
+        }
+    }
+}
+
+impl Observer {
+    /// Return a copy with secret-bearing fields redacted, destined for an HTTP
+    /// response body.
+    ///
+    /// Defense in depth (Phase 03 R8): the observer admin API is gated behind the
+    /// `fraiseql:admin` scope, but webhook secrets in `actions[].headers` must never
+    /// travel in a response body regardless — they could otherwise be captured by
+    /// proxies, browser history, or logs. The redaction is applied to every read and
+    /// write response that echoes an observer.
+    #[must_use]
+    pub fn with_redacted_secrets(mut self) -> Self {
+        redact_action_secrets(&mut self.actions);
+        self
+    }
+}
+
 /// Request to create a new observer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateObserverRequest {

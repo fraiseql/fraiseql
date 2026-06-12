@@ -34,6 +34,9 @@ pub async fn list_observers(
 
     match state.repository.list(&query, customer_org).await {
         Ok((observers, total_count)) => {
+            // R8: never echo webhook secrets (actions[].headers) in a response body.
+            let observers: Vec<_> =
+                observers.into_iter().map(super::Observer::with_redacted_secrets).collect();
             let response =
                 PaginatedResponse::new(observers, query.page, query.page_size, total_count);
             (StatusCode::OK, Json(response)).into_response()
@@ -60,7 +63,9 @@ pub async fn get_observer(
     let customer_org: Option<i64> = None;
 
     match state.repository.get_by_id(id, customer_org).await {
-        Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
+        Ok(Some(observer)) => {
+            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
+        },
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Observer not found" })),
@@ -121,7 +126,9 @@ pub async fn create_observer(
     let created_by: Option<&str> = extract_user_id(security_context.as_ref());
 
     match state.repository.create(&request, customer_org, created_by).await {
-        Ok(observer) => (StatusCode::CREATED, Json(observer)).into_response(),
+        Ok(observer) => {
+            (StatusCode::CREATED, Json(observer.with_redacted_secrets())).into_response()
+        },
         Err(e) => {
             let error_msg = e.to_string();
             tracing::error!("Failed to create observer: {}", error_msg);
@@ -162,7 +169,9 @@ pub async fn update_observer(
     let updated_by: Option<&str> = extract_user_id(security_context.as_ref());
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
-        Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
+        Ok(Some(observer)) => {
+            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
+        },
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Observer not found" })),
@@ -282,7 +291,9 @@ pub async fn enable_observer(
     let updated_by: Option<&str> = None;
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
-        Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
+        Ok(Some(observer)) => {
+            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
+        },
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Observer not found" })),
@@ -316,7 +327,9 @@ pub async fn disable_observer(
     let updated_by: Option<&str> = None;
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
-        Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
+        Ok(Some(observer)) => {
+            (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
+        },
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Observer not found" })),

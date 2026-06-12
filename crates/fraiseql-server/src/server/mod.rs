@@ -20,8 +20,9 @@ use crate::routes::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_sta
 use crate::{
     Result, ServerError,
     middleware::{
-        BearerAuthState, OidcAuthState, RateLimiter, bearer_auth_middleware, cors_layer_restricted,
-        metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
+        BearerAuthState, OidcAuthState, RateLimiter, admin_auth_middleware, bearer_auth_middleware,
+        cors_layer_restricted, metrics_middleware, oidc_auth_middleware, require_json_content_type,
+        required_auth_middleware, trace_layer,
     },
     routes::{
         BroadcastState, PlaygroundState, SubscriptionState, api, broadcast_handler,
