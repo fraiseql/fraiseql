@@ -46,3 +46,16 @@ fn unknown_tenant_maps_to_403_forbidden() {
     assert_eq!(gql.code, ErrorCode::Forbidden, "unknown key → Forbidden");
     assert_eq!(gql.code.status_code(), StatusCode::FORBIDDEN);
 }
+
+#[test]
+fn concurrency_limit_maps_to_429_too_many_requests() {
+    // M-quotas: an exhausted per-tenant concurrency limit (`try_acquire_concurrency`
+    // → RateLimited) must surface as 429, not collapse to 403.
+    let err = FraiseQLError::RateLimited {
+        message:          "Tenant 'acme' concurrency limit reached (max 4)".to_string(),
+        retry_after_secs: 1,
+    };
+    let gql = tenant_dispatch_error(&err);
+    assert_eq!(gql.code, ErrorCode::RateLimitExceeded, "concurrency limit → RateLimitExceeded");
+    assert_eq!(gql.code.status_code(), StatusCode::TOO_MANY_REQUESTS);
+}

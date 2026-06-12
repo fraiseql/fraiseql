@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::*;
-use crate::schema::{CompiledSchema, SubscriptionDefinition};
+use crate::schema::{CompiledSchema, SecurityConfig, SubscriptionDefinition};
 
 fn create_test_schema() -> CompiledSchema {
     CompiledSchema {
@@ -15,6 +15,17 @@ fn create_test_schema() -> CompiledSchema {
         ],
         ..Default::default()
     }
+}
+
+/// Same subscriptions as [`create_test_schema`] but flagged multi-tenant
+/// (`security.multi_tenant = true`), so the manager's tenant gate fails closed.
+fn create_multi_tenant_schema() -> CompiledSchema {
+    let mut schema = create_test_schema();
+    schema.security = Some(SecurityConfig {
+        multi_tenant: true,
+        ..Default::default()
+    });
+    schema
 }
 
 #[test]
@@ -886,6 +897,111 @@ fn test_rls_conditions_filter_subscription_events() {
         manager.publish_event(missing_field),
         0,
         "event without tenant_id must be filtered"
+    );
+}
+
+// =============================================================================
+// Tenant-gate fail-closed tests (C7 — M-tenant-ws-failopen)
+// =============================================================================
+
+#[test]
+fn multi_tenant_tenantless_subscriber_receives_no_events() {
+    // The fail-open hole: a subscriber whose context carries NO tenant_id used to
+    // match every tenant's events. In multi-tenant mode it must now match nothing.
+    let manager = SubscriptionManager::new(Arc::new(create_multi_tenant_schema()));
+    manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({ "user_id": "u1" }), // no tenant_id
+            serde_json::json!({}),
+            "conn_1",
+        )
+        .unwrap();
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({ "id": "ord_1" }),
+    )
+    .with_tenant_id("tenant-a");
+
+    assert_eq!(
+        manager.publish_event(event),
+        0,
+        "multi-tenant: a tenant-less subscriber must not receive any tenant's events",
+    );
+}
+
+#[test]
+fn multi_tenant_subscriber_receives_only_same_tenant_events() {
+    let manager = SubscriptionManager::new(Arc::new(create_multi_tenant_schema()));
+    manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({ "tenant_id": "tenant-a" }),
+            serde_json::json!({}),
+            "conn_1",
+        )
+        .unwrap();
+
+    let same = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({ "id": "ord_1" }),
+    )
+    .with_tenant_id("tenant-a");
+    assert_eq!(manager.publish_event(same), 1, "same-tenant event must match");
+
+    let other = SubscriptionEvent::new(
+        "Order",
+        "ord_2",
+        SubscriptionOperation::Create,
+        serde_json::json!({ "id": "ord_2" }),
+    )
+    .with_tenant_id("tenant-b");
+    assert_eq!(manager.publish_event(other), 0, "different-tenant event must be filtered");
+
+    // An event with no tenant tag must NOT reach a tenant-scoped subscriber in
+    // multi-tenant mode (it could be from any tenant).
+    let untagged = SubscriptionEvent::new(
+        "Order",
+        "ord_3",
+        SubscriptionOperation::Create,
+        serde_json::json!({ "id": "ord_3" }),
+    );
+    assert_eq!(
+        manager.publish_event(untagged),
+        0,
+        "multi-tenant: an untagged event must not reach a tenant-scoped subscriber",
+    );
+}
+
+#[test]
+fn single_tenant_tenantless_subscriber_still_matches() {
+    // Regression guard: single-tenant deployments (tenant ids typically absent)
+    // must keep delivering events to tenant-less subscribers.
+    let manager = SubscriptionManager::new(Arc::new(create_test_schema()));
+    manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({ "user_id": "u1" }),
+            serde_json::json!({}),
+            "conn_1",
+        )
+        .unwrap();
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({ "id": "ord_1" }),
+    );
+    assert_eq!(
+        manager.publish_event(event),
+        1,
+        "single-tenant: a tenant-less subscriber must still receive untagged events",
     );
 }
 

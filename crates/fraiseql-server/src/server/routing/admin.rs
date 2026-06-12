@@ -293,7 +293,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_max_subscriptions(self.max_subscriptions_per_connection)
             .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation)
             // #422: enforce the operation-level authorizer (if any) at subscribe-time.
-            .with_authorizer(self.executor.config().authorizer.clone());
+            .with_authorizer(self.executor.config().authorizer.clone())
+            // M-tenant-ws-suspended: reject subscribes / pause delivery for a
+            // suspended tenant, mirroring the GraphQL data plane's 503.
+            .with_tenant_status_source(
+                state
+                    .tenant_registry()
+                    .map(|r| Arc::clone(r) as Arc<dyn crate::routes::graphql::TenantStatusSource>),
+            );
 
         #[cfg(feature = "federation")]
         if !remote_sub_fields.is_empty() {

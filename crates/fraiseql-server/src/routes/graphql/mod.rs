@@ -17,4 +17,4 @@ pub use app_state::AppState;
 pub use handler::{graphql_get_handler, graphql_handler};
 pub use request::{GraphQLGetParams, GraphQLRequest, GraphQLResponse};
 pub use tenant_key::{DomainRegistry, TenantKeyResolver};
-pub use tenant_registry::TenantExecutorRegistry;
+pub use tenant_registry::{TenantExecutorRegistry, TenantStatusSource};

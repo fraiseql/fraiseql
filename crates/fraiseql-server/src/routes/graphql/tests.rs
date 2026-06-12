@@ -942,7 +942,9 @@ mod tenant_registry_tests {
     };
     use fraiseql_error::FraiseQLError;
 
-    use super::super::tenant_registry::{TenantExecutorRegistry, TenantQuota, TenantStatus};
+    use super::super::tenant_registry::{
+        TenantExecutorRegistry, TenantQuota, TenantStatus, TenantStatusSource,
+    };
 
     /// Minimal no-op database adapter for unit tests.
     #[derive(Debug, Clone)]
@@ -1040,6 +1042,24 @@ mod tenant_registry_tests {
         let exec = registry.executor_for(Some("tenant-abc"));
         assert!(exec.is_ok());
         assert_eq!(exec.unwrap().schema().queries.len(), 1);
+    }
+
+    // M-tenant-ws-suspended: the type-erased status source the subscription
+    // WebSocket path consults.
+    #[test]
+    fn tenant_status_source_reports_suspension() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+
+        // Active by default; an unknown tenant is reported active (not suspended).
+        assert!(!registry.is_suspended("tenant-abc"));
+        assert!(!registry.is_suspended("never-registered"));
+
+        registry.suspend("tenant-abc").unwrap();
+        assert!(registry.is_suspended("tenant-abc"), "a suspended tenant must report suspended");
+
+        registry.resume("tenant-abc").unwrap();
+        assert!(!registry.is_suspended("tenant-abc"), "a resumed tenant is active again");
     }
 
     #[test]

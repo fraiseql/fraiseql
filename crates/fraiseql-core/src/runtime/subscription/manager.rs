@@ -43,6 +43,15 @@ pub struct SubscriptionManager {
 
     /// Monotonic sequence counter for event ordering.
     sequence_counter: AtomicU64,
+
+    /// Whether the deployment is multi-tenant (`security.multi_tenant`).
+    ///
+    /// In multi-tenant mode the tenant gate fails **closed**: an event is only
+    /// delivered when both the subscription and the event carry the *same*
+    /// tenant — a missing tenant on either side never matches (M-tenant-ws-failopen).
+    /// In single-tenant mode the gate stays permissive so existing deployments,
+    /// where tenant ids are typically absent, keep working.
+    multi_tenant: bool,
 }
 
 impl SubscriptionManager {
@@ -61,6 +70,9 @@ impl SubscriptionManager {
     #[must_use]
     pub fn with_capacity(schema: Arc<CompiledSchema>, channel_capacity: usize) -> Self {
         let (event_sender, _) = broadcast::channel(channel_capacity);
+        // Derive the tenancy mode from the compiled schema the manager already
+        // holds — no separate flag has to be threaded through every call site.
+        let multi_tenant = schema.is_multi_tenant();
 
         Self {
             schema,
@@ -68,6 +80,7 @@ impl SubscriptionManager {
             subscriptions_by_connection: DashMap::new(),
             event_sender,
             sequence_counter: AtomicU64::new(1),
+            multi_tenant,
         }
     }
 
@@ -357,21 +370,31 @@ impl SubscriptionManager {
         event: &SubscriptionEvent,
         subscription: &ActiveSubscription,
     ) -> bool {
-        // Tenant isolation: if the subscription has a tenant_id, only deliver
-        // events from the same tenant. Events without a tenant_id bypass the check.
-        if let Some(ref sub_tenant) = subscription.tenant_id {
-            match event.tenant_id {
-                Some(ref event_tenant) if event_tenant != sub_tenant => {
-                    tracing::trace!(
-                        subscription_id = %subscription.id,
-                        sub_tenant = sub_tenant,
-                        event_tenant = event_tenant,
-                        "Tenant mismatch — event filtered"
-                    );
-                    return false;
-                },
-                _ => {}, // match or no tenant on event (pass through)
-            }
+        // Tenant isolation (M-tenant-ws-failopen).
+        //
+        // Multi-tenant deployments fail **closed**: an event is delivered only
+        // when the subscription and the event carry the *same* tenant. A missing
+        // tenant on either side never matches — in particular a tenant-less
+        // subscriber must not receive any tenant's events (the fail-open hole),
+        // and a tenant-scoped subscriber must not receive untagged events.
+        //
+        // Single-tenant deployments stay permissive: tenant ids are typically
+        // absent, so the gate only filters out events that carry a *different*
+        // explicit tenant than a tenant-scoped subscription.
+        let tenant_ok = match (subscription.tenant_id.as_deref(), event.tenant_id.as_deref()) {
+            (Some(sub_tenant), Some(event_tenant)) => sub_tenant == event_tenant,
+            // One or both sides lack a tenant: only acceptable in single-tenant mode.
+            _ => !self.multi_tenant,
+        };
+        if !tenant_ok {
+            tracing::trace!(
+                subscription_id = %subscription.id,
+                sub_tenant = ?subscription.tenant_id,
+                event_tenant = ?event.tenant_id,
+                multi_tenant = self.multi_tenant,
+                "Tenant gate — event filtered"
+            );
+            return false;
         }
 
         // Check entity type matches (subscription return_type maps to entity)

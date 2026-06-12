@@ -56,7 +56,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     extractors::OptionalSecurityContext,
-    routes::graphql::DomainRegistry,
+    routes::graphql::{DomainRegistry, TenantStatusSource},
     subscriptions::{
         lifecycle::SubscriptionLifecycle,
         protocol::{ProtocolCodec, WsProtocol},
@@ -137,6 +137,11 @@ pub struct SubscriptionState {
     /// subscription field name, and the connection's principal. `None` until a host
     /// binary installs one (from `Executor::config().authorizer`).
     pub authorizer: Option<Arc<dyn Authorizer>>,
+    /// Optional tenant-status source (M-tenant-ws-suspended). When set, a new
+    /// subscription whose resolved tenant is suspended is rejected, and event
+    /// delivery to a connection whose tenant is suspended is paused. `None` until
+    /// a host binary installs a multi-tenant registry.
+    pub tenant_status_source: Option<Arc<dyn TenantStatusSource>>,
 }
 
 impl SubscriptionState {
@@ -150,7 +155,20 @@ impl SubscriptionState {
             domain_registry: None,
             strict_tenant_validation: false,
             authorizer: None,
+            tenant_status_source: None,
         }
+    }
+
+    /// Install the tenant-status source (M-tenant-ws-suspended). When set, new
+    /// subscriptions for a suspended tenant are rejected and event delivery to a
+    /// suspended tenant is paused. Typically the `TenantExecutorRegistry`.
+    #[must_use]
+    pub fn with_tenant_status_source(
+        mut self,
+        source: Option<Arc<dyn TenantStatusSource>>,
+    ) -> Self {
+        self.tenant_status_source = source;
+        self
     }
 
     /// Install the operation-level authorizer (#422). When set, every subscription is
@@ -459,7 +477,17 @@ async fn handle_subscription_connection(
                             (Some(conn_tid), Some(evt_tid)) => conn_tid == evt_tid,
                             _ => true, // either side absent → no conflict
                         };
-                        if tenant_matches {
+                        // M-tenant-ws-suspended: pause delivery while this
+                        // connection's tenant is suspended (re-checked per event so a
+                        // suspension mid-stream stops further delivery).
+                        let tenant_active = match (
+                            tenant_id.as_deref(),
+                            state.tenant_status_source.as_ref(),
+                        ) {
+                            (Some(tid), Some(src)) => !src.is_suspended(tid),
+                            _ => true,
+                        };
+                        if tenant_matches && tenant_active {
                             if let Some((op_id, _)) = active_operations
                                 .iter()
                                 .find(|(_, sub_id)| **sub_id == payload.subscription_id)
@@ -766,6 +794,25 @@ async fn handle_client_message(
                         }
                         return Ok(());
                     }
+                }
+            }
+
+            // M-tenant-ws-suspended: refuse to start a subscription whose tenant
+            // is suspended, mirroring the GraphQL data plane's 503 response.
+            if let (Some(tid), Some(src)) = (tenant_id, state.tenant_status_source.as_ref()) {
+                if src.is_suspended(tid) {
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            format!("Tenant '{tid}' is suspended"),
+                            "TENANT_SUSPENDED",
+                        )],
+                    );
+                    if let Err(send_err) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant-suspended error to client");
+                    }
+                    return Ok(());
                 }
             }
 

@@ -113,6 +113,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   applies, leaving the two paths free to diverge. Both constructors now build introspection
   through a single shared helper so a relay executor can never expose an `@inaccessible` field
   in `__type`/`__schema` that the non-relay path would hide (defense-in-depth).
+- **Multi-tenant subscriptions fail closed on the tenant gate (M-tenant-ws-failopen).** The
+  `WebSocket` subscription matcher only filtered events when *both* the subscription and the
+  event carried a tenant id; a subscriber with no tenant id matched **every** tenant's events,
+  and a tenant-scoped subscriber still received untagged events. In multi-tenant deployments
+  (`security.multi_tenant = true`) the gate now requires both sides to carry the *same* tenant —
+  a missing tenant on either side never matches. Single-tenant deployments keep the permissive
+  behavior (tenant ids are typically absent), so they are unaffected. **Behavioral change:** in
+  a multi-tenant deployment a subscription that does not resolve a tenant id now receives no
+  events, and events without a tenant id are not delivered to tenant-scoped subscribers.
+- **Suspended tenants are rejected on the subscription `WebSocket` path (M-tenant-ws-suspended).**
+  Tenant suspension (`TenantStatus::Suspended`) returned 503 on the GraphQL data plane but was
+  not consulted for subscriptions, so a suspended tenant could still open subscriptions and keep
+  receiving events. The subscription path now consults the tenant registry through a new
+  `TenantStatusSource`: a new subscription whose resolved tenant is suspended is rejected with a
+  `TENANT_SUSPENDED` error, and event delivery to a connection whose tenant becomes suspended
+  mid-stream is paused (re-checked per event).
+- **Per-tenant concurrency quotas are now enforced (M-quotas).** `TenantQuota.max_concurrent`
+  was configurable and a per-tenant concurrency semaphore existed, but the GraphQL request path
+  never acquired a permit, so the limit was silently ignored. The handler now acquires a
+  concurrency permit (held for the duration of the request) after resolving the tenant executor,
+  for explicitly-keyed registered tenants; exceeding the limit returns HTTP 429 Too Many Requests
+  (previously a tenant-dispatch `RateLimited` collapsed to 403). Requests with no explicit tenant
+  key (the default executor) are unlimited, as before. Per-second rate limiting (`max_requests_per_sec`)
+  remains a tracked follow-up — no enforcement primitive exists for it yet.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's
@@ -401,6 +425,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     callers needing storage-admin must carry the explicit scope (M-storage-scope).
   Deployments relying on anonymous broadcast or anonymous/`admin`-scoped storage must add the
   appropriate auth configuration.
+
+- **Multi-tenant subscription delivery and per-tenant concurrency are now strict (Phase 03 C7).**
+  In `security.multi_tenant = true` deployments the subscription tenant gate fails closed: a
+  subscription that resolves no tenant id receives no events, and untagged events are not
+  delivered to tenant-scoped subscribers (M-tenant-ws-failopen). Suspended tenants can no longer
+  open subscriptions or receive further events (M-tenant-ws-suspended). A configured
+  `TenantQuota.max_concurrent` is now actually enforced on the GraphQL path and returns 429 when
+  exceeded (M-quotas) — previously it was ignored. Single-tenant deployments and tenants without a
+  concurrency quota are unaffected.
 
 - **The framework now owns the `core.tb_entity_change_log` write — remove app-side
   hand-rolled inserts.** Before, FraiseQL apps populated the change log themselves, typically

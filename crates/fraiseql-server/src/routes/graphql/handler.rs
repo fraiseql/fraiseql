@@ -595,6 +595,20 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let executor = state
         .executor_for_tenant(tenant_key.as_deref())
         .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+
+    // M-quotas: enforce the per-tenant concurrency limit. Only an explicit,
+    // registered tenant key carries a limit — the default (`None`) executor is
+    // unlimited, and the registry errors on an unregistered key. The acquired
+    // permit is bound for the remainder of the request and released on drop, so a
+    // tenant can never exceed its configured in-flight quota. An exhausted limit
+    // surfaces as `RateLimited` → HTTP 429.
+    let _concurrency_permit = match (tenant_key.as_deref(), state.tenant_registry()) {
+        (Some(key), Some(registry)) => registry
+            .try_acquire_concurrency(key)
+            .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?,
+        _ => None,
+    };
+
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
@@ -727,6 +741,8 @@ fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
         FraiseQLError::ServiceUnavailable { retry_after, .. } => {
             GraphQLError::service_unavailable(error.to_string(), *retry_after)
         },
+        // Per-tenant concurrency limit reached (M-quotas) → 429 Too Many Requests.
+        FraiseQLError::RateLimited { .. } => GraphQLError::rate_limited(error.to_string()),
         // Unknown tenant key (Authorization) and any other dispatch error stay
         // 403 Forbidden, preserving the prior behaviour.
         _ => GraphQLError::new(error.to_string(), crate::error::ErrorCode::Forbidden),

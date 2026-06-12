@@ -46,6 +46,27 @@ impl TenantStatus {
     }
 }
 
+/// Type-erased view of tenant suspension status.
+///
+/// The subscription `WebSocket` path
+/// ([`SubscriptionState`](crate::routes::subscriptions::SubscriptionState)) is not generic over the
+/// database adapter, so it cannot hold a [`TenantExecutorRegistry<A>`] directly. This trait lets it
+/// consult tenant suspension status through a trait object (M-tenant-ws-suspended).
+pub trait TenantStatusSource: Send + Sync {
+    /// Returns `true` if the named tenant is currently **suspended**.
+    ///
+    /// An unknown / unregistered tenant is reported as not suspended (active):
+    /// unknown-tenant rejection is governed separately by the registry's
+    /// `executor_for` authorization path, not by this status check.
+    fn is_suspended(&self, tenant_key: &str) -> bool;
+}
+
+impl<A: DatabaseAdapter> TenantStatusSource for TenantExecutorRegistry<A> {
+    fn is_suspended(&self, tenant_key: &str) -> bool {
+        matches!(self.tenant_status(tenant_key), Ok(TenantStatus::Suspended))
+    }
+}
+
 /// Per-tenant quota configuration.
 ///
 /// All fields are optional — `None` means unlimited (no enforcement).
