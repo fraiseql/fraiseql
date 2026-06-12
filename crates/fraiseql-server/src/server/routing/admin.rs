@@ -88,14 +88,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_subscriptions(app, state);
         }
 
-        // Conditionally add broadcast endpoint
+        // Conditionally add broadcast endpoint. Broadcasting realtime events to
+        // every connected client is a control-plane operation, so it is gated on
+        // the admin plane (valid token + `fraiseql:admin` scope), consistent with
+        // the design-audit API (M-broadcast). The auth layer is applied to the
+        // broadcast router BEFORE it is merged so it covers the route. With no
+        // OIDC validator there is no way to authenticate the admin plane, so the
+        // endpoint fails closed and is not mounted at all.
         if let Some(ref broadcast_manager) = self.broadcast_manager {
-            let broadcast_state = BroadcastState::new(broadcast_manager.clone());
-            info!("Broadcast endpoint enabled at /realtime/v1/broadcast");
-            let broadcast_router = Router::new()
-                .route("/realtime/v1/broadcast", post(broadcast_handler))
-                .with_state(broadcast_state);
-            app = app.merge(broadcast_router);
+            if let Some(ref validator) = self.oidc_validator {
+                let broadcast_state = BroadcastState::new(broadcast_manager.clone());
+                let auth_state = OidcAuthState::new(validator.clone());
+                info!(
+                    "Broadcast endpoint enabled at /realtime/v1/broadcast \
+                     (admin scope 'fraiseql:admin' required)"
+                );
+                let broadcast_router = Router::new()
+                    .route("/realtime/v1/broadcast", post(broadcast_handler))
+                    .route_layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
+                    .with_state(broadcast_state);
+                app = app.merge(broadcast_router);
+            } else {
+                warn!(
+                    "SECURITY: broadcast endpoint NOT mounted — POST /realtime/v1/broadcast \
+                     requires the admin plane but no OIDC validator is configured. Configure \
+                     an OIDC validator to enable authenticated broadcast."
+                );
+            }
         }
 
         // Conditionally add introspection endpoint (with optional auth)

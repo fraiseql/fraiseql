@@ -17,6 +17,33 @@ use crate::{
     security::SecurityContext,
 };
 
+/// Build the pre-computed introspection responses for a schema, with federation
+/// `@inaccessible` fields filtered out of `__type`/`__schema`.
+///
+/// Shared by [`Executor::with_config`] and [`Executor::with_config_and_relay`] so the
+/// relay-enabled and non-relay constructors apply identical introspection filtering — a
+/// relay executor must never expose a field in introspection that the non-relay path
+/// would hide (L-relay-inaccessible). The filter only affects `__type`/`__schema`; it does
+/// not touch data responses or `_entities` resolution.
+fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
+    // `mut` is required by the `#[cfg(feature = "federation")]` block below.
+    #[cfg_attr(not(feature = "federation"), allow(unused_mut))]
+    let mut introspection = IntrospectionResponses::build(schema);
+
+    #[cfg(feature = "federation")]
+    if let Some(fed_meta) = schema.federation_metadata() {
+        let inaccessible: HashMap<String, Vec<String>> = fed_meta
+            .types
+            .iter()
+            .filter(|t| !t.inaccessible_fields.is_empty())
+            .map(|t| (t.name.clone(), t.inaccessible_fields.clone()))
+            .collect();
+        introspection.filter_inaccessible(&inaccessible);
+    }
+
+    introspection
+}
+
 /// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
 ///
 /// 1 024 entries covers the full distinct-query vocabulary of any realistic workload.
@@ -113,23 +140,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub fn with_config(schema: CompiledSchema, adapter: Arc<A>, config: RuntimeConfig) -> Self {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
-        // Build introspection responses at startup (zero-cost at runtime)
-        // `mut` is required by the `#[cfg(feature = "federation")]` block below.
-        #[cfg_attr(not(feature = "federation"), allow(unused_mut))]
-        let mut introspection = IntrospectionResponses::build(&schema);
-
-        // Filter @inaccessible fields from introspection (DX defence-in-depth).
-        // Does NOT affect data responses or _entities — only __type/__schema.
-        #[cfg(feature = "federation")]
-        if let Some(fed_meta) = schema.federation_metadata() {
-            let inaccessible: HashMap<String, Vec<String>> = fed_meta
-                .types
-                .iter()
-                .filter(|t| !t.inaccessible_fields.is_empty())
-                .map(|t| (t.name.clone(), t.inaccessible_fields.clone()))
-                .collect();
-            introspection.filter_inaccessible(&inaccessible);
-        }
+        // Build introspection responses at startup (zero-cost at runtime),
+        // with `@inaccessible` fields filtered out. Shared with the relay
+        // constructor so both paths apply the identical filtering (L-relay-inaccessible).
+        let introspection = build_introspection(&schema);
 
         // Build O(1) node-type index: return_type → sql_source.
         // The first query with a matching return_type and a non-None sql_source wins
@@ -375,7 +389,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
-        let introspection = IntrospectionResponses::build(&schema);
+        // Use the same filtered builder as `with_config` so a relay-enabled
+        // executor never silently exposes `@inaccessible` fields in
+        // introspection that the non-relay path would hide (L-relay-inaccessible).
+        let introspection = build_introspection(&schema);
 
         let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
         for q in &schema.queries {

@@ -467,6 +467,34 @@ async fn test_node_query_inline_id() {
 // Introspection tests
 // =============================================================================
 
+/// Phase 03 C6 — L-relay-inaccessible: the relay-enabled constructor
+/// (`new_with_relay`) and the non-relay constructor (`new`) must build
+/// introspection through the **same** filtered path, so a relay executor can
+/// never silently expose a field in `__type`/`__schema` that the non-relay path
+/// would hide (e.g. a federation `@inaccessible` field). This lockstep guard
+/// asserts the two constructors produce byte-identical introspection for the
+/// same schema; before C6 the relay constructor skipped the filtering step
+/// entirely, leaving the two paths free to diverge.
+#[tokio::test]
+async fn relay_and_nonrelay_introspection_are_identical() {
+    let relay_exec = Executor::new_with_relay(relay_schema(), Arc::new(RelayMockAdapter::new()));
+    let plain_exec = Executor::new(relay_schema(), Arc::new(RelayMockAdapter::new()));
+
+    let type_q = "{ __type(name: \"User\") { name kind fields { name } } }";
+    assert_eq!(
+        relay_exec.execute(type_q, None).await.unwrap(),
+        plain_exec.execute(type_q, None).await.unwrap(),
+        "relay and non-relay constructors must produce identical __type introspection",
+    );
+
+    let schema_q = "{ __schema { types { name fields { name } } } }";
+    assert_eq!(
+        relay_exec.execute(schema_q, None).await.unwrap(),
+        plain_exec.execute(schema_q, None).await.unwrap(),
+        "relay and non-relay constructors must produce identical __schema introspection",
+    );
+}
+
 #[tokio::test]
 async fn test_introspection_includes_node_field_in_query_type() {
     let exec = executor();

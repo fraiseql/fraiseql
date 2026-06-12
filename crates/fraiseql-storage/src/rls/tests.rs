@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use super::StorageRlsEvaluator;
+use super::{STORAGE_ADMIN_ROLE, StorageRlsEvaluator};
 use crate::{
     config::{BucketAccess, BucketConfig},
     metadata::StorageMetadataRow,
@@ -43,7 +43,7 @@ fn object_owned_by(owner: &str) -> StorageMetadataRow {
 }
 
 fn admin_roles() -> Vec<String> {
-    vec!["admin".to_string()]
+    vec![STORAGE_ADMIN_ROLE.to_string()]
 }
 
 fn user_roles() -> Vec<String> {
@@ -78,6 +78,36 @@ fn test_rls_allows_admin_role_bypass() {
     let obj = object_owned_by("user-1");
     // Admin can read anyone's objects in private buckets
     assert!(eval.can_read(Some("admin-user"), &admin_roles(), &private_bucket(), &obj));
+}
+
+/// Phase 03 C6 — M-storage-scope: the generic role `"admin"` must NOT confer
+/// storage-admin privileges. The server maps an OIDC token's scopes verbatim
+/// into a user's storage roles, so a token carrying an unrelated `admin` scope
+/// (common in many IdPs/apps) must not be able to read, overwrite, or delete
+/// another user's objects. Only the explicit `fraiseql:storage:admin` role does.
+#[test]
+fn test_rls_generic_admin_role_is_not_storage_admin() {
+    let eval = StorageRlsEvaluator::new();
+    let obj = object_owned_by("user-1");
+    let generic_admin = vec!["admin".to_string()];
+
+    assert!(
+        !eval.can_read(Some("attacker"), &generic_admin, &private_bucket(), &obj),
+        "generic 'admin' role must not read another user's private object",
+    );
+    assert!(
+        !eval.can_delete(Some("attacker"), &generic_admin, &private_bucket(), &obj),
+        "generic 'admin' role must not delete another user's object",
+    );
+    assert!(
+        !eval.can_write_object(Some("attacker"), &generic_admin, &private_bucket(), Some(&obj)),
+        "generic 'admin' role must not overwrite another user's object",
+    );
+
+    // The explicit storage-admin role still confers full access (the intended grant).
+    assert!(eval.can_read(Some("ops"), &admin_roles(), &private_bucket(), &obj));
+    assert!(eval.can_delete(Some("ops"), &admin_roles(), &private_bucket(), &obj));
+    assert!(eval.can_write_object(Some("ops"), &admin_roles(), &private_bucket(), Some(&obj)));
 }
 
 #[test]

@@ -68,9 +68,9 @@ pub struct MutationInfo {
 /// Introspection handler.
 ///
 /// Returns schema structure for debugging and tooling.
-/// Types and queries with `requires_role` are filtered based on the
-/// caller's roles — hidden types/queries never appear in introspection
-/// to prevent role enumeration.
+/// Types, queries, and mutations with `requires_role` are filtered based on
+/// the caller's roles — hidden types/queries/mutations never appear in
+/// introspection to prevent role enumeration.
 ///
 /// # Security Note
 ///
@@ -115,6 +115,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let mutations: Vec<MutationInfo> = schema
         .mutations
         .iter()
+        .filter(|m| m.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|m| MutationInfo {
             name:        schema.display_name(&m.name),
             return_type: m.return_type.clone(),

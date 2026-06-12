@@ -153,11 +153,11 @@ async fn put_admin_overwrite_is_allowed() {
         a.oneshot(put_req("docs", "f.txt", b"A")).await.unwrap().status(),
         StatusCode::OK
     );
-    let admin = router_for(state.clone(), "ops", &["admin"]);
+    let admin = router_for(state.clone(), "ops", &[crate::STORAGE_ADMIN_ROLE]);
     assert_eq!(
         admin.oneshot(put_req("docs", "f.txt", b"ADMIN")).await.unwrap().status(),
         StatusCode::OK,
-        "an admin may overwrite any object"
+        "a storage admin may overwrite any object"
     );
 }
 

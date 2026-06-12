@@ -22,7 +22,15 @@ fn admin_user_is_none_when_configured_token_is_empty() {
 fn admin_user_is_some_on_exact_match() {
     let user = storage_admin_user("s3cr3t-admin-token", Some("s3cr3t-admin-token"))
         .expect("an exact token match should yield an admin user");
-    assert_eq!(user.roles, vec!["admin".to_string()], "admin user carries the admin role");
+    // The static-token admin grant must carry the explicit storage-admin role
+    // (NOT the generic `"admin"`) so it stays in lockstep with the storage RLS
+    // evaluator after the M-storage-scope decollision.
+    assert_eq!(
+        user.roles,
+        vec![fraiseql_storage::STORAGE_ADMIN_ROLE.to_string()],
+        "admin user carries the explicit storage-admin role",
+    );
+    assert_ne!(user.roles, vec!["admin".to_string()], "must NOT carry the generic admin role");
     assert!(user.user_id.is_some(), "admin user has a stable identifier");
 }
 

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use axum::{Router, middleware};
 use fraiseql_core::db::traits::DatabaseAdapter;
-use tracing::{info, warn};
+use tracing::info;
 
 use super::super::{BearerAuthState, Server, api, bearer_auth_middleware};
 use crate::routes::graphql::AppState;
@@ -119,7 +119,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     false
                 }
             } else {
-                warn!(
+                tracing::warn!(
                     path = %mcp_cfg.path,
                     "MCP HTTP endpoint mounted without authentication (require_auth=false). \
                      Enable require_auth in production."
@@ -187,29 +187,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         backend: &Arc<dyn crate::storage::StorageBackend>,
     ) -> Router {
         use crate::routes::storage::{StorageRouteState, storage_router};
+
+        // Fail closed (M-storage-legacy): this legacy backend mount has NO RLS
+        // evaluator, so without an auth layer every object in every bucket is
+        // world-readable and world-writable. Refuse to mount rather than expose
+        // an unauthenticated storage API.
+        let Some(ref token) = self.config.storage_token else {
+            tracing::error!(
+                "SECURITY: legacy storage API NOT mounted — storage_token is not set and this \
+                 backend has no row-level security. Set storage_token in config to enable the \
+                 storage API (mounting it unauthenticated would expose all objects)."
+            );
+            return app;
+        };
+
         let storage_state = StorageRouteState::new(backend.clone())
             .with_max_upload_bytes(self.storage_max_upload_bytes);
         let base_router = storage_router(storage_state);
 
-        let storage_app = if let Some(ref token) = self.config.storage_token {
-            info!(
-                max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
-                "Storage API mounted at /storage/v1/ (bearer token required)"
-            );
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
-            );
-            base_router
-                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
-        } else {
-            warn!(
-                max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
-                "Storage API mounted at /storage/v1/ (no authentication — \
-                 set storage_token in config for production)"
-            );
-            base_router
-        };
+        info!(
+            max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
+            "Storage API mounted at /storage/v1/ (bearer token required)"
+        );
+        let auth_state =
+            BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
+        let storage_app = base_router
+            .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
         app = app.merge(storage_app);
         app
     }
@@ -235,8 +238,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         mut app: Router,
         storage_state: &fraiseql_storage::StorageState,
     ) -> Router {
-        let storage = fraiseql_storage::storage_router(storage_state.clone());
-
         // Authentication is applied when EITHER a static `storage_token` is set OR
         // an OIDC validator is configured. For each request the bearer token (or
         // `__Host-access_token` cookie) is resolved as follows:
@@ -245,13 +246,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         //      `StorageUser` for RLS;
         //   3. else (token-only mode), a non-matching token → 401.
         // A request with no token is left anonymous: RLS then permits only
-        // PublicRead reads. With neither auth mechanism configured the routes are
-        // mounted without a layer (anonymous everywhere).
+        // PublicRead reads.
         let storage_token = self.config.storage_token.clone();
         let validator = self.oidc_validator.clone();
 
-        let storage = if storage_token.is_some() || validator.is_some() {
-            storage.layer(middleware::from_fn(
+        // Fail closed (M-storage-legacy): with neither a storage_token nor an OIDC
+        // validator there is no way to authenticate a caller, so no request could
+        // ever carry an identity for RLS to scope. Refuse to mount rather than
+        // expose an anonymous-only storage API by default.
+        if storage_token.is_none() && validator.is_none() {
+            tracing::error!(
+                "SECURITY: storage API NOT mounted — neither storage_token nor an OIDC validator \
+                 is configured, so no caller can be authenticated. Configure storage_token or an \
+                 OIDC validator to enable the storage API."
+            );
+            return app;
+        }
+
+        let storage = fraiseql_storage::storage_router(storage_state.clone()).layer(
+            middleware::from_fn(
                 move |mut request: axum::extract::Request, next: axum::middleware::Next| {
                     let storage_token = storage_token.clone();
                     let validator = validator.clone();
@@ -302,10 +315,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         next.run(request).await
                     }
                 },
-            ))
-        } else {
-            storage
-        };
+            ),
+        );
         app = app.merge(storage);
         info!("Storage API routes mounted at /storage/v1/");
         app
@@ -318,8 +329,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 /// The comparison is constant-time. Returns `None` when no `storage_token` is
 /// configured, the configured token is empty, or the presented token does not
 /// match — in which case the caller falls back to OIDC validation or rejects
-/// the request. The admin user carries the `admin` role recognised by the
-/// storage RLS evaluator, granting full access regardless of bucket ownership.
+/// the request. The admin user carries the storage-admin role
+/// ([`fraiseql_storage::STORAGE_ADMIN_ROLE`]) recognised by the storage RLS
+/// evaluator, granting full access regardless of bucket ownership.
 fn storage_admin_user(
     presented: &str,
     configured: Option<&str>,
@@ -333,7 +345,9 @@ fn storage_admin_user(
     if crate::middleware::auth::constant_time_compare(presented, configured) {
         Some(fraiseql_storage::StorageUser {
             user_id: Some("storage-admin".to_string()),
-            roles:   vec!["admin".to_string()],
+            // Grant the explicit storage-admin role, NOT the generic `"admin"`,
+            // so it stays in lockstep with the storage RLS evaluator (M-storage-scope).
+            roles:   vec![fraiseql_storage::STORAGE_ADMIN_ROLE.to_string()],
         })
     } else {
         None

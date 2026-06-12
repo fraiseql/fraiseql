@@ -11,8 +11,16 @@ use crate::{
     metadata::StorageMetadataRow,
 };
 
-/// The admin role name that bypasses all access checks.
-const ADMIN_ROLE: &str = "admin";
+/// The storage admin role that bypasses all object-level access checks.
+///
+/// This is an explicit, storage-namespaced role rather than the generic `"admin"`.
+/// The server maps an OIDC token's `scopes` verbatim into a [`StorageUser`](crate::StorageUser)'s
+/// `roles`, so a generic role name like `"admin"` — a common scope in many `IdPs` and apps —
+/// would otherwise grant *full* storage access (read/overwrite/delete any object in any bucket)
+/// to any caller whose token happened to carry it (M-storage-scope). Requiring the explicit
+/// `fraiseql:storage:admin` role makes the storage-admin grant intentional, not an accidental
+/// collision with an unrelated application scope.
+pub const STORAGE_ADMIN_ROLE: &str = "fraiseql:storage:admin";
 
 /// Storage RLS evaluator.
 ///
@@ -136,9 +144,9 @@ impl Default for StorageRlsEvaluator {
     }
 }
 
-/// Check if the roles contain the admin role.
+/// Check if the roles contain the storage admin role.
 fn is_admin(roles: &[String]) -> bool {
-    roles.iter().any(|r| r == ADMIN_ROLE)
+    roles.iter().any(|r| r == STORAGE_ADMIN_ROLE)
 }
 
 /// Check if the user owns the object.

@@ -77,6 +77,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Flight paths apply **no** per-user RLS filtering and must be gated by configuration / the
   underlying view. **Behavioral change:** Arrow Flight `BulkExport` is disabled until an
   operator allow-lists specific tables.
+- **Realtime broadcast endpoint now requires the admin plane (M-broadcast).** `POST
+  /realtime/v1/broadcast` — which pushes an arbitrary event to every connected client — was
+  mounted with no authentication whenever a broadcast manager was configured. It is now
+  gated by `admin_auth_middleware` (valid token **and** `fraiseql:admin` scope), consistent
+  with the design-audit API, and **fails closed**: with no OIDC validator configured to
+  authenticate the admin plane, the endpoint is not mounted at all. **Behavioral change:**
+  broadcasting now requires an admin-scoped token, and deployments without an OIDC validator
+  no longer expose the broadcast endpoint.
+- **Introspection now hides role-gated mutations (M-introspection-mut).** The introspection
+  endpoint filtered role-gated *types* and *queries* out of its response (enumeration-hiding)
+  but emitted the *mutations* list unfiltered, leaking the name and return type of every
+  `requires_role` mutation to any caller — including anonymous ones. Mutations are now subject
+  to the same `requires_role` filter, so a caller never sees a mutation it could not invoke.
+- **Storage admin role decollided from the generic `"admin"` (M-storage-scope).** The storage
+  RLS evaluator treated any role literally named `"admin"` as a full-access storage admin, and
+  the server maps an OIDC token's `scopes` verbatim into a user's storage roles — so any token
+  carrying an unrelated `admin` scope (a common scope name) silently gained read/overwrite/delete
+  on every object in every bucket. The bypass role is now the explicit, storage-namespaced
+  `fraiseql:storage:admin` (exported as `fraiseql_storage::STORAGE_ADMIN_ROLE`), and the static
+  `storage_token` admin grant was updated in lockstep. **Behavioral change:** a generic `admin`
+  role/scope no longer confers storage admin; grant the explicit `fraiseql:storage:admin` scope
+  instead.
+- **Legacy / unauthenticated storage mounts now fail closed (M-storage-legacy).** Two storage
+  mount paths previously served an unauthenticated API: the legacy backend mount (which has *no*
+  RLS evaluator) mounted with no auth layer when `storage_token` was unset — world-readable and
+  world-writable — and the hardened RLS mount served an anonymous-only API when neither
+  `storage_token` nor an OIDC validator was configured. Both now refuse to mount (logging a
+  `SECURITY` error) unless an authentication mechanism is configured. **Behavioral change:** a
+  storage deployment with no `storage_token` and no OIDC validator no longer exposes the storage
+  routes at all.
+- **Relay-enabled executors apply the same introspection filtering as non-relay ones
+  (L-relay-inaccessible).** The relay constructor (`new_with_relay`) built its introspection
+  responses without the federation `@inaccessible` field filter that the non-relay constructor
+  applies, leaving the two paths free to diverge. Both constructors now build introspection
+  through a single shared helper so a relay executor can never expose an `@inaccessible` field
+  in `__type`/`__schema` that the non-relay path would hide (defense-in-depth).
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's
@@ -352,6 +388,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that reads introspection / schema export / metadata must present a valid token (any
   scope) when those endpoints are configured to require auth. Routes left at
   `*_require_auth = false` are unchanged.
+
+- **Broadcast and storage subsystems now refuse to run unauthenticated (Phase 03 C6).**
+  Three privileged surfaces that previously mounted (or admitted callers) without
+  authentication now fail closed:
+  - `POST /realtime/v1/broadcast` requires a `fraiseql:admin`-scoped token, and is not
+    mounted at all unless an OIDC validator is configured (M-broadcast).
+  - The legacy storage backend (no RLS) is not mounted unless `storage_token` is set, and
+    the hardened storage API is not mounted unless `storage_token` or an OIDC validator is
+    configured (M-storage-legacy).
+  - The storage admin role is now `fraiseql:storage:admin`, not the generic `"admin"`; OIDC
+    callers needing storage-admin must carry the explicit scope (M-storage-scope).
+  Deployments relying on anonymous broadcast or anonymous/`admin`-scoped storage must add the
+  appropriate auth configuration.
 
 - **The framework now owns the `core.tb_entity_change_log` write — remove app-side
   hand-rolled inserts.** Before, FraiseQL apps populated the change log themselves, typically

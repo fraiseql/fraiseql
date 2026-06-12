@@ -15,6 +15,8 @@ mod auth;
 mod extensions;
 mod graphql;
 mod middleware;
+#[cfg(test)]
+mod mount_authz_tests;
 #[cfg(feature = "observers")]
 pub(in crate::server) mod observers;
 mod state;
