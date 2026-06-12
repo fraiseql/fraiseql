@@ -6,8 +6,7 @@ use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
 use tracing::info;
 
 use super::super::{
-    OidcAuthState, Server, graphql_get_handler, graphql_handler, oidc_auth_middleware,
-    require_json_content_type,
+    Server, graphql_get_handler, graphql_handler, oidc_auth_middleware, require_json_content_type,
 };
 use crate::{
     middleware::{Hs256AuthState, hs256_auth_middleware},
@@ -25,7 +24,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 graphql_path = %self.config.graphql_path,
                 "GraphQL endpoint protected by OIDC authentication (GET and POST)"
             );
-            let auth_state = OidcAuthState::new(validator.clone());
+            let auth_state = self.oidc_auth_state(validator.clone());
             let router = Router::new()
                 .route(
                     &self.config.graphql_path,

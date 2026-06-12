@@ -10,7 +10,7 @@ use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
 use tracing::{info, warn};
 
 use super::super::{
-    BearerAuthState, BroadcastState, OidcAuthState, PlaygroundState, Server, SubscriptionState,
+    BearerAuthState, BroadcastState, PlaygroundState, Server, SubscriptionState,
     admin_auth_middleware, api, bearer_auth_middleware, broadcast_handler, health_handler,
     introspection_handler, metrics_handler, metrics_json_handler, oidc_auth_middleware,
     playground_handler, readiness_handler, required_auth_middleware, subscription_handler,
@@ -98,7 +98,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(ref broadcast_manager) = self.broadcast_manager {
             if let Some(ref validator) = self.oidc_validator {
                 let broadcast_state = BroadcastState::new(broadcast_manager.clone());
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 info!(
                     "Broadcast endpoint enabled at /realtime/v1/broadcast \
                      (admin scope 'fraiseql:admin' required)"
@@ -246,7 +246,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     playground_tool = ?self.config.playground_tool,
                     "GraphQL playground enabled (OIDC auth required)"
                 );
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let playground_router = Router::new()
                     .route(&self.config.playground_path, get(playground_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -319,7 +319,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     subscription_path = %self.config.subscription_path,
                     "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols, OIDC auth required)"
                 );
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let subscription_router = Router::new()
                     .route(&self.config.subscription_path, get(subscription_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -360,7 +360,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     introspection_path = %self.config.introspection_path,
                     "Introspection endpoint enabled (OIDC auth required)"
                 );
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let introspection_router = Router::new()
                     .route(&self.config.introspection_path, get(introspection_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(
@@ -389,7 +389,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if schema_export_require_auth {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Schema export endpoints enabled (OIDC auth required)");
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
@@ -417,7 +417,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if metadata_require_auth {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Schema metadata endpoint enabled (OIDC auth required)");
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let metadata_router = Router::new()
                     .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(
@@ -577,7 +577,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if self.config.design_api_require_auth {
             if let Some(ref validator) = self.oidc_validator {
                 info!("Design audit API endpoints enabled (admin scope 'fraiseql:admin' required)");
-                let auth_state = OidcAuthState::new(validator.clone());
+                let auth_state = self.oidc_auth_state(validator.clone());
                 let design_router = Router::new()
                     .route(
                         "/design/federation-audit",

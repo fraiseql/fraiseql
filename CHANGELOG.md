@@ -207,6 +207,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   acceptance deadline extended to 2026-09-01: a spike confirmed no aws-config
   feature selects rustls 0.23 over the legacy rustls-0.21 connector, so the
   migration is tracked as Phase 12 (aws-stack bump).
+- **Token revocation is now enforced on every request, and revoke-all actually
+  revokes (H8, M-revoke-all).** Revocation was write-only: `POST /auth/revoke[-all]`
+  recorded revoked tokens, but the OIDC auth middleware validated the JWT and decoded
+  its `jti` **without ever consulting the revocation store**, so a revoked token kept
+  working until its natural `exp` — logout, compromise response, and admin force-logout
+  were silent no-ops (H8). The middleware now checks the revocation store after token
+  validation on every authenticated route (data plane *and* admin plane) and rejects
+  with 401. Separately, `revoke-all` was inert across all three backends: `revoke`
+  records no `sub`, so the old `revoke_all_for_user` (a `sub`-keyed delete on
+  in-memory/Postgres, a phantom-namespace `SCAN` on Redis) always affected 0 rows
+  (M-revoke-all). `revoke-all` now records a per-user *epoch* and the request path
+  rejects any of that user's tokens whose `iat` is at or before it — catching tokens
+  that were never individually revoked (and tokens with no `jti`). New
+  `[security.token_revocation] revoke_all_ttl_secs` (default 86400) bounds epoch
+  retention; set it above your maximum access-token lifetime. The HS256 auth path is
+  unaffected (revocation routes mount only with an OIDC validator).
+  **Breaking / behavioral change:** enabling `[security.token_revocation]` now actually
+  enforces it — with `require_jti = true` (default) a validated token that lacks a `jti`
+  claim is rejected 401 post-validation; set `require_jti = false` to admit jti-less
+  tokens (losing per-token revocation, keeping the revoke-all epoch). The
+  `POST /auth/revoke-all` response body changed from `{ "revoked_count": N }` to
+  `{ "revoked": true }` (the epoch design has no per-token count).
 
 ### Added
 

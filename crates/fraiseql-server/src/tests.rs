@@ -1341,75 +1341,104 @@ mod token_revocation_tests {
     async fn manager_rejects_revoked_token() {
         let store = memory_store();
         store.revoke("jti-x", 3600).await.unwrap();
-        let mgr = TokenRevocationManager::new(store, true, false);
-        assert_eq!(mgr.check_token(Some("jti-x")).await, Err(TokenRejection::Revoked));
+        let mgr = TokenRevocationManager::new(store, true, false, 3600);
+        assert_eq!(
+            mgr.check_token(Some("jti-x"), "alice", Some(1000)).await,
+            Err(TokenRejection::Revoked)
+        );
     }
 
     #[tokio::test]
     async fn manager_allows_non_revoked_token() {
-        let mgr = TokenRevocationManager::new(memory_store(), true, false);
-        mgr.check_token(Some("jti-ok"))
+        let mgr = TokenRevocationManager::new(memory_store(), true, false, 3600);
+        mgr.check_token(Some("jti-ok"), "alice", Some(1000))
             .await
             .unwrap_or_else(|e| panic!("expected Ok for non-revoked token: {e:?}"));
     }
 
     #[tokio::test]
     async fn manager_rejects_missing_jti_when_required() {
-        let mgr = TokenRevocationManager::new(memory_store(), true, false);
-        assert_eq!(mgr.check_token(None).await, Err(TokenRejection::MissingJti));
+        let mgr = TokenRevocationManager::new(memory_store(), true, false, 3600);
+        assert_eq!(
+            mgr.check_token(None, "alice", Some(1000)).await,
+            Err(TokenRejection::MissingJti)
+        );
     }
 
     #[tokio::test]
     async fn manager_allows_missing_jti_when_not_required() {
-        let mgr = TokenRevocationManager::new(memory_store(), false, false);
+        let mgr = TokenRevocationManager::new(memory_store(), false, false, 3600);
         assert!(
-            mgr.check_token(None).await.is_ok(),
+            mgr.check_token(None, "alice", Some(1000)).await.is_ok(),
             "missing jti should be allowed when jti is not required"
         );
     }
 
     #[tokio::test]
     async fn manager_allows_empty_jti_when_not_required() {
-        let mgr = TokenRevocationManager::new(memory_store(), false, false);
+        let mgr = TokenRevocationManager::new(memory_store(), false, false, 3600);
         assert!(
-            mgr.check_token(Some("")).await.is_ok(),
+            mgr.check_token(Some(""), "alice", Some(1000)).await.is_ok(),
             "empty jti should be allowed when jti is not required"
         );
     }
 
+    /// Epoch revoke-all (M-revoke-all): a `revoke-all` invalidates tokens that were
+    /// never individually revoked. Pre-fix `revoke_all_for_user` deleted sub-keyed rows
+    /// that `revoke` never writes, so it revoked nothing.
     #[tokio::test]
-    async fn revoke_all_for_user_removes_all_matching_entries() {
-        use chrono::Utc;
+    async fn revoke_all_revokes_tokens_by_epoch_not_individual_jti() {
+        let store = std::sync::Arc::new(InMemoryRevocationStore::new());
+        let mgr = TokenRevocationManager::new(
+            std::sync::Arc::clone(&store) as std::sync::Arc<dyn RevocationStore>,
+            true,
+            false,
+            3600,
+        );
 
+        // alice has a token with jti "alice-old" issued at t=1000 — never individually
+        // revoked. Before revoke-all it is accepted.
+        mgr.check_token(Some("alice-old"), "alice", Some(1000))
+            .await
+            .expect("token is valid before revoke-all");
+
+        // Revoke ALL of alice's tokens (records an epoch at "now", far after iat 1000).
+        mgr.revoke_all_for_user("alice").await.unwrap();
+
+        // The same never-individually-revoked token is now rejected by the epoch …
+        assert_eq!(
+            mgr.check_token(Some("alice-old"), "alice", Some(1000)).await,
+            Err(TokenRejection::Revoked),
+            "a token issued before revoke-all must be rejected even though its jti was never revoked"
+        );
+
+        // … but bob is unaffected, and a token alice obtains *after* the epoch works.
+        let future_iat = chrono::Utc::now().timestamp() + 100;
+        mgr.check_token(Some("alice-new"), "alice", Some(future_iat))
+            .await
+            .expect("a token issued after revoke-all must be accepted");
+        mgr.check_token(Some("bob-token"), "bob", Some(1000))
+            .await
+            .expect("bob's tokens are not affected by alice's revoke-all");
+    }
+
+    #[tokio::test]
+    async fn user_revoked_after_is_none_without_revoke_all() {
         let store = InMemoryRevocationStore::new();
-        let exp = Utc::now() + chrono::Duration::seconds(3600);
-        store.entries.insert("jti-alice-1".to_string(), ("alice".to_string(), exp));
-        store.entries.insert("jti-alice-2".to_string(), ("alice".to_string(), exp));
-        store.entries.insert("jti-bob-1".to_string(), ("bob".to_string(), exp));
-
-        let count = store.revoke_all_for_user("alice").await.unwrap();
-        assert_eq!(count, 2, "should have revoked 2 alice entries, got {count}");
-
         assert!(
-            !store.is_revoked("jti-alice-1").await.unwrap(),
-            "alice jti-1 should be removed from store"
-        );
-        assert!(
-            !store.is_revoked("jti-alice-2").await.unwrap(),
-            "alice jti-2 should be removed from store"
-        );
-
-        assert!(
-            store.is_revoked("jti-bob-1").await.unwrap(),
-            "bob jti-1 must NOT be revoked by alice's revoke_all"
+            store.user_revoked_after("unknown-user").await.unwrap().is_none(),
+            "a user with no revoke-all has no epoch"
         );
     }
 
     #[tokio::test]
-    async fn revoke_all_for_user_returns_zero_when_no_entries() {
+    async fn revoke_all_epoch_expires_with_zero_ttl() {
         let store = InMemoryRevocationStore::new();
-        let count = store.revoke_all_for_user("unknown-user").await.unwrap();
-        assert_eq!(count, 0, "empty store should return 0");
+        store.revoke_all_for_user("alice", 0).await.unwrap();
+        assert!(
+            store.user_revoked_after("alice").await.unwrap().is_none(),
+            "a zero-ttl epoch is already expired and must not be returned"
+        );
     }
 
     #[test]

@@ -364,10 +364,14 @@ pub struct RevokeAllRequest {
 }
 
 /// Response body for bulk revocation.
+///
+/// As of v2.7.0 revoke-all records a per-user *epoch* (every token issued at or before
+/// now is rejected) rather than deleting individual token records, so there is no
+/// meaningful per-token count to report — the field is a boolean acknowledgement.
 #[derive(Serialize)]
 pub struct RevokeAllResponse {
-    /// Number of token revocation records that were created.
-    pub revoked_count: u64,
+    /// Whether the revoke-all epoch was recorded.
+    pub revoked: bool,
 }
 
 /// Scope name that grants the bearer permission to revoke other users'
@@ -408,10 +412,7 @@ pub async fn revoke_all_tokens(
     }
 
     match state.revocation_manager.revoke_all_for_user(&body.sub).await {
-        Ok(count) => Json(RevokeAllResponse {
-            revoked_count: count,
-        })
-        .into_response(),
+        Ok(()) => Json(RevokeAllResponse { revoked: true }).into_response(),
         Err(e) => {
             tracing::error!(error = %e, sub = %body.sub, "Failed to revoke tokens for user");
             auth_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke tokens")

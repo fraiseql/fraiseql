@@ -12,8 +12,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{
-    AuthMeState, AuthPkceState, OidcAuthState, Server, auth_callback, auth_me, auth_start,
-    oidc_auth_middleware,
+    AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
 };
 use crate::auth::{
     anon_signup, mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify, social::social_authorize,
@@ -88,7 +87,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             let me_state = Arc::new(AuthMeState {
                 expose_claims: me_cfg.expose_claims.clone(),
             });
-            let auth_state = OidcAuthState::new(Arc::clone(validator));
+            let auth_state = self.oidc_auth_state(Arc::clone(validator));
             let me_router = Router::new()
                 .route("/auth/me", get(auth_me))
                 .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
@@ -110,7 +109,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let rev_state = Arc::new(crate::routes::RevocationRouteState {
                     revocation_manager: Arc::clone(rev_mgr),
                 });
-                let auth_state = OidcAuthState::new(Arc::clone(validator));
+                let auth_state = self.oidc_auth_state(Arc::clone(validator));
                 let rev_router = Router::new()
                     .route("/auth/revoke", post(crate::routes::revoke_token))
                     .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))

@@ -5,7 +5,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::Server;
-use crate::middleware::{OidcAuthState, admin_auth_middleware};
+use crate::middleware::admin_auth_middleware;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Add observer-related routes to the router.
@@ -70,7 +70,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let changelog_state = ChangelogState { pool: db_pool };
 
         let auth_layer = || {
-            let auth_state = OidcAuthState::new(Arc::clone(validator));
+            let auth_state = self.oidc_auth_state(Arc::clone(validator));
             middleware::from_fn_with_state(auth_state, admin_auth_middleware)
         };
 

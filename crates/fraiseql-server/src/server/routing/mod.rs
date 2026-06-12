@@ -21,13 +21,26 @@ mod mount_authz_tests;
 pub(in crate::server) mod observers;
 mod state;
 
-use axum::Router;
-use fraiseql_core::db::traits::DatabaseAdapter;
+use std::sync::Arc;
 
-use super::Server;
+use axum::Router;
+use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
+
+use super::{OidcAuthState, Server};
 use crate::routes::graphql::AppState;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Build an [`OidcAuthState`] for `validator`, attaching the configured
+    /// token-revocation manager (if any) so revoked tokens are rejected on **every**
+    /// authenticated route (H8).
+    ///
+    /// All OIDC middleware construction goes through this helper to keep revocation
+    /// enforcement uniform: a bare `OidcAuthState::new` at a route would silently skip
+    /// the revocation check for that route.
+    pub(super) fn oidc_auth_state(&self, validator: Arc<OidcValidator>) -> OidcAuthState {
+        OidcAuthState::new(validator).with_revocation(self.revocation_manager.clone())
+    }
+
     /// Build application router and return the shared `AppState`.
     ///
     /// The returned `AppState` is needed by the lifecycle module for

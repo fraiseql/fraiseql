@@ -434,6 +434,7 @@ mod revoke_tests {
             Arc::new(InMemoryRevocationStore::new()),
             true,
             false,
+            3600,
         ))
     }
 
@@ -487,11 +488,11 @@ mod revoke_tests {
 
         assert_eq!(resp.status(), StatusCode::OK, "revoke should succeed");
         assert!(
-            manager.check_token(Some("alice-jti-1")).await.is_err(),
+            manager.check_token(Some("alice-jti-1"), "alice", Some(1000)).await.is_err(),
             "alice's bearer-token jti must be the one revoked"
         );
         assert!(
-            manager.check_token(Some("victim-jti")).await.is_ok(),
+            manager.check_token(Some("victim-jti"), "alice", Some(1000)).await.is_ok(),
             "attacker-supplied body.token jti must NOT be revoked"
         );
     }
@@ -513,9 +514,15 @@ mod revoke_tests {
     }
 
     #[tokio::test]
-    async fn revoke_all_self_succeeds() {
+    async fn revoke_all_self_records_epoch() {
         let manager = make_manager();
         let app = revoke_app(Arc::clone(&manager));
+
+        // No epoch before the call.
+        assert!(
+            manager.user_revoked_after("alice").await.unwrap().is_none(),
+            "no revoke-all epoch before the request"
+        );
 
         let req = post_json("/auth/revoke-all", r#"{"sub":"alice"}"#);
         let resp = app
@@ -525,6 +532,11 @@ mod revoke_tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
+        // The route actually recorded an epoch (pre-fix it deleted 0 sub-keyed rows).
+        assert!(
+            manager.user_revoked_after("alice").await.unwrap().is_some(),
+            "revoke-all must record a per-user epoch"
+        );
     }
 
     #[tokio::test]

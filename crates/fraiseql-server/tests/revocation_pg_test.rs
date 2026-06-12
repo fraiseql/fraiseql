@@ -47,11 +47,31 @@ async fn postgres_revocation_store_persists_and_checks_jtis() {
     store.revoke(&jti, 3600).await.unwrap();
     assert!(store.is_revoked(&jti).await.unwrap(), "re-revoke is idempotent");
 
-    // revoke_all_for_user matches sub-tagged rows; single revoke records no sub,
-    // so it finds nothing here (consistent with the in-memory backend) but must succeed.
-    let removed = store.revoke_all_for_user("no-such-user").await.unwrap();
-    assert_eq!(removed, 0);
+    // revoke_all_for_user records a per-user epoch (M-revoke-all). A user with no
+    // revoke-all has no epoch …
+    let sub = format!("user-357-{nanos}");
+    assert!(
+        store.user_revoked_after(&sub).await.unwrap().is_none(),
+        "a user with no revoke-all must have no epoch"
+    );
 
-    // Housekeeping call must succeed (the long-TTL row is not yet expired).
+    // … after revoke-all with a long TTL the epoch is present (a positive unix second) …
+    store.revoke_all_for_user(&sub, 3600).await.unwrap();
+    let epoch = store
+        .user_revoked_after(&sub)
+        .await
+        .unwrap()
+        .expect("revoke-all must persist an epoch");
+    assert!(epoch > 1_577_836_800, "epoch must be a real unix timestamp (after 2020)");
+
+    // … and a zero-TTL epoch is already expired, so it is not returned.
+    let expired_sub = format!("expired-357-{nanos}");
+    store.revoke_all_for_user(&expired_sub, 0).await.unwrap();
+    assert!(
+        store.user_revoked_after(&expired_sub).await.unwrap().is_none(),
+        "a zero-ttl epoch must be treated as expired"
+    );
+
+    // Housekeeping call must succeed (the long-TTL rows are not yet expired).
     store.cleanup_expired().await.unwrap();
 }
