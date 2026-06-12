@@ -188,14 +188,32 @@ async fn put_handler(
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
 
-    // RLS: check write permission
-    if !state.rls.can_write(user.user_id.as_deref(), &user.roles, bucket) {
+    // Load any existing object so an overwrite is gated on ownership, not just on the
+    // bucket-level write permission (H9 overwrite IDOR). Done before any backend work.
+    let existing = match state.metadata.get(&bucket_name, &key).await {
+        Ok(existing) => existing,
+        Err(e) => return storage_error_response(&e),
+    };
+
+    // RLS: create requires authentication; overwrite requires owner or admin.
+    if !state
+        .rls
+        .can_write_object(user.user_id.as_deref(), &user.roles, bucket, existing.as_ref())
+    {
         tracing::warn!(
             bucket = %bucket_name,
+            key = %key,
             user_id = ?user.user_id,
-            "Storage upload denied: authentication required"
+            overwrite = existing.is_some(),
+            "Storage upload denied"
         );
-        return error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required");
+        // Anonymous callers always get 401 (no existence oracle); an authenticated
+        // non-owner attempting an overwrite gets 403.
+        return if user.user_id.is_none() {
+            error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+        } else {
+            error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
+        };
     }
 
     // Validate size
@@ -428,9 +446,10 @@ async fn list_handler(
 ///
 /// - For `operation = "download"`: the metadata row is loaded and `state.rls.can_read` is consulted
 ///   before signing. Missing objects yield `404`; objects the caller may not read yield `403`.
-/// - For `operation = "upload"`: `state.rls.can_write(bucket)` is consulted before signing. No
-///   metadata lookup happens because the object may not yet exist; the bucket-level write
-///   permission is sufficient.
+/// - For `operation = "upload"`: the metadata row is loaded and `state.rls.can_write_object` is
+///   consulted before signing — creating a new object needs bucket-level write permission, but
+///   overwriting an existing one needs owner or admin (B4: otherwise a presigned PUT is an
+///   overwrite IDOR). A non-owner overwrite yields `403`.
 ///
 /// # Caveat — bucket constraints are NOT enforced via S3 presigned PUT.
 ///
@@ -478,18 +497,31 @@ async fn presign_handler(
     // RLS gate.  Mirrors put_handler / get_handler.  Done before any S3 work
     // so unauthorised callers cannot observe whether the object exists.
     if operation == "upload" {
-        if !state.rls.can_write(user.user_id.as_deref(), &user.roles, bucket) {
+        // B4: a presign(upload) that would overwrite an existing object must be gated
+        // on ownership, exactly like put_handler — otherwise a leaked/guessed key lets
+        // any authenticated user presign-overwrite another user's object.
+        let existing = match state.metadata.get(&bucket_name, &key).await {
+            Ok(existing) => existing,
+            Err(e) => return storage_error_response(&e),
+        };
+        if !state.rls.can_write_object(
+            user.user_id.as_deref(),
+            &user.roles,
+            bucket,
+            existing.as_ref(),
+        ) {
             tracing::warn!(
                 bucket = %bucket_name,
                 key = %key,
                 user_id = ?user.user_id,
-                "Storage presign(upload) denied: authentication required"
+                overwrite = existing.is_some(),
+                "Storage presign(upload) denied"
             );
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "Authentication required",
-            );
+            return if user.user_id.is_none() {
+                error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+            } else {
+                error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
+            };
         }
     } else {
         // download: look up metadata so can_read can apply per-row policy.

@@ -78,6 +78,110 @@ fn authenticated_router(state: StorageState) -> axum::Router {
     storage_router(state).layer(Extension(user))
 }
 
+/// Build a router that injects a specific authenticated user (id + roles).
+fn router_for(state: StorageState, user_id: &str, roles: &[&str]) -> axum::Router {
+    let user = StorageUser {
+        user_id: Some(user_id.to_string()),
+        roles:   roles.iter().map(|r| (*r).to_string()).collect(),
+    };
+    storage_router(state).layer(Extension(user))
+}
+
+fn put_req(bucket: &str, key: &str, body: &[u8]) -> Request<Body> {
+    Request::builder()
+        .method("PUT")
+        .uri(format!("/storage/v1/object/{bucket}/{key}"))
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from(body.to_vec()))
+        .unwrap()
+}
+
+fn presign_upload_req(bucket: &str, key: &str) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri(format!("/storage/v1/presign/{bucket}/{key}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            r#"{"operation":"upload","expires_in_secs":300,"content_type":"text/plain"}"#,
+        ))
+        .unwrap()
+}
+
+// ── H9 / B4: object-level write authorization (overwrite IDOR) ──────────────
+
+#[tokio::test]
+async fn put_foreign_object_overwrite_is_forbidden() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    // User A creates the object.
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.oneshot(put_req("docs", "f.txt", b"A")).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    // User B must NOT be able to overwrite A's object by key (H9 IDOR).
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    assert_eq!(
+        b.oneshot(put_req("docs", "f.txt", b"B")).await.unwrap().status(),
+        StatusCode::FORBIDDEN,
+        "H9: a non-owner overwriting another user's object must be 403"
+    );
+}
+
+#[tokio::test]
+async fn put_own_object_overwrite_is_allowed() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.oneshot(put_req("docs", "f.txt", b"A1")).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let a2 = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a2.oneshot(put_req("docs", "f.txt", b"A2")).await.unwrap().status(),
+        StatusCode::OK,
+        "the owner may overwrite their own object"
+    );
+}
+
+#[tokio::test]
+async fn put_admin_overwrite_is_allowed() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.oneshot(put_req("docs", "f.txt", b"A")).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let admin = router_for(state.clone(), "ops", &["admin"]);
+    assert_eq!(
+        admin.oneshot(put_req("docs", "f.txt", b"ADMIN")).await.unwrap().status(),
+        StatusCode::OK,
+        "an admin may overwrite any object"
+    );
+}
+
+#[tokio::test]
+async fn presign_upload_overwriting_foreign_object_is_forbidden() {
+    // B4: the presign(upload) path is the same overwrite IDOR through a different door.
+    // The RLS gate runs before any S3 work, so the 403 surfaces even without the
+    // `aws-s3` feature (an allowed presign would otherwise reach the 501 not-implemented
+    // branch).
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.oneshot(put_req("docs", "f.txt", b"A")).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    assert_eq!(
+        b.oneshot(presign_upload_req("docs", "f.txt")).await.unwrap().status(),
+        StatusCode::FORBIDDEN,
+        "B4: presign(upload) overwriting a non-owned object must be 403"
+    );
+}
+
 #[tokio::test]
 async fn test_put_object_returns_200_with_etag() {
     let (state, _keep) = test_state("avatars", BucketAccess::PublicRead).await;

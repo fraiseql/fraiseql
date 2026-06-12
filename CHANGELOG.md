@@ -52,6 +52,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `*_require_auth = false` keep their explicit open-mount behavior. As defense in
   depth (R8), observer read/write responses now redact webhook secret values in
   `actions[].headers` (`[REDACTED]`) so secrets never travel in a response body.
+- **Storage object overwrites now require ownership (H9, B4 — overwrite IDOR).** The
+  upload path checked only bucket-level write permission (`can_write`, satisfied by any
+  authenticated user), never the existing object's owner — so user B could clobber user
+  A's object data by writing to its key (`metadata::upsert` preserved A's `owner_id` on
+  conflict, but the bytes were overwritten). Both write doors are affected: `PUT
+  /storage/v1/object/{bucket}/{key}` (H9) and `POST /storage/v1/presign/{bucket}/{key}`
+  with `operation=upload` (B4 — a presigned PUT that overwrites a foreign object). Both
+  now load any existing object and gate on a new `can_write_object` check: creating a new
+  object still needs only authentication, but overwriting an existing one requires owner
+  match or the admin role (mirroring `can_delete`). A non-owner overwrite returns `403`;
+  anonymous callers always return `401` (no object-existence oracle). **Behavioral
+  change:** uploads that overwrite an object owned by another user now fail instead of
+  silently replacing its contents.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's

@@ -114,6 +114,56 @@ fn test_rls_allows_admin_delete() {
     assert!(eval.can_delete(Some("admin-user"), &admin_roles(), &private_bucket(), &obj));
 }
 
+// ── can_write_object: create vs overwrite (H9 / B4 overwrite IDOR) ──────────
+
+#[test]
+fn test_can_write_object_create_allows_authenticated() {
+    let eval = StorageRlsEvaluator::new();
+    assert!(eval.can_write_object(Some("user-1"), &user_roles(), &private_bucket(), None));
+}
+
+#[test]
+fn test_can_write_object_create_denies_anonymous() {
+    let eval = StorageRlsEvaluator::new();
+    assert!(!eval.can_write_object(None, &[], &private_bucket(), None));
+}
+
+#[test]
+fn test_can_write_object_overwrite_allows_owner() {
+    let eval = StorageRlsEvaluator::new();
+    let obj = object_owned_by("user-1");
+    assert!(eval.can_write_object(Some("user-1"), &user_roles(), &private_bucket(), Some(&obj)));
+}
+
+#[test]
+fn test_can_write_object_overwrite_denies_non_owner() {
+    let eval = StorageRlsEvaluator::new();
+    let obj = object_owned_by("user-1");
+    assert!(
+        !eval.can_write_object(Some("user-2"), &user_roles(), &private_bucket(), Some(&obj)),
+        "H9: a non-owner must not overwrite another user's object"
+    );
+}
+
+#[test]
+fn test_can_write_object_overwrite_allows_admin() {
+    let eval = StorageRlsEvaluator::new();
+    let obj = object_owned_by("user-1");
+    assert!(eval.can_write_object(
+        Some("admin-user"),
+        &admin_roles(),
+        &private_bucket(),
+        Some(&obj)
+    ));
+}
+
+#[test]
+fn test_can_write_object_overwrite_denies_anonymous() {
+    let eval = StorageRlsEvaluator::new();
+    let obj = object_owned_by("user-1");
+    assert!(!eval.can_write_object(None, &[], &private_bucket(), Some(&obj)));
+}
+
 #[test]
 fn test_rls_list_filters_to_visible_objects() {
     let eval = StorageRlsEvaluator::new();

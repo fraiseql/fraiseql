@@ -68,6 +68,29 @@ impl StorageRlsEvaluator {
         user_id.is_some()
     }
 
+    /// Check if the user can write (create or overwrite) the given object.
+    ///
+    /// Object-aware counterpart of [`can_write`](Self::can_write):
+    /// - **Create** (no `existing` object): same as [`can_write`](Self::can_write) — admin or any
+    ///   authenticated user may create a new object.
+    /// - **Overwrite** (an `existing` object): owner match or admin role required, mirroring
+    ///   [`can_delete`](Self::can_delete). Without this, any authenticated user could clobber
+    ///   another user's object data by writing to its key — an overwrite IDOR (H9; and via the
+    ///   presign-upload door, B4).
+    #[must_use]
+    pub fn can_write_object(
+        &self,
+        user_id: Option<&str>,
+        roles: &[String],
+        bucket: &BucketConfig,
+        existing: Option<&StorageMetadataRow>,
+    ) -> bool {
+        match existing {
+            None => self.can_write(user_id, roles, bucket),
+            Some(object) => is_admin(roles) || is_owner(user_id, object),
+        }
+    }
+
     /// Check if the user can delete the given object.
     ///
     /// Rules:
