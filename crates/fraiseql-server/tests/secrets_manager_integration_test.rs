@@ -102,12 +102,17 @@ async fn test_vault_backend_approle_initialization() {
 
 /// Test that vault namespace is properly set
 #[tokio::test]
+#[ignore = "requires vault"]
 async fn test_vault_namespace_configuration() {
+    let Some(vault) = fraiseql_test_support::vault() else {
+        eprintln!("SKIP test_vault_namespace_configuration: no vault (set VAULT_ADDR/VAULT_TOKEN)");
+        return;
+    };
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
+        addr:       vault.addr().to_string(),
+        auth:       VaultAuth::Token(vault.token().to_string().into()),
         namespace:  Some("fraiseql/prod".to_string()),
-        tls_verify: true,
+        tls_verify: false,
     };
 
     let manager = create_secrets_manager(config).await.unwrap();
@@ -120,10 +125,17 @@ async fn test_vault_namespace_configuration() {
 
 /// Test that TLS verification can be disabled
 #[tokio::test]
+#[ignore = "requires vault"]
 async fn test_vault_tls_verification_disabled() {
+    let Some(vault) = fraiseql_test_support::vault() else {
+        eprintln!(
+            "SKIP test_vault_tls_verification_disabled: no vault (set VAULT_ADDR/VAULT_TOKEN)"
+        );
+        return;
+    };
     let config = SecretsBackendConfig::Vault {
-        addr:       "https://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
+        addr:       vault.addr().to_string(),
+        auth:       VaultAuth::Token(vault.token().to_string().into()),
         namespace:  None,
         tls_verify: false,
     };

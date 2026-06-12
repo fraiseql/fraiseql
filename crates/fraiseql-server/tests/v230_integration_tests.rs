@@ -212,7 +212,8 @@ async fn test_audit_layer_records_tracing_events() {
 
     let subscriber = Registry::default().with(layer);
 
-    // Emit a mutation audit event within this subscriber scope
+    // Emit a mutation audit event within this subscriber scope. The layer derives the
+    // period from the current month (`Utc::now`), not from any `period` field.
     tracing::subscriber::with_default(subscriber, || {
         tracing::info!(
             target: "fraiseql::mutation_audit",
@@ -220,12 +221,12 @@ async fn test_audit_layer_records_tracing_events() {
             entity_type   = "User",
             operation     = "create",
             tenant_id     = "audit_tenant",
-            period        = "2026-05",
         );
     });
 
-    // Verify the aggregator recorded the event
-    let summary = aggregator.query("audit_tenant", "2026-05");
+    // Verify the aggregator recorded the event under the current period.
+    let period = chrono::Utc::now().format("%Y-%m").to_string();
+    let summary = aggregator.query("audit_tenant", &period);
     assert_eq!(
         summary.mutations.get("User").copied(),
         Some(1),
@@ -273,7 +274,7 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
     let layer = MutationAuditLayer::new(Arc::clone(&aggregator));
     let subscriber = Registry::default().with(layer);
 
-    // Emit 2 events via tracing
+    // Emit 2 events via tracing (the layer derives the period from the current month).
     tracing::subscriber::with_default(subscriber, || {
         for _ in 0..2_u8 {
             tracing::info!(
@@ -282,15 +283,15 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
                 entity_type   = "Product",
                 operation     = "create",
                 tenant_id     = "shop",
-                period        = "2026-05",
             );
         }
     });
 
-    // Query via the HTTP endpoint
+    // Query via the HTTP endpoint, using the current period.
+    let period = chrono::Utc::now().format("%Y-%m").to_string();
     let router = make_usage_router(Arc::clone(&aggregator));
     let (status, body) =
-        get_json(&router, "/api/v1/admin/usage?tenant_id=shop&period=2026-05").await;
+        get_json(&router, &format!("/api/v1/admin/usage?tenant_id=shop&period={period}")).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["usage"]["mutations"]["Product"], 2);
