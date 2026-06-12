@@ -59,3 +59,36 @@ fn concurrency_limit_maps_to_429_too_many_requests() {
     assert_eq!(gql.code, ErrorCode::RateLimitExceeded, "concurrency limit → RateLimitExceeded");
     assert_eq!(gql.code.status_code(), StatusCode::TOO_MANY_REQUESTS);
 }
+
+// M-get-mutations: mutations over GET are rejected with 405 (GraphQL-over-HTTP), using a
+// reliable parse-based detector rather than a `mutation` string prefix.
+#[test]
+fn method_not_allowed_maps_to_405() {
+    let gql = crate::error::GraphQLError::method_not_allowed("Mutations must use POST");
+    assert_eq!(gql.code, ErrorCode::MethodNotAllowed);
+    assert_eq!(gql.code.status_code(), StatusCode::METHOD_NOT_ALLOWED);
+}
+
+#[test]
+fn detect_mutation_name_reliably_flags_mutations() {
+    use super::detect_mutation_name;
+
+    // A plain mutation and a named mutation are both detected.
+    assert!(detect_mutation_name("mutation { createUser(name: \"x\") { id } }").is_some());
+    assert!(detect_mutation_name("mutation Create { createUser { id } }").is_some());
+
+    // A leading comment defeats the old `trim_start().starts_with(\"mutation\")` heuristic
+    // but not the parser-based detector.
+    assert!(
+        detect_mutation_name("# a comment\nmutation { createUser { id } }").is_some(),
+        "a mutation behind a leading comment must still be detected"
+    );
+
+    // Queries (including one with a field literally named `mutation`) are NOT flagged.
+    assert!(detect_mutation_name("query { users { id } }").is_none());
+    assert!(detect_mutation_name("{ users { id } }").is_none());
+    assert!(
+        detect_mutation_name("query GetThing { mutationLog { id } }").is_none(),
+        "a query selecting a field named like a mutation is not a mutation"
+    );
+}

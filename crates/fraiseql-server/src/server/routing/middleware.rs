@@ -6,7 +6,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{Server, cors_layer_restricted, metrics_middleware, trace_layer};
-use crate::routes::graphql::AppState;
+use crate::{middleware::security_headers_middleware, routes::graphql::AppState};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Apply global middleware layers to the router.
@@ -16,6 +16,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Add HTTP metrics middleware (tracks requests and response status codes)
         // This runs on ALL routes, even when metrics endpoints are disabled
         app = app.layer(middleware::from_fn_with_state(metrics, metrics_middleware));
+
+        // Add security response headers (nosniff/XFO/HSTS/Referrer/CSP/XSS) to every
+        // response (M-sec-headers). Set-if-absent, so a handler that needs a different
+        // policy (e.g. the playground's relaxed CSP) is preserved.
+        app = app.layer(middleware::from_fn(security_headers_middleware));
 
         // Add middleware
         if self.config.tracing_enabled {

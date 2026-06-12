@@ -105,44 +105,114 @@ pub async fn security_headers_middleware(
 
     let headers = response.headers_mut();
 
-    // Prevent MIME type sniffing
-    // Reason: "nosniff" is a valid static ASCII header value; parse() is infallible here.
-    headers.insert("X-Content-Type-Options", "nosniff".parse().expect("valid header value"));
+    // All headers are set with `entry().or_insert()` (set-if-absent) rather than `insert()`
+    // (overwrite) so a handler can opt into a different policy for its own response. This
+    // matters for the GraphQL playground, which serves HTML that loads CDN scripts/iframes
+    // and therefore sets its own relaxed `Content-Security-Policy`; a clobbering global CSP
+    // of `script-src 'self'` would break it. Reason: each value is a valid static ASCII
+    // header value, so `parse()` is infallible here.
 
-    // Prevent framing/clickjacking
-    // Reason: "DENY" is a valid static ASCII header value; parse() is infallible here.
-    headers.insert("X-Frame-Options", "DENY".parse().expect("valid header value"));
+    // Prevent MIME type sniffing.
+    headers
+        .entry("X-Content-Type-Options")
+        .or_insert_with(|| "nosniff".parse().expect("valid header value"));
 
-    // Enforce HTTPS (1 year with subdomains)
-    // Reason: static ASCII header value; parse() is infallible here.
-    headers.insert(
-        "Strict-Transport-Security",
-        "max-age=31536000; includeSubDomains".parse().expect("valid header value"),
-    );
+    // Prevent framing/clickjacking.
+    headers
+        .entry("X-Frame-Options")
+        .or_insert_with(|| "DENY".parse().expect("valid header value"));
 
-    // Control referrer leakage
-    // Reason: static ASCII header value; parse() is infallible here.
-    headers.insert(
-        "Referrer-Policy",
-        "strict-origin-when-cross-origin".parse().expect("valid header value"),
-    );
+    // Enforce HTTPS (1 year with subdomains).
+    headers.entry("Strict-Transport-Security").or_insert_with(|| {
+        "max-age=31536000; includeSubDomains".parse().expect("valid header value")
+    });
 
-    // Content Security Policy - restrict resource loading
-    // Note: 'unsafe-inline' is intentionally omitted; callers that need
-    // inline styles for a GraphQL playground should set their own CSP.
-    // Reason: static ASCII header value; parse() is infallible here.
-    headers.insert(
-        "Content-Security-Policy",
+    // Control referrer leakage.
+    headers
+        .entry("Referrer-Policy")
+        .or_insert_with(|| "strict-origin-when-cross-origin".parse().expect("valid header value"));
+
+    // Content Security Policy — restrict resource loading. A handler serving HTML that needs
+    // CDN/inline resources (e.g. the playground) sets its own CSP, which this preserves.
+    headers.entry("Content-Security-Policy").or_insert_with(|| {
         "default-src 'self'; script-src 'self'; style-src 'self'"
             .parse()
-            .expect("valid header value"),
-    );
+            .expect("valid header value")
+    });
 
-    // Disable the legacy XSS auditor.  The `0` value is the modern best
-    // practice: the auditor is absent from current browsers and its
-    // "enabled" modes could introduce XSS on certain pages.
-    // Reason: "0" is a valid static ASCII header value; parse() is infallible here.
-    headers.insert("X-XSS-Protection", "0".parse().expect("valid header value"));
+    // Disable the legacy XSS auditor. The `0` value is the modern best practice: the auditor
+    // is absent from current browsers and its "enabled" modes could introduce XSS.
+    headers
+        .entry("X-XSS-Protection")
+        .or_insert_with(|| "0".parse().expect("valid header value"));
 
     response
+}
+
+#[cfg(test)]
+mod security_headers_tests {
+    //! M-sec-headers: the security-headers middleware must actually set the headers (it was
+    //! never layered), and must not clobber a handler that sets its own policy.
+    #![allow(clippy::unwrap_used)]
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, header},
+        middleware,
+        response::IntoResponse,
+        routing::get,
+    };
+    use tower::ServiceExt as _;
+
+    use super::security_headers_middleware;
+
+    #[tokio::test]
+    async fn sets_all_security_headers() {
+        async fn ok() -> &'static str {
+            "ok"
+        }
+        let app = Router::new()
+            .route("/", get(ok))
+            .layer(middleware::from_fn(security_headers_middleware));
+
+        let resp = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        let h = resp.headers();
+        assert_eq!(h.get("X-Content-Type-Options").unwrap(), "nosniff");
+        assert_eq!(h.get("X-Frame-Options").unwrap(), "DENY");
+        assert!(h.contains_key("Strict-Transport-Security"));
+        assert!(h.contains_key("Referrer-Policy"));
+        assert!(h.contains_key("Content-Security-Policy"));
+        assert_eq!(h.get("X-XSS-Protection").unwrap(), "0");
+    }
+
+    #[tokio::test]
+    async fn preserves_handler_set_csp() {
+        async fn csp_handler() -> impl IntoResponse {
+            (
+                [(header::CONTENT_SECURITY_POLICY, "script-src https://cdn.example.com")],
+                "html",
+            )
+        }
+        let app = Router::new()
+            .route("/", get(csp_handler))
+            .layer(middleware::from_fn(security_headers_middleware));
+
+        let resp = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        // The handler's CSP is preserved (set-if-absent), while the other security headers
+        // are still added — so the playground's relaxed CSP survives the global middleware.
+        assert_eq!(
+            resp.headers().get("Content-Security-Policy").unwrap(),
+            "script-src https://cdn.example.com"
+        );
+        assert_eq!(resp.headers().get("X-Frame-Options").unwrap(), "DENY");
+    }
 }

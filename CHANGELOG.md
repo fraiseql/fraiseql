@@ -273,6 +273,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from the `fraiseql-secrets` crate docs and README. (This does **not** affect the
   separate, genuinely-wired server/auth audit system configured via
   `[security.audit_logging]`, which continues to record mutations and admin operations.)
+- **Security response headers are now sent on every response (M-sec-headers).** The
+  `security_headers_middleware` (`X-Content-Type-Options: nosniff`, `X-Frame-Options:
+  DENY`, `Strict-Transport-Security`, `Referrer-Policy`, `Content-Security-Policy`,
+  `X-XSS-Protection: 0`) existed but was never layered, so none of these headers were
+  emitted. It is now applied globally in `apply_middleware`. The headers are set
+  *if-absent* so a handler can opt into its own policy — the GraphQL playground sets a
+  relaxed CSP for its CDN-loaded IDE assets, which the global strict CSP no longer clobbers.
+- **Mutations over HTTP GET are now rejected with 405 (M-get-mutations).** A mutation
+  sent via `GET /graphql` was executed with only a log warning, sidestepping the POST-only
+  CSRF posture; detection was also an unreliable `mutation` string-prefix match. The GET
+  handler now parses the operation and returns **405 Method Not Allowed** for mutations,
+  per the GraphQL-over-HTTP spec (queries over GET are unaffected). **Behavioral change:**
+  clients that (incorrectly) sent mutations over GET now receive 405 instead of a result.
+- **The auth brute-force limiter no longer trusts `X-Forwarded-For` (M-xff-limiter).** When
+  `ConnectInfo` was unavailable (some library embeddings), the per-IP failed-auth limiter
+  fell back to keying on the attacker-controlled `X-Forwarded-For` header, letting a caller
+  rotate it to mint a fresh failure budget per value. The XFF fallback was removed: the
+  limiter keys only on the validated transport peer, and when that is absent all callers
+  share one bucket (fail-closed, not bypassable). The shipped binary always supplies
+  `ConnectInfo`, so its behaviour is unchanged.
 
 ### Added
 

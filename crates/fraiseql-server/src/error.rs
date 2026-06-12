@@ -58,6 +58,8 @@ pub enum ErrorCode {
     ForbiddenQuery,
     /// Document not found — the provided documentId is not in the trusted manifest.
     DocumentNotFound,
+    /// Operation not allowed for the HTTP method (e.g. a mutation sent over GET).
+    MethodNotAllowed,
 }
 
 impl ErrorCode {
@@ -96,6 +98,9 @@ impl ErrorCode {
             Self::Timeout => StatusCode::REQUEST_TIMEOUT,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen | Self::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            // GraphQL-over-HTTP: a mutation sent over GET is rejected at the transport
+            // layer (405), not returned as a 2xx GraphQL error.
+            Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
         }
     }
 }
@@ -258,6 +263,11 @@ impl GraphQLError {
     /// Request error with validation details.
     pub fn request(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::RequestError)
+    }
+
+    /// Method-not-allowed error (e.g. a mutation sent over HTTP GET). Maps to 405.
+    pub fn method_not_allowed(message: impl Into<String>) -> Self {
+        Self::new(message, ErrorCode::MethodNotAllowed)
     }
 
     /// Database error - includes connection, timeout, and query errors.

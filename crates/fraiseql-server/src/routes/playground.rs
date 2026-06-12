@@ -27,6 +27,22 @@ impl PlaygroundState {
     }
 }
 
+/// Relaxed `Content-Security-Policy` for the playground IDE pages.
+///
+/// The IDEs load scripts/styles from public CDNs (unpkg for `GraphiQL`, the Apollo CDN +
+/// sandbox iframe for Apollo Sandbox) and use inline scripts plus, for `GraphiQL`, web
+/// workers / eval. They therefore need a relaxed CSP that the global strict
+/// `script-src 'self'` would block. The global security-headers middleware preserves a
+/// handler-set CSP (set-if-absent), so this value survives.
+const PLAYGROUND_CSP: &str = "default-src 'self'; \
+     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://embeddable-sandbox.cdn.apollographql.com; \
+     style-src 'self' 'unsafe-inline' https://unpkg.com; \
+     img-src 'self' data: https:; \
+     font-src 'self' data: https://unpkg.com; \
+     worker-src 'self' blob:; \
+     connect-src 'self' https://*.apollographql.com; \
+     frame-src https://sandbox.embed.apollographql.com";
+
 /// Playground HTTP handler.
 ///
 /// Serves the configured GraphQL IDE (`GraphiQL` or Apollo Sandbox).
@@ -35,7 +51,7 @@ pub async fn playground_handler(State(state): State<PlaygroundState>) -> impl In
         PlaygroundTool::GraphiQL => graphiql_html(&state.graphql_endpoint),
         PlaygroundTool::ApolloSandbox => apollo_sandbox_html(&state.graphql_endpoint),
     };
-    Html(html)
+    ([(axum::http::header::CONTENT_SECURITY_POLICY, PLAYGROUND_CSP)], Html(html))
 }
 
 /// Generate `GraphiQL` HTML page.

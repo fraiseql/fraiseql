@@ -137,12 +137,18 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         None
     };
 
-    // Warn if this looks like a mutation (GET should be for queries only)
-    if params.query.trim_start().starts_with("mutation") {
+    // Reject mutations over GET with 405 per the GraphQL-over-HTTP spec: GET is for
+    // queries only, and allowing mutations sidesteps the POST-only CSRF posture
+    // (M-get-mutations). Detection parses the operation (reliable) rather than matching a
+    // `mutation` string prefix (which a leading comment or named query defeats).
+    if detect_mutation_name(&params.query).is_some() {
         warn!(
             operation_name = ?params.operation_name,
-            "Mutation sent via GET request - should use POST"
+            "Mutation sent via GET request — rejected (use POST)"
         );
+        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+            "Mutations must be sent over POST, not GET",
+        )));
     }
 
     let trace_context = tracing_utils::extract_trace_context(&headers);
