@@ -127,6 +127,18 @@ pub(crate) const MAX_PARAMETER_NAME_BYTES: usize = 256;
 /// a malicious server from inflating memory with an oversized value string.
 pub(crate) const MAX_PARAMETER_VALUE_BYTES: usize = 64 * 1024; // 64 KiB
 
+/// Maximum total length (bytes) of a single protocol message body the decoder
+/// accepts.
+///
+/// PostgreSQL encodes message length as an `i32`, so without a cap a malicious or
+/// compromised peer (or a non-TLS MITM) can declare a length up to ~2 GiB and
+/// force the connection read buffer to grow that large before any per-field cap
+/// runs — a memory-exhaustion `DoS` (audit M-wire-msg-cap). DataRow column values
+/// in particular carry no per-column bound, only the field-count cap. 256 MiB is
+/// far above any legitimate FraiseQL message (other per-field caps are 64 KiB)
+/// while making the unbounded-allocation attack impossible.
+pub(crate) const MAX_MESSAGE_LEN: usize = 256 * 1024 * 1024; // 256 MiB
+
 /// Decode a backend message from `BytesMut` without cloning
 ///
 /// This version decodes in-place from a mutable `BytesMut` buffer and returns
@@ -166,6 +178,17 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
     }
 
     let len = len_i32 as usize;
+
+    // Upper-bound the declared length BEFORE the "incomplete body" check below,
+    // so an oversized declaration is a fatal `InvalidData` error rather than an
+    // `UnexpectedEof` that the read loop would treat as "need more bytes" and
+    // keep buffering toward (audit M-wire-msg-cap).
+    if len > MAX_MESSAGE_LEN {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("message length {len} exceeds maximum {MAX_MESSAGE_LEN}"),
+        ));
+    }
 
     if data.len() < len + 1 {
         return Err(io::Error::new(

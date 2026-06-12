@@ -1,11 +1,12 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
 use axum::{
     Router,
     body::Body,
+    extract::connect_info::MockConnectInfo,
     http::{Request, StatusCode},
     routing::get,
 };
@@ -15,7 +16,7 @@ use super::*;
 use crate::{
     error::{AuthError, Result},
     provider::{TokenResponse, UserInfo},
-    rate_limiting::RateLimiters,
+    rate_limiting::{AuthRateLimitConfig, RateLimiters},
     state_store::InMemoryStateStore,
 };
 
@@ -73,8 +74,11 @@ fn build_test_state(providers: Vec<(&'static str, &'static str)>) -> Arc<SocialL
 }
 
 fn build_app(state: Arc<SocialLoginState>) -> Router {
+    // `social_authorize` extracts `ConnectInfo<SocketAddr>` for per-IP rate
+    // limiting; `MockConnectInfo` supplies a peer address under `oneshot`.
     Router::new()
         .route("/auth/v1/authorize", get(social_authorize))
+        .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 4567))))
         .with_state(state)
 }
 
@@ -248,6 +252,63 @@ async fn test_authorize_produces_unique_state_tokens() {
     let token1 = extract_state_token(Arc::clone(&login_state)).await;
     let token2 = extract_state_token(login_state).await;
     assert_ne!(token1, token2, "each authorize call must produce a unique CSRF state token");
+}
+
+#[tokio::test]
+async fn test_authorize_rate_limited_returns_429_before_filling_state_store() {
+    // H25: every authorize inserts a CSRF state into the bounded store, so an
+    // unthrottled IP can keep it full and deny social login for everyone. The
+    // handler must rate-limit per IP and return 429 (with Retry-After) before
+    // touching the store. A limit of 1 lets the first request through and
+    // throttles the second from the same `MockConnectInfo` peer.
+    let rate_limiters = Arc::new(RateLimiters::with_configs(
+        AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 1,
+            window_secs:  60,
+        },
+        AuthRateLimitConfig::per_ip_strict(),
+        AuthRateLimitConfig::per_user_standard(),
+        AuthRateLimitConfig::per_user_standard(),
+        AuthRateLimitConfig::failed_login_attempts(),
+    ));
+    let mut registry = SocialProviderRegistry::new();
+    registry.register(
+        "github",
+        Arc::new(MockOAuthProvider {
+            name:     "github",
+            base_url: "https://github.com/login/oauth/authorize".to_string(),
+        }) as Arc<dyn OAuthProvider>,
+    );
+    let state = Arc::new(SocialLoginState {
+        registry: Arc::new(registry),
+        state_store: Arc::new(InMemoryStateStore::new()),
+        rate_limiters,
+    });
+
+    let authorize = || {
+        let app = build_app(Arc::clone(&state));
+        app.oneshot(
+            Request::builder()
+                .uri("/auth/v1/authorize?provider=github")
+                .body(Body::empty())
+                .unwrap(),
+        )
+    };
+
+    let first = authorize().await.unwrap();
+    assert_eq!(first.status(), StatusCode::SEE_OTHER, "first request must be allowed");
+
+    let second = authorize().await.unwrap();
+    assert_eq!(
+        second.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a second request from the same IP must be rate-limited"
+    );
+    assert!(
+        second.headers().get("retry-after").is_some(),
+        "a 429 response must carry a Retry-After header"
+    );
 }
 
 #[test]

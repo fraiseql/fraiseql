@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **GCS JWT clock (L-gcs-expect).** `create_gcs_jwt` used `.expect()` on
     `SystemTime::duration_since(UNIX_EPOCH)`; it now returns `FraiseQLError::File` instead of
     panicking if the system clock is before the UNIX epoch.
+- **`GET /auth/v1/authorize` is now rate-limited per IP (H25, DoS).** `social_authorize` carried
+  a `RateLimiters` field it never consulted, and the endpoint matched none of the path-based
+  rate rules — so each request inserted a `CSRF` state into the bounded in-memory store, and a
+  single IP at ~17 req/s could keep it full, making the store reject all new states (500) and
+  denying social login for everyone. The handler now checks the shared `auth_start` limiter on
+  the transport-peer IP before touching the store and returns 429 (with `Retry-After`) when
+  exceeded.
+- **Wire protocol caps single-message size (M-wire-msg-cap, memory-exhaustion DoS).**
+  `decode_message` validated only a *lower* length bound, and DataRow column values carry no
+  per-column cap — so a malicious/compromised peer (or a non-TLS MITM) could declare a length up
+  to ~2 GiB and force the connection read buffer to grow that large before any per-field cap ran.
+  A `MAX_MESSAGE_LEN` (256 MiB) bound is now checked right after the length is read (a fatal
+  `InvalidData`, ahead of the incomplete-body path), and the connection read loop refuses to
+  buffer past that bound (`WireError::Protocol`). The broader malformed-vs-incomplete decode-error
+  distinction (H42) lands in the wire-protocol phase.
 - **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
   object lookup `node(id: …)` resolved any type by opaque id while applying none of the
   backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id

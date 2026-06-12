@@ -279,3 +279,41 @@ fn parameter_value_exceeding_limit_is_rejected() {
         "error must mention the value limit: {msg}"
     );
 }
+
+#[test]
+fn decode_message_rejects_oversized_declared_length() {
+    // A tag plus a declared length far above MAX_MESSAGE_LEN must be a fatal
+    // `InvalidData` error, not the `UnexpectedEof` the read loop would treat as
+    // "need more bytes" and keep buffering toward ~2 GiB (audit M-wire-msg-cap).
+    let mut data = BytesMut::from(
+        &[
+            b'D', // DataRow
+            0x7F, 0xFF, 0xFF, 0xFF, // declared length ~2 GiB, well over MAX_MESSAGE_LEN
+        ][..],
+    );
+    let err = decode_message(&mut data).unwrap_err();
+    assert_eq!(
+        err.kind(),
+        io::ErrorKind::InvalidData,
+        "an oversized declared length must be a fatal error"
+    );
+}
+
+#[test]
+fn decode_message_accepts_length_at_the_cap_boundary() {
+    // A header declaring exactly MAX_MESSAGE_LEN is within bounds, so the
+    // decoder must move past the length cap to the (here unmet) body-length
+    // check — i.e. it must NOT reject on the cap.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    let len = MAX_MESSAGE_LEN as i32;
+    let mut data = BytesMut::new();
+    data.extend_from_slice(b"D");
+    data.extend_from_slice(&len.to_be_bytes());
+    let err = decode_message(&mut data).unwrap_err();
+    // Body is absent, so this is the incomplete-body path, NOT the cap.
+    assert_eq!(
+        err.kind(),
+        io::ErrorKind::UnexpectedEof,
+        "a length at the cap must not be rejected"
+    );
+}

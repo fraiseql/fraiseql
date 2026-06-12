@@ -4,11 +4,11 @@
 //! point that looks up the configured `OAuth` provider by name and redirects the
 //! user to that provider's authorization URL with a `CSRF` state token.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
 };
@@ -110,15 +110,49 @@ const STATE_TTL_SECS: u64 = 600;
 /// to that provider's authorization URL, embedding a `CSRF` state token. Returns
 /// 400 if the provider is not configured.
 ///
+/// # Rate limiting
+///
+/// Rate-limited per client IP via the shared `auth_start` limiter. Without it,
+/// each request inserts a `CSRF` state into the (bounded) state store, so an
+/// unthrottled caller could keep the store full and deny social login for
+/// everyone (audit H25) — the `rate_limiters` field was carried but never
+/// consulted.
+///
 /// # Errors
 ///
+/// Returns 429 Too Many Requests if the per-IP rate limit is exceeded.
 /// Returns 400 Bad Request if `provider` is not registered.
 /// Returns 500 Internal Server Error if the `CSRF` state store fails.
 pub async fn social_authorize(
     State(state): State<Arc<SocialLoginState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(params): Query<SocialAuthorizeParams>,
 ) -> Response {
     let logger = get_audit_logger();
+
+    // Rate-limit per transport peer IP before touching the state store, so a
+    // flood cannot fill it (H25). Keyed on the connection peer only — never an
+    // attacker-spoofable forwarded header.
+    let client_ip = addr.ip().to_string();
+    if state.rate_limiters.auth_start.check(&client_ip).is_err() {
+        let retry_after = state.rate_limiters.auth_start.clone_config().window_secs;
+        logger.log_failure(
+            AuditEventType::AuthFailure,
+            SecretType::StateToken,
+            None,
+            "social_authorize",
+            "rate limited",
+        );
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(axum::http::header::RETRY_AFTER, retry_after.to_string())],
+            Json(serde_json::json!({
+                "error":   "rate_limited",
+                "message": "Too many authorization requests; please retry later"
+            })),
+        )
+            .into_response();
+    }
 
     let Some(provider) = state.registry.get(&params.provider) else {
         logger.log_failure(

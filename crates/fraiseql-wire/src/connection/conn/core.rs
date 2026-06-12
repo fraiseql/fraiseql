@@ -338,6 +338,19 @@ impl Connection {
                 return Ok(msg);
             }
 
+            // Bound read-buffer growth: a single backend message may not exceed
+            // MAX_MESSAGE_LEN. If we have buffered more than that without
+            // decoding one, the peer is sending an oversized (or
+            // never-terminating) message — fail instead of buffering toward
+            // ~2 GiB (audit M-wire-msg-cap). The full malformed-vs-incomplete
+            // decode-error distinction lands in the wire-protocol phase (H42).
+            if self.read_buf.len() > crate::protocol::decode::MAX_MESSAGE_LEN {
+                return Err(WireError::Protocol(format!(
+                    "backend message exceeds maximum length of {} bytes",
+                    crate::protocol::decode::MAX_MESSAGE_LEN
+                )));
+            }
+
             // Need more data
             let n = self.transport.read_buf(&mut self.read_buf).await?;
             if n == 0 {
