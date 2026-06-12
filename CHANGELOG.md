@@ -65,6 +65,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anonymous callers always return `401` (no object-existence oracle). **Behavioral
   change:** uploads that overwrite an object owned by another user now fail instead of
   silently replacing its contents.
+- **Arrow Flight `BulkExport` is now fail-closed behind a table allow-list (H39).** The
+  Flight `BulkExport` ticket ran `SELECT * FROM "<table>"` for any client-supplied table
+  with no allow-list and no per-user RLS filtering (the `SecurityContext` was only logged),
+  so an authenticated Flight client could dump any table. `FraiseQLFlightService` now
+  carries a `bulk_export_allowed_tables` allow-list (`None` by default = `BulkExport`
+  disabled); `execute_bulk_export` returns `permission_denied` unless the requested table
+  was explicitly opted in via the new `with_bulk_export_tables(...)` builder. The
+  misleading documentation on `execute_optimized_view` (which claimed per-user RLS was
+  applied) and `execute_bulk_export` is corrected to state plainly that these raw-SQL
+  Flight paths apply **no** per-user RLS filtering and must be gated by configuration / the
+  underlying view. **Behavioral change:** Arrow Flight `BulkExport` is disabled until an
+  operator allow-lists specific tables.
 - **MySQL stored-procedure mutation path is now parameterized (C1, critical).**
   `CALL` statements on the MySQL backend bound arguments by inline string-escaping
   that doubled single quotes only and left backslashes untouched; under MySQL's

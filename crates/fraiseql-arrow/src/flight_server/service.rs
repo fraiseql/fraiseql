@@ -109,6 +109,7 @@ impl FraiseQLFlightService {
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
+            bulk_export_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -157,6 +158,7 @@ impl FraiseQLFlightService {
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
+            bulk_export_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -203,6 +205,7 @@ impl FraiseQLFlightService {
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
+            bulk_export_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -285,6 +288,7 @@ impl FraiseQLFlightService {
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
+            bulk_export_allowed_tables: None,
             session_secret: Some(session_secret),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -363,6 +367,27 @@ impl FraiseQLFlightService {
     #[must_use]
     pub const fn with_raw_sql_enabled(mut self) -> Self {
         self.allow_raw_sql = true;
+        self
+    }
+
+    /// Allow-list the tables an authenticated client may `BulkExport`.
+    ///
+    /// **SECURITY WARNING**: `BulkExport` runs `SELECT * FROM "<table>"` and applies **no
+    /// per-user RLS filtering** — every `BulkExport`-capable client receives the table's
+    /// full contents. `BulkExport` is disabled by default (the allow-list is `None`); call
+    /// this only for tables whose entire contents those clients are permitted to read.
+    #[must_use]
+    pub fn with_bulk_export_tables<I, S>(mut self, tables: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.bulk_export_allowed_tables = Some(
+            tables
+                .into_iter()
+                .map(Into::into)
+                .collect::<std::collections::HashSet<String>>(),
+        );
         self
     }
 
@@ -659,8 +684,15 @@ impl FraiseQLFlightService {
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     /// Results are cached if caching is enabled.
     ///
-    /// `SecurityContext` is passed through for RLS filtering at the executor level.
-    /// When executor is configured, RLS policies determine what rows the user can access.
+    /// # Security — no per-user RLS filtering
+    ///
+    /// This path executes the built SQL directly against the raw database adapter
+    /// (`db_adapter.execute_raw_query`); it does **not** run the RLS-aware query executor,
+    /// so **no per-user row-level filtering is applied** here. `security_context` is used
+    /// for audit logging only. Any row scoping must be enforced by the underlying `va_*`
+    /// view itself (e.g. a view that filters on a session/tenant setting), not by this
+    /// method. Do not expose `va_*` views over Flight that depend on FraiseQL's
+    /// application-level RLS for isolation.
     ///
     /// # Arguments
     ///
@@ -669,7 +701,7 @@ impl FraiseQLFlightService {
     /// * `order_by` - Optional ORDER BY clause
     /// * `limit` - Optional LIMIT
     /// * `offset` - Optional OFFSET for pagination
-    /// * `security_context` - User's security context for RLS filtering
+    /// * `security_context` - User's security context (audit logging only; not an RLS filter)
     ///
     /// # Implementation Status
     ///
@@ -677,7 +709,6 @@ impl FraiseQLFlightService {
     /// - Pre-load and cache pre-compiled Arrow schemas from metadata
     /// - Schema optimization with registry
     /// - Database adapter for real data execution (fallback to placeholder if not configured)
-    /// - RLS filtering via `SecurityContext` (passed to executor when configured)
     pub(crate) async fn execute_optimized_view(
         &self,
         view: &str,
@@ -698,7 +729,7 @@ impl FraiseQLFlightService {
         let sql = build_optimized_sql(view, filter, order_by, limit, offset)?;
         info!(
             user_id = %security_context.user_id,
-            "Executing optimized view with RLS: {}",
+            "Executing optimized view (no per-user RLS on this path): {}",
             sql
         );
 
@@ -1001,6 +1032,20 @@ impl FraiseQLFlightService {
         format: Option<String>,
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
+        // H39: BulkExport runs `SELECT * FROM "<table>"` with NO per-user RLS filtering, so
+        // it is fail-closed — rejected unless the operator explicitly allow-lists the table
+        // via `with_bulk_export_tables`. `None` ⇒ BulkExport disabled entirely.
+        let Some(allowed_tables) = self.bulk_export_allowed_tables.as_ref() else {
+            return Err(Status::permission_denied(
+                "BulkExport is disabled. Enable specific tables with with_bulk_export_tables().",
+            ));
+        };
+        if !allowed_tables.contains(table) {
+            return Err(Status::permission_denied(format!(
+                "BulkExport is not permitted for table '{table}'."
+            )));
+        }
+
         // Parse export format. Default is Parquet when the `parquet` feature is enabled,
         // otherwise JSON Lines (Parquet pulls in the unmaintained thrift 0.17 crate;
         // see deny.toml / security-vulnerabilities.md for context).
@@ -1021,12 +1066,11 @@ impl FraiseQLFlightService {
             "Starting bulk export"
         );
 
-        // SECURITY: Reject raw WHERE clause filters — they allow SQL injection.
-        // Use server-side RLS (SecurityContext) for row filtering instead.
+        // SECURITY: Reject raw WHERE clause filters — they allow SQL injection. BulkExport
+        // applies no per-user row filtering of its own; access is controlled by the table
+        // allow-list above, so an allow-listed table is exported in full.
         if filter.is_some() {
-            return Err(Status::invalid_argument(
-                "BulkExport filter parameter is not supported. Use server-side RLS for row filtering.",
-            ));
+            return Err(Status::invalid_argument("BulkExport filter parameter is not supported."));
         }
 
         // Get database adapter
@@ -1365,6 +1409,75 @@ mod backpressure_tests {
         assert!(
             final_count < 1_000,
             "producer kept running after consumer dropped (produced {final_count})"
+        );
+    }
+}
+
+#[cfg(test)]
+mod bulk_export_authz_tests {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
+
+    use tonic::Code;
+
+    use super::FraiseQLFlightService;
+
+    /// Build a minimal authenticated core `SecurityContext` for the export call.
+    fn test_security_context() -> fraiseql_core::security::SecurityContext {
+        let user = fraiseql_core::security::auth_middleware::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("user-1".to_string()),
+            scopes:       vec![],
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: std::collections::HashMap::new(),
+        };
+        fraiseql_core::security::SecurityContext::from_user(&user, "req-1".to_string())
+    }
+
+    #[test]
+    fn bulk_export_disabled_by_default() {
+        assert!(FraiseQLFlightService::new().bulk_export_allowed_tables.is_none());
+    }
+
+    /// `Response<FlightDataStream>` is not `Debug`, so `unwrap_err()` is unavailable;
+    /// pull the `Status` out by hand.
+    async fn export_err_code(svc: &FraiseQLFlightService, table: &str) -> Code {
+        match svc.execute_bulk_export(table, None, None, None, &test_security_context()).await {
+            Ok(_) => panic!("expected BulkExport to error for table '{table}'"),
+            Err(status) => status.code(),
+        }
+    }
+
+    #[tokio::test]
+    async fn bulk_export_rejected_when_disabled() {
+        let svc = FraiseQLFlightService::new();
+        assert_eq!(
+            export_err_code(&svc, "orders").await,
+            Code::PermissionDenied,
+            "H39: BulkExport must be fail-closed (disabled) by default"
+        );
+    }
+
+    #[tokio::test]
+    async fn bulk_export_rejected_for_non_allowlisted_table() {
+        let svc = FraiseQLFlightService::new().with_bulk_export_tables(["orders"]);
+        assert_eq!(
+            export_err_code(&svc, "users").await,
+            Code::PermissionDenied,
+            "H39: a table not on the allow-list must be denied"
+        );
+    }
+
+    #[tokio::test]
+    async fn bulk_export_allowlisted_table_passes_authz_gate() {
+        // An allow-listed table passes the authz gate; with no db adapter configured the
+        // call then fails at the adapter check (failed_precondition) — proving the gate
+        // itself did NOT deny (it would otherwise be permission_denied).
+        let svc = FraiseQLFlightService::new().with_bulk_export_tables(["orders"]);
+        assert_eq!(
+            export_err_code(&svc, "orders").await,
+            Code::FailedPrecondition,
+            "an allow-listed table must pass the authz gate (then fail on the missing adapter)"
         );
     }
 }
