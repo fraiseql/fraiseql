@@ -49,6 +49,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stragglers of the class: the API-key `Authorization: ApiKey …` prefix check (`raw_key[..7]`
   on an attacker-controlled header) now compares on bytes, and the SQL logger's 2000-byte cut
   is char-safe. No behavioural change for ASCII input.
+- **Panicking PostgreSQL/Arrow/GCS code paths now fail loud (H34, H38, L-gcs-expect).** Three
+  remotely- or environment-triggerable panics are converted to errors:
+  - **PostgreSQL `data` column (H34).** `execute_raw`, `execute_raw_with_session`, and the relay
+    pager extracted the JSONB `data` column with `Row::get`, which panics on SQL NULL or a
+    non-JSONB type — a backing view projecting NULL `data` (e.g. via a LEFT JOIN) turned a query
+    into a request-path panic. PostgreSQL was the only backend that aborted here; all three sites
+    now go through a shared helper that returns `FraiseQLError::Database` (naming the column and a
+    bounded slice of the query) for both the NULL and the type-mismatch case.
+  - **Arrow Flight `limit = 0` (H38).** A client ticket with `limit = 0` produced `batch_size = 0`
+    and `slice::chunks(0)` panics in the authenticated `do_get` handler. `execute_optimized_view`
+    now rejects `limit = 0` fail-loud with `InvalidArgument`, the client-derived batch size is
+    clamped to `[1, 10_000]`, and every chunk loop is routed through one helper that floors the
+    size at 1 — so no call site (present or future) can pass a zero chunk size.
+  - **GCS JWT clock (L-gcs-expect).** `create_gcs_jwt` used `.expect()` on
+    `SystemTime::duration_since(UNIX_EPOCH)`; it now returns `FraiseQLError::File` instead of
+    panicking if the system clock is before the UNIX epoch.
 - **Relay `node(id:)` now enforces row-level authorization (H2, IDOR).** The global
   object lookup `node(id: …)` resolved any type by opaque id while applying none of the
   backing query's `requires_role` / RLS / `inject_params` gates, so a leaked node id

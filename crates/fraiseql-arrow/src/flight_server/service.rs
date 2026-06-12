@@ -30,6 +30,23 @@ use crate::{
     subscription::SubscriptionManager,
 };
 
+/// Split converted rows into Arrow record batches of at most `batch_size` rows.
+///
+/// Floors `batch_size` at 1: `slice::chunks(0)` panics, and the one call site
+/// that derives the batch size from a client ticket could pass `limit = 0`
+/// (audit H38, a remotely-triggerable abort in `do_get`). Routing every chunk
+/// loop through this helper makes a zero-sized chunk impossible at any site.
+fn chunk_into_batches(
+    arrow_rows: &[Vec<Option<crate::convert::Value>>],
+    converter: &RowToArrowConverter,
+    batch_size: usize,
+) -> std::result::Result<Vec<arrow::array::RecordBatch>, arrow::error::ArrowError> {
+    arrow_rows
+        .chunks(batch_size.max(1))
+        .map(|chunk| converter.convert_batch(chunk.to_vec()))
+        .collect()
+}
+
 /// Read `FLIGHT_SESSION_SECRET` from the environment once.
 ///
 /// Returns `None` (and logs a warning) if the variable is unset or empty.
@@ -672,10 +689,7 @@ impl FraiseQLFlightService {
             max_rows:   None,
         };
         let converter = RowToArrowConverter::new(schema, config);
-        arrow_rows
-            .chunks(config.batch_size)
-            .map(|chunk| converter.convert_batch(chunk.to_vec()))
-            .collect::<Result<Vec<_>, _>>()
+        chunk_into_batches(&arrow_rows, &converter, config.batch_size)
             .map_err(|e| format!("Arrow conversion failed: {e}"))
     }
 
@@ -719,6 +733,13 @@ impl FraiseQLFlightService {
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
+        // Reject a zero limit fail-loud: it is a meaningless request and
+        // previously produced a zero-sized batch chunk (`chunks(0)` panics).
+        // The clamp at the batch-size site below is defence-in-depth (H38).
+        if limit == Some(0) {
+            return Err(Status::invalid_argument("OptimizedView `limit` must be greater than 0"));
+        }
+
         // 1. Load pre-compiled Arrow schema from registry
         let schema = self
             .schema_registry
@@ -769,17 +790,15 @@ impl FraiseQLFlightService {
         let arrow_rows = convert_db_rows_to_arrow(&db_rows, &schema)
             .map_err(|e| Status::internal(format!("Row conversion failed: {e}")))?;
 
-        // 5. Convert to RecordBatches
+        // 5. Convert to RecordBatches. Clamp the client-derived batch size to
+        // [1, 10_000] so it can never be zero (defence-in-depth for H38).
         let config = ConvertConfig {
-            batch_size: limit.unwrap_or(10_000).min(10_000),
+            batch_size: limit.unwrap_or(10_000).clamp(1, 10_000),
             max_rows:   limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
-        let batches = arrow_rows
-            .chunks(config.batch_size)
-            .map(|chunk| converter.convert_batch(chunk.to_vec()))
-            .collect::<Result<Vec<_>, _>>()
+        let batches = chunk_into_batches(&arrow_rows, &converter, config.batch_size)
             .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
 
         info!("Generated {} Arrow batches", batches.len());
@@ -915,10 +934,7 @@ impl FraiseQLFlightService {
             };
             let converter = RowToArrowConverter::new(inferred_schema.clone(), config);
 
-            let batches = arrow_rows
-                .chunks(config.batch_size)
-                .map(|chunk| converter.convert_batch(chunk.to_vec()))
-                .collect::<Result<Vec<_>, _>>()
+            let batches = chunk_into_batches(&arrow_rows, &converter, config.batch_size)
                 .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
 
             // Add schema message only for first query (schema is shared)
@@ -1124,11 +1140,9 @@ impl FraiseQLFlightService {
         };
         let converter = RowToArrowConverter::new(schema, config);
 
-        let batches: Vec<RecordBatch> = arrow_rows
-            .chunks(config.batch_size)
-            .map(|chunk| converter.convert_batch(chunk.to_vec()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| Status::internal(format!("Arrow conversion failed: {}", e)))?;
+        let batches: Vec<RecordBatch> =
+            chunk_into_batches(&arrow_rows, &converter, config.batch_size)
+                .map_err(|e| Status::internal(format!("Arrow conversion failed: {}", e)))?;
 
         if batches.is_empty() {
             return Err(Status::internal("No Arrow batches created".to_string()));
@@ -1479,5 +1493,52 @@ mod bulk_export_authz_tests {
             Code::FailedPrecondition,
             "an allow-listed table must pass the authz gate (then fail on the missing adapter)"
         );
+    }
+}
+
+#[cfg(test)]
+mod chunk_into_batches_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+
+    use super::chunk_into_batches;
+    use crate::convert::{ConvertConfig, RowToArrowConverter, Value};
+
+    fn converter(batch_size: usize) -> RowToArrowConverter {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int32, false),
+            Field::new("name", DataType::Utf8, true),
+        ]));
+        RowToArrowConverter::new(
+            schema,
+            ConvertConfig {
+                batch_size,
+                max_rows: None,
+            },
+        )
+    }
+
+    #[test]
+    fn zero_batch_size_does_not_panic_on_empty_input() {
+        // `slice::chunks(0)` panics regardless of length — even on an empty
+        // slice. The helper floors the size at 1, so a client `limit = 0`
+        // (audit H38) can no longer abort the worker.
+        let batches = chunk_into_batches(&[], &converter(0), 0).expect("must not panic");
+        assert!(batches.is_empty());
+    }
+
+    #[test]
+    fn zero_batch_size_still_returns_all_rows() {
+        let rows = vec![
+            vec![Some(Value::Int(1)), Some(Value::String("a".to_string()))],
+            vec![Some(Value::Int(2)), Some(Value::String("b".to_string()))],
+            vec![Some(Value::Int(3)), None],
+        ];
+        let batches = chunk_into_batches(&rows, &converter(0), 0).expect("must not panic");
+        let total: usize = batches.iter().map(arrow::array::RecordBatch::num_rows).sum();
+        assert_eq!(total, 3, "all rows convert even when batch_size is 0 (floored to 1)");
     }
 }

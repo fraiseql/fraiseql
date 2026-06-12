@@ -29,6 +29,44 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// Extract the JSONB `data` cell from a result row, failing loud rather than
+/// panicking.
+///
+/// `Row::get` panics on SQL NULL or a non-JSONB column type, so a backing view
+/// that projects NULL `data` (e.g. via a LEFT JOIN) or a mistyped `data` column
+/// turned a query into a request-path panic — the PostgreSQL adapter was the
+/// only backend that aborted here instead of returning an error (audit H34).
+/// Both the NULL and the type-mismatch cases now map to
+/// [`FraiseQLError::Database`], including a bounded, char-safe slice of the
+/// query so an operator can identify the offending view.
+fn jsonb_cell<I>(row: &Row, column: I, sql: &str) -> Result<JsonbValue>
+where
+    I: tokio_postgres::row::RowIndex + std::fmt::Display,
+{
+    // `.chars().take(..)` is inherently char-boundary-safe (no byte slicing).
+    let query_preview = || sql.chars().take(200).collect::<String>();
+    match row.try_get::<_, Option<serde_json::Value>>(column) {
+        Ok(Some(value)) => Ok(JsonbValue::new(value)),
+        Ok(None) => Err(FraiseQLError::Database {
+            message:   format!(
+                "Query returned a NULL `data` column; the backing view must project a \
+                 non-NULL JSONB `data` value (a view yielding NULL `data`, e.g. via a \
+                 LEFT JOIN, is unsupported). Query: {}",
+                query_preview()
+            ),
+            sql_state: None,
+        }),
+        Err(e) => Err(FraiseQLError::Database {
+            message:   format!(
+                "Failed to read the `data` column as JSONB ({e}); the backing view must \
+                 project a JSONB `data` column. Query: {}",
+                query_preview()
+            ),
+            sql_state: None,
+        }),
+    }
+}
+
 /// Default maximum pool size for PostgreSQL connections.
 /// Increased from 10 to 25 to prevent pool exhaustion under concurrent
 /// nested query load (fixes Issue #41).
@@ -362,11 +400,8 @@ impl PostgresAdapter {
 
         let results = rows
             .into_iter()
-            .map(|row| {
-                let data: serde_json::Value = row.get(0);
-                JsonbValue::new(data)
-            })
-            .collect();
+            .map(|row| jsonb_cell(&row, 0, sql))
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(results)
     }
@@ -408,13 +443,7 @@ impl PostgresAdapter {
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| {
-                let data: serde_json::Value = row.get(0);
-                JsonbValue::new(data)
-            })
-            .collect())
+        rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
     }
 
     /// Acquire a connection from the pool with retry logic.

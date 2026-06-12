@@ -284,11 +284,8 @@ impl PostgresAdapter {
 
         let rows: Vec<crate::types::JsonbValue> = page_rows
             .iter()
-            .map(|row| {
-                let data: serde_json::Value = row.get("data");
-                crate::types::JsonbValue::new(data)
-            })
-            .collect();
+            .map(|row| super::jsonb_cell(row, "data", &page_sql))
+            .collect::<Result<Vec<_>>>()?;
 
         // ── Count query (Relay spec: totalCount ignores cursor position) ────────
         //

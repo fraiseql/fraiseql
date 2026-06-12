@@ -221,7 +221,12 @@ impl GcsBackend {
 fn create_gcs_jwt(client_email: &str, private_key: &str) -> Result<String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock before UNIX epoch")
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: format!("System clock is before the UNIX epoch: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?
         .as_secs();
 
     let claims = serde_json::json!({

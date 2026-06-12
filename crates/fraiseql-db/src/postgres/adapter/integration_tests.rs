@@ -777,3 +777,38 @@ async fn acquire_does_not_retry_on_timeout_error() {
         "error should mention exhaustion, got: {msg}"
     );
 }
+
+// ========================================================================
+// Panic surface: NULL / non-JSONB `data` column (audit H34)
+// ========================================================================
+
+// A backing view that projects a NULL `data` cell (e.g. an unmatched LEFT JOIN)
+// must surface a `FraiseQLError::Database`, not panic the request task via
+// `Row::get` (the PostgreSQL adapter was the drifted outlier — every other
+// backend degraded to JSON null).
+#[tokio::test]
+async fn execute_raw_null_data_column_errors_instead_of_panicking() {
+    let adapter = create_test_adapter().await;
+    let result = adapter.execute_raw("SELECT NULL::jsonb AS data", &[]).await;
+    match result {
+        Err(FraiseQLError::Database { message, .. }) => {
+            assert!(
+                message.contains("NULL `data`"),
+                "expected a NULL-data Database error naming the column, got: {message}"
+            );
+        },
+        other => panic!("expected FraiseQLError::Database for NULL data, got: {other:?}"),
+    }
+}
+
+// A `data` column that is not JSONB must surface a Database error, not panic on
+// a `Row::get` type mismatch.
+#[tokio::test]
+async fn execute_raw_non_jsonb_data_column_errors_instead_of_panicking() {
+    let adapter = create_test_adapter().await;
+    let result = adapter.execute_raw("SELECT 42 AS data", &[]).await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Database { .. })),
+        "expected FraiseQLError::Database for a non-JSONB data column, got: {result:?}"
+    );
+}
