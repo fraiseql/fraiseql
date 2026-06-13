@@ -390,17 +390,20 @@ pub async fn auth_refresh(
         });
     }
 
-    // Audit log: Refresh token validation success
+    // Token issuance (signing a new access-token JWT) requires an RSA/EC private key,
+    // which is not yet wired into the auth state. The refresh therefore cannot
+    // complete — audit-log it as a FAILURE (not a success) and return an explicit
+    // error rather than a fake token (L-auth-refresh-500: never record success for an
+    // operation that always fails).
     let audit_logger = get_audit_logger();
-    audit_logger.log_success(
-        AuditEventType::SessionTokenValidation,
+    audit_logger.log_failure(
+        AuditEventType::JwtRefresh,
         SecretType::RefreshToken,
         Some(session.user_id),
-        "validate",
+        "refresh",
+        "token issuance not implemented (JWT signing not configured)",
     );
 
-    // JWT signing requires an RSA/EC private key, which is not yet wired
-    // into the auth state. Return an explicit error rather than a fake token.
     Err(AuthError::Internal {
         message: "JWT signing not yet implemented — configure an OIDC provider for token issuance"
             .to_string(),

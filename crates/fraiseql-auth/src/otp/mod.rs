@@ -63,7 +63,14 @@ struct OtpRecord {
 
 impl OtpRecord {
     fn is_expired(&self) -> bool {
-        unix_now().unwrap_or(0) >= self.expires
+        // Fail-closed: a clock failure treats the code as expired, never valid.
+        Self::is_expired_at(self.expires, unix_now().ok())
+    }
+
+    /// Pure expiry decision against an optional clock reading. `None` (clock failure)
+    /// fails closed → expired.
+    fn is_expired_at(expires: u64, now: Option<u64>) -> bool {
+        now.is_none_or(|now| now >= expires)
     }
 }
 

@@ -22,14 +22,24 @@ pub struct SessionData {
 }
 
 impl SessionData {
-    /// Check if session is expired
+    /// Check if session is expired.
+    ///
+    /// Fail-closed: if the system clock cannot be read, the session is treated as
+    /// expired (rejected) rather than valid — matching the crate's fail-closed rule.
     #[must_use]
     pub fn is_expired(&self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        self.expires_at <= now
+            .ok()
+            .map(|d| d.as_secs());
+        self.is_expired_at(now)
+    }
+
+    /// Pure expiry decision against an optional clock reading. `None` (clock failure)
+    /// fails closed → expired.
+    #[must_use]
+    fn is_expired_at(&self, now: Option<u64>) -> bool {
+        now.is_none_or(|now| self.expires_at <= now)
     }
 }
 
@@ -299,5 +309,32 @@ impl SessionStore for InMemorySessionStore {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod fail_closed_clock_tests {
+    use super::*;
+
+    fn session(expires_at: u64) -> SessionData {
+        SessionData {
+            user_id: "u".to_string(),
+            issued_at: 0,
+            expires_at,
+            refresh_token_hash: "h".to_string(),
+        }
+    }
+
+    #[test]
+    fn clock_failure_treats_session_as_expired() {
+        // L-clock-failopen: a None clock reading must fail closed → expired.
+        assert!(session(u64::MAX).is_expired_at(None), "clock failure must fail closed");
+    }
+
+    #[test]
+    fn valid_clock_decides_normally() {
+        assert!(session(100).is_expired_at(Some(100)), "expires_at == now → expired");
+        assert!(session(100).is_expired_at(Some(101)), "past expiry → expired");
+        assert!(!session(100).is_expired_at(Some(99)), "before expiry → valid");
     }
 }

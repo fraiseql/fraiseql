@@ -26,6 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Clock failures now fail closed in four auth expiry checks (L-clock-failopen).**
+  `Session::is_expired`, `OtpRecord::is_expired`, the multi-provider callback CSRF-state
+  check, and `InMemoryStateStore::cleanup_expired` read the clock with
+  `unwrap_or_default()`/`unwrap_or(0)`, so a clock failure yielded `now = 0` and treated
+  expired sessions/OTP codes/CSRF states as still valid (fail-open) — contradicting the
+  crate's fail-closed doctrine. They now treat an unreadable clock as expired/at-capacity.
+- **`JwtValidator::validate_hmac` now emits the same audit log as `validate` (L-validate-hmac).**
+  The HMAC path logged nothing on decode failure, expiry, temporal-claim rejection, or
+  success; it now mirrors the asymmetric path's four audit points.
+- **`auth_refresh` no longer records an audit success for a request that always fails
+  (L-auth-refresh-500).** Access-token issuance (signing a JWT) is not wired, so refresh
+  cannot complete; it logged `SessionTokenValidation` *success* and then returned 500. It
+  now logs the refresh as a failure and returns the explicit not-implemented error.
 - **Vault `rotate_secret` no longer self-deadlocks (H10).** It held the per-secret
   rotation mutex and then called `get_secret_with_expiry`, which re-acquired the same
   non-reentrant lock — a permanent hang on first invocation that wedged the
@@ -55,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AccountRecord.email` is now `Option<String>`. Implementors and direct callers of these
   published-crate APIs must update their signatures; the in-tree OAuth providers and handlers
   are already updated.
+- **BREAKING (`fraiseql-auth`):** `AuthMiddleware::new` no longer takes `session_store` or
+  `optional` (now `new(validator, public_key)`). Those parameters were stored but never
+  consulted — no session-revocation check, no optional-auth handling — so they were removed
+  rather than continue to advertise behavior that did not exist (L-authmw-ignores).
 
 ## [2.7.0] - 2026-06-13
 

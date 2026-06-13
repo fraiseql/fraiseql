@@ -311,7 +311,7 @@ impl JwtValidator {
 
         let token_data = decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
             use jsonwebtoken::errors::ErrorKind;
-            match e.kind() {
+            let error = match e.kind() {
                 ErrorKind::ExpiredSignature => AuthError::TokenExpired,
                 ErrorKind::InvalidSignature => AuthError::InvalidSignature,
                 ErrorKind::InvalidIssuer => AuthError::InvalidToken {
@@ -323,17 +323,56 @@ impl JwtValidator {
                 _ => AuthError::InvalidToken {
                     reason: e.to_string(),
                 },
-            }
+            };
+
+            // Audit log: JWT validation failure (parity with `validate`; L-validate-hmac).
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                None, // Subject not yet known at this point
+                "validate_hmac",
+                &e.to_string(),
+            );
+
+            error
         })?;
 
         let claims = token_data.claims;
 
         if claims.is_expired() {
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                Some(claims.sub),
+                "validate_hmac",
+                "Token expired",
+            );
             return Err(AuthError::TokenExpired);
         }
 
         // Temporal claims validation: iat staleness/skew and nbf not-before (S40).
-        claims.validate_temporal_claims()?;
+        if let Err(e) = claims.validate_temporal_claims() {
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                Some(claims.sub),
+                "validate_hmac",
+                &e.to_string(),
+            );
+            return Err(e);
+        }
+
+        // Audit log: JWT validation success.
+        let audit_logger = get_audit_logger();
+        audit_logger.log_success(
+            AuditEventType::JwtValidation,
+            SecretType::JwtToken,
+            Some(claims.sub.clone()),
+            "validate_hmac",
+        );
 
         Ok(claims)
     }

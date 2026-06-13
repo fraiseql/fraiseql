@@ -347,11 +347,14 @@ pub async fn callback(
         return json_error(StatusCode::BAD_REQUEST, "invalid or expired state token");
     };
 
-    // Check state expiry
-    let now = std::time::SystemTime::now()
+    // Check state expiry. Fail-closed: if the clock cannot be read, reject rather than
+    // treat the (possibly expired) CSRF state as valid (matches the authorize path).
+    let Ok(now) = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+        .map(|d| d.as_secs())
+    else {
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "system clock error");
+    };
 
     if now > expiry {
         return json_error(StatusCode::BAD_REQUEST, "state token expired");

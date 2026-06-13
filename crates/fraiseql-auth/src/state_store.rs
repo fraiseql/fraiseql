@@ -106,10 +106,15 @@ impl InMemoryStateStore {
     /// 2. Check if store is at capacity
     /// 3. Return eviction needed flag if cleanup doesn't free space
     fn cleanup_expired(&self) -> bool {
-        let now = std::time::SystemTime::now()
+        // Fail-closed: if the clock cannot be read we cannot decide what is expired.
+        // Signal "at capacity" so `store()` rejects new states under a broken clock,
+        // without purging existing (possibly valid) in-flight states.
+        let Ok(now) = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+            .map(|d| d.as_secs())
+        else {
+            return true;
+        };
 
         // Remove all expired states
         self.states.retain(|_key, (_provider, expiry)| *expiry > now);

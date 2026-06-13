@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{AuthError, Result},
     jwt::{Claims, JwtValidator},
-    session::SessionStore,
 };
 
 /// Authenticated user extracted from JWT token
@@ -50,10 +49,8 @@ impl AuthenticatedUser {
 
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
-    validator:      Arc<JwtValidator>,
-    _session_store: Arc<dyn SessionStore>,
-    public_key:     Vec<u8>,
-    _optional:      bool,
+    validator:  Arc<JwtValidator>,
+    public_key: Vec<u8>,
 }
 
 impl AuthMiddleware {
@@ -61,20 +58,19 @@ impl AuthMiddleware {
     ///
     /// # Arguments
     /// * `validator` - JWT validator
-    /// * `session_store` - Session storage backend
     /// * `public_key` - Public key for JWT signature verification
-    /// * `optional` - If true, missing auth is not an error
-    pub fn new(
-        validator: Arc<JwtValidator>,
-        session_store: Arc<dyn SessionStore>,
-        public_key: Vec<u8>,
-        optional: bool,
-    ) -> Self {
+    ///
+    /// Note: this type validates a presented Bearer token. The previous
+    /// `session_store` and `optional` parameters were never consulted (no
+    /// session-revocation check, no optional-auth handling), so they were removed
+    /// rather than continue to advertise behavior that did not exist
+    /// (L-authmw-ignores). Optional/anonymous handling belongs at the request layer;
+    /// session-revocation checks belong on the refresh-token path.
+    #[must_use]
+    pub const fn new(validator: Arc<JwtValidator>, public_key: Vec<u8>) -> Self {
         Self {
             validator,
-            _session_store: session_store,
             public_key,
-            _optional: optional,
         }
     }
 

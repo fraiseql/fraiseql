@@ -224,3 +224,14 @@ async fn test_noop_email_delivery_returns_message_id() {
     let id = delivery.send_otp("alice@example.com", "123456").await.unwrap();
     assert!(!id.is_empty(), "message_id should not be empty");
 }
+
+// L-clock-failopen: a clock failure must treat the OTP code as expired (fail closed).
+#[test]
+fn otp_clock_failure_treats_code_as_expired() {
+    assert!(
+        super::OtpRecord::is_expired_at(u64::MAX, None),
+        "clock failure must fail closed"
+    );
+    assert!(super::OtpRecord::is_expired_at(100, Some(100)), "now == expires → expired");
+    assert!(!super::OtpRecord::is_expired_at(100, Some(99)), "before expiry → valid");
+}
