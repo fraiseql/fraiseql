@@ -72,6 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wire stream pause/resume now actually reaches the background reader (H43).**
+  `JsonStream` allocated its pause/resume state lazily, on the first `pause()` call — but the
+  background reader task had already captured `None` clones of those handles at spawn time,
+  so `pause()`/`resume()` never affected it: the reader streamed on regardless, and the
+  pause-timeout and paused-occupancy metrics were permanently dead. The state is now
+  allocated eagerly in `JsonStream::new`, so the reader shares the same handles the caller
+  drives. As a result: `pause()` parks the reader at the next chunk boundary (and records the
+  buffered-row count in `paused_occupancy()`); `set_pause_timeout` is honoured live via a
+  shared handle (and the auto-resume timeout metric fires); and a drop-while-paused now tears
+  the reader down cleanly instead of leaking a task blocked forever (the pause wait also
+  selects on cancellation). The dead `pause_signal` (notified but never awaited) was removed.
 - **The wire connection no longer hangs on a malformed, unrecognized, or ordinary
   control message (H42).** `receive_message` decoded with `if let Ok(..)`, discarding the
   error kind and treating *every* decode failure as "the frame is incomplete, read more

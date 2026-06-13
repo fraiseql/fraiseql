@@ -83,22 +83,25 @@ pub struct JsonStream {
     // Values: 0=Running, 1=Paused, 2=Complete, 3=Error
     state_atomic: Arc<AtomicU8>,
 
-    // Pause/resume state machine (lazily initialized)
-    // Only allocated if pause() is called
-    pause_resume: Option<PauseResumeState>,
+    // Pause/resume state machine, eagerly allocated (audit H43)
+    pause_resume: PauseResumeState,
 
     // Sampling counter for metrics recording (sample 1 in N polls)
     poll_count: AtomicU64, // Counter for sampling metrics
 }
 
-/// Pause/resume state (lazily allocated)
-/// Only created when `pause()` is first called
+/// Pause/resume state, eagerly allocated in [`JsonStream::new`].
+///
+/// Every handle here is an `Arc` so the same instances can be cloned to the
+/// background reader at spawn time *and* retained by the stream. The previous
+/// design allocated this lazily on the first `pause()` call — but by then the
+/// reader had already captured `None` clones, so pause/resume never reached it
+/// and the pause-timeout/occupancy metrics were permanently dead (audit H43).
 pub struct PauseResumeState {
     state: Arc<Mutex<StreamState>>,     // Current stream state
-    pause_signal: Arc<Notify>,          // Signal to pause background task
-    resume_signal: Arc<Notify>,         // Signal to resume background task
-    paused_occupancy: Arc<AtomicUsize>, // Buffered rows when paused
-    pause_timeout: Option<Duration>,    // Optional auto-resume timeout
+    resume_signal: Arc<Notify>,         // Wakes the reader when resumed
+    paused_occupancy: Arc<AtomicUsize>, // Buffered rows captured at pause time
+    pause_timeout_ms: Arc<AtomicU64>, // Auto-resume timeout in ms (0 = none), read live by the reader
 }
 
 impl JsonStream {
@@ -123,28 +126,18 @@ impl JsonStream {
             // Initialize lightweight atomic state
             state_atomic: Arc::new(AtomicU8::new(STATE_RUNNING)),
 
-            // Pause/resume lazily initialized (only if pause() is called)
-            pause_resume: None,
+            // Pause/resume infrastructure is allocated eagerly so the background
+            // reader receives live handles at spawn time (audit H43).
+            pause_resume: PauseResumeState {
+                state: Arc::new(Mutex::new(StreamState::Running)),
+                resume_signal: Arc::new(Notify::new()),
+                paused_occupancy: Arc::new(AtomicUsize::new(0)),
+                pause_timeout_ms: Arc::new(AtomicU64::new(0)),
+            },
 
             // Initialize sampling counter
             poll_count: AtomicU64::new(0),
         }
-    }
-
-    /// Initialize pause/resume state (called on first `pause()`)
-    fn ensure_pause_resume(&mut self) -> &mut PauseResumeState {
-        if self.pause_resume.is_none() {
-            self.pause_resume = Some(PauseResumeState {
-                state: Arc::new(Mutex::new(StreamState::Running)),
-                pause_signal: Arc::new(Notify::new()),
-                resume_signal: Arc::new(Notify::new()),
-                paused_occupancy: Arc::new(AtomicUsize::new(0)),
-                pause_timeout: None,
-            });
-        }
-        self.pause_resume
-            .as_mut()
-            .expect("pause_resume initialized in the block above")
     }
 
     /// Get current stream state
@@ -177,9 +170,7 @@ impl JsonStream {
     /// Returns the number of rows buffered in the channel when the stream was paused.
     /// Only meaningful when stream is in Paused state.
     pub fn paused_occupancy(&self) -> usize {
-        self.pause_resume
-            .as_ref()
-            .map_or(0, |pr| pr.paused_occupancy.load(Ordering::Relaxed))
+        self.pause_resume.paused_occupancy.load(Ordering::Relaxed)
     }
 
     /// Set timeout for pause (auto-resume after duration)
@@ -202,21 +193,24 @@ impl JsonStream {
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
     /// ```
     pub fn set_pause_timeout(&mut self, duration: Duration) {
-        self.ensure_pause_resume().pause_timeout = Some(duration);
+        // Stored as a shared atomic (ms) so the already-spawned reader picks up
+        // the value live; a zero-millisecond request is clamped to 1 ms so it is
+        // never confused with "no timeout" (audit H43).
+        let ms = u64::try_from(duration.as_millis())
+            .unwrap_or(u64::MAX)
+            .max(1);
+        self.pause_resume
+            .pause_timeout_ms
+            .store(ms, Ordering::Relaxed);
         tracing::debug!("pause timeout set to {:?}", duration);
     }
 
     /// Clear pause timeout (no auto-resume)
     pub fn clear_pause_timeout(&mut self) {
-        if let Some(ref mut pr) = self.pause_resume {
-            pr.pause_timeout = None;
-            tracing::debug!("pause timeout cleared");
-        }
-    }
-
-    /// Get current pause timeout (if set)
-    pub(crate) fn pause_timeout(&self) -> Option<Duration> {
-        self.pause_resume.as_ref().and_then(|pr| pr.pause_timeout)
+        self.pause_resume
+            .pause_timeout_ms
+            .store(0, Ordering::Relaxed);
+        tracing::debug!("pause timeout cleared");
     }
 
     /// Pause the stream
@@ -248,16 +242,20 @@ impl JsonStream {
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
 
+        // Capture the buffered-row count at the moment of pause so
+        // `paused_occupancy()` reflects reality (it was never recorded before —
+        // audit H43).
+        let occupancy = self.receiver.len();
+
         // Update lightweight atomic state first (fast path)
         self.state_atomic_set_paused();
 
-        let pr = self.ensure_pause_resume();
+        let pr = &self.pause_resume;
         let mut state = pr.state.lock().await;
 
         match *state {
             StreamState::Running => {
-                // Signal background task to pause
-                pr.pause_signal.notify_one();
+                pr.paused_occupancy.store(occupancy, Ordering::Relaxed);
                 // Update state
                 *state = StreamState::Paused;
 
@@ -306,46 +304,39 @@ impl JsonStream {
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
         // Update lightweight atomic state first (fast path)
-        // Check atomic state before borrowing pause_resume
         let current = self.state_atomic_get();
+        let entity = self.entity.clone();
 
-        // Resume only makes sense if pause/resume was initialized
-        if let Some(ref mut pr) = self.pause_resume {
-            let entity = self.entity.clone();
+        // Note: Set to RUNNING to reflect resumed state
+        if current == STATE_PAUSED {
+            // Only update atomic if currently paused
+            self.state_atomic.store(STATE_RUNNING, Ordering::Release);
+        }
 
-            // Note: Set to RUNNING to reflect resumed state
-            if current == STATE_PAUSED {
-                // Only update atomic if currently paused
-                self.state_atomic.store(STATE_RUNNING, Ordering::Release);
+        let pr = &self.pause_resume;
+        let mut state = pr.state.lock().await;
+
+        match *state {
+            StreamState::Paused => {
+                // Wake the background reader, which is parked on this signal.
+                pr.resume_signal.notify_one();
+                // Update state
+                *state = StreamState::Running;
+
+                // Record metric
+                crate::metrics::counters::stream_resumed(&entity);
+                Ok(())
             }
-
-            let mut state = pr.state.lock().await;
-
-            match *state {
-                StreamState::Paused => {
-                    // Signal background task to resume
-                    pr.resume_signal.notify_one();
-                    // Update state
-                    *state = StreamState::Running;
-
-                    // Record metric
-                    crate::metrics::counters::stream_resumed(&entity);
-                    Ok(())
-                }
-                StreamState::Running => {
-                    // Idempotent: already running (or resume before pause)
-                    Ok(())
-                }
-                StreamState::Completed | StreamState::Failed => {
-                    // Cannot resume a terminal stream
-                    Err(WireError::Protocol(
-                        "cannot resume a completed or failed stream".to_string(),
-                    ))
-                }
+            StreamState::Running => {
+                // Idempotent: already running (or resume before pause)
+                Ok(())
             }
-        } else {
-            // No pause/resume infrastructure (never paused), idempotent no-op
-            Ok(())
+            StreamState::Completed | StreamState::Failed => {
+                // Cannot resume a terminal stream
+                Err(WireError::Protocol(
+                    "cannot resume a completed or failed stream".to_string(),
+                ))
+            }
         }
     }
 
@@ -378,23 +369,19 @@ impl JsonStream {
         self.pause().await
     }
 
-    /// Clone internal state for passing to background task (only if pause/resume is initialized)
-    pub(crate) fn clone_state(&self) -> Option<Arc<Mutex<StreamState>>> {
-        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.state))
+    /// Clone the shared stream-state handle for the background reader.
+    pub(crate) fn clone_state(&self) -> Arc<Mutex<StreamState>> {
+        Arc::clone(&self.pause_resume.state)
     }
 
-    /// Clone pause signal for passing to background task (only if pause/resume is initialized)
-    pub(crate) fn clone_pause_signal(&self) -> Option<Arc<Notify>> {
-        self.pause_resume
-            .as_ref()
-            .map(|pr| Arc::clone(&pr.pause_signal))
+    /// Clone the resume signal the background reader parks on while paused.
+    pub(crate) fn clone_resume_signal(&self) -> Arc<Notify> {
+        Arc::clone(&self.pause_resume.resume_signal)
     }
 
-    /// Clone resume signal for passing to background task (only if pause/resume is initialized)
-    pub(crate) fn clone_resume_signal(&self) -> Option<Arc<Notify>> {
-        self.pause_resume
-            .as_ref()
-            .map(|pr| Arc::clone(&pr.resume_signal))
+    /// Clone the live pause-timeout handle (ms, 0 = none) for the background reader.
+    pub(crate) fn clone_pause_timeout(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.pause_resume.pause_timeout_ms)
     }
 
     // =========================================================================

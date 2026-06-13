@@ -97,3 +97,108 @@ fn test_stream_state_enum_equality() {
     assert_eq!(StreamState::Failed, StreamState::Failed);
     assert_ne!(StreamState::Running, StreamState::Paused);
 }
+
+// ── H43: pause/resume infrastructure is eagerly wired to the reader ────────
+//
+// These build a `JsonStream` directly (no background reader) and exercise the
+// exact handles the reader receives. They are deterministic and DB-free; the
+// end-to-end socket behaviour is covered by the integration leg.
+
+fn test_stream(channel_cap: usize) -> (mpsc::Sender<Result<Value>>, JsonStream) {
+    let (tx, rx) = mpsc::channel::<Result<Value>>(channel_cap);
+    // No background reader in these unit tests, so the cancel receiver is unused
+    // and may drop immediately; the stream only holds the (never-fired) sender.
+    let (cancel_tx, _cancel_rx) = mpsc::channel::<()>(1);
+    let stream = JsonStream::new(rx, cancel_tx, "ent".to_string(), None, None, None);
+    (tx, stream)
+}
+
+#[tokio::test]
+async fn paused_occupancy_reflects_buffered_rows() {
+    let (tx, mut stream) = test_stream(16);
+    for i in 0..5 {
+        tx.send(Ok(serde_json::json!({ "i": i }))).await.unwrap();
+    }
+
+    stream.pause().await.unwrap();
+
+    // Before the fix `paused_occupancy` was never recorded and always returned 0.
+    assert_eq!(
+        stream.paused_occupancy(),
+        5,
+        "paused_occupancy must reflect the rows buffered at pause time"
+    );
+}
+
+#[tokio::test]
+async fn reader_state_handle_tracks_pause_and_resume() {
+    let (_tx, mut stream) = test_stream(4);
+
+    // `clone_state` returns the exact handle the background reader holds. Before
+    // the eager-allocation fix the reader captured `None`, so pause()/resume()
+    // never reached it.
+    let reader_state = stream.clone_state();
+    assert_eq!(*reader_state.lock().await, StreamState::Running);
+
+    stream.pause().await.unwrap();
+    assert_eq!(
+        *reader_state.lock().await,
+        StreamState::Paused,
+        "the reader's state handle must observe pause()"
+    );
+
+    stream.resume().await.unwrap();
+    assert_eq!(
+        *reader_state.lock().await,
+        StreamState::Running,
+        "the reader's state handle must observe resume()"
+    );
+}
+
+#[tokio::test]
+async fn resume_signal_wakes_a_parked_reader() {
+    let (_tx, mut stream) = test_stream(4);
+    stream.pause().await.unwrap();
+
+    let resume = stream.clone_resume_signal();
+    let waiter = tokio::spawn(async move {
+        tokio::time::timeout(Duration::from_secs(2), resume.notified()).await
+    });
+
+    tokio::task::yield_now().await;
+    stream.resume().await.unwrap();
+
+    let woke = waiter.await.unwrap();
+    assert!(
+        woke.is_ok(),
+        "resume() must wake a reader parked on the shared resume signal"
+    );
+}
+
+#[test]
+fn set_pause_timeout_updates_the_shared_handle() {
+    let (_tx, mut stream) = test_stream(1);
+
+    // The reader reads this handle live; before the fix the timeout was captured
+    // by value at spawn time, so `set_pause_timeout` was a dead no-op.
+    let reader_timeout = stream.clone_pause_timeout();
+    assert_eq!(
+        reader_timeout.load(Ordering::Relaxed),
+        0,
+        "no auto-resume timeout by default"
+    );
+
+    stream.set_pause_timeout(Duration::from_millis(250));
+    assert_eq!(
+        reader_timeout.load(Ordering::Relaxed),
+        250,
+        "set_pause_timeout must update the handle the reader reads"
+    );
+
+    stream.clear_pause_timeout();
+    assert_eq!(
+        reader_timeout.load(Ordering::Relaxed),
+        0,
+        "clear_pause_timeout must reset the shared handle"
+    );
+}

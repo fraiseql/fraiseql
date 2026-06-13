@@ -54,37 +54,31 @@ async fn test_pause_stops_reading() {
         .await
         .expect("execute");
 
-    // Collect a few items
-    let mut count = 0;
-    while let Some(result) = stream.next().await {
-        let _ = result.expect("parse row");
-        count += 1;
-        if count >= 5 {
-            break;
-        }
-    }
+    // Pull a couple of rows so the background reader is actively streaming.
+    let _ = stream.next().await;
+    let _ = stream.next().await;
 
-    // Get buffered count before pause
-    let stats_before = stream.stats();
-    let buffered_before = stats_before.items_buffered;
-
-    // Pause stream
+    // Pause, then let the reader finish its in-flight chunk and park on the
+    // resume signal. A chunked reader pauses at chunk boundaries, not per-row.
     stream.pause().await.expect("pause");
+    sleep(Duration::from_millis(250)).await;
 
-    // Wait a bit to ensure background task is fully paused
-    sleep(Duration::from_millis(100)).await;
+    // Drain a few buffered rows so the bounded channel has spare capacity. A
+    // reader that is *not* genuinely paused (the H43 bug) would refill that room;
+    // a parked reader leaves it empty.
+    for _ in 0..3 {
+        let _ = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
+    }
+    sleep(Duration::from_millis(50)).await;
+    let buffered_settled = stream.stats().items_buffered;
 
-    // Get buffered count after pause
-    let stats_after = stream.stats();
-    let buffered_after = stats_after.items_buffered;
+    // With the reader genuinely parked the channel must not grow further.
+    sleep(Duration::from_millis(250)).await;
+    let buffered_later = stream.stats().items_buffered;
 
-    // After pause, buffered count should not increase (background task stopped reading)
-    // Note: May be equal or decrease as consumer might still poll
     assert!(
-        buffered_after <= buffered_before + 1,
-        "Buffered count should not increase after pause: before={}, after={}",
-        buffered_before,
-        buffered_after
+        buffered_later <= buffered_settled,
+        "a paused reader must not keep filling the channel: settled={buffered_settled}, later={buffered_later}"
     );
 }
 

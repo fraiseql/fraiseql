@@ -517,16 +517,19 @@ impl Connection {
                 soft_limit_fail_threshold,
             );
 
-            // Clone pause/resume signals for background task (only if pause/resume is initialized)
+            // Shared pause/resume handles for the background reader. These are
+            // allocated eagerly by `JsonStream::new`, so the reader sees the same
+            // instances the caller's `pause()`/`resume()` drive (audit H43 — the
+            // reader previously captured `None` clones and never paused).
             let state_lock = stream.clone_state();
-            let pause_signal = stream.clone_pause_signal();
             let resume_signal = stream.clone_resume_signal();
 
             // Clone atomic state for fast state checks in background task
             let state_atomic = stream.clone_state_atomic();
 
-            // Clone pause timeout for background task
-            let pause_timeout = stream.pause_timeout();
+            // Live auto-resume timeout (ms, 0 = none) — read fresh on each pause so
+            // `set_pause_timeout` applies after the stream is handed back.
+            let pause_timeout_ms = stream.clone_pause_timeout();
 
             // Spawn background task to read rows
             let query_start = std::time::Instant::now();
@@ -554,36 +557,52 @@ impl Connection {
             let _current_chunk_size = chunk_size;
 
             loop {
-                // Check lightweight atomic state first (fast path)
-                // Only check atomic if pause/resume infrastructure is actually initialized
-                if state_lock.is_some() && state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
-                    // Paused state detected via atomic, now handle with Mutex
-                    if let (Some(ref state_lock), Some(ref _pause_signal), Some(ref resume_signal)) =
-                        (&state_lock, &pause_signal, &resume_signal)
-                    {
-                        let current_state = state_lock.lock().await;
-                        if *current_state == crate::stream::StreamState::Paused {
-                            tracing::debug!("stream paused, waiting for resume");
-                            drop(current_state); // Release lock before waiting
+                // Fast path: a single relaxed atomic load gates the (rare) pause
+                // handling. STATE_PAUSED == 1.
+                if state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
+                    let is_paused =
+                        { *state_lock.lock().await == crate::stream::StreamState::Paused };
+                    if is_paused {
+                        tracing::debug!("stream paused, waiting for resume");
 
-                            // Wait with optional timeout
-                            if let Some(timeout) = pause_timeout {
-                                if tokio::time::timeout(timeout, resume_signal.notified()).await == Ok(()) {
+                        // Park until resumed, the pause timeout expires, or the
+                        // stream is cancelled/dropped. Waiting on `cancel_rx` too
+                        // means a drop-while-paused tears the reader down cleanly
+                        // instead of leaking a task blocked forever.
+                        let timeout_ms = pause_timeout_ms.load(std::sync::atomic::Ordering::Relaxed);
+                        let cancelled = if timeout_ms > 0 {
+                            tokio::select! {
+                                () = resume_signal.notified() => {
                                     tracing::debug!("stream resumed");
-                                } else {
+                                    false
+                                }
+                                _ = cancel_rx.recv() => true,
+                                () = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms)) => {
                                     tracing::debug!("pause timeout expired, auto-resuming");
                                     crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
+                                    false
                                 }
-                            } else {
-                                // No timeout, wait indefinitely
-                                resume_signal.notified().await;
-                                tracing::debug!("stream resumed");
                             }
+                        } else {
+                            tokio::select! {
+                                () = resume_signal.notified() => {
+                                    tracing::debug!("stream resumed");
+                                    false
+                                }
+                                _ = cancel_rx.recv() => true,
+                            }
+                        };
 
-                            // Update state back to Running
-                            let mut state = state_lock.lock().await;
-                            *state = crate::stream::StreamState::Running;
+                        if cancelled {
+                            tracing::debug!("query cancelled while paused");
+                            crate::metrics::counters::query_completed("cancelled", &entity_for_metrics);
+                            break;
                         }
+
+                        // Back to Running (covers both explicit resume and the
+                        // timeout auto-resume).
+                        *state_lock.lock().await = crate::stream::StreamState::Running;
+                        state_atomic.store(0, std::sync::atomic::Ordering::Release);
                     }
                 }
 
