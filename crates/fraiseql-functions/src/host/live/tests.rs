@@ -593,7 +593,13 @@ async fn test_host_http_allows_public_ipv4() {
         timestamp:    chrono::Utc::now(),
     };
 
-    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    // Deny-by-default: explicitly allow the public IP so this test exercises the
+    // IP/SSRF gate (a public address must pass) rather than the allowlist gate.
+    let config = HostContextConfig {
+        allowed_domains: vec!["8.8.8.8".to_string()],
+        ..HostContextConfig::default()
+    };
+    let ctx = LiveHostContext::new(payload, config);
 
     // This will fail because the IP doesn't respond, but it should pass the SSRF check
     let result = ctx.http_request("GET", "http://8.8.8.8/api", &[], None).await;

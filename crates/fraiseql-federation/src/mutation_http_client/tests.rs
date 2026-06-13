@@ -176,6 +176,73 @@ async fn mutation_response_within_limit_is_parsed() {
     assert!(result.unwrap().data.is_some());
 }
 
+// ── M-fed-mut-ssrf: client hardening (https_only + no redirect) ───────────
+
+#[tokio::test]
+async fn mutation_client_rejects_plain_http() {
+    // `https_only(true)` on the built client must reject a plain http:// target.
+    let client = HttpMutationClient::new(HttpMutationConfig::default()).unwrap();
+    let reqwest_client = client.client.as_ref().unwrap();
+    let result = reqwest_client.get("http://example.com/graphql").send().await;
+    assert!(
+        result.is_err(),
+        "https_only client must reject a plain http:// request, got: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn mutation_client_validation_rejects_http_url() {
+    // `execute_mutation` runs `validate_subgraph_url` first, which now rejects
+    // http:// unconditionally — so a state-changing mutation can never target a
+    // plain-HTTP subgraph regardless of the client's transport settings.
+    let client = HttpMutationClient::new(HttpMutationConfig::default()).unwrap();
+    let metadata = crate::types::FederationMetadata::default();
+    let result = client
+        .execute_mutation(
+            "http://api.example.com/graphql",
+            "User",
+            "updateUser",
+            &json!({ "id": "1" }),
+            &metadata,
+        )
+        .await;
+    assert!(result.is_err(), "http:// subgraph mutation must be rejected: {result:?}");
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("https://"), "error must mention the https requirement: {msg}");
+}
+
+#[tokio::test]
+async fn mutation_client_does_not_follow_redirects() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    // The mutation client is built with `Policy::none()`: a 3xx must be surfaced
+    // verbatim, never auto-followed to the Location target (which could be an
+    // internal address). `https_only` blocks the loopback http mock, so we drive
+    // the assertion through a client built with the same redirect policy.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/start"))
+        .respond_with(
+            ResponseTemplate::new(302).insert_header("location", "http://169.254.169.254/"),
+        )
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let resp = client.get(format!("{}/start", server.uri())).send().await.unwrap();
+    assert_eq!(
+        resp.status().as_u16(),
+        302,
+        "redirect must be surfaced, not followed to the internal target"
+    );
+}
+
 // ── S27-H2: Exponential backoff ───────────────────────────────────────────
 
 #[test]

@@ -24,7 +24,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   watchdog thread that calls `terminate_execution()` after the configured duration (catching
   tight synchronous loops that never yield to the event loop). The substring heuristics are
   deleted.
-- **PKCE challenge verification is now constant-time everywhere (L-pkce-triplication).**
+- **SSRF guards converged and hardened across the functions, federation, and observers
+  crates (M-fn-ssrf, M-fed-mut-ssrf, M-fed-allow-insecure, M-ssrf-blocklist).** Each
+  outbound-HTTP path now resolves DNS and blocks private/reserved addresses (closing the
+  DNS-rebinding TOCTOU), disables redirects (`Policy::none()` — a `3xx` can no longer bounce
+  to an internal target), and fails closed:
+  - **functions** `http_validator`: the default domain allowlist was `["*"]` (allow-all) —
+    now empty (deny-by-default); the guard now resolves the host and rejects private IPs
+    instead of only checking literal-IP hosts; the outbound client disables redirects.
+  - **federation** `HttpMutationClient` (the state-changing direction) gained the
+    `redirect(Policy::none())` + `https_only(true)` + DNS-rebinding guards its sibling entity
+    resolver already applied.
+  - **federation** `FRAISEQL_FEDERATION_ALLOW_INSECURE` is **removed**: it logged "HTTPS
+    enforcement disabled" while `https_only(true)` was unconditional — a lying no-op with no
+    recorded user. `http://` subgraph URLs are now rejected unconditionally.
+  - **observers**: the drifted SSRF blocklist duplicated in `executor/dispatch.rs` is deleted
+    in favour of the canonical `ssrf::validate_outbound_url` (with `0.0.0.0/8` and
+    `localhost.*`-alias coverage merged into the canonical first so nothing is lost) plus a
+    dispatch-time `dns_resolve_and_check`.
+- **The `sql_query` host read-only guard now inspects CTE bodies (M-cte-classifier).** The
   `provider::PkceChallenge::validate` compared the recomputed challenge with `==`
   (variable-time), a timing-attack vector, while the parallel `oauth::pkce::PkceChallenge`
   used constant-time `ct_eq`. The `provider` path now uses `subtle::ConstantTimeEq`, so all

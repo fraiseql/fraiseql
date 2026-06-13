@@ -75,7 +75,14 @@ impl HttpMutationClient {
     ///
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised.
     pub fn new(config: HttpMutationConfig) -> Result<Self> {
+        // Mutations are the state-changing (more dangerous) direction, so the
+        // client matches the entity resolver's SSRF posture:
+        // - `redirect(Policy::none())` so a 3xx from a compromised subgraph cannot bounce the
+        //   request to an un-validated internal target.
+        // - `https_only(true)` so plain http:// can never leave the client.
         let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .https_only(true)
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
             .map_err(|e| FraiseQLError::Internal {
@@ -104,7 +111,10 @@ impl HttpMutationClient {
         metadata: &FederationMetadata,
     ) -> Result<Value> {
         // SECURITY: Validate URL before any network contact to prevent SSRF.
+        // Static scheme/host/literal-IP check, then the DNS-rebinding guard —
+        // parity with the entity resolver via the shared crate helpers.
         crate::http_resolver::validate_subgraph_url(subgraph_url)?;
+        crate::http_resolver::dns_resolve_and_check(subgraph_url).await?;
 
         let client = self.client.as_ref().ok_or_else(|| FraiseQLError::Internal {
             message: "HTTP client not initialized".to_string(),

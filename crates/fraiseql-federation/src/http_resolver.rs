@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use fraiseql_error::{GraphQLError, Result};
 use serde_json::{Value, json};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     selection_parser::FieldSelection, tracing::FederationTraceContext, types::EntityRepresentation,
@@ -67,49 +67,26 @@ struct GraphQLResponse {
 /// Validate that a subgraph URL is safe to contact.
 ///
 /// Blocks SSRF attacks by:
-/// 1. Requiring `https://` scheme by default; `http://` is allowed only when the environment
-///    variable `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` is set.
+/// 1. Requiring the `https://` scheme — `http://` (and any non-HTTPS scheme) is always rejected.
 /// 2. Blocking `localhost` and `.localhost` hostnames.
 /// 3. Blocking literal private/reserved IP addresses (RFC 1918, loopback, link-local, CGNAT, ULA,
 ///    `IPv4`-mapped `IPv6`).
 ///
 /// Note: DNS-level SSRF (attacker-controlled domain that resolves to a
-/// private IP) is not mitigated here; that requires egress filtering at the
-/// network layer.
+/// private IP) is mitigated separately by [`dns_resolve_and_check`] at the
+/// request path.
 ///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Internal` if the scheme, host, or IP is forbidden.
 pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
-    // When `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // This is intended for local development and testing only — never set in production.
-    let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-
-    // Require https:// by default; allow http:// only when insecure mode is opt-in.
-    if url.starts_with("https://") {
-        // always allowed
-    } else if url.starts_with("http://") {
-        if !allow_insecure {
-            return Err(fraiseql_error::FraiseQLError::Internal {
-                message: "Subgraph URL must use https:// scheme (got http://). \
-                          Set FRAISEQL_FEDERATION_ALLOW_INSECURE=true to permit plain HTTP \
-                          in development environments."
-                    .to_string(),
-                source:  None,
-            });
-        }
-    } else {
+    // Require https:// unconditionally. Plain http:// and any other scheme are
+    // rejected — there is no bypass.
+    if !url.starts_with("https://") {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL must use https:// scheme (got: {url})"),
             source:  None,
         });
-    }
-
-    // When insecure mode is enabled, skip IP/hostname checks too (dev/test only).
-    if allow_insecure {
-        return Ok(());
     }
 
     // Parse the full URL to extract the host safely — manual string splitting
@@ -200,7 +177,7 @@ pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
 ///
 /// Returns `FraiseQLError::Internal` if DNS resolution fails, returns no
 /// addresses, or any resolved address is in a private/reserved range.
-async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
+pub(crate) async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
         message: format!("Invalid URL '{url}': {e}"),
         source:  None,
@@ -267,16 +244,6 @@ impl HttpEntityResolver {
             message: format!("HTTP client initialisation failed for federation resolver: {e}"),
             source:  None,
         })?;
-
-        let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
-            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-            .unwrap_or(false);
-        if allow_insecure {
-            warn!(
-                "FRAISEQL_FEDERATION_ALLOW_INSECURE=true — HTTPS enforcement disabled for \
-                 subgraph calls. This should ONLY be used in development environments."
-            );
-        }
 
         Ok(Self {
             client,

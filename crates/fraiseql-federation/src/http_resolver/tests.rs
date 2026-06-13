@@ -28,15 +28,15 @@ fn test_subgraph_url_allows_public_https() {
 }
 
 #[test]
-fn test_subgraph_url_rejects_http_scheme_by_default() {
-    // http:// must be rejected unless FRAISEQL_FEDERATION_ALLOW_INSECURE=true
+fn test_subgraph_url_rejects_http_scheme_unconditionally() {
+    // http:// is rejected unconditionally — there is no bypass env var.
     let result = validate_subgraph_url("http://api.example.com/graphql");
     assert!(
         matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
         "expected Internal error for http:// scheme, got: {result:?}"
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(msg.contains("https://") || msg.contains("FRAISEQL_FEDERATION_ALLOW_INSECURE"));
+    assert!(msg.contains("https://"), "error should mention the https requirement: {msg}");
 }
 
 #[test]

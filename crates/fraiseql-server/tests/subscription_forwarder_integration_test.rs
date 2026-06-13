@@ -19,11 +19,6 @@ use serde_json::json;
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
-/// Set the env var that allows http:// URLs for local dev/test.
-fn allow_insecure() {
-    std::env::set_var("FRAISEQL_FEDERATION_ALLOW_INSECURE", "true");
-}
-
 // ── Mock Subgraph WebSocket Server ──────────────────────────────────────────
 
 /// Configuration for a mock subgraph server.
@@ -144,7 +139,6 @@ async fn handle_mock_connection(stream: tokio::net::TcpStream, config: MockSubgr
 
 #[tokio::test]
 async fn test_forwarder_receives_next_events() {
-    allow_insecure();
     let config = MockSubgraphConfig {
         events: vec![
             json!({"type": "next", "id": "op_1", "payload": {"data": {"postCreated": {"id": "1", "body": "hello"}}}}),
@@ -154,7 +148,7 @@ async fn test_forwarder_receives_next_events() {
     };
 
     let (url, _shutdown) = spawn_mock_subgraph(config).await;
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, mut rx) = mpsc::channel(16);
     forwarder
@@ -175,7 +169,6 @@ async fn test_forwarder_receives_next_events() {
 
 #[tokio::test]
 async fn test_forwarder_receives_error_event() {
-    allow_insecure();
     let config = MockSubgraphConfig {
         events: vec![json!({
             "type": "error",
@@ -187,7 +180,7 @@ async fn test_forwarder_receives_error_event() {
     };
 
     let (url, _shutdown) = spawn_mock_subgraph(config).await;
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, mut rx) = mpsc::channel(16);
     forwarder
@@ -203,7 +196,6 @@ async fn test_forwarder_receives_error_event() {
 
 #[tokio::test]
 async fn test_forwarder_handles_complete_without_events() {
-    allow_insecure();
     let config = MockSubgraphConfig {
         events: vec![],
         send_complete: true,
@@ -211,7 +203,7 @@ async fn test_forwarder_handles_complete_without_events() {
     };
 
     let (url, _shutdown) = spawn_mock_subgraph(config).await;
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, mut rx) = mpsc::channel(16);
     forwarder
@@ -225,14 +217,13 @@ async fn test_forwarder_handles_complete_without_events() {
 
 #[tokio::test]
 async fn test_forwarder_init_timeout_when_no_ack() {
-    allow_insecure();
     let config = MockSubgraphConfig {
         send_ack: false,
         ..Default::default()
     };
 
     let (url, _shutdown) = spawn_mock_subgraph(config).await;
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, _rx) = mpsc::channel(16);
     let result = forwarder.forward("op_1", "subscription { x { id } }", json!({}), tx).await;
@@ -247,14 +238,13 @@ async fn test_forwarder_init_timeout_when_no_ack() {
 
 #[tokio::test]
 async fn test_forwarder_connection_refused() {
-    allow_insecure();
     // Bind a port then immediately drop the listener — connection will be refused
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     drop(listener);
 
     let url = format!("http://{addr}/graphql");
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, _rx) = mpsc::channel(16);
     let result = forwarder.forward("op_1", "subscription { x { id } }", json!({}), tx).await;
@@ -265,7 +255,6 @@ async fn test_forwarder_connection_refused() {
 
 #[tokio::test]
 async fn test_forwarder_passes_variables() {
-    allow_insecure();
     // The mock doesn't validate variables, but we verify the forwarder doesn't
     // reject them and completes successfully.
     let config = MockSubgraphConfig {
@@ -278,7 +267,7 @@ async fn test_forwarder_passes_variables() {
     };
 
     let (url, _shutdown) = spawn_mock_subgraph(config).await;
-    let forwarder = SubscriptionForwarder::new(&url).unwrap();
+    let forwarder = SubscriptionForwarder::new_for_test(&url);
 
     let (tx, mut rx) = mpsc::channel(16);
     forwarder

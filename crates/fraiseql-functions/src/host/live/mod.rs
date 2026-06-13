@@ -28,6 +28,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct HostContextConfig {
     /// Allowed domains for outbound HTTP requests (glob patterns).
+    ///
+    /// Deny-by-default: empty (the default) permits no outbound host. A caller
+    /// must explicitly allow each domain.
     pub allowed_domains: Vec<String>,
 
     /// Allowed environment variables to expose to functions.
@@ -49,8 +52,9 @@ pub struct HostContextConfig {
 impl Default for HostContextConfig {
     fn default() -> Self {
         Self {
-            allowed_domains:          vec!["*".to_string()], /* Allow all by default (should be
-                                                              * restricted) */
+            // Deny-by-default (fail-closed): no outbound host is permitted until
+            // the caller explicitly populates the allowlist.
+            allowed_domains:          vec![],
             allowed_env_vars:         HashSet::new(),
             max_http_response_bytes:  10 * 1024 * 1024, // 10 MB
             http_connect_timeout_ms:  5000,
@@ -238,14 +242,20 @@ impl HostContext for LiveHostContext {
             connect_timeout_ms: self.config.http_connect_timeout_ms,
             read_timeout_ms:    self.config.http_read_timeout_ms,
         };
-        http_validator::validate_outbound_url(url, &http_config)?;
+        // SSRF validation: allowlist + literal-IP + DNS-rebinding checks. Async
+        // because it resolves the host before any network contact.
+        http_validator::validate_outbound_url(url, &http_config).await?;
 
         // Get or create HTTP client
         let client = if let Some(client) = &self.http_client {
             client.clone()
         } else {
-            // Create a new client with configured timeouts
+            // Create a new client with configured timeouts.
+            // Redirects are disabled (`Policy::none()`) so a 3xx response cannot
+            // bounce the request to an un-validated internal target, bypassing
+            // the SSRF guard that was applied only to the initial URL.
             let client = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(std::time::Duration::from_millis(
                     self.config.http_connect_timeout_ms,
                 ))

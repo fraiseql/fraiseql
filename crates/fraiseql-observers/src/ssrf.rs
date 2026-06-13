@@ -36,8 +36,14 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
         host_raw
     };
 
+    // Block loopback hostnames before attempting IP parsing.
+    // Covers: `localhost`, `subdomain.localhost`, `localhost.localdomain`,
+    // and other `localhost.*` aliases common in /etc/hosts configurations.
     let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+    if lower_host == "localhost"
+        || lower_host.ends_with(".localhost")
+        || lower_host.starts_with("localhost.")
+    {
         return Err(ObserverError::InvalidConfig {
             message: format!("URL targets a loopback host ({host}) — SSRF protection blocked"),
         });
@@ -133,7 +139,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
             || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
             || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
-            || o == [0, 0, 0, 0] // unspecified
+            || o[0] == 0 // 0.0.0.0/8 "this network" (covers 0.0.0.0 unspecified)
         },
         std::net::IpAddr::V6(v6) => {
             v6.is_loopback()                                     // ::1
@@ -146,5 +152,58 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
                     && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
             }
         },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
+mod tests {
+    use super::*;
+
+    // Coverage retained when the drifted `dispatch.rs` copy was deleted and the
+    // webhook dispatch path converged onto this canonical guard.
+
+    #[test]
+    fn rejects_localhost_dot_prefix_alias() {
+        // `localhost.evil.com` and similar `localhost.` prefix aliases must be
+        // rejected — this check existed only in the deleted dispatch.rs copy.
+        let result = validate_outbound_url("https://localhost.evil.com/hook");
+        assert!(
+            result.is_err(),
+            "localhost.evil.com must be rejected as a loopback alias: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_localhost_suffix_and_bare() {
+        assert!(validate_outbound_url("https://localhost/hook").is_err());
+        assert!(validate_outbound_url("https://api.localhost/hook").is_err());
+    }
+
+    #[test]
+    fn rejects_zero_network_range() {
+        // 0.0.0.0/8 "this network" — the dispatch.rs copy blocked the whole /8
+        // via `o[0] == 0`; the canonical guard previously only blocked the exact
+        // 0.0.0.0 address.
+        assert!(validate_outbound_url("https://0.0.0.0/hook").is_err());
+        assert!(
+            validate_outbound_url("https://0.1.2.3/hook").is_err(),
+            "0.0.0.0/8 range must be blocked, not just the unspecified address"
+        );
+    }
+
+    #[test]
+    fn allows_public_host_and_ip() {
+        assert!(validate_outbound_url("https://api.example.com/hook").is_ok());
+        assert!(validate_outbound_url("https://8.8.8.8/hook").is_ok());
+    }
+
+    #[test]
+    fn rejects_private_and_loopback_ips() {
+        assert!(validate_outbound_url("https://127.0.0.1/hook").is_err());
+        assert!(validate_outbound_url("https://10.0.0.1/hook").is_err());
+        assert!(validate_outbound_url("https://192.168.1.1/hook").is_err());
+        assert!(validate_outbound_url("https://169.254.169.254/hook").is_err());
+        assert!(validate_outbound_url("https://[::1]/hook").is_err());
     }
 }

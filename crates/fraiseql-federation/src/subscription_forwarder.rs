@@ -115,6 +115,21 @@ impl SubscriptionForwarder {
         })
     }
 
+    /// Create a forwarder that skips SSRF URL validation.
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// Use to contact loopback/mock subgraph servers in integration tests over
+    /// plain `http://`/`ws://` without weakening the production SSRF guard.
+    ///
+    /// **Never use in production** — this bypasses all SSRF protections.
+    #[cfg(any(test, feature = "test-utils"))]
+    #[must_use]
+    pub fn new_for_test(subgraph_url: &str) -> Self {
+        Self {
+            subgraph_url: subgraph_url.to_string(),
+        }
+    }
+
     /// Forward a subscription to the remote subgraph.
     ///
     /// Connects via `WebSocket`, performs the `graphql-transport-ws` handshake,

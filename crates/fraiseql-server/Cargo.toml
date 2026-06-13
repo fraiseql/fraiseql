@@ -135,7 +135,7 @@ zeroize = "1.8"
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-auth = {workspace = true}
 fraiseql-cli = {workspace = true}
-fraiseql-federation = {workspace = true}
+fraiseql-federation = {workspace = true, features = ["test-utils"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 futures = "0.3"

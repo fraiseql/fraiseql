@@ -70,7 +70,32 @@ pub(super) fn resolve_url(
         });
     };
 
-    validate_url_ssrf(&url)?;
+    // Webhook-specific abuse guard: cap URL length before SSRF validation.
+    if url.len() > MAX_WEBHOOK_URL_LEN {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!(
+                "Webhook URL too long ({} bytes, max {MAX_WEBHOOK_URL_LEN})",
+                url.len()
+            ),
+        });
+    }
+
+    // Webhook transport accepts only http/https. The canonical SSRF guard is
+    // scheme-agnostic (it is shared with the NATS validator), so the http/https
+    // requirement is enforced here, at the webhook call site.
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!("{action_name} URL must use http:// or https:// scheme (got: {url})"),
+        });
+    }
+
+    // Static SSRF validation via the canonical guard (host/loopback/literal-IP).
+    // DNS-rebinding is handled at dispatch time via `dns_resolve_and_check`.
+    // The canonical guard surfaces `InvalidConfig`; remap to `InvalidActionConfig`
+    // so the dispatch path keeps its action-config error contract.
+    crate::ssrf::validate_outbound_url(&url).map_err(|e| ObserverError::InvalidActionConfig {
+        reason: e.to_string(),
+    })?;
     Ok(url)
 }
 
@@ -95,118 +120,6 @@ pub(super) fn resolve_signing_secret(env_var: Option<&str>) -> Result<Option<Str
     Ok(Some(secret))
 }
 
-/// Validate a URL against Server-Side Request Forgery (SSRF) attack vectors.
-///
-/// Rejects:
-/// - Non-http/https schemes
-/// - URLs exceeding [`MAX_WEBHOOK_URL_LEN`] bytes
-/// - URLs with no host
-/// - `localhost` / `*.localhost` hostnames
-/// - Literal IP addresses that fall inside private, loopback, link-local, shared-address-space, or
-///   IPv4-mapped `IPv6` ranges
-///
-/// # Note
-///
-/// DNS-based SSRF (where a public hostname resolves to a private IP) requires
-/// a connect-time check at the HTTP client level and is beyond the scope of
-/// this static validation.
-fn validate_url_ssrf(url: &str) -> Result<()> {
-    // The `FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass is honored only in
-    // development environments; refused when any production marker is set.
-    // See `crate::insecure_guard` for the full policy.
-    if crate::insecure_guard::is_outbound_insecure_allowed() {
-        return Ok(());
-    }
-
-    if url.len() > MAX_WEBHOOK_URL_LEN {
-        return Err(ObserverError::InvalidActionConfig {
-            reason: format!(
-                "Webhook URL too long ({} bytes, max {MAX_WEBHOOK_URL_LEN})",
-                url.len()
-            ),
-        });
-    }
-
-    // Require http or https scheme.
-    let rest = if let Some(r) = url.strip_prefix("https://") {
-        r
-    } else if let Some(r) = url.strip_prefix("http://") {
-        r
-    } else {
-        return Err(ObserverError::InvalidActionConfig {
-            reason: format!("Webhook URL must use http:// or https:// scheme (got: {url})"),
-        });
-    };
-
-    // Extract the host, handling IPv6 bracket notation ([::1]:port or [::1]).
-    let authority = rest.split('/').next().unwrap_or("");
-    let host = if authority.starts_with('[') {
-        // IPv6 literal: strip surrounding brackets and any trailing :port.
-        authority.split(']').next().unwrap_or("").trim_start_matches('[')
-    } else {
-        // IPv4 or hostname: strip optional :port.
-        authority.split(':').next().unwrap_or("")
-    };
-
-    if host.is_empty() {
-        return Err(ObserverError::InvalidActionConfig {
-            reason: "Webhook URL has no host".to_string(),
-        });
-    }
-
-    // Block loopback hostnames before attempting IP parsing.
-    // Covers: `localhost`, `subdomain.localhost`, `localhost.localdomain`,
-    // and other `localhost.*` aliases common in /etc/hosts configurations.
-    let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost"
-        || lower_host.ends_with(".localhost")
-        || lower_host.starts_with("localhost.")
-    {
-        return Err(ObserverError::InvalidActionConfig {
-            reason: format!("Webhook URL targets a loopback host: {host}"),
-        });
-    }
-
-    // If the host is a literal IP address, block private / reserved ranges.
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if is_ssrf_blocked_ip(&ip) {
-            return Err(ObserverError::InvalidActionConfig {
-                reason: format!("Webhook URL targets a private or reserved IP address: {ip}"),
-            });
-        }
-    }
-
-    Ok(())
-}
-
-/// Returns `true` for IP addresses that outbound webhooks must never contact.
-///
-/// Covers: loopback (127/8, `::1`), RFC 1918 private (10/8, 172.16/12, 192.168/16),
-/// link-local / APIPA (169.254/16, `fe80::/10`), shared address space (100.64/10,
-/// RFC 6598), IPv4-mapped `IPv6` (`::ffff:0:0/96`), and ULA (`fc00::/7`).
-fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127                                                // 127.0.0.0/8  loopback
-            || o[0] == 10                                              // 10.0.0.0/8   RFC 1918
-            || (o[0] == 172 && (16..=31).contains(&o[1]))             // 172.16.0.0/12 RFC 1918
-            || (o[0] == 192 && o[1] == 168)                           // 192.168.0.0/16 RFC 1918
-            || (o[0] == 169 && o[1] == 254)                           // 169.254.0.0/16 link-local
-            || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000)  // 100.64.0.0/10 RFC 6598
-            || o[0] == 0 // 0.0.0.0/8 this-network
-        },
-        std::net::IpAddr::V6(v6) => {
-            let s = v6.segments();
-            *v6 == std::net::Ipv6Addr::LOCALHOST                      // ::1 loopback
-            || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
-                && s[4] == 0 && s[5] == 0xffff)                      // ::ffff:0:0/96 IPv4-mapped
-            || (s[0] & 0xfe00) == 0xfc00                             // fc00::/7  ULA
-            || (s[0] & 0xffc0) == 0xfe80 // fe80::/10 link-local
-        },
-    }
-}
-
 impl ActionDispatcher for DefaultActionDispatcher {
     fn dispatch<'a>(
         &'a self,
@@ -227,6 +140,9 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 } => {
                     debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
                     let webhook_url = resolve_url(url.as_deref(), url_env.as_deref(), "Webhook")?;
+                    // DNS-rebinding guard: re-resolve at dispatch time and reject
+                    // any host whose addresses fall in a private/reserved range.
+                    crate::ssrf::dns_resolve_and_check(&webhook_url).await?;
                     let signing_secret = resolve_signing_secret(signing_secret_env.as_deref())?;
 
                     match self
@@ -257,6 +173,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 } => {
                     let slack_url =
                         resolve_url(webhook_url.as_deref(), webhook_url_env.as_deref(), "Slack")?;
+                    // DNS-rebinding guard: re-resolve at dispatch time.
+                    crate::ssrf::dns_resolve_and_check(&slack_url).await?;
 
                     match self
                         .slack_action

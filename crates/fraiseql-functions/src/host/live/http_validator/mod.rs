@@ -14,7 +14,11 @@ use fraiseql_error::{FraiseQLError, Result};
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
     /// Allowed domains for outbound requests (glob patterns).
-    /// Use "*" for unrestricted access (NOT recommended for production).
+    ///
+    /// Deny-by-default: an empty list (the default) permits **no** outbound
+    /// hosts — a caller must explicitly opt in to each domain. Glob patterns
+    /// such as `"*.example.com"` are supported; `"*"` allows all hosts and is
+    /// NOT recommended for production.
     pub allowed_domains: Vec<String>,
 
     /// Maximum response body size in bytes.
@@ -30,7 +34,9 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            allowed_domains:    vec!["*".to_string()],
+            // Deny-by-default (fail-closed): no host is allowed until the caller
+            // explicitly populates the allowlist.
+            allowed_domains:    vec![],
             max_response_bytes: 10 * 1024 * 1024, // 10 MB
             connect_timeout_ms: 5000,
             read_timeout_ms:    30000,
@@ -41,9 +47,12 @@ impl Default for HttpClientConfig {
 /// Validate an outbound URL for SSRF attacks.
 ///
 /// Checks:
-/// 1. Domain is in the allowlist (supports glob patterns)
-/// 2. IP address is not private/reserved (RFC 1918, 127.0.0.0/8, 169.254.0.0/16, etc.)
-/// 3. `IPv6` addresses are not private (loopback, link-local, ULA)
+/// 1. Domain is in the allowlist (deny-by-default; supports glob patterns)
+/// 2. Literal IP address in the host is not private/reserved (RFC 1918, 127.0.0.0/8,
+///    169.254.0.0/16, etc.)
+/// 3. The host's DNS-resolved addresses are not private/reserved — closes the DNS-rebinding hole
+///    where a public name resolves to an internal IP
+/// 4. `IPv6` addresses are not private (loopback, link-local, ULA)
 ///
 /// # Arguments
 ///
@@ -53,13 +62,13 @@ impl Default for HttpClientConfig {
 /// # Returns
 ///
 /// - `Ok(())` if the URL is safe to request
-/// - `Err` if the URL is blocked by allowlist or is a private IP
+/// - `Err` if the URL is blocked by allowlist or resolves to a private IP
 ///
 /// # Errors
 ///
-/// Returns `Err` if the URL is malformed, blocked by the allowlist, or resolves to a
-/// private/reserved IP address.
-pub fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()> {
+/// Returns `Err` if the URL is malformed, blocked by the allowlist, fails DNS
+/// resolution, or resolves to a private/reserved IP address.
+pub async fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()> {
     // Parse the URL
     let parsed_url = reqwest::Url::parse(url).map_err(|e| FraiseQLError::Validation {
         message: format!("invalid URL: {}", e),
@@ -81,9 +90,33 @@ pub fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()>
         });
     }
 
-    // Check for private/reserved IPs
+    // Check for private/reserved IPs in a literal-IP host.
     if let Ok(ip) = parse_ip_from_host(host) {
         validate_ip(&ip)?;
+        // A literal IP cannot be rebound via DNS; the literal check above is
+        // sufficient and `lookup_host` on a literal would only echo it back.
+        return Ok(());
+    }
+
+    // DNS-rebinding guard: resolve the host and reject if ANY address is
+    // private/reserved. A public name that resolves to an internal IP is the
+    // classic SSRF bypass; checking literal IPs alone does not cover it.
+    let port = parsed_url.port_or_known_default().unwrap_or(443);
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| FraiseQLError::Validation {
+            message: format!("DNS resolution failed for host '{host}': {e}"),
+            path:    None,
+        })?
+        .collect();
+    if addrs.is_empty() {
+        return Err(FraiseQLError::Validation {
+            message: format!("DNS resolved to no addresses for host '{host}'"),
+            path:    None,
+        });
+    }
+    for addr in &addrs {
+        validate_ip(&addr.ip())?;
     }
 
     Ok(())
@@ -182,10 +215,22 @@ fn validate_ip(ip: &IpAddr) -> Result<()> {
 }
 
 /// Check if an `IPv4` address is reserved.
-/// This is a workaround since `Ipv4Addr::is_reserved()` is unstable.
+///
+/// Covers the reserved ranges not already caught by the dedicated
+/// `is_loopback`/`is_private`/`is_link_local` checks in [`validate_ip`]:
+/// - `0.0.0.0/8` "this network"
+/// - `100.64.0.0/10` CGNAT / shared address space (RFC 6598)
+/// - `240.0.0.0/4` reserved-for-future-use (includes the `255.255.255.255` broadcast)
+///
+/// This is a workaround since `Ipv4Addr::is_reserved()` is unstable. It is kept
+/// precise on purpose: an earlier version blocked the whole `100..=127` first
+/// octet, which wrongly rejected large public ranges (e.g. Cloudflare `104.x`).
+/// Loopback `127.0.0.0/8` remains blocked via `is_loopback()`.
 const fn is_ipv4_reserved(ip: std::net::Ipv4Addr) -> bool {
     let octets = ip.octets();
-    matches!(octets[0], 0 | 100..=127 | 240..=255)
+    octets[0] == 0                                              // 0.0.0.0/8 this-network
+        || (octets[0] == 100 && (octets[1] & 0b1100_0000) == 0b0100_0000) // 100.64.0.0/10 CGNAT
+        || matches!(octets[0], 240..=255) // 240.0.0.0/4 reserved/future + broadcast
 }
 
 #[cfg(test)]
