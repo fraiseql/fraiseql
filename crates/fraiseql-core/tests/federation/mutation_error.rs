@@ -70,6 +70,10 @@ async fn test_mutation_authorization_error() {
         "role": "superadmin"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     // Execute mutation (authorization would be checked at application level)
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
@@ -94,6 +98,10 @@ async fn test_mutation_duplicate_key_error() {
         "email": "test@example.com"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     // Execute mutation (duplicate key would be caught at DB level if constrained)
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
@@ -121,6 +129,10 @@ async fn test_mutation_latency_single_entity() {
         "name": "Updated User"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
     result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(User/updateUser) single entity failed: {e}")
@@ -147,6 +159,10 @@ async fn test_mutation_latency_batch_updates() {
             "name": format!("Updated User {}", i)
         });
 
+        executor
+            .execute_local_mutation("User", "createUser", &variables)
+            .await
+            .unwrap_or_else(|e| panic!("seed createUser batch iteration {i} failed: {e}"));
         let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
         result.unwrap_or_else(|e| {
             panic!("execute_local_mutation(User/updateUser) batch iteration {i} failed: {e}")

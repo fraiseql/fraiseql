@@ -173,6 +173,10 @@ async fn test_mutation_return_all_requested_fields() {
         "address": "123 Main St"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(User/updateUser) multi-field failed: {e}")
@@ -215,6 +219,10 @@ async fn test_mutation_return_computed_fields() {
         "total": 110.00  // Computed field
     });
 
+    executor
+        .execute_local_mutation("Order", "createOrder", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createOrder failed: {e}"));
     let result = executor.execute_local_mutation("Order", "updateOrder", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(Order/updateOrder) computed fields failed: {e}")
@@ -245,6 +253,10 @@ async fn test_mutation_return_related_entities() {
         "status": "confirmed"
     });
 
+    executor
+        .execute_local_mutation("Order", "createOrder", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createOrder failed: {e}"));
     let result = executor.execute_local_mutation("Order", "updateOrder", &variables).await;
     let response = result.unwrap_or_else(|e| {
         panic!("execute_local_mutation(Order/updateOrder) related entities failed: {e}")

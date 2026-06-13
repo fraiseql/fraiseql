@@ -72,6 +72,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation local mutations read the row back instead of echoing the input (#430,
+  M-fed-mut-executor).** `execute_local_mutation` built its response from the input `variables` and
+  ran the `INSERT`/`UPDATE`/`DELETE` without inspecting the result, so it returned a fabricated
+  "success" even when an `UPDATE`/`DELETE` matched no row (the entity didn't exist), and never
+  reflected database-computed columns. The mutation SQL now uses `RETURNING *`; the response is the
+  actual post-mutation row (`__typename` plus every returned column), and a 0-row `UPDATE`/`DELETE`
+  returns `FraiseQLError::NotFound` (404). **Behavior change:** a federation mutation against a
+  non-existent entity now fails loud instead of reporting success. (Un-parks the two
+  `mutation_cross_graph` tests that were deferred to this work.)
 - **The MSSQL→NATS bridge honours its configured `batch_size` (M-mssql-batch).** The change-log
   fetch query hardcoded `SELECT TOP (100)` and discarded the configured `batch_size` (a `let _ =
   batch_size` swallowed it), so a deployment that tuned the batch size was silently capped at 100

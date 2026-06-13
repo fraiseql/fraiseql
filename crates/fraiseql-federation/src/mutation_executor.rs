@@ -3,7 +3,7 @@
 //! Executes GraphQL mutations on federation entities, handling both
 //! local mutations (owned entities) and extended mutations (non-owned).
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_db::traits::DatabaseAdapter;
 use fraiseql_error::Result;
@@ -12,7 +12,7 @@ use serde_json::Value;
 use crate::{
     metadata_helpers::find_federation_type,
     mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
-    types::FederationMetadata,
+    types::{FederatedType, FederationMetadata},
 };
 
 /// Type of mutation being performed.
@@ -54,6 +54,29 @@ fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
     }
 }
 
+/// Build the federation entity response from a read-back row: `__typename`
+/// followed by every column the database returned.
+fn build_entity_response(typename: &str, row: HashMap<String, Value>) -> Value {
+    let mut map = serde_json::Map::with_capacity(row.len() + 1);
+    map.insert("__typename".to_string(), Value::String(typename.to_string()));
+    map.extend(row);
+    Value::Object(map)
+}
+
+/// Best-effort identifier for a not-found error: the value of the entity's first
+/// key field from the input variables, or `<unknown>` if absent.
+fn key_identifier(fed_type: &FederatedType, variables: &Value) -> String {
+    fed_type
+        .keys
+        .first()
+        .and_then(|k| k.fields.first())
+        .and_then(|field| variables.get(field))
+        .map_or_else(
+            || "<unknown>".to_string(),
+            |v| v.as_str().map_or_else(|| v.to_string(), ToString::to_string),
+        )
+}
+
 /// Executes federation mutations.
 #[derive(Clone)]
 pub struct FederationMutationExecutor<A: DatabaseAdapter> {
@@ -81,22 +104,20 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     ///
     /// # Returns
     ///
-    /// The entity in federation format.
+    /// The mutated row read back from the database, in federation format
+    /// (`__typename` plus every returned column).
     ///
-    /// # Known limitation (M-fed-mut-executor, deferred to Phase 09)
-    ///
-    /// This currently builds the response from the **input** `variables` rather
-    /// than reading the mutated row back from the database, and does not inspect
-    /// the affected-row count — so a 0-row `UPDATE`/`DELETE` (entity absent) still
-    /// returns a response. A faithful implementation needs a `RETURNING`-style
-    /// read-back, which is database-dialect-specific and reworks the federation
-    /// mutation integration tests; tracked separately. Unknown operation names
-    /// now fail loud rather than defaulting to `UPDATE`.
+    /// The mutation SQL uses `RETURNING *`, so the response reflects the actual
+    /// database state — including DB-computed defaults — rather than echoing the
+    /// input (#430). A `0`-row `UPDATE`/`DELETE` means the targeted entity does
+    /// not exist and returns [`FraiseQLError::NotFound`] instead of a fabricated
+    /// success. Unknown operation names fail loud (`determine_mutation_type`).
     ///
     /// # Errors
     ///
     /// Returns error if the operation name is unrecognised, the entity type is
-    /// unknown, query construction fails, or mutation execution fails.
+    /// unknown, query construction fails, mutation execution fails, or an
+    /// `UPDATE`/`DELETE` matched no row (`FraiseQLError::NotFound`).
     pub async fn execute_local_mutation(
         &self,
         typename: &str,
@@ -116,30 +137,31 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
             MutationType::Delete => build_delete_query(typename, variables, &self.metadata)?,
         };
 
-        // Execute the mutation
-        let _rows = self.adapter.execute_raw_query(&sql).await?;
+        // Execute the mutation and read the affected row back (RETURNING *).
+        let returned = self.adapter.execute_raw_query(&sql).await?.into_iter().next();
 
-        // Build response entity with key fields and updated values
-        let mut response = serde_json::Map::new();
-        response.insert("__typename".to_string(), Value::String(typename.to_string()));
+        let row = match (mutation_type, returned) {
+            // A row came back — use it verbatim (the real post-mutation state).
+            (_, Some(row)) => row,
+            // An INSERT that returns no row is a backend contract violation.
+            (MutationType::Create, None) => {
+                return Err(fraiseql_error::FraiseQLError::Database {
+                    message:   format!(
+                        "INSERT into '{typename}' returned no row from RETURNING *"
+                    ),
+                    sql_state: None,
+                });
+            },
+            // A 0-row UPDATE/DELETE means the targeted entity does not exist.
+            (MutationType::Update | MutationType::Delete, None) => {
+                return Err(fraiseql_error::FraiseQLError::not_found(
+                    typename,
+                    key_identifier(fed_type, variables),
+                ));
+            },
+        };
 
-        // Add key fields to response
-        if let Some(key_directive) = fed_type.keys.first() {
-            for key_field in &key_directive.fields {
-                if let Some(value) = variables.get(key_field) {
-                    response.insert(key_field.clone(), value.clone());
-                }
-            }
-        }
-
-        // Add updated fields to response
-        if let Some(obj) = variables.as_object() {
-            for (field, value) in obj {
-                response.insert(field.clone(), value.clone());
-            }
-        }
-
-        Ok(Value::Object(response))
+        Ok(build_entity_response(typename, row))
     }
 
     /// Execute a mutation on an extended (non-owned) entity.

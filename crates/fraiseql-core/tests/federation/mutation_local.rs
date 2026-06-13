@@ -2,10 +2,12 @@
 //!
 //! `execute_local_mutation` builds a plain `INSERT`/`UPDATE`/`DELETE` against the
 //! lowercased entity type name and runs it via `execute_raw_query`, so each test
-//! provisions the columns its variables reference. The executor echoes the input
-//! variables into the response (it does not read the row back — finding
-//! M-fed-mut-executor), so the assertions exercise the input echo while the SQL
-//! actually parses and executes against a real schema.
+//! provisions the columns its variables reference. The executor now reads the
+//! mutated row back via `RETURNING *` (#430) instead of echoing the input, and a
+//! `0`-row `UPDATE`/`DELETE` returns `FraiseQLError::NotFound`. Because of that,
+//! every `UPDATE`/`DELETE` test seeds its row first (via the `createX` verb with
+//! the same variables) so a real row exists to mutate; the read-back then returns
+//! that row, whose values equal the seeded+updated input.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code, panics + skip notes acceptable
 use serde_json::json;
@@ -57,6 +59,10 @@ async fn test_mutation_update_owned_entity() {
         "email": "updated@example.com",
         "name": "Updated Name"
     });
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
     let response =
@@ -80,6 +86,10 @@ async fn test_mutation_delete_owned_entity() {
     let variables = json!({
         "id": "user_to_delete"
     });
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "deleteUser", &variables).await;
 
     let response =
@@ -107,6 +117,10 @@ async fn test_mutation_owned_entity_returns_updated_representation() {
         "price": 29.99,
         "stock": 100
     });
+    executor
+        .execute_local_mutation("Product", "createProduct", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createProduct failed: {e}"));
     let result = executor.execute_local_mutation("Product", "updateProduct", &variables).await;
 
     let entity = result
@@ -136,6 +150,10 @@ async fn test_mutation_owned_entity_batch_updates() {
             "name": format!("User {}", i)
         });
 
+        executor
+            .execute_local_mutation("User", "createUser", &variables)
+            .await
+            .unwrap_or_else(|e| panic!("seed createUser batch iteration {i} failed: {e}"));
         let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
         let response = result.unwrap_or_else(|e| {
@@ -163,6 +181,10 @@ async fn test_mutation_composite_key_update() {
         "order_id": "order_456",
         "status": "confirmed"
     });
+    executor
+        .execute_local_mutation("Order", "createOrder", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createOrder failed: {e}"));
     let result = executor.execute_local_mutation("Order", "updateOrder", &variables).await;
 
     let response =
@@ -209,6 +231,10 @@ async fn test_mutation_constraint_violation() {
         "email": "existing@example.com"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
     // Should succeed in building and executing the query (no constraint defined)
@@ -234,6 +260,10 @@ async fn test_mutation_concurrent_updates() {
             "name": format!("Updated User {}", i)
         });
 
+        executor
+            .execute_local_mutation("User", "createUser", &variables)
+            .await
+            .unwrap_or_else(|e| panic!("seed createUser concurrent iteration failed: {e}"));
         let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
         result.unwrap_or_else(|e| {
@@ -257,6 +287,10 @@ async fn test_mutation_transaction_rollback() {
         "email": "test@example.com"
     });
 
+    executor
+        .execute_local_mutation("User", "createUser", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
     let result = executor.execute_local_mutation("User", "updateUser", &variables).await;
 
     // In real scenario with DB transaction, would test rollback

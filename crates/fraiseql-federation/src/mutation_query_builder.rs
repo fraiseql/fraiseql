@@ -72,8 +72,10 @@ pub fn build_update_query(
 
     let key_value_str = value_to_sql_literal(key_value)?;
 
+    // `RETURNING *` so the executor reads the mutated row back instead of echoing
+    // the input, and can detect a 0-row UPDATE (absent entity) (#430).
     Ok(format!(
-        "UPDATE {} SET {} WHERE {} = {}",
+        "UPDATE {} SET {} WHERE {} = {} RETURNING *",
         table_name,
         set_clauses.join(", "),
         quote_postgres_identifier(key_field),
@@ -132,7 +134,12 @@ pub fn build_insert_query(
         .join(", ");
     let values_str = values.join(", ");
 
-    Ok(format!("INSERT INTO {} ({}) VALUES ({})", table_name, columns_str, values_str))
+    // `RETURNING *` so the executor returns the actually-inserted row (including
+    // DB defaults) instead of echoing the input (#430).
+    Ok(format!(
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
+        table_name, columns_str, values_str
+    ))
 }
 
 /// Build a DELETE query from mutation variables.
@@ -169,8 +176,10 @@ pub fn build_delete_query(
 
     let key_value_str = value_to_sql_literal(key_value)?;
 
+    // `RETURNING *` so the executor returns the row that was deleted and can
+    // detect a 0-row DELETE (absent entity) (#430).
     Ok(format!(
-        "DELETE FROM {} WHERE {} = {}",
+        "DELETE FROM {} WHERE {} = {} RETURNING *",
         table_name,
         quote_postgres_identifier(key_field),
         key_value_str

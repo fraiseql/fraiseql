@@ -51,8 +51,13 @@ async fn test_mutation_coordinate_two_subgraph_updates() {
         return;
     };
 
-    // Update order (subgraph 1, local)
+    // Update order (subgraph 1, local). Seed the row first so the read-back
+    // UPDATE matches an existing entity (#430).
     let order_vars = json!({"order_id": "order123", "status": "confirmed"});
+    executor
+        .execute_local_mutation("Order", "createOrder", &order_vars)
+        .await
+        .unwrap_or_else(|e| panic!("seed createOrder failed: {e}"));
     executor
         .execute_local_mutation("Order", "updateOrder", &order_vars)
         .await
@@ -69,7 +74,6 @@ async fn test_mutation_coordinate_two_subgraph_updates() {
 }
 
 #[tokio::test]
-#[ignore = "local op name 'verifyUser' is not create/update/delete; determine_mutation_type now fails loud (M-fed-mut-executor) instead of silently defaulting to UPDATE. Cross-graph mutation rework is deferred to Phase 09 — see #430"]
 async fn test_mutation_coordinate_three_subgraph_updates() {
     // Coordinate mutations across three subgraphs
     let metadata = FederationMetadata {
@@ -126,12 +130,19 @@ async fn test_mutation_coordinate_three_subgraph_updates() {
         return;
     };
 
-    // Update user in subgraph 1 (local)
-    let user_vars = json!({"id": "user123", "status": "verified"});
+    // Update user in subgraph 1 (local). Seed the row, then update it and verify
+    // the response is read back from the database, not echoed from input (#430).
     executor
-        .execute_local_mutation("User", "verifyUser", &user_vars)
+        .execute_local_mutation("User", "createUser", &json!({"id": "user123", "status": "new"}))
         .await
-        .unwrap_or_else(|e| panic!("execute_local_mutation(User/verifyUser) failed: {e}"));
+        .unwrap_or_else(|e| panic!("seed createUser failed: {e}"));
+    let user_vars = json!({"id": "user123", "status": "verified"});
+    let updated = executor
+        .execute_local_mutation("User", "updateUser", &user_vars)
+        .await
+        .unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) failed: {e}"));
+    assert_eq!(updated["__typename"], "User");
+    assert_eq!(updated["status"], "verified", "read-back must reflect the updated DB row");
 
     // Update order in subgraph 2 (extended)
     let order_vars = json!({"order_id": "order123", "status": "processing"});
@@ -216,8 +227,12 @@ async fn test_mutation_circular_reference_handling() {
         return;
     };
 
-    // Update author (local)
+    // Update author (local). Seed first so the read-back UPDATE matches (#430).
     let author_vars = json!({"author_id": "author1", "name": "Updated Author"});
+    executor
+        .execute_local_mutation("Author", "createAuthor", &author_vars)
+        .await
+        .unwrap_or_else(|e| panic!("seed createAuthor failed: {e}"));
     executor
         .execute_local_mutation("Author", "updateAuthor", &author_vars)
         .await
@@ -250,6 +265,11 @@ async fn test_mutation_multi_subgraph_transaction() {
         "balance": 1000.00
     });
 
+    // Seed first so the read-back UPDATE matches an existing account (#430).
+    executor
+        .execute_local_mutation("Account", "createAccount", &variables)
+        .await
+        .unwrap_or_else(|e| panic!("seed createAccount failed: {e}"));
     executor
         .execute_local_mutation("Account", "updateAccount", &variables)
         .await
@@ -257,9 +277,11 @@ async fn test_mutation_multi_subgraph_transaction() {
 }
 
 #[tokio::test]
-#[ignore = "local op name 'executeTransaction' is not create/update/delete; determine_mutation_type now fails loud (M-fed-mut-executor) instead of silently defaulting to UPDATE. Rollback-on-failure coverage depends on the deferred read-back semantics — Phase 09, see #430"]
-async fn test_mutation_subgraph_failure_rollback() {
-    // Rollback on subgraph failure
+async fn test_mutation_absent_local_entity_fails_loud() {
+    // A local UPDATE against a row that does not exist must fail loud with a
+    // not-found error (0-row read-back), not silently "succeed" by echoing the
+    // input — the failure semantics a cross-subgraph coordinator relies on to
+    // roll back (#430).
     let metadata = common::metadata_single_key("Transaction", "txn_id");
     let Some((_pg, executor)) = common::pg_mutation_executor(
         metadata,
@@ -267,21 +289,24 @@ async fn test_mutation_subgraph_failure_rollback() {
     )
     .await
     else {
-        eprintln!("SKIP test_mutation_subgraph_failure_rollback: no postgres");
+        eprintln!("SKIP test_mutation_absent_local_entity_fails_loud: no postgres");
         return;
     };
 
+    // The `transaction` table is empty — this UPDATE matches no row.
     let variables = json!({
         "txn_id": "txn123",
         "amount": 100.00
     });
 
-    executor
-        .execute_local_mutation("Transaction", "executeTransaction", &variables)
+    let err = executor
+        .execute_local_mutation("Transaction", "updateTransaction", &variables)
         .await
-        .unwrap_or_else(|e| {
-            panic!("execute_local_mutation(Transaction/executeTransaction) failed: {e}")
-        });
+        .expect_err("an UPDATE matching no row must error, not fabricate success");
+    assert!(
+        err.to_string().contains("not found"),
+        "0-row UPDATE must be a not-found error, got: {err}"
+    );
 }
 
 #[tokio::test]
@@ -323,6 +348,8 @@ async fn test_mutation_concurrent_request_handling() {
                     "id": format!("user{}", i),
                     "name": format!("Updated User {}", i)
                 });
+                // Seed each row so the read-back UPDATE matches (#430).
+                exec.execute_local_mutation("User", "createUser", &variables).await?;
                 exec.execute_local_mutation("User", "updateUser", &variables).await
             })
         })
@@ -334,4 +361,83 @@ async fn test_mutation_concurrent_request_handling() {
         join_result
             .unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) failed: {e}"));
     }
+}
+
+// ── #430 read-back acceptance ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn local_update_reads_back_db_row_not_input_echo() {
+    // The `version` column has a DB default and is never present in the input;
+    // its appearance in the response proves the row is read back from the
+    // database (RETURNING *), not echoed from the input variables.
+    let metadata = common::metadata_single_key("Widget", "id");
+    let Some((_pg, executor)) = common::pg_mutation_executor(
+        metadata,
+        &[("widget", &["id text", "status text", "version int not null default 7"])],
+    )
+    .await
+    else {
+        eprintln!("SKIP local_update_reads_back_db_row_not_input_echo: no postgres");
+        return;
+    };
+
+    executor
+        .execute_local_mutation("Widget", "createWidget", &json!({"id": "w1", "status": "new"}))
+        .await
+        .unwrap_or_else(|e| panic!("seed createWidget failed: {e}"));
+    let resp = executor
+        .execute_local_mutation("Widget", "updateWidget", &json!({"id": "w1", "status": "active"}))
+        .await
+        .unwrap_or_else(|e| panic!("updateWidget failed: {e}"));
+
+    assert_eq!(resp["__typename"], "Widget");
+    assert_eq!(resp["status"], "active", "read-back reflects the updated value");
+    assert_eq!(
+        resp["version"], 7,
+        "the DB-default column must come from RETURNING *, not the input echo"
+    );
+}
+
+#[tokio::test]
+async fn local_delete_absent_row_is_not_found() {
+    let metadata = common::metadata_single_key("Widget", "id");
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("widget", &["id text"])]).await
+    else {
+        eprintln!("SKIP local_delete_absent_row_is_not_found: no postgres");
+        return;
+    };
+
+    let err = executor
+        .execute_local_mutation("Widget", "deleteWidget", &json!({"id": "ghost"}))
+        .await
+        .expect_err("a DELETE matching no row must error");
+    assert!(
+        err.to_string().contains("not found"),
+        "0-row DELETE must be a not-found error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn local_delete_returns_the_deleted_row() {
+    let metadata = common::metadata_single_key("Widget", "id");
+    let Some((_pg, executor)) =
+        common::pg_mutation_executor(metadata, &[("widget", &["id text", "status text"])]).await
+    else {
+        eprintln!("SKIP local_delete_returns_the_deleted_row: no postgres");
+        return;
+    };
+
+    executor
+        .execute_local_mutation("Widget", "createWidget", &json!({"id": "w9", "status": "live"}))
+        .await
+        .unwrap_or_else(|e| panic!("seed createWidget failed: {e}"));
+    let resp = executor
+        .execute_local_mutation("Widget", "deleteWidget", &json!({"id": "w9"}))
+        .await
+        .unwrap_or_else(|e| panic!("deleteWidget failed: {e}"));
+
+    assert_eq!(resp["__typename"], "Widget");
+    assert_eq!(resp["id"], "w9", "DELETE ... RETURNING * returns the removed row");
+    assert_eq!(resp["status"], "live");
 }
