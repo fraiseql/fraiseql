@@ -8,10 +8,10 @@
 //!
 //! 1. After a successful `OAuth` token exchange, call [`AccountStore::link_or_create_user`] with
 //!    the email (and its verified flag), provider name, and provider-specific user ID.
-//! 2. The store resolves an identity key. Cross-provider linking happens **only** when the
-//!    provider supplies a non-empty, verified email; otherwise the identity is keyed on
-//!    `(provider, provider_id)` so that an absent or unverified email can never collapse two
-//!    distinct provider identities into one account (see [`AccountStore::link_or_create_user`]).
+//! 2. The store resolves an identity key. Cross-provider linking happens **only** when the provider
+//!    supplies a non-empty, verified email; otherwise the identity is keyed on `(provider,
+//!    provider_id)` so that an absent or unverified email can never collapse two distinct provider
+//!    identities into one account (see [`AccountStore::link_or_create_user`]).
 //!    - **Existing account**: the new provider credential is linked to the existing account and the
 //!      existing `user_id` is returned.
 //!    - **New account**: a fresh `user_id` is generated, the account is stored, and the new

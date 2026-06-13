@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use dashmap::DashMap;
 use tokio::sync::{Mutex, RwLock};
@@ -215,55 +215,27 @@ impl SecretsBackend for VaultBackend {
         }
         drop(cache);
 
-        // S47: acquire the per-secret rotation lock before fetching from Vault.
-        // This prevents a concurrent rotate_secret from placing a stale value into
-        // the cache immediately after the rotation's own cache write.
-        self.with_secret_lock(name, || async {
-            // Re-check the cache under the lock — rotation may have populated it
-            // while we were waiting.
-            let cache = self.cache.read().await;
-            if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
-                return Ok((cached_value, cached_expiry));
-            }
-            drop(cache);
-
-            // Fetch from Vault
-            let response = self.fetch_secret(name).await?;
-
-            // Calculate expiry: now + lease_duration
-            let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
-            // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
-            let cache_ttl_secs =
-                response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
-            let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
-
-            // Extract secret from response data
-            let secret_str = Self::extract_secret_from_response(&response, name)?;
-
-            // Store in cache
-            let cache = self.cache.read().await;
-            cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
-
-            Ok((secret_str, expiry))
-        })
-        .await
+        // S47: acquire the per-secret rotation lock once, then run the lock-free
+        // fetch+cache body. This prevents a concurrent rotate_secret from placing a
+        // stale value into the cache immediately after the rotation's own cache write.
+        self.with_secret_lock(name, || self.fetch_and_cache_locked(name)).await
     }
 
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // S47: hold the per-secret rotation lock across the invalidate→fetch sequence.
-        // Any concurrent get_secret_with_expiry calls will wait until rotation completes,
-        // then pick up the new value from the cache on their re-check (double-checked locking).
+        // S47/H10: hold the per-secret rotation lock once across the invalidate→fetch
+        // sequence. We call the lock-free fetch helper directly rather than
+        // get_secret_with_expiry (which would re-acquire the same non-reentrant mutex
+        // and self-deadlock). Concurrent get_secret_with_expiry calls wait until
+        // rotation completes, then pick up the new value on their re-check.
         self.with_secret_lock(name, || async {
             // Invalidate the cache entry so the subsequent fetch gets fresh credentials.
             let cache = self.cache.read().await;
             cache.invalidate(name).await;
             drop(cache);
 
-            let (new_secret, _) = self.get_secret_with_expiry(name).await?;
+            let (new_secret, _) = self.fetch_and_cache_locked(name).await?;
             Ok(new_secret)
         })
         .await
@@ -329,6 +301,11 @@ impl VaultBackend {
         role_id: &str,
         secret_id: &str,
     ) -> Result<Self, SecretsError> {
+        // SECURITY (H15): validate the address BEFORE posting the AppRole credentials.
+        // The token path validates first; AppRole must not deliver the high-value
+        // secret_id to an unvalidated (possibly SSRF-targeted) address.
+        validate_vault_addr(addr)?;
+
         let client = reqwest::Client::builder()
             .timeout(VAULT_REQUEST_TIMEOUT)
             .build()
@@ -501,6 +478,47 @@ impl VaultBackend {
         };
         let _guard = lock.lock().await;
         f().await
+    }
+
+    /// Fetch `name` from Vault and populate the cache, assuming the caller already
+    /// holds the per-secret rotation lock.
+    ///
+    /// This is the lock-free body shared by `get_secret_with_expiry` and
+    /// `rotate_secret`. It never calls `with_secret_lock`, so the two callers can each
+    /// acquire the non-reentrant per-secret mutex exactly once without self-deadlocking
+    /// (H10). The caller MUST hold the lock for the cache invariants to hold.
+    async fn fetch_and_cache_locked(
+        &self,
+        name: &str,
+    ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
+        // Re-check the cache under the lock — rotation may have populated it while we
+        // were waiting (double-checked locking).
+        let cache = self.cache.read().await;
+        if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
+            return Ok((cached_value, cached_expiry));
+        }
+        drop(cache);
+
+        // Fetch from Vault
+        let response = self.fetch_secret(name).await?;
+
+        // Calculate expiry: now + lease_duration
+        let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
+        // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
+        let cache_ttl_secs =
+            response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
+        let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
+
+        // Extract secret from response data
+        let secret_str = Self::extract_secret_from_response(&response, name)?;
+
+        // Store in cache
+        let cache = self.cache.read().await;
+        cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+
+        Ok((secret_str, expiry))
     }
 
     /// Returns `true` if the Vault auth token should be renewed.
@@ -749,8 +767,10 @@ impl VaultBackend {
             key_name
         );
 
+        // Vault's Go server uses base64.StdEncoding (PADDED). Unpadded base64 is
+        // rejected for plaintext lengths not divisible by 3 (H14).
         let request_body = serde_json::json!({
-            "plaintext": STANDARD_NO_PAD.encode(plaintext)
+            "plaintext": STANDARD.encode(plaintext)
         });
 
         let response = self
@@ -805,8 +825,8 @@ impl VaultBackend {
         // Get plaintext from response
         let plaintext_b64 = self.handle_transit_response(response, "plaintext", "decrypt").await?;
 
-        // Decode base64 to get original plaintext
-        STANDARD_NO_PAD
+        // Decode Vault's PADDED standard base64 plaintext (H14).
+        STANDARD
             .decode(&plaintext_b64)
             .ok()
             .and_then(|bytes| String::from_utf8(bytes).ok())

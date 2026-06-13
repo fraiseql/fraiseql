@@ -528,6 +528,120 @@ async fn vault_approle_rejects_oversized_response() {
     assert!(result.is_err(), "oversized approle response must be rejected; got: {result:?}");
 }
 
+// ── Phase 06 Cycle 2: Vault trio (H10 / H14 / H15) ────────────────────────────
+
+/// H10: `rotate_secret` must not self-deadlock on its own per-secret rotation lock.
+///
+/// It previously acquired the lock, then called `get_secret_with_expiry`, which
+/// re-acquired the same non-reentrant mutex → permanent hang. Wrapped in a timeout so
+/// the deadlock surfaces as a test failure instead of hanging the suite.
+#[tokio::test]
+async fn vault_rotate_secret_does_not_self_deadlock() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/secret/db-password"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "abc-123",
+            "lease_id": "",
+            "lease_duration": 3600,
+            "renewable": false,
+            "data": {"value": "rotated-secret"}
+        })))
+        .mount(&mock)
+        .await;
+
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let rotated = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        vault.rotate_secret("secret/db-password"),
+    )
+    .await
+    .expect("rotate_secret self-deadlocked (H10): timed out");
+    assert!(
+        rotated.unwrap().contains("rotated-secret"),
+        "rotation should return the freshly fetched secret"
+    );
+}
+
+/// H14: Transit `encrypt_field` must send PADDED standard base64 (real Vault rejects
+/// unpadded for lengths not divisible by 3). "hello" is 5 bytes → padded `aGVsbG8=`.
+#[tokio::test]
+async fn vault_transit_encrypt_sends_padded_base64() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{body_json, method, path},
+    };
+
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/transit/encrypt/my-key"))
+        .and(body_json(serde_json::json!({"plaintext": "aGVsbG8="})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "data": {"ciphertext": "vault:v1:xyz"}
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let ciphertext = vault.encrypt_field("my-key", "hello").await.unwrap();
+    assert_eq!(ciphertext, "vault:v1:xyz", "encrypt must send padded base64 Vault accepts");
+}
+
+/// H14: Transit `decrypt_field` must accept Vault's always-PADDED standard base64
+/// plaintext. The old `STANDARD_NO_PAD` decoder errors on the trailing `=`.
+#[tokio::test]
+async fn vault_transit_decrypt_accepts_padded_base64() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/transit/decrypt/my-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "data": {"plaintext": "aGVsbG8="} // base64("hello"), padded, as real Vault returns
+        })))
+        .mount(&mock)
+        .await;
+
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let plaintext = vault.decrypt_field("my-key", "vault:v1:xyz").await.unwrap();
+    assert_eq!(plaintext, "hello", "decrypt must accept Vault's padded base64 plaintext");
+}
+
+/// H15: `with_approle` must validate the address (SSRF guard) BEFORE posting the
+/// `role_id`/`secret_id`. A loopback address is blocked, so zero requests must reach
+/// the server — `expect(0)` fails if any credential POST was sent.
+#[tokio::test]
+async fn vault_approle_validates_address_before_sending_credentials() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/approle/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auth": {"client_token": "should-never-be-requested", "lease_duration": 3600}
+        })))
+        .expect(0)
+        .mount(&mock)
+        .await;
+
+    // mock.uri() is loopback (127.0.0.1) → blocked by validate_vault_addr.
+    let result = VaultBackend::with_approle(mock.uri().as_str(), "role-id", "secret-id").await;
+    assert!(result.is_err(), "with_approle must reject a loopback address (H15): {result:?}");
+    // Mock drop verifies expect(0): no credential POST was sent.
+}
+
 // ── S32: Debug redaction ──────────────────────────────────────────────────────
 
 /// `format!("{:?}")` on `VaultBackend` must not expose the auth token.

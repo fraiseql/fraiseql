@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Vault `AppRole` login validates the address before sending credentials (H15, SSRF).**
+  `with_approle` POSTed the `role_id`/`secret_id` to the configured address and only
+  afterwards ran the SSRF address check, so a misconfigured/attacker-influenced address
+  (e.g. `169.254.169.254`) received the high-value `secret_id` before the guard fired.
+  `validate_vault_addr` now runs as the first statement, matching the token path.
+
+### Fixed
+
+- **Vault `rotate_secret` no longer self-deadlocks (H10).** It held the per-secret
+  rotation mutex and then called `get_secret_with_expiry`, which re-acquired the same
+  non-reentrant lock — a permanent hang on first invocation that wedged the
+  lease-renewal loop. The fetch+cache body is now a lock-free helper both methods call
+  while holding the lock exactly once.
+- **Vault Transit encrypt/decrypt use padded standard base64 (H14).** Encryption sent
+  `STANDARD_NO_PAD` plaintext (real Vault's Go `base64.StdEncoding` rejects unpadded for
+  ~2/3 of lengths) and decryption decoded Vault's always-padded response with
+  `STANDARD_NO_PAD` (errors on the trailing `=`). Both directions now use padded
+  `STANDARD`, so Transit round-trips against a real Vault.
+
 - **Account linking no longer collapses email-less provider identities into one account (H26, account takeover).**
   `link_or_create_user` previously keyed every account on the provider's email and treated a
   missing email as the empty string, so every user whose provider omits an email (a GitHub
