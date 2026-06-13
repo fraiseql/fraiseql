@@ -37,9 +37,8 @@ impl PaddleVerifier {
 
     /// Set a custom timestamp tolerance (in seconds).
     ///
-    /// The value is stored verbatim; the shared
-    /// [`check_timestamp_freshness`](crate::signature::check_timestamp_freshness)
-    /// saturates it to [`i64::MAX`] at comparison time, so a large tolerance can
+    /// The value is stored verbatim; the shared `check_timestamp_freshness`
+    /// saturates it to `i64::MAX` at comparison time, so a large tolerance can
     /// never wrap to a negative window.
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {

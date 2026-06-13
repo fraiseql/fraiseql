@@ -110,7 +110,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// The mutation SQL uses `RETURNING *`, so the response reflects the actual
     /// database state — including DB-computed defaults — rather than echoing the
     /// input (#430). A `0`-row `UPDATE`/`DELETE` means the targeted entity does
-    /// not exist and returns [`FraiseQLError::NotFound`] instead of a fabricated
+    /// not exist and returns `FraiseQLError::NotFound` instead of a fabricated
     /// success. Unknown operation names fail loud (`determine_mutation_type`).
     ///
     /// # Errors

@@ -150,11 +150,11 @@ pub type Result<T> = std::result::Result<T, WebhookError>;
 /// HTTP 400 — so a transient database blip during webhook handling told the
 /// sender "permanent client error, do not retry", losing the event. Now:
 ///
-/// - [`WebhookError::Database`] → [`FraiseQLError::Database`] (5xx, retryable): a backend blip must
+/// - [`WebhookError::Database`] → `FraiseQLError::Database` (5xx, retryable): a backend blip must
 ///   let the sender re-deliver.
-/// - [`WebhookError::MissingSecret`] → [`FraiseQLError::Configuration`] (5xx): a server-side
+/// - [`WebhookError::MissingSecret`] → `FraiseQLError::Configuration` (5xx): a server-side
 ///   misconfiguration, not the sender's fault.
-/// - [`WebhookError::InvalidPayload`] → [`FraiseQLError::Webhook`] (400): the sender's payload is
+/// - [`WebhookError::InvalidPayload`] → `FraiseQLError::Webhook` (400): the sender's payload is
 ///   genuinely malformed; a 4xx is correct.
 impl From<WebhookError> for fraiseql_error::FraiseQLError {
     fn from(e: WebhookError) -> Self {
