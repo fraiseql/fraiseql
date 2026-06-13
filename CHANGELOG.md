@@ -114,7 +114,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prefix to `UPDATE`, so a typo'd or unsupported mutation silently issued an `UPDATE`; it now
   errors. The remaining read-back correctness (return the mutated row via `RETURNING` instead
   of echoing the input; treat 0-row `UPDATE`/`DELETE` as not-found) is documented and deferred
-  to Phase 09 ([#430](https://github.com/fraiseql/fraiseql/issues/430)).
+  to Phase 09 ([#430](https://github.com/fraiseql/fraiseql/issues/430)). The two cross-graph
+  integration tests that relied on the old silent default (`verifyUser`,
+  `executeTransaction`) are parked with `#[ignore]` pointing at the same issue, so they still
+  compile as the acceptance spec for the Phase 09 rework.
 - **`InMemoryStateStore` now evicts the oldest entry at capacity instead of returning 500
   (L-state-store-doc).** The struct documented LRU-style eviction, but `store` returned a
   `ConfigError` (500) once the cap was reached — an availability footgun under CSRF-state
