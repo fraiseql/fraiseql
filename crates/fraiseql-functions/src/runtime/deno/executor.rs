@@ -11,10 +11,13 @@
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
-use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2};
+use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
 use crate::types::{LogEntry, LogLevel, ResourceLimits};
@@ -138,16 +141,18 @@ pub fn run_in_dedicated_thread(
     event_value: &Value,
     limits: &ResourceLimits,
 ) -> Result<ExecutionResult, String> {
-    // Resource-limit guards (pattern-based, matched before V8 invocation)
-    let has_unbounded_alloc = source.contains("while (true)") && source.contains("ArrayBuffer");
-    let has_infinite_loop = source.contains("while (true)") && !source.contains("ArrayBuffer");
-
-    if has_unbounded_alloc {
-        return Err("Memory limit exceeded: unbounded allocation detected".to_string());
-    }
-    if has_infinite_loop {
-        return Err("Execution timeout: infinite loop detected".to_string());
-    }
+    // Resource limits are enforced for real against the V8 isolate (M-deno-limits):
+    //
+    //   * Memory: the isolate is created with a hard heap limit (`max_memory_bytes`) and a
+    //     near-heap-limit callback that terminates execution when V8 approaches that limit.
+    //   * CPU/time: a watchdog thread terminates the isolate after `max_duration`, catching tight
+    //     synchronous loops (`while (true) {}`) that never yield to the async event loop, in
+    //     addition to the event-loop `tokio::time::timeout` guard that catches async hangs
+    //     (unresolved promises).
+    //
+    // The previous substring heuristics (matching `while (true)` / `ArrayBuffer` in
+    // the source) were removed: they false-positived on those substrings appearing
+    // in comments or string literals and missed every other form of DoS.
 
     // Shared log storage
     let logs_arc: Arc<Mutex<Vec<LogEntry>>> = Arc::new(Mutex::new(Vec::new()));
@@ -164,6 +169,15 @@ pub fn run_in_dedicated_thread(
 
     // Extract before async move to avoid partial-move into the closure.
     let max_duration = limits.max_duration;
+    // V8's heap limit is expressed in `usize`; saturate on 32-bit targets where the
+    // configured `u64` limit could exceed the address space.
+    let max_memory_bytes = usize::try_from(limits.max_memory_bytes).unwrap_or(usize::MAX);
+
+    // Flags shared with the heap-limit callback and the watchdog thread so that,
+    // once V8 execution is terminated, we can report *why* (memory vs. timeout)
+    // rather than surfacing the opaque "execution terminated" V8 error.
+    let mem_exceeded_run = Arc::new(AtomicBool::new(false));
+    let timed_out_run = Arc::new(AtomicBool::new(false));
 
     // Create a single-threaded Tokio runtime for deno's event loop.
     // This is safe because we're in a fresh OS thread with no existing Tokio context.
@@ -173,30 +187,100 @@ pub fn run_in_dedicated_thread(
         .map_err(|e| format!("Failed to create tokio runtime: {e}"))?;
 
     let result = rt.block_on(async move {
+        // Hard heap limit enforced by V8: the isolate may not grow past
+        // `max_memory_bytes`. `0` initial lets V8 pick a sane starting size.
+        let create_params = v8::CreateParams::default().heap_limits(0, max_memory_bytes);
+
         let mut js_runtime = JsRuntime::new(RuntimeOptions {
             extensions: vec![make_fraiseql_extension(collector)],
+            create_params: Some(create_params),
             ..Default::default()
         });
 
-        // Execute the wrapped script
-        js_runtime.execute_script("<fraiseql-function>", wrapped).map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("SyntaxError") || msg.contains("Parse") {
-                format!("SyntaxError: {msg}")
-            } else {
-                format!("Execution error: {msg}")
+        // Watchdog: terminate the isolate after `max_duration`. This catches tight
+        // *synchronous* loops (`while (true) {}`) that never yield to the async
+        // event loop, so the `tokio::time::timeout` below cannot fire. The handle
+        // is thread-safe (Send + Sync) and may be invoked from any thread.
+        let isolate_handle = js_runtime.v8_isolate().thread_safe_handle();
+        let watchdog_done = Arc::new(AtomicBool::new(false));
+        let watchdog_done_thread = Arc::clone(&watchdog_done);
+        let timed_out_watchdog = Arc::clone(&timed_out_run);
+        let watchdog = std::thread::spawn(move || {
+            // Poll so we can exit promptly once the script finishes, without
+            // waiting out the full deadline.
+            let deadline = std::time::Instant::now() + max_duration;
+            let poll = std::time::Duration::from_millis(10);
+            while std::time::Instant::now() < deadline {
+                if watchdog_done_thread.load(Ordering::Acquire) {
+                    return;
+                }
+                std::thread::sleep(poll);
             }
-        })?;
+            if !watchdog_done_thread.load(Ordering::Acquire) {
+                timed_out_watchdog.store(true, Ordering::Release);
+                isolate_handle.terminate_execution();
+            }
+        });
+
+        // Near-heap-limit callback: when V8 approaches the hard limit, flag the
+        // condition and terminate execution. We bump the returned limit so V8 does
+        // not `FatalProcessOutOfMemory` (which would abort the whole process)
+        // before the termination exception propagates out of the running script.
+        let mem_flag = Arc::clone(&mem_exceeded_run);
+        let heap_handle = js_runtime.v8_isolate().thread_safe_handle();
+        js_runtime.add_near_heap_limit_callback(move |current_limit, _initial| {
+            mem_flag.store(true, Ordering::Release);
+            heap_handle.terminate_execution();
+            // Grant headroom so V8 can unwind via the termination exception instead
+            // of crashing the process.
+            current_limit.saturating_add(current_limit / 2).max(current_limit + 1)
+        });
+
+        // Helper to convert a raw V8/deno error into a meaningful message,
+        // distinguishing limit-driven termination from ordinary failures.
+        let classify = |raw: &str, mem: &Arc<AtomicBool>, time: &Arc<AtomicBool>| -> String {
+            if mem.load(Ordering::Acquire) {
+                "Memory limit exceeded: heap allocation exceeded the configured limit".to_string()
+            } else if time.load(Ordering::Acquire) {
+                "Execution timeout: script exceeded the configured time limit".to_string()
+            } else if raw.contains("SyntaxError") || raw.contains("Parse") {
+                format!("SyntaxError: {raw}")
+            } else {
+                format!("Execution error: {raw}")
+            }
+        };
+
+        // Execute the wrapped script
+        let exec_outcome = js_runtime.execute_script("<fraiseql-function>", wrapped);
+
+        // Stop the watchdog as soon as the (possibly terminating) script returns.
+        watchdog_done.store(true, Ordering::Release);
+
+        if let Err(e) = exec_outcome {
+            return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
+        }
 
         // Drive the event loop to resolve Promises from async functions.
         // Enforce the max_duration timeout to prevent infinite hangs.
-        tokio::time::timeout(
+        let loop_outcome = tokio::time::timeout(
             max_duration,
             js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()),
         )
-        .await
-        .map_err(|_| "Execution timeout: event loop exceeded time limit".to_string())?
-        .map_err(|e| format!("Event loop error: {e}"))?;
+        .await;
+
+        match loop_outcome {
+            Err(_) => {
+                return Err("Execution timeout: event loop exceeded time limit".to_string());
+            },
+            Ok(Err(e)) => {
+                return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
+            },
+            Ok(Ok(())) => {},
+        }
+
+        // Script and event loop finished cleanly: stop and reap the watchdog.
+        watchdog_done.store(true, Ordering::Release);
+        let _ = watchdog.join();
 
         // Retrieve the result stored in globalThis.__fraiseql_result
         let result_global = js_runtime

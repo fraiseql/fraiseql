@@ -179,12 +179,15 @@ impl FunctionRuntime for DenoRuntime {
                 let _ = tx.send(result);
             });
 
-            let duration = start.elapsed();
-
             let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
                 message: "Deno executor thread crashed".to_string(),
                 source:  None,
             })?;
+
+            // Measure AFTER the executor thread completes (M-deno-duration). Taking
+            // the elapsed time right after spawning measured only channel setup,
+            // not the actual script execution awaited on `rx`.
+            let duration = start.elapsed();
 
             match exec_result {
                 Ok(execution_result) => Ok(FunctionResult {

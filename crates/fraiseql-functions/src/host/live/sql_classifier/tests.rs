@@ -138,3 +138,84 @@ fn test_classify_invalid_sql_returns_error() {
     let result = classify_sql("INVALID SYNTAX HERE");
     assert!(result.is_err());
 }
+
+#[test]
+fn test_classify_benign_cte_is_readonly() {
+    let result = classify_sql("WITH t AS (SELECT 1) SELECT * FROM t");
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), SqlClassification::ReadOnly);
+}
+
+#[test]
+fn test_classify_insert_cte_is_rejected_as_writable() {
+    let result = classify_sql("WITH t AS (INSERT INTO x VALUES (1) RETURNING *) SELECT * FROM t");
+    assert!(result.is_ok());
+    match result.unwrap() {
+        SqlClassification::Rejected(RejectionReason::WritableCte) => (),
+        other => panic!("expected WritableCte, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_classify_update_cte_is_rejected_as_writable() {
+    let result =
+        classify_sql("WITH t AS (UPDATE x SET a = 1 WHERE id = 2 RETURNING *) SELECT * FROM t");
+    assert!(result.is_ok());
+    match result.unwrap() {
+        SqlClassification::Rejected(RejectionReason::WritableCte) => (),
+        other => panic!("expected WritableCte, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_classify_delete_cte_is_rejected_as_writable() {
+    let result = classify_sql("WITH t AS (DELETE FROM x RETURNING *) SELECT * FROM t");
+    assert!(result.is_ok());
+    match result.unwrap() {
+        SqlClassification::Rejected(RejectionReason::WritableCte) => (),
+        other => panic!("expected WritableCte, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_classify_writable_cte_among_benign_ctes_is_rejected() {
+    // The writable CTE is not the first one in the list.
+    let result =
+        classify_sql("WITH a AS (SELECT 1), b AS (DELETE FROM x RETURNING *) SELECT * FROM a");
+    assert!(result.is_ok());
+    match result.unwrap() {
+        SqlClassification::Rejected(RejectionReason::WritableCte) => (),
+        other => panic!("expected WritableCte, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_classify_nested_subquery_writable_cte_is_rejected() {
+    // The data-modifying CTE is buried inside a derived-table subquery in FROM.
+    let result = classify_sql(
+        "WITH outer_cte AS (\
+            SELECT * FROM (\
+                WITH inner_cte AS (DELETE FROM x RETURNING *) SELECT * FROM inner_cte\
+            ) sub\
+        ) SELECT * FROM outer_cte",
+    );
+    assert!(result.is_ok());
+    match result.unwrap() {
+        SqlClassification::Rejected(RejectionReason::WritableCte) => (),
+        other => panic!("expected WritableCte, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_classify_benign_nested_cte_is_readonly() {
+    // Nested CTEs and subqueries that are all read-only must remain ReadOnly.
+    let result = classify_sql(
+        "WITH outer_cte AS (\
+            SELECT * FROM (\
+                WITH inner_cte AS (SELECT 1) SELECT * FROM inner_cte\
+            ) sub\
+        ) SELECT * FROM outer_cte",
+    );
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), SqlClassification::ReadOnly);
+}

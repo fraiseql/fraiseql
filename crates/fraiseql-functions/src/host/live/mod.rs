@@ -205,9 +205,14 @@ impl HostContext for LiveHostContext {
         let classification = sql_classifier::classify_sql(sql)?;
         match classification {
             sql_classifier::SqlClassification::ReadOnly => {
-                // Would execute query here (not yet implemented)
-                // For now, return a placeholder
-                Ok(vec![])
+                // The query passed read-only classification, but execution is not
+                // wired. Returning `Ok(vec![])` (M-sql-query-stub) made a valid
+                // SELECT look like it ran and returned zero rows; fail loud instead.
+                Err(fraiseql_error::FraiseQLError::Unsupported {
+                    message: "sql_query host function is not implemented: the statement \
+                              was accepted as read-only but no execution backend is wired"
+                        .to_string(),
+                })
             },
             sql_classifier::SqlClassification::Rejected(reason) => {
                 Err(fraiseql_error::FraiseQLError::Authorization {

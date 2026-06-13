@@ -1,7 +1,55 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::path::PathBuf;
 
+use super::{GuestOutcome, map_guest_outcome};
 use crate::{EventPayload, FunctionModule, RuntimeType};
+
+// ── M-fn-failure-contract: guest failures must surface as `Err`, not data ──────
+//
+// Both runtimes share one failure contract: a guest-reported error becomes
+// `Err(FraiseQLError::Unsupported)` rather than `Ok(FunctionResult { value:
+// Some({"error": ...}) })`. These tests pin the WASM mapping to that contract.
+
+#[test]
+fn test_guest_ok_outcome_is_successful_value() {
+    let result = map_guest_outcome(GuestOutcome::Ok(r#"{"answer":42}"#.to_string()));
+    let value = result.expect("Ok outcome should map to Ok").expect("should carry a value");
+    assert_eq!(value, serde_json::json!({"answer": 42}));
+}
+
+#[test]
+fn test_guest_error_outcome_is_err_not_data() {
+    // A guest returning Err must NOT become a successful `{"error": ...}` value.
+    let result = map_guest_outcome(GuestOutcome::GuestError("boom".to_string()));
+    match result {
+        Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
+            assert_eq!(message, "boom");
+        },
+        other => panic!("expected Err(Unsupported), got {other:?}"),
+    }
+}
+
+#[test]
+fn test_guest_timeout_outcome_is_err() {
+    let result = map_guest_outcome(GuestOutcome::Timeout);
+    match result {
+        Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
+            assert!(message.contains("timed out"), "got {message}");
+        },
+        other => panic!("expected Err(Unsupported), got {other:?}"),
+    }
+}
+
+#[test]
+fn test_guest_trap_outcome_is_err() {
+    let result = map_guest_outcome(GuestOutcome::Trap("unreachable".to_string()));
+    match result {
+        Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
+            assert!(message.contains("WASM trap"), "got {message}");
+        },
+        other => panic!("expected Err(Unsupported), got {other:?}"),
+    }
+}
 
 /// Helper to find test fixture file
 fn fixture_path(name: &str) -> PathBuf {

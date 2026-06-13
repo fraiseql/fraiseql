@@ -166,7 +166,7 @@ async fn test_host_query_without_executor_returns_unsupported() {
 // SQL Query Tests
 
 #[tokio::test]
-async fn test_host_sql_query_returns_rows() {
+async fn test_host_sql_query_readonly_is_unimplemented() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
         entity:       "User".to_string(),
@@ -181,8 +181,16 @@ async fn test_host_sql_query_returns_rows() {
         .sql_query("SELECT id, name FROM users WHERE active = $1", &[serde_json::json!(true)])
         .await;
 
-    // Should succeed (SELECT is allowed)
-    assert!(result.is_ok());
+    // The SELECT passes read-only classification, but execution is not wired
+    // (M-sql-query-stub): it fails loud with `Unsupported` rather than silently
+    // returning zero rows.
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
+            assert!(message.contains("not implemented"), "got {message}");
+        },
+        other => panic!("expected Unsupported error, got {:?}", other),
+    }
 }
 
 #[tokio::test]
@@ -375,7 +383,15 @@ async fn test_host_sql_query_allows_explain_without_analyze() {
 
     let result = ctx.sql_query("EXPLAIN SELECT * FROM users", &[]).await;
 
-    assert!(result.is_ok());
+    // EXPLAIN (without ANALYZE) classifies as read-only, so it is NOT rejected with
+    // an Authorization error. Execution is unimplemented (M-sql-query-stub), so it
+    // fails loud with `Unsupported` rather than being treated as a write.
+    match result {
+        Err(fraiseql_error::FraiseQLError::Unsupported { .. }) => (),
+        other => {
+            panic!("expected Unsupported error (read-only but unimplemented), got {:?}", other)
+        },
+    }
 }
 
 #[tokio::test]

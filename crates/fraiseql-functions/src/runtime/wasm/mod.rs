@@ -251,20 +251,20 @@ impl WasmRuntime {
         let collected_logs = store.data().logs.clone();
         let peak_memory = store.data().memory_peak_bytes;
 
-        let result_value = match call_result {
-            Ok((Ok(result_json),)) => Some(serde_json::from_str(&result_json).unwrap_or_else(
-                |e| serde_json::json!({ "error": format!("invalid JSON from guest: {e}") }),
-            )),
-            Ok((Err(error_msg),)) => Some(serde_json::json!({ "error": error_msg })),
+        let outcome = match call_result {
+            Ok((Ok(result_json),)) => GuestOutcome::Ok(result_json),
+            Ok((Err(error_msg),)) => GuestOutcome::GuestError(error_msg),
             Err(trap) => {
                 let msg = trap.to_string();
                 if msg.contains("epoch deadline") || duration > timeout {
-                    Some(serde_json::json!({ "error": "function execution timed out" }))
+                    GuestOutcome::Timeout
                 } else {
-                    Some(serde_json::json!({ "error": format!("WASM trap: {msg}") }))
+                    GuestOutcome::Trap(msg)
                 }
             },
         };
+
+        let result_value = map_guest_outcome(outcome)?;
 
         Ok(FunctionResult {
             value: result_value,
@@ -272,6 +272,47 @@ impl WasmRuntime {
             duration,
             memory_peak_bytes: peak_memory,
         })
+    }
+}
+
+/// The outcome of calling the guest's `handle` export, normalised away from the
+/// wasmtime-specific call-result types so the failure contract can be unit-tested.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GuestOutcome {
+    /// The guest returned `Ok(json)` — the JSON string it produced as data.
+    Ok(String),
+    /// The guest returned `Err(message)` — a guest-reported failure.
+    GuestError(String),
+    /// The guest execution timed out (epoch deadline / duration exceeded).
+    Timeout,
+    /// The guest trapped (panic, OOM, illegal instruction); carries the trap message.
+    Trap(String),
+}
+
+/// Map a guest outcome onto the shared runtime failure contract.
+///
+/// A successful guest return (`Ok`) yields `Ok(Some(value))`. Every failure mode
+/// — a guest-returned `Err`, a timeout, or a trap — yields
+/// `Err(FraiseQLError::Unsupported)`, matching what the Deno runtime returns for an
+/// equivalent guest runtime error (M-fn-failure-contract). A guest error must not
+/// be silently treated as successful data.
+fn map_guest_outcome(outcome: GuestOutcome) -> Result<Option<serde_json::Value>> {
+    match outcome {
+        GuestOutcome::Ok(result_json) => {
+            let value = serde_json::from_str(&result_json).unwrap_or_else(
+                |e| serde_json::json!({ "error": format!("invalid JSON from guest: {e}") }),
+            );
+            Ok(Some(value))
+        },
+        GuestOutcome::GuestError(message) => {
+            Err(fraiseql_error::FraiseQLError::Unsupported { message })
+        },
+        GuestOutcome::Timeout => Err(fraiseql_error::FraiseQLError::Unsupported {
+            message: "function execution timed out".to_string(),
+        }),
+        GuestOutcome::Trap(msg) => Err(fraiseql_error::FraiseQLError::Unsupported {
+            message: format!("WASM trap: {msg}"),
+        }),
     }
 }
 

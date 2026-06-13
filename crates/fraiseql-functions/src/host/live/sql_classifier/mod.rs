@@ -101,8 +101,17 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
     use sqlparser::ast::Statement;
 
     match stmt {
-        // Only SELECT queries are allowed
-        Statement::Query(_) => Ok(SqlClassification::ReadOnly),
+        // SELECT queries are allowed *only* if no part of the query tree contains a
+        // data-modifying statement. PostgreSQL permits data-modifying CTEs
+        // (`WITH t AS (DELETE FROM x RETURNING *) SELECT * FROM t`); such a query
+        // parses as `Statement::Query` but must NOT be treated as read-only.
+        Statement::Query(q) => {
+            if query_is_data_modifying(q) {
+                Ok(SqlClassification::Rejected(RejectionReason::WritableCte))
+            } else {
+                Ok(SqlClassification::ReadOnly)
+            }
+        },
 
         // EXPLAIN is allowed, but not EXPLAIN ANALYZE (which executes the statement)
         Statement::Explain { analyze, .. } => {
@@ -237,6 +246,84 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
         _ => Ok(SqlClassification::Rejected(RejectionReason::Unknown(
             format!("{:?}", stmt).chars().take(50).collect(),
         ))),
+    }
+}
+
+/// Returns `true` if any part of the query tree contains a data-modifying
+/// statement (INSERT / UPDATE / DELETE / MERGE), reachable via:
+///
+/// - the query's `WITH` clause (CTE bodies), including data-modifying CTEs such as `WITH t AS
+///   (DELETE FROM x RETURNING *) SELECT * FROM t`
+/// - the query body itself and nested set operations / parenthesised subqueries
+/// - derived tables (parenthesised subqueries in `FROM`) and nested joins, which may themselves
+///   contain data-modifying CTEs
+///
+/// In sqlparser's AST a data-modifying statement embedded in a query body is
+/// represented as `SetExpr::Insert`, `SetExpr::Update`, `SetExpr::Delete`, or
+/// `SetExpr::Merge`. `DELETE … RETURNING` inside a CTE is modelled as
+/// `SetExpr::Delete`, not as a separate statement.
+fn query_is_data_modifying(query: &sqlparser::ast::Query) -> bool {
+    // Inspect every CTE body in the WITH clause.
+    if let Some(with) = &query.with {
+        if with.cte_tables.iter().any(|cte| query_is_data_modifying(&cte.query)) {
+            return true;
+        }
+    }
+
+    // Inspect the query body (and anything nested within it).
+    set_expr_is_data_modifying(&query.body)
+}
+
+/// Returns `true` if a `SetExpr` is — or transitively contains — a data-modifying
+/// statement.
+fn set_expr_is_data_modifying(set_expr: &sqlparser::ast::SetExpr) -> bool {
+    use sqlparser::ast::SetExpr;
+
+    match set_expr {
+        // A data-modifying statement appearing as a query body (e.g. inside a CTE).
+        SetExpr::Insert(_) | SetExpr::Update(_) | SetExpr::Delete(_) | SetExpr::Merge(_) => true,
+
+        // A parenthesised subquery — recurse into the nested query (which may carry
+        // its own WITH clause / data-modifying body).
+        SetExpr::Query(nested) => query_is_data_modifying(nested),
+
+        // UNION / EXCEPT / INTERSECT — both operands must be inspected.
+        SetExpr::SetOperation { left, right, .. } => {
+            set_expr_is_data_modifying(left) || set_expr_is_data_modifying(right)
+        },
+
+        // A SELECT may contain derived-table subqueries in its FROM clause that
+        // carry data-modifying CTEs of their own.
+        SetExpr::Select(select) => select.from.iter().any(table_with_joins_is_data_modifying),
+
+        // VALUES and TABLE cannot embed a data-modifying statement.
+        SetExpr::Values(_) | SetExpr::Table(_) => false,
+    }
+}
+
+/// Returns `true` if a `TableWithJoins` (a `FROM` entry and its joins) contains a
+/// derived subquery with a data-modifying statement.
+fn table_with_joins_is_data_modifying(twj: &sqlparser::ast::TableWithJoins) -> bool {
+    table_factor_is_data_modifying(&twj.relation)
+        || twj.joins.iter().any(|join| table_factor_is_data_modifying(&join.relation))
+}
+
+/// Returns `true` if a `TableFactor` is — or contains — a derived subquery with a
+/// data-modifying statement.
+fn table_factor_is_data_modifying(factor: &sqlparser::ast::TableFactor) -> bool {
+    use sqlparser::ast::TableFactor;
+
+    match factor {
+        // A parenthesised subquery in FROM: `... FROM (WITH t AS (DELETE …) …) sub`.
+        TableFactor::Derived { subquery, .. } => query_is_data_modifying(subquery),
+
+        // A parenthesised join expression — recurse into the wrapped relation.
+        TableFactor::NestedJoin {
+            table_with_joins, ..
+        } => table_with_joins_is_data_modifying(table_with_joins),
+
+        // No other table factor can embed a data-modifying query body.
+        _ => false,
     }
 }
 

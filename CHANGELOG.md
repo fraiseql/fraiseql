@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The `sql_query` host read-only guard now inspects CTE bodies (M-cte-classifier).** The
+  SQL classifier mapped any `Statement::Query` to read-only without walking its `WITH`
+  clause, so a data-modifying CTE — `WITH t AS (DELETE FROM x RETURNING *) SELECT * FROM t`
+  (and the `INSERT`/`UPDATE`/`MERGE` equivalents, including nested and derived-subquery
+  CTEs) — passed as read-only, bypassing the guard. The classifier now recurses through CTE
+  and subquery bodies and rejects data-modifying statements with the (previously dead)
+  `RejectionReason::WritableCte`.
+- **Deno function resource limits are now enforced by V8, not by string matching
+  (M-deno-limits, DoS).** The "limits" were `source.contains("while (true)")` substring
+  checks that the configured memory cap never reached V8 — trivially bypassed and prone to
+  false positives. They are replaced with real enforcement: a V8 heap limit
+  (`CreateParams::heap_limits` + a near-heap-limit callback that terminates execution) and a
+  watchdog thread that calls `terminate_execution()` after the configured duration (catching
+  tight synchronous loops that never yield to the event loop). The substring heuristics are
+  deleted.
 - **PKCE challenge verification is now constant-time everywhere (L-pkce-triplication).**
   `provider::PkceChallenge::validate` compared the recomputed challenge with `==`
   (variable-time), a timing-attack vector, while the parallel `oauth::pkce::PkceChallenge`
@@ -57,6 +72,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completed work; they now raise `SagaStoreError::CorruptStoredValue`. Step/saga writes
   ignored the affected-row count, so an update targeting a non-existent saga/step returned
   `Ok`; they now check it and raise `SagaNotFound`/`StepNotFound`.
+- **The `sql_query` host function fails loud instead of faking an empty result set
+  (M-sql-query-stub).** A read-only-classified `SELECT` returned `Ok(vec![])` ("not yet
+  implemented"), making a valid query look like it ran and matched no rows; it now returns
+  `FraiseQLError::Unsupported`.
+- **Deno and WASM function runtimes now share one failure contract (M-fn-failure-contract).**
+  A guest WASM error was wrapped as *successful data* (`Ok(FunctionResult { value:
+  {"error": …} })`) while the Deno runtime returned `Err` for the same failure. The WASM
+  path now returns `Err(FraiseQLError::Unsupported)` for guest errors, timeouts, and traps,
+  matching Deno — a guest failure can no longer be silently consumed as data.
+- **Deno function duration is measured across execution, not just channel setup
+  (M-deno-duration).** The elapsed time was captured immediately after spawning the executor
+  thread, before awaiting the result, so reported durations were meaningless; it is now
+  measured after the executor completes.
 - **Federation mutation executor rejects unrecognised operation names (M-fed-mut-executor,
   partial).** `determine_mutation_type` defaulted any name without a `create`/`update`/`delete`
   prefix to `UPDATE`, so a typo'd or unsupported mutation silently issued an `UPDATE`; it now
