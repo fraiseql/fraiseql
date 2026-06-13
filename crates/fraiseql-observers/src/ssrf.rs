@@ -157,7 +157,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
-mod tests {
+mod ssrf_tests {
     use super::*;
 
     // Coverage retained when the drifted `dispatch.rs` copy was deleted and the

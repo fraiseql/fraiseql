@@ -369,6 +369,18 @@ async fn build_secrets_manager()
 
 #[cfg(not(feature = "secrets"))]
 async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallible>> {
+    // Fail loud (M-secrets-backend-stub): if an operator sets
+    // FRAISEQL_SECRETS_BACKEND but this binary was built without the `secrets`
+    // feature, returning `Ok(None)` silently runs with NO secrets manager — the
+    // operator believes secrets are managed when they are not. Refuse to boot.
+    if std::env::var("FRAISEQL_SECRETS_BACKEND").is_ok() {
+        anyhow::bail!(
+            "FRAISEQL_SECRETS_BACKEND is set, but this binary was built without the `secrets` \
+             feature, so no secrets backend can be initialized. Rebuild with \
+             `--features secrets`, or unset FRAISEQL_SECRETS_BACKEND to run without a secrets \
+             manager."
+        );
+    }
     Ok(None)
 }
 

@@ -90,6 +90,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completed work; they now raise `SagaStoreError::CorruptStoredValue`. Step/saga writes
   ignored the affected-row count, so an update targeting a non-existent saga/step returned
   `Ok`; they now check it and raise `SagaNotFound`/`StepNotFound`.
+- **The server refuses to boot when `FRAISEQL_SECRETS_BACKEND` is set on a build without
+  the `secrets` feature (M-secrets-backend-stub).** The no-`secrets` build's
+  `build_secrets_manager` returned `Ok(None)` unconditionally, so an operator who configured
+  a secrets backend silently ran with none — believing secrets were managed when they were
+  not. It now fails loud with an explicit error telling the operator to rebuild with
+  `--features secrets` or unset the variable.
 - **The `sql_query` host function fails loud instead of faking an empty result set
   (M-sql-query-stub).** A read-only-classified `SELECT` returned `Ok(vec![])` ("not yet
   implemented"), making a valid query look like it ran and matched no rows; it now returns
@@ -166,6 +172,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input with no `.json` segment (e.g. `serve fraiseql.toml`) the derived output path equalled
   the input, so it overwrote the source file with compiled output. Use `fraiseql run --watch`
   (compiles in-memory, no disk artifact, hot-reloads on change) instead.
+- **BREAKING (`fraiseql-webhooks`): the crate docs no longer advertise capabilities it does
+  not have, and the dead scaffolding is removed (M-webhooks-advertised).** The crate docs
+  claimed built-in **idempotency** and **transaction boundaries** as Security Properties, but
+  no inbound receiver pipeline exists — the crate provides signature verification and the
+  `SignatureVerifier` trait as building blocks; the caller wires the pipeline. The docs now
+  state that honestly (and a Paddle "RSA-SHA256" error was corrected to HMAC-SHA256). The 12
+  never-constructed `WebhookError` variants and the unused `WebhookConfig`/`WebhookEventConfig`
+  types are **removed** from the published API (the enum is `#[non_exhaustive]`, so exhaustive
+  external matches already carry a wildcard arm). The real receiver pipeline is tracked in
+  [#431](https://github.com/fraiseql/fraiseql/issues/431).
 - **BREAKING (`fraiseql-federation`): distributed saga execution now fails loud instead of
   fabricating success (H32, H33, M-saga-coordinator, M-saga-recovery).** `SagaExecutor`
   (`execute_step`/`execute_saga`/`get_execution_state`), `SagaCompensator`
