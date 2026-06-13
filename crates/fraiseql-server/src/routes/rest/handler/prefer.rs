@@ -64,42 +64,14 @@ impl PreferHeader {
             None
         }
     }
-
-    /// Collect all applied preferences as a comma-separated header value.
-    #[must_use]
-    pub fn applied_header_value(&self) -> Option<String> {
-        let mut parts = Vec::new();
-        if self.count_exact {
-            parts.push("count=exact");
-        } else if self.count_planned {
-            parts.push("count=planned");
-        } else if self.count_estimated {
-            parts.push("count=estimated");
-        }
-        if self.return_representation {
-            parts.push("return=representation");
-        } else if self.return_minimal {
-            parts.push("return=minimal");
-        }
-        if let Some(ref res) = self.resolution {
-            // Handled separately since it needs the value
-            let _ = res;
-        }
-        if self.tx_rollback {
-            parts.push("tx=rollback");
-        }
-        if self.handling == Some(HandlingPreference::Strict) {
-            parts.push("handling=strict");
-        } else if self.handling == Some(HandlingPreference::Lenient) {
-            parts.push("handling=lenient");
-        }
-        if parts.is_empty() {
-            None
-        } else {
-            Some(parts.join(", "))
-        }
-    }
 }
+
+// Note (L-prefer-header): a `applied_header_value` builder for the RFC 7240
+// `Preference-Applied` response header was removed here — it had no production
+// caller (nothing emitted the header) and carried a no-op `resolution` branch.
+// Emitting `Preference-Applied` is a deliberate REST feature; when it is wired
+// into the response path it should be reintroduced with that wiring, not left
+// as dead code.
 
 impl PreferHeader {
     /// Parse a `Prefer` header value (RFC 7240).

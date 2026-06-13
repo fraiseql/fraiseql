@@ -981,9 +981,13 @@ async fn process_entity_event(
                     }
                 };
 
-                // Write a log entry for each matched observer.
+                // Write a log entry for each matched observer. A failed audit-log
+                // write must not be silently swallowed (M-observer-log-swallow): the
+                // event itself processed, so this is non-fatal, but it is surfaced via
+                // `warn!` (mirroring the EventBridge forward-failure handling below)
+                // so the dropped audit row is observable.
                 for observer_id in observer_ids {
-                    let _ = sqlx::query(
+                    if let Err(e) = sqlx::query(
                         // entity_id is bound as text (Uuid::to_string) and cast
                         // to the column's uuid type — sqlx will not implicitly
                         // coerce text to uuid on INSERT.
@@ -999,7 +1003,14 @@ async fn process_entity_event(
                     .bind(status)
                     .bind(duration_ms)
                     .execute(pool)
-                    .await;
+                    .await
+                    {
+                        warn!(
+                            "Failed to write observer success log (observer {observer_id}, \
+                             event {}): {e}",
+                            event.id
+                        );
+                    }
                 }
             }
 
@@ -1032,7 +1043,7 @@ async fn process_entity_event(
                 .cloned();
             if let Some(observer_ids) = observer_ids_err {
                 for observer_id in observer_ids {
-                    let _ = sqlx::query(
+                    if let Err(log_err) = sqlx::query(
                         // entity_id cast to uuid as in the success path above.
                         "INSERT INTO tb_observer_log
                          (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
@@ -1045,7 +1056,17 @@ async fn process_entity_event(
                     .bind(event.event_type.as_str())
                     .bind(e.to_string())
                     .execute(pool)
-                    .await;
+                    .await
+                    {
+                        // Don't let a failed error-log write be swallowed too
+                        // (M-observer-log-swallow). The event error is already counted
+                        // and logged above; this surfaces the lost audit row.
+                        warn!(
+                            "Failed to write observer error log (observer {observer_id}, \
+                             event {}): {log_err}",
+                            event.id
+                        );
+                    }
                 }
             }
         },

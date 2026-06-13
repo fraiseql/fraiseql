@@ -376,16 +376,6 @@ mod prefer {
         let prefer = PreferHeader::parse("return=minimal");
         assert_eq!(prefer.count_preference(), None);
     }
-
-    #[test]
-    fn prefer_applied_header_value() {
-        let prefer = PreferHeader::parse("count=exact, return=representation");
-        let value = prefer.applied_header_value();
-        assert!(value.is_some());
-        let value_str = value.unwrap();
-        assert!(value_str.contains("count=exact"));
-        assert!(value_str.contains("return=representation"));
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -680,5 +670,126 @@ mod mutation {
         assert_eq!(rest.status, StatusCode::CREATED);
         assert_eq!(rest.headers.get("idempotency-key").unwrap().to_str().unwrap(), "replayed=true");
         assert_eq!(rest.body.unwrap()["id"], 1);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// error→HTTP status convergence (M-rest-error-mapper, L-error-map-triplication)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod error_status {
+    use axum::http::StatusCode;
+    use fraiseql_error::FraiseQLError;
+
+    use crate::routes::rest::handler::response::RestError;
+
+    /// The REST HTTP status for every error variant equals the canonical
+    /// [`FraiseQLError::status_code`] — the single source of truth. Guards against
+    /// the reintroduction of a divergent hand-rolled map (L-error-map-triplication)
+    /// and the bug where Conflict/Timeout/RateLimited/ServiceUnavailable silently
+    /// collapsed to 500 (M-rest-error-mapper). The `Database` SQLSTATE override is
+    /// the one documented divergence, checked separately below.
+    #[test]
+    fn rest_status_matches_canonical_status_code() {
+        let cases = vec![
+            FraiseQLError::validation("m"),
+            FraiseQLError::not_found("User", "1"),
+            FraiseQLError::Authorization {
+                message:  "m".into(),
+                action:   None,
+                resource: None,
+            },
+            FraiseQLError::Authentication {
+                message: "m".into(),
+            },
+            FraiseQLError::Conflict {
+                message: "m".into(),
+            },
+            FraiseQLError::RateLimited {
+                message:          "m".into(),
+                retry_after_secs: 1,
+            },
+            FraiseQLError::Timeout {
+                timeout_ms: 1,
+                query:      None,
+            },
+            FraiseQLError::cancelled("q", "r"),
+            FraiseQLError::Unsupported {
+                message: "m".into(),
+            },
+            FraiseQLError::ServiceUnavailable {
+                message:     "m".into(),
+                retry_after: None,
+            },
+            FraiseQLError::Configuration {
+                message: "m".into(),
+            },
+            FraiseQLError::internal("m"),
+        ];
+        for err in cases {
+            let expected = err.status_code();
+            let rest = RestError::from(err);
+            assert_eq!(
+                rest.status.as_u16(),
+                expected,
+                "REST status must equal the canonical status_code() ({expected}); got {} ({})",
+                rest.status.as_u16(),
+                rest.code,
+            );
+        }
+    }
+
+    /// The specific variants that previously collapsed to 500 now map correctly.
+    #[test]
+    fn rest_maps_specific_variants_off_500() {
+        assert_eq!(
+            RestError::from(FraiseQLError::Conflict {
+                message: "x".into(),
+            })
+            .status,
+            StatusCode::CONFLICT,
+        );
+        assert_eq!(
+            RestError::from(FraiseQLError::RateLimited {
+                message:          "x".into(),
+                retry_after_secs: 1,
+            })
+            .status,
+            StatusCode::TOO_MANY_REQUESTS,
+        );
+        assert_eq!(
+            RestError::from(FraiseQLError::ServiceUnavailable {
+                message:     "x".into(),
+                retry_after: None,
+            })
+            .status,
+            StatusCode::SERVICE_UNAVAILABLE,
+        );
+        assert_eq!(
+            RestError::from(FraiseQLError::Unsupported {
+                message: "x".into(),
+            })
+            .status,
+            StatusCode::NOT_IMPLEMENTED,
+        );
+    }
+
+    /// #413: client-input DB faults (SQLSTATE 22xxx/23xxx) are 400 — the one place
+    /// the REST status intentionally diverges from `status_code()` (which is 500 for
+    /// all `Database`). Genuine server DB faults stay 500.
+    #[test]
+    fn rest_database_client_input_is_400_server_fault_is_500() {
+        let client = FraiseQLError::Database {
+            message:   "bad input".into(),
+            sql_state: Some("22001".into()),
+        };
+        assert_eq!(RestError::from(client).status, StatusCode::BAD_REQUEST);
+
+        let server = FraiseQLError::Database {
+            message:   "boom".into(),
+            sql_state: None,
+        };
+        assert_eq!(RestError::from(server).status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

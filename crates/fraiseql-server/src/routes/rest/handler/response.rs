@@ -105,6 +105,37 @@ impl RestError {
         }
     }
 
+    /// Build a `RestError` whose HTTP status is the canonical
+    /// [`FraiseQLError::status_code`] — the single source of truth shared with the
+    /// GraphQL mapper (L-error-map-triplication). The `code` string is derived from
+    /// that status. Used for every variant that does not need a bespoke message
+    /// (e.g. `Conflict` → 409, `RateLimited` → 429, `ServiceUnavailable` → 503,
+    /// `Unsupported` → 501), so no variant silently collapses to 500
+    /// (M-rest-error-mapper). 5xx messages are scrubbed by the error sanitizer
+    /// downstream.
+    fn from_canonical_status(err: &FraiseQLError) -> Self {
+        let status =
+            StatusCode::from_u16(err.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let code = match status {
+            StatusCode::CONFLICT => "CONFLICT",
+            StatusCode::REQUEST_TIMEOUT => "REQUEST_TIMEOUT",
+            StatusCode::TOO_MANY_REQUESTS => "RATE_LIMITED",
+            StatusCode::NOT_IMPLEMENTED => "NOT_IMPLEMENTED",
+            StatusCode::SERVICE_UNAVAILABLE => "SERVICE_UNAVAILABLE",
+            StatusCode::BAD_REQUEST => "BAD_REQUEST",
+            StatusCode::NOT_FOUND => "NOT_FOUND",
+            StatusCode::UNAUTHORIZED => "UNAUTHENTICATED",
+            StatusCode::FORBIDDEN => "FORBIDDEN",
+            _ => "INTERNAL_SERVER_ERROR",
+        };
+        Self {
+            status,
+            code,
+            message: err.to_string(),
+            details: None,
+        }
+    }
+
     /// Convert to a JSON error body.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
@@ -137,7 +168,9 @@ impl From<FraiseQLError> for RestError {
             },
             // Client-input DB faults (SQLSTATE 22xxx/23xxx) are 400, not 500 (#413);
             // genuine server faults (other classes, no SQLSTATE, connection pool) fall
-            // through to the 500 catch-all. Mirrors the GraphQL mapper.
+            // through to the canonical 500. Mirrors the GraphQL mapper. This is the one
+            // documented place where the REST status intentionally diverges from
+            // `status_code()` (which maps all `Database` to 500).
             FraiseQLError::Database { sql_state, .. } => {
                 match classify_client_input_sqlstate(sql_state.as_deref()) {
                     Some(ClientInputSqlState::DataException) => {
@@ -146,10 +179,15 @@ impl From<FraiseQLError> for RestError {
                     Some(ClientInputSqlState::IntegrityConstraint) => {
                         Self::constraint_violation(err.to_string())
                     },
-                    None => Self::internal(err.to_string()),
+                    None => Self::from_canonical_status(&err),
                 }
             },
-            _ => Self::internal(err.to_string()),
+            // Every other variant derives its HTTP status from the canonical
+            // `status_code()` — so `Conflict` → 409, `RateLimited` → 429,
+            // `Timeout`/`Cancelled` → 408, `ServiceUnavailable` → 503,
+            // `Unsupported` → 501, and any future variant get the correct status
+            // instead of silently collapsing to 500 (M-rest-error-mapper).
+            _ => Self::from_canonical_status(&err),
         }
     }
 }

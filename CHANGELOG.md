@@ -86,6 +86,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously bypassed (L-parse-cache). The `fraiseql_multi_root_queries_total` metric now counts
   authenticated multi-root queries too. (Also corrects a stale doc claim that the security context
   was "not yet applied" to aggregations/window/federation — it is, on both paths.)
+- **REST error responses now use the correct HTTP status for every error variant
+  (M-rest-error-mapper).** The REST `From<FraiseQLError>` mapper handled only a handful of
+  variants and sent everything else to `500`, so `Conflict` (should be 409), `Timeout`/`Cancelled`
+  (408), `RateLimited` (429), `ServiceUnavailable` (503), and `Unsupported` (501) were all reported
+  as `500 Internal Server Error`. REST status is now derived from the canonical
+  `FraiseQLError::status_code()` — the single source of truth shared with the GraphQL mapper
+  (L-error-map-triplication) — with the one documented divergence being the #413 client-input
+  SQLSTATE override (22xxx/23xxx → 400). A property test asserts REST status equals
+  `status_code()` for every variant.
+- **Observer audit-log write failures are no longer silently swallowed
+  (M-observer-log-swallow).** The success- and error-path `INSERT INTO tb_observer_log` writes in
+  the observer runtime discarded their result with `let _ = …`, so a failed audit-log write left no
+  trace. Both now `warn!` with the observer and event id on failure (non-fatal — the event itself
+  is already processed/counted).
+- **Removed the dead `PreferHeader::applied_header_value` builder (L-prefer-header).** It built an
+  RFC 7240 `Preference-Applied` header value that no production code emitted, and carried a no-op
+  `resolution` branch. Emitting `Preference-Applied` is a deliberate REST feature to be added with
+  its response-path wiring, not kept as dead code.
 - **CLI gate flags now affect the exit code (H21).** `fraiseql lint --fail-on-critical` and
   `--fail-on-warning` printed a failure result but always exited 0, so they were inert as CI
   gates — a pipeline depending on them passed regardless of the findings. Lint now reports a
