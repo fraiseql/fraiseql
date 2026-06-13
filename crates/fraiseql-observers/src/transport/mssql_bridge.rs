@@ -426,6 +426,23 @@ pub struct MSSQLNatsBridge {
     config:           MSSQLBridgeConfig,
 }
 
+/// Cursor-paged fetch for the MSSQL change log. `@P1` is the row cap (the
+/// configured `batch_size`, bound — never a hardcoded literal, M-mssql-batch);
+/// `@P2` is the exclusive cursor lower bound.
+#[cfg(all(feature = "mssql", feature = "nats"))]
+const FETCH_BATCH_SQL: &str = r"
+            SELECT TOP (@P1)
+                pk_entity_change_log, id, fk_customer_org, fk_contact,
+                object_type, object_id, modification_type, change_status,
+                object_data, extra_metadata, created_at,
+                nats_published_at, nats_event_id,
+                tenant_id, duration_ms, seq, actor_type, acting_for,
+                schema_version
+            FROM tb_entity_change_log
+            WHERE pk_entity_change_log > @P2
+            ORDER BY pk_entity_change_log ASC
+            ";
+
 #[cfg(all(feature = "mssql", feature = "nats"))]
 impl MSSQLNatsBridge {
     /// Create a new MSSQL-to-NATS bridge.
@@ -478,25 +495,12 @@ impl MSSQLNatsBridge {
         // Reason: value is non-negative; wrap cannot occur in practice
         let batch_size = self.config.batch_size as i64;
 
-        // Use TOP for limiting rows in SQL Server
-        // Note: SQL Server requires literal in TOP, so we use a different approach
-        let mut query = Query::new(
-            r"
-            SELECT TOP (100)
-                pk_entity_change_log, id, fk_customer_org, fk_contact,
-                object_type, object_id, modification_type, change_status,
-                object_data, extra_metadata, created_at,
-                nats_published_at, nats_event_id,
-                tenant_id, duration_ms, seq, actor_type, acting_for,
-                schema_version
-            FROM tb_entity_change_log
-            WHERE pk_entity_change_log > @P1
-            ORDER BY pk_entity_change_log ASC
-            ",
-        );
+        // SQL Server accepts a parameter in `TOP (expression)`, so the configured
+        // batch size is bound rather than hardcoded (M-mssql-batch). @P1 is the
+        // row cap; @P2 is the cursor.
+        let mut query = Query::new(FETCH_BATCH_SQL);
+        query.bind(batch_size);
         query.bind(cursor);
-        // Note: batch_size is handled via TOP literal for simplicity
-        let _ = batch_size; // Suppress unused warning
 
         let stream = query.query(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
             reason: format!("MSSQL fetch batch query failed: {e}"),
@@ -745,4 +749,27 @@ pub async fn create_mssql_pool(connection_string: &str) -> Result<MSSQLPool> {
             reason: format!("Failed to create SQL Server connection pool: {e}"),
         }
     })
+}
+
+#[cfg(all(test, feature = "mssql", feature = "nats"))]
+mod tests {
+    use super::FETCH_BATCH_SQL;
+
+    // M-mssql-batch: the row cap must be a bound parameter, never the old
+    // hardcoded `TOP (100)`, so the configured `batch_size` is actually honored.
+    #[test]
+    fn fetch_batch_sql_binds_the_row_cap_not_a_literal() {
+        assert!(
+            FETCH_BATCH_SQL.contains("TOP (@P1)"),
+            "batch size must be bound via TOP (@P1)"
+        );
+        assert!(
+            !FETCH_BATCH_SQL.contains("TOP (100)"),
+            "the hardcoded TOP (100) must be gone"
+        );
+        assert!(
+            FETCH_BATCH_SQL.contains("pk_entity_change_log > @P2"),
+            "cursor must move to @P2 now that @P1 is the cap"
+        );
+    }
 }

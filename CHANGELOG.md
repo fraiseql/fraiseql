@@ -62,8 +62,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (e.g. `169.254.169.254`) received the high-value `secret_id` before the guard fired.
   `validate_vault_addr` now runs as the first statement, matching the token path.
 
+### Added
+
+- **Changelog tail query for tip checkpointing (H28, server side).** The
+  `GET /api/observers/changelog` endpoint accepts `?latest=true`, returning only the single newest
+  entry (`ORDER BY pk DESC LIMIT 1`, honouring the `object_type` filter) and echoing its cursor as
+  `next_cursor`. This lets a consumer checkpoint at the real tail without replaying history — the
+  server-side half of the `from_now` consumer fix (the consumer half lands in a later release).
+
 ### Fixed
 
+- **The MSSQL→NATS bridge honours its configured `batch_size` (M-mssql-batch).** The change-log
+  fetch query hardcoded `SELECT TOP (100)` and discarded the configured `batch_size` (a `let _ =
+  batch_size` swallowed it), so a deployment that tuned the batch size was silently capped at 100
+  rows per poll. SQL Server accepts a parameter in `TOP (expression)`, so the row cap is now bound
+  (`TOP (@P1)`) from the configured value.
 - **Twilio webhook signature verification decodes form bodies correctly (H44).** The
   percent-decoder pushed each decoded byte as its own `char` (Latin-1 per byte), so a UTF-8
   sequence like `%C3%A9` became `Ã©` instead of `é`, and `+` was never decoded to a space — so a

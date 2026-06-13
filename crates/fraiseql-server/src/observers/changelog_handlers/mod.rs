@@ -39,6 +39,12 @@ pub struct ChangelogQuery {
     pub limit:        i64,
     /// Optional filter by `object_type`.
     pub object_type:  Option<String>,
+    /// When `true`, return only the single newest entry (DESC, limit 1) so a
+    /// consumer can checkpoint at the real tail without replaying history (H28).
+    /// `after_cursor`/`limit` are ignored; the `object_type` filter still
+    /// applies. The entry's cursor is echoed as `next_cursor`.
+    #[serde(default)]
+    pub latest:       bool,
 }
 
 const fn default_changelog_limit() -> i64 {
@@ -122,86 +128,97 @@ type ChangelogRow = (
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
+/// Columns selected by every changelog query, in `ChangelogRow` order.
+const CHANGELOG_SELECT_COLS: &str = "
+    pk_entity_change_log, id, fk_customer_org, fk_contact,
+    object_type, object_id, modification_type, change_status,
+    object_data, extra_metadata, created_at";
+
+/// Run the changelog query and shape the response (extracted from the handler so
+/// it is directly testable against a seeded database).
+///
+/// In `latest` mode it returns the single newest entry (`ORDER BY … DESC LIMIT
+/// 1`), honouring the `object_type` filter but ignoring `after_cursor`/`limit`
+/// (H28). Otherwise it returns up to `limit` entries with cursor strictly
+/// greater than `after_cursor`, ascending.
+async fn fetch_changelog(
+    pool: &PgPool,
+    query: &ChangelogQuery,
+) -> Result<ChangelogListResponse, sqlx::Error> {
+    let rows: Vec<ChangelogRow> = if query.latest {
+        let sql = format!(
+            "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log {} \
+             ORDER BY pk_entity_change_log DESC LIMIT 1",
+            if query.object_type.is_some() { "WHERE object_type = $1" } else { "" },
+        );
+        let mut q = sqlx::query_as::<_, ChangelogRow>(&sql);
+        if let Some(ref object_type) = query.object_type {
+            q = q.bind(object_type);
+        }
+        q.fetch_all(pool).await?
+    } else {
+        let limit = query.limit.clamp(1, MAX_CHANGELOG_LIMIT);
+        if let Some(ref object_type) = query.object_type {
+            sqlx::query_as::<_, ChangelogRow>(&format!(
+                "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log \
+                 WHERE pk_entity_change_log > $1 AND object_type = $3 \
+                 ORDER BY pk_entity_change_log ASC LIMIT $2"
+            ))
+            .bind(query.after_cursor)
+            .bind(limit)
+            .bind(object_type)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, ChangelogRow>(&format!(
+                "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log \
+                 WHERE pk_entity_change_log > $1 \
+                 ORDER BY pk_entity_change_log ASC LIMIT $2"
+            ))
+            .bind(query.after_cursor)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?
+        }
+    };
+
+    let entries: Vec<ChangelogEntryResponse> = rows
+        .into_iter()
+        .map(|(pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, ts)| {
+            ChangelogEntryResponse {
+                cursor: pk,
+                id: id.to_string(),
+                org_id: org,
+                user_id: contact,
+                object_type: obj_type,
+                object_id: obj_id,
+                modification_type: mod_type,
+                status,
+                object_data: data,
+                metadata: meta,
+                created_at: ts.map(|t| t.to_rfc3339()),
+            }
+        })
+        .collect();
+
+    let next_cursor = entries.last().map(|e| e.cursor);
+
+    Ok(ChangelogListResponse {
+        entries,
+        next_cursor,
+    })
+}
+
 /// `GET /api/observers/changelog`
 ///
-/// Poll for new changelog entries after a given cursor position.
+/// Poll for new changelog entries after a given cursor position, or — with
+/// `?latest=true` — fetch the single newest entry's cursor (the tail).
 pub async fn changelog_list_handler(
     State(state): State<ChangelogState>,
     Query(query): Query<ChangelogQuery>,
 ) -> impl IntoResponse {
-    let limit = query.limit.clamp(1, MAX_CHANGELOG_LIMIT);
-
-    let result = if let Some(ref object_type) = query.object_type {
-        sqlx::query_as::<_, ChangelogRow>(
-            r"
-            SELECT
-                pk_entity_change_log, id, fk_customer_org, fk_contact,
-                object_type, object_id, modification_type, change_status,
-                object_data, extra_metadata, created_at
-            FROM core.tb_entity_change_log
-            WHERE pk_entity_change_log > $1 AND object_type = $3
-            ORDER BY pk_entity_change_log ASC
-            LIMIT $2
-            ",
-        )
-        .bind(query.after_cursor)
-        .bind(limit)
-        .bind(object_type)
-        .fetch_all(&state.pool)
-        .await
-    } else {
-        sqlx::query_as::<_, ChangelogRow>(
-            r"
-            SELECT
-                pk_entity_change_log, id, fk_customer_org, fk_contact,
-                object_type, object_id, modification_type, change_status,
-                object_data, extra_metadata, created_at
-            FROM core.tb_entity_change_log
-            WHERE pk_entity_change_log > $1
-            ORDER BY pk_entity_change_log ASC
-            LIMIT $2
-            ",
-        )
-        .bind(query.after_cursor)
-        .bind(limit)
-        .fetch_all(&state.pool)
-        .await
-    };
-
-    match result {
-        Ok(rows) => {
-            let entries: Vec<ChangelogEntryResponse> = rows
-                .into_iter()
-                .map(
-                    |(pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, ts)| {
-                        ChangelogEntryResponse {
-                            cursor: pk,
-                            id: id.to_string(),
-                            org_id: org,
-                            user_id: contact,
-                            object_type: obj_type,
-                            object_id: obj_id,
-                            modification_type: mod_type,
-                            status,
-                            object_data: data,
-                            metadata: meta,
-                            created_at: ts.map(|t| t.to_rfc3339()),
-                        }
-                    },
-                )
-                .collect();
-
-            let next_cursor = entries.last().map(|e| e.cursor);
-
-            (
-                StatusCode::OK,
-                Json(ChangelogListResponse {
-                    entries,
-                    next_cursor,
-                }),
-            )
-                .into_response()
-        },
+    match fetch_changelog(&state.pool, &query).await {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
         Err(e) => {
             tracing::error!("Failed to query changelog: {e}");
             (
