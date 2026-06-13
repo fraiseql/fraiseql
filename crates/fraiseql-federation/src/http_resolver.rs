@@ -73,7 +73,7 @@ struct GraphQLResponse {
 ///    `IPv4`-mapped `IPv6`).
 ///
 /// Note: DNS-level SSRF (attacker-controlled domain that resolves to a
-/// private IP) is mitigated separately by [`dns_resolve_and_check`] at the
+/// private IP) is mitigated separately by `dns_resolve_and_check` at the
 /// request path.
 ///
 /// # Errors
