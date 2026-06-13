@@ -845,3 +845,59 @@ fn transport_config_from_env_unset_preserves_defaults() {
         },
     );
 }
+
+// ── H24: unimplemented action types are rejected at config-load time ──
+//
+// SMS / Push / Search / Cache had no real transport wired — dispatch fabricated
+// `success: true` and sent nothing. They must now fail loud, starting at
+// `validate()` so a misconfigured observer refuses to start.
+
+#[test]
+fn test_sms_action_config_is_rejected_as_unsupported() {
+    let action = ActionConfig::Sms {
+        phone:            Some("+15551234567".to_string()),
+        phone_template:   None,
+        message_template: Some("hello".to_string()),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::UnsupportedActionType { .. })),
+        "a well-formed SMS action config must be rejected as unsupported (H24)"
+    );
+}
+
+#[test]
+fn test_push_action_config_is_rejected_as_unsupported() {
+    let action = ActionConfig::Push {
+        device_token:   Some("token".to_string()),
+        title_template: Some("title".to_string()),
+        body_template:  Some("body".to_string()),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::UnsupportedActionType { .. })),
+        "a well-formed Push action config must be rejected as unsupported (H24)"
+    );
+}
+
+#[test]
+fn test_search_action_config_is_rejected_as_unsupported() {
+    let action = ActionConfig::Search {
+        index:       "users".to_string(),
+        id_template: Some("user_{{ id }}".to_string()),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::UnsupportedActionType { .. })),
+        "a well-formed Search action config must be rejected as unsupported (H24)"
+    );
+}
+
+#[test]
+fn test_cache_action_config_is_rejected_as_unsupported() {
+    let action = ActionConfig::Cache {
+        key_pattern: "user:*".to_string(),
+        action:      "invalidate".to_string(),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::UnsupportedActionType { .. })),
+        "a well-formed Cache action config must be rejected as unsupported (H24)"
+    );
+}

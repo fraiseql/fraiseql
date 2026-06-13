@@ -29,7 +29,6 @@ use crate::cache::CacheBackendDyn;
 use crate::metrics::MetricsRegistry;
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
-    actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
     config::EmailSmtpConfig,
     error::Result,
     event::EntityEvent,
@@ -88,10 +87,6 @@ fn make_dispatcher(email_action: EmailAction) -> Arc<DefaultActionDispatcher> {
         webhook_action: Arc::new(WebhookAction::new()),
         slack_action:   Arc::new(SlackAction::new()),
         email_action:   Arc::new(email_action),
-        sms_action:     Arc::new(SmsAction::new()),
-        push_action:    Arc::new(PushAction::new()),
-        search_action:  Arc::new(SearchAction::new()),
-        cache_action:   Arc::new(CacheAction::new()),
     })
 }
 

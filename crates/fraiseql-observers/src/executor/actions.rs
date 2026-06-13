@@ -19,7 +19,7 @@ impl ObserverExecutor {
         action: &ActionConfig,
         event: &EntityEvent,
     ) -> Result<ActionResult> {
-        // Try cache first (skip for CacheAction itself)
+        // Try cache first (skip for `ActionConfig::Cache` itself)
         #[cfg(feature = "caching")]
         if !matches!(action, ActionConfig::Cache { .. }) {
             if let Some(cached) = self.try_cache_get(event, action).await {

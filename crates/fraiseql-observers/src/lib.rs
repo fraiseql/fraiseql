@@ -42,7 +42,6 @@
 
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub mod actions;
-pub mod actions_additional;
 pub mod cache;
 #[cfg(feature = "caching")]
 pub mod cached_executor;
@@ -92,7 +91,6 @@ mod tests;
 
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
-pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 #[cfg(feature = "caching")]
 pub use cache::redis::RedisCacheBackend;
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};

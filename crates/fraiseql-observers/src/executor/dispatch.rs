@@ -10,7 +10,6 @@ use tracing::debug;
 
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
-    actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
     config::ActionConfig,
     error::{ObserverError, Result},
     event::EntityEvent,
@@ -32,6 +31,9 @@ pub trait ActionDispatcher: Send + Sync {
 }
 
 /// Production action dispatcher that delegates to the concrete action structs.
+///
+/// Only the action types with a real transport are held here. SMS / Push /
+/// Search / Cache are rejected as unsupported (H24), so they have no executor.
 #[allow(clippy::struct_field_names)] // Reason: `_action` postfix clarifies executor vs config fields
 pub(super) struct DefaultActionDispatcher {
     /// Webhook action executor
@@ -40,14 +42,6 @@ pub(super) struct DefaultActionDispatcher {
     pub(super) slack_action:   Arc<SlackAction>,
     /// Email action executor
     pub(super) email_action:   Arc<EmailAction>,
-    /// SMS action executor
-    pub(super) sms_action:     Arc<SmsAction>,
-    /// Push notification action executor
-    pub(super) push_action:    Arc<PushAction>,
-    /// Search index action executor
-    pub(super) search_action:  Arc<SearchAction>,
-    /// Cache action executor
-    pub(super) cache_action:   Arc<CacheAction>,
 }
 
 /// Maximum byte length accepted for a webhook URL.
@@ -311,84 +305,18 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         Err(e) => Err(e),
                     }
                 },
-                ActionConfig::Sms {
-                    phone,
-                    phone_template: _,
-                    message_template,
-                } => {
-                    let sms_phone = phone.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                        reason: "SMS 'phone' not provided".to_string(),
-                    })?;
-
-                    match self.sms_action.execute(sms_phone, message_template.as_deref(), event) {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "sms".to_string(),
-                            success:     response.success,
-                            message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Push {
-                    device_token,
-                    title_template,
-                    body_template,
-                } => {
-                    let token =
-                        device_token.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'device_token' not provided".to_string(),
-                        })?;
-
-                    let title =
-                        title_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'title_template' not provided".to_string(),
-                        })?;
-
-                    let body =
-                        body_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'body_template' not provided".to_string(),
-                        })?;
-
-                    match self.push_action.execute(token, title, body) {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "push".to_string(),
-                            success:     response.success,
-                            message:     response
-                                .notification_id
-                                .unwrap_or_else(|| "sent".to_string()),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Search { index, id_template } => {
-                    match self.search_action.execute(index, id_template.as_deref(), event) {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "search".to_string(),
-                            success:     response.success,
-                            message:     if response.indexed {
-                                "indexed".to_string()
-                            } else {
-                                "not_indexed".to_string()
-                            },
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Cache {
-                    key_pattern,
-                    action,
-                } => match self.cache_action.execute(key_pattern, action) {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "cache".to_string(),
-                        success:     response.success,
-                        message:     format!("affected: {}", response.keys_affected),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                },
+                // SMS / Push / Search / Cache have no real transport wired. They
+                // previously delegated to stub actions that fabricated
+                // `success: true` and sent nothing (H24). They now fail loud here
+                // too (belt-and-suspenders with `ActionConfig::validate`, which
+                // rejects them at config-load). Real transports are tracked as
+                // follow-up work.
+                ActionConfig::Sms { .. }
+                | ActionConfig::Push { .. }
+                | ActionConfig::Search { .. }
+                | ActionConfig::Cache { .. } => Err(ObserverError::UnsupportedActionType {
+                    action_type: action.action_type().to_string(),
+                }),
             }
         })
     }

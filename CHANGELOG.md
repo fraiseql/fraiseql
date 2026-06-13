@@ -108,6 +108,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input with no `.json` segment (e.g. `serve fraiseql.toml`) the derived output path equalled
   the input, so it overwrote the source file with compiled output. Use `fraiseql run --watch`
   (compiles in-memory, no disk artifact, hot-reloads on change) instead.
+- **BREAKING (`fraiseql-observers`): the `sms`, `push`, `search`, and `cache` observer action
+  types now fail loud instead of fabricating success (H24).** Their dispatch handlers
+  delegated to stub actions that returned `success: true` and sent nothing — an observer
+  configured with `type = "sms"` reported success on every event while delivering no SMS.
+  `ActionConfig::validate()` now rejects these types with `ObserverError::UnsupportedActionType`
+  at config-load time (a misconfigured observer refuses to start), and the dispatcher returns
+  the same error at execution time. The fabricating stub types (`SmsAction`, `PushAction`,
+  `SearchAction`, `CacheAction` and their `*Response` types) are **removed** from the public
+  API. The `ActionConfig` enum variants are retained so existing configs still deserialize and
+  receive a clear error. Real transports are tracked in
+  [#428](https://github.com/fraiseql/fraiseql/issues/428).
 
 ## [2.7.0] - 2026-06-13
 

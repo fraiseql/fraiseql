@@ -867,11 +867,15 @@ async fn test_dispatch_email_missing_subject_returns_invalid_config() {
     );
 }
 
+// H24: SMS / Push / Search / Cache have no real transport. They previously
+// fabricated `success: true` at dispatch and sent nothing; dispatch now fails
+// loud with `UnsupportedActionType` even for well-formed configs.
+
 #[tokio::test]
-async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
+async fn test_dispatch_sms_returns_unsupported() {
     let executor = create_test_executor();
     let action = ActionConfig::Sms {
-        phone:            None,
+        phone:            Some("+15551234567".to_string()),
         phone_template:   None,
         message_template: Some("Hi".to_string()),
     };
@@ -880,16 +884,16 @@ async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
     let result = executor.execute_action_internal(&action, &event).await;
 
     assert!(
-        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
-        "missing SMS 'phone' should return InvalidActionConfig: {result:?}"
+        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
+        "SMS dispatch must fail loud as unsupported, never fabricate success: {result:?}"
     );
 }
 
 #[tokio::test]
-async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
+async fn test_dispatch_push_returns_unsupported() {
     let executor = create_test_executor();
     let action = ActionConfig::Push {
-        device_token:   None,
+        device_token:   Some("token".to_string()),
         title_template: Some("title".to_string()),
         body_template:  Some("body".to_string()),
     };
@@ -898,8 +902,42 @@ async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
     let result = executor.execute_action_internal(&action, &event).await;
 
     assert!(
-        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
-        "missing push 'device_token' should return InvalidActionConfig: {result:?}"
+        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
+        "Push dispatch must fail loud as unsupported: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_dispatch_search_returns_unsupported() {
+    let executor = create_test_executor();
+    let action = ActionConfig::Search {
+        index:       "users".to_string(),
+        id_template: None,
+    };
+    let event = test_event();
+
+    let result = executor.execute_action_internal(&action, &event).await;
+
+    assert!(
+        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
+        "Search dispatch must fail loud as unsupported: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_dispatch_cache_returns_unsupported() {
+    let executor = create_test_executor();
+    let action = ActionConfig::Cache {
+        key_pattern: "user:*".to_string(),
+        action:      "invalidate".to_string(),
+    };
+    let event = test_event();
+
+    let result = executor.execute_action_internal(&action, &event).await;
+
+    assert!(
+        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
+        "Cache dispatch must fail loud as unsupported: {result:?}"
     );
 }
 

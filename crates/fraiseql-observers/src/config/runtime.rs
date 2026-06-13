@@ -378,7 +378,9 @@ impl ActionConfig {
     /// # Errors
     ///
     /// Returns [`ObserverError::InvalidActionConfig`] if required fields such as
-    /// `url`, `webhook_url`, or `to` are absent or empty for the given action variant.
+    /// `url`, `webhook_url`, or `to` are absent or empty for the given action variant,
+    /// or [`ObserverError::UnsupportedActionType`] for action types with no wired
+    /// transport (`sms`, `push`, `search`, `cache`).
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Webhook {
@@ -444,64 +446,15 @@ impl ActionConfig {
                 }
                 Ok(())
             },
-            Self::Sms {
-                phone,
-                phone_template,
-                message_template,
-            } => {
-                if phone.is_none() && phone_template.is_none() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "SMS action requires 'phone' or 'phone_template'".to_string(),
-                    });
-                }
-                if message_template.is_none() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "SMS action requires 'message_template'".to_string(),
-                    });
-                }
-                Ok(())
-            },
-            Self::Push {
-                device_token,
-                title_template,
-                body_template,
-            } => {
-                if device_token.is_none() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Push action requires 'device_token'".to_string(),
-                    });
-                }
-                if title_template.is_none() || body_template.is_none() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Push action requires 'title_template' and 'body_template'"
-                            .to_string(),
-                    });
-                }
-                Ok(())
-            },
-            Self::Search { index, .. } => {
-                if index.is_empty() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Search action requires 'index'".to_string(),
-                    });
-                }
-                Ok(())
-            },
-            Self::Cache {
-                key_pattern,
-                action,
-            } => {
-                if key_pattern.is_empty() {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Cache action requires 'key_pattern'".to_string(),
-                    });
-                }
-                if action != "invalidate" && action != "refresh" {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Cache action must be 'invalidate' or 'refresh'".to_string(),
-                    });
-                }
-                Ok(())
+            // Not implemented: no real transport is wired for these action types.
+            // They previously fabricated `success: true` at dispatch and sent
+            // nothing (H24). Reject them at config-load time so a misconfigured
+            // observer refuses to start rather than silently no-op. Real
+            // transports are tracked as follow-up work.
+            Self::Sms { .. } | Self::Push { .. } | Self::Search { .. } | Self::Cache { .. } => {
+                Err(ObserverError::UnsupportedActionType {
+                    action_type: self.action_type().to_string(),
+                })
             },
         }
     }
