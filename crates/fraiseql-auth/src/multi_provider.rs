@@ -234,7 +234,12 @@ pub async fn list_providers(
 /// # Query parameters
 ///
 /// - `provider` — **required**: provider name (must match a registered provider).
-/// - `redirect_uri` — **required**: client application callback URI.
+/// - `redirect_uri` — **required**: client application callback URI. It is validated for presence
+///   and length but is **not currently used for a server-side redirect**: [`callback`] returns the
+///   session tokens as JSON for the client to handle. A server-side redirect to this URI is
+///   intentionally not implemented yet because it would be an open-redirect vector without a
+///   configured allow-list of permitted redirect URIs. Tracked as a follow-up feature in #427
+///   (allow-list-backed redirect flow).
 ///
 /// # Responses
 ///
