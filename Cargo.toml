@@ -109,6 +109,8 @@ rusqlite = {version = "0.32", features = ["bundled"]}
 # Serialization
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+# Exact-precision NUMERIC/DECIMAL decoding for the PostgreSQL adapter
+rust_decimal = {version = "1", features = ["db-tokio-postgres"]}
 # Crypto
 sha2 = "0.11"
 # SQL toolkit (MySQL feature gated behind per-crate optional flags)

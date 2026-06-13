@@ -64,6 +64,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The PostgreSQL adapter no longer nulls NUMERIC, UUID, and timestamp columns
+  (H35).** `row_to_map` decoded a fixed ladder of types (`i32`/`i64`/`f64`/`String`/`bool`/
+  `text[]`/`jsonb`) and fell through everything else to `Null`, so a `SUM(revenue)` aggregate,
+  any raw `NUMERIC`/`DECIMAL` column, a `uuid` column (e.g. `mutation_response.entity_id`), and
+  `timestamptz`/`timestamp`/`date` columns all silently became JSON `null`. The ladder now
+  decodes `NUMERIC`/`DECIMAL` (as a JSON number, via `rust_decimal`), `UUID` (canonical string),
+  and chrono timestamps/dates (ISO 8601 text); a column whose type still isn't representable is
+  logged with its name and PostgreSQL type instead of nulling silently. A cross-type conformance
+  test pins the mapping so the next drift fails a shared test.
+- **MySQL database errors now carry a usable SQLSTATE (H36).** The `execute_raw` path parsed
+  `db_err.code()` — which already *is* the SQLSTATE string — as a MySQL error *number* and fed it
+  to `map_mysql_error_code` (which expects numbers like 1062), so the mapping never matched and
+  every raw-query error surfaced with `sql_state: None`; the #413 client-input classifier never
+  mapped a MySQL constraint violation to HTTP 400. All SQLSTATE extraction in the adapter is now
+  routed through one `mysql_sql_state` seam that reads MySQL's native error number via downcast,
+  normalises the well-known integrity/serialization numbers to canonical SQLSTATEs, and falls
+  back to MySQL's own SQLSTATE — so a duplicate-key violation now classifies as 400. The drifted
+  inline copies (and the duplicate `map_mysql_error_code` in `helpers.rs`) are removed.
+
 - **Federation `_entities` results are now positionally aligned to the input
   representations (H31).** The resolver grouped representations by typename and re-numbered the
   resolved entities with a per-group running counter, so for an interleaved request like

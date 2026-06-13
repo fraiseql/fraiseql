@@ -155,6 +155,29 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, bool>(idx) {
             serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, rust_decimal::Decimal>(idx) {
+            // NUMERIC/DECIMAL — render as a JSON number by parsing the canonical
+            // decimal text, so the value isn't forced through f64 at construction.
+            // Without this branch a `SUM(revenue)` aggregate (and every raw
+            // NUMERIC column) fell through to `Null` (H35). Falls back to a JSON
+            // string only if the decimal text isn't valid JSON numeric syntax,
+            // which `Decimal::to_string` never produces.
+            let s = v.to_string();
+            serde_json::from_str::<serde_json::Value>(&s)
+                .unwrap_or(serde_json::Value::String(s))
+        } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
+            // UUID columns (e.g. `app.mutation_response.entity_id`) render as the
+            // canonical hyphenated string instead of silently nulling (H35).
+            serde_json::json!(v.to_string())
+        } else if let Ok(v) = row.try_get::<_, chrono::DateTime<chrono::Utc>>(idx) {
+            // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
+            serde_json::json!(v.to_rfc3339())
+        } else if let Ok(v) = row.try_get::<_, chrono::NaiveDateTime>(idx) {
+            // `timestamp` (no tz) → ISO 8601 text (H35).
+            serde_json::json!(v.to_string())
+        } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
+            // `date` → ISO 8601 date text (H35).
+            serde_json::json!(v.to_string())
         } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
             // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
             // this branch a non-null text array falls through to Null and a parser
@@ -164,6 +187,14 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
         } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
             v
         } else {
+            // A column whose PostgreSQL type none of the branches above can
+            // decode. Name the column and its type so the next drift is visible
+            // in logs instead of a silent null (H35).
+            tracing::warn!(
+                column = %column_name,
+                pg_type = %column.type_(),
+                "row_to_map: column type not representable as JSON; returning null"
+            );
             serde_json::Value::Null
         };
         map.insert(column_name, value);

@@ -1,3 +1,5 @@
+#![allow(clippy::panic)] // Reason: test code, panics are an acceptable failure mode
+
 use super::*;
 use crate::{identifier::quote_mysql_identifier, types::DatabaseType};
 
@@ -264,5 +266,46 @@ mod integration_tests {
             .expect("Failed to execute query");
 
         assert!(results.len() <= 2);
+    }
+
+    // H36: a duplicate-key violation must surface a "23" SQLSTATE so the
+    // server's #413 client-input classifier maps it to HTTP 400 instead of 500.
+    // The previous `execute_raw` path parsed `code()` (the SQLSTATE) as a MySQL
+    // error number, so `sql_state` came back `None` and the error was a 500.
+    #[tokio::test]
+    async fn duplicate_key_surfaces_integrity_sqlstate() {
+        use fraiseql_error::FraiseQLError;
+
+        use crate::traits::DatabaseAdapter;
+
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+
+        // A real (non-temporary) table so the inserts are visible regardless of
+        // which pooled connection each statement lands on. Best-effort cleanup
+        // first in case a prior run aborted.
+        let _ = adapter.execute_raw_query("DROP TABLE IF EXISTS _h36_dupkey_test").await;
+        adapter
+            .execute_raw_query("CREATE TABLE _h36_dupkey_test (id INT PRIMARY KEY)")
+            .await
+            .expect("create table");
+        adapter
+            .execute_raw_query("INSERT INTO _h36_dupkey_test (id) VALUES (1)")
+            .await
+            .expect("first insert");
+
+        let dup = adapter.execute_raw_query("INSERT INTO _h36_dupkey_test (id) VALUES (1)").await;
+
+        let _ = adapter.execute_raw_query("DROP TABLE IF EXISTS _h36_dupkey_test").await;
+
+        match dup {
+            Err(FraiseQLError::Database { sql_state, .. }) => {
+                let state = sql_state.expect("duplicate-key error must carry a SQLSTATE, not None");
+                assert!(
+                    state.starts_with("23"),
+                    "duplicate-key SQLSTATE must be an integrity-constraint class (23xxx), got: {state}"
+                );
+            },
+            other => panic!("expected a Database error for the duplicate key, got: {other:?}"),
+        }
     }
 }

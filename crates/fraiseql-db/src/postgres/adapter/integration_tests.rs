@@ -812,3 +812,81 @@ async fn execute_raw_non_jsonb_data_column_errors_instead_of_panicking() {
         "expected FraiseQLError::Database for a non-JSONB data column, got: {result:?}"
     );
 }
+
+// ── H35: row_to_map must not null NUMERIC / UUID / timestamp columns ──────────
+
+// The headline drift bug: a `SUM(numeric)` aggregate (and any raw NUMERIC, UUID,
+// or timestamp column) fell through `row_to_map`'s type ladder to `Null`. The
+// query below uses only literals so it is seed-independent.
+#[tokio::test]
+async fn row_to_map_renders_numeric_uuid_and_timestamp() {
+    let adapter = create_test_adapter().await;
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT \
+               SUM(v)::numeric                              AS revenue, \
+               '550e8400-e29b-41d4-a716-446655440000'::uuid AS uid, \
+               '2024-01-15T10:30:00Z'::timestamptz          AS ts \
+             FROM (VALUES (100.50::numeric), (200.25::numeric)) t(v)",
+        )
+        .await
+        .expect("query failed");
+    let row = &rows[0];
+
+    // NUMERIC aggregate is a JSON number, not null.
+    assert_eq!(row["revenue"], json!(300.75), "NUMERIC SUM must not be null");
+    // UUID renders as its canonical string, not null.
+    assert_eq!(
+        row["uid"],
+        json!("550e8400-e29b-41d4-a716-446655440000"),
+        "UUID must not be null"
+    );
+    // timestamptz renders as ISO 8601 text, not null.
+    assert!(
+        row["ts"].as_str().is_some_and(|s| s.starts_with("2024-01-15")),
+        "timestamptz must render as ISO text, got: {:?}",
+        row["ts"]
+    );
+}
+
+// Cross-type conformance: one table of (SQL expression → expected JSON), so the
+// next time a type drifts back to a silent null a shared test fails. Each column
+// is a literal cast, keeping the fixture seed-independent.
+#[tokio::test]
+async fn row_to_map_type_conformance() {
+    let adapter = create_test_adapter().await;
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT \
+               1::int4                                      AS c_int, \
+               9000000000::int8                             AS c_bigint, \
+               1.5::float8                                  AS c_float, \
+               true                                         AS c_bool, \
+               'hi'::text                                   AS c_text, \
+               42.42::numeric                               AS c_numeric, \
+               '11111111-2222-3333-4444-555555555555'::uuid AS c_uuid, \
+               '2030-06-13T08:00:00Z'::timestamptz          AS c_tstz, \
+               '2030-06-13 08:00:00'::timestamp             AS c_ts, \
+               '2030-06-13'::date                           AS c_date, \
+               ARRAY['a','b']::text[]                       AS c_textarr, \
+               '{\"k\":1}'::jsonb                            AS c_jsonb, \
+               NULL::text                                   AS c_null",
+        )
+        .await
+        .expect("query failed");
+    let r = &rows[0];
+
+    assert_eq!(r["c_int"], json!(1));
+    assert_eq!(r["c_bigint"], json!(9_000_000_000i64));
+    assert_eq!(r["c_float"], json!(1.5));
+    assert_eq!(r["c_bool"], json!(true));
+    assert_eq!(r["c_text"], json!("hi"));
+    assert_eq!(r["c_numeric"], json!(42.42));
+    assert_eq!(r["c_uuid"], json!("11111111-2222-3333-4444-555555555555"));
+    assert!(r["c_tstz"].as_str().is_some_and(|s| s.starts_with("2030-06-13")));
+    assert!(r["c_ts"].as_str().is_some_and(|s| s.starts_with("2030-06-13")));
+    assert_eq!(r["c_date"], json!("2030-06-13"));
+    assert_eq!(r["c_textarr"], json!(["a", "b"]));
+    assert_eq!(r["c_jsonb"], json!({"k": 1}));
+    assert_eq!(r["c_null"], serde_json::Value::Null);
+}

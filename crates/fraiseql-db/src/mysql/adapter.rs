@@ -146,14 +146,9 @@ impl MySqlAdapter {
         }
 
         let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                db_err.code().and_then(|c| c.parse::<u16>().ok()).and_then(map_mysql_error_code)
-            } else {
-                None
-            };
             FraiseQLError::Database {
-                message: format!("MySQL query execution failed: {e}"),
-                sql_state,
+                message:   format!("MySQL query execution failed: {e}"),
+                sql_state: mysql_sql_state(&e),
             }
         })?;
 
@@ -309,10 +304,27 @@ async fn mysql_write_outbox_row(
     Ok(())
 }
 
-/// Extract the MySQL `SQLSTATE` from a sqlx error, if any.
+/// Extract a canonical `SQLSTATE` from a sqlx MySQL error, if any.
+///
+/// This is the single SQLSTATE-extraction seam for the MySQL adapter (H36).
+/// sqlx exposes MySQL's native error *number* (e.g. 1062 for a duplicate key)
+/// via downcast; the well-known integrity/serialization numbers are normalised
+/// to the canonical (Postgres-style) `SQLSTATE`s that the server's #413
+/// client-input classifier and the retry layer understand. Everything else
+/// falls back to MySQL's own `SQLSTATE` string, and non-database errors yield
+/// `None`.
+///
+/// The previous `execute_raw` path parsed `db_err.code()` — which already *is*
+/// the `SQLSTATE` — as a MySQL error *number* and fed it to
+/// [`map_mysql_error_code`], so the mapping never matched and every raw-query
+/// error surfaced with `sql_state: None`; #413 400-classification never fired
+/// on MySQL.
 fn mysql_sql_state(e: &sqlx::Error) -> Option<String> {
     match e {
-        sqlx::Error::Database(db_err) => db_err.code().map(|c| c.into_owned()),
+        sqlx::Error::Database(db_err) => db_err
+            .try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>()
+            .and_then(|my| map_mysql_error_code(my.number()))
+            .or_else(|| db_err.code().map(|c| c.into_owned())),
         _ => None,
     }
 }
@@ -472,11 +484,7 @@ impl DatabaseAdapter for MySqlAdapter {
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let rows: Vec<MySqlRow> = sqlx::query(sql).fetch_all(&self.pool).await.map_err(|e| {
-            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                db_err.code().map(|c| c.into_owned())
-            } else {
-                None
-            };
+            let sql_state = mysql_sql_state(&e);
             FraiseQLError::Database {
                 message: format!("MySQL query execution failed: {e}"),
                 sql_state,
@@ -572,14 +580,9 @@ impl DatabaseAdapter for MySqlAdapter {
         }
 
         let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                db_err.code().map(|c| c.into_owned())
-            } else {
-                None
-            };
             FraiseQLError::Database {
-                message: format!("MySQL parameterized aggregate query failed: {e}"),
-                sql_state,
+                message:   format!("MySQL parameterized aggregate query failed: {e}"),
+                sql_state: mysql_sql_state(&e),
             }
         })?;
 

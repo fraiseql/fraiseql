@@ -1,37 +1,11 @@
-//! Helper functions for MySQL error mapping and relay pagination SQL generation.
+//! Helper functions for MySQL relay pagination SQL generation.
+//!
+//! MySQL error-number → `SQLSTATE` mapping lives in
+//! [`super::adapter::map_mysql_error_code`] (the single live copy used by the
+//! adapter's `mysql_sql_state` seam); this module no longer carries a drifted
+//! duplicate of it.
 
 use crate::types::sql_hints::{OrderByClause, OrderDirection};
-
-/// Map MySQL error numbers to SQLSTATE strings for uniform error reporting.
-///
-/// MySQL error numbers are numeric codes from the MySQL error reference.
-/// This mapping covers the most common integrity and transaction errors.
-///
-/// # Arguments
-///
-/// * `code` - MySQL error number (e.g., 1062 for duplicate entry)
-///
-/// # Returns
-///
-/// Returns a SQLSTATE string if a mapping exists, or `None` for unmapped codes.
-pub(super) fn map_mysql_error_code(code: u16) -> Option<String> {
-    let sqlstate = match code {
-        // 1062: Duplicate entry for key (unique constraint violation)
-        // 1169: Unique constraint violation (alternate code)
-        1062 | 1169 => "23505",
-        // 1048: Column cannot be null (NOT NULL violation)
-        1048 => "23502",
-        // 1451: Cannot delete or update a parent row (FK parent violation)
-        // 1452: Cannot add or update a child row (FK child violation)
-        1451 | 1452 => "23503",
-        // 1205: Lock wait timeout exceeded — treat as serialization failure
-        1205 => "40001",
-        // 1213: Deadlock found when trying to get lock
-        1213 => "40001",
-        _ => return None,
-    };
-    Some(sqlstate.to_string())
-}
 
 /// Build the `ORDER BY` clause for a relay page query.
 ///
