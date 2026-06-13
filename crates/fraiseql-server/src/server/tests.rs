@@ -162,6 +162,44 @@ mod initialization_tests {
         assert!(pkce_state_encryption_check(true, false).is_ok());
     }
 
+    // H7: error sanitization defaults to ON in production when the schema declares
+    // no explicit `error_sanitization` config, and OFF in development. An explicit
+    // compiled config overrides either way.
+    #[test]
+    fn error_sanitizer_secure_default_is_environment_aware() {
+        use super::super::initialization::build_error_sanitizer;
+
+        // No explicit config: production sanitizes, development stays verbose.
+        assert!(
+            build_error_sanitizer(None, true).is_enabled(),
+            "production must sanitize 5xx by default (H7)"
+        );
+        assert!(
+            !build_error_sanitizer(None, false).is_enabled(),
+            "development keeps verbose errors by default"
+        );
+    }
+
+    #[test]
+    fn explicit_error_sanitization_config_overrides_environment_default() {
+        use super::super::initialization::build_error_sanitizer;
+        use crate::config::error_sanitization::ErrorSanitizationConfig;
+
+        // Operator explicitly disables in production → respected (not forced on).
+        let off = ErrorSanitizationConfig {
+            enabled: false,
+            ..ErrorSanitizationConfig::default()
+        };
+        assert!(!build_error_sanitizer(Some(off), true).is_enabled());
+
+        // Operator explicitly enables in development → respected.
+        let on = ErrorSanitizationConfig {
+            enabled: true,
+            ..ErrorSanitizationConfig::default()
+        };
+        assert!(build_error_sanitizer(Some(on), false).is_enabled());
+    }
+
     // #356: the binary cannot enforce failed_login_* lockout (no first-factor login).
     use super::super::initialization::failed_login_lockout_check;
     use crate::middleware::rate_limit::{

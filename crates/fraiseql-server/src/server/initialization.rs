@@ -296,11 +296,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     }
 
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
-    /// compiled schema's security blob (if present), falling back to a disabled sanitizer.
+    /// compiled schema's security blob (if present).
+    ///
+    /// When the schema declares no explicit `error_sanitization` config, the default
+    /// is **environment-aware** (H7): in production (`FRAISEQL_ENV` not
+    /// `development`/`dev`) sanitization is enabled so a default deployment never
+    /// leaks raw DB/SQL error text on 5xx; in development it stays disabled for
+    /// verbose-error ergonomics. An explicit compiled config overrides either way.
     pub(super) fn error_sanitizer_from_schema(
         schema: &CompiledSchema,
     ) -> Arc<crate::config::error_sanitization::ErrorSanitizer> {
-        let sanitizer = schema
+        let compiled = schema
             .security
             .as_ref()
             .and_then(|s| s.additional.get("error_sanitization"))
@@ -309,12 +315,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     crate::config::error_sanitization::ErrorSanitizationConfig,
                 >(v.clone())
                 .ok()
-            })
-            .map_or_else(
-                crate::config::error_sanitization::ErrorSanitizer::disabled,
-                crate::config::error_sanitization::ErrorSanitizer::new,
-            );
-        Arc::new(sanitizer)
+            });
+        Arc::new(build_error_sanitizer(compiled, crate::ServerConfig::is_production_mode()))
     }
 
     /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
@@ -484,6 +486,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
             }
         });
+    }
+}
+
+// ── Error-sanitization secure default (H7) ───────────────────────────────────
+
+/// Resolve the `ErrorSanitizer` for a deployment given the (optional) compiled
+/// `error_sanitization` config and whether the server is running in production.
+///
+/// Precedence (H7 secure-by-default):
+/// - An **explicit** compiled config always wins, in either environment — the operator opted in or
+///   out deliberately.
+/// - With **no** compiled config, the default is environment-aware: **enabled in production** (so a
+///   default deployment does not render raw DB/SQL error text on 5xx) and **disabled in
+///   development** (verbose errors aid local debugging).
+///
+/// The pure `ErrorSanitizationConfig::default()` (shared with `fraiseql-cli`) is
+/// left untouched at `enabled = false`; the secure default lives here, at the
+/// server boot seam, so it does not change compile-time/authoring behavior.
+pub(super) fn build_error_sanitizer(
+    compiled: Option<crate::config::error_sanitization::ErrorSanitizationConfig>,
+    is_production: bool,
+) -> crate::config::error_sanitization::ErrorSanitizer {
+    use crate::config::error_sanitization::{ErrorSanitizationConfig, ErrorSanitizer};
+    match compiled {
+        Some(cfg) => ErrorSanitizer::new(cfg),
+        None if is_production => ErrorSanitizer::new(ErrorSanitizationConfig {
+            enabled: true,
+            ..Default::default()
+        }),
+        None => ErrorSanitizer::disabled(),
     }
 }
 

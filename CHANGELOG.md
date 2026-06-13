@@ -104,6 +104,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RFC 7240 `Preference-Applied` header value that no production code emitted, and carried a no-op
   `resolution` branch. Emitting `Preference-Applied` is a deliberate REST feature to be added with
   its response-path wiring, not kept as dead code.
+- **Error sanitization now defaults to ON in production (H7, behavior change).** A default
+  deployment with no explicit `[security.error_sanitization]` config previously ran with
+  sanitization disabled, so raw database/SQL error text (schema names, constraint detail, SQL
+  fragments) could reach clients in `5xx` responses. The default is now **environment-aware** at the
+  server boot seam: when `FRAISEQL_ENV` is not `development`/`dev` (i.e. production), sanitization
+  is enabled; in development it stays disabled for verbose-error ergonomics. An explicit compiled
+  config still overrides in either direction. The pure `ErrorSanitizationConfig::default()` shared
+  with `fraiseql-cli` is unchanged (still `enabled = false`); only the runtime boot default flips.
+  **Operators who relied on raw 5xx error text in production must set
+  `[security.error_sanitization] enabled = false` explicitly.**
 - **CLI gate flags now affect the exit code (H21).** `fraiseql lint --fail-on-critical` and
   `--fail-on-warning` printed a failure result but always exited 0, so they were inert as CI
   gates — a pipeline depending on them passed regardless of the findings. Lint now reports a
