@@ -119,7 +119,7 @@ pub fn infer_schema_from_rows(
     let arrow_fields: Vec<Field> = first_row
         .iter()
         .map(|(name, value)| {
-            let arrow_type = infer_type_from_value(value);
+            let arrow_type = json_value_to_arrow_type(value);
             Field::new(name.clone(), arrow_type, true) // All fields nullable
         })
         .collect();
@@ -127,18 +127,20 @@ pub fn infer_schema_from_rows(
     Ok(Arc::new(Schema::new(arrow_fields)))
 }
 
-/// Infer Arrow data type from a JSON value.
+/// Infer an Arrow [`DataType`] from a JSON value.
 ///
-/// # Arguments
+/// This is the single source of truth for JSON-row → Arrow type inference,
+/// shared by `schema_gen` (this module) and [`crate::metadata`] so the two
+/// cannot drift.
 ///
-/// * `value` - `serde_json::Value` to infer type from
-///
-/// # Returns
-///
-/// Corresponding Arrow `DataType`
-fn infer_type_from_value(value: &Value) -> DataType {
+/// JSON `null` maps to [`DataType::Utf8`] — a nullable string column — **not**
+/// [`DataType::Null`]. The array converters reject `DataType::Null`, so a column
+/// whose first row happened to be `null` previously poisoned the entire result
+/// (H37). A whole-number is `Int64`, any other number `Float64`; arrays and
+/// objects are carried as their JSON string form.
+pub(crate) fn json_value_to_arrow_type(value: &Value) -> DataType {
     match value {
-        Value::Null => DataType::Null,
+        Value::Null => DataType::Utf8,
         Value::Bool(_) => DataType::Boolean,
         Value::Number(n) => {
             if n.is_i64() {

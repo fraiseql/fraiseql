@@ -296,12 +296,15 @@ fn test_infer_schema_all_fields_are_nullable() {
 }
 
 #[test]
-fn test_infer_schema_from_rows_null_value_gives_null_type() {
+fn test_infer_schema_from_rows_null_value_gives_utf8() {
+    // Previously asserted `DataType::Null` — codifying the H37 bug. A null
+    // value must infer a nullable Utf8 column, which the array converters
+    // accept (DataType::Null would be rejected and poison the result).
     let mut row = HashMap::new();
     row.insert("unknown".to_string(), Value::Null);
     let rows = vec![row];
     let schema = infer_schema_from_rows(&rows).unwrap();
-    assert_eq!(schema.field(0).data_type(), &DataType::Null);
+    assert_eq!(schema.field(0).data_type(), &DataType::Utf8);
 }
 
 #[test]
@@ -321,4 +324,36 @@ fn test_infer_schema_from_rows_object_value_gives_utf8() {
     let rows = vec![row];
     let schema = infer_schema_from_rows(&rows).unwrap();
     assert_eq!(schema.field(0).data_type(), &DataType::Utf8);
+}
+
+// ── H37: JSON null must infer Utf8, not DataType::Null ────────────────────────
+
+// The array converters reject `DataType::Null`; a column whose first row was
+// JSON null poisoned the whole result. Inference must match `metadata.rs`
+// semantics (null → nullable Utf8 column).
+#[test]
+fn test_infer_schema_from_rows_null_value_gives_utf8_not_null() {
+    let mut row = HashMap::new();
+    row.insert("maybe".to_string(), Value::Null);
+    let rows = vec![row];
+    let schema = infer_schema_from_rows(&rows).unwrap();
+    assert_eq!(
+        schema.field(0).data_type(),
+        &DataType::Utf8,
+        "JSON null must infer Utf8, not DataType::Null"
+    );
+}
+
+// The shared single-source-of-truth helper that both `schema_gen` and
+// `metadata` now route through.
+#[test]
+fn test_json_value_to_arrow_type_covers_all_json_shapes() {
+    use serde_json::json;
+    assert_eq!(json_value_to_arrow_type(&Value::Null), DataType::Utf8);
+    assert_eq!(json_value_to_arrow_type(&json!(true)), DataType::Boolean);
+    assert_eq!(json_value_to_arrow_type(&json!(7)), DataType::Int64);
+    assert_eq!(json_value_to_arrow_type(&json!(7.5)), DataType::Float64);
+    assert_eq!(json_value_to_arrow_type(&json!("s")), DataType::Utf8);
+    assert_eq!(json_value_to_arrow_type(&json!(["a"])), DataType::Utf8);
+    assert_eq!(json_value_to_arrow_type(&json!({"k": 1})), DataType::Utf8);
 }

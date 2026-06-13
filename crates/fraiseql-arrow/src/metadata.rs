@@ -54,28 +54,14 @@ fn infer_schema_from_row(
     view_name: &str,
     row: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<Arc<Schema>> {
-    use arrow::datatypes::{DataType, Field};
+    use arrow::datatypes::Field;
 
     let mut fields = Vec::new();
 
     for (column_name, value) in row {
-        let data_type = match value {
-            serde_json::Value::Null => DataType::Utf8,
-            serde_json::Value::Bool(_) => DataType::Boolean,
-            serde_json::Value::Number(n) => {
-                if n.is_f64() {
-                    DataType::Float64
-                } else {
-                    DataType::Int64
-                }
-            },
-            serde_json::Value::String(_) => {
-                // Store strings as Utf8; timestamp detection could be added in future
-                DataType::Utf8
-            },
-            serde_json::Value::Array(_) | serde_json::Value::Object(_) => DataType::Utf8,
-        };
-
+        // Single source of truth shared with `schema_gen` so the two row→schema
+        // inference paths cannot drift (H37); JSON null → nullable Utf8.
+        let data_type = crate::schema_gen::json_value_to_arrow_type(value);
         fields.push(Field::new(column_name.clone(), data_type, true));
     }
 

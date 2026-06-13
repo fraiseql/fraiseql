@@ -96,8 +96,13 @@ impl S3Backend {
                 .send()
                 .await
                 .map_err(|e| {
-                    let msg = e.to_string();
-                    if msg.contains("NoSuchKey") || msg.contains("404") {
+                    // A missing key is a typed `NoSuchKey` service error. The
+                    // `SdkError` Display does not contain the code (it is just
+                    // "service error"), so detect it structurally on the typed
+                    // error rather than by string-matching (H40).
+                    if e.as_service_error()
+                        .is_some_and(aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key)
+                    {
                         FraiseQLError::File(FileError::NotFound {
                             id: key.to_string(),
                         })
@@ -137,8 +142,13 @@ impl S3Backend {
         match self.client.head_object().bucket(&self.bucket).key(key).send().await {
             Ok(_) => Ok(true),
             Err(err) => {
-                let msg = err.to_string();
-                if msg.contains("NotFound") || msg.contains("NoSuchKey") || msg.contains("404") {
+                // A missing object is a typed `NotFound` on the head_object
+                // error; detect it structurally rather than by string-matching
+                // the `SdkError` Display (H40).
+                if err
+                    .as_service_error()
+                    .is_some_and(aws_sdk_s3::operation::head_object::HeadObjectError::is_not_found)
+                {
                     Ok(false)
                 } else {
                     Err(storage_err_src("head_object", err))

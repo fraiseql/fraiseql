@@ -64,6 +64,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Arrow schema inference maps JSON null to `Utf8`, not `DataType::Null` (H37).**
+  `schema_gen`'s `infer_type_from_value` mapped a JSON `null` to `DataType::Null`, which the
+  Arrow array converters reject — so a result column whose *first* row was `null` poisoned the
+  entire batch, while the sibling `metadata.rs` path correctly mapped null to a nullable `Utf8`
+  column. Both paths now route through one shared `json_value_to_arrow_type` helper (null →
+  `Utf8`), so they cannot drift again; a pre-existing test that asserted the buggy `DataType::Null`
+  result was corrected.
+- **The S3 storage backend detects a missing object structurally (H40).** `download()` and
+  `exists()` decided "not found" by string-matching the `SdkError` Display for `"NoSuchKey"` /
+  `"404"` — but that Display is just `"service error"` (the status lives in the typed error), so
+  the match never fired: `exists()` returned an error instead of `Ok(false)` and `download()` of a
+  missing key surfaced a generic 500 instead of a 404. Both now inspect the typed service error
+  (`GetObjectError::is_no_such_key` / `HeadObjectError::is_not_found`), matching the structural
+  pattern already used in the server's storage path.
+
 - **The PostgreSQL adapter no longer nulls NUMERIC, UUID, and timestamp columns
   (H35).** `row_to_map` decoded a fixed ladder of types (`i32`/`i64`/`f64`/`String`/`bool`/
   `text[]`/`jsonb`) and fell through everything else to `Null`, so a `SUM(revenue)` aggregate,

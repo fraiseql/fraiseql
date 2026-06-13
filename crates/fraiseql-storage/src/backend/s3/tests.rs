@@ -84,12 +84,13 @@ fn test_s3_get_nonexistent_returns_not_found() {
         let result = backend.download("nonexistent-key.txt").await;
         assert!(result.is_err(), "download of nonexistent key should fail");
 
+        // Structural detection (H40): a missing key surfaces the typed
+        // `FileError::NotFound`, not a generic backend error string-matched on
+        // the SdkError Display.
         let err = result.unwrap_err();
-        let err_msg = err.to_string();
         assert!(
-            err_msg.contains("not found") || err_msg.contains("404"),
-            "error should indicate not found: {}",
-            err_msg
+            matches!(err, fraiseql_error::FraiseQLError::File(fraiseql_error::FileError::NotFound { .. })),
+            "missing key must map to FileError::NotFound, got: {err:?}"
         );
     });
 }
