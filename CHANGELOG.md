@@ -64,6 +64,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` results are now positionally aligned to the input
+  representations (H31).** The resolver grouped representations by typename and re-numbered the
+  resolved entities with a per-group running counter, so for an interleaved request like
+  `[User#1, Product#1, User#2]` the result array came back in group order
+  (`[User#1, User#2, Product#1]`). Apollo Router zips the `_entities` result against the input
+  array **by index**, so every consumer downstream of an interleaved batch received the wrong
+  entity for a representation. Grouping now records each representation's original input index
+  and scatters the resolved entities back to those positions, so the result array zips 1:1 with
+  the input regardless of typename interleaving.
+
 - **Every server constructor now applies the same schema-derived runtime config and boot
   validation (H16).** `Server::with_relay_pagination` and `Server::with_flight_service` (the
   Arrow Flight path) built the executor with `RuntimeConfig::default()`, so a server created

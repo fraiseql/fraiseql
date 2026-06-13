@@ -84,6 +84,63 @@ pub fn group_entities_by_typename(
     groups
 }
 
+/// Group representations by typename while preserving each representation's
+/// original input index.
+///
+/// Returns `(typename, original_indices, representations)` tuples in
+/// first-appearance order of the typenames. `original_indices[k]` is the
+/// position of `representations[k]` in the input slice.
+///
+/// This is the ordering-safe counterpart to [`group_entities_by_typename`]:
+/// Apollo Router zips the `_entities` result array against the input
+/// `representations` array **by index**, so the resolver must remember where
+/// each representation came from rather than re-numbering entities in
+/// group-iteration order (H31).
+fn group_entities_by_typename_indexed(
+    reps: &[EntityRepresentation],
+) -> Vec<(String, Vec<usize>, Vec<EntityRepresentation>)> {
+    // Track first-appearance order explicitly so the resulting batches (and the
+    // tracing spans built from them) are deterministic, independent of HashMap
+    // iteration order.
+    let mut order: Vec<String> = Vec::new();
+    let mut by_name: HashMap<String, (Vec<usize>, Vec<EntityRepresentation>)> = HashMap::new();
+
+    for (idx, rep) in reps.iter().enumerate() {
+        let entry = by_name.entry(rep.typename.clone()).or_insert_with(|| {
+            order.push(rep.typename.clone());
+            (Vec::new(), Vec::new())
+        });
+        entry.0.push(idx);
+        entry.1.push(rep.clone());
+    }
+
+    order
+        .into_iter()
+        .map(|name| {
+            let (indices, group_reps) = by_name.remove(&name).unwrap_or_default();
+            (name, indices, group_reps)
+        })
+        .collect()
+}
+
+/// Scatter a typename batch's resolved entities back into `out` at their
+/// original input positions.
+///
+/// `original_indices[k]` is the input position of `entities[k]`. Indices that
+/// fall outside `out` are ignored defensively (the caller sizes `out` to the
+/// input length, so this never happens in practice).
+fn scatter_resolved(
+    out: &mut [Option<serde_json::Value>],
+    original_indices: &[usize],
+    entities: Vec<Option<serde_json::Value>>,
+) {
+    for (orig_idx, entity) in original_indices.iter().zip(entities) {
+        if let Some(slot) = out.get_mut(*orig_idx) {
+            *slot = entity;
+        }
+    }
+}
+
 /// Resolve entities for a specific typename from local database
 pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
@@ -367,14 +424,16 @@ pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAd
         "Entity resolution operation started"
     );
 
-    // Group by typename
-    let grouped = group_entities_by_typename(representations);
+    // Group by typename, remembering each representation's original input index
+    // so resolved entities can be placed back at their input positions (H31).
+    let grouped = group_entities_by_typename_indexed(representations);
 
-    let mut all_results: Vec<(usize, Option<Value>)> = Vec::new();
-    let mut current_index = 0;
+    // Pre-sized to the input length; every slot is filled (or left `None`) at its
+    // original index, so the result array zips 1:1 with `representations`.
+    let mut all_results: Vec<Option<Value>> = vec![None; representations.len()];
     let mut all_errors = Vec::new();
 
-    for (typename, reps) in grouped {
+    for (typename, original_indices, reps) in grouped {
         let batch_start = Instant::now();
 
         // Create child span for this typename batch
@@ -445,11 +504,10 @@ pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAd
             );
         }
 
-        // Map results back to original indices with proper ordering
-        for entity in result.entities {
-            all_results.push((current_index, entity));
-            current_index += 1;
-        }
+        // Scatter this batch's results back to their original input positions.
+        // `resolve_entities_from_db_enforced` returns entities in `reps` order,
+        // and `original_indices` maps each of those slots to its input index.
+        scatter_resolved(&mut all_results, &original_indices, result.entities);
 
         // Collect errors
         all_errors.extend(result.errors.clone());
@@ -458,12 +516,9 @@ pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAd
         drop(child_span);
     }
 
-    // Sort by original index to preserve order
-    all_results.sort_by_key(|(idx, _)| *idx);
-
     // Record final span attributes
     let _span_duration = span.duration_ms();
-    let resolved_count = all_results.iter().filter(|(_, e)| e.is_some()).count();
+    let resolved_count = all_results.iter().filter(|e| e.is_some()).count();
 
     // Keep span alive until function returns
     drop(span);
@@ -472,7 +527,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAd
     // Reason: elapsed micros for a single request won't exceed u64::MAX
     let duration_us = start_time.elapsed().as_micros() as u64;
     let duration_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-    let entities = all_results.into_iter().map(|(_, e)| e).collect();
+    let entities = all_results;
     let success = all_errors.is_empty();
 
     // Log overall completion

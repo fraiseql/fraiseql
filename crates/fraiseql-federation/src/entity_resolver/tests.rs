@@ -139,3 +139,56 @@ fn test_override_field_included_in_local_resolution() {
         "Type with @override must resolve locally, got: {strategy}"
     );
 }
+
+// ── H31: `_entities` ordering must follow input position, not group order ──────
+
+/// Build a bare representation carrying only a typename (key fields are
+/// irrelevant to the ordering logic under test).
+fn typed_rep(typename: &str) -> EntityRepresentation {
+    EntityRepresentation {
+        typename:   typename.to_string(),
+        key_fields: HashMap::new(),
+        all_fields: HashMap::new(),
+    }
+}
+
+#[test]
+fn group_indexed_preserves_original_positions() {
+    // Interleaved typenames: User @0, Product @1, User @2.
+    let reps = vec![typed_rep("User"), typed_rep("Product"), typed_rep("User")];
+
+    let grouped = group_entities_by_typename_indexed(&reps);
+
+    // First-appearance order of typenames is preserved, and each group carries
+    // the ORIGINAL input indices of its members (not a per-group running count).
+    assert_eq!(grouped.len(), 2);
+    assert_eq!(grouped[0].0, "User");
+    assert_eq!(grouped[0].1, vec![0, 2]);
+    assert_eq!(grouped[1].0, "Product");
+    assert_eq!(grouped[1].1, vec![1]);
+}
+
+#[test]
+fn entities_scattered_back_to_input_order_for_interleaved_typenames() {
+    // Apollo Router zips the `_entities` result array against the input
+    // `representations` array by index. With interleaved typenames the
+    // per-group results MUST land at their original input positions.
+    //
+    // Input:   [User#1 @0, Product#1 @1, User#2 @2]
+    // User group resolves [U1, U2] for original indices [0, 2];
+    // Product group resolves [P1] for original index [1].
+    let mut out: Vec<Option<serde_json::Value>> = vec![None; 3];
+    scatter_resolved(&mut out, &[0, 2], vec![
+        Some(json!({"id": "U1"})),
+        Some(json!({"id": "U2"})),
+    ]);
+    scatter_resolved(&mut out, &[1], vec![Some(json!({"id": "P1"}))]);
+
+    assert_eq!(out[0], Some(json!({"id": "U1"})));
+    assert_eq!(
+        out[1],
+        Some(json!({"id": "P1"})),
+        "Product#1 must land at its input index, not be displaced by User#2"
+    );
+    assert_eq!(out[2], Some(json!({"id": "U2"})));
+}
