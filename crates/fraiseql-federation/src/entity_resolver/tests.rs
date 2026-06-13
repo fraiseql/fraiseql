@@ -67,69 +67,6 @@ fn test_group_entities_by_typename() {
 }
 
 #[test]
-fn test_construct_batch_where_clause() {
-    let mut rep1 = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: HashMap::new(),
-        all_fields: HashMap::new(),
-    };
-    rep1.key_fields.insert("id".to_string(), json!("123"));
-
-    let mut rep2 = EntityRepresentation {
-        typename:   "User".to_string(),
-        key_fields: HashMap::new(),
-        all_fields: HashMap::new(),
-    };
-    rep2.key_fields.insert("id".to_string(), json!("456"));
-
-    let reps = vec![rep1, rep2];
-    let where_clause = construct_batch_where_clause(&reps, &["id".to_string()]).unwrap();
-
-    assert!(where_clause.contains("WHERE"));
-    // Column name must be double-quoted for PostgreSQL identifier safety.
-    assert!(where_clause.contains("\"id\" IN"), "expected quoted column \"id\" IN");
-    assert!(where_clause.contains("123"));
-    assert!(where_clause.contains("456"));
-}
-
-#[test]
-fn test_construct_batch_where_clause_multi_key() {
-    let mut rep1 = EntityRepresentation {
-        typename:   "OrderItem".to_string(),
-        key_fields: HashMap::new(),
-        all_fields: HashMap::new(),
-    };
-    rep1.key_fields.insert("order_id".to_string(), json!("O1"));
-    rep1.key_fields.insert("product_id".to_string(), json!("P1"));
-
-    let mut rep2 = EntityRepresentation {
-        typename:   "OrderItem".to_string(),
-        key_fields: HashMap::new(),
-        all_fields: HashMap::new(),
-    };
-    rep2.key_fields.insert("order_id".to_string(), json!("O2"));
-    rep2.key_fields.insert("product_id".to_string(), json!("P2"));
-
-    let reps = vec![rep1, rep2];
-    let where_clause =
-        construct_batch_where_clause(&reps, &["order_id".to_string(), "product_id".to_string()])
-            .unwrap();
-
-    assert!(where_clause.contains("WHERE"));
-    assert!(
-        where_clause.contains("\"order_id\" IN"),
-        "expected quoted column: {}",
-        where_clause
-    );
-    assert!(
-        where_clause.contains("\"product_id\" IN"),
-        "expected multi-key column: {}",
-        where_clause
-    );
-    assert!(where_clause.contains("AND"), "multi-key needs AND: {}", where_clause);
-}
-
-#[test]
 fn test_multi_key_extract_key_fields() {
     let input = json!({
         "__typename": "OrderItem",

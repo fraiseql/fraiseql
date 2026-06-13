@@ -17,6 +17,7 @@ use super::common;
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_first_step_failure_prevents_second_step() {
     // Given: A saga with 5 steps where step 1 will fail
     let scenario = common::TestSagaScenario::new(5);
@@ -38,6 +39,7 @@ async fn test_first_step_failure_prevents_second_step() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_middle_step_failure_stops_subsequent_steps() {
     // Given: A saga with 5 steps where step 3 will fail
     let scenario = common::TestSagaScenario::new(5);
@@ -67,6 +69,7 @@ async fn test_middle_step_failure_stops_subsequent_steps() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_last_step_failure_triggers_compensation() {
     // Given: A saga with 4 steps where step 4 will fail
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -86,6 +89,7 @@ async fn test_last_step_failure_triggers_compensation() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_aborted_saga_transitions_to_aborted_state() {
     // Given: A saga with 3 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -105,6 +109,7 @@ async fn test_aborted_saga_transitions_to_aborted_state() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_failure_error_message_includes_step_context() {
     // Given: A saga with 4 steps
     let scenario = common::TestSagaScenario::new(4);
@@ -129,6 +134,7 @@ async fn test_failure_error_message_includes_step_context() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_failure_records_completed_steps_count() {
     // Given: A saga with 5 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);

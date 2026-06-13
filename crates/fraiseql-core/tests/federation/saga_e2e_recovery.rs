@@ -14,6 +14,7 @@ use super::saga_e2e_harness::*;
 // ============================================================================
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_recovery_detects_pending_sagas() {
     let store = InMemorySagaStore::new();
 
@@ -43,6 +44,7 @@ fn test_e2e_recovery_detects_pending_sagas() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_recovery_detects_stuck_executing() {
     let store = InMemorySagaStore::new();
 
@@ -63,6 +65,7 @@ fn test_e2e_recovery_detects_stuck_executing() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_recovery_cleans_stale_completed() {
     let store = InMemorySagaStore::new();
 
@@ -98,6 +101,7 @@ fn test_e2e_recovery_cleans_stale_completed() {
 // ============================================================================
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_multiple_sagas_execute_independently() {
     let store = InMemorySagaStore::new();
     let executor = MockStepExecutor::new();
@@ -176,6 +180,7 @@ fn test_e2e_multiple_sagas_execute_independently() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_concurrent_status_queries_safe() {
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(3).build();
 
@@ -199,6 +204,7 @@ fn test_e2e_concurrent_status_queries_safe() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_saga_isolation_during_compensation() {
     let store = InMemorySagaStore::new();
     let executor = MockStepExecutor::new();
@@ -263,6 +269,7 @@ fn test_e2e_saga_isolation_during_compensation() {
 // ============================================================================
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_state_transitions_tracked_with_timestamps() {
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(3).step_fails_at(2).build();
 
@@ -288,6 +295,7 @@ fn test_e2e_state_transitions_tracked_with_timestamps() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_step_execution_timing_tracked() {
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(3).build();
 

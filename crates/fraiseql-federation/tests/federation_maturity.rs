@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use fraiseql_federation::{
     composition_validator::{CompositionError, CompositionValidator},
@@ -306,30 +306,8 @@ fn test_health_check_full_lifecycle() {
     assert_eq!(report.unhealthy_count, 0);
 }
 
-// ---------------------------------------------------------------------------
-// Multi-key entity resolution
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_multi_key_where_clause_for_compound_keys() {
-    use fraiseql_federation::{
-        entity_resolver::construct_batch_where_clause, types::EntityRepresentation,
-    };
-    use serde_json::json;
-
-    let mut rep = EntityRepresentation {
-        typename:   "OrderItem".to_string(),
-        key_fields: HashMap::new(),
-        all_fields: HashMap::new(),
-    };
-    rep.key_fields.insert("order_id".to_string(), json!("O1"));
-    rep.key_fields.insert("product_id".to_string(), json!("P1"));
-
-    let clause =
-        construct_batch_where_clause(&[rep], &["order_id".to_string(), "product_id".to_string()])
-            .unwrap();
-
-    assert!(clause.contains("\"order_id\" IN"), "clause: {clause}");
-    assert!(clause.contains("\"product_id\" IN"), "clause: {clause}");
-    assert!(clause.contains("AND"), "compound key needs AND: {clause}");
-}
+// Multi-key entity resolution is covered by the unit test
+// `query_builder::tests::test_construct_composite_where_in_binds_values`, which
+// exercises the canonical parameterized builder. The drifted
+// `construct_batch_where_clause` duplicate it used to call was removed
+// (M-batch-where-dup).

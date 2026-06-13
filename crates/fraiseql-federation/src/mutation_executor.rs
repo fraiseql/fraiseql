@@ -27,6 +27,13 @@ enum MutationType {
 }
 
 /// Determine the mutation type from the operation name.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` when the operation name does not begin
+/// with a recognised verb. The previous behaviour defaulted an unrecognised name
+/// to `Update` (M-fed-mut-executor), so a typo or an unsupported operation
+/// silently issued an `UPDATE` against the entity table. It now fails loud.
 fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
     let lower = mutation_name.to_lowercase();
 
@@ -37,8 +44,13 @@ fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
     } else if lower.starts_with("delete") || lower.starts_with("remove") {
         Ok(MutationType::Delete)
     } else {
-        // Default to UPDATE for mutations without clear type indicator
-        Ok(MutationType::Update)
+        Err(fraiseql_error::FraiseQLError::Validation {
+            message: format!(
+                "Cannot determine mutation type from operation name '{mutation_name}': \
+                 expected a name beginning with create/add, update/modify, or delete/remove"
+            ),
+            path:    None,
+        })
     }
 }
 
@@ -69,11 +81,22 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     ///
     /// # Returns
     ///
-    /// The updated entity in federation format
+    /// The entity in federation format.
+    ///
+    /// # Known limitation (M-fed-mut-executor, deferred to Phase 09)
+    ///
+    /// This currently builds the response from the **input** `variables` rather
+    /// than reading the mutated row back from the database, and does not inspect
+    /// the affected-row count — so a 0-row `UPDATE`/`DELETE` (entity absent) still
+    /// returns a response. A faithful implementation needs a `RETURNING`-style
+    /// read-back, which is database-dialect-specific and reworks the federation
+    /// mutation integration tests; tracked separately. Unknown operation names
+    /// now fail loud rather than defaulting to `UPDATE`.
     ///
     /// # Errors
     ///
-    /// Returns error if mutation execution fails
+    /// Returns error if the operation name is unrecognised, the entity type is
+    /// unknown, query construction fails, or mutation execution fails.
     pub async fn execute_local_mutation(
         &self,
         typename: &str,

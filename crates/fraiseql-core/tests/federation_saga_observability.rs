@@ -21,6 +21,7 @@ use uuid::Uuid;
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_coordinator_create_saga_emits_info() {
     // Given: A coordinator with valid steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -54,6 +55,7 @@ async fn test_coordinator_create_saga_emits_info() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_coordinator_create_saga_validation_emits_warn() {
     // Given: A coordinator with empty steps (validation failure)
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -68,6 +70,7 @@ async fn test_coordinator_create_saga_validation_emits_warn() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_coordinator_execute_saga_emits_lifecycle() {
     // Given: A coordinator
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -82,6 +85,7 @@ async fn test_coordinator_execute_saga_emits_lifecycle() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_coordinator_cancel_saga_emits_info() {
     // Given: A coordinator
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -102,6 +106,7 @@ async fn test_coordinator_cancel_saga_emits_info() {
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_executor_execute_step_emits_info() {
     // Given: An executor with step details
     let executor = SagaExecutor::new();
@@ -127,6 +132,7 @@ async fn test_executor_execute_step_emits_info() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_executor_execute_saga_emits_lifecycle() {
     // Given: An executor
     let executor = SagaExecutor::new();
@@ -141,6 +147,7 @@ async fn test_executor_execute_saga_emits_lifecycle() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_executor_get_state_emits_debug() {
     // Given: An executor
     let executor = SagaExecutor::new();
@@ -156,6 +163,7 @@ async fn test_executor_get_state_emits_debug() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_executor_step_context_includes_mutation_name() {
     // Given: An executor with specific mutation details
     let executor = SagaExecutor::new();
@@ -185,6 +193,7 @@ async fn test_executor_step_context_includes_mutation_name() {
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensator_compensate_saga_emits_info() {
     // Given: A compensator
     let compensator = SagaCompensator::new();
@@ -200,6 +209,7 @@ async fn test_compensator_compensate_saga_emits_info() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensator_compensate_step_emits_info() {
     // Given: A compensator with step compensation details
     let compensator = SagaCompensator::new();
@@ -224,6 +234,7 @@ async fn test_compensator_compensate_step_emits_info() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensator_status_query_emits_debug() {
     // Given: A compensator
     let compensator = SagaCompensator::new();
@@ -238,6 +249,7 @@ async fn test_compensator_status_query_emits_debug() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensator_step_context_includes_subgraph() {
     // Given: A compensator with specific subgraph details
     let compensator = SagaCompensator::new();

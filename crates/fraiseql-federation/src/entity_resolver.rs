@@ -84,44 +84,6 @@ pub fn group_entities_by_typename(
     groups
 }
 
-/// Construct WHERE clause for batch query
-///
-/// # Errors
-///
-/// This function is infallible in practice but returns `Result` for API consistency.
-pub fn construct_batch_where_clause(
-    representations: &[EntityRepresentation],
-    key_columns: &[String],
-) -> Result<String> {
-    if representations.is_empty() || key_columns.is_empty() {
-        return Ok(String::new());
-    }
-
-    let mut conditions = Vec::new();
-
-    for key_col in key_columns {
-        let values: Vec<String> = representations
-            .iter()
-            .filter_map(|rep| rep.key_fields.get(key_col))
-            .filter_map(|v| v.as_str())
-            .map(|s| format!("'{}'", s.replace('\'', "''")))
-            .collect();
-
-        if !values.is_empty() && !values.iter().all(|v| v == "''") {
-            // Double-quote the column identifier so that reserved words and
-            // mixed-case names are handled correctly in PostgreSQL.
-            let quoted_col = format!("\"{}\"", key_col.replace('"', "\"\""));
-            conditions.push(format!("{quoted_col} IN ({})", values.join(", ")));
-        }
-    }
-
-    if conditions.is_empty() {
-        Ok(String::new())
-    } else {
-        Ok(format!("WHERE {}", conditions.join(" AND ")))
-    }
-}
-
 /// Resolve entities for a specific typename from local database
 pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],

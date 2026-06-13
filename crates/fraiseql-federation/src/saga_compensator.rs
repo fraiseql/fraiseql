@@ -103,7 +103,7 @@
 //! }
 //! ```
 
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use ::tracing::{debug, info};
 use uuid::Uuid;
@@ -240,243 +240,44 @@ impl SagaCompensator {
         self.store.is_some()
     }
 
-    /// Execute compensation for a failed saga
+    /// Execute compensation for a failed saga.
     ///
-    /// Initiates the compensation phase for a saga that failed during forward execution.
-    /// Compensation steps are executed in strict reverse order (last completed step first),
-    /// and the process continues even if individual compensation steps fail. This ensures
-    /// maximum coverage even when some compensations encounter transient errors.
+    /// # Status
     ///
-    /// # Execution Order
-    ///
-    /// If saga has steps 1, 2, 3 completed and step 4 fails:
-    /// - Compensate step 3 first
-    /// - Then step 2
-    /// - Finally step 1
-    /// - If step 3 compensation fails, step 2 and 1 still execute
-    ///
-    /// # State Transitions
-    ///
-    /// Before: Saga state = Failed
-    /// During: Saga state = Compensating (atomic transaction)
-    /// After:
-    /// - All success → Saga state = Compensated
-    /// - Some fail → Saga state = `CompensationFailed` (needs recovery)
-    /// - All fail → Saga state = `CompensationFailed` (needs manual intervention)
+    /// **Not implemented.** The compensation driver previously transitioned the
+    /// saga to `Compensating`, invoked the fabricating [`Self::compensate_step`]
+    /// for each completed step, and persisted a `Compensated` state without
+    /// performing any real rollback mutation (audit H33 / M-saga-coordinator).
+    /// It now fails loud instead of persisting fabricated compensation progress.
     ///
     /// # Arguments
     ///
     /// * `saga_id` - ID of the saga to compensate
     ///
-    /// # Returns
-    ///
-    /// `CompensationResult` with:
-    /// - `status`: Overall compensation status (`Compensated`, `PartiallyCompensated`, or
-    ///   `CompensationFailed`)
-    /// - `step_results`: Results for each compensated step (in reverse order)
-    /// - `failed_steps`: Steps where compensation failed (for targeted recovery)
-    /// - `total_duration_ms`: Total time spent in compensation phase
-    /// - `error`: High-level error message if status is `CompensationFailed`
-    ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError` if:
-    /// - Saga not found in store
-    /// - Saga is not in Failed state
-    /// - Cannot load completed steps from store
-    /// - Cannot update saga state in store
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// let compensator = SagaCompensator::new();
-    /// let result = compensator.compensate_saga(saga_id).await?;
-    ///
-    /// if result.status == CompensationStatus::Compensated {
-    ///     println!("Saga rolled back successfully");
-    /// } else if !result.failed_steps.is_empty() {
-    ///     eprintln!("Steps that failed compensation: {:?}", result.failed_steps);
-    /// }
-    /// ```
-    #[allow(clippy::cognitive_complexity)] // Reason: saga compensation is an inherently sequential state machine (load → verify → transition → compensate steps → finalize)
+    /// Always returns
+    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
     pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
-        let start_time = Instant::now();
-        info!(saga_id = %saga_id, "Saga compensation started");
-
-        // Execute compensation steps in strict reverse order (LIFO),
-        // continuing even if individual steps fail
-
-        // If no store available, return empty results (for testing)
-        let Some(store) = &self.store else {
-            debug!("No saga store available - returning empty compensation result");
-            let result = CompensationResult {
-                saga_id,
-                status: CompensationStatus::Compensated,
-                step_results: vec![],
-                failed_steps: vec![],
-                total_duration_ms: 0,
-                error: None,
-            };
-            return Ok(result);
-        };
-
-        // 1. Load saga from store
-        let saga = store.load_saga(saga_id).await.map_err(|e| {
-            info!(saga_id = %saga_id, error = ?e, "Failed to load saga for compensation");
-            e
-        })?;
-
-        let Some(saga_data) = saga else {
-            return Err(crate::saga_store::SagaStoreError::SagaNotFound(saga_id));
-        };
-
-        // 2. Verify saga is in Failed state
-        if saga_data.state != SagaState::Failed {
-            info!(
-                saga_id = %saga_id,
-                state = ?saga_data.state,
-                "Saga is not in Failed state - cannot compensate"
-            );
-            // For non-failed sagas, return empty compensation
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: duration millis won't exceed u64 in practice
-            let total_duration_ms = start_time.elapsed().as_millis() as u64;
-            let result = CompensationResult {
-                saga_id,
-                status: CompensationStatus::Compensated,
-                step_results: vec![],
-                failed_steps: vec![],
-                total_duration_ms,
-                error: None,
-            };
-            return Ok(result);
-        }
-
-        // 3. Transition saga to Compensating state
-        store.update_saga_state(saga_id, &SagaState::Compensating).await.map_err(|e| {
-            info!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Compensating");
-            e
-        })?;
-
-        info!(saga_id = %saga_id, "Saga transitioned to Compensating");
-
-        // 4. Load all completed steps from store
-        let steps = store.load_saga_steps(saga_id).await.map_err(|e| {
-            info!(saga_id = %saga_id, error = ?e, "Failed to load saga steps for compensation");
-            e
-        })?;
-
-        // Filter to completed steps only
-        let completed_steps: Vec<_> =
-            steps.iter().filter(|s| s.state == StepState::Completed).collect();
-
-        let mut step_results = vec![];
-        let mut failed_steps = vec![];
-
-        // 5. Execute compensation in REVERSE order (N-1..1)
-        for step in completed_steps.iter().rev() {
-            info!(
-                saga_id = %saga_id,
-                step = step.order,
-                "Compensating saga step (reverse order)"
-            );
-
-            // Execute this step's compensation
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: step count is bounded well below u32::MAX
-            let step_order = step.order as u32;
-            match self
-                .compensate_step(
-                    saga_id,
-                    step_order,
-                    &format!("delete_{}", step.typename),
-                    &step.result.clone().unwrap_or(serde_json::json!({})),
-                    &step.subgraph,
-                )
-                .await
-            {
-                Ok(comp_result) => {
-                    // Compensation succeeded - collect result and continue
-                    info!(
-                        saga_id = %saga_id,
-                        step = step.order,
-                        "Step compensation succeeded"
-                    );
-                    step_results.push(comp_result);
-                },
-                Err(e) => {
-                    // Compensation failed - record failure but continue (resilience)
-                    info!(
-                        saga_id = %saga_id,
-                        step = step.order,
-                        error = ?e,
-                        "Step compensation failed - continuing with next step"
-                    );
-
-                    failed_steps.push(step_order);
-
-                    // Create failure result
-                    let failure_result = CompensationStepResult {
-                        step_number: step_order,
-                        success:     false,
-                        data:        None,
-                        error:       Some(format!("Compensation failed: {:?}", e)),
-                        duration_ms: 0,
-                    };
-                    step_results.push(failure_result);
-                },
-            }
-        }
-
-        // 6. Determine overall status
-        let status = if failed_steps.is_empty() {
-            CompensationStatus::Compensated
-        } else if failed_steps.len() < completed_steps.len() {
-            CompensationStatus::PartiallyCompensated
-        } else {
-            CompensationStatus::CompensationFailed
-        };
-
-        // 7. Update saga state based on compensation status
-        let final_saga_state = match status {
-            CompensationStatus::Compensated => SagaState::Compensated,
-            _ => SagaState::Failed, // Keep as Failed if compensation partially or fully failed
-        };
-
-        store.update_saga_state(saga_id, &final_saga_state).await.map_err(|e| {
-            info!(saga_id = %saga_id, error = ?e, "Failed to update final saga state");
-            e
-        })?;
-
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: duration millis won't exceed u64 in practice
-        let total_duration_ms = start_time.elapsed().as_millis() as u64;
-
-        let result = CompensationResult {
-            saga_id,
-            status,
-            step_results,
-            failed_steps,
-            total_duration_ms,
-            error: None,
-        };
-
         info!(
             saga_id = %saga_id,
-            status = ?result.status,
-            total_duration_ms = result.total_duration_ms,
-            "Saga compensation completed"
+            "Saga compensation requested but distributed saga compensation is unwired"
         );
 
-        Ok(result)
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCompensator::compensate_saga".to_string(),
+        })
     }
 
-    /// Compensate a single step
+    /// Compensate a single step.
     ///
-    /// Executes compensation for a specific completed saga step.
-    /// Used for targeted compensation or recovery scenarios.
+    /// # Status
+    ///
+    /// **Not implemented.** This path previously simulated a successful
+    /// compensation: it built a fake `{"deleted": true, ...}` confirmation
+    /// document, persisted it over the forward result, and returned
+    /// `success: true` without dispatching any compensation mutation (audit
+    /// H33). It now fails loud and persists nothing.
     ///
     /// # Arguments
     ///
@@ -486,166 +287,30 @@ impl SagaCompensator {
     /// * `original_result_data` - Result data from original forward step
     /// * `subgraph` - Target subgraph for compensation mutation
     ///
-    /// # Returns
-    ///
-    /// `CompensationStepResult` with:
-    /// - `success`: true if step compensated successfully
-    /// - `data`: Confirmation data if successful
-    /// - `error`: Error description if failed
-    /// - `duration_ms`: Time spent compensating
-    ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError` if:
-    /// - Step not found in saga
-    /// - Compensation mutation execution fails
-    /// - Subgraph unavailable
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// let result = compensator.compensate_step(
-    ///     saga_id,
-    ///     1,
-    ///     "deleteOrder",
-    ///     &json!({"id": "order-123"}),
-    ///     "orders-service"
-    /// ).await?;
-    ///
-    /// if result.success {
-    ///     println!("Order deleted successfully");
-    /// }
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// Cannot panic in practice — the `expect` on `self.store` is guarded by
-    /// an `is_none()` early-return immediately above.
-    #[allow(clippy::cognitive_complexity)] // Reason: sequential step compensation with store validation, mutation execution, and result persistence
+    /// Always returns
+    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented);
+    /// it must never persist a compensation result.
     pub async fn compensate_step(
         &self,
         saga_id: Uuid,
         step_number: u32,
         compensation_mutation: &str,
-        original_result_data: &serde_json::Value,
+        _original_result_data: &serde_json::Value,
         subgraph: &str,
     ) -> SagaStoreResult<CompensationStepResult> {
-        let start_time = Instant::now();
         info!(
             saga_id = %saga_id,
             step = step_number,
             compensation_mutation = compensation_mutation,
             subgraph = subgraph,
-            "Step compensation started"
+            "Step compensation requested but distributed saga compensation is unwired"
         );
 
-        // If no store available, return success for testing
-        if self.store.is_none() {
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: duration millis won't exceed u64 in practice
-            let duration_ms = start_time.elapsed().as_millis() as u64;
-            let result = CompensationStepResult {
-                step_number,
-                success: true,
-                data: Some(serde_json::json!({
-                    "deleted": true,
-                    "confirmation_id": format!("comp-{}", step_number)
-                })),
-                error: None,
-                duration_ms,
-            };
-
-            info!(
-                saga_id = %saga_id,
-                step = step_number,
-                duration_ms = result.duration_ms,
-                "Step compensation completed (no store)"
-            );
-
-            return Ok(result);
-        }
-
-        let store = self.store.as_ref().expect("store is Some; None was returned above");
-
-        // 1. Load the specific step to verify it's Completed
-        let steps = store.load_saga_steps(saga_id).await.map_err(|e| {
-            info!(saga_id = %saga_id, step = step_number, error = ?e, "Failed to load saga steps");
-            e
-        })?;
-
-        let saga_step =
-            steps.iter().find(|s| s.order == step_number as usize).ok_or_else(|| {
-                let step_id = Uuid::new_v4();
-                crate::saga_store::SagaStoreError::StepNotFound(step_id)
-            })?;
-
-        // Verify step is in Completed state (must have completed forward phase to compensate)
-        if saga_step.state != StepState::Completed {
-            return Err(crate::saga_store::SagaStoreError::InvalidStateTransition {
-                from: format!("{:?}", saga_step.state),
-                to:   "Compensation".to_string(),
-            });
-        }
-
-        info!(
-            saga_id = %saga_id,
-            step = step_number,
-            "Step compensation beginning"
-        );
-
-        // 2. Build compensation mutation variables from original result
-        let _compensation_variables = self.build_compensation_variables(original_result_data);
-
-        // 3-4. Execute compensation mutation via MutationExecutor (placeholder)
-        // For now, simulate successful compensation
-        let compensation_result_data = serde_json::json!({
-            "deleted": true,
-            "confirmation_id": format!("comp-{}", step_number),
-            "__typename": saga_step.typename.clone(),
-        });
-
-        // 5. Persist compensation result to store (overwriting forward result)
-        store
-            .update_saga_step_result(saga_step.id, &compensation_result_data)
-            .await
-            .map_err(|e| {
-                info!(
-                    saga_id = %saga_id,
-                    step = step_number,
-                    error = ?e,
-                    "Failed to save compensation result"
-                );
-                e
-            })?;
-
-        info!(
-            saga_id = %saga_id,
-            step = step_number,
-            "Step compensation result persisted"
-        );
-
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: duration millis won't exceed u64 in practice
-        let duration_ms = start_time.elapsed().as_millis() as u64;
-
-        let result = CompensationStepResult {
-            step_number,
-            success: true,
-            data: Some(compensation_result_data),
-            error: None,
-            duration_ms,
-        };
-
-        info!(
-            saga_id = %saga_id,
-            step = step_number,
-            duration_ms = result.duration_ms,
-            "Step compensation completed successfully"
-        );
-
-        Ok(result)
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCompensator::compensate_step".to_string(),
+        })
     }
 
     /// Get compensation status for a saga
@@ -757,37 +422,6 @@ impl SagaCompensator {
 
         debug!(saga_id = %saga_id, status = ?result.status, "Compensation status retrieved");
         Ok(Some(result))
-    }
-
-    /// Check if compensation can be executed for a saga
-    ///
-    /// Validates that compensation is safe to execute:
-    /// - Saga is in Failed state
-    /// - Has completed steps to compensate
-    /// - Is not already being compensated
-    ///
-    /// Build compensation mutation variables from forward step result
-    fn build_compensation_variables(
-        &self,
-        original_result_data: &serde_json::Value,
-    ) -> serde_json::Value {
-        // Extract the key fields (ID, etc.) needed to identify what to compensate
-
-        let mut compensation_vars = serde_json::json!({});
-
-        // Extract ID fields if present
-        if let Some(id) = original_result_data.get("id") {
-            compensation_vars["id"] = id.clone();
-        }
-
-        // Copy any other identifier fields that might be needed
-        for key in &["key", "uuid", "pk"] {
-            if let Some(value) = original_result_data.get(key) {
-                compensation_vars[key] = value.clone();
-            }
-        }
-
-        compensation_vars
     }
 }
 

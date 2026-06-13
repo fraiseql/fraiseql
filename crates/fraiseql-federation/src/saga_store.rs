@@ -61,6 +61,25 @@ pub enum SagaStoreError {
     SagaNotFound(Uuid),
     /// Step not found
     StepNotFound(Uuid),
+    /// A stored value could not be parsed into a known enum variant.
+    ///
+    /// Raised instead of silently coercing an unrecognised state/type string to a
+    /// default — coercion can re-execute completed work (M-saga-store-defaults).
+    CorruptStoredValue {
+        /// The column whose value failed to parse.
+        column: String,
+        /// The unrecognised value read from the database.
+        value:  String,
+    },
+    /// The requested saga operation is not implemented.
+    ///
+    /// Distributed saga execution (forward, compensation, recovery, coordination)
+    /// has no real transport wired; the paths return this rather than fabricate
+    /// and persist success (H32/H33).
+    NotImplemented {
+        /// The operation that is not implemented.
+        operation: String,
+    },
 }
 
 impl std::fmt::Display for SagaStoreError {
@@ -72,6 +91,12 @@ impl std::fmt::Display for SagaStoreError {
             },
             Self::SagaNotFound(id) => write!(f, "Saga {} not found", id),
             Self::StepNotFound(id) => write!(f, "Step {} not found", id),
+            Self::CorruptStoredValue { column, value } => {
+                write!(f, "Corrupt stored value in column '{column}': {value:?}")
+            },
+            Self::NotImplemented { operation } => {
+                write!(f, "Saga operation not implemented: {operation}")
+            },
         }
     }
 }
@@ -500,36 +525,71 @@ impl PostgresSagaStore {
 
     // Helper functions for row mapping to reduce duplication
 
-    /// Map a database row to a Saga struct
-    fn map_saga_row(row: &tokio_postgres::Row) -> Saga {
-        Saga {
-            id:           row.get(0),
-            state:        SagaState::from_str(row.get::<_, String>(1).as_str())
-                .unwrap_or(SagaState::Pending),
-            created_at:   row.get(2),
+    /// Map a database row to a Saga struct.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::CorruptStoredValue`] if the stored `state`
+    /// column does not parse into a known [`SagaState`] — coercing it to a
+    /// default could re-execute completed work (M-saga-store-defaults).
+    fn map_saga_row(row: &tokio_postgres::Row) -> Result<Saga> {
+        let state_raw: String = row.get(1);
+        let state = SagaState::from_str(state_raw.as_str()).ok_or_else(|| {
+            SagaStoreError::CorruptStoredValue {
+                column: "state".into(),
+                value:  state_raw,
+            }
+        })?;
+
+        Ok(Saga {
+            id: row.get(0),
+            state,
+            created_at: row.get(2),
             completed_at: row.get(3),
-            metadata:     row.get(4),
-        }
+            metadata: row.get(4),
+        })
     }
 
-    /// Map a database row to a [`SagaStep`] struct
-    fn map_saga_step_row(row: &tokio_postgres::Row) -> SagaStep {
-        SagaStep {
-            id:            row.get(0),
-            saga_id:       row.get(1),
+    /// Map a database row to a [`SagaStep`] struct.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::CorruptStoredValue`] if the stored
+    /// `mutation_type` or `state` column does not parse into a known enum
+    /// variant — coercing either to a default could mis-compensate or
+    /// re-execute completed work (M-saga-store-defaults).
+    fn map_saga_step_row(row: &tokio_postgres::Row) -> Result<SagaStep> {
+        let mutation_type_raw: String = row.get(4);
+        let mutation_type =
+            MutationType::from_str(mutation_type_raw.as_str()).ok_or_else(|| {
+                SagaStoreError::CorruptStoredValue {
+                    column: "mutation_type".into(),
+                    value:  mutation_type_raw,
+                }
+            })?;
+
+        let state_raw: String = row.get(7);
+        let state = StepState::from_str(state_raw.as_str()).ok_or_else(|| {
+            SagaStoreError::CorruptStoredValue {
+                column: "state".into(),
+                value:  state_raw,
+            }
+        })?;
+
+        Ok(SagaStep {
+            id: row.get(0),
+            saga_id: row.get(1),
             #[allow(clippy::cast_sign_loss)] // Reason: step_order is always non-negative from DB
-            order:         row.get::<_, i32>(2) as usize,
-            subgraph:      row.get(3),
-            mutation_type: MutationType::from_str(row.get::<_, String>(4).as_str())
-                .unwrap_or(MutationType::Update),
-            typename:      row.get(5),
-            variables:     row.get(6),
-            state:         StepState::from_str(row.get::<_, String>(7).as_str())
-                .unwrap_or(StepState::Pending),
-            result:        row.get(8),
-            started_at:    row.get(9),
-            completed_at:  row.get(10),
-        }
+            order: row.get::<_, i32>(2) as usize,
+            subgraph: row.get(3),
+            mutation_type,
+            typename: row.get(5),
+            variables: row.get(6),
+            state,
+            result: row.get(8),
+            started_at: row.get(9),
+            completed_at: row.get(10),
+        })
     }
 
     /// Save or update a saga
@@ -572,7 +632,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(row.map(|r| Self::map_saga_row(&r)))
+        row.map(|r| Self::map_saga_row(&r)).transpose()
     }
 
     /// Load all sagas ordered by creation time (newest first)
@@ -590,7 +650,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows.into_iter().map(|r| Self::map_saga_row(&r)).collect())
+        rows.iter().map(Self::map_saga_row).collect()
     }
 
     /// Load sagas filtered by state
@@ -609,7 +669,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows.into_iter().map(|r| Self::map_saga_row(&r)).collect())
+        rows.iter().map(Self::map_saga_row).collect()
     }
 
     /// Update saga state and automatically set completion time for terminal states
@@ -618,7 +678,9 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the update fails.
+    /// Returns [`SagaStoreError::SagaNotFound`] if no saga with `saga_id` exists
+    /// (the `UPDATE` matched zero rows, M-saga-rowcounts), or
+    /// [`SagaStoreError::Database`] if the update fails.
     pub async fn update_saga_state(&self, saga_id: Uuid, state: &SagaState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
@@ -630,11 +692,16 @@ impl PostgresSagaStore {
             None
         };
 
-        conn.execute(
-            "UPDATE tb_federation_sagas SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4",
-            &[&state_str, &completed_at, &now, &saga_id],
-        )
-        .await?;
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_sagas SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4",
+                &[&state_str, &completed_at, &now, &saga_id],
+            )
+            .await?;
+
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(saga_id));
+        }
 
         Ok(())
     }
@@ -657,7 +724,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(row.map(|r| Self::map_saga_step_row(&r)))
+        row.map(|r| Self::map_saga_step_row(&r)).transpose()
     }
 
     /// Load all saga steps for a saga, ordered by step number (Trinity pattern with JOIN)
@@ -679,7 +746,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows.into_iter().map(|r| Self::map_saga_step_row(&r)).collect())
+        rows.iter().map(Self::map_saga_step_row).collect()
     }
 
     /// Update saga step state and automatically set completion time for terminal states
@@ -688,7 +755,9 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the update fails.
+    /// Returns [`SagaStoreError::StepNotFound`] if no step with `step_id` exists
+    /// (the `UPDATE` matched zero rows, M-saga-rowcounts), or
+    /// [`SagaStoreError::Database`] if the update fails.
     pub async fn update_saga_step_state(&self, step_id: Uuid, state: &StepState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
@@ -700,11 +769,16 @@ impl PostgresSagaStore {
             None
         };
 
-        conn.execute(
-            "UPDATE tb_federation_saga_steps SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4",
-            &[&state_str, &completed_at, &now, &step_id],
-        )
-        .await?;
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_saga_steps SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4",
+                &[&state_str, &completed_at, &now, &step_id],
+            )
+            .await?;
+
+        if affected == 0 {
+            return Err(SagaStoreError::StepNotFound(step_id));
+        }
 
         Ok(())
     }
@@ -716,7 +790,10 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the operation fails.
+    /// Returns [`SagaStoreError::SagaNotFound`] if the parent saga
+    /// (`step.saga_id`) does not exist: the foreign-key subquery then yields no
+    /// row and the write affects zero rows (M-saga-rowcounts). Returns
+    /// [`SagaStoreError::Database`] if the operation otherwise fails.
     pub async fn save_saga_step(&self, step: &SagaStep) -> Result<()> {
         let conn = self.pool.get().await?;
         let mutation_type = step.mutation_type.as_str();
@@ -731,29 +808,36 @@ impl PostgresSagaStore {
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
-        conn.execute(
-            "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at)
+        let affected = conn
+            .execute(
+                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at)
              SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
              FROM tb_federation_sagas fs
              WHERE fs.id = $2
              ON CONFLICT (id) DO UPDATE SET state = $8, result = $9, completed_at = $11, updated_at = $13",
-            &[
-                &step.id,
-                &step.saga_id,  // Used in subquery to find saga_pk_
-                &step_number,
-                &step.subgraph,
-                &mutation_type,
-                &step.typename,
-                &step.variables,
-                &state,
-                &step.result,
-                &step.started_at,
-                &step.completed_at,
-                &chrono::Utc::now(),
-                &now,
-            ],
-        )
-        .await?;
+                &[
+                    &step.id,
+                    &step.saga_id,  // Used in subquery to find saga_pk_
+                    &step_number,
+                    &step.subgraph,
+                    &mutation_type,
+                    &step.typename,
+                    &step.variables,
+                    &state,
+                    &step.result,
+                    &step.started_at,
+                    &step.completed_at,
+                    &chrono::Utc::now(),
+                    &now,
+                ],
+            )
+            .await?;
+
+        // Zero rows means the FK subquery found no parent saga: a legitimate
+        // ON CONFLICT update still affects exactly one row.
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(step.saga_id));
+        }
 
         Ok(())
     }
@@ -762,16 +846,23 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the update fails.
+    /// Returns [`SagaStoreError::StepNotFound`] if no step with `step_id` exists
+    /// (the `UPDATE` matched zero rows, M-saga-rowcounts), or
+    /// [`SagaStoreError::Database`] if the update fails.
     pub async fn update_saga_step_result(&self, step_id: Uuid, result: &Value) -> Result<()> {
         let conn = self.pool.get().await?;
         let now = chrono::Utc::now();
 
-        conn.execute(
-            "UPDATE tb_federation_saga_steps SET result = $1, updated_at = $2 WHERE id = $3",
-            &[&result, &now, &step_id],
-        )
-        .await?;
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_saga_steps SET result = $1, updated_at = $2 WHERE id = $3",
+                &[&result, &now, &step_id],
+            )
+            .await?;
+
+        if affected == 0 {
+            return Err(SagaStoreError::StepNotFound(step_id));
+        }
 
         Ok(())
     }
@@ -783,21 +874,29 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the operation fails.
+    /// Returns [`SagaStoreError::SagaNotFound`] if no saga with `saga_id` exists:
+    /// the foreign-key subquery then yields no row and the insert affects zero
+    /// rows (M-saga-rowcounts). Returns [`SagaStoreError::Database`] if the
+    /// operation otherwise fails.
     pub async fn mark_saga_for_recovery(&self, saga_id: Uuid, reason: &str) -> Result<()> {
         let conn = self.pool.get().await?;
         let recovery_id = Uuid::new_v4();
         let now = chrono::Utc::now();
 
         // Use subquery to convert saga natural key to surrogate key
-        conn.execute(
-            "INSERT INTO tb_federation_saga_recovery (id, saga_pk_, recovery_type, attempted_at, attempt_count)
+        let affected = conn
+            .execute(
+                "INSERT INTO tb_federation_saga_recovery (id, saga_pk_, recovery_type, attempted_at, attempt_count)
              SELECT $1, fs.pk_, $3, $4, $5
              FROM tb_federation_sagas fs
              WHERE fs.id = $2",
-            &[&recovery_id, &saga_id, &reason, &now, &0i32],
-        )
-        .await?;
+                &[&recovery_id, &saga_id, &reason, &now, &0i32],
+            )
+            .await?;
+
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(saga_id));
+        }
 
         Ok(())
     }
@@ -913,27 +1012,35 @@ impl PostgresSagaStore {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError::Database` if the operation fails.
+    /// Returns [`SagaStoreError::SagaNotFound`] if no saga with
+    /// `recovery.saga_id` exists: the foreign-key subquery then yields no row
+    /// and the insert affects zero rows (M-saga-rowcounts). Returns
+    /// [`SagaStoreError::Database`] if the operation otherwise fails.
     pub async fn save_recovery_record(&self, recovery: &SagaRecovery) -> Result<()> {
         let conn = self.pool.get().await?;
 
         // Use subquery to convert saga natural key to surrogate key
-        conn.execute(
-            "INSERT INTO tb_federation_saga_recovery (id, saga_pk_, recovery_type, attempted_at, last_attempt, attempt_count, last_error)
+        let affected = conn
+            .execute(
+                "INSERT INTO tb_federation_saga_recovery (id, saga_pk_, recovery_type, attempted_at, last_attempt, attempt_count, last_error)
              SELECT $1, fs.pk_, $3, $4, $5, $6, $7
              FROM tb_federation_sagas fs
              WHERE fs.id = $2",
-            &[
-                &recovery.id,
-                &recovery.saga_id,  // Used in subquery
-                &recovery.recovery_type,
-                &recovery.attempted_at,
-                &recovery.last_attempt,
-                &recovery.attempt_count,
-                &recovery.last_error,
-            ],
-        )
-        .await?;
+                &[
+                    &recovery.id,
+                    &recovery.saga_id,  // Used in subquery
+                    &recovery.recovery_type,
+                    &recovery.attempted_at,
+                    &recovery.last_attempt,
+                    &recovery.attempt_count,
+                    &recovery.last_error,
+                ],
+            )
+            .await?;
+
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(recovery.saga_id));
+        }
 
         Ok(())
     }

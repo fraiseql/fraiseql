@@ -51,6 +51,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`fraiseql compile` refuses to write its compiled output over the input file (H23,
   defense-in-depth).** A real write now errors when `--output` resolves to the input path,
   preventing the same source-clobbering class that motivated removing `serve` (below).
+- **`PostgresSagaStore` no longer silently coerces corrupt state and ignores missing rows
+  (M-saga-store-defaults, M-saga-rowcounts).** Row mappers coerced an unrecognised
+  `state`/`mutation_type` string to a default (e.g. `Pending`), which could re-execute
+  completed work; they now raise `SagaStoreError::CorruptStoredValue`. Step/saga writes
+  ignored the affected-row count, so an update targeting a non-existent saga/step returned
+  `Ok`; they now check it and raise `SagaNotFound`/`StepNotFound`.
+- **Federation mutation executor rejects unrecognised operation names (M-fed-mut-executor,
+  partial).** `determine_mutation_type` defaulted any name without a `create`/`update`/`delete`
+  prefix to `UPDATE`, so a typo'd or unsupported mutation silently issued an `UPDATE`; it now
+  errors. The remaining read-back correctness (return the mutated row via `RETURNING` instead
+  of echoing the input; treat 0-row `UPDATE`/`DELETE` as not-found) is documented and deferred
+  to Phase 09 ([#430](https://github.com/fraiseql/fraiseql/issues/430)).
 - **`InMemoryStateStore` now evicts the oldest entry at capacity instead of returning 500
   (L-state-store-doc).** The struct documented LRU-style eviction, but `store` returned a
   `ConfigError` (500) once the cap was reached — an availability footgun under CSRF-state
@@ -108,6 +120,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input with no `.json` segment (e.g. `serve fraiseql.toml`) the derived output path equalled
   the input, so it overwrote the source file with compiled output. Use `fraiseql run --watch`
   (compiles in-memory, no disk artifact, hot-reloads on change) instead.
+- **BREAKING (`fraiseql-federation`): distributed saga execution now fails loud instead of
+  fabricating success (H32, H33, M-saga-coordinator, M-saga-recovery).** `SagaExecutor`
+  (`execute_step`/`execute_saga`/`get_execution_state`), `SagaCompensator`
+  (`compensate_saga`/`compensate_step`), `SagaCoordinator` (`create_saga`/`execute_saga`/
+  `get_saga_status`/`cancel_saga`/`get_saga_result`/`list_in_flight_sagas`), and
+  `SagaRecoveryManager` (`run_iteration`/`start_background_loop`) previously fabricated and
+  **persisted** success — building fake result documents, marking sagas `Completed`/
+  `Compensated` having done nothing, and (the coordinator) holding `Arc<dyn Any>`
+  executor/compensator fields that contained `()`. They now return
+  `SagaStoreError::NotImplemented`; nothing is persisted. The coordinator's
+  `with_executor`/`with_compensator` builders (which accepted unusable `Arc<dyn Any>` values)
+  are **removed**. The `lib.rs` maturity table no longer advertises sagas as production. The
+  real implementation is planned and tracked in
+  [#429](https://github.com/fraiseql/fraiseql/issues/429); the behavioural acceptance suite is
+  retained (parked) as its specification.
+- **BREAKING (`fraiseql-federation`): `construct_batch_where_clause` is removed
+  (M-batch-where-dup).** It was a drifted, weaker duplicate of the production
+  `construct_where_in_clause`: it interpolated key values as string literals and returned an
+  empty (WHERE-less, full-table) clause when no conditions matched. It had no production
+  caller; use `construct_where_in_clause`, which binds values as parameters and fails closed
+  (`1 = 0`) on empty input. Compound-key coverage was ported to the canonical builder.
 - **BREAKING (`fraiseql-observers`): the `sms`, `push`, `search`, and `cache` observer action
   types now fail loud instead of fabricating success (H24).** Their dispatch handlers
   delegated to stub actions that returned `success: true` and sent nothing — an observer

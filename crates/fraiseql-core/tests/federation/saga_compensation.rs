@@ -16,6 +16,7 @@ use super::common;
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_aborted_saga_with_automatic_strategy_compensates() {
     // Given: A saga with automatic compensation strategy
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -34,6 +35,7 @@ async fn test_aborted_saga_with_automatic_strategy_compensates() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensation_executes_in_reverse_order() {
     // Given: A saga with 5 steps completed (1-5) before step 6 fails
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -52,6 +54,7 @@ async fn test_compensation_executes_in_reverse_order() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensation_skips_non_completed_steps() {
     // Given: A saga with 5 steps where step 3 fails (only steps 1-2 completed)
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -70,6 +73,7 @@ async fn test_compensation_skips_non_completed_steps() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_all_compensations_succeed_saga_state_compensated() {
     // Given: A saga with 4 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -90,6 +94,7 @@ async fn test_all_compensations_succeed_saga_state_compensated() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_partial_compensation_failure_recorded() {
     // Given: A saga with 4 steps completed before failure at step 5
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -110,6 +115,7 @@ async fn test_partial_compensation_failure_recorded() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensation_complete_failure_recorded() {
     // Given: A saga with 3 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -130,6 +136,7 @@ async fn test_compensation_complete_failure_recorded() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensation_result_available_for_audit() {
     // Given: A saga with 4 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -153,6 +160,7 @@ async fn test_compensation_result_available_for_audit() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_transitions_from_failed_to_compensating_to_compensated() {
     // Given: A saga with 4 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -177,6 +185,7 @@ async fn test_saga_transitions_from_failed_to_compensating_to_compensated() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_compensation_duration_metrics_recorded() {
     // Given: A saga with 5 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -206,6 +215,7 @@ async fn test_compensation_duration_metrics_recorded() {
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_aborted_saga_with_manual_strategy_transitions_to_manual_compensation_required() {
     // Given: A saga with manual compensation strategy
     let scenario = common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
@@ -225,6 +235,7 @@ async fn test_aborted_saga_with_manual_strategy_transitions_to_manual_compensati
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_manual_strategy_does_not_auto_compensate() {
     // Given: A saga with manual compensation strategy
     let scenario = common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Manual);
@@ -246,6 +257,7 @@ async fn test_manual_strategy_does_not_auto_compensate() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_manual_compensation_can_be_triggered_after_failure() {
     // Given: A saga with manual compensation strategy that has failed
     let scenario = common::TestSagaScenario::new(5).with_strategy(CompensationStrategy::Manual);
@@ -270,6 +282,7 @@ async fn test_manual_compensation_can_be_triggered_after_failure() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_manual_compensation_executes_same_as_automatic() {
     // Given: Two sagas - one automatic, one manual, both with same failure point
     let auto_scenario =
@@ -305,6 +318,7 @@ async fn test_manual_compensation_executes_same_as_automatic() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_cancel_saga_triggers_compensation_regardless_of_strategy() {
     // Given: One saga with automatic and one with manual strategy
     let auto_scenario =

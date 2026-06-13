@@ -71,11 +71,9 @@ use std::{
     time::Duration,
 };
 
-use ::tracing::{debug, info, warn};
+use ::tracing::info;
 
-use crate::saga_store::{
-    PostgresSagaStore, Result as SagaStoreResult, Saga, SagaState, SagaStoreError,
-};
+use crate::saga_store::{PostgresSagaStore, Result as SagaStoreResult, SagaStoreError};
 
 /// Configuration for saga recovery manager
 ///
@@ -145,7 +143,12 @@ pub struct RecoveryStats {
 /// - Database errors are logged but don't prevent cleanup
 /// - The background loop continues despite transient failures
 pub struct SagaRecoveryManager {
+    // Reason: retained as the real dependencies a wired recovery implementation
+    // needs; the recovery loop currently fails loud (M-saga-recovery) and reads
+    // neither, but `new` accepts both as the stable public construction contract.
+    #[allow(dead_code)]
     store:   Arc<PostgresSagaStore>,
+    #[allow(dead_code)]
     config:  RecoveryConfig,
     running: Arc<AtomicBool>,
     stats:   Arc<Mutex<RecoveryStats>>,
@@ -219,51 +222,24 @@ impl SagaRecoveryManager {
         self.stats.lock().expect("stats mutex poisoned").clone()
     }
 
-    /// Start the background recovery loop
+    /// Start the background recovery loop.
     ///
-    /// Spawns a tokio task that runs recovery iterations periodically according
-    /// to the configured `check_interval`.
+    /// # Status
+    ///
+    /// **Not implemented.** The background loop previously transitioned every
+    /// `Pending` saga to `Executing` while executing nothing — flipping saga
+    /// state without performing any recovery work (audit M-saga-recovery). It
+    /// now fails loud and does **not** start a loop or flip the running flag, so
+    /// it can never silently mutate saga state.
     ///
     /// # Errors
     ///
-    /// Returns an error if the loop is already running.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// manager.start_background_loop().await?;
-    /// // Loop now runs in background
-    /// ```
+    /// Always returns [`SagaStoreError::NotImplemented`].
     pub async fn start_background_loop(&self) -> SagaStoreResult<()> {
-        if self
-            .running
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return Err(SagaStoreError::Database("Recovery loop already running".to_string()));
-        }
-
-        let store = Arc::clone(&self.store);
-        let running = Arc::clone(&self.running);
-        let stats = Arc::clone(&self.stats);
-        let config = self.config;
-
-        tokio::spawn(async move {
-            info!("Saga recovery loop started");
-
-            while running.load(Ordering::Acquire) {
-                if let Err(e) = Self::run_recovery_iteration(&store, config, &stats).await {
-                    warn!("Recovery iteration failed: {}", e);
-                }
-                tokio::time::sleep(config.check_interval).await;
-            }
-
-            info!("Saga recovery loop stopped");
-        });
-
-        Ok(())
+        info!("Saga recovery loop requested but distributed saga recovery is unwired");
+        Err(SagaStoreError::NotImplemented {
+            operation: "SagaRecoveryManager::start_background_loop".to_string(),
+        })
     }
 
     /// Stop the background recovery loop
@@ -294,142 +270,23 @@ impl SagaRecoveryManager {
         Ok(())
     }
 
-    /// Run one iteration of the recovery loop
+    /// Run one iteration of the recovery loop.
     ///
-    /// Useful for manual recovery triggers or testing. Performs the same
-    /// operations as a single background loop iteration.
+    /// # Status
     ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// manager.run_iteration().await?;
-    /// let stats = manager.get_stats();
-    /// assert!(stats.iterations > 0);
-    /// ```
+    /// **Not implemented.** A single iteration previously transitioned every
+    /// `Pending` saga to `Executing` while executing nothing — flipping saga
+    /// state without performing any recovery work (audit M-saga-recovery). It
+    /// now fails loud and mutates no saga state.
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError` if the saga store query or recovery operation fails.
+    /// Always returns [`SagaStoreError::NotImplemented`].
     pub async fn run_iteration(&self) -> SagaStoreResult<()> {
-        Self::run_recovery_iteration(&self.store, self.config, &self.stats).await
-    }
-
-    /// Helper: load sagas by state with error logging
-    ///
-    /// Loads sagas from the database for a given state. Logs errors but returns
-    /// empty list on failure to maintain resilience.
-    async fn load_sagas_by_state(
-        store: &PostgresSagaStore,
-        state: &SagaState,
-        stats: &Mutex<RecoveryStats>,
-    ) -> Vec<Saga> {
-        match store.load_sagas_by_state(state).await {
-            Ok(sagas) => {
-                debug!("Found {} sagas in state {}", sagas.len(), state.as_str());
-                sagas
-            },
-            Err(e) => {
-                warn!("Failed to load sagas in state {}: {}", state.as_str(), e);
-                if let Ok(mut s) = stats.lock() {
-                    s.errors += 1;
-                }
-                Vec::new()
-            },
-        }
-    }
-
-    /// Helper: transition saga to new state with error logging
-    ///
-    /// Attempts to update a saga's state. Logs errors but returns None on failure
-    /// to allow the iteration to continue with other sagas.
-    async fn transition_saga(
-        store: &PostgresSagaStore,
-        saga_id: uuid::Uuid,
-        new_state: &SagaState,
-        stats: &Mutex<RecoveryStats>,
-    ) -> Option<()> {
-        match store.update_saga_state(saga_id, new_state).await {
-            Ok(()) => {
-                debug!("Transitioned saga {} to {}", saga_id, new_state.as_str());
-                if let Ok(mut s) = stats.lock() {
-                    s.sagas_processed += 1;
-                }
-                Some(())
-            },
-            Err(e) => {
-                warn!("Failed to transition saga {} to {}: {}", saga_id, new_state.as_str(), e);
-                if let Ok(mut s) = stats.lock() {
-                    s.errors += 1;
-                }
-                None
-            },
-        }
-    }
-
-    /// Internal: run one recovery iteration
-    ///
-    /// Performs the core recovery logic:
-    /// 1. Increments iteration counter
-    /// 2. Loads and processes pending sagas
-    /// 3. Detects executing sagas
-    /// 4. Cleans up stale sagas
-    #[allow(clippy::cognitive_complexity)] // Reason: linear recovery loop iteration (load pending → transition → detect stuck → cleanup stale)
-    async fn run_recovery_iteration(
-        store: &PostgresSagaStore,
-        config: RecoveryConfig,
-        stats: &Mutex<RecoveryStats>,
-    ) -> SagaStoreResult<()> {
-        // Increment iteration counter
-        {
-            let mut s = stats.lock().expect("stats mutex poisoned");
-            s.iterations += 1;
-        }
-
-        let iteration = {
-            let s = stats.lock().expect("stats mutex poisoned");
-            s.iterations
-        };
-
-        debug!("Starting recovery iteration {}", iteration);
-
-        // Find pending sagas (not yet started)
-        let pending_sagas = Self::load_sagas_by_state(store, &SagaState::Pending, stats).await;
-
-        // Process pending sagas (transition to executing)
-        for saga in pending_sagas.iter().take(config.max_sagas_per_iteration as usize) {
-            let _ = Self::transition_saga(store, saga.id, &SagaState::Executing, stats).await;
-        }
-
-        // Find executing sagas (potentially stuck)
-        let executing_sagas = Self::load_sagas_by_state(store, &SagaState::Executing, stats).await;
-
-        // Track executing saga count for observability
-        {
-            if let Ok(mut s) = stats.lock() {
-                s.executing_sagas_found += executing_sagas.len() as u64;
-            }
-        }
-
-        // Clean up stale sagas
-        match store.cleanup_stale_sagas(config.stale_age_hours).await {
-            Ok(count) => {
-                debug!("Cleaned up {} stale sagas", count);
-                if let Ok(mut s) = stats.lock() {
-                    s.sagas_cleaned += count;
-                }
-            },
-            Err(e) => {
-                warn!("Failed to cleanup stale sagas: {}", e);
-                if let Ok(mut s) = stats.lock() {
-                    s.errors += 1;
-                }
-            },
-        }
-
-        debug!("Completed recovery iteration {}", iteration);
-        Ok(())
+        info!("Saga recovery iteration requested but distributed saga recovery is unwired");
+        Err(SagaStoreError::NotImplemented {
+            operation: "SagaRecoveryManager::run_recovery".to_string(),
+        })
     }
 }
 

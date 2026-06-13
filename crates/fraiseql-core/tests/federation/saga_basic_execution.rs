@@ -19,6 +19,7 @@ use super::common;
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_with_5_steps_all_succeed() {
     // Given: A saga with 5 steps
     let scenario = common::TestSagaScenario::new(5);
@@ -32,6 +33,7 @@ async fn test_saga_with_5_steps_all_succeed() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_with_7_steps_all_succeed() {
     // Given: A saga with 7 steps
     let scenario = common::TestSagaScenario::new(7);
@@ -45,6 +47,7 @@ async fn test_saga_with_7_steps_all_succeed() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_with_10_steps_all_succeed() {
     // Given: A saga with 10 steps
     let scenario = common::TestSagaScenario::new(10);
@@ -58,6 +61,7 @@ async fn test_saga_with_10_steps_all_succeed() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_execution_preserves_step_order() {
     // Given: A saga with 5 steps
     let scenario = common::TestSagaScenario::new(5);
@@ -73,6 +77,7 @@ async fn test_saga_execution_preserves_step_order() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_each_step_receives_previous_step_output() {
     // Given: A saga with 3 steps
     let scenario = common::TestSagaScenario::new(3);
@@ -103,6 +108,7 @@ async fn test_each_step_receives_previous_step_output() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_saga_result_contains_all_step_data() {
     // Given: A saga with 4 steps
     let scenario = common::TestSagaScenario::new(4);
@@ -137,6 +143,7 @@ async fn test_saga_result_contains_all_step_data() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_concurrent_5_sagas_execute_independently() {
     // Given: 5 sagas with 3 steps each, created concurrently
     let saga_count = 5;
@@ -166,6 +173,7 @@ async fn test_concurrent_5_sagas_execute_independently() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_concurrent_10_sagas_execute_independently() {
     // Given: 10 sagas with 2 steps each
     let saga_count = 10;
@@ -200,6 +208,7 @@ async fn test_concurrent_10_sagas_execute_independently() {
 // ===========================================================================================
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_10_concurrent_sagas_execute_independently() {
     // Given: 10 sagas with different step counts
     let mut saga_ids = Vec::new();
@@ -225,6 +234,7 @@ async fn test_10_concurrent_sagas_execute_independently() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_50_concurrent_sagas_execute_independently() {
     // Given: 50 sagas with varying step counts
     let mut saga_ids = Vec::new();
@@ -251,6 +261,7 @@ async fn test_50_concurrent_sagas_execute_independently() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_concurrent_sagas_with_different_strategies() {
     // Given: 5 automatic and 5 manual strategy sagas
     let mut auto_sagas = Vec::new();
@@ -298,6 +309,7 @@ async fn test_concurrent_sagas_with_different_strategies() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_concurrent_sagas_some_fail_some_succeed() {
     // Given: 10 sagas, half with failures injected
     let mut sagas = Vec::new();
@@ -329,6 +341,7 @@ async fn test_concurrent_sagas_some_fail_some_succeed() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_in_flight_saga_list_accurate_during_concurrent_execution() {
     // Given: Starting with empty in-flight list
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
@@ -355,6 +368,7 @@ async fn test_in_flight_saga_list_accurate_during_concurrent_execution() {
 }
 
 #[tokio::test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 async fn test_concurrent_compensation_does_not_interfere() {
     // Given: 5 sagas with automatic strategy that fail and compensate
     let mut saga_ids = Vec::new();

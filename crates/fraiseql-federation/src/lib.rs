@@ -14,7 +14,7 @@
 //! |-----------|--------|-------|
 //! | Subgraph mode — `HttpEntityResolver` (`_entities` HTTP resolution) | ✅ Production | SSRF-protected, retry, tracing |
 //! | Composition validation — `CompositionValidator` | ✅ Production | compile-time only |
-//! | Saga orchestration — `SagaExecutor` / `SagaCompensator` | ✅ Production | requires `PostgresSagaStore` |
+//! | Saga orchestration — `SagaExecutor` / `SagaCompensator` / `SagaCoordinator` / `SagaRecoveryManager` | 🚧 Not implemented | execution/compensation/recovery/coordination return `SagaStoreError::NotImplemented` — distributed saga execution is unwired (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `PostgresSagaStore` persistence is real. |
 //! | HTTP mutation propagation — `HttpMutationClient` | ✅ Production | SSRF-protected |
 //! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
 //! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |

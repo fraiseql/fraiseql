@@ -76,8 +76,6 @@
 //! - `warn!()` for failures and recoveries
 //! - Structured logging with `saga_id`, `step_number`, subgraph context
 
-use std::sync::Arc;
-
 use ::tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -194,16 +192,18 @@ pub struct SagaResult {
     pub compensated:     bool,
 }
 
-/// Saga coordinator for distributed transaction orchestration
+/// Saga coordinator for distributed transaction orchestration.
+///
+/// **Not implemented.** Every operational method fails loud with
+/// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented)
+/// — distributed saga coordination is unwired (see
+/// [#429](https://github.com/fraiseql/fraiseql/issues/429)). The previous
+/// `with_executor`/`with_compensator` builders accepted `Arc<dyn Any>` values
+/// that were stored as `Arc::new(())` and never downcast or used (M-saga-coordinator);
+/// they were removed rather than advertise wiring that did nothing.
 pub struct SagaCoordinator {
-    /// Saga persistence store
-    _store:      Arc<dyn std::any::Any + Send + Sync>,
-    /// Forward phase executor
-    executor:    Arc<dyn std::any::Any + Send + Sync>,
-    /// Compensation phase executor
-    compensator: Arc<dyn std::any::Any + Send + Sync>,
     /// Compensation strategy
-    strategy:    CompensationStrategy,
+    strategy: CompensationStrategy,
 }
 
 impl SagaCoordinator {
@@ -213,33 +213,8 @@ impl SagaCoordinator {
     ///
     /// * `strategy` - How to handle compensation on failure
     #[must_use]
-    pub fn new(strategy: CompensationStrategy) -> Self {
-        Self {
-            _store: Arc::new(()),
-            executor: Arc::new(()),
-            compensator: Arc::new(()),
-            strategy,
-        }
-    }
-
-    /// Set the saga executor for forward phase execution
-    ///
-    /// # Arguments
-    ///
-    /// * `executor` - `SagaExecutor` instance (type-erased)
-    pub fn with_executor(mut self, executor: Arc<dyn std::any::Any + Send + Sync>) -> Self {
-        self.executor = executor;
-        self
-    }
-
-    /// Set the saga compensator for compensation phase
-    ///
-    /// # Arguments
-    ///
-    /// * `compensator` - `SagaCompensator` instance (type-erased)
-    pub fn with_compensator(mut self, compensator: Arc<dyn std::any::Any + Send + Sync>) -> Self {
-        self.compensator = compensator;
-        self
+    pub const fn new(strategy: CompensationStrategy) -> Self {
+        Self { strategy }
     }
 
     /// Create a new saga with given steps
@@ -298,93 +273,52 @@ impl SagaCoordinator {
             }
         }
 
-        // Generate new saga ID
-        let saga_id = Uuid::new_v4();
-
-        info!(
-            saga_id = %saga_id,
-            step_count = steps.len(),
-            "Saga created"
-        );
-
-        // In full implementation, would persist to saga_store
-        // For now, return the generated ID
-
-        Ok(saga_id)
+        // Input validation above is real; persistence is not. The previous body
+        // generated a UUID and returned it WITHOUT writing anything to the store
+        // (M-saga-coordinator), so callers held an id for a saga that did not
+        // exist. Fail loud rather than hand back a fabricated id.
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::create_saga".to_string(),
+        })
     }
 
-    /// Execute a saga with all its steps
+    /// Execute a saga with all its steps.
     ///
-    /// Loads saga from store and begins execution in forward phase.
-    /// Steps execute sequentially - each step waits for previous to complete.
-    /// If any step fails, behavior depends on compensation strategy:
-    /// - `Automatic`: Begin compensation phase immediately
-    /// - `Manual`: Transition to `ManualCompensationRequired` state
+    /// # Status
+    ///
+    /// **Not implemented.** This entry point previously returned a
+    /// `SagaState::Completed` `SagaResult` for any saga id without loading the
+    /// saga, executing a single step, or touching the store (audit
+    /// M-saga-coordinator). It now fails loud rather than reporting fabricated
+    /// completion.
     ///
     /// # Arguments
     ///
     /// * `saga_id` - ID of previously created saga
     ///
-    /// # Returns
-    ///
-    /// `SagaResult` with final state after all steps complete (or fail)
-    /// - `state`: Final saga state (Completed, Compensated, or Failed)
-    /// - `completed_steps`: Number of successfully executed steps
-    /// - `error`: Error message if failed
-    /// - `compensated`: Whether compensation was performed
-    ///
     /// # Errors
     ///
-    /// Returns error if:
-    /// - Saga not found in store
-    /// - Step execution fails (for forward phase)
-    /// - Compensation fails (for compensation phase, non-blocking)
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// let result = coordinator.execute_saga(saga_id).await?;
-    /// match result.state {
-    ///     SagaState::Completed => println!("All steps succeeded!"),
-    ///     SagaState::Compensated => println!("Failed and rolled back"),
-    ///     _ => println!("Partial or unknown state"),
-    /// }
-    /// ```
+    /// Always returns
+    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
-        info!(saga_id = %saga_id, "Saga execution started");
-
-        // In full implementation, would:
-        // 1. Load saga from store
-        // 2. Execute each step sequentially
-        //    - For each step: load @requires fields, validate, execute mutation
-        //    - Update step state in store
-        // 3. On failure:
-        //    - If Automatic: trigger compensation
-        //    - If Manual: transition to ManualCompensationRequired
-        // 4. In compensation phase: execute compensations in reverse order
-        // 5. Update saga state in store
-
-        let result = SagaResult {
-            saga_id,
-            state: SagaState::Completed,
-            completed_steps: 0,
-            total_steps: 0,
-            error: None,
-            compensated: false,
-        };
-
         info!(
             saga_id = %saga_id,
-            state = result.state.as_str(),
-            "Saga execution completed"
+            "Saga execution requested but distributed saga coordination is unwired"
         );
 
-        Ok(result)
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::execute_saga".to_string(),
+        })
     }
 
-    /// Get status of executing saga
+    /// Get status of executing saga.
+    ///
+    /// # Status
+    ///
+    /// **Not implemented.** This previously fabricated a `SagaState::Pending`
+    /// status with zeroed counters for any saga id without consulting the store
+    /// (audit M-saga-coordinator). It now fails loud rather than reporting a
+    /// fabricated status.
     ///
     /// # Arguments
     ///
@@ -392,26 +326,17 @@ impl SagaCoordinator {
     ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError` if the saga store is unreachable.
+    /// Always returns
+    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
-        // In full implementation, would load from store
-
-        let status = SagaStatus {
-            saga_id,
-            state: SagaState::Pending,
-            step_count: 0,
-            completed_steps: 0,
-            current_step: None,
-            progress_percentage: 0.0,
-        };
-
-        debug!(
+        info!(
             saga_id = %saga_id,
-            state = status.state.as_str(),
-            "Saga status queried"
+            "Saga status requested but distributed saga coordination is unwired"
         );
 
-        Ok(status)
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::get_saga_status".to_string(),
+        })
     }
 
     /// Cancel an in-flight saga
@@ -424,20 +349,13 @@ impl SagaCoordinator {
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable or cancellation fails.
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
-        info!(saga_id = %saga_id, "Saga cancellation requested");
+        info!(saga_id = %saga_id, "Saga cancellation requested but coordination is unwired");
 
-        // In full implementation, would:
-        // 1. Stop current step if executing
-        // 2. Mark saga as failed
-        // 3. Trigger compensation
-
-        Ok(SagaResult {
-            saga_id,
-            state: SagaState::Failed,
-            completed_steps: 0,
-            total_steps: 0,
-            error: Some("Saga cancelled by user".to_string()),
-            compensated: false,
+        // Previously returned a fabricated `Failed`/"cancelled by user" result
+        // without stopping any step, marking the saga, or triggering compensation
+        // (M-saga-coordinator).
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::cancel_saga".to_string(),
         })
     }
 
@@ -451,17 +369,12 @@ impl SagaCoordinator {
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable.
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
-        debug!(saga_id = %saga_id, "Saga result queried");
+        debug!(saga_id = %saga_id, "Saga result queried but coordination is unwired");
 
-        // In full implementation, would load from store
-
-        Ok(SagaResult {
-            saga_id,
-            state: SagaState::Completed,
-            completed_steps: 0,
-            total_steps: 0,
-            error: None,
-            compensated: false,
+        // Previously returned a fabricated `Completed` result for any id without
+        // loading anything from the store (M-saga-coordinator).
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::get_saga_result".to_string(),
         })
     }
 
@@ -471,12 +384,12 @@ impl SagaCoordinator {
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable.
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
-        // In full implementation, would query store for Executing/Compensating states
-        let sagas = vec![];
-
-        debug!(count = sagas.len(), "In-flight sagas queried");
-
-        Ok(sagas)
+        // Previously returned an empty list without ever querying the store, so a
+        // caller could not distinguish "no sagas" from "never checked"
+        // (M-saga-coordinator).
+        Err(crate::saga_store::SagaStoreError::NotImplemented {
+            operation: "SagaCoordinator::list_in_flight_sagas".to_string(),
+        })
     }
 
     /// Get compensation strategy

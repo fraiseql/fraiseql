@@ -109,3 +109,52 @@ fn test_missing_type_error() {
         "expected Validation error for unknown type, got: {result:?}"
     );
 }
+
+/// M-batch-where-dup: compound `@key` resolution goes through the safe,
+/// parameterized canonical builder (`(k1, k2) IN ((…), …)`) — coverage ported
+/// from the deleted `construct_batch_where_clause` duplicate, which interpolated
+/// values as string literals and produced a WHERE-less clause when empty.
+#[test]
+fn test_construct_composite_where_in_binds_values() {
+    use crate::types::{FederatedType, KeyDirective};
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name:                "OrderItem".to_string(),
+            keys:                vec![KeyDirective {
+                fields:     vec!["order_id".to_string(), "product_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends:          false,
+            external_fields:     vec![],
+            shareable_fields:    vec![],
+            inaccessible_fields: vec![],
+            field_directives:    HashMap::new(),
+            type_shareable:      false,
+        }],
+        remote_subscription_fields: HashMap::new(),
+    };
+
+    let rep = EntityRepresentation {
+        typename:   "OrderItem".to_string(),
+        key_fields: [
+            (String::from("order_id"), json!("O1")),
+            (String::from("product_id"), json!("P1")),
+        ]
+        .iter()
+        .cloned()
+        .collect(),
+        all_fields: HashMap::default(),
+    };
+
+    let (clause, params) =
+        construct_where_in_clause("OrderItem", &[rep], &metadata, DatabaseType::PostgreSQL)
+            .unwrap();
+
+    assert_eq!(clause, "(order_id, product_id) IN (($1, $2))");
+    // Values are bound as parameters, never interpolated into the SQL text.
+    assert!(!clause.contains("O1") && !clause.contains("P1"));
+    assert_eq!(params, vec![json!("O1"), json!("P1")]);
+}

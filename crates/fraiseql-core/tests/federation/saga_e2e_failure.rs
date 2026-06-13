@@ -8,6 +8,7 @@ use super::saga_e2e_harness::*;
 // ============================================================================
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_step_2_fails_compensates_step_1() {
     // Step at index 1 (second step) fails; compensate index 0 only
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(3).step_fails_at(1).build();
@@ -24,6 +25,7 @@ fn test_e2e_step_2_fails_compensates_step_1() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_step_4_fails_compensates_3_2_1_in_reverse() {
     // 5-step saga, step at index 3 (fourth step) fails
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(5).step_fails_at(3).build();
@@ -42,6 +44,7 @@ fn test_e2e_step_4_fails_compensates_3_2_1_in_reverse() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_first_step_fails_no_compensation_needed() {
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(3).step_fails_at(0).build();
 
@@ -56,6 +59,7 @@ fn test_e2e_first_step_fails_no_compensation_needed() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_last_step_fails_all_previous_compensated() {
     let (orchestrator, steps) = OrchestratorBuilder::new().with_steps(4).step_fails_at(3).build();
 
@@ -77,6 +81,7 @@ fn test_e2e_last_step_fails_all_previous_compensated() {
 // ============================================================================
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_compensation_partially_fails() {
     // Step 2 (index 2) fails; compensation of step 1 fails, step 0 succeeds
     let (orchestrator, steps) = OrchestratorBuilder::new()
@@ -99,6 +104,7 @@ fn test_e2e_compensation_partially_fails() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_all_compensations_fail() {
     let (orchestrator, steps) = OrchestratorBuilder::new()
         .with_steps(3)
@@ -119,6 +125,7 @@ fn test_e2e_all_compensations_fail() {
 }
 
 #[test]
+#[ignore = "saga execution is unimplemented and fails loud (H32/H33); kept as the acceptance spec for the real implementation — see #429"]
 fn test_e2e_compensation_idempotency() {
     // Run the same saga pattern twice; both should produce consistent results
     let results: Vec<SagaResult> = (0..2)
