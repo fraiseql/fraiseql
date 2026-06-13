@@ -89,7 +89,10 @@ fn test_s3_get_nonexistent_returns_not_found() {
         // the SdkError Display.
         let err = result.unwrap_err();
         assert!(
-            matches!(err, fraiseql_error::FraiseQLError::File(fraiseql_error::FileError::NotFound { .. })),
+            matches!(
+                err,
+                fraiseql_error::FraiseQLError::File(fraiseql_error::FileError::NotFound { .. })
+            ),
             "missing key must map to FileError::NotFound, got: {err:?}"
         );
     });

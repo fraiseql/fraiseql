@@ -83,8 +83,7 @@ fn verifies_form_payload_with_encoded_plus_sign() {
     // space-encoding '+'. Keys sort as CallSid, From, To.
     let payload = b"To=%2B15551234567&From=%2B15557654321&CallSid=CA123";
 
-    let expected_signing =
-        "https://example.com/webhookCallSidCA123From+15557654321To+15551234567";
+    let expected_signing = "https://example.com/webhookCallSidCA123From+15557654321To+15551234567";
     let signature = twilio_sign(expected_signing, secret);
 
     assert!(verifier.verify(payload, &signature, secret, None, Some(url)).unwrap());

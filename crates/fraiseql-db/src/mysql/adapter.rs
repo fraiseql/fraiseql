@@ -145,12 +145,11 @@ impl MySqlAdapter {
             query = bind_mysql_json_arg(query, param);
         }
 
-        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
+        let rows: Vec<MySqlRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("MySQL query execution failed: {e}"),
                 sql_state: mysql_sql_state(&e),
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()
@@ -579,12 +578,11 @@ impl DatabaseAdapter for MySqlAdapter {
             };
         }
 
-        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
+        let rows: Vec<MySqlRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("MySQL parameterized aggregate query failed: {e}"),
                 sql_state: mysql_sql_state(&e),
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()

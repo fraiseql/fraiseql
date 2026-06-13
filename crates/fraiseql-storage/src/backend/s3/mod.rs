@@ -100,9 +100,9 @@ impl S3Backend {
                     // `SdkError` Display does not contain the code (it is just
                     // "service error"), so detect it structurally on the typed
                     // error rather than by string-matching (H40).
-                    if e.as_service_error()
-                        .is_some_and(aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key)
-                    {
+                    if e.as_service_error().is_some_and(
+                        aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key,
+                    ) {
                         FraiseQLError::File(FileError::NotFound {
                             id: key.to_string(),
                         })

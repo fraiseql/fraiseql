@@ -146,9 +146,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
             // An INSERT that returns no row is a backend contract violation.
             (MutationType::Create, None) => {
                 return Err(fraiseql_error::FraiseQLError::Database {
-                    message:   format!(
-                        "INSERT into '{typename}' returned no row from RETURNING *"
-                    ),
+                    message:   format!("INSERT into '{typename}' returned no row from RETURNING *"),
                     sql_state: None,
                 });
             },

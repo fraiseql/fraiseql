@@ -107,13 +107,14 @@ async fn latest_returns_newest_cursor_against_seeded_changelog() {
         .await
         .expect("insert");
     }
-    let max: (i64,) =
-        sqlx::query_as("SELECT MAX(pk_entity_change_log) FROM core.tb_entity_change_log \
-                        WHERE object_type = $1")
-            .bind(obj)
-            .fetch_one(&pool)
-            .await
-            .expect("max");
+    let max: (i64,) = sqlx::query_as(
+        "SELECT MAX(pk_entity_change_log) FROM core.tb_entity_change_log \
+                        WHERE object_type = $1",
+    )
+    .bind(obj)
+    .fetch_one(&pool)
+    .await
+    .expect("max");
 
     // Tail-ordering contract, independent of the object_id column type.
     let tail: (i64,) = sqlx::query_as(

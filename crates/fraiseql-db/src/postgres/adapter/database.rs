@@ -163,8 +163,7 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             // string only if the decimal text isn't valid JSON numeric syntax,
             // which `Decimal::to_string` never produces.
             let s = v.to_string();
-            serde_json::from_str::<serde_json::Value>(&s)
-                .unwrap_or(serde_json::Value::String(s))
+            serde_json::from_str::<serde_json::Value>(&s).unwrap_or(serde_json::Value::String(s))
         } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
             // UUID columns (e.g. `app.mutation_response.entity_id`) render as the
             // canonical hyphenated string instead of silently nulling (H35).

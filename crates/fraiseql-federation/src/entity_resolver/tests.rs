@@ -178,10 +178,7 @@ fn entities_scattered_back_to_input_order_for_interleaved_typenames() {
     // User group resolves [U1, U2] for original indices [0, 2];
     // Product group resolves [P1] for original index [1].
     let mut out: Vec<Option<serde_json::Value>> = vec![None; 3];
-    scatter_resolved(&mut out, &[0, 2], vec![
-        Some(json!({"id": "U1"})),
-        Some(json!({"id": "U2"})),
-    ]);
+    scatter_resolved(&mut out, &[0, 2], vec![Some(json!({"id": "U1"})), Some(json!({"id": "U2"}))]);
     scatter_resolved(&mut out, &[1], vec![Some(json!({"id": "P1"}))]);
 
     assert_eq!(out[0], Some(json!({"id": "U1"})));

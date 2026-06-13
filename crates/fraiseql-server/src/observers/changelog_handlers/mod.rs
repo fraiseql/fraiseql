@@ -149,7 +149,11 @@ async fn fetch_changelog(
         let sql = format!(
             "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log {} \
              ORDER BY pk_entity_change_log DESC LIMIT 1",
-            if query.object_type.is_some() { "WHERE object_type = $1" } else { "" },
+            if query.object_type.is_some() {
+                "WHERE object_type = $1"
+            } else {
+                ""
+            },
         );
         let mut q = sqlx::query_as::<_, ChangelogRow>(&sql);
         if let Some(ref object_type) = query.object_type {
