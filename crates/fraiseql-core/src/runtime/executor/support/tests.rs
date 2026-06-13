@@ -165,9 +165,11 @@ mod pipeline_tests {
             WhereClause,
             types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         },
+        error::FraiseQLError,
         graphql::{ParsedQuery, parse_query},
-        runtime::{Executor, executor::support::pipeline::*},
+        runtime::{Executor, RuntimeConfig, executor::support::pipeline::*},
         schema::{CompiledSchema, QueryDefinition, SqlProjectionHint},
+        security::{QueryValidatorConfig, SecurityContext},
     };
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -328,7 +330,7 @@ mod pipeline_tests {
     async fn test_execute_parallel_returns_all_fields() {
         let exec = make_executor(&[("users", "v_users"), ("posts", "v_posts")]);
         let p = parsed("{ users { id } posts { id } }");
-        let result = exec.execute_parallel(&p, None).await.unwrap();
+        let result = exec.execute_parallel(&p, None, None).await.unwrap();
         assert_eq!(result.fields.len(), 2);
         assert!(result.fields.iter().any(|f| f.field_name == "users"));
         assert!(result.fields.iter().any(|f| f.field_name == "posts"));
@@ -339,7 +341,7 @@ mod pipeline_tests {
     async fn test_execute_parallel_merges_data_correctly() {
         let exec = make_executor(&[("users", "v_users"), ("posts", "v_posts")]);
         let p = parsed("{ users { id } posts { id } }");
-        let result = exec.execute_parallel(&p, None).await.unwrap();
+        let result = exec.execute_parallel(&p, None, None).await.unwrap();
         let merged = result.merge_into_data_map();
         assert!(merged.contains_key("users"), "missing users key");
         assert!(merged.contains_key("posts"), "missing posts key");
@@ -357,7 +359,69 @@ mod pipeline_tests {
         let before = multi_root_queries_total();
         let exec = make_executor(&[("users", "v_users"), ("posts", "v_posts")]);
         let p = parsed("{ users { id } posts { id } }");
-        exec.execute_parallel(&p, None).await.unwrap();
+        exec.execute_parallel(&p, None, None).await.unwrap();
         assert!(multi_root_queries_total() > before);
+    }
+
+    // ── authenticated dispatcher parity (H19, L-gate1-skip) ────────────────────
+
+    fn auth_ctx() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: chrono::Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    #[tokio::test]
+    async fn authenticated_multi_root_returns_all_roots() {
+        // H19: the authenticated dispatcher had no multi-root branch, so it matched
+        // only the first root and silently dropped the rest. Both must come back.
+        let exec = make_executor(&[("users", "v_users"), ("posts", "v_posts")]);
+        let ctx = auth_ctx();
+        let val = exec
+            .execute_with_security("{ users { id } posts { id } }", None, &ctx)
+            .await
+            .unwrap();
+        assert!(val["data"].get("users").is_some(), "missing users root");
+        assert!(
+            val["data"].get("posts").is_some(),
+            "missing posts root — authenticated multi-root was silently dropped (H19)"
+        );
+    }
+
+    #[tokio::test]
+    async fn gate1_validation_fires_on_authenticated_path() {
+        // L-gate1-skip: the GATE-1 query-structure validator ran only on the
+        // anonymous path. With query_validation configured, an oversize query must
+        // be rejected on the authenticated path too.
+        let schema = make_schema_with_queries(&[("users", "v_users")]);
+        let config = RuntimeConfig {
+            query_validation: Some(QueryValidatorConfig {
+                max_depth:      50,
+                max_complexity: 10_000,
+                max_size_bytes: 5, // tiny: any real query exceeds this
+                max_aliases:    1_000,
+            }),
+            ..RuntimeConfig::default()
+        };
+        let exec = Executor::with_config(schema, Arc::new(MockAdapter), config);
+        let ctx = auth_ctx();
+        let result = exec.execute_with_security("{ users { id } }", None, &ctx).await;
+        assert!(
+            result.is_err(),
+            "GATE-1 must reject an oversize query on the authenticated path (L-gate1-skip)"
+        );
+        assert!(matches!(result.unwrap_err(), FraiseQLError::Validation { .. }));
     }
 }

@@ -183,6 +183,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         parsed: &ParsedQuery,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&crate::security::SecurityContext>,
     ) -> Result<PipelineResult> {
         MULTI_ROOT_QUERIES_TOTAL.fetch_add(1, Ordering::Relaxed);
 
@@ -203,7 +204,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         let futs: Vec<_> = runners
             .iter()
             .zip(field_queries.iter())
-            .map(|(runner, (_, query))| runner.execute_regular_query(query.as_str(), variables))
+            .map(|(runner, (_, query))| {
+                runner.execute_regular_query_maybe_security(
+                    query.as_str(),
+                    variables,
+                    security_context,
+                )
+            })
             .collect();
 
         // Drive all futures concurrently (single-threaded cooperative multitasking).

@@ -1,4 +1,5 @@
-//! Core query execution — `execute()`, `execute_internal()`, `execute_with_scopes()`.
+//! Core query execution — `execute()`, the shared `execute_dispatch()`, and
+//! `execute_with_scopes()`.
 
 use std::{sync::Arc, time::Duration};
 
@@ -6,7 +7,7 @@ use super::{Executor, QueryType, pipeline, support};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
-    security::QueryValidator,
+    security::{QueryValidator, SecurityContext},
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -25,13 +26,76 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// - `FraiseQLError::Validation` — query violates configured depth/complexity/alias limits
     ///   (only when `RuntimeConfig::query_validation` is `Some`).
     /// - `FraiseQLError::Timeout` — query exceeded `RuntimeConfig::query_timeout_ms`.
-    /// - Any error returned by `execute_internal`.
+    /// - Any error returned by `execute_dispatch`.
     pub async fn execute(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
-        // GATE 1: Query structure validation (DoS protection for direct embedders).
+        // Anonymous entry: no principal. GATE-1, the parse cache, multi-root
+        // fan-out, and dispatch all live in the shared `execute_dispatch`.
+        self.execute_with_timeout(query, variables, None).await
+    }
+
+    /// Apply the configured query timeout (if any) around `execute_dispatch`.
+    ///
+    /// Shared by the anonymous [`execute`](Self::execute) and the authenticated
+    /// `execute_with_security` entry points so both honor `query_timeout_ms`
+    /// identically.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Timeout`] — execution exceeded `query_timeout_ms`.
+    /// - Any error returned by [`execute_dispatch`](Self::execute_dispatch).
+    pub(super) async fn execute_with_timeout(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        if self.ctx.config.query_timeout_ms > 0 {
+            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
+            tokio::time::timeout(
+                timeout_duration,
+                self.execute_dispatch(query, variables, security_context),
+            )
+            .await
+            .map_err(|_| {
+                // Truncate query (char-boundary-safe) for error reporting.
+                let query_snippet = crate::utils::text::truncate_for_display(query, 100);
+                FraiseQLError::Timeout {
+                    timeout_ms: self.ctx.config.query_timeout_ms,
+                    query:      Some(query_snippet),
+                }
+            })?
+        } else {
+            self.execute_dispatch(query, variables, security_context).await
+        }
+    }
+
+    /// Unified query dispatch for both the anonymous and authenticated entry
+    /// points (H19). `security_context` is `None` for anonymous requests and
+    /// `Some` for authenticated ones; it threads through GATE-1, the parse
+    /// cache, the multi-root fan-out, and every per-operation runner so the two
+    /// paths cannot diverge in which roots they return, whether GATE-1 runs, or
+    /// whether the parse cache is consulted.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Validation`] — GATE-1 limits exceeded, or a runner rejects.
+    /// - [`FraiseQLError::Parse`] — GraphQL query string is not valid GraphQL syntax.
+    /// - [`FraiseQLError::NotFound`] — the query name does not match any compiled query template.
+    /// - [`FraiseQLError::Database`] — the underlying database returned an error.
+    /// - [`FraiseQLError::Internal`] — response serialisation failed.
+    /// - [`FraiseQLError::Authorization`] — field-level access control denied a field.
+    pub(super) async fn execute_dispatch(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        // GATE 1: query-structure validation (DoS protection for direct embedders).
+        // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
         if let Some(ref cfg) = self.ctx.config.query_validation {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
                 FraiseQLError::Validation {
@@ -41,43 +105,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             })?;
         }
 
-        // Apply query timeout if configured
-        if self.ctx.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
-            tokio::time::timeout(timeout_duration, self.execute_internal(query, variables))
-                .await
-                .map_err(|_| {
-                    // Truncate query (char-boundary-safe) for error reporting.
-                    let query_snippet = crate::utils::text::truncate_for_display(query, 100);
-                    FraiseQLError::Timeout {
-                        timeout_ms: self.ctx.config.query_timeout_ms,
-                        query:      Some(query_snippet),
-                    }
-                })?
-        } else {
-            self.execute_internal(query, variables).await
-        }
-    }
-
-    /// Internal execution logic (called by `execute` with the timeout wrapper).
-    ///
-    /// # Errors
-    ///
-    /// - [`FraiseQLError::Parse`] — GraphQL query string is not valid GraphQL syntax.
-    /// - [`FraiseQLError::NotFound`] — the query name does not match any compiled query template.
-    /// - [`FraiseQLError::Database`] — the underlying database returned an error.
-    /// - [`FraiseQLError::Internal`] — response serialisation failed.
-    /// - [`FraiseQLError::Authorization`] — field-level access control denied a field.
-    pub(super) async fn execute_internal(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-    ) -> Result<serde_json::Value> {
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice.
         //
         // The parse result is memoised in `parse_cache` (keyed by xxHash64 of
-        // the query string) so repeated identical queries skip re-parsing.
+        // the query string) so repeated identical queries skip re-parsing — on
+        // both the anonymous and authenticated paths (L-parse-cache).
         let cache_key = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
         let (query_type, maybe_parsed) = if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
             arc.as_ref().clone()
@@ -87,16 +120,21 @@ impl<A: DatabaseAdapter> Executor<A> {
             pair
         };
 
-        // 1b. Operation-level authorization (#422): anonymous path (no principal →
-        //     `None`). Runs before single- AND multi-root dispatch so a deny
-        //     short-circuits the parallel pipeline. Mutations are gated downstream at
-        //     `execute_mutation_impl`. Fail-closed: a `Deny` or any policy error → 403.
+        // 1b. Operation-level authorization (#422). Runs before single- AND
+        //     multi-root dispatch so a deny short-circuits the parallel pipeline.
+        //     Mutations are gated downstream at `execute_mutation_impl`.
+        //     Fail-closed: a `Deny` or any policy error → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
             let ops = support::authz::collect_authz_ops(&query_type, maybe_parsed.as_ref());
-            crate::security::authorizer::enforce_authz(authorizer.as_ref(), None, &ops, variables)?;
+            crate::security::authorizer::enforce_authz(
+                authorizer.as_ref(),
+                security_context,
+                &ops,
+                variables,
+            )?;
         }
 
-        // 2. Route to appropriate handler
+        // 2. Route to appropriate handler, threading the (optional) principal.
         match query_type {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
@@ -108,27 +146,30 @@ impl<A: DatabaseAdapter> Executor<A> {
                     source:  None,
                 })?;
                 if pipeline::is_multi_root(&parsed) {
-                    let pr = self.execute_parallel(&parsed, variables).await?;
+                    let pr = self.execute_parallel(&parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
                     return Ok(serde_json::json!({ "data": data }));
                 }
-                self.query_runner().execute_regular_query(query, variables).await
+                self.query_runner()
+                    .execute_regular_query_maybe_security(query, variables, security_context)
+                    .await
             },
             QueryType::Aggregate(query_name) => {
                 self.aggregate_runner()
-                    .execute_aggregate_dispatch(&query_name, variables, None)
+                    .execute_aggregate_dispatch(&query_name, variables, security_context)
                     .await
             },
             QueryType::Window(query_name) => {
                 self.aggregate_runner()
-                    .execute_window_dispatch(&query_name, variables, None)
+                    .execute_window_dispatch(&query_name, variables, security_context)
                     .await
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {
-                // Anonymous entrypoint: no SecurityContext. The `_entities` path fails
-                // closed for RLS-/inject-/role-gated types (C1b).
-                self.execute_federation_query(&query_name, query, variables, None).await
+                // The `_entities` path fails closed for RLS-/inject-/role-gated
+                // types when `security_context` is `None` (C1b).
+                self.execute_federation_query(&query_name, query, variables, security_context)
+                    .await
             },
             #[cfg(not(feature = "federation"))]
             QueryType::Federation(_) => {
@@ -147,13 +188,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                 Ok(self.ctx.introspection.get_type_response(&type_name))
             },
             QueryType::Mutation { name, selections } => {
-                self.execute_mutation_query(&name, variables, &selections).await
+                self.execute_mutation_query(&name, variables, security_context, &selections)
+                    .await
             },
             QueryType::NodeQuery { selections } => {
-                // Anonymous entrypoint: no SecurityContext. The node runner fails closed for
-                // any RLS/inject/role-gated type (H2 IDOR fix).
+                // The node runner fails closed for any RLS/inject/role-gated type
+                // when `security_context` is `None` (H2 IDOR fix).
                 self.query_runner()
-                    .execute_node_query(query, variables, &selections, None)
+                    .execute_node_query(query, variables, &selections, security_context)
                     .await
             },
         }
@@ -219,10 +261,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 4. Delegate to execute_internal — single source of routing truth. Field-access validation
+        // 4. Delegate to execute_dispatch — single source of routing truth. Field-access validation
         //    (step 3) has already run for Regular queries; all other query types (introspection,
-        //    aggregate, federation, …) are routed correctly via execute_internal without
-        //    duplication.
-        self.execute_internal(query, variables).await
+        //    aggregate, federation, …) are routed correctly via execute_dispatch without
+        //    duplication. Scope-based filtering is not RLS, so no SecurityContext is threaded.
+        self.execute_dispatch(query, variables, None).await
     }
 }

@@ -4599,8 +4599,10 @@ mod runtime_config_from_schema_tests {
     #[test]
     fn threads_compiled_max_page_size() {
         let mut schema = CompiledSchema::new();
-        schema.validation_config =
-            Some(ValidationConfig { max_page_size: Some(250), ..ValidationConfig::default() });
+        schema.validation_config = Some(ValidationConfig {
+            max_page_size: Some(250),
+            ..ValidationConfig::default()
+        });
 
         // Note: assumes FRAISEQL_MAX_PAGE_SIZE is unset in the test env (it is in CI);
         // the env-override precedence itself is covered by `page_size_*` below.

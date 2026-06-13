@@ -504,6 +504,31 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         Ok(hasher.finish())
     }
 
+    /// Execute a regular query, applying RLS/role/inject enforcement when a
+    /// [`SecurityContext`] is present and the anonymous fail-closed path otherwise.
+    ///
+    /// The unified dispatcher and the multi-root fan-out both call this single
+    /// entry so the authenticated and anonymous regular-query paths cannot drift
+    /// (H19). It is an `async fn`, so it has one opaque future type — callers can
+    /// collect homogeneous futures across roots without boxing.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the errors of
+    /// [`execute_regular_query`](Self::execute_regular_query) or
+    /// [`execute_regular_query_with_security`](Self::execute_regular_query_with_security).
+    pub(in super::super) async fn execute_regular_query_maybe_security(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        match security_context {
+            Some(ctx) => self.execute_regular_query_with_security(query, variables, ctx).await,
+            None => self.execute_regular_query(query, variables).await,
+        }
+    }
+
     /// Execute a regular (non-aggregate, non-relay) GraphQL query.
     ///
     /// # Errors

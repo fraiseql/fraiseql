@@ -1,9 +1,7 @@
 //! Security-aware execution — field access, RBAC filtering, JWT inject resolution,
 //! `execute_with_context()`, `execute_with_security()`, `execute_json()`.
 
-use std::time::Duration;
-
-use super::{Executor, QueryType, runners, support};
+use super::{Executor, support};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -134,11 +132,13 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// - **Regular queries**: RLS `WHERE` clauses are applied so each user only sees their own
     ///   rows, as determined by the RLS policy in `RuntimeConfig`.
-    /// - **Mutations**: The security context is forwarded to `execute_mutation_query_with_security`
-    ///   so server-side `inject` parameters (e.g. `jwt:sub`) are resolved from the caller's JWT
-    ///   claims.
-    /// - **Aggregations, window queries, federation, introspection**: Delegated to their respective
-    ///   handlers (security context is not yet applied to these).
+    /// - **Mutations**: the security context is forwarded so server-side `inject` parameters (e.g.
+    ///   `jwt:sub`) are resolved from the caller's JWT claims.
+    /// - **Multi-root queries** (e.g. `{ users { id } posts { id } }`): each root is dispatched in
+    ///   parallel with the security context applied to every root (H19).
+    /// - **Aggregations, window queries, federation, node lookups**: the security context **is**
+    ///   forwarded to each handler (RLS / `requires_role` / `inject` gates apply).
+    /// - **Introspection**: served from the pre-built response (no per-user data).
     ///
     /// If `query_timeout_ms` is non-zero in the `RuntimeConfig`, the entire
     /// execution is raced against a Tokio deadline and returns
@@ -180,109 +180,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
     ) -> Result<serde_json::Value> {
-        // Apply query timeout if configured
-        if self.ctx.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
-            tokio::time::timeout(
-                timeout_duration,
-                self.execute_with_security_internal(query, variables, security_context),
-            )
-            .await
-            .map_err(|_| {
-                let query_snippet = crate::utils::text::truncate_for_display(query, 100);
-                FraiseQLError::Timeout {
-                    timeout_ms: self.ctx.config.query_timeout_ms,
-                    query:      Some(query_snippet),
-                }
-            })?
-        } else {
-            self.execute_with_security_internal(query, variables, security_context).await
-        }
-    }
-
-    /// Internal execution logic with security context (called by `execute_with_security` with
-    /// timeout wrapper).
-    async fn execute_with_security_internal(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: &SecurityContext,
-    ) -> Result<serde_json::Value> {
-        // 1. Classify query type. Retain the parsed AST for `Regular` queries — the authorizer
-        //    needs the per-root operation names to gate multi-root requests.
-        let (query_type, parsed) = self.classify_query_with_parse(query)?;
-
-        // 1b. Operation-level authorization (#422): consult the configured `Authorizer`
-        //     before dispatch. Mutations are gated downstream at `execute_mutation_impl`
-        //     (the single point every mutation entry path converges), so
-        //     `collect_authz_ops` returns no ops for the `Mutation` variant here.
-        //     Fail-closed: a `Deny` or any policy error returns 403.
-        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = support::authz::collect_authz_ops(&query_type, parsed.as_ref());
-            crate::security::authorizer::enforce_authz(
-                authorizer.as_ref(),
-                Some(security_context),
-                &ops,
-                variables,
-            )?;
-        }
-
-        // 2. Route to appropriate handler (with RLS support for regular queries)
-        match query_type {
-            QueryType::Regular => {
-                self.query_runner()
-                    .execute_regular_query_with_security(query, variables, security_context)
-                    .await
-            },
-            QueryType::Aggregate(query_name) => {
-                self.aggregate_runner()
-                    .execute_aggregate_dispatch(&query_name, variables, Some(security_context))
-                    .await
-            },
-            QueryType::Window(query_name) => {
-                self.aggregate_runner()
-                    .execute_window_dispatch(&query_name, variables, Some(security_context))
-                    .await
-            },
-            #[cfg(feature = "federation")]
-            QueryType::Federation(query_name) => {
-                // Authenticated entrypoint: thread the SecurityContext so the `_entities`
-                // path enforces requires_role / RLS / inject_params gates (C1b).
-                self.execute_federation_query(&query_name, query, variables, Some(security_context))
-                    .await
-            },
-            #[cfg(not(feature = "federation"))]
-            QueryType::Federation(_) => {
-                let _ = (query, variables);
-                Err(FraiseQLError::Validation {
-                    message: "Federation is not enabled in this build".to_string(),
-                    path:    None,
-                })
-            },
-            QueryType::IntrospectionSchema => {
-                Ok(self.ctx.introspection.schema_response.as_ref().clone())
-            },
-            QueryType::IntrospectionType(type_name) => {
-                Ok(self.ctx.introspection.get_type_response(&type_name))
-            },
-            QueryType::Mutation { name, selections } => {
-                runners::mutation::execute_mutation_impl(
-                    &self.ctx,
-                    &name,
-                    variables,
-                    Some(security_context),
-                    &selections,
-                )
-                .await
-            },
-            QueryType::NodeQuery { selections } => {
-                // Authenticated entrypoint: thread the SecurityContext so the node runner
-                // enforces requires_role/RLS/inject_params for the resolved type (H2).
-                self.query_runner()
-                    .execute_node_query(query, variables, &selections, Some(security_context))
-                    .await
-            },
-        }
+        // Authenticated entry: delegate to the shared dispatch with the principal.
+        // GATE-1, the parse cache, the multi-root fan-out, and every per-operation
+        // runner are threaded with `Some(security_context)` in `execute_dispatch`,
+        // so this path cannot drift from the anonymous one (H19, L-gate1-skip,
+        // L-parse-cache). The timeout wrapper is shared via `execute_with_timeout`.
+        self.execute_with_timeout(query, variables, Some(security_context)).await
     }
 
     /// Check if a specific field can be accessed with given scopes.

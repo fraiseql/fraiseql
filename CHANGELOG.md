@@ -76,6 +76,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   obtain a config while skipping the check. The relay/Arrow constructors additionally run the
   H12 field-encryption boot refusal. (The #421 `page_size_precedence` helper moved from
   `fraiseql-server` to `fraiseql-core` alongside the seam.)
+- **Authenticated multi-root queries no longer silently drop roots (H19).** The authenticated
+  executor entry point (`execute_with_security`) had no multi-root branch, so a query like
+  `{ users { id } posts { id } }` matched only the first root and silently discarded the rest;
+  the anonymous path dispatched all roots in parallel. Both paths now route through one shared
+  `execute_dispatch(.., Option<&SecurityContext>)` so the authenticated path also fans multi-root
+  queries out in parallel (with the security context applied to every root), runs the GATE-1
+  query-structure validator it previously skipped (L-gate1-skip), and consults the parse cache it
+  previously bypassed (L-parse-cache). The `fraiseql_multi_root_queries_total` metric now counts
+  authenticated multi-root queries too. (Also corrects a stale doc claim that the security context
+  was "not yet applied" to aggregations/window/federation — it is, on both paths.)
 - **CLI gate flags now affect the exit code (H21).** `fraiseql lint --fail-on-critical` and
   `--fail-on-warning` printed a failure result but always exited 0, so they were inert as CI
   gates — a pipeline depending on them passed regardless of the findings. Lint now reports a

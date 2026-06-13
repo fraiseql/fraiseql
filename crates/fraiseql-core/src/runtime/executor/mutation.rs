@@ -118,6 +118,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
         selections: &[FieldSelection],
     ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
@@ -140,7 +141,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &self.ctx,
             mutation_name,
             variables,
-            None,
+            security_context,
             selections,
         )
         .await
