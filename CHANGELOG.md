@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-06-13
+
 ### Security
 
 - **Complexity validator no longer pins a worker on crafted fragment spreads (H4, DoS).**
