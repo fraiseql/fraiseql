@@ -397,6 +397,102 @@ impl RuntimeConfig {
         self.authorizer = Some(authorizer);
         self
     }
+
+    /// Build a [`RuntimeConfig`] from a compiled schema, applying every
+    /// schema-derived runtime setting that an executor must honor.
+    ///
+    /// This is the **single seam** every server entry point routes through so
+    /// the config can never drift by constructor (H16): `Server::new`,
+    /// `with_relay_pagination`, and `with_flight_service` previously built the
+    /// executor with [`RuntimeConfig::default`], silently dropping the
+    /// compiled audit-logging flag, the #421 page-size ceiling, and the
+    /// change-log toggle, and skipping the schema-format-version check.
+    ///
+    /// Applied in order:
+    /// 1. **Schema-format-version validation** — a legacy schema (no version) warns; an
+    ///    incompatible future version is rejected. Coupling the check into the constructor means a
+    ///    caller cannot obtain a config while skipping the validation.
+    /// 2. **Audit logging** — `audit_mutations` from the compiled `[security.enterprise]
+    ///    audit_logging_enabled`.
+    /// 3. **Page-size ceiling (#421)** — `FRAISEQL_MAX_PAGE_SIZE` overrides the compiled
+    ///    `[validation] max_page_size`, which overrides the default.
+    /// 4. **Change-log outbox toggle** — `FRAISEQL_CHANGELOG_ENABLED` overrides the compiled
+    ///    `[changelog] write_enabled` (default `true`).
+    ///
+    /// # Errors
+    ///
+    /// Returns the validation message when the schema's `schema_format_version`
+    /// is incompatible with this runtime.
+    pub fn from_compiled_schema(schema: &crate::schema::CompiledSchema) -> Result<Self, String> {
+        if schema.schema_format_version.is_none() {
+            tracing::warn!(
+                "Loaded schema has no schema_format_version (pre-v2.1 format). \
+                 Re-compile with the current fraiseql-cli for version compatibility checking."
+            );
+        }
+        schema.validate_format_version()?;
+
+        // Audit logging: security.additional["enterprise"]["audit_logging_enabled"].
+        let audit_mutations = schema
+            .security
+            .as_ref()
+            .and_then(|s| s.additional.get("enterprise"))
+            .and_then(|e| e.get("audit_logging_enabled"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        if audit_mutations {
+            tracing::info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
+        }
+
+        // #421: FRAISEQL_MAX_PAGE_SIZE > compiled [validation] max_page_size > default.
+        let max_page_size = page_size_precedence(
+            std::env::var("FRAISEQL_MAX_PAGE_SIZE").ok().as_deref(),
+            schema.validation_config.as_ref().and_then(|v| v.max_page_size),
+        );
+
+        // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
+        // overrides the compiled [changelog] write_enabled.
+        let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
+            .ok()
+            .map(|v| {
+                !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
+            })
+            .or_else(|| schema.changelog.as_ref().map(|c| c.write_enabled))
+            .unwrap_or(true);
+        if !changelog_enabled {
+            tracing::info!(
+                "Change-log outbox write disabled (FRAISEQL_CHANGELOG_ENABLED / [changelog] write_enabled)"
+            );
+        }
+
+        Ok(Self {
+            max_page_size,
+            audit_mutations,
+            changelog_enabled,
+            ..Self::default()
+        })
+    }
+}
+
+/// Resolve the top-level page-size ceiling (#421) by precedence.
+///
+/// `env` is the raw `FRAISEQL_MAX_PAGE_SIZE` value when set (a positive integer,
+/// or `"0"`/`"none"` to disable the ceiling). It overrides `compiled` (the
+/// `[validation] max_page_size` from the compiled schema), which overrides the
+/// runtime default (1000). Returns `None` only when explicitly disabled.
+#[must_use]
+pub fn page_size_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
+    if let Some(raw) = env {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
+            return None;
+        }
+        if let Ok(n) = trimmed.parse::<u32>() {
+            return Some(n);
+        }
+        // Unparseable env value: ignore it and fall through to compiled/default.
+    }
+    compiled.or(RuntimeConfig::default().max_page_size)
 }
 
 /// Execution context for query cancellation support.

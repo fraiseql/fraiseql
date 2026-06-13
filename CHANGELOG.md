@@ -64,6 +64,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every server constructor now applies the same schema-derived runtime config and boot
+  validation (H16).** `Server::with_relay_pagination` and `Server::with_flight_service` (the
+  Arrow Flight path) built the executor with `RuntimeConfig::default()`, so a server created
+  via either constructor silently ignored the compiled `audit_logging_enabled` flag, the #421
+  `max_page_size` ceiling (and its `FRAISEQL_MAX_PAGE_SIZE` override), and the change-log
+  write toggle — and, unlike `Server::new`, never validated the compiled schema's format
+  version or ran the at-rest-encryption refusal check (H12). The schema-derived config now
+  flows through a single seam, `RuntimeConfig::from_compiled_schema`, that all three
+  constructors call; the format-version validation is coupled into it so a constructor cannot
+  obtain a config while skipping the check. The relay/Arrow constructors additionally run the
+  H12 field-encryption boot refusal. (The #421 `page_size_precedence` helper moved from
+  `fraiseql-server` to `fraiseql-core` alongside the seam.)
 - **CLI gate flags now affect the exit code (H21).** `fraiseql lint --fail-on-critical` and
   `--fail-on-warning` printed a failure result but always exited 0, so they were inert as CI
   gates — a pipeline depending on them passed regardless of the findings. Lint now reports a

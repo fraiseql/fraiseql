@@ -4543,3 +4543,118 @@ mod window_projector_tests {
         assert_eq!(first_row["row_count"], json!(42));
     }
 }
+
+// ── RuntimeConfig::from_compiled_schema — the H16 single constructor seam ──────
+mod runtime_config_from_schema_tests {
+    use serde_json::json;
+
+    use crate::{
+        runtime::{RuntimeConfig, page_size_precedence},
+        schema::{
+            CURRENT_SCHEMA_FORMAT_VERSION, ChangelogConfig, CompiledSchema, SecurityConfig,
+            ValidationConfig,
+        },
+    };
+
+    #[test]
+    fn rejects_incompatible_format_version() {
+        let mut schema = CompiledSchema::new();
+        schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION + 1);
+        let result = RuntimeConfig::from_compiled_schema(&schema);
+        assert!(result.is_err(), "an incompatible schema version must refuse to build a config");
+        assert!(result.unwrap_err().contains("mismatch"));
+    }
+
+    #[test]
+    fn accepts_legacy_and_current_versions() {
+        // No version (pre-v2.1): warns but builds.
+        let legacy = CompiledSchema::new();
+        assert!(RuntimeConfig::from_compiled_schema(&legacy).is_ok());
+
+        let mut current = CompiledSchema::new();
+        current.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
+        assert!(RuntimeConfig::from_compiled_schema(&current).is_ok());
+    }
+
+    #[test]
+    fn reads_audit_logging_flag_from_enterprise_config() {
+        let mut schema = CompiledSchema::new();
+        let mut security = SecurityConfig::default();
+        security
+            .additional
+            .insert("enterprise".to_string(), json!({ "audit_logging_enabled": true }));
+        schema.security = Some(security);
+
+        let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        assert!(config.audit_mutations, "audit_logging_enabled must flow into audit_mutations");
+    }
+
+    #[test]
+    fn audit_logging_defaults_off_when_absent() {
+        let schema = CompiledSchema::new();
+        let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        assert!(!config.audit_mutations);
+    }
+
+    #[test]
+    fn threads_compiled_max_page_size() {
+        let mut schema = CompiledSchema::new();
+        schema.validation_config =
+            Some(ValidationConfig { max_page_size: Some(250), ..ValidationConfig::default() });
+
+        // Note: assumes FRAISEQL_MAX_PAGE_SIZE is unset in the test env (it is in CI);
+        // the env-override precedence itself is covered by `page_size_*` below.
+        let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        assert_eq!(config.max_page_size, Some(250));
+    }
+
+    #[test]
+    fn reads_changelog_write_enabled() {
+        let mut schema = CompiledSchema::new();
+        let changelog = ChangelogConfig {
+            write_enabled: false,
+            ..ChangelogConfig::default()
+        };
+        schema.changelog = Some(changelog);
+
+        let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        assert!(
+            !config.changelog_enabled,
+            "compiled write_enabled=false must disable the outbox"
+        );
+    }
+
+    #[test]
+    fn changelog_defaults_on_when_absent() {
+        let schema = CompiledSchema::new();
+        let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        assert!(config.changelog_enabled);
+    }
+
+    // ── page_size_precedence (moved here with the #421 logic it implements) ──
+    #[test]
+    fn page_size_default_when_nothing_set() {
+        assert_eq!(page_size_precedence(None, None), Some(1000));
+    }
+
+    #[test]
+    fn page_size_compiled_overrides_default() {
+        assert_eq!(page_size_precedence(None, Some(250)), Some(250));
+    }
+
+    #[test]
+    fn page_size_env_overrides_compiled() {
+        assert_eq!(page_size_precedence(Some("500"), Some(250)), Some(500));
+    }
+
+    #[test]
+    fn page_size_env_disables_ceiling() {
+        assert_eq!(page_size_precedence(Some("none"), Some(250)), None);
+        assert_eq!(page_size_precedence(Some("0"), Some(250)), None);
+    }
+
+    #[test]
+    fn page_size_unparseable_env_falls_through_to_compiled() {
+        assert_eq!(page_size_precedence(Some("lots"), Some(250)), Some(250));
+    }
+}

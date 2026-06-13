@@ -89,15 +89,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Validate compiled schema format version before any further setup.
-        // Warns for legacy schemas (no version field); rejects incompatible future versions.
-        if schema.schema_format_version.is_none() {
-            warn!(
-                "Loaded schema has no schema_format_version (pre-v2.1 format). \
-                 Re-compile with the current fraiseql-cli for version compatibility checking."
-            );
-        }
-        schema.validate_format_version().map_err(|msg| {
+        // Build the runtime config from the compiled schema. This is the single
+        // seam every server constructor routes through (H16): it validates the
+        // schema format version (warns on legacy, rejects incompatible), reads the
+        // audit-logging flag, applies the #421 page-size ceiling, and the
+        // change-log toggle. Doing it first preserves "reject bad version before
+        // any further setup".
+        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
             ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
         })?;
 
@@ -195,45 +193,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             .with_ttl_overrides_from_schema(&schema)
             .with_rls(schema.has_rls_configured());
 
-        // Read audit_logging_enabled from compiled schema's enterprise security config.
-        // Path: security.additional["enterprise"]["audit_logging_enabled"]
-        let audit_mutations = schema
-            .security
-            .as_ref()
-            .and_then(|s| s.additional.get("enterprise"))
-            .and_then(|e| e.get("audit_logging_enabled"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        if audit_mutations {
-            info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
-        }
-        // #421: top-level page-size ceiling — FRAISEQL_MAX_PAGE_SIZE overrides the
-        // compiled `[validation] max_page_size`, which overrides the default (1000).
-        let max_page_size = page_size_precedence(
-            std::env::var("FRAISEQL_MAX_PAGE_SIZE").ok().as_deref(),
-            schema.validation_config.as_ref().and_then(|v| v.max_page_size),
-        );
-        // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
-        // overrides the compiled `[changelog] write_enabled`. Composes (AND) with
-        // each mutation's per-endpoint `changelog` flag in the runner.
-        let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
-            .ok()
-            .map(|v| {
-                !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
-            })
-            .or_else(|| schema.changelog.as_ref().map(|c| c.write_enabled))
-            .unwrap_or(true);
-        if !changelog_enabled {
-            info!(
-                "Change-log outbox write disabled (FRAISEQL_CHANGELOG_ENABLED / [changelog] write_enabled)"
-            );
-        }
-        let executor_config = RuntimeConfig {
-            audit_mutations,
-            max_page_size,
-            changelog_enabled,
-            ..RuntimeConfig::default()
-        };
+        // `executor_config` was built from the compiled schema at the top of this
+        // constructor (the H16 seam — audit flag, #421 page-size, change-log toggle).
         let executor =
             Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -749,24 +710,4 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         Ok(())
     }
-}
-
-/// Resolve the top-level page-size ceiling (#421) from its precedence chain.
-///
-/// `env` is the raw `FRAISEQL_MAX_PAGE_SIZE` value when set (a positive integer,
-/// or `"0"`/`"none"` to disable the ceiling). It overrides `compiled` (the
-/// `[validation] max_page_size` from the compiled schema), which overrides the
-/// runtime default (1000). Returns `None` only when explicitly disabled.
-pub fn page_size_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
-    if let Some(raw) = env {
-        let trimmed = raw.trim();
-        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
-            return None;
-        }
-        if let Ok(n) = trimmed.parse::<u32>() {
-            return Some(n);
-        }
-        // Unparseable env value: ignore it and fall through to compiled/default.
-    }
-    compiled.or(RuntimeConfig::default().max_page_size)
 }

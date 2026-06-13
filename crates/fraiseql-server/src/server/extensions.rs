@@ -10,7 +10,7 @@ use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
-    runtime::{Executor, SubscriptionManager},
+    runtime::{Executor, RuntimeConfig, SubscriptionManager},
     schema::CompiledSchema,
 };
 #[cfg(feature = "observers")]
@@ -88,6 +88,16 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             );
         }
 
+        // Same boot gates as `Server::new` — these must not drift by constructor (H16).
+        // Refuse to boot if any field is marked for at-rest encryption (H12); the write
+        // path does not encrypt, so the data would be stored in plaintext.
+        crate::server::initialization::field_encryption_unsupported_check(&schema)?;
+        // Build the runtime config from the compiled schema (validates format version,
+        // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
+        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
+            super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
+        })?;
+
         // Read security configs from compiled schema BEFORE schema is moved.
         #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
@@ -125,7 +135,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
             .with_ttl_overrides_from_schema(&schema);
-        let executor = Arc::new(Executor::new_with_relay(schema.clone(), Arc::new(cached)));
+        let executor = Arc::new(Executor::with_config_and_relay(
+            schema.clone(),
+            Arc::new(cached),
+            executor_config,
+        ));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -202,6 +216,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
+        // Same boot gates as `Server::new` — these must not drift by constructor (H16).
+        // Refuse to boot on at-rest-encryption-marked fields (H12, plaintext write path).
+        crate::server::initialization::field_encryption_unsupported_check(&schema)?;
+        // Build the runtime config from the compiled schema (validates format version,
+        // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
+        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
+            super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
+        })?;
+
         // Read security configs from compiled schema BEFORE schema is moved.
         #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
@@ -233,7 +256,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
         let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Initialize OIDC validator if auth is configured
