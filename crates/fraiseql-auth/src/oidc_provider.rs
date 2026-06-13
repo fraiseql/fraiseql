@@ -90,12 +90,14 @@ struct TokenResponseRaw {
 
 #[derive(Debug, Deserialize)]
 struct UserInfoRaw {
-    sub:     String,
-    email:   Option<String>,
-    name:    Option<String>,
-    picture: Option<String>,
+    sub:            String,
+    email:          Option<String>,
+    #[serde(default)]
+    email_verified: Option<bool>,
+    name:           Option<String>,
+    picture:        Option<String>,
     #[serde(flatten)]
-    extra:   serde_json::Map<String, serde_json::Value>,
+    extra:          serde_json::Map<String, serde_json::Value>,
 }
 
 /// Validate an OIDC issuer URL against SSRF-prone destinations.
@@ -368,6 +370,13 @@ impl OAuthProvider for OidcProvider {
         if let Some(email) = &response.email {
             raw_claims.insert("email".to_string(), serde_json::Value::String(email.clone()));
         }
+        // Re-surface `email_verified` in raw_claims: it is an explicit field on
+        // `UserInfoRaw` (so `#[serde(flatten)] extra` no longer captures it), but
+        // provider wrappers (Okta/Auth0) read it back from raw_claims.
+        if let Some(email_verified) = response.email_verified {
+            raw_claims
+                .insert("email_verified".to_string(), serde_json::Value::Bool(email_verified));
+        }
         if let Some(name) = &response.name {
             raw_claims.insert("name".to_string(), serde_json::Value::String(name.clone()));
         }
@@ -379,11 +388,14 @@ impl OAuthProvider for OidcProvider {
         }
 
         Ok(UserInfo {
-            id:         response.sub,
-            email:      response.email.unwrap_or_default(),
-            name:       response.name,
-            picture:    response.picture,
-            raw_claims: serde_json::Value::Object(raw_claims),
+            // Normalize an empty/whitespace-only email claim to `None` so it can
+            // never serve as an account-linking key (H26).
+            email:          response.email.filter(|e| !e.trim().is_empty()),
+            email_verified: response.email_verified.unwrap_or(false),
+            id:             response.sub,
+            name:           response.name,
+            picture:        response.picture,
+            raw_claims:     serde_json::Value::Object(raw_claims),
         })
     }
 

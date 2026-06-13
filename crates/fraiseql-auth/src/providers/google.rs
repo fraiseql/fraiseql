@@ -159,17 +159,18 @@ impl OAuthProvider for GoogleOAuth {
         // Get user info from OIDC
         let mut user_info = self.oidc.user_info(access_token).await?;
 
+        let email = user_info.email.clone().unwrap_or_default();
+
         // Extract domain-based roles as fallback
-        let default_roles = Self::extract_roles_from_domain(&user_info.email);
+        let default_roles = Self::extract_roles_from_domain(&email);
         user_info.raw_claims["google_default_roles"] = serde_json::json!(default_roles);
 
         // Extract org_id from email domain
-        let org_id = user_info
-            .email
+        let org_id = email
             .split('@')
             .nth(1)
             .and_then(|domain| domain.split('.').next())
-            .map(|domain_part| domain_part.to_string());
+            .map(std::string::ToString::to_string);
 
         if let Some(org_id) = org_id {
             user_info.raw_claims["org_id"] = serde_json::json!(&org_id);
@@ -182,7 +183,7 @@ impl OAuthProvider for GoogleOAuth {
         // setup
         //
         // For now, we store the email for later group lookup
-        user_info.raw_claims["google_email"] = serde_json::json!(&user_info.email);
+        user_info.raw_claims["google_email"] = serde_json::json!(email);
         user_info.raw_claims["google_workspace_available"] =
             serde_json::json!("Configure Directory API scopes for group sync");
 

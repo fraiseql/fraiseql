@@ -385,7 +385,12 @@ pub async fn callback(
     // otherwise fall back to raw provider user ID.
     let local_user_id = if let Some(account_store) = &state.user_store {
         match account_store
-            .link_or_create_user(&user_info.email, &provider_name, &user_info.id)
+            .link_or_create_user(
+                user_info.email.as_deref(),
+                user_info.email_verified,
+                &provider_name,
+                &user_info.id,
+            )
             .await
         {
             Ok(result) => result.user_id,

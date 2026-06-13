@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Account linking no longer collapses email-less provider identities into one account (H26, account takeover).**
+  `link_or_create_user` previously keyed every account on the provider's email and treated a
+  missing email as the empty string, so every user whose provider omits an email (a GitHub
+  account with a private email is the canonical case) resolved to the **same** `user_id` —
+  cross-user account takeover. Account linking is now fail-closed: cross-provider linking
+  happens only when the provider supplies a non-empty, **verified** email; otherwise the
+  identity is keyed on `(provider, provider_id)`, so distinct identities can never collapse and
+  an unverified email can never link into another user's account.
+
+### Changed
+
+- **BREAKING (`fraiseql-auth`):** `UserInfo.email` is now `Option<String>` (was `String`) and
+  gains an `email_verified: bool` field; an empty/whitespace email claim is normalized to
+  `None`. `AccountStore::link_or_create_user` now takes `(email: Option<&str>, email_verified:
+  bool, provider, provider_id)` (was `(email: &str, provider, provider_id)`), and
+  `AccountRecord.email` is now `Option<String>`. Implementors and direct callers of these
+  published-crate APIs must update their signatures; the in-tree OAuth providers and handlers
+  are already updated.
+
 ## [2.7.0] - 2026-06-13
 
 ### Security

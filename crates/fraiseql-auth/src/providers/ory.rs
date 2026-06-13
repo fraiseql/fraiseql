@@ -181,7 +181,8 @@ impl OAuthProvider for OryOAuth {
         user_info.raw_claims["ory_issuer"] = json!(&self.issuer_url);
 
         // Extract org_id if present
-        if let Some(org_id) = Self::extract_org_id(&user_info.raw_claims, &user_info.email) {
+        let email = user_info.email.clone().unwrap_or_default();
+        if let Some(org_id) = Self::extract_org_id(&user_info.raw_claims, &email) {
             user_info.raw_claims["org_id"] = json!(org_id);
         }
 

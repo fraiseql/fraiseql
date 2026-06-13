@@ -10,15 +10,25 @@ use crate::error::{AuthError, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     /// Unique user identifier from provider
-    pub id:         String,
-    /// User's email address
-    pub email:      String,
+    pub id:             String,
+    /// User's email address.
+    ///
+    /// `None` when the provider omits an email claim (e.g. a GitHub account with a
+    /// private email). An empty/whitespace-only claim is normalized to `None` so it
+    /// can never be used as an account-linking key — see the [`crate::account_linking`]
+    /// module, which keys email-less identities on `(provider, provider_id)` instead.
+    pub email:          Option<String>,
+    /// Whether the provider asserts the email address is verified.
+    ///
+    /// Cross-provider account linking requires this to be `true`; an unverified or
+    /// absent `email_verified` claim is treated as `false` (fail-closed).
+    pub email_verified: bool,
     /// User's display name (optional)
-    pub name:       Option<String>,
+    pub name:           Option<String>,
     /// User's profile picture URL (optional)
-    pub picture:    Option<String>,
+    pub picture:        Option<String>,
     /// Raw claims from provider (for custom fields)
-    pub raw_claims: serde_json::Value,
+    pub raw_claims:     serde_json::Value,
 }
 
 /// Token response from OAuth provider

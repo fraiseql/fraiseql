@@ -7,8 +7,11 @@
 //! # How it works
 //!
 //! 1. After a successful `OAuth` token exchange, call [`AccountStore::link_or_create_user`] with
-//!    the verified email, provider name, and provider-specific user ID.
-//! 2. The store checks whether an account with that email already exists.
+//!    the email (and its verified flag), provider name, and provider-specific user ID.
+//! 2. The store resolves an identity key. Cross-provider linking happens **only** when the
+//!    provider supplies a non-empty, verified email; otherwise the identity is keyed on
+//!    `(provider, provider_id)` so that an absent or unverified email can never collapse two
+//!    distinct provider identities into one account (see [`AccountStore::link_or_create_user`]).
 //!    - **Existing account**: the new provider credential is linked to the existing account and the
 //!      existing `user_id` is returned.
 //!    - **New account**: a fresh `user_id` is generated, the account is stored, and the new
@@ -41,8 +44,10 @@ pub struct ProviderLink {
 pub struct AccountRecord {
     /// Internal FraiseQL user identifier (stable across providers).
     pub user_id:   String,
-    /// Verified email address shared across all linked providers.
-    pub email:     String,
+    /// Verified email address shared across all linked providers, when the account
+    /// is keyed on a verified email. `None` for accounts keyed on
+    /// `(provider, provider_id)` because the provider supplied no verified email.
+    pub email:     Option<String>,
     /// All provider credentials linked to this account.
     pub providers: Vec<ProviderLink>,
 }
@@ -60,13 +65,27 @@ pub struct AccountRecord {
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait AccountStore: Send + Sync {
-    /// Return the `user_id` for the given email+provider pair, creating or linking as needed.
+    /// Return the `user_id` for the given identity, creating or linking as needed.
+    ///
+    /// # Account-linking key (security-critical)
+    ///
+    /// Cross-provider account linking happens **only** when the provider supplies a
+    /// non-empty, *verified* email. Otherwise each `(provider, provider_id)` pair is its
+    /// own account:
+    ///
+    /// - `email = Some(non-empty)` **and** `email_verified = true` → identity is keyed on the
+    ///   normalized email. A second provider presenting the same verified email links into the
+    ///   existing account.
+    /// - `email = None`, empty/whitespace, **or** `email_verified = false` → identity is keyed on
+    ///   `(provider, provider_id)`. This is fail-closed: an absent or unverified email can never
+    ///   collapse two distinct provider identities into one account, and can never link into
+    ///   another user's email-keyed account (H26).
     ///
     /// # Semantics
     ///
-    /// - If no account exists for `email`: creates a new account, stores the `provider` /
-    ///   `provider_id` link, and returns the new `user_id`.
-    /// - If an account already exists for `email`:
+    /// - If no account exists for the resolved identity key: creates a new account, stores the
+    ///   `provider` / `provider_id` link, and returns the new `user_id`.
+    /// - If an account already exists for the key:
     ///   - If the `provider` / `provider_id` pair is new, adds it as a linked credential.
     ///   - Returns the **existing** `user_id` (same as on first sign-in).
     ///
@@ -75,7 +94,8 @@ pub trait AccountStore: Send + Sync {
     /// Returns [`AuthError::DatabaseError`] if the backing store fails.
     async fn link_or_create_user(
         &self,
-        email: &str,
+        email: Option<&str>,
+        email_verified: bool,
         provider: &str,
         provider_id: &str,
     ) -> Result<AccountLinkResult>;
@@ -110,10 +130,12 @@ pub struct AccountLinkResult {
 ///
 /// Uses `DashMap` for lock-free concurrent reads and fine-grained write locking.
 pub struct InMemoryAccountStore {
-    /// email → user_id (fast lookup by email)
-    by_email:   DashMap<String, String>,
+    /// identity key → user_id (fast lookup). The key is either `email:<normalized>`
+    /// for verified-email identities or `provider:<provider>\u{1f}<provider_id>` for
+    /// email-less / unverified identities — see [`identity_key`].
+    by_identity: DashMap<String, String>,
     /// user_id → AccountRecord
-    by_user_id: DashMap<String, AccountRecord>,
+    by_user_id:  DashMap<String, AccountRecord>,
 }
 
 impl InMemoryAccountStore {
@@ -121,8 +143,8 @@ impl InMemoryAccountStore {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            by_email:   DashMap::new(),
-            by_user_id: DashMap::new(),
+            by_identity: DashMap::new(),
+            by_user_id:  DashMap::new(),
         }
     }
 
@@ -150,24 +172,29 @@ impl Default for InMemoryAccountStore {
 impl AccountStore for InMemoryAccountStore {
     async fn link_or_create_user(
         &self,
-        email: &str,
+        email: Option<&str>,
+        email_verified: bool,
         provider: &str,
         provider_id: &str,
     ) -> Result<AccountLinkResult> {
         let logger = get_audit_logger();
-        let email_normalized = normalize_email(email);
+        // Resolve the linking key. A verified, non-empty email links across providers;
+        // anything else is keyed on (provider, provider_id) so distinct identities can
+        // never collapse (H26).
+        let verified_email = email.map(normalize_email).filter(|e| !e.is_empty() && email_verified);
+        let key = identity_key(verified_email.as_deref(), provider, provider_id);
         let new_link = ProviderLink {
             provider:    provider.to_string(),
             provider_id: provider_id.to_string(),
         };
 
-        // Check whether an account already exists for this email.
-        if let Some(existing_user_id) = self.by_email.get(&email_normalized).map(|r| r.clone()) {
+        // Check whether an account already exists for this identity.
+        if let Some(existing_user_id) = self.by_identity.get(&key).map(|r| r.clone()) {
             let mut record = self.by_user_id.get_mut(&existing_user_id).ok_or_else(|| {
                 AuthError::DatabaseError {
                     message: format!(
-                        "account store inconsistency: email '{}' maps to missing user_id '{}'",
-                        email, existing_user_id
+                        "account store inconsistency: identity '{key}' maps to missing user_id \
+                         '{existing_user_id}'"
                     ),
                 }
             })?;
@@ -195,10 +222,10 @@ impl AccountStore for InMemoryAccountStore {
         let user_id = format!("user_{}", Uuid::new_v4().as_simple());
         let record = AccountRecord {
             user_id:   user_id.clone(),
-            email:     email_normalized.clone(),
+            email:     verified_email,
             providers: vec![new_link],
         };
-        self.by_email.insert(email_normalized, user_id.clone());
+        self.by_identity.insert(key, user_id.clone());
         self.by_user_id.insert(user_id.clone(), record);
 
         logger.log_success(
@@ -229,6 +256,20 @@ impl AccountStore for InMemoryAccountStore {
 #[must_use]
 pub fn normalize_email(email: &str) -> String {
     email.trim().to_lowercase()
+}
+
+/// Compute the account-linking key for an identity.
+///
+/// When `verified_email` is `Some`, the identity links across providers and is keyed on
+/// `email:<normalized>`. When `None` (the provider supplied no verified, non-empty email),
+/// the identity is unique to the `(provider, provider_id)` pair, keyed on
+/// `provider:<provider>\u{1f}<provider_id>` (`\u{1f}`, the ASCII unit separator, cannot
+/// appear in a provider name, so the two key spaces and distinct pairs never collide).
+fn identity_key(verified_email: Option<&str>, provider: &str, provider_id: &str) -> String {
+    match verified_email {
+        Some(email) => format!("email:{email}"),
+        None => format!("provider:{provider}\u{1f}{provider_id}"),
+    }
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

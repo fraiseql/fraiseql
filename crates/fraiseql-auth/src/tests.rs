@@ -802,7 +802,7 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let result = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
@@ -811,7 +811,7 @@ mod account_linking_tests {
         assert_eq!(store.len(), 1);
 
         let account = store.get_account(&result.user_id).await.unwrap();
-        assert_eq!(account.email, "alice@example.com");
+        assert_eq!(account.email.as_deref(), Some("alice@example.com"));
         assert_eq!(account.providers.len(), 1);
         assert_eq!(account.providers[0].provider, "github");
         assert_eq!(account.providers[0].provider_id, "gh-123");
@@ -822,11 +822,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
@@ -839,11 +839,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user("alice@example.com", "google", "google-456")
+            .link_or_create_user(Some("alice@example.com"), true, "google", "google-456")
             .await
             .unwrap();
 
@@ -860,10 +860,13 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r_a = store
-            .link_or_create_user("alice@example.com", "github", "gh-alice")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-alice")
             .await
             .unwrap();
-        let r_b = store.link_or_create_user("bob@example.com", "github", "gh-bob").await.unwrap();
+        let r_b = store
+            .link_or_create_user(Some("bob@example.com"), true, "github", "gh-bob")
+            .await
+            .unwrap();
 
         assert_ne!(r_a.user_id, r_b.user_id, "different emails must create different users");
         assert_eq!(store.len(), 2);
@@ -874,11 +877,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user("Alice@Example.COM", "github", "gh-123")
+            .link_or_create_user(Some("Alice@Example.COM"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user("alice@example.com", "google", "google-456")
+            .link_or_create_user(Some("alice@example.com"), true, "google", "google-456")
             .await
             .unwrap();
 
@@ -889,10 +892,16 @@ mod account_linking_tests {
     async fn test_three_providers_same_email_all_linked() {
         let store = InMemoryAccountStore::new();
 
-        let r1 = store.link_or_create_user("alice@example.com", "github", "gh-1").await.unwrap();
-        let r2 = store.link_or_create_user("alice@example.com", "google", "gg-2").await.unwrap();
+        let r1 = store
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-1")
+            .await
+            .unwrap();
+        let r2 = store
+            .link_or_create_user(Some("alice@example.com"), true, "google", "gg-2")
+            .await
+            .unwrap();
         let r3 = store
-            .link_or_create_user("alice@example.com", "azure_ad", "az-3")
+            .link_or_create_user(Some("alice@example.com"), true, "azure_ad", "az-3")
             .await
             .unwrap();
 
@@ -916,12 +925,12 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let created = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let account = store.get_account(&created.user_id).await.unwrap();
 
-        assert_eq!(account.email, "alice@example.com");
+        assert_eq!(account.email.as_deref(), Some("alice@example.com"));
     }
 
     #[tokio::test]
@@ -929,20 +938,20 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
         let r = store
-            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let account = store.get_account(&r.user_id).await.unwrap();
@@ -4481,11 +4490,12 @@ mod multi_provider_tests {
                 name:      name.to_string(),
                 auth_url:  format!("https://{name}.example.com/authorize"),
                 user_info: UserInfo {
-                    id:         format!("{name}-user-1"),
-                    email:      format!("user@{name}.com"),
-                    name:       Some("Test User".to_string()),
-                    picture:    None,
-                    raw_claims: serde_json::json!({}),
+                    id:             format!("{name}-user-1"),
+                    email:          Some(format!("user@{name}.com")),
+                    email_verified: true,
+                    name:           Some("Test User".to_string()),
+                    picture:        None,
+                    raw_claims:     serde_json::json!({}),
                 },
             }
         }
@@ -4495,11 +4505,12 @@ mod multi_provider_tests {
                 name:      name.to_string(),
                 auth_url:  format!("https://{name}.example.com/authorize"),
                 user_info: UserInfo {
-                    id:         format!("{name}-user-1"),
-                    email:      email.to_string(),
-                    name:       Some("Test User".to_string()),
-                    picture:    None,
-                    raw_claims: serde_json::json!({}),
+                    id:             format!("{name}-user-1"),
+                    email:          Some(email.to_string()),
+                    email_verified: true,
+                    name:           Some("Test User".to_string()),
+                    picture:        None,
+                    raw_claims:     serde_json::json!({}),
                 },
             }
         }

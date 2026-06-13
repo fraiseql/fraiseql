@@ -125,13 +125,13 @@ async fn test_account_linking_same_email_across_providers() {
     let store = InMemoryAccountStore::new();
 
     let r1 = store
-        .link_or_create_user("alice@example.com", "github", "gh-123")
+        .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
         .await
         .unwrap();
     assert!(r1.is_new);
 
     let r2 = store
-        .link_or_create_user("alice@example.com", "google", "gg-456")
+        .link_or_create_user(Some("alice@example.com"), true, "google", "gg-456")
         .await
         .unwrap();
     assert!(!r2.is_new);

@@ -184,7 +184,8 @@ impl OAuthProvider for Auth0OAuth {
         user_info.raw_claims["auth0_roles"] = json!(roles);
 
         // Extract organization ID
-        if let Some(org_id) = Self::extract_org_id(&user_info.raw_claims, &user_info.email) {
+        let email = user_info.email.clone().unwrap_or_default();
+        if let Some(org_id) = Self::extract_org_id(&user_info.raw_claims, &email) {
             user_info.raw_claims["org_id"] = json!(&org_id);
         }
 
