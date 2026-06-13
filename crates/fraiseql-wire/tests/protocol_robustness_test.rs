@@ -37,8 +37,22 @@ fn test_decode_truncated_message() {
 
 #[test]
 fn test_decode_length_field_overflow() {
-    // Length field claims ~4GB but only 10 bytes present
+    // Length field claims ~2 GB. This now exceeds MAX_MESSAGE_LEN, so it is a
+    // fatal `InvalidData` error (rejected up front by the message-size cap),
+    // not the `UnexpectedEof` "need more bytes" the read loop would buffer
+    // toward — the M-wire-msg-cap fix.
     let mut buf = BytesMut::from(&[b'T', 0x7F, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0][..]);
+    let result = decode_message(&mut buf);
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn test_decode_incomplete_body_under_cap_needs_more_bytes() {
+    // A declared length within MAX_MESSAGE_LEN but with the body not yet
+    // present must still report `UnexpectedEof` ("need more bytes"), preserving
+    // the read loop's framing behaviour for legitimate large messages.
+    // Declared length 1024 (well under the cap), only the 5-byte header present.
+    let mut buf = BytesMut::from(&[b'T', 0, 0, 0x04, 0x00][..]);
     let result = decode_message(&mut buf);
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
 }
