@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **JWKS fetch pins the connection to the validated IP (M-jwks-toctou, DNS-rebinding SSRF).**
+  `dns_resolve_and_check` validated the resolved IPs, but the subsequent reqwest call
+  re-resolved the host independently — a TOCTOU window where attacker-controlled DNS could
+  flip the host to a private IP after the check (blind internal SSRF). The fetch now resolves
+  and validates once, then pins reqwest to the validated addresses (`resolve_to_addrs`) and
+  disables redirects (`Policy::none()`) so the connection cannot be re-pointed to an internal
+  target. **Behavior change:** a `jwks_uri` that issues an HTTP redirect is no longer followed
+  (OIDC `jwks_uri` endpoints are served directly; following redirects on this fetch is an SSRF
+  amplifier).
 - **Vault `AppRole` login validates the address before sending credentials (H15, SSRF).**
   `with_approle` POSTed the `role_id`/`secret_id` to the configured address and only
   afterwards ran the SSRF address check, so a misconfigured/attacker-influenced address

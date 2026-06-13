@@ -93,17 +93,23 @@ pub(crate) fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     }
 }
 
-/// Resolve the host via DNS and reject if any address is private/reserved.
+/// Resolve the host via DNS, reject any private/reserved address, and return the
+/// validated socket addresses.
 ///
-/// Prevents DNS rebinding attacks where an attacker-controlled domain initially
-/// resolves to a public IP (passing URL validation) but later resolves to a
-/// private IP during the actual HTTP request.
+/// The returned addresses must be pinned into the HTTP client (see
+/// [`build_pinned_client`]) so the connection targets exactly these validated IPs.
+/// Validating here and then letting reqwest re-resolve independently would leave a
+/// DNS-rebinding TOCTOU window (the attacker's domain resolves public for the check,
+/// then private for the connect) — which is the bug this pairing closes.
 ///
 /// # Errors
 ///
 /// Returns a `String` error if DNS resolution fails, returns no addresses, or
 /// any resolved address is in a private/reserved range.
-async fn dns_resolve_and_check(host: &str, port: u16) -> Result<(), String> {
+pub(crate) async fn dns_resolve_and_check(
+    host: &str,
+    port: u16,
+) -> Result<Vec<std::net::SocketAddr>, String> {
     let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
         .await
         .map_err(|e| format!("DNS resolution failed for JWKS host '{host}': {e}"))?
@@ -119,7 +125,30 @@ async fn dns_resolve_and_check(host: &str, port: u16) -> Result<(), String> {
             ));
         }
     }
-    Ok(())
+    Ok(addrs)
+}
+
+/// Build a reqwest client pinned to pre-validated socket addresses.
+///
+/// `addrs` MUST already have passed [`is_ssrf_blocked_ip`] (via
+/// [`dns_resolve_and_check`]). Pinning reqwest's resolution to these exact addresses
+/// closes the DNS-rebinding TOCTOU: reqwest cannot independently re-resolve `host` to a
+/// different (possibly private) IP between our check and the connect. Redirects are
+/// disabled so a `3xx` cannot bounce the request to an un-pinned internal target.
+///
+/// Phase 06 Cycle 3: kept self-contained and copy-ready. The federation/functions SSRF
+/// consumers land in Phase 07 Cycle 4, which decides whether to extract this into a
+/// shared crate or keep lockstep copies — with all consumers concrete.
+pub(crate) fn build_pinned_client(
+    host: &str,
+    addrs: &[std::net::SocketAddr],
+    timeout: Duration,
+) -> Result<reqwest::Client, reqwest::Error> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve_to_addrs(host, addrs)
+        .build()
 }
 
 /// Cached JWKS keys with TTL-based refresh.
@@ -218,29 +247,44 @@ impl JwksCache {
             .is_none_or(|t| t.elapsed() > self.ttl)
     }
 
+    /// Return the HTTP client to use for the next JWKS fetch.
+    ///
+    /// For non-localhost hosts, resolves and validates the host (rejecting
+    /// private/reserved IPs) and pins reqwest to the validated addresses so it cannot
+    /// independently re-resolve to a private IP between the check and the connect
+    /// (DNS-rebinding TOCTOU). Localhost URLs (dev/test) use the default client.
+    async fn request_client(&self) -> Result<reqwest::Client, String> {
+        let Ok(parsed) = reqwest::Url::parse(&self.jwks_uri) else {
+            return Ok(self.client.clone());
+        };
+        let Some(host) = parsed.host_str() else {
+            return Ok(self.client.clone());
+        };
+        let is_localhost = {
+            let h = host.to_ascii_lowercase();
+            h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1"
+        };
+        if is_localhost {
+            return Ok(self.client.clone());
+        }
+        // Reason: only https (→443) and http (→80) pass `new()` validation,
+        // both have known default ports; fallback 443 is unreachable in practice.
+        let port = parsed.port_or_known_default().unwrap_or(443);
+        let validated = dns_resolve_and_check(host, port).await?;
+        build_pinned_client(host, &validated, JWKS_FETCH_TIMEOUT)
+            .map_err(|e| format!("Failed to build pinned JWKS client: {e}"))
+    }
+
     /// Fetch the JWKS document and populate the cache.
     async fn fetch_keys(&self) -> Result<(), String> {
         debug!(uri = %self.jwks_uri, "Fetching JWKS keys");
 
-        // DNS rebinding prevention: resolve the host and reject private/reserved IPs
-        // before making the HTTP request. Skip for localhost URLs (dev/test only).
-        if let Ok(parsed) = reqwest::Url::parse(&self.jwks_uri) {
-            if let Some(host) = parsed.host_str() {
-                let is_localhost = {
-                    let h = host.to_ascii_lowercase();
-                    h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1"
-                };
-                if !is_localhost {
-                    // Reason: only https (→443) and http (→80) pass `new()` validation,
-                    // both have known default ports; fallback 443 is unreachable in practice.
-                    let port = parsed.port_or_known_default().unwrap_or(443);
-                    dns_resolve_and_check(host, port).await?;
-                }
-            }
-        }
+        // DNS-rebinding prevention: resolve+validate the host and PIN reqwest to the
+        // validated IPs, so the connection cannot be redirected to a private address
+        // after the check (TOCTOU). Localhost is exempt (dev/test).
+        let client = self.request_client().await?;
 
-        let body = self
-            .client
+        let body = client
             .get(&self.jwks_uri)
             .send()
             .await

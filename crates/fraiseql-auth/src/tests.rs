@@ -4161,6 +4161,55 @@ mod jwks_tests {
         })
     }
 
+    // ── M-jwks-toctou: resolve-and-pin (DNS rebinding) ────────────────────────
+
+    /// The validator must reject a host that resolves to a private/reserved address.
+    /// IP literals resolve to themselves (no real DNS), so this is deterministic.
+    #[tokio::test]
+    async fn jwks_dns_check_blocks_private_address() {
+        let blocked = dns_resolve_and_check("10.0.0.1", 443).await;
+        assert!(blocked.is_err(), "private 10.0.0.1 must be rejected: {blocked:?}");
+        let loopback = dns_resolve_and_check("127.0.0.1", 443).await;
+        assert!(loopback.is_err(), "loopback must be rejected: {loopback:?}");
+    }
+
+    /// The validator returns the validated socket addresses so they can be pinned into
+    /// the client (closing the re-resolution window). A public IP literal passes.
+    #[tokio::test]
+    async fn jwks_dns_check_returns_validated_public_addrs() {
+        let addrs = dns_resolve_and_check("8.8.8.8", 443).await.unwrap();
+        assert!(
+            addrs.iter().any(|a| a.ip().to_string() == "8.8.8.8" && a.port() == 443),
+            "validated addrs must contain the public target: {addrs:?}"
+        );
+    }
+
+    /// The pinned client must connect to exactly the validated address, NOT re-resolve
+    /// the hostname. We pin a synthetic host (no real DNS) to the mock's address; the
+    /// request can only succeed if reqwest used the pin rather than its own resolver —
+    /// the mechanism that closes the DNS-rebinding TOCTOU.
+    #[tokio::test]
+    async fn jwks_pinned_client_connects_only_to_validated_addr() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/pinned"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .mount(&mock_server)
+            .await;
+
+        let addr = *mock_server.address();
+        let client =
+            build_pinned_client("jwks.pinned.invalid", &[addr], Duration::from_secs(5)).unwrap();
+        // "jwks.pinned.invalid" has no DNS — the request reaching the mock proves the pin.
+        let resp = client
+            .get(format!("http://jwks.pinned.invalid:{}/pinned", addr.port()))
+            .send()
+            .await
+            .expect("pinned client should reach the mock via the pinned addr");
+        assert!(resp.status().is_success());
+        assert_eq!(resp.text().await.unwrap(), "ok");
+    }
+
     #[tokio::test]
     async fn test_jwks_cache_empty() {
         let cache =
