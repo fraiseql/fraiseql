@@ -9,12 +9,12 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, check_timestamp_freshness, constant_time_eq, system_now_secs},
     traits::SignatureVerifier,
 };
 
 /// Default maximum age of a Paddle webhook timestamp before it is considered a replay.
-const DEFAULT_TOLERANCE_SECS: i64 = 300; // 5 minutes
+const DEFAULT_TOLERANCE_SECS: u64 = 300; // 5 minutes
 
 /// Verifies Paddle Billing v2 webhook signatures using HMAC-SHA256.
 ///
@@ -23,7 +23,7 @@ const DEFAULT_TOLERANCE_SECS: i64 = 300; // 5 minutes
 /// to prevent replay attacks.
 pub struct PaddleVerifier {
     /// Maximum acceptable age of a timestamp in seconds.
-    tolerance_secs: i64,
+    tolerance_secs: u64,
 }
 
 impl PaddleVerifier {
@@ -37,13 +37,13 @@ impl PaddleVerifier {
 
     /// Set a custom timestamp tolerance (in seconds).
     ///
-    /// Values that exceed [`i64::MAX`] are clamped to [`i64::MAX`] (≈ 292 billion years —
-    /// effectively infinite tolerance).  A raw `seconds as i64` cast would silently wrap
-    /// for large inputs, potentially yielding a *negative* tolerance that rejects every
-    /// timestamp, disabling replay protection in an unexpected direction.
+    /// The value is stored verbatim; the shared
+    /// [`check_timestamp_freshness`](crate::signature::check_timestamp_freshness)
+    /// saturates it to [`i64::MAX`] at comparison time, so a large tolerance can
+    /// never wrap to a negative window.
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
-        self.tolerance_secs = i64::try_from(seconds).unwrap_or(i64::MAX);
+        self.tolerance_secs = seconds;
         self
     }
 }
@@ -103,13 +103,7 @@ impl SignatureVerifier for PaddleVerifier {
         let (timestamp, h1_hex) = parse_paddle_signature(signature)?;
 
         // SECURITY: Validate timestamp freshness to prevent replay attacks.
-        let ts_secs: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
-        let now: i64 = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(i64::MAX, |d| d.as_secs() as i64);
-        if (now - ts_secs).abs() > self.tolerance_secs {
-            return Err(SignatureError::TimestampExpired);
-        }
+        check_timestamp_freshness(system_now_secs(), timestamp, self.tolerance_secs)?;
 
         // Paddle v2 signing string: "<timestamp>:<body>"
         let mut signing = timestamp.as_bytes().to_vec();

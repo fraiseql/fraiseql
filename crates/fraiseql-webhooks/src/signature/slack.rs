@@ -9,12 +9,12 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, check_timestamp_freshness, constant_time_eq, system_now_secs},
     traits::SignatureVerifier,
 };
 
 /// Default maximum age of a Slack webhook timestamp before it is considered a replay.
-const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
+const DEFAULT_TIMESTAMP_AGE_SECS: u64 = 300; // 5 minutes
 
 /// Verifies Slack webhook signatures using HMAC-SHA256.
 ///
@@ -23,7 +23,7 @@ const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 /// timestamps outside the tolerance window are rejected to prevent replay attacks.
 pub struct SlackVerifier {
     /// Maximum acceptable age of a timestamp in seconds.
-    tolerance_secs: i64,
+    tolerance_secs: u64,
 }
 
 impl SlackVerifier {
@@ -38,7 +38,7 @@ impl SlackVerifier {
     /// Set a custom timestamp tolerance (in seconds).
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
-        self.tolerance_secs = seconds as i64;
+        self.tolerance_secs = seconds;
         self
     }
 }
@@ -77,13 +77,7 @@ impl SignatureVerifier for SlackVerifier {
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
         // SECURITY: Reject replayed requests by checking timestamp freshness.
-        let ts_secs: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
-        let now: i64 = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(i64::MAX, |d| d.as_secs() as i64);
-        if (now - ts_secs).abs() > self.tolerance_secs {
-            return Err(SignatureError::TimestampExpired);
-        }
+        check_timestamp_freshness(system_now_secs(), timestamp, self.tolerance_secs)?;
 
         // Signed payload: v0:<timestamp>:<body>
         let signed_payload = format!("v0:{}:{}", timestamp, String::from_utf8_lossy(payload));

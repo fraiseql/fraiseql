@@ -137,14 +137,62 @@ impl From<serde_json::Error> for WebhookError {
 /// Result type for webhook operations
 pub type Result<T> = std::result::Result<T, WebhookError>;
 
-/// Lossless composition into the canonical [`fraiseql_error::FraiseQLError`].
+/// Composition into the canonical [`fraiseql_error::FraiseQLError`], routed by
+/// variant so the resulting HTTP status reflects *who* is at fault
+/// (M-webhook-error-status).
 ///
 /// The webhook subsystem owns this conversion (sqlx pattern) so that
-/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph.
-/// The boxed payload preserves the full [`WebhookError`] vocabulary via the
-/// `Display`/`source` chain.
+/// `fraiseql-error` can stay a leaf crate in the workspace dependency graph —
+/// `fraiseql-error` cannot downcast a boxed `WebhookError`, so the per-variant
+/// decision must live here.
+///
+/// Previously every variant boxed into `FraiseQLError::Webhook`, which maps to
+/// HTTP 400 — so a transient database blip during webhook handling told the
+/// sender "permanent client error, do not retry", losing the event. Now:
+///
+/// - [`WebhookError::Database`] → [`FraiseQLError::Database`] (5xx, retryable):
+///   a backend blip must let the sender re-deliver.
+/// - [`WebhookError::MissingSecret`] → [`FraiseQLError::Configuration`] (5xx):
+///   a server-side misconfiguration, not the sender's fault.
+/// - [`WebhookError::InvalidPayload`] → [`FraiseQLError::Webhook`] (400): the
+///   sender's payload is genuinely malformed; a 4xx is correct.
 impl From<WebhookError> for fraiseql_error::FraiseQLError {
     fn from(e: WebhookError) -> Self {
-        Self::Webhook(Box::new(e))
+        match e {
+            WebhookError::Database(msg) => Self::database(format!("webhook: {msg}")),
+            WebhookError::MissingSecret(name) => Self::Configuration {
+                message: format!("webhook secret not found: {name}"),
+            },
+            other @ WebhookError::InvalidPayload(_) => Self::Webhook(Box::new(other)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_status_tests {
+    use fraiseql_error::FraiseQLError;
+
+    use super::WebhookError;
+
+    #[test]
+    fn database_error_maps_to_retryable_5xx() {
+        let err: FraiseQLError = WebhookError::Database("connection reset".into()).into();
+        assert_eq!(
+            err.status_code(),
+            500,
+            "a webhook DB blip must be a retryable 5xx, not a permanent 400"
+        );
+    }
+
+    #[test]
+    fn missing_secret_maps_to_5xx() {
+        let err: FraiseQLError = WebhookError::MissingSecret("stripe".into()).into();
+        assert_eq!(err.status_code(), 500, "a server-side config error is not the sender's fault");
+    }
+
+    #[test]
+    fn invalid_payload_maps_to_4xx() {
+        let err: FraiseQLError = WebhookError::InvalidPayload("bad json".into()).into();
+        assert_eq!(err.status_code(), 400, "a malformed sender payload is a genuine 4xx");
     }
 }

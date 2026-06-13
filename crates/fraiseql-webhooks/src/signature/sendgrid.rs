@@ -14,10 +14,13 @@ use p256::{
     pkcs8::DecodePublicKey as _,
 };
 
-use crate::{signature::SignatureError, traits::SignatureVerifier};
+use crate::{
+    signature::{SignatureError, check_timestamp_freshness, system_now_secs},
+    traits::SignatureVerifier,
+};
 
 /// Default maximum age of a SendGrid webhook timestamp before it is considered a replay.
-const DEFAULT_TOLERANCE_SECS: i64 = 300; // 5 minutes
+const DEFAULT_TOLERANCE_SECS: u64 = 300; // 5 minutes
 
 /// Verifies SendGrid (Twilio Email) event webhook signatures using ECDSA P-256 with SHA-256.
 ///
@@ -29,7 +32,7 @@ const DEFAULT_TOLERANCE_SECS: i64 = 300; // 5 minutes
 /// window are rejected to prevent replay attacks.
 pub struct SendGridVerifier {
     /// Maximum acceptable age of a timestamp in seconds.
-    tolerance_secs: i64,
+    tolerance_secs: u64,
 }
 
 impl SendGridVerifier {
@@ -44,7 +47,7 @@ impl SendGridVerifier {
     /// Set a custom timestamp tolerance (in seconds).
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
-        self.tolerance_secs = seconds as i64;
+        self.tolerance_secs = seconds;
         self
     }
 }
@@ -82,13 +85,7 @@ impl SignatureVerifier for SendGridVerifier {
         let ts = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
         // SECURITY: Validate timestamp freshness to prevent replay attacks.
-        let ts_secs: i64 = ts.parse().map_err(|_| SignatureError::InvalidFormat)?;
-        let now: i64 = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(i64::MAX, |d| d.as_secs() as i64);
-        if (now - ts_secs).abs() > self.tolerance_secs {
-            return Err(SignatureError::TimestampExpired);
-        }
+        check_timestamp_freshness(system_now_secs(), ts, self.tolerance_secs)?;
 
         // Decode the PEM public key from `secret`.
         let public_key = VerifyingKey::from_public_key_pem(secret).map_err(|e| {

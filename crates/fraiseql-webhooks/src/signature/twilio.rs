@@ -26,32 +26,43 @@ use crate::{
 /// Twilio includes the full request URL in the signed payload.
 pub struct TwilioVerifier;
 
-/// Percent-decode a URL-encoded string (RFC 3986).
+/// Percent-decode an `application/x-www-form-urlencoded` string (H44).
 ///
-/// Decodes `%XX` sequences to their byte values. `+` is left as-is (form-encoded
-/// bodies that use `+` for space are handled by the caller). Returns the decoded
-/// string; invalid `%XX` sequences are left verbatim.
+/// `%XX` sequences are decoded to their raw byte values and `+` to a space, then
+/// the resulting byte sequence is interpreted as UTF-8 (lossily). Decoding into
+/// bytes first — rather than pushing each decoded byte as its own `char` — is
+/// what makes multi-byte UTF-8 (e.g. `%C3%A9` → `é`) decode correctly instead of
+/// Latin-1 per byte (`Ã©`). Invalid `%XX` sequences are left verbatim.
 fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
-    let mut result = String::with_capacity(s.len());
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hi = (bytes[i + 1] as char).to_digit(16);
-            let lo = (bytes[i + 2] as char).to_digit(16);
-            if let (Some(h), Some(l)) = (hi, lo) {
-                // Reason: h and l are hex digits (0–15), so (h << 4) | l is always 0–255.
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: value is bounded; truncation cannot occur in practice
-                result.push(char::from(((h << 4) | l) as u8));
-                i += 3;
-                continue;
-            }
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let hi = (bytes[i + 1] as char).to_digit(16);
+                let lo = (bytes[i + 2] as char).to_digit(16);
+                if let (Some(h), Some(l)) = (hi, lo) {
+                    // Reason: h and l are hex digits (0–15), so h*16+l is always 0–255.
+                    #[allow(clippy::cast_possible_truncation)]
+                    out.push((h * 16 + l) as u8);
+                    i += 3;
+                } else {
+                    out.push(b'%');
+                    i += 1;
+                }
+            },
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            },
+            b => {
+                out.push(b);
+                i += 1;
+            },
         }
-        result.push(char::from(bytes[i]));
-        i += 1;
     }
-    result
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Build the Twilio signing string: URL + sorted form params (if any).

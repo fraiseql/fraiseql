@@ -58,5 +58,42 @@ pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.ct_eq(b).into()
 }
 
+/// Reject a webhook whose timestamp is outside the freshness window (replay
+/// protection).
+///
+/// This is the single freshness check shared by every timestamped verifier
+/// (Slack, SendGrid, Discord, Paddle, Stripe), so the logic cannot drift between
+/// providers (M-webhook-replay-drift). `tolerance_secs` is a `u64` converted to
+/// `i64` saturating at [`i64::MAX`]; a raw `seconds as i64` cast would silently
+/// wrap a large configured tolerance to a *negative* window that rejects every
+/// request. `now` is the current Unix time in seconds, injected so the check is
+/// testable.
+///
+/// # Errors
+///
+/// Returns [`SignatureError::InvalidFormat`] if `timestamp` is not a base-10
+/// integer, or [`SignatureError::TimestampExpired`] if it is outside the window.
+pub(crate) fn check_timestamp_freshness(
+    now: i64,
+    timestamp: &str,
+    tolerance_secs: u64,
+) -> Result<(), SignatureError> {
+    let ts: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
+    let tolerance = i64::try_from(tolerance_secs).unwrap_or(i64::MAX);
+    if (now - ts).abs() > tolerance {
+        return Err(SignatureError::TimestampExpired);
+    }
+    Ok(())
+}
+
+/// Current Unix time in seconds, saturating to [`i64::MAX`] if the system clock
+/// is before the epoch. Used by the verifiers that do not take an injected
+/// clock (the `Clock` seam is reserved for Stripe, which is `Clock`-driven).
+pub(crate) fn system_now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(i64::MAX, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
 #[cfg(test)]
 mod tests;

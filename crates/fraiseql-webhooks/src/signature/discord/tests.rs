@@ -90,14 +90,8 @@ fn test_invalid_public_key_hex() {
 
 #[test]
 fn test_with_tolerance_large_value_does_not_wrap() {
-    // A raw `u64::MAX as i64` cast wraps to -1, making every timestamp "expired".
-    // `i64::try_from().unwrap_or(i64::MAX)` must clamp instead.
+    // The tolerance is stored verbatim as a u64 (no wrap at storage); the shared
+    // `check_timestamp_freshness` saturates it to i64::MAX at comparison time.
     let verifier = DiscordVerifier::new().with_tolerance(u64::MAX);
-    assert!(
-        verifier.tolerance_secs > 0,
-        "tolerance_secs must not wrap to negative for u64::MAX input; \
-         got {}",
-        verifier.tolerance_secs
-    );
-    assert_eq!(verifier.tolerance_secs, i64::MAX);
+    assert_eq!(verifier.tolerance_secs, u64::MAX);
 }

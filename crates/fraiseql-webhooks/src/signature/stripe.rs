@@ -10,7 +10,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, check_timestamp_freshness, constant_time_eq},
     traits::{Clock, SignatureVerifier, SystemClock},
 };
 
@@ -92,14 +92,8 @@ impl SignatureVerifier for StripeVerifier {
 
         let sig_v1 = parts.get("v1").ok_or(SignatureError::InvalidFormat)?;
 
-        // Verify timestamp is recent
-        let ts: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
-
-        let now = self.clock.now();
-
-        if (now - ts).abs() > self.tolerance as i64 {
-            return Err(SignatureError::TimestampExpired);
-        }
+        // Verify timestamp is recent (replay protection) via the shared seam.
+        check_timestamp_freshness(self.clock.now(), timestamp, self.tolerance)?;
 
         // Compute expected signature
         // signed_payload = timestamp + "." + payload

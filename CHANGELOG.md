@@ -64,6 +64,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Twilio webhook signature verification decodes form bodies correctly (H44).** The
+  percent-decoder pushed each decoded byte as its own `char` (Latin-1 per byte), so a UTF-8
+  sequence like `%C3%A9` became `Ã©` instead of `é`, and `+` was never decoded to a space — so a
+  legitimately-signed webhook whose body contained an accented character or a space failed
+  verification. Decoding now accumulates bytes and interprets the result as UTF-8, and `+` decodes
+  to a space. The vacuous test helper that re-implemented the in-repo signing algorithm (verifying
+  the bug against itself) is deleted; the new tests sign with Twilio's published algorithm
+  independently.
+- **Webhook replay protection no longer wraps to reject every request (M-webhook-replay-drift).**
+  `SlackVerifier`/`SendGridVerifier::with_tolerance` cast the `u64` tolerance with `as i64`, so a
+  large configured tolerance wrapped to a *negative* window that rejected every timestamp
+  (replay protection inverted into a total outage) — the wrap-safe fix had landed only in the
+  Discord and Paddle copies. All five timestamped verifiers (Slack, SendGrid, Discord, Paddle,
+  Stripe) now share one `check_timestamp_freshness` seam that stores the tolerance as a `u64` and
+  saturates it to `i64::MAX` at comparison time, so the freshness logic can't drift between
+  providers again.
+- **Webhook errors map to an HTTP status that reflects fault (M-webhook-error-status).** Every
+  `WebhookError` variant boxed into `FraiseQLError::Webhook`, which maps to HTTP 400 — so a
+  transient database error while handling a webhook returned 400 ("permanent client error, do not
+  retry") and the event was lost. The conversion now routes per variant: `Database` → 5xx
+  (retryable, the sender re-delivers), `MissingSecret` → 5xx (a server-side misconfiguration),
+  and only `InvalidPayload` (a genuinely malformed sender payload) stays 400.
+
 - **Arrow schema inference maps JSON null to `Utf8`, not `DataType::Null` (H37).**
   `schema_gen`'s `infer_type_from_value` mapped a JSON `null` to `DataType::Null`, which the
   Arrow array converters reject — so a result column whose *first* row was `null` poisoned the
