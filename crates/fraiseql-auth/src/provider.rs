@@ -135,17 +135,22 @@ impl PkceChallenge {
         })
     }
 
-    /// Validate a verifier against a challenge
+    /// Validate a verifier against a challenge.
+    ///
+    /// Uses constant-time equality to prevent timing attacks on the PKCE challenge
+    /// (L-pkce-triplication: this path previously used `==`, drifting from the
+    /// constant-time `oauth::pkce::PkceChallenge::verify`).
     #[must_use]
     pub fn validate(&self, verifier: &str) -> bool {
         use sha2::{Digest, Sha256};
+        use subtle::ConstantTimeEq as _;
 
         let mut hasher = Sha256::new();
         hasher.update(verifier.as_bytes());
         let hash = hasher.finalize();
         let encoded = base64_url_encode(&hash);
 
-        encoded == self.challenge
+        encoded.as_bytes().ct_eq(self.challenge.as_bytes()).into()
     }
 }
 

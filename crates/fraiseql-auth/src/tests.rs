@@ -1293,22 +1293,25 @@ mod state_store_tests {
     #[tokio::test]
     async fn test_in_memory_state_store_bounded() {
         let store = InMemoryStateStore::with_max_states(5);
-        let expiry = std::time::SystemTime::now()
+        let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_secs()
-            + 600;
+            .as_secs();
 
+        // Increasing expiry so eviction order is deterministic (state_0 is oldest).
         for i in 0..5 {
-            let state = format!("state_{}", i);
-            store.store(state, "google".to_string(), expiry).await.unwrap();
+            let state = format!("state_{i}");
+            store.store(state, "google".to_string(), now + 600 + i).await.unwrap();
         }
 
-        let result = store.store("state_5".to_string(), "google".to_string(), expiry).await;
-        assert!(
-            matches!(result, Err(AuthError::ConfigError { .. })),
-            "expected ConfigError when store at capacity, got: {result:?}"
-        );
+        // At capacity the store evicts the oldest entry rather than rejecting (LRU).
+        store
+            .store("state_5".to_string(), "google".to_string(), now + 700)
+            .await
+            .unwrap();
+        assert_eq!(store.states.len(), 5, "store must stay bounded at capacity");
+        assert!(store.retrieve("state_0").await.is_err(), "oldest (state_0) should be evicted");
+        assert!(store.retrieve("state_5").await.is_ok(), "newest (state_5) should be present");
     }
 
     #[tokio::test]
@@ -1338,11 +1341,13 @@ mod state_store_tests {
             .await
             .unwrap();
 
-        let result = store.store("valid_state_4".to_string(), "auth0".to_string(), expiry).await;
-        assert!(
-            matches!(result, Err(AuthError::ConfigError { .. })),
-            "expected ConfigError when at capacity with valid states, got: {result:?}"
-        );
+        // At capacity with all-valid states, the 4th insert evicts the oldest (LRU)
+        // rather than rejecting; the store stays bounded at its capacity of 3.
+        store
+            .store("valid_state_4".to_string(), "auth0".to_string(), expiry)
+            .await
+            .unwrap();
+        assert_eq!(store.states.len(), 3, "store must stay bounded at capacity after eviction");
     }
 
     #[tokio::test]
@@ -1357,11 +1362,11 @@ mod state_store_tests {
             + 600;
 
         store_small.store("s1".to_string(), "p1".to_string(), expiry).await.unwrap();
-        let result = store_small.store("s2".to_string(), "p2".to_string(), expiry).await;
-        assert!(
-            matches!(result, Err(AuthError::ConfigError { .. })),
-            "expected ConfigError when small store at capacity, got: {result:?}"
-        );
+        // Capacity 1: storing s2 evicts s1 (LRU) and succeeds; only s2 remains.
+        store_small.store("s2".to_string(), "p2".to_string(), expiry).await.unwrap();
+        assert_eq!(store_small.states.len(), 1, "small store must stay bounded at 1");
+        assert!(store_small.retrieve("s1").await.is_err(), "s1 should have been evicted");
+        assert!(store_small.retrieve("s2").await.is_ok(), "s2 should be present");
 
         for i in 0..50 {
             let state = format!("state_{}", i);

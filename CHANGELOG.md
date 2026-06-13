@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **PKCE challenge verification is now constant-time everywhere (L-pkce-triplication).**
+  `provider::PkceChallenge::validate` compared the recomputed challenge with `==`
+  (variable-time), a timing-attack vector, while the parallel `oauth::pkce::PkceChallenge`
+  used constant-time `ct_eq`. The `provider` path now uses `subtle::ConstantTimeEq`, so all
+  PKCE verification paths are constant-time.
 - **JWKS fetch pins the connection to the validated IP (M-jwks-toctou, DNS-rebinding SSRF).**
   `dns_resolve_and_check` validated the resolved IPs, but the subsequent reqwest call
   re-resolved the host independently — a TOCTOU window where attacker-controlled DNS could
@@ -26,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`InMemoryStateStore` now evicts the oldest entry at capacity instead of returning 500
+  (L-state-store-doc).** The struct documented LRU-style eviction, but `store` returned a
+  `ConfigError` (500) once the cap was reached — an availability footgun under CSRF-state
+  flooding. It now evicts the oldest (smallest-expiry) state to admit the new flow, keeping
+  the map bounded while new logins keep working. Clock-read failure still fails closed
+  (the store rejects rather than admitting a state whose TTL cannot be validated).
 - **Clock failures now fail closed in four auth expiry checks (L-clock-failopen).**
   `Session::is_expired`, `OtpRecord::is_expired`, the multi-provider callback CSRF-state
   check, and `InMemoryStateStore::cleanup_expired` read the clock with

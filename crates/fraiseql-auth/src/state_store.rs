@@ -98,29 +98,41 @@ impl InMemoryStateStore {
         }
     }
 
-    /// Clean up expired states and check capacity
+    /// Remove expired states and report whether the store is still at capacity.
     ///
-    /// # SECURITY
-    /// Called before inserting new states to:
-    /// 1. Remove expired states (automatic cleanup)
-    /// 2. Check if store is at capacity
-    /// 3. Return eviction needed flag if cleanup doesn't free space
-    fn cleanup_expired(&self) -> bool {
-        // Fail-closed: if the clock cannot be read we cannot decide what is expired.
-        // Signal "at capacity" so `store()` rejects new states under a broken clock,
-        // without purging existing (possibly valid) in-flight states.
+    /// # Errors
+    ///
+    /// Returns [`AuthError::ConfigError`](crate::error::AuthError::ConfigError) if the
+    /// system clock cannot be read. This fails closed: a new state cannot be admitted
+    /// when state TTLs cannot be validated, and existing (possibly valid) in-flight
+    /// states are left intact rather than purged.
+    fn cleanup_expired(&self) -> Result<bool> {
         let Ok(now) = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
         else {
-            return true;
+            return Err(crate::error::AuthError::ConfigError {
+                message: "system clock error: cannot validate state TTLs".to_string(),
+            });
         };
 
-        // Remove all expired states
+        // Remove all expired states.
         self.states.retain(|_key, (_provider, expiry)| *expiry > now);
 
-        // Return true if we're still over capacity after cleanup
-        self.states.len() >= self.max_states
+        // Report whether we're still at capacity after cleanup.
+        Ok(self.states.len() >= self.max_states)
+    }
+
+    /// Remove the oldest (smallest-expiry) state. Returns `true` if one was removed.
+    ///
+    /// The iterator reference is dropped (the key is cloned) before `remove` is called,
+    /// so this never deadlocks the `DashMap`.
+    fn evict_oldest(&self) -> bool {
+        let oldest = self.states.iter().min_by_key(|e| e.value().1).map(|e| e.key().clone());
+        match oldest {
+            Some(key) => self.states.remove(&key).is_some(),
+            None => false,
+        }
     }
 }
 
@@ -136,12 +148,14 @@ impl Default for InMemoryStateStore {
 #[async_trait]
 impl StateStore for InMemoryStateStore {
     async fn store(&self, state: String, provider: String, expiry_secs: u64) -> Result<()> {
-        // SECURITY: Clean up expired states before inserting new one
-        if self.cleanup_expired() {
-            // Still over capacity after cleanup - reject to prevent memory exhaustion
-            return Err(crate::error::AuthError::ConfigError {
-                message: "State store at capacity, cannot store new state".to_string(),
-            });
+        // Remove expired states first; fail closed if the clock cannot be read.
+        if self.cleanup_expired()? {
+            // Still at capacity after cleanup — evict the oldest (smallest-expiry) state
+            // to admit the new authorization flow rather than rejecting it with a 500.
+            // The map stays bounded (one out, one in), so the memory bound holds while
+            // new logins keep working under load (L-state-store-doc: the struct docs
+            // already promised LRU-style eviction).
+            self.evict_oldest();
         }
 
         self.states.insert(state, (provider, expiry_secs));
@@ -260,5 +274,34 @@ impl StateStore for RedisStateStore {
             .as_secs();
 
         Ok((provider, expiry_secs))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+mod lru_eviction_tests {
+    use super::*;
+
+    fn now_secs() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_secs()
+    }
+
+    // L-state-store-doc: at capacity the store must evict the oldest entry (LRU), not
+    // reject new authorization flows with a 500.
+    #[tokio::test]
+    async fn store_evicts_oldest_at_capacity_instead_of_rejecting() {
+        let store = InMemoryStateStore::with_max_states(2);
+        let now = now_secs();
+        store.store("s1".into(), "p".into(), now + 100).await.unwrap();
+        store.store("s2".into(), "p".into(), now + 200).await.unwrap();
+        // Third insert at capacity must SUCCEED by evicting the oldest (s1).
+        store.store("s3".into(), "p".into(), now + 300).await.unwrap();
+
+        assert_eq!(store.states.len(), 2, "store should stay at capacity, not grow");
+        assert!(store.retrieve("s1").await.is_err(), "oldest (s1) should have been evicted");
+        assert!(store.retrieve("s3").await.is_ok(), "newest (s3) should be present");
     }
 }
