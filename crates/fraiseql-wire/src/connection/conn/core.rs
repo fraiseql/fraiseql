@@ -330,20 +330,41 @@ impl Connection {
     }
 
     /// Receive a backend message
+    ///
+    /// Decode errors are classified by [`std::io::ErrorKind`]: only
+    /// `UnexpectedEof` means "the frame is incomplete, read more bytes". Every
+    /// other kind (`InvalidData` for a malformed/unknown message, `Unsupported`
+    /// for a recognized-but-unimplemented one such as the COPY family) is fatal
+    /// and surfaces as [`WireError::Protocol`]. The previous `if let Ok(..)`
+    /// swallowed the kind and treated *every* decode error as "need more bytes",
+    /// so a malformed or unrecognized message looped forever, buffering toward
+    /// the size cap (audit H42).
     async fn receive_message(&mut self) -> Result<BackendMessage> {
         loop {
             // Try to decode a message from buffer (without cloning!)
-            if let Ok((msg, consumed)) = decode_message(&mut self.read_buf) {
-                self.read_buf.advance(consumed);
-                return Ok(msg);
+            match decode_message(&mut self.read_buf) {
+                Ok((msg, consumed)) => {
+                    self.read_buf.advance(consumed);
+                    return Ok(msg);
+                }
+                // Incomplete frame: fall through and read more bytes.
+                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}
+                // Malformed / unknown / unsupported / oversized: fatal.
+                Err(e) => {
+                    crate::metrics::counters::protocol_error("decode");
+                    return Err(WireError::Protocol(format!(
+                        "failed to decode backend message: {e}"
+                    )));
+                }
             }
 
             // Bound read-buffer growth: a single backend message may not exceed
             // MAX_MESSAGE_LEN. If we have buffered more than that without
             // decoding one, the peer is sending an oversized (or
             // never-terminating) message — fail instead of buffering toward
-            // ~2 GiB (audit M-wire-msg-cap). The full malformed-vs-incomplete
-            // decode-error distinction lands in the wire-protocol phase (H42).
+            // ~2 GiB (audit M-wire-msg-cap). An oversized *declared* length is
+            // already rejected up front by `decode_message`; this is the
+            // backstop for a stream that never frames a complete message.
             if self.read_buf.len() > crate::protocol::decode::MAX_MESSAGE_LEN {
                 return Err(WireError::Protocol(format!(
                     "backend message exceeds maximum length of {} bytes",

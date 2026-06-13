@@ -72,6 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The wire connection no longer hangs on a malformed, unrecognized, or ordinary
+  control message (H42).** `receive_message` decoded with `if let Ok(..)`, discarding the
+  error kind and treating *every* decode failure as "the frame is incomplete, read more
+  bytes" — so a malformed message, an unknown tag, or an unsupported message looped forever,
+  buffering toward the size cap. Decode errors are now classified by `io::ErrorKind`: only
+  `UnexpectedEof` reads more; `InvalidData`/`Unsupported`/oversized are fatal and surface as
+  `WireError::Protocol`. Decode arms were added for the ordinary `EmptyQueryResponse` (`I`,
+  the reply to an empty query) and `NotificationResponse` (`A`, `LISTEN`/`NOTIFY`) — which
+  were previously mistaken for unknown tags and wedged `simple_query("")` and any session
+  that received a `NOTIFY` — and the `COPY` family (`G`/`H`/`W`) now decodes to an explicit
+  `Unsupported` error rather than an infinite wait.
 - **Federation local mutations read the row back instead of echoing the input (#430,
   M-fed-mut-executor).** `execute_local_mutation` built its response from the input `variables` and
   ran the `INSERT`/`UPDATE`/`DELETE` without inspecting the result, so it returned a fabricated

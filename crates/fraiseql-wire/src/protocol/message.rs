@@ -81,6 +81,27 @@ pub enum BackendMessage {
 
     /// Row description
     RowDescription(Vec<FieldDescription>),
+
+    /// Empty query response — the server's reply when the query string was empty.
+    ///
+    /// PostgreSQL sends this in place of `CommandComplete` for an empty query,
+    /// followed by `ReadyForQuery`. Decoding it explicitly lets a query loop
+    /// complete normally instead of hanging on an unrecognized tag (audit H42).
+    EmptyQueryResponse,
+
+    /// Asynchronous notification delivered via `LISTEN`/`NOTIFY`.
+    ///
+    /// These arrive out-of-band between other messages once the session has
+    /// issued `LISTEN`. Decoding them explicitly prevents a `NOTIFY` from
+    /// wedging the connection on an unrecognized tag (audit H42).
+    NotificationResponse {
+        /// Process ID of the backend that raised the notification.
+        process_id: i32,
+        /// Channel the notification was sent on.
+        channel: String,
+        /// Payload string (empty when `NOTIFY` carried no payload).
+        payload: String,
+    },
 }
 
 /// Authentication message types

@@ -214,6 +214,20 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
         tags::PARAMETER_STATUS => decode_parameter_status(msg_data)?,
         tags::READY_FOR_QUERY => decode_ready_for_query(msg_data)?,
         tags::ROW_DESCRIPTION => decode_row_description(msg_data)?,
+        tags::EMPTY_QUERY_RESPONSE => BackendMessage::EmptyQueryResponse,
+        tags::NOTIFICATION_RESPONSE => decode_notification_response(msg_data)?,
+        // The COPY family begins a bulk-transfer sub-protocol fraiseql-wire does
+        // not implement. Surfacing an explicit `Unsupported` (rather than letting
+        // the tag fall through to the unknown-tag arm) keeps the distinction
+        // honest at the dispatch table: a recognized-but-unsupported message is
+        // not the same as a malformed one, and neither may be mistaken for
+        // "need more bytes" by the read loop (audit H42).
+        tags::COPY_IN_RESPONSE | tags::COPY_OUT_RESPONSE | tags::COPY_BOTH_RESPONSE => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "COPY protocol is not supported by fraiseql-wire",
+            ))
+        }
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -453,6 +467,22 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
     let value = String::from_utf8_lossy(value_bytes).to_string();
 
     Ok(BackendMessage::ParameterStatus { name, value })
+}
+
+fn decode_notification_response(data: &[u8]) -> io::Result<BackendMessage> {
+    let mut cur = Cursor::new(data);
+    let process_id = cur
+        .read_i32_be()
+        .map_err(|_| io::Error::new(io::ErrorKind::UnexpectedEof, "notification process id"))?;
+    let channel_bytes = cur.read_until_null()?;
+    let channel = String::from_utf8_lossy(channel_bytes).to_string();
+    let payload_bytes = cur.read_until_null()?;
+    let payload = String::from_utf8_lossy(payload_bytes).to_string();
+    Ok(BackendMessage::NotificationResponse {
+        process_id,
+        channel,
+        payload,
+    })
 }
 
 fn decode_ready_for_query(data: &[u8]) -> io::Result<BackendMessage> {

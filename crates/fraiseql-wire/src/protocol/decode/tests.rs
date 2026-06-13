@@ -299,6 +299,66 @@ fn decode_message_rejects_oversized_declared_length() {
     );
 }
 
+// ── H42: decode arms for ordinary 'I' / 'A' and the COPY family ───────────
+
+#[test]
+fn empty_query_response_decodes() {
+    // 'I' EmptyQueryResponse is the server's reply to an empty query string.
+    // Without a decode arm it was treated as an unknown tag, and the read loop
+    // mistook the resulting error for "need more bytes" and hung (audit H42).
+    let mut data = BytesMut::from(&[b'I', 0, 0, 0, 4][..]);
+    let (msg, consumed) = decode_message(&mut data).unwrap();
+    assert!(matches!(msg, BackendMessage::EmptyQueryResponse));
+    assert_eq!(consumed, 5); // 1 tag + 4 len
+}
+
+#[test]
+fn notification_response_decodes() {
+    // 'A' NotificationResponse (LISTEN/NOTIFY): pid(4) + channel\0 + payload\0
+    let channel: &[u8] = b"chan";
+    let payload: &[u8] = b"hello";
+    let body_len = 4 + 4 + channel.len() + 1 + payload.len() + 1; // len(4) + pid + strs
+    let mut data = BytesMut::new();
+    data.extend_from_slice(b"A");
+    data.extend_from_slice(&(body_len as u32).to_be_bytes());
+    data.extend_from_slice(&4242i32.to_be_bytes());
+    data.extend_from_slice(channel);
+    data.extend_from_slice(&[0]);
+    data.extend_from_slice(payload);
+    data.extend_from_slice(&[0]);
+
+    let (msg, _) = decode_message(&mut data).unwrap();
+    match msg {
+        BackendMessage::NotificationResponse {
+            process_id,
+            channel,
+            payload,
+        } => {
+            assert_eq!(process_id, 4242);
+            assert_eq!(channel, "chan");
+            assert_eq!(payload, "hello");
+        }
+        _ => panic!("expected NotificationResponse"),
+    }
+}
+
+#[test]
+fn copy_in_response_is_explicitly_unsupported() {
+    // 'G' CopyInResponse begins a COPY ... FROM STDIN flow we do not support.
+    // The decoder must surface an explicit `Unsupported` error rather than a
+    // silent unknown-tag wedge (audit H42 — a missing arm is an infinite wait).
+    let mut data = BytesMut::new();
+    data.extend_from_slice(b"G");
+    data.extend_from_slice(&11u32.to_be_bytes()); // len = 4 + format(1) + cols(2) + 2*2
+    data.extend_from_slice(&[0]); // overall text format
+    data.extend_from_slice(&2i16.to_be_bytes()); // 2 columns
+    data.extend_from_slice(&0i16.to_be_bytes());
+    data.extend_from_slice(&0i16.to_be_bytes());
+
+    let err = decode_message(&mut data).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+}
+
 #[test]
 fn decode_message_accepts_length_at_the_cap_boundary() {
     // A header declaring exactly MAX_MESSAGE_LEN is within bounds, so the

@@ -31,6 +31,21 @@ pub mod tags {
 
     /// Row description
     pub const ROW_DESCRIPTION: u8 = b'T';
+
+    /// Empty query response (reply to an empty query string)
+    pub const EMPTY_QUERY_RESPONSE: u8 = b'I';
+
+    /// Asynchronous notification (`LISTEN`/`NOTIFY`)
+    pub const NOTIFICATION_RESPONSE: u8 = b'A';
+
+    /// `CopyInResponse` — server is ready to receive `COPY ... FROM STDIN` data
+    pub const COPY_IN_RESPONSE: u8 = b'G';
+
+    /// `CopyOutResponse` — server is about to send `COPY ... TO STDOUT` data
+    pub const COPY_OUT_RESPONSE: u8 = b'H';
+
+    /// `CopyBothResponse` — bidirectional COPY (streaming replication)
+    pub const COPY_BOTH_RESPONSE: u8 = b'W';
 }
 
 /// Authentication types
