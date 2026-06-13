@@ -25,7 +25,6 @@ pub mod perf;
 pub mod run;
 pub mod sbom;
 pub mod schema;
-pub mod serve;
 pub mod setup;
 pub mod validate;
 pub mod validate_documents;

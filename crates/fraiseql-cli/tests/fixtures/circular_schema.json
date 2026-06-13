@@ -1,0 +1,26 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "fields": [
+        {"name": "id", "type": "ID", "nullable": false},
+        {"name": "posts", "type": "[Post]", "nullable": true}
+      ],
+      "sql_source": "v_user",
+      "is_input": false
+    },
+    {
+      "name": "Post",
+      "fields": [
+        {"name": "id", "type": "ID", "nullable": false},
+        {"name": "author", "type": "User", "nullable": false}
+      ],
+      "sql_source": "v_post",
+      "is_input": false
+    }
+  ],
+  "queries": [],
+  "mutations": [],
+  "subscriptions": [],
+  "version": "2.0.0"
+}

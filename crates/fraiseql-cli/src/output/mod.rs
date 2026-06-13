@@ -323,6 +323,24 @@ impl CommandResult {
             warnings: Vec::new(),
         }
     }
+
+    /// Create a validation-failure result.
+    ///
+    /// Use this when the command ran successfully but the artifact it checked
+    /// failed its gate (e.g. a lint quality gate or a federation composition
+    /// check). The runner maps this status to exit code 2 — distinct from
+    /// operational errors (exit 1). See `crate::runner` for the contract.
+    pub fn validation_failed(command: &str, errors: Vec<String>, code: &str) -> Self {
+        Self {
+            status: "validation-failed".to_string(),
+            command: command.to_string(),
+            data: None,
+            message: None,
+            code: Some(code.to_string()),
+            errors,
+            warnings: Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]

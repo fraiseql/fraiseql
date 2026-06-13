@@ -12,7 +12,7 @@ pub fn get_output_schema(command: &str) -> Option<OutputSchema> {
     let (success, error) = match command {
         "compile" => (compile_success_schema(), error_schema()),
         "validate" => (validate_success_schema(), validation_error_schema()),
-        "lint" => (lint_success_schema(), error_schema()),
+        "lint" => (lint_success_schema(), validation_error_schema()),
         "analyze" => (analyze_success_schema(), error_schema()),
         "explain" => (explain_success_schema(), error_schema()),
         "cost" => (cost_success_schema(), error_schema()),

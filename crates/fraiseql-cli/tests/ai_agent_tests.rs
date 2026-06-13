@@ -142,10 +142,11 @@ mod list_commands {
 
         let commands = parsed["data"].as_array().unwrap();
 
-        // "serve" is hidden in the CLI
+        // `serve` was removed (H23: it overwrote its own input file); `run
+        // --watch` replaces it. It must never reappear in the command list.
         assert!(
             !commands.iter().map(|c| c["name"].as_str().unwrap()).any(|x| x == "serve"),
-            "Hidden commands should not be listed"
+            "the removed `serve` command must not be listed"
         );
     }
 

@@ -365,6 +365,17 @@ pub async fn run(
     check_migrations: bool,
     skip_hash: bool,
 ) -> Result<()> {
+    // Defense-in-depth: never write the compiled output over the input schema.
+    // The removed `serve` command did exactly this (H23) by deriving an output
+    // path identical to its input via a faulty extension swap. `--check` writes
+    // nothing, so the guard only applies to a real write.
+    if !check && Path::new(output) == Path::new(input) {
+        anyhow::bail!(
+            "Refusing to write compiled output over the input file '{input}'. \
+             Use a distinct --output path (e.g. schema.compiled.json)."
+        );
+    }
+
     let opts = CompileOptions {
         input,
         types,

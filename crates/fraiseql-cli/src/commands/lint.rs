@@ -187,9 +187,11 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     };
 
     if opts.fail_on_critical && visible_critical > 0 {
-        return Ok(CommandResult::error(
+        return Ok(CommandResult::validation_failed(
             "lint",
-            "Design audit failed: critical issues found",
+            vec![format!(
+                "Design audit failed: {visible_critical} critical issue(s) found"
+            )],
             "DESIGN_AUDIT_FAILED",
         ));
     }
@@ -238,9 +240,11 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     };
 
     if opts.fail_on_warning && visible_warning > 0 {
-        return Ok(CommandResult::error(
+        return Ok(CommandResult::validation_failed(
             "lint",
-            "Design audit failed: warning issues found",
+            vec![format!(
+                "Design audit failed: {visible_warning} warning issue(s) found"
+            )],
             "DESIGN_AUDIT_FAILED",
         ));
     }

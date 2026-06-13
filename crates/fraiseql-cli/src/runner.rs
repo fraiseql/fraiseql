@@ -133,6 +133,9 @@ pub async fn run() {
                         "{}",
                         output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
                     );
+                    // H21: `--fail-on-critical`/`--fail-on-warning` must affect the
+                    // exit code, not just the printed status.
+                    enforce_exit_code(&result);
                     Ok(())
                 },
                 Err(e) => Err(e),
@@ -172,6 +175,9 @@ pub async fn run() {
                                 output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
                             );
                         }
+                        // H22: a composition failure must fail the process, not
+                        // print the error and exit 0.
+                        enforce_exit_code(&result);
                         Ok(())
                     },
                     Err(e) => Err(e),
@@ -440,8 +446,6 @@ pub async fn run() {
             }
         },
 
-        Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
-
         Commands::Setup { database, dry_run } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
             commands::setup::run(database.as_deref(), dry_run, &formatter).await
@@ -563,6 +567,26 @@ pub async fn run() {
         };
         eprintln!("{}", format_cli_error(&e.to_string(), debug_info.as_deref(), json_output, 1));
         process::exit(1);
+    }
+}
+
+/// Enforce the CLI exit-code contract for a command that returns a [`CommandResult`].
+///
+/// Commands that print a [`CommandResult`] must also reflect its status in the
+/// process exit code. The contract (mirroring [`crate::output::get_exit_codes`]):
+///
+/// - `"success"` → return normally (the process exits 0)
+/// - `"validation-failed"` → exit **2** (the command ran, but the checked artifact failed its gate
+///   — e.g. a lint quality gate or a federation composition error)
+/// - any other status (e.g. `"error"`) → exit **1** (operational failure)
+///
+/// Operational errors surfaced as `Err(_)` are handled separately at the end of
+/// [`run`] and also exit 1.
+fn enforce_exit_code(result: &crate::output::CommandResult) {
+    match result.status.as_str() {
+        "success" => {},
+        "validation-failed" => process::exit(2),
+        _ => process::exit(1),
     }
 }
 

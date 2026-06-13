@@ -123,20 +123,16 @@ async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatt
     // Get a client from the pool
     let client = pool.get().await.context("Failed to acquire database connection")?;
 
-    // Execute the SQL library
-    // Note: The SQL contains multiple statements, so we split on semicolons and execute
-    // individually This is a simplified approach; for production, use something like
-    // sqlparser-rs
-    for statement in MUTATION_RESPONSE_SQL.split(';') {
-        let trimmed = statement.trim();
-        if trimmed.is_empty() || trimmed.starts_with("--") {
-            continue;
-        }
-
-        client.execute(trimmed, &[]).await.with_context(|| {
-            format!("Failed to execute SQL: {}", trimmed.lines().next().unwrap_or(""))
-        })?;
-    }
+    // Execute the whole helper library as a single simple-query batch. The file
+    // defines dollar-quoted PL/pgSQL function bodies (`$$ … ; … $$`) and a
+    // trailing `DO`-block self-test, so it CANNOT be split on `;` — doing so
+    // shreds the function bodies and installs nothing (#426). `batch_execute`
+    // uses the simple-query protocol, which understands dollar-quoting and
+    // multi-statement scripts (the same way `psql -f` runs the file).
+    client
+        .batch_execute(MUTATION_RESPONSE_SQL)
+        .await
+        .context("Failed to install FraiseQL helper library")?;
 
     formatter.progress("✓ SQL helpers applied");
 

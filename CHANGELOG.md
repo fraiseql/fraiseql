@@ -31,6 +31,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CLI gate flags now affect the exit code (H21).** `fraiseql lint --fail-on-critical` and
+  `--fail-on-warning` printed a failure result but always exited 0, so they were inert as CI
+  gates — a pipeline depending on them passed regardless of the findings. Lint now reports a
+  `validation-failed` status when a gate trips and the runner exits **2** (the documented
+  `validation_failed` code); operational errors (missing file, bad JSON) still exit 1. The
+  lint output schema's failure variant is updated to `validation-failed` to match.
+- **`fraiseql federation check` exits non-zero on a composition failure (H22).** A subgraph
+  with composition errors (e.g. a federated type missing `@key`) printed the errors but
+  exited 0, so federation composition gates in CI never failed. The command now exits 2 when
+  the result is `validation-failed`.
+- **`fraiseql setup` installs the dollar-quoted helper library correctly (#426).** The
+  installer split the embedded SQL on `;` and ran the fragments individually, which shredded
+  the `$$…$$` PL/pgSQL function bodies and the trailing `DO`-block self-test — so on a clean
+  database it failed on the first body and installed zero helpers, leaving the documented
+  install path unusable. It now runs the file as a single `batch_execute` (simple-query
+  protocol), which understands dollar-quoting and multi-statement scripts the same way
+  `psql -f` does.
+- **`fraiseql compile` refuses to write its compiled output over the input file (H23,
+  defense-in-depth).** A real write now errors when `--output` resolves to the input path,
+  preventing the same source-clobbering class that motivated removing `serve` (below).
 - **`InMemoryStateStore` now evicts the oldest entry at capacity instead of returning 500
   (L-state-store-doc).** The struct documented LRU-style eviction, but `store` returned a
   `ConfigError` (500) once the cap was reached — an availability footgun under CSRF-state
@@ -83,6 +103,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `optional` (now `new(validator, public_key)`). Those parameters were stored but never
   consulted — no session-revocation check, no optional-auth handling — so they were removed
   rather than continue to advertise behavior that did not exist (L-authmw-ignores).
+- **BREAKING (`fraiseql-cli`): the hidden `serve` command is removed (H23).** It derived its
+  output path from the input via an extension swap (`.json` → `.compiled.json`); given an
+  input with no `.json` segment (e.g. `serve fraiseql.toml`) the derived output path equalled
+  the input, so it overwrote the source file with compiled output. Use `fraiseql run --watch`
+  (compiles in-memory, no disk artifact, hot-reloads on change) instead.
 
 ## [2.7.0] - 2026-06-13
 

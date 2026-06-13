@@ -559,18 +559,6 @@ EXAMPLES:
         manifest: String,
     },
 
-    /// Development server with hot-reload
-    #[command(hide = true)] // Hide until implemented
-    Serve {
-        /// Schema.json file path to watch
-        #[arg(value_name = "SCHEMA")]
-        schema: String,
-
-        /// Port to listen on
-        #[arg(short, long, default_value = "8080")]
-        port: u16,
-    },
-
     /// Install FraiseQL mutation helper functions
     ///
     /// Installs SQL helper functions (fraiseql.mutation_ok, fraiseql.mutation_err, etc.)

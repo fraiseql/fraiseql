@@ -146,3 +146,52 @@ fn lint_exit_code_one_on_file_not_found() {
     let code = out.status.code().unwrap_or(-1);
     assert_eq!(code, 1, "file-not-found must exit with code 1, got {code}");
 }
+
+/// H21: a schema with a critical design issue + `--fail-on-critical` must FAIL the
+/// gate (exit 2). Previously the gate result was printed but the exit code was
+/// always 0, so CI gates passed regardless.
+#[test]
+fn lint_fail_on_critical_dirty_schema_exits_two() {
+    let out = cli()
+        .args([
+            "lint",
+            &fixture("circular_schema.json"),
+            "--fail-on-critical",
+        ])
+        .output()
+        .unwrap();
+    let code = out.status.code().unwrap_or(-1);
+    assert_eq!(
+        code, 2,
+        "lint --fail-on-critical with a critical issue must exit 2 (gate failure), got {code}"
+    );
+}
+
+/// H21: the same critical schema without the gate flag still exits 0 (advisory only).
+#[test]
+fn lint_dirty_schema_without_gate_exits_zero() {
+    let out = cli().args(["lint", &fixture("circular_schema.json")]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "lint without --fail-on-* is advisory and must exit 0 even with issues"
+    );
+}
+
+/// H21: `--fail-on-warning` trips the gate (exit 2) when warnings are present.
+/// The circular fixture also lacks cardinality hints, which produce warnings.
+#[test]
+fn lint_fail_on_warning_dirty_schema_exits_two() {
+    let out = cli()
+        .args([
+            "lint",
+            &fixture("circular_schema.json"),
+            "--fail-on-warning",
+        ])
+        .output()
+        .unwrap();
+    let code = out.status.code().unwrap_or(-1);
+    assert_eq!(
+        code, 2,
+        "lint --fail-on-warning with issues must exit 2 (gate failure), got {code}"
+    );
+}
