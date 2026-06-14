@@ -707,6 +707,26 @@ class TestClientLifecycle:
         assert consumer._client.is_closed
 
     @pytest.mark.anyio
+    async def test_injected_client_receives_authorization_header(self):
+        """An injected client still sends the configured Authorization (L-sdk-injected-client)."""
+        captured = {}
+
+        def handler(request):
+            captured["auth"] = request.headers.get("Authorization")
+            return _json_response({"entries": [], "next_cursor": None})
+
+        injected = httpx.AsyncClient(transport=_mock_transport(handler))
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="x",
+            authorization="Bearer abc",
+            client=injected,
+        )
+        await consumer._poll_once()
+        await injected.aclose()
+        assert captured["auth"] == "Bearer abc"
+
+    @pytest.mark.anyio
     async def test_injected_client_not_closed(self):
         """When a client is injected, the consumer does not close it."""
         _skip_unless_asyncio()

@@ -328,7 +328,9 @@ def export_schema(
     if federation is not None:
         schema["federation"] = _build_federation_block(federation, schema)
     if not include_custom_scalars:
-        schema = {k: v for k, v in schema.items() if k != "custom_scalars"}
+        # The registry emits custom scalars under the camelCase "customScalars"
+        # key; filtering "custom_scalars" (snake_case) was a no-op (M-export-schema).
+        schema = {k: v for k, v in schema.items() if k not in ("customScalars", "custom_scalars")}
 
     _validate_schema_before_export(schema)
 

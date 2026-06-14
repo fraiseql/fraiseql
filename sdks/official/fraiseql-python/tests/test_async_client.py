@@ -321,3 +321,49 @@ async def test_no_retry_on_graphql_error():
             await client.query("{ badField }")
     # GraphQL errors are not retried
     assert call_count == 1
+
+
+@pytest.mark.anyio
+async def test_retry_honors_custom_retry_on_type():
+    """A configured retry_on type is actually retried (M-retry-config).
+
+    The retry loop used a hardcoded `except (NetworkError, TimeoutError)`, so a
+    custom retry_on (here AuthenticationError, raised on HTTP 401) was never
+    caught and the request ran only once instead of `max_attempts` times.
+    """
+    call_count = 0
+
+    def handler(request):
+        nonlocal call_count
+        call_count += 1
+        return httpx.Response(401)
+
+    cfg = RetryConfig(
+        max_attempts=3, base_delay=0.0, jitter=False, retry_on=(AuthenticationError,)
+    )
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=cfg,
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(AuthenticationError):
+            await client.query("{ x }")
+    assert call_count == 3
+
+
+@pytest.mark.anyio
+async def test_injected_client_receives_authorization_header():
+    """An injected client still gets the configured Authorization (L-sdk-injected-client)."""
+    captured = {}
+
+    def handler(request):
+        captured["auth"] = request.headers.get("Authorization")
+        return _json_response({"data": {}})
+
+    injected = httpx.AsyncClient(transport=_mock_transport(handler))
+    client = AsyncFraiseQLClient(
+        "http://test/graphql", authorization="Bearer xyz", client=injected
+    )
+    await client.query("{ x }")
+    await client.close()
+    assert captured["auth"] == "Bearer xyz"

@@ -324,6 +324,30 @@ class TestSchemaExport:
             assert "queries" in data
             assert len(data["queries"]) > 0
 
+    def test_export_schema_excludes_custom_scalars_when_disabled(self):
+        """include_custom_scalars=False actually drops the customScalars block (M-export-schema).
+
+        The filter compared against the snake_case key `custom_scalars` while the
+        registry emits camelCase `customScalars`, so the flag never had any effect.
+        The neighbouring `test_schema_export_without_custom_scalars` never
+        registered a scalar, so it passed vacuously and never caught this.
+        """
+        scalar(Email)
+
+        @fraiseql.type
+        class User:
+            id: int
+            email: Email
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            schema_path = Path(tmpdir) / "schema.json"
+            fraiseql.export_schema(str(schema_path), include_custom_scalars=False)
+            with open(schema_path) as f:
+                data = json.load(f)
+
+        assert "customScalars" not in data
+        assert "custom_scalars" not in data
+
     def test_schema_export_without_custom_scalars(self):
         """Can export schema without custom scalars."""
 

@@ -242,3 +242,48 @@ describe("registerMutation — all config fields", () => {
     expect(m.invalidates_fact_tables).toEqual(["tf_sales"]);
   });
 });
+
+// ─── inject validation (M-ts-inject) ──────────────────────────────────────────
+
+describe("inject validation (M-ts-inject)", () => {
+  it("throws on a malformed inject source (missing 'jwt:' prefix)", () => {
+    expect(() =>
+      registerQuery("badSource", "X", true, false, [], undefined, {
+        sqlSource: "v_x",
+        inject: { tenant_id: "tenant_id" },
+      })
+    ).toThrow(/inject source/);
+  });
+
+  it("throws on an inject source with an empty claim", () => {
+    expect(() =>
+      registerQuery("emptyClaim", "X", true, false, [], undefined, {
+        sqlSource: "v_x",
+        inject: { tenant_id: "jwt:" },
+      })
+    ).toThrow(/inject source/);
+  });
+
+  it("throws on an inject key that is not a valid identifier", () => {
+    expect(() =>
+      registerMutation("badKey", "X", false, false, [], undefined, {
+        sqlSource: "fn_x",
+        inject: { "1tenant": "jwt:org_id" },
+      })
+    ).toThrow(/not a valid identifier/);
+  });
+
+  it("throws when an inject key collides with a declared argument", () => {
+    expect(() =>
+      registerQuery(
+        "collide",
+        "X",
+        true,
+        false,
+        [{ name: "tenant_id", type: "ID", nullable: false }],
+        undefined,
+        { sqlSource: "v_x", inject: { tenant_id: "jwt:org_id" } }
+      )
+    ).toThrow(/conflicts with a declared/);
+  });
+});

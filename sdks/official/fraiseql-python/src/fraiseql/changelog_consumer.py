@@ -239,6 +239,10 @@ class ChangelogConsumer:
         if client is not None:
             self._client = client
             self._owns_client = False
+            # Apply the configured Authorization to the injected client too,
+            # rather than silently dropping it (L-sdk-injected-client).
+            if authorization is not None:
+                client.headers["Authorization"] = authorization
         else:
             self._client = httpx.AsyncClient(headers=headers, timeout=timeout)
             self._owns_client = True

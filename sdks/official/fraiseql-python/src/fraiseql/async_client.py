@@ -56,6 +56,11 @@ class AsyncFraiseQLClient:
             headers["Authorization"] = authorization
         if client is not None:
             self._client = client
+            # Apply the configured Authorization to the injected client too,
+            # rather than silently dropping it (L-sdk-injected-client). The
+            # caller owns the injected client's timeout/transport.
+            if authorization is not None:
+                client.headers["Authorization"] = authorization
         else:
             self._client = httpx.AsyncClient(headers=headers, timeout=timeout)
 
@@ -146,7 +151,11 @@ class AsyncFraiseQLClient:
         for attempt in range(max_attempts):
             try:
                 return await self._send(payload)
-            except (NetworkError, TimeoutError) as exc:  # noqa: PERF203 — try/except in loop is required for retry logic
+            except Exception as exc:  # noqa: PERF203 — try/except in loop is required for retry logic
+                # Catch broadly and let RetryConfig decide: the configured
+                # retry_on tuple is honoured for any exception type, not only
+                # the transport errors (audit M-retry-config). Anything not in
+                # retry_on is re-raised immediately below.
                 last_exc = exc
                 if cfg is None or not cfg.should_retry(exc):
                     raise

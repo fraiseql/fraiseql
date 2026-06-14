@@ -101,6 +101,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changelog with side effects. It now resolves the real tail via the `?latest=true` tail query
   (Phase 09), then pages forward to the true tail (correctness on older servers that ignore
   `?latest`), checkpointing there and processing zero pre-existing rows.
+- **SDK correctness cluster.** Several SDK behaviour bugs:
+  - **Python `AsyncFraiseQLClient` honours `RetryConfig.retry_on` (M-retry-config).** The
+    retry loop's `except` tuple was hardcoded to `(NetworkError, TimeoutError)`, so a custom
+    `retry_on` (e.g. `AuthenticationError`) was never caught and the request ran once instead
+    of `max_attempts` times. It now catches broadly and lets `RetryConfig.should_retry` decide.
+  - **Python `export_schema(include_custom_scalars=False)` now drops the block
+    (M-export-schema).** The filter checked the snake_case key `custom_scalars` while the
+    registry emits camelCase `customScalars`, so the flag was a no-op. (The neighbouring test
+    passed vacuously — it never registered a scalar.)
+  - **Python injected clients keep the configured Authorization (L-sdk-injected-client).**
+    `AsyncFraiseQLClient` and `ChangelogConsumer` discarded the `authorization` argument when a
+    client was injected; they now apply it to the injected client's headers.
+  - **TypeScript: malformed `inject` specs are rejected, not silently dropped (M-ts-inject).**
+    `normaliseConfig` dropped any spec without a `jwt:<claim>` shape; it now validates the
+    param identifier, the `jwt:<claim>` source, and argument-name collisions and throws —
+    matching the Python SDK's `_validate_inject`.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text

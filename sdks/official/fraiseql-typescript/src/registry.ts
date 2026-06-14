@@ -255,7 +255,15 @@ export interface Schema {
 /** Valid HTTP methods for REST annotations. */
 const VALID_REST_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
-function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
+/** An inject param name must be a plain identifier (ports the Python SDK rule). */
+const INJECT_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** An inject source must be `jwt:<claim>` with an identifier claim. */
+const INJECT_SOURCE_RE = /^jwt:[A-Za-z_][A-Za-z0-9_]*$/;
+
+function normaliseConfig(
+  config: Record<string, unknown>,
+  argNames?: Set<string>
+): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
     autoParams: "auto_params",
@@ -299,12 +307,30 @@ function normaliseConfig(config: Record<string, unknown>): Record<string, unknow
       continue;
     } else if (key === "inject" && value !== null && typeof value === "object") {
       // Transform { param: "jwt:claim" } → inject_params: { param: { source: "jwt", claim: "claim" } }
+      // Malformed specs are rejected loudly rather than silently dropped, matching
+      // the Python SDK's `_validate_inject` (M-ts-inject).
       const injected: Record<string, { source: string; claim: string }> = {};
-      for (const [param, spec] of Object.entries(value as Record<string, string>)) {
-        const colonIdx = spec.indexOf(":");
-        if (colonIdx > 0) {
-          injected[param] = { source: spec.slice(0, colonIdx), claim: spec.slice(colonIdx + 1) };
+      for (const [param, spec] of Object.entries(value as Record<string, unknown>)) {
+        if (!INJECT_KEY_RE.test(param)) {
+          throw new Error(
+            `inject key '${param}' is not a valid identifier. Keys must start with a ` +
+              "letter or underscore and contain only letters, digits, and underscores."
+          );
         }
+        if (argNames?.has(param)) {
+          throw new Error(
+            `inject key '${param}' conflicts with a declared GraphQL argument of the same ` +
+              "name. Use a different parameter name."
+          );
+        }
+        if (typeof spec !== "string" || !INJECT_SOURCE_RE.test(spec)) {
+          throw new Error(
+            `inject source '${String(spec)}' for param '${param}' is invalid. Supported ` +
+              "format: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub')."
+          );
+        }
+        const colonIdx = spec.indexOf(":");
+        injected[param] = { source: spec.slice(0, colonIdx), claim: spec.slice(colonIdx + 1) };
       }
       result["inject_params"] = injected;
     } else if (key === "deprecated" && typeof value === "string") {
@@ -435,7 +461,9 @@ export class SchemaRegistry {
     }
 
     // Normalise camelCase config keys to snake_case for the compiler
-    const normalisedConfig = config ? normaliseConfig(config) : undefined;
+    const normalisedConfig = config
+      ? normaliseConfig(config, new Set(args.map((a) => a.name)))
+      : undefined;
 
     // Default REST method to GET for queries
     if (normalisedConfig?.rest) {
@@ -484,7 +512,9 @@ export class SchemaRegistry {
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 
     // Normalise camelCase config keys to snake_case for the compiler
-    const normalisedConfig = config ? normaliseConfig(config) : undefined;
+    const normalisedConfig = config
+      ? normaliseConfig(config, new Set(args.map((a) => a.name)))
+      : undefined;
 
     // Default REST method to POST for mutations
     if (normalisedConfig?.rest) {
