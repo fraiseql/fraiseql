@@ -98,9 +98,6 @@ reqwest = {workspace = true}
 rmp-serde = {version = "1", optional = true}
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "1.4", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
-# TLS/SSL support
-rustls = "0.23"
-rustls-pemfile = "2.2"
 schemars = {version = "1", optional = true}
 # Embed static assets (studio SPA) into the binary
 rust-embed = {version = "8", features = ["interpolate-folder-path"]}
@@ -116,7 +113,6 @@ subtle = "2.5"
 thiserror = "2.0"
 # Async runtime
 tokio = {workspace = true}
-tokio-rustls = "0.26"
 # Config and paths
 toml = "0.8"
 # Arrow Flight server (optional)
@@ -157,7 +153,7 @@ tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"
 tonic-reflection = "0.14"
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"
 # Utilities for E2E tests
 tokio-util = "0.7"
 wiremock = "0.6"

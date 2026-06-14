@@ -457,6 +457,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Default builds now link a single rustls crypto provider — ring (M-dual-crypto).** Every
+  default build previously compiled *both* `aws-lc-rs` and `ring` into one `rustls 0.23`
+  because `fraiseql-server` and `fraiseql-wire` pulled rustls/tokio-rustls with their default
+  `aws_lc_rs` provider while the rest of the graph (reqwest, sqlx, lettre, tungstenite) used
+  ring. The server's direct `rustls`/`tokio-rustls`/`rustls-pemfile` deps were dead (their
+  `ServerConfig` plumbing was removed in v2.7.0) and are now dropped; `fraiseql-wire` pins
+  `default-features = false` + `ring`. A new gate, `tools/check-crypto-providers.sh` (wired into
+  `make security` and the Dagger security leg), asserts the default `fraiseql-server` build
+  links one provider and one rustls major. The opt-in `metrics` and `aws-s3` features still pull
+  additional stacks by design (documented in the gate).
+- **The two side-by-side WebSocket stacks are collapsed to one (L-ws-stacks).** `tokio-tungstenite`
+  is bumped `0.28 → 0.29` to match axum 0.8's transitive version, so `tungstenite`/`tokio-tungstenite`
+  no longer compile twice; the corresponding `deny.toml` skip entries are removed.
 - **BREAKING (`fraiseql-auth`):** `UserInfo.email` is now `Option<String>` (was `String`) and
   gains an `email_verified: bool` field; an empty/whitespace email claim is normalized to
   `None`. `AccountStore::link_or_create_user` now takes `(email: Option<&str>, email_verified:

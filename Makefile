@@ -674,12 +674,21 @@ audit:
 lint-deadlines:
 	bash tools/check-deadlines.sh
 
+# Gate: the default fraiseql-server build must link exactly one rustls crypto
+# provider (ring) and one rustls major (M-dual-crypto). cargo-deny cannot express
+# this — ring and aws-lc-rs are distinct crates, so a dual-provider build looks fine
+# to its multiple-versions ban. See tools/check-crypto-providers.sh for scope.
+.PHONY: lint-crypto-providers
+lint-crypto-providers:
+	bash tools/check-crypto-providers.sh
+
 # Full security checks: advisory scan + supply-chain policy gate.
 # Run before opening a PR to catch new advisories early.
 .PHONY: security
 security:
 	bash tools/check-audit-lockstep.sh
 	bash tools/check-deadlines.sh
+	bash tools/check-crypto-providers.sh
 	cargo deny check
 	cargo audit
 	@echo "Security checks passed"

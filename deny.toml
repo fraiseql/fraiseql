@@ -30,8 +30,11 @@ ignore = [
   # 2026-06-11 spike: aws-config's HTTP-client features (default-https-client / client-hyper /
   # rustls) ALL route to aws-smithy-runtime's legacy rustls-0.21 connector (legacy-rustls-ring);
   # no clean feature selects rustls 0.23 — the modern client needs a code-level HttpClient swap
-  # or an aws-* version bump. Tracked as the Phase 12 aws-stack rustls-0.23 migration.
-  # deadline: 2026-09-01 — re-evaluate when the Phase 12 aws-* bump lands (v2.8.0 train).
+  # or an aws-* version bump. 2026-06-14: the Phase 12 deps-hygiene pass DEFERRED this fix —
+  # it is real engineering (custom hyper-rustls 0.27 HttpClient), out of scope for a hygiene
+  # phase and non-urgent (opt-in feature, no default-build exposure). Tracked as a standalone
+  # aws-stack rustls-0.23 migration.
+  # deadline: 2026-09-01 — re-evaluate when the standalone aws-* bump lands.
   {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."},
   {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Deadline 2026-09-01."},
   # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
@@ -309,16 +312,6 @@ version = "=1.1.4"
 name = "miniz_oxide"
 reason = "v8/deno_core pins 0.7.4; backtrace/dhat uses 0.8.9; both are optional feature paths"
 version = "=0.7.4"
-
-[[bans.skip]]
-name = "tungstenite"
-reason = "transitive; ecosystem migrating from 0.28 to 0.29"
-version = "=0.28.0"
-
-[[bans.skip]]
-name = "tokio-tungstenite"
-reason = "transitive; ecosystem migrating from 0.28 to 0.29"
-version = "=0.28.0"
 
 [[bans.skip-tree]]
 name = "hyper"

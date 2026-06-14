@@ -44,6 +44,7 @@ func (m *FraiseqlCi) Security(
 		run  func(context.Context, *dagger.Directory) (string, error)
 	}{
 		{"compliance", m.Compliance},
+		{"crypto-providers", m.CryptoProviders},
 		{"cargo-deny", m.CargoDeny},
 		{"cargo-audit", m.CargoAudit},
 	}
@@ -94,6 +95,22 @@ func (m *FraiseqlCi) CargoAudit(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"cargo", "audit"}).
+		Stdout(ctx)
+}
+
+// CryptoProviders runs tools/check-crypto-providers.sh: the default fraiseql-server
+// build must link exactly one rustls crypto provider (ring) and one rustls major
+// (M-dual-crypto). Runs on denyBase — `cargo tree` needs only `cargo metadata`
+// (cargo on PATH + the warm registry cache), nothing compiles.
+func (m *FraiseqlCi) CryptoProviders(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.denyBase().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "tools/check-crypto-providers.sh"}).
 		Stdout(ctx)
 }
 
