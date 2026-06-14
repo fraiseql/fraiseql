@@ -6,10 +6,10 @@
 //! Verifies that, when enabled, the converter:
 //! - synthesizes one shared `MutationError` type (`is_error`, with status/message/
 //!   httpStatus/errorClass fields),
-//! - synthesizes a `<Mutation>Result` union of the success entity + `MutationError`
-//!   for each object-returning mutation, and rewrites the mutation's return type,
-//! - leaves mutations untouched when the flag is off, when they already return a
-//!   union (explicit wins), or when they return a scalar.
+//! - synthesizes a `<Mutation>Result` union of the success entity + `MutationError` for each
+//!   object-returning mutation, and rewrites the mutation's return type,
+//! - leaves mutations untouched when the flag is off, when they already return a union (explicit
+//!   wins), or when they return a scalar.
 
 use fraiseql_cli::schema::{
     ConvertOptions, SchemaConverter,
@@ -27,19 +27,19 @@ fn object_type(name: &str) -> IntermediateType {
 
 fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
     IntermediateMutation {
-        name: name.to_string(),
-        return_type: return_type.to_string(),
-        returns_list: false,
-        nullable: false,
-        arguments: Vec::new(),
-        description: None,
-        sql_source: Some(format!("fn_{name}")),
-        operation: Some("CUSTOM".to_string()),
-        deprecated: None,
-        inject: IndexMap::new(),
+        name:                    name.to_string(),
+        return_type:             return_type.to_string(),
+        returns_list:            false,
+        nullable:                false,
+        arguments:               Vec::new(),
+        description:             None,
+        sql_source:              Some(format!("fn_{name}")),
+        operation:               Some("CUSTOM".to_string()),
+        deprecated:              None,
+        inject:                  IndexMap::new(),
         invalidates_fact_tables: Vec::new(),
-        invalidates_views: Vec::new(),
-        changelog: true,
+        invalidates_views:       Vec::new(),
+        changelog:               true,
     }
 }
 
@@ -57,9 +57,12 @@ fn schema(
 }
 
 fn compile_with_synthesis(s: IntermediateSchema) -> CompiledSchema {
-    SchemaConverter::convert_with_options(s, &ConvertOptions {
-        auto_error_union: true,
-    })
+    SchemaConverter::convert_with_options(
+        s,
+        &ConvertOptions {
+            auto_error_union: true,
+        },
+    )
     .expect("convert must succeed")
 }
 
@@ -89,10 +92,7 @@ fn synthesizes_error_union_for_object_mutation() {
         .iter()
         .find(|u| u.name == "CreateUserResult")
         .expect("CreateUserResult union synthesized");
-    assert_eq!(
-        union.member_types,
-        vec!["User".to_string(), "MutationError".to_string()],
-    );
+    assert_eq!(union.member_types, vec!["User".to_string(), "MutationError".to_string()],);
 
     // The mutation now returns the union, not the bare success type.
     let mutation = compiled.mutations.iter().find(|m| m.name == "createUser").unwrap();

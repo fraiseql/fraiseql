@@ -83,6 +83,50 @@ type is the union, error types carry an injected `status` field, and `isErrorRes
 narrows the union to its error members. There is no synthetic `{ succeeded, data }`
 envelope, because the server does not send one.
 
+For this discrimination to work, the **compiled schema must actually contain the
+union and the error type** — the server resolves success vs. error by matching the
+`app.mutation_response` row against the mutation's union members (`succeeded` →
+the success member; an error → the union's `@fraiseql.error` member). A mutation
+that returns only the bare success type (no union) has nothing to discriminate
+against, so a failed row is mapped onto the success type. There are two ways to
+get the union into the schema:
+
+*Author it explicitly.* Note that a Python union return annotation
+(`-> Order | OrderError`) is **rejected** by the SDK — declare a `@fraiseql.union`
+marker class and use it as the return type:
+
+```python
+@fraiseql.type
+class Order: ...
+
+@fraiseql.error            # is_error: true; fields populated from mutation_response
+class MutationError:
+    message: str
+    status: str | None      # the server injects this from error_class
+
+@fraiseql.union(name="CreateOrderResult", members=[Order, MutationError])
+class CreateOrderResult: ...   # marker class — body ignored
+
+@fraiseql.mutation(sql_source="app.create_order")
+def createOrder(input: CreateOrderInput) -> CreateOrderResult: ...
+```
+
+*Or synthesize it automatically.* Set `auto_error_union` in `fraiseql.toml` and the
+compiler generates a shared `MutationError` type and a per-mutation
+`<Mutation>Result` union for every object-returning mutation, rewriting its return
+type to that union:
+
+```toml
+[fraiseql.mutations]
+auto_error_union = true
+```
+
+The synthesized `MutationError` exposes `status` (the error-class discriminator),
+`message`, `httpStatus`, and `errorClass`, all populated from the
+`app.mutation_response` composite at runtime. Mutations that already return a union,
+and those returning a scalar/enum, are left untouched — explicit declarations always
+win — and an existing type name is never overwritten.
+
 ## CI staleness check
 
 Every generated file is stamped with a hash of the schema it came from:

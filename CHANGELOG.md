@@ -64,6 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Opt-in auto-synthesis of mutation result unions (`[fraiseql.mutations] auto_error_union`).**
+  When enabled, the compiler synthesizes a shared `MutationError` type and a per-mutation
+  `<Mutation>Result` union (`= Entity | MutationError`) for every object-returning mutation,
+  rewriting the mutation's return type to that union — so the server's existing success/error
+  discrimination over the `app.mutation_response` composite has a union to resolve against
+  without declaring `Entity | MutationError` by hand for each mutation. Off by default;
+  mutations already returning a union (and scalar/enum returns) are left untouched, and an
+  existing type name is never overwritten. The synthesized `MutationError` exposes `status`,
+  `message`, `httpStatus`, and `errorClass`, now surfaced from the composite's first-class
+  columns on the error arm (previously only `status` was injected). See the "result unions"
+  section of `docs/guides/typed-clients.md` for the authoring contract.
 - **Changelog tail query for tip checkpointing (H28, server side).** The
   `GET /api/observers/changelog` endpoint accepts `?latest=true`, returning only the single newest
   entry (`ORDER BY pk DESC LIMIT 1`, honouring the `object_type` filter) and echoing its cursor as
