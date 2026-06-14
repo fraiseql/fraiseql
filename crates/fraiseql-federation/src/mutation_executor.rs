@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::{traits::DatabaseAdapter, utils::to_snake_case};
 use fraiseql_error::Result;
 use serde_json::Value;
 
@@ -77,20 +77,62 @@ fn key_identifier(fed_type: &FederatedType, variables: &Value) -> String {
         )
 }
 
+/// Recase a mutation's input variable keys to their canonical `snake_case` column
+/// names when the GraphQL surface is camelCase (`recase` = true).
+///
+/// The federation mutation builders treat each input key as a SQL column
+/// identifier and the `@key` field names as already-canonical, so a camelCase
+/// surface (`s3Key`, `dns1Id`) must be reversed to the stored column name
+/// (`s3_key`, `dns_1_id`) — otherwise the generated `INSERT`/`UPDATE` quotes a
+/// column that does not exist and the write silently misses (#400). Uses the same
+/// acronym-aware [`to_snake_case`] as the read path, so `s3Key` → `s3_key`
+/// (acronym kept whole) while `dns1Id` → `dns_1_id`.
+///
+/// Federation mutations are scalar-only (`value_to_sql_literal` rejects objects),
+/// so only the top-level keys are recased; values are left untouched. Idempotent
+/// on already-`snake_case` keys, and a no-op under `Preserve` (`recase` = false).
+fn canonicalize_input_keys(variables: &Value, recase: bool) -> Value {
+    match variables.as_object() {
+        Some(obj) if recase => {
+            let recased: serde_json::Map<String, Value> =
+                obj.iter().map(|(k, v)| (to_snake_case(k), v.clone())).collect();
+            Value::Object(recased)
+        },
+        _ => variables.clone(),
+    }
+}
+
 /// Executes federation mutations.
 #[derive(Clone)]
 pub struct FederationMutationExecutor<A: DatabaseAdapter> {
     /// Database adapter for executing mutations
-    adapter:  Arc<A>,
+    adapter:           Arc<A>,
     /// Federation metadata
-    metadata: FederationMetadata,
+    metadata:          FederationMetadata,
+    /// Recase mutation input keys to canonical `snake_case` before they become SQL
+    /// column identifiers. Set from the schema's `naming_convention == CamelCase`
+    /// (#400); when false (the `Preserve` default) keys pass through verbatim.
+    recase_input_keys: bool,
 }
 
 impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// Create a new mutation executor.
+    ///
+    /// `recase_input_keys` should be set when the schema's GraphQL surface is
+    /// camelCase (`naming_convention == CamelCase`) so mutation input keys are
+    /// reversed to canonical `snake_case` column names before SQL generation;
+    /// pass `false` for a `Preserve`-convention schema.
     #[must_use]
-    pub const fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
-        Self { adapter, metadata }
+    pub const fn new(
+        adapter: Arc<A>,
+        metadata: FederationMetadata,
+        recase_input_keys: bool,
+    ) -> Self {
+        Self {
+            adapter,
+            metadata,
+            recase_input_keys,
+        }
     }
 
     /// Execute a mutation on a locally-owned entity.
@@ -129,6 +171,12 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
 
         // Determine mutation type from operation name
         let mutation_type = determine_mutation_type(mutation_name)?;
+
+        // Recase the input keys to canonical snake_case column names before the
+        // builders turn them into SQL identifiers and look up the `@key` field
+        // (which is already canonical). No-op under the `Preserve` default (#400).
+        let recased = canonicalize_input_keys(variables, self.recase_input_keys);
+        let variables = &recased;
 
         // Build and execute SQL based on mutation type
         let sql = match mutation_type {

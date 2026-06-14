@@ -120,6 +120,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   free-form JSON untouched; a `Preserve`-convention schema is unaffected. This completes the
   server-side `naming_convention` input work (#216/#400): a backend reading `snake_case`
   composite columns no longer needs a `jsonb_camel_to_snake(input)` SQL shim, for reads or writes.
+- **Federation mutations recase input keys to canonical column names (#400, federation path).**
+  The federation mutation builder turned GraphQL input variable keys *directly* into quoted SQL
+  column identifiers (`INSERT INTO "users" ("s3Key") …`) and looked the `@key` value up by its
+  canonical name, so a camelCase surface (`s3Key`, `dns1Id`) produced an `INSERT`/`UPDATE`
+  against a column that does not exist — and the `UPDATE`/`DELETE` key lookup missed entirely
+  (`Key field 'dns_1_id' missing`). `FederationMutationExecutor` now recases the input keys to
+  their canonical `snake_case` names (via the same acronym-aware `to_snake_case`, scalar-only as
+  federation mutations are) before SQL generation, gated by a `recase_input_keys` flag set from
+  the schema's `naming_convention == CamelCase` (off for `Preserve`).
 - **Injected params now filter on a real column when the view has one (native-column inference
   gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
   explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to

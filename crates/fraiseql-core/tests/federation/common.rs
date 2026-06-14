@@ -142,7 +142,10 @@ pub async fn pg_mutation_executor(
             .expect("create mutation table");
     }
 
-    Some((pg, FederationMutationExecutor::new(adapter, metadata)))
+    // These fixtures author snake_case input keys directly, so no recasing is
+    // needed (recase_input_keys = false). The recasing path (camelCase surface →
+    // snake_case columns) is covered by the mutation_executor unit tests.
+    Some((pg, FederationMutationExecutor::new(adapter, metadata, false)))
 }
 
 // =============================================================================
