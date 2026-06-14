@@ -122,11 +122,21 @@ proptest! {
         }
     }
 
-    // Property: invalid tags always return InvalidData
+    // Property: genuinely-unknown tags return InvalidData.
+    //
+    // The filter excludes every tag the decoder recognizes: the decoded backend
+    // messages, plus 'I'/'A' (EmptyQueryResponse/NotificationResponse) and the
+    // COPY family 'G'/'H'/'W', which are recognized and surface as `Unsupported`
+    // rather than `InvalidData` (audit H42). Only truly-unknown tags hit the
+    // catch-all and return InvalidData.
     #[test]
     fn prop_invalid_tag_returns_error(
-        tag in any::<u8>().prop_filter("not a valid tag", |t| {
-            !matches!(t, b'R' | b'K' | b'C' | b'D' | b'E' | b'N' | b'S' | b'Z' | b'T')
+        tag in any::<u8>().prop_filter("not an unknown tag", |t| {
+            !matches!(
+                t,
+                b'R' | b'K' | b'C' | b'D' | b'E' | b'N' | b'S' | b'Z' | b'T'
+                    | b'I' | b'A' | b'G' | b'H' | b'W'
+            )
         })
     ) {
         let mut buf = BytesMut::new();
