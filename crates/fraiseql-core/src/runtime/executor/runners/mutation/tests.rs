@@ -494,6 +494,7 @@ mod mutation {
             row.insert("state_changed".to_string(), json!(false));
             row.insert("error_class".to_string(), json!("conflict"));
             row.insert("message".to_string(), json!("already exists"));
+            row.insert("http_status".to_string(), json!(409));
             Ok(vec![row])
         }
 
@@ -585,6 +586,68 @@ mod mutation {
             data.get("__typename").and_then(|v| v.as_str()),
             Some("User"),
             "error fallback must surface __typename selected inside an inline fragment"
+        );
+    }
+
+    /// On the error arm, a declared error type surfaces the `app.mutation_response`
+    /// composite's first-class fields — `message`, `httpStatus`, `errorClass` — as
+    /// ordinary projected fields (in addition to the always-injected `status`), so a
+    /// shared `MutationError` need not carry those values inside the `error_detail` JSONB.
+    #[tokio::test]
+    async fn test_mutation_error_surfaces_composite_fields() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("User", "v_user"));
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("status", FieldType::String),
+                FieldDefinition::new("message", FieldType::String),
+                FieldDefinition::new("httpStatus", FieldType::Int),
+                FieldDefinition::new("errorClass", FieldType::String),
+            ],
+            ..TypeDefinition::new("MutationError", "")
+        });
+        schema.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "MutationError".to_string()]),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { ... on MutationError { status message httpStatus \
+                 errorClass } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(data.get("status").and_then(serde_json::Value::as_str), Some("conflict"));
+        assert_eq!(
+            data.get("message").and_then(serde_json::Value::as_str),
+            Some("already exists"),
+            "composite top-level message must be surfaced on the error member"
+        );
+        assert_eq!(
+            data.get("httpStatus").and_then(serde_json::Value::as_i64),
+            Some(409),
+            "composite http_status must be surfaced as httpStatus"
+        );
+        assert_eq!(
+            data.get("errorClass").and_then(serde_json::Value::as_str),
+            Some("conflict"),
+            "error_class must be surfaced as errorClass"
         );
     }
 

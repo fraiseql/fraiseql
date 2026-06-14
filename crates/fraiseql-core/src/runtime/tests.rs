@@ -2174,6 +2174,7 @@ mod mutation_result_tests {
         let outcome = Row::new(false, false)
             .with("error_class", json!("conflict"))
             .with("message", json!("duplicate"))
+            .with("http_status", json!(409))
             .with("error_detail", json!({"field": "email"}))
             .with("metadata", json!({"trace_id": "zzz"}))
             .parse()
@@ -2182,10 +2183,12 @@ mod mutation_result_tests {
             MutationOutcome::Error {
                 error_class,
                 message,
+                http_status,
                 metadata,
             } => {
                 assert_eq!(error_class, MutationErrorClass::Conflict);
                 assert_eq!(message, "duplicate");
+                assert_eq!(http_status, Some(409));
                 // error_detail (not metadata) feeds the error-field projection.
                 assert_eq!(metadata, json!({"field": "email"}));
             },

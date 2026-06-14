@@ -44,6 +44,8 @@ pub enum MutationOutcome {
         error_class: MutationErrorClass,
         /// Human-readable error message.
         message:     String,
+        /// Suggested HTTP status code, when the composite supplied one.
+        http_status: Option<i16>,
         /// Structured metadata JSONB containing error-type field values.
         metadata:    JsonValue,
     },
@@ -171,6 +173,7 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
         Ok(MutationOutcome::Error {
             error_class: class,
             message:     row.message.unwrap_or_default(),
+            http_status: row.http_status,
             metadata:    row.error_detail,
         })
     }

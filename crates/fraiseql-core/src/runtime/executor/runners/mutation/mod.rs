@@ -681,10 +681,35 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         },
         MutationOutcome::Error {
             error_class,
+            message,
+            http_status,
             metadata,
-            ..
         } => {
             let status = error_class.as_str();
+
+            // Build the error projection source from the error_detail JSONB, enriched
+            // with the composite's first-class fields under snake_case keys so a
+            // declared error type can surface them as ordinary projected fields
+            // (project_entity omits any field whose source key is absent). The
+            // always-injected `status` is attached after projection, below.
+            let mut source_map = match metadata {
+                serde_json::Value::Object(map) => map,
+                _ => serde_json::Map::new(),
+            };
+            if !message.is_empty() {
+                source_map
+                    .entry("message".to_string())
+                    .or_insert_with(|| serde_json::Value::String(message));
+            }
+            if let Some(code) = http_status {
+                source_map
+                    .entry("http_status".to_string())
+                    .or_insert_with(|| serde_json::json!(code));
+            }
+            source_map
+                .entry("error_class".to_string())
+                .or_insert_with(|| serde_json::Value::String(status.to_string()));
+            let source = serde_json::Value::Object(source_map);
 
             // Find the matching error type from the return union.
             let error_type = ctx.schema.find_union(&mutation_return_type).and_then(|u| {
@@ -694,12 +719,12 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 })
             });
 
-            // Project error metadata through the same canonical projector when the
+            // Project the error source through the same canonical projector when the
             // schema declares a matching error type. Otherwise emit just __typename
             // (only when selected, matching the query contract); status is attached
             // below in both cases.
             let mut result = if let Some(td) = error_type {
-                project_entity(&metadata, td.name.as_str(), selections, &ctx.schema)
+                project_entity(&source, td.name.as_str(), selections, &ctx.schema)
             } else {
                 let mut map = serde_json::Map::new();
                 // Scan recursively: `__typename` may be nested inside an inline
@@ -721,7 +746,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                     security_ctx,
                     td.name.as_str(),
                     selections,
-                    &metadata,
+                    &source,
                     &mut result,
                 )?;
             }
