@@ -563,6 +563,117 @@ class TestStartupMode:
         assert checkpoint_saved["last_cursor"] == 0
 
 
+# ── from_now starts at the real tail (H28) ───────────────────────────────────
+
+
+def _seeded_changelog_handler(cursors, *, honor_latest, checkpoint_saved):
+    """Mock a changelog server seeded with entries at the given ``cursors``.
+
+    ``honor_latest=True`` models a Phase-09+ server: ``?latest=true`` returns the
+    single newest entry and its cursor as ``next_cursor`` (the real tail).
+    ``honor_latest=False`` models an older server that ignores ``latest`` and
+    treats the request as an ordinary ``after_cursor`` paged query.
+    """
+
+    def _entry(cursor):
+        return {
+            "cursor": cursor,
+            "id": f"evt-{cursor}",
+            "org_id": None,
+            "user_id": None,
+            "object_type": "Order",
+            "object_id": f"o{cursor}",
+            "modification_type": "INSERT",
+            "status": None,
+            "object_data": {"op": "c", "after": {"id": f"o{cursor}"}},
+            "metadata": None,
+            "created_at": None,
+        }
+
+    def handler(request):
+        url = request.url
+        if url.path.endswith("/changelog"):
+            params = url.params
+            after = int(params.get("after_cursor") or 0)
+            limit = int(params.get("limit") or 100)
+            if honor_latest and params.get("latest") == "true":
+                tail = cursors[-1] if cursors else None
+                entries = [_entry(tail)] if tail is not None else []
+                return _json_response({"entries": entries, "next_cursor": tail})
+            page = [c for c in cursors if c > after][:limit]
+            return _json_response(
+                {"entries": [_entry(c) for c in page], "next_cursor": page[-1] if page else None}
+            )
+        if "/checkpoint" in str(url) and request.method == "PUT":
+            checkpoint_saved.update(json.loads(request.content))
+            return _json_response({"message": "ok"})
+        if "/checkpoint" in str(url):
+            return httpx.Response(404)
+        return _json_response({})
+
+    return handler
+
+
+class TestFromNowTail:
+    """``from_now`` must checkpoint at the newest cursor, never the oldest (H28)."""
+
+    @pytest.mark.anyio
+    async def test_uses_latest_tail_not_oldest(self):
+        """New server: from_now jumps to the tail (50), not the first entry (10)."""
+        checkpoint_saved = {}
+        handler = _seeded_changelog_handler(
+            [10, 20, 30, 40, 50], honor_latest=True, checkpoint_saved=checkpoint_saved
+        )
+        client = httpx.AsyncClient(transport=_mock_transport(handler))
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="t",
+            startup_mode="from_now",
+            batch_size=2,
+            client=client,
+        )
+        await consumer._initialise_cursor()
+        assert consumer._cursor == 50
+        assert checkpoint_saved["last_cursor"] == 50
+
+    @pytest.mark.anyio
+    async def test_pages_to_tail_on_old_server(self):
+        """Older server ignoring ?latest: page forward to the true tail (50)."""
+        checkpoint_saved = {}
+        handler = _seeded_changelog_handler(
+            [10, 20, 30, 40, 50], honor_latest=False, checkpoint_saved=checkpoint_saved
+        )
+        client = httpx.AsyncClient(transport=_mock_transport(handler))
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="t",
+            startup_mode="from_now",
+            batch_size=2,
+            client=client,
+        )
+        await consumer._initialise_cursor()
+        assert consumer._cursor == 50
+        assert checkpoint_saved["last_cursor"] == 50
+
+    @pytest.mark.anyio
+    async def test_first_poll_replays_no_preexisting_rows(self):
+        """After from_now init, the first poll returns zero pre-existing entries."""
+        handler = _seeded_changelog_handler(
+            [10, 20, 30, 40, 50], honor_latest=True, checkpoint_saved={}
+        )
+        client = httpx.AsyncClient(transport=_mock_transport(handler))
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="t",
+            startup_mode="from_now",
+            batch_size=2,
+            client=client,
+        )
+        await consumer._initialise_cursor()
+        first_batch = await consumer._poll_once()
+        assert first_batch == []
+
+
 # ── Client lifecycle ─────────────────────────────────────────────────────────
 
 

@@ -95,6 +95,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   imports keep working. The two clients deliberately classify differently (async: HTTP status;
   sync: GraphQL `extensions.code`), now documented on the module. Behaviour change: code that
   relied on the catch-all *not* catching async errors will now catch them.
+- **Python SDK: `ChangelogConsumer(startup_mode="from_now")` no longer replays history (H28).**
+  `_initialise_cursor` fetched the first page (`after_cursor=0, limit=1`) and checkpointed at
+  its `next_cursor` — the *oldest* entry's cursor — so the next poll replayed almost the entire
+  changelog with side effects. It now resolves the real tail via the `?latest=true` tail query
+  (Phase 09), then pages forward to the true tail (correctness on older servers that ignore
+  `?latest`), checkpointing there and processing zero pre-existing rows.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text

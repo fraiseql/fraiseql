@@ -317,16 +317,7 @@ class ChangelogConsumer:
     async def _initialise_cursor(self) -> None:
         """Set the initial cursor based on startup_mode and checkpoint."""
         if self._startup_mode == "from_now":
-            # Fetch the current tail of the changelog
-            resp = await self._client.get(
-                f"{self._base_url}/api/observers/changelog",
-                params={"after_cursor": 0, "limit": 1},
-            )
-            resp.raise_for_status()
-            body: dict[str, Any] = resp.json()
-            # If there are entries, use the latest cursor; otherwise start at 0
-            if body.get("next_cursor") is not None:
-                self._cursor = int(body["next_cursor"])
+            self._cursor = await self._fetch_tail_cursor()
             # Persist so subsequent from_checkpoint starts here
             await self._checkpoint_store.save(self._listener_id, self._cursor)
         else:
@@ -340,6 +331,49 @@ class ChangelogConsumer:
             self._cursor,
             self._startup_mode,
         )
+
+    async def _fetch_tail_cursor(self) -> int:
+        """Return the cursor of the newest changelog entry (0 if empty).
+
+        ``from_now`` must skip *all* pre-existing history. The original code
+        fetched the first page (``after_cursor=0, limit=1``) and checkpointed at
+        its ``next_cursor`` — the *oldest* entry's cursor — so the very next poll
+        replayed almost the entire changelog with side effects (H28).
+
+        This uses the ``?latest=true`` tail query (a server returns only the
+        newest entry's cursor) as a fast path, then pages forward to the true
+        tail. The paging is what makes it correct against an older server that
+        ignores ``?latest`` and answers as an ordinary ``after_cursor`` query:
+        on a current server the first forward page is already empty (one extra
+        round-trip); on an older one it walks to the real tail. Nothing is ever
+        dispatched here, so no pre-existing row is processed.
+        """
+        cursor = 0
+        # Fast path: the newest entry's cursor on servers that support ?latest.
+        resp = await self._client.get(
+            f"{self._base_url}/api/observers/changelog",
+            params={"latest": "true", "after_cursor": 0, "limit": self._batch_size},
+        )
+        resp.raise_for_status()
+        next_cursor = resp.json().get("next_cursor")
+        if next_cursor is not None:
+            cursor = int(next_cursor)
+
+        # Page forward to the true tail (correctness on servers that ignore
+        # ?latest). ``after_cursor`` returns strictly-greater cursors, so this
+        # advances monotonically and terminates when a page comes back empty.
+        while True:
+            resp = await self._client.get(
+                f"{self._base_url}/api/observers/changelog",
+                params={"after_cursor": cursor, "limit": self._batch_size},
+            )
+            resp.raise_for_status()
+            next_cursor = resp.json().get("next_cursor")
+            if next_cursor is None or int(next_cursor) <= cursor:
+                break
+            cursor = int(next_cursor)
+
+        return cursor
 
     async def _poll_once(self) -> list[ChangelogEvent]:
         """Fetch one batch of changelog entries from the server."""
