@@ -50,7 +50,13 @@ fn main() {
     let node_modules = build_dir.join("node_modules");
     if !node_modules.exists() {
         let status = Command::new("npm")
-            .args(["ci", "--ignore-scripts", "--prefer-offline", "--no-audit", "--no-fund"])
+            .args([
+                "ci",
+                "--ignore-scripts",
+                "--prefer-offline",
+                "--no-audit",
+                "--no-fund",
+            ])
             .current_dir(&build_dir)
             .status();
 
