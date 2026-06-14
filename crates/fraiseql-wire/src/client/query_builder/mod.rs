@@ -96,7 +96,12 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             max_memory: None,
             soft_limit_warn_threshold: None,
             soft_limit_fail_threshold: None,
-            enable_adaptive_chunking: true, // Enabled by default
+            // Off by default: this preserves the historical *effective* behaviour
+            // (the option was previously dropped and forced off at the execute
+            // boundary). Now that the option is honoured (audit L-wire-builder),
+            // opt in explicitly with `.adaptive_chunking(true)` — fixed-size
+            // chunking stays the zero-overhead default.
+            enable_adaptive_chunking: false,
             adaptive_min_chunk_size: None,
             adaptive_max_chunk_size: None,
             custom_select: None,
@@ -299,14 +304,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
         self
     }
 
-    /// Enable or disable adaptive chunk sizing (default: enabled)
+    /// Enable or disable adaptive chunk sizing (default: disabled)
     ///
     /// Adaptive chunking automatically adjusts `chunk_size` based on channel occupancy:
     /// - High occupancy (>80%): Decreases chunk size to reduce producer pressure
     /// - Low occupancy (<20%): Increases chunk size to optimize batching efficiency
     ///
-    /// Enabled by default for zero-configuration self-tuning.
-    /// Disable if you need fixed chunk sizes or encounter unexpected behavior.
+    /// Disabled by default — fixed-size chunking is the zero-overhead path. Enable
+    /// it for self-tuning batch sizes when consumer throughput varies.
     ///
     /// # Example
     ///
@@ -317,8 +322,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
-    ///     .adaptive_chunking(false)  // Disable adaptive tuning
-    ///     .chunk_size(512)  // Use fixed size
+    ///     .adaptive_chunking(true)  // Enable adaptive tuning
     ///     .execute()
     ///     .await?;
     /// # Ok(())
@@ -458,6 +462,9 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
                 self.max_memory,
                 self.soft_limit_warn_threshold,
                 self.soft_limit_fail_threshold,
+                self.enable_adaptive_chunking,
+                self.adaptive_min_chunk_size,
+                self.adaptive_max_chunk_size,
             )
             .await?;
 

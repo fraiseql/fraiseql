@@ -413,6 +413,14 @@ impl JsonStream {
         self.state_atomic.store(STATE_FAILED, Ordering::Release);
     }
 
+    /// Record that one row was filtered out by a downstream Rust predicate.
+    ///
+    /// Called by [`crate::stream::QueryStream`] when its predicate rejects a row,
+    /// so `stats().total_rows_filtered` reflects reality (audit L-wire-stats).
+    pub(crate) fn record_filtered(&self) {
+        self.rows_filtered.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Get current stream statistics
     ///
     /// Returns a snapshot of stream state without consuming any items.
@@ -490,7 +498,12 @@ impl Stream for JsonStream {
         }
 
         match self.receiver.poll_recv(cx) {
-            Poll::Ready(Some(Ok(value))) => Poll::Ready(Some(Ok(value))),
+            Poll::Ready(Some(Ok(value))) => {
+                // Count rows handed to the consumer so `stats().total_rows_yielded`
+                // is truthful (audit L-wire-stats — it was never incremented).
+                self.rows_yielded.fetch_add(1, Ordering::Relaxed);
+                Poll::Ready(Some(Ok(value)))
+            }
             Poll::Ready(Some(Err(e))) => {
                 // Stream encountered an error
                 self.state_atomic_set_failed();

@@ -419,7 +419,7 @@ impl Connection {
             let startup_start = std::time::Instant::now();
 
             use crate::json::validate_row_description;
-            use crate::stream::{extract_json_bytes, parse_json, AdaptiveChunking, ChunkingStrategy, JsonStream};
+            use crate::stream::{extract_json_bytes, AdaptiveChunking, ChunkingStrategy, JsonStream};
             use serde_json::Value;
             use tokio::sync::mpsc;
 
@@ -535,26 +535,24 @@ impl Connection {
             let query_start = std::time::Instant::now();
 
             tokio::spawn(async move {
-                let strategy = ChunkingStrategy::new(chunk_size);
+                let mut strategy = ChunkingStrategy::new(chunk_size);
                 let mut chunk = strategy.new_chunk();
                 let mut total_rows = 0u64;
 
-            // Initialize adaptive chunking if enabled
-            let _adaptive = if enable_adaptive_chunking {
+            // Adaptive chunking (audit L-wire-builder): when enabled, the batch size
+            // self-tunes from observed channel occupancy. The builder's
+            // enable/min/max options now actually reach this point and take effect
+            // instead of being dropped at the `execute_query` boundary.
+            let mut adaptive = if enable_adaptive_chunking {
                 let mut adp = AdaptiveChunking::new();
-
-                // Apply custom bounds if provided
-                if let Some(min) = adaptive_min_chunk_size {
-                    if let Some(max) = adaptive_max_chunk_size {
-                        adp = adp.with_bounds(min, max);
-                    }
+                if let (Some(min), Some(max)) = (adaptive_min_chunk_size, adaptive_max_chunk_size) {
+                    adp = adp.with_bounds(min, max);
                 }
-
                 Some(adp)
             } else {
                 None
             };
-            let _current_chunk_size = chunk_size;
+            let mut current_chunk_size = chunk_size;
 
             loop {
                 // Fast path: a single relaxed atomic load gates the (rare) pause
@@ -628,66 +626,43 @@ impl Connection {
                                                 let rows = chunk.into_rows();
                                                 let chunk_size_rows = rows.len() as u64;
 
-                                                // Batch JSON parsing and sending to reduce lock contention
-                                                // Send 8 values per channel send instead of 1 (8x fewer locks)
-                                                const BATCH_SIZE: usize = 8;
-                                                let mut batch = Vec::with_capacity(BATCH_SIZE);
-                                                let mut send_error = false;
+                                                // Occupancy at flush time, for adaptive tuning (before the send drains it).
+                                                let buffered = result_tx
+                                                    .max_capacity()
+                                                    .saturating_sub(result_tx.capacity());
 
-                                                for row_bytes in rows {
-                                                    match parse_json(row_bytes) {
-                                                        Ok(value) => {
-                                                            total_rows += 1;
-                                                            batch.push(Ok(value));
+                                                if !stream_chunk_rows(
+                                                    rows,
+                                                    &result_tx,
+                                                    &entity_for_metrics,
+                                                    &mut total_rows,
+                                                )
+                                                .await
+                                                {
+                                                    break;
+                                                }
 
-                                                            // Send batch when full
-                                                            if batch.len() == BATCH_SIZE {
-                                                                for item in batch.drain(..) {
-                                                                    if result_tx.send(item).await.is_err() {
-                                                                        crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                                        send_error = true;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                                if send_error {
-                                                                    break;
-                                                                }
-                                                            }
-                                                        }
-                                                        Err(e) => {
-                                                            crate::metrics::counters::json_parse_error(&entity_for_metrics);
-                                                            let _ = result_tx.send(Err(e)).await;
-                                                            crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                            send_error = true;
-                                                            break;
-                                                        }
+                                                record_chunk_metrics(
+                                                    &entity_for_metrics,
+                                                    chunk_start,
+                                                    chunk_size_rows,
+                                                );
+
+                                                // Adaptive chunking (L-wire-builder): adjust the
+                                                // batch size from observed occupancy when enabled.
+                                                if let Some(adaptive) = adaptive.as_mut() {
+                                                    if let Some(new_size) = adaptive
+                                                        .observe(buffered, result_tx.max_capacity())
+                                                    {
+                                                        crate::metrics::counters::adaptive_chunk_adjusted(
+                                                            &entity_for_metrics,
+                                                            current_chunk_size,
+                                                            new_size,
+                                                        );
+                                                        current_chunk_size = new_size;
+                                                        strategy = ChunkingStrategy::new(new_size);
                                                     }
                                                 }
-
-                                                // Send remaining batch items
-                                                if !send_error {
-                                                    for item in batch {
-                                                        if result_tx.send(item).await.is_err() {
-                                                            crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-
-                                                // Record chunk metrics (sampled, not per-chunk)
-                                                let chunk_duration = chunk_start.elapsed().as_millis() as u64;
-
-                                                // Only record metrics every 10 chunks to reduce overhead
-                                                let chunk_idx = CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-                                                if chunk_idx.is_multiple_of(10) {
-                                                    crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
-                                                    crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
-                                                }
-
-                                                // Adaptive chunking: disabled by default for better performance
-                                                // Enable only if explicitly requested via enable_adaptive_chunking parameter
-                                                // Note: adaptive adjustment adds ~0.5-1% overhead per chunk
-                                                // For fixed chunk sizes (default), skip this entirely
 
                                                 chunk = strategy.new_chunk();
                                             }
@@ -701,64 +676,31 @@ impl Connection {
                                     }
                                 }
                                 BackendMessage::CommandComplete(_) => {
-                                    // Send remaining chunk
+                                    // Flush the trailing partial chunk through the
+                                    // same batched path as full chunks. On a consumer
+                                    // drop we stop instead of (as the old duplicated
+                                    // block did) falling through to record success —
+                                    // reconciling the drifted error termination
+                                    // (audit L-wire-chunk-dup).
                                     if !chunk.is_empty() {
                                         let chunk_start = std::time::Instant::now();
                                         let rows = chunk.into_rows();
                                         let chunk_size_rows = rows.len() as u64;
-
-                                        // Batch JSON parsing and sending to reduce lock contention
-                                        const BATCH_SIZE: usize = 8;
-                                        let mut batch = Vec::with_capacity(BATCH_SIZE);
-                                        let mut send_error = false;
-
-                                        for row_bytes in rows {
-                                            match parse_json(row_bytes) {
-                                                Ok(value) => {
-                                                    total_rows += 1;
-                                                    batch.push(Ok(value));
-
-                                                    // Send batch when full
-                                                    if batch.len() == BATCH_SIZE {
-                                                        for item in batch.drain(..) {
-                                                            if result_tx.send(item).await.is_err() {
-                                                                crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                                send_error = true;
-                                                                break;
-                                                            }
-                                                        }
-                                                        if send_error {
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                                Err(e) => {
-                                                    crate::metrics::counters::json_parse_error(&entity_for_metrics);
-                                                    let _ = result_tx.send(Err(e)).await;
-                                                    crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                    send_error = true;
-                                                    break;
-                                                }
-                                            }
+                                        if !stream_chunk_rows(
+                                            rows,
+                                            &result_tx,
+                                            &entity_for_metrics,
+                                            &mut total_rows,
+                                        )
+                                        .await
+                                        {
+                                            break;
                                         }
-
-                                        // Send remaining batch items
-                                        if !send_error {
-                                            for item in batch {
-                                                if result_tx.send(item).await.is_err() {
-                                                    crate::metrics::counters::query_completed("error", &entity_for_metrics);
-                                                    break;
-                                                }
-                                            }
-                                        }
-
-                                        // Record final chunk metrics (sampled)
-                                        let chunk_duration = chunk_start.elapsed().as_millis() as u64;
-                                        let chunk_idx = CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-                                        if chunk_idx.is_multiple_of(10) {
-                                            crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
-                                            crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
-                                        }
+                                        record_chunk_metrics(
+                                            &entity_for_metrics,
+                                            chunk_start,
+                                            chunk_size_rows,
+                                        );
                                         chunk = strategy.new_chunk();
                                     }
 
@@ -806,5 +748,65 @@ impl Connection {
             chunk_size = %chunk_size
         ))
         .await
+    }
+}
+
+/// Parse a finished chunk's rows and stream them to the consumer in batches.
+///
+/// Batches `BATCH_SIZE` parsed values per group to amortize channel-send overhead.
+/// Returns `true` when the whole chunk was delivered, or `false` when the consumer
+/// dropped the channel or a row failed to parse — in which case the caller must
+/// stop the read loop. The terminal `query_completed("error")` metric is recorded
+/// here on those paths, so both the full-chunk and final-chunk flush sites behave
+/// identically (audit L-wire-chunk-dup — the two sites had drifted error handling).
+async fn stream_chunk_rows(
+    rows: Vec<bytes::Bytes>,
+    result_tx: &tokio::sync::mpsc::Sender<Result<serde_json::Value>>,
+    entity: &str,
+    total_rows: &mut u64,
+) -> bool {
+    const BATCH_SIZE: usize = 8;
+    let mut batch: Vec<Result<serde_json::Value>> = Vec::with_capacity(BATCH_SIZE);
+
+    for row_bytes in rows {
+        match crate::stream::parse_json(row_bytes) {
+            Ok(value) => {
+                *total_rows += 1;
+                batch.push(Ok(value));
+                if batch.len() == BATCH_SIZE {
+                    for item in batch.drain(..) {
+                        if result_tx.send(item).await.is_err() {
+                            crate::metrics::counters::query_completed("error", entity);
+                            return false;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                crate::metrics::counters::json_parse_error(entity);
+                let _ = result_tx.send(Err(e)).await;
+                crate::metrics::counters::query_completed("error", entity);
+                return false;
+            }
+        }
+    }
+
+    // Flush the trailing partial batch.
+    for item in batch {
+        if result_tx.send(item).await.is_err() {
+            crate::metrics::counters::query_completed("error", entity);
+            return false;
+        }
+    }
+    true
+}
+
+/// Record sampled per-chunk metrics (1 in 10 chunks) for a just-flushed chunk.
+fn record_chunk_metrics(entity: &str, chunk_start: std::time::Instant, chunk_size_rows: u64) {
+    let chunk_duration = chunk_start.elapsed().as_millis() as u64;
+    let chunk_idx = CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
+    if chunk_idx.is_multiple_of(10) {
+        crate::metrics::histograms::chunk_processing_duration(entity, chunk_duration);
+        crate::metrics::histograms::chunk_size(entity, chunk_size_rows);
     }
 }

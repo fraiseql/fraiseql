@@ -173,3 +173,42 @@ fn scram_password_is_zeroized_on_drop() {
     let _: &zeroize::Zeroizing<String> = &client.password;
     drop(client);
 }
+
+#[test]
+fn scram_round_trip_verifies_against_independent_server_key() {
+    // End-to-end SCRAM math (audit L-wire-scram): the client derives its keys via
+    // PBKDF2; an independent server-side derivation of the server key signs the
+    // auth message, and the client must accept that signature. If the client's
+    // PBKDF2 result were silently discarded (leaving an all-zero salted password),
+    // `state.server_key` would not match the independent key and verification would
+    // fail — so this test guards the no-longer-swallowed PBKDF2 result.
+    let password = "s3cr3t-pw";
+    let mut client = ScramClient::new("alice".to_string(), password.to_string());
+    let client_nonce = client.nonce.clone();
+
+    let salt_bytes: &[u8] = b"0123456789abcdef";
+    let salt_b64 = BASE64.encode(salt_bytes);
+    let iterations = 4096u32;
+    let server_nonce = format!("{client_nonce}srvnoncepart");
+    let server_first = format!("r={server_nonce},s={salt_b64},i={iterations}");
+
+    let (_client_final, state) = client
+        .client_final(&server_first)
+        .unwrap_or_else(|e| panic!("client_final failed: {e}"));
+
+    // Independent server-side derivation from the password (not from client state).
+    let mut salted = [0u8; 32];
+    pbkdf2::<HmacSha256>(password.as_bytes(), salt_bytes, iterations, &mut salted)
+        .unwrap_or_else(|_| panic!("independent PBKDF2 failed"));
+    let mut server_key_hmac = HmacSha256::new_from_slice(&salted).unwrap();
+    server_key_hmac.update(b"Server Key");
+    let server_key = server_key_hmac.finalize().into_bytes();
+    let mut sig_hmac = HmacSha256::new_from_slice(&server_key).unwrap();
+    sig_hmac.update(&state.auth_message);
+    let server_signature = sig_hmac.finalize().into_bytes();
+    let server_final = format!("v={}", BASE64.encode(server_signature));
+
+    client
+        .verify_server_final(&server_final, &state)
+        .unwrap_or_else(|e| panic!("server signature verification failed: {e}"));
+}

@@ -347,6 +347,11 @@ impl FraiseClient {
     }
 
     /// Execute a raw SQL query (must match fraiseql-wire constraints)
+    ///
+    /// The adaptive-chunking options are threaded through from the query builder
+    /// instead of being hardcoded off, so `adaptive_chunking`/`adaptive_min_size`/
+    /// `adaptive_max_size` actually take effect (audit L-wire-builder).
+    #[allow(clippy::too_many_arguments)] // Reason: mirrors streaming_query's chunking parameters; a struct would add allocation in the hot path
     pub(crate) async fn execute_query(
         self,
         sql: &str,
@@ -354,6 +359,9 @@ impl FraiseClient {
         max_memory: Option<usize>,
         soft_limit_warn_threshold: Option<f32>,
         soft_limit_fail_threshold: Option<f32>,
+        enable_adaptive_chunking: bool,
+        adaptive_min_chunk_size: Option<usize>,
+        adaptive_max_chunk_size: Option<usize>,
     ) -> Result<JsonStream> {
         self.conn
             .streaming_query(
@@ -362,9 +370,9 @@ impl FraiseClient {
                 max_memory,
                 soft_limit_warn_threshold,
                 soft_limit_fail_threshold,
-                false, // enable_adaptive_chunking: disabled by default for backward compatibility
-                None,  // adaptive_min_chunk_size
-                None,  // adaptive_max_chunk_size
+                enable_adaptive_chunking,
+                adaptive_min_chunk_size,
+                adaptive_max_chunk_size,
             )
             .await
     }
@@ -377,10 +385,7 @@ impl FraiseClient {
 /// to completion unbounded. The `connect_timeout` config field was parsed but never
 /// applied to the connect path (audit L-wire-timeout); the `connect_with_config*`
 /// methods now route their transport setup through this helper.
-pub(crate) async fn with_connect_timeout<F, T>(
-    timeout: Option<std::time::Duration>,
-    fut: F,
-) -> Result<T>
+async fn with_connect_timeout<F, T>(timeout: Option<std::time::Duration>, fut: F) -> Result<T>
 where
     F: std::future::Future<Output = Result<T>>,
 {

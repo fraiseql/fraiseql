@@ -175,6 +175,62 @@ async fn resume_signal_wakes_a_parked_reader() {
     );
 }
 
+#[tokio::test]
+async fn stats_track_yielded_rows() {
+    use futures::StreamExt as _;
+
+    let (tx, mut stream) = test_stream(16);
+    for i in 0..3 {
+        tx.send(Ok(serde_json::json!({ "i": i }))).await.unwrap();
+    }
+    drop(tx); // close the channel so the stream terminates
+
+    let mut yielded = 0;
+    while let Some(item) = stream.next().await {
+        item.unwrap();
+        yielded += 1;
+    }
+
+    assert_eq!(yielded, 3);
+    assert_eq!(
+        stream.stats().total_rows_yielded,
+        3,
+        "stats().total_rows_yielded must count rows handed to the consumer"
+    );
+}
+
+#[tokio::test]
+async fn query_stream_stats_track_filtered_rows() {
+    use crate::stream::QueryStream;
+    use futures::StreamExt as _;
+
+    let (tx, inner) = test_stream(16);
+    for i in 0..4 {
+        tx.send(Ok(serde_json::json!({ "keep": i % 2 == 0 })))
+            .await
+            .unwrap();
+    }
+    drop(tx);
+
+    // Keep only objects with keep == true (2 of the 4).
+    let predicate: Box<dyn Fn(&Value) -> bool + Send> =
+        Box::new(|v: &Value| v.get("keep").and_then(serde_json::Value::as_bool) == Some(true));
+    let mut query_stream: QueryStream<Value> = QueryStream::new(inner, Some(predicate));
+
+    let mut kept = 0;
+    while let Some(item) = query_stream.next().await {
+        item.unwrap();
+        kept += 1;
+    }
+
+    assert_eq!(kept, 2);
+    assert_eq!(
+        query_stream.stats().total_rows_filtered,
+        2,
+        "stats().total_rows_filtered must count rows rejected by the predicate"
+    );
+}
+
 #[test]
 fn set_pause_timeout_updates_the_shared_handle() {
     let (_tx, mut stream) = test_stream(1);

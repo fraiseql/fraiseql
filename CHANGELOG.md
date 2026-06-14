@@ -84,6 +84,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`connect_timeout` is now applied (L-wire-timeout).** The config field was parsed but
     never used; `connect_with_config`/`connect_with_config_and_tls` now bound the
     transport-connect future with it, surfacing a lapse as `WireError::Connection`.
+  - **The SCRAM PBKDF2 result is propagated, not discarded (L-wire-scram).** Both key
+    derivations did `let _ = pbkdf2(...)`; a swallowed error would have left an all-zero
+    salted password and silently produced a wrong proof. The result is now checked (a new
+    full round-trip test verifies the client proof against an independently-derived server
+    key).
+  - **Adaptive-chunking builder options now take effect (L-wire-builder).** `execute_query`
+    hardcoded adaptive chunking off and dropped the builder's
+    `adaptive_chunking`/`adaptive_min_size`/`adaptive_max_size`; the options are now threaded
+    through and the streaming loop actually observes channel occupancy and retunes the batch
+    size. The builder default is now explicitly off (preserving the prior effective
+    behaviour — fixed-size chunking is the zero-overhead path).
+  - **`StreamStats` row counters are populated (L-wire-stats).** `total_rows_yielded` /
+    `total_rows_filtered` were always zero; the stream now counts rows yielded to the consumer
+    and rows rejected by a `QueryStream` predicate.
+  - **De-duplicated the chunk-flush logic (L-wire-chunk-dup).** Two ~70-line copies with
+    drifted error termination (the final-chunk path reported success even after the consumer
+    dropped) were factored into one `stream_chunk_rows` helper that fails consistently.
   - **Removed a 29 MB `test_import` ELF binary committed to the repo (L-wire-elf).**
 - **Wire `metrics`-facade emissions are now captured by an installed recorder (H45).** The
   workspace carried two incompatible `metrics` facade versions — `fraiseql-wire` emitted via

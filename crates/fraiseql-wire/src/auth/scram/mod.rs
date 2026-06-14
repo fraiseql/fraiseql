@@ -33,6 +33,8 @@ pub enum ScramError {
     Utf8Error(String),
     /// Base64 decoding error
     Base64Error(String),
+    /// PBKDF2 key derivation failure (e.g. invalid output length)
+    KeyDerivation(String),
 }
 
 impl fmt::Display for ScramError {
@@ -42,6 +44,7 @@ impl fmt::Display for ScramError {
             ScramError::InvalidServerMessage(msg) => write!(f, "invalid server message: {}", msg),
             ScramError::Utf8Error(msg) => write!(f, "UTF-8 error: {}", msg),
             ScramError::Base64Error(msg) => write!(f, "Base64 error: {}", msg),
+            ScramError::KeyDerivation(msg) => write!(f, "key derivation error: {}", msg),
         }
     }
 }
@@ -241,7 +244,12 @@ fn calculate_client_proof(
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
     let mut salted_password = vec![0u8; 32]; // SHA256 produces 32 bytes
-    let _ = pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
+                                             // Propagate the PBKDF2 result instead of discarding it (audit L-wire-scram):
+                                             // a swallowed `InvalidLength` would leave `salted_password` all-zeros and
+                                             // silently produce a wrong client proof rather than failing authentication.
+    pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password).map_err(|_| {
+        ScramError::KeyDerivation("PBKDF2 produced an invalid output length".into())
+    })?;
 
     // ClientKey := HMAC(SaltedPassword, "Client Key")
     let mut client_key_hmac = HmacSha256::new_from_slice(&salted_password)
@@ -276,7 +284,12 @@ fn calculate_server_key(
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
     let mut salted_password = vec![0u8; 32];
-    let _ = pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
+    // Propagate the PBKDF2 result (audit L-wire-scram): a swallowed error here
+    // would derive the server key from an all-zero salted password, breaking
+    // server-signature verification silently.
+    pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password).map_err(|_| {
+        ScramError::KeyDerivation("PBKDF2 produced an invalid output length".into())
+    })?;
 
     // ServerKey := HMAC(SaltedPassword, "Server Key")
     let mut server_key_hmac = HmacSha256::new_from_slice(&salted_password)

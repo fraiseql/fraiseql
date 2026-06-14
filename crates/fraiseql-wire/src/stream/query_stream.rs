@@ -105,7 +105,9 @@ impl<T: DeserializeOwned + Unpin> Stream for QueryStream<T> {
                     // Apply predicate if present
                     if let Some(ref predicate) = self.predicate {
                         if !predicate(&value) {
-                            // Filtered out, try next value
+                            // Filtered out — count it so stats() is truthful
+                            // (audit L-wire-stats), then try the next value.
+                            self.inner.record_filtered();
                             continue;
                         }
                     }
