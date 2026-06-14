@@ -338,9 +338,7 @@ async def test_retry_honors_custom_retry_on_type():
         call_count += 1
         return httpx.Response(401)
 
-    cfg = RetryConfig(
-        max_attempts=3, base_delay=0.0, jitter=False, retry_on=(AuthenticationError,)
-    )
+    cfg = RetryConfig(max_attempts=3, base_delay=0.0, jitter=False, retry_on=(AuthenticationError,))
     async with AsyncFraiseQLClient(
         "http://test/graphql",
         retry=cfg,
@@ -361,9 +359,7 @@ async def test_injected_client_receives_authorization_header():
         return _json_response({"data": {}})
 
     injected = httpx.AsyncClient(transport=_mock_transport(handler))
-    client = AsyncFraiseQLClient(
-        "http://test/graphql", authorization="Bearer xyz", client=injected
-    )
+    client = AsyncFraiseQLClient("http://test/graphql", authorization="Bearer xyz", client=injected)
     await client.query("{ x }")
     await client.close()
     assert captured["auth"] == "Bearer xyz"
