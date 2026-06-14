@@ -24,6 +24,18 @@ fn test_postgres_projection_multiple_fields() {
 }
 
 #[test]
+fn test_postgres_projection_digit_field_maps_to_snake_key() {
+    // The camelized surface name `phone1` must read the `phone_1` JSONB key — the
+    // end-to-end payoff of the digit-boundary round trip (issue: digit fields).
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec!["phone1".to_string(), "userId".to_string()];
+
+    let sql = generator.generate_projection_sql(&fields).unwrap();
+    assert!(sql.contains("'phone1', \"data\"->>'phone_1'"), "got: {sql}");
+    assert!(sql.contains("'userId', \"data\"->>'user_id'"), "got: {sql}");
+}
+
+#[test]
 fn test_postgres_projection_empty_fields() {
     let generator = PostgresProjectionGenerator::new();
     let fields: Vec<String> = vec![];

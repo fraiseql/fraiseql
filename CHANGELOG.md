@@ -83,6 +83,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Digit-suffixed field names now camelize and resolve correctly (`phone_1` → `phone1`).**
+  A field whose `snake_case` name ended in a digit segment (`phone_1`, `address_2`, `line_2`)
+  was emitted into the GraphQL schema unchanged (`phone_1`) while every other field camelized,
+  and the runtime could not map a collapsed digit field back to its JSONB key. The casing pair
+  is now bijective, mirroring FraiseQL v1: the Python SDK and the engine's `to_camel_case`
+  collapse the digit boundary (`phone_1` → `phone1`, `dns_1_id` → `dns1Id`), and the canonical
+  reverse `to_snake_case` reinserts it (`phone1` → `phone_1`), so a field surfaced as `phone1`
+  reads `data->>'phone_1'`. **Behavior change:** the GraphQL surface name of digit-suffixed
+  fields changes from `phone_1` to `phone1`; clients querying the old `phone_1` name must switch
+  to `phone1` (or add an explicit GraphQL alias). **Caveat (matches v1):** a digit is treated as
+  its own word, so identifiers like `oauth2`, `ipv4`, `s3` map to `oauth_2`/`ipv_4`/`s_3`; a field
+  whose JSONB key is a literal no-underscore digit (`ipv4`) should author the key as `ipv_4` or
+  use an alias.
 - **Injected params now filter on a real column when the view has one (native-column inference
   gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
   explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to
