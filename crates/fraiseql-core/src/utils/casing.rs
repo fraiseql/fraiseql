@@ -14,7 +14,10 @@ pub use fraiseql_db::utils::to_snake_case;
 
 /// Convert `snake_case` to camelCase.
 ///
-/// This is the reverse operation, used for output formatting.
+/// This is the inverse of [`to_snake_case`]: a digit segment collapses onto the
+/// previous word (`phone_1` → `phone1`), and `to_snake_case` reinserts the
+/// boundary (`phone1` → `phone_1`), so the round trip is bijective. See
+/// [`to_snake_case`] for the digit caveat (`oauth2`/`ipv4`/`s3`).
 ///
 /// # Examples
 ///
@@ -24,6 +27,8 @@ pub use fraiseql_db::utils::to_snake_case;
 /// assert_eq!(to_camel_case("user_id"), "userId");
 /// assert_eq!(to_camel_case("created_at"), "createdAt");
 /// assert_eq!(to_camel_case("http_response"), "httpResponse");
+/// assert_eq!(to_camel_case("phone_1"), "phone1");
+/// assert_eq!(to_camel_case("dns_1_id"), "dns1Id");
 /// assert_eq!(to_camel_case("alreadyCamel"), "alreadyCamel");
 /// ```
 #[must_use]

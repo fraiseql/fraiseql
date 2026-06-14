@@ -85,6 +85,38 @@ mod casing_tests {
     }
 
     #[test]
+    fn test_camel_case_collapses_digits() {
+        assert_eq!(to_camel_case("phone_1"), "phone1");
+        assert_eq!(to_camel_case("phone_2"), "phone2");
+        assert_eq!(to_camel_case("dns_1_id"), "dns1Id");
+        assert_eq!(to_camel_case("line_2_content"), "line2Content");
+    }
+
+    #[test]
+    fn test_snake_camel_round_trip() {
+        // The two functions are inverses for snake_case keys, including digit
+        // segments — the property the digit-boundary fix exists to guarantee.
+        for snake in [
+            "id",
+            "user_id",
+            "first_name",
+            "created_at",
+            "http_response",
+            "phone_1",
+            "phone_2",
+            "address_2",
+            "dns_1_id",
+            "line_2_content",
+        ] {
+            assert_eq!(
+                to_snake_case(&to_camel_case(snake)),
+                snake,
+                "round trip failed for {snake}"
+            );
+        }
+    }
+
+    #[test]
     fn test_multiple_underscores() {
         assert_eq!(to_camel_case("user__id"), "userId");
         assert_eq!(to_camel_case("http___response"), "httpResponse");
