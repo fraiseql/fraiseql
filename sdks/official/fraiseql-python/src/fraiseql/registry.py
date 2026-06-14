@@ -6,7 +6,12 @@ from typing import Any, ClassVar, TypeAlias
 SchemaElement: TypeAlias = dict[str, Any]
 
 _CAMEL_RE = re.compile(r"(?<!^)(?=[A-Z])")
-_SNAKE_WORD_RE = re.compile(r"_([a-z])")
+# Underscore boundary = `_` + any alphanumeric. Digits are included so a digit
+# segment collapses too (`phone_1` → `phone1`), matching the engine's canonical
+# `fraiseql_core::utils::casing::to_camel_case` and FraiseQL v1. The inverse,
+# `fraiseql_db::utils::to_snake_case`, reinserts the boundary (`phone1` → `phone_1`)
+# so the round trip is bijective.
+_SNAKE_WORD_RE = re.compile(r"_([a-zA-Z0-9])")
 
 
 def _pascal_to_snake(name: str) -> str:
@@ -17,7 +22,9 @@ def _pascal_to_snake(name: str) -> str:
 def _snake_to_camel(name: str) -> str:
     """Convert snake_case to camelCase (e.g. create_user → createUser).
 
-    Idempotent: already-camelCase strings are returned unchanged.
+    A digit segment is collapsed onto the previous word: `phone_1` → `phone1`,
+    `dns_1_id` → `dns1Id`. Idempotent: already-camelCase strings are returned
+    unchanged.
     """
     return _SNAKE_WORD_RE.sub(lambda m: m.group(1).upper(), name)
 
