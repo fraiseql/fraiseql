@@ -3,6 +3,7 @@
 //! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
 mod directives;
+mod mutation_error_union;
 mod mutations;
 mod queries;
 mod relay;
@@ -33,14 +34,36 @@ use super::{
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
 
+/// Optional, default-off behaviours for [`SchemaConverter::convert_with_options`].
+///
+/// Threaded here rather than on [`IntermediateSchema`] so adding an option never
+/// breaks the many full-literal `IntermediateSchema { .. }` constructions, and
+/// the plain [`SchemaConverter::convert`] keeps its historical signature.
+#[derive(Debug, Clone, Default)]
+pub struct ConvertOptions {
+    /// Auto-synthesize a shared `MutationError` type + per-mutation result unions
+    /// and rewrite object-returning mutations to those unions (`[fraiseql.mutations]
+    /// auto_error_union`).
+    pub auto_error_union: bool,
+}
+
 impl SchemaConverter {
-    /// Convert `IntermediateSchema` to `CompiledSchema`
+    /// Convert `IntermediateSchema` to `CompiledSchema` with default options.
+    ///
+    /// # Errors
+    ///
+    /// See [`SchemaConverter::convert_with_options`].
+    pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
+        Self::convert_with_options(intermediate, &ConvertOptions::default())
+    }
+
+    /// Convert `IntermediateSchema` to `CompiledSchema`.
     ///
     /// This performs:
     /// 1. Type conversion (intermediate types → compiled types)
     /// 2. Field name normalization (type → `field_type`)
-    /// 3. Validation (type references, circular refs, etc.)
-    /// 4. Optimization
+    /// 3. Optional mutation-error-union synthesis (`options.auto_error_union`)
+    /// 4. Validation (type references, circular refs, etc.)
     ///
     /// # Errors
     ///
@@ -48,7 +71,10 @@ impl SchemaConverter {
     /// or directive conversion fails, if federation/security/observer config JSON
     /// cannot be deserialized, or if compiled schema validation detects unknown
     /// type references.
-    pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
+    pub fn convert_with_options(
+        intermediate: IntermediateSchema,
+        options: &ConvertOptions,
+    ) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
         // Aggregate the per-type `@subscribable(tables=[...])` annotations (#366)
@@ -228,6 +254,13 @@ impl SchemaConverter {
         // Inject the changelog GraphQL surface (EntityChangeLog / TransportCheckpoint
         // types + cursor query + point lookup + upsert mutation) when opted in.
         fraiseql_core::schema::inject_changelog(&mut compiled);
+
+        // Auto-synthesize a shared MutationError type + per-mutation result unions
+        // when opted in (`[fraiseql.mutations] auto_error_union`), so the runtime's
+        // success/error discrimination has a union to resolve against.
+        if options.auto_error_union {
+            mutation_error_union::synthesize_mutation_error_unions(&mut compiled);
+        }
 
         // Validate the compiled schema
         Self::validate(&compiled)?;

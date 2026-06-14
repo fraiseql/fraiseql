@@ -13,8 +13,8 @@ use tracing::{info, warn};
 use crate::{
     config::TomlProjectConfig,
     schema::{
-        IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator,
-        database_validator::validate_schema_against_database,
+        ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer,
+        SchemaValidator, database_validator::validate_schema_against_database,
     },
 };
 
@@ -174,12 +174,16 @@ pub async fn compile_to_schema(
     // Skip when the input itself is a TomlSchema file: in that case the security
     // settings are embedded in the TomlSchema, and the CWD fraiseql.toml uses a
     // different TOML format (TomlSchema vs TomlProjectConfig) that is not compatible.
+    // Opt-in mutation-error-union synthesis, read from [fraiseql.mutations] below.
+    let mut auto_error_union = false;
     if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
         match TomlProjectConfig::from_file("fraiseql.toml") {
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate()?;
+
+                auto_error_union = config.fraiseql.mutations.auto_error_union;
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
@@ -251,8 +255,9 @@ pub async fn compile_to_schema(
 
     // 4. Convert to CompiledSchema (validates and normalizes)
     info!("Converting to compiled format...");
-    let mut schema = SchemaConverter::convert(intermediate)
-        .context("Failed to convert schema to compiled format")?;
+    let mut schema =
+        SchemaConverter::convert_with_options(intermediate, &ConvertOptions { auto_error_union })
+            .context("Failed to convert schema to compiled format")?;
 
     // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");

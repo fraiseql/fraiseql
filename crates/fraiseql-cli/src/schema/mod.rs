@@ -17,7 +17,7 @@ pub mod rich_filters;
 pub mod sql_templates;
 pub mod validator;
 
-pub use converter::SchemaConverter;
+pub use converter::{ConvertOptions, SchemaConverter};
 pub use intermediate::{IntermediateScalar, IntermediateSchema};
 pub use merger::SchemaMerger;
 pub use multi_file_loader::MultiFileLoader;

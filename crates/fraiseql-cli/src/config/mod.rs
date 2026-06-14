@@ -76,6 +76,9 @@ pub struct FraiseQLSettings {
     /// Tenancy isolation configuration
     #[serde(default)]
     pub tenancy:     security::TenancyTomlConfig,
+    /// Mutation compilation options (`[fraiseql.mutations]`)
+    #[serde(default)]
+    pub mutations:   MutationsConfig,
 }
 
 impl Default for FraiseQLSettings {
@@ -85,8 +88,21 @@ impl Default for FraiseQLSettings {
             output_file: "schema.compiled.json".to_string(),
             security:    SecurityConfig::default(),
             tenancy:     security::TenancyTomlConfig::default(),
+            mutations:   MutationsConfig::default(),
         }
     }
+}
+
+/// Mutation compilation options from `[fraiseql.mutations]`.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MutationsConfig {
+    /// Opt-in: auto-synthesize a shared `MutationError` type and a per-mutation
+    /// result union (`<Mutation>Result = Entity | MutationError`) for every
+    /// object-returning mutation, rewriting its return type to that union so the
+    /// server's success/error discrimination has a union to resolve against.
+    /// Off by default; mutations that already return a union are left untouched.
+    pub auto_error_union: bool,
 }
 
 impl TomlProjectConfig {
