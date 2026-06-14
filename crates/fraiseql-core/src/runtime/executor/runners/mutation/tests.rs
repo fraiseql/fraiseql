@@ -938,6 +938,80 @@ mod mutation {
         assert_eq!(payload["id"], "abc");
     }
 
+    /// #400 / acronym registry — Update-path recasing must honour digit-boundary
+    /// and acronym field names: `dns1Id` → `dns_1_id`, `s3Key` → `s3_key`,
+    /// `ipv4Cidr` → `ipv4_cidr`, `oauth2Token` → `oauth2_token`. The mechanism is
+    /// forward-matching (`to_camel_case(canonical) == surface_key`), which is
+    /// acronym-safe by construction — this pins it as a regression guard so the
+    /// write path stays consistent with the acronym-aware read path.
+    #[tokio::test]
+    async fn update_payload_keys_recased_for_acronym_and_digit_names() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "UpdateResourceInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("dns_1_id", "String"),
+                InputFieldDefinition::new("s3_key", "String"),
+                InputFieldDefinition::new("ipv4_cidr", "String"),
+                InputFieldDefinition::new("oauth2_token", "String"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "update_resource".to_string(),
+            return_type: "Resource".to_string(),
+            sql_source: Some("update_resource".to_string()),
+            operation: MutationOperation::Update {
+                table: "update_resource".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("UpdateResourceInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("update_resource", "Resource")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": {
+                "id": "abc",
+                "dns1Id": "d-1",
+                "s3Key": "k-2",
+                "ipv4Cidr": "10.0.0.0/8",
+                "oauth2Token": "t-3"
+            }
+        });
+        executor.execute_mutation("update_resource", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        let payload = &captured[0];
+        assert_eq!(payload["dns_1_id"], "d-1", "digit-boundary key must recase; got {payload:?}");
+        assert_eq!(payload["s3_key"], "k-2", "acronym key must recase; got {payload:?}");
+        assert_eq!(payload["ipv4_cidr"], "10.0.0.0/8", "acronym key must recase; got {payload:?}");
+        assert_eq!(payload["oauth2_token"], "t-3", "acronym key must recase; got {payload:?}");
+        // No surface-cased key may survive.
+        for stale in ["dns1Id", "s3Key", "ipv4Cidr", "oauth2Token"] {
+            assert!(
+                payload.get(stale).is_none(),
+                "verbatim '{stale}' must not survive: {payload:?}"
+            );
+        }
+    }
+
     /// Insert mutations must still flatten Input type fields to positional args
     /// (no three-state problem: absent ≡ NULL is correct for creates).
     #[tokio::test]
@@ -957,6 +1031,90 @@ mod mutation {
         assert_eq!(captured.len(), 2, "insert mutation must flatten to two positional args");
         assert_eq!(captured[0], "Bob");
         assert_eq!(captured[1], "bob@example.com");
+    }
+
+    /// #400 — On the Insert/Custom flatten path, a field whose type is a nested
+    /// input object is passed as one positional JSONB arg. Its *keys* must be
+    /// recased to canonical names too (recursing into nested objects/lists), or a
+    /// `jsonb_populate_record(NULL::config, $arg)` in the SQL function sees
+    /// camelCase keys it cannot read — the same #400 no-op the Update path fixes.
+    #[tokio::test]
+    async fn insert_recases_nested_composite_input_keys() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "ServerConfigInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("s3_bucket", "String"),
+                InputFieldDefinition::new("max_connections", "Int"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateServerInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("name", "String!"),
+                InputFieldDefinition::new("config", "ServerConfigInput"),
+                InputFieldDefinition::new("tags", "[ServerConfigInput!]"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "create_server".to_string(),
+            return_type: "Server".to_string(),
+            sql_source: Some("create_server".to_string()),
+            operation: MutationOperation::Insert {
+                table: "create_server".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateServerInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_server", "Server")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": {
+                "name": "web-1",
+                "config": { "s3Bucket": "assets", "maxConnections": 10 },
+                "tags": [{ "s3Bucket": "logs", "maxConnections": 2 }]
+            }
+        });
+        executor.execute_mutation("create_server", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        // Positional: [name, config, tags].
+        assert_eq!(captured.len(), 3, "insert flattens top-level fields positionally");
+        assert_eq!(captured[0], "web-1");
+        // Nested composite object keys must be recased.
+        assert_eq!(
+            captured[1]["s3_bucket"], "assets",
+            "nested composite key must recase on the insert path; got {:?}",
+            captured[1]
+        );
+        assert_eq!(captured[1]["max_connections"], 10);
+        assert!(captured[1].get("s3Bucket").is_none(), "verbatim nested key must not survive");
+        // Lists of nested composites must recase each element.
+        assert_eq!(
+            captured[2][0]["s3_bucket"], "logs",
+            "nested composite key in a list must recase; got {:?}",
+            captured[2]
+        );
+        assert_eq!(captured[2][0]["max_connections"], 2);
     }
 
     // ── #414: required input-field enforcement on the flatten path ─────────

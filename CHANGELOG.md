@@ -105,6 +105,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stay whole via the built-in acronym registry — extend it for your own `<word><digit>` keys
   with `[fraiseql.naming] acronyms` (see Added). An unregistered `<word><digit>` name still
   splits, so author the underscore form or add the acronym/an alias.
+- **Mutation input recasing now covers nested composites on the Insert/Custom path (#400).**
+  Under `naming_convention = "camelCase"`, the Update path already recased a mutation's whole
+  `input` payload to the schema's canonical (`snake_case`) field names before it reached the
+  SQL function; the Insert/Custom path recased only its top-level keys (which map to columns
+  positionally), passing a *nested* composite input field as one JSONB arg with its keys
+  verbatim — so a `jsonb_populate_record(NULL::config, $arg)` saw camelCase keys it could not
+  read, silently writing NULLs (`affected_count = 0`). Both paths now share one
+  `recase_input_field_value` helper that recurses into nested input objects and lists of them,
+  so a create with `config: { s3Bucket, maxConnections }` reaches the function as
+  `{ s3_bucket, max_connections }`. Recasing is driven by the input type's per-field map (not a
+  lossy `camel→snake` regex), so it honours the acronym registry in both directions
+  (`dns1Id` → `dns_1_id`, `s3Key` → `s3_key`) and leaves scalar values, enum values, and
+  free-form JSON untouched; a `Preserve`-convention schema is unaffected. This completes the
+  server-side `naming_convention` input work (#216/#400): a backend reading `snake_case`
+  composite columns no longer needs a `jsonb_camel_to_snake(input)` SQL shim, for reads or writes.
 - **Injected params now filter on a real column when the view has one (native-column inference
   gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
   explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to

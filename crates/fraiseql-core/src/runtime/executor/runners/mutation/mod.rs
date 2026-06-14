@@ -160,25 +160,45 @@ fn recase_input_payload(
                 // then map back to the exact canonical name.
                 let field = input_type.fields.iter().find(|f| schema.display_name(&f.name) == key);
                 let canonical = field.map_or(key, |f| f.name.clone());
-                let recased = match field
-                    .and_then(|f| nested_input_type_name(&f.field_type, schema))
-                {
-                    Some(nested) => match val {
-                        serde_json::Value::Object(_) => recase_input_payload(val, &nested, schema),
-                        serde_json::Value::Array(items) => serde_json::Value::Array(
-                            items
-                                .into_iter()
-                                .map(|it| recase_input_payload(it, &nested, schema))
-                                .collect(),
-                        ),
-                        other => other,
-                    },
+                let recased = match field {
+                    Some(f) => recase_input_field_value(val, &f.field_type, schema),
                     None => val,
                 };
                 out.insert(canonical, recased);
             }
             serde_json::Value::Object(out)
         },
+        other => other,
+    }
+}
+
+/// Recase one input field's *value*: when `field_type` names a nested input
+/// object (or a list of them), recurse into the object's keys; scalars, enums,
+/// free-form JSON, and lists of scalars are returned untouched.
+///
+/// Shared by the Update path (the whole payload is one JSONB arg) and the Insert
+/// path (each composite field is one positional JSONB arg), so both recase nested
+/// composite keys identically — without it, a `jsonb_populate_record(NULL::config,
+/// $arg)` on the Insert path sees the surface-cased keys it cannot read (#400).
+fn recase_input_field_value(
+    value: serde_json::Value,
+    field_type: &str,
+    schema: &CompiledSchema,
+) -> serde_json::Value {
+    let Some(nested) = nested_input_type_name(field_type, schema) else {
+        return value;
+    };
+    match value {
+        serde_json::Value::Object(_) => recase_input_payload(value, &nested, schema),
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(|it| match it {
+                    serde_json::Value::Object(_) => recase_input_payload(it, &nested, schema),
+                    other => other,
+                })
+                .collect(),
+        ),
         other => other,
     }
 }
@@ -371,7 +391,11 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 if field.is_required() && value.is_none_or(serde_json::Value::is_null) {
                     missing_input_fields.push(field.name.as_str());
                 }
-                args.push(value.cloned().unwrap_or(serde_json::Value::Null));
+                // Top-level keys map to columns positionally (casing implicit), but a
+                // field whose type is a nested input object is passed as one JSONB arg
+                // — recase its keys so the SQL function can read them (#400).
+                let raw = value.cloned().unwrap_or(serde_json::Value::Null);
+                args.push(recase_input_field_value(raw, &field.field_type, &ctx.schema));
             }
             if !missing_input_fields.is_empty() {
                 return Err(FraiseQLError::Validation {
