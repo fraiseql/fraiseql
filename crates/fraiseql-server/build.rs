@@ -40,17 +40,27 @@ fn main() {
         return;
     }
 
-    // Run `npm install` if node_modules is absent in the staging dir.
+    // Install dependencies if node_modules is absent in the staging dir. We use
+    // `npm ci` (not `npm install`): it installs strictly from the committed
+    // package-lock.json and FAILS if the lock is missing or out of sync with
+    // package.json, so a build can never silently caret-resolve fresh versions
+    // off the live registry (M-npm-ci). `--ignore-scripts` drops the lifecycle-
+    // script surface; esbuild 0.25 ships its platform binary as an optional
+    // dependency (not a postinstall), so the asset build is unaffected.
     let node_modules = build_dir.join("node_modules");
     if !node_modules.exists() {
         let status = Command::new("npm")
-            .args(["install", "--prefer-offline", "--no-audit", "--no-fund"])
+            .args(["ci", "--ignore-scripts", "--prefer-offline", "--no-audit", "--no-fund"])
             .current_dir(&build_dir)
             .status();
 
         match status {
             Ok(s) if s.success() => {},
-            Ok(s) => panic!("npm install failed with status {s}"),
+            Ok(s) => panic!(
+                "npm ci failed with status {s} — the Studio SPA build requires a \
+                 package-lock.json in sync with package.json (crates/fraiseql-server/studio). \
+                 Run `npm install` there to refresh the lockfile."
+            ),
             Err(e) => {
                 // Node not available — skip studio build.
                 eprintln!("cargo:warning=npm not found ({e}), skipping Studio SPA build");
