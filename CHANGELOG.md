@@ -72,6 +72,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SDK publishing is no longer silently frozen (H30, release integrity).** `tools/release.sh`
+  bumped the Rust manifests but never the SDK manifests, so the Python `pyproject.toml`/
+  `__init__.py` and the npm `package.json`/`package-lock.json` stayed pinned at `2.1.6`
+  (the TypeScript `version` constant had drifted further, to `2.0.0-alpha.1` — L-ts-version).
+  Each `v*` release then built that stale version; `twine upload --skip-existing` and the
+  npm "already published, skipping" branch no-oped, and the validation step installed the
+  *old* version — so v2.3.0–v2.6.0 SDK publishes reported success while shipping nothing.
+  `release.sh` now bumps all SDK manifests in lockstep with the crates, and the
+  `publish-python`/`publish-typescript` jobs gained a fail-loud gate
+  (`assert_sdk_version_matches`) that refuses to publish when the manifest version does not
+  match the release tag; the validation steps now assert the *new* tag version specifically.
+  New unit coverage in `make test-release-tooling` exercises the bump and the gate.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text

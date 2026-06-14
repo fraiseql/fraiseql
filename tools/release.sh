@@ -88,6 +88,19 @@ while IFS= read -r crate_toml; do
     ' "$crate_toml" > "${crate_toml}.tmp" && mv "${crate_toml}.tmp" "$crate_toml"
 done < <(find crates sdks/official/fraiseql-rust -name "Cargo.toml" -not -path "*/target/*")
 
+# Bump the Python and TypeScript SDK manifests in lockstep with the crates.
+# Without this the manifests stay frozen, the publish jobs build the stale
+# version, and twine --skip-existing / npm "already published" silently no-op
+# every release — the audit found v2.3.0–v2.6.0 SDKs never actually shipped (H30).
+bump_python_sdk_version "$VERSION" \
+    sdks/official/fraiseql-python/pyproject.toml \
+    sdks/official/fraiseql-python/src/fraiseql/__init__.py
+bump_ts_sdk_version "$VERSION" \
+    sdks/official/fraiseql-typescript/package.json \
+    sdks/official/fraiseql-typescript/package-lock.json \
+    sdks/official/fraiseql-typescript/src/index.ts
+echo "      Bumped Python + TypeScript SDK manifests."
+
 echo "      Done."
 
 # ── Step 2: Update CHANGELOG.md ───────────────────────────────────────────────
@@ -143,6 +156,11 @@ RELEASE_FILES=(
     crates/*/fuzz/Cargo.toml
     sdks/official/fraiseql-rust/Cargo.toml
     sdks/official/fraiseql-rust/*/Cargo.toml
+    sdks/official/fraiseql-python/pyproject.toml
+    sdks/official/fraiseql-python/src/fraiseql/__init__.py
+    sdks/official/fraiseql-typescript/package.json
+    sdks/official/fraiseql-typescript/package-lock.json
+    sdks/official/fraiseql-typescript/src/index.ts
     "$CHANGELOG"
     "$README"
 )

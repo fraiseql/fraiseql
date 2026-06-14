@@ -133,6 +133,89 @@ YANKED_BODY='{"name":"fraiseql","vers":"2.5.0","yanked":true}'
 if index_body_has_version "$YANKED_BODY" "2.5.0"; then r=yes; else r=no; fi
 check "index_has_version: yanked record still present -> yes" "$r" "yes"
 
+# ── assert_sdk_version_matches (H30 honesty gate) ──────────────────────────────
+
+set +e
+assert_sdk_version_matches "2.8.0" "2.8.0" "Python SDK" >/dev/null 2>&1
+rc=$?
+set -e
+check "sdk-version-match: equal versions pass (rc 0)" "$rc" "0"
+
+# The exact frozen state: the manifest stuck at 2.1.6 while a v2.8.0 tag is cut.
+# This is the gate that was missing for four releases (H30).
+set +e
+assert_sdk_version_matches "2.1.6" "2.8.0" "Python SDK" >/dev/null 2>&1
+rc=$?
+set -e
+check "sdk-version-match: frozen manifest fails the publish (rc 1)" "$rc" "1"
+
+# ── bump_python_sdk_version ────────────────────────────────────────────────────
+
+cat > "$WORK/pyproject.toml" <<'EOF'
+[project]
+name = "fraiseql"
+version = "2.1.6"
+dependencies = ["httpx>=0.27"]
+
+[tool.uv]
+dev-dependencies = ["pytest>=8.0"]
+EOF
+cat > "$WORK/__init__.py" <<'EOF'
+"""FraiseQL."""
+__version__ = "2.1.6"
+EOF
+
+bump_python_sdk_version 2.8.0 "$WORK/pyproject.toml" "$WORK/__init__.py"
+check "bump-py: pyproject [project] version → 2.8.0" \
+    "$(grep -c '^version = "2.8.0"' "$WORK/pyproject.toml")" "1"
+check "bump-py: __version__ → 2.8.0" \
+    "$(grep -c '^__version__ = "2.8.0"' "$WORK/__init__.py")" "1"
+check "bump-py: dependency pins untouched" \
+    "$(grep -c 'httpx>=0.27' "$WORK/pyproject.toml")" "1"
+
+# ── bump_ts_sdk_version ─────────────────────────────────────────────────────────
+
+cat > "$WORK/package.json" <<'EOF'
+{
+  "name": "fraiseql",
+  "version": "2.1.6",
+  "dependencies": {
+    "zod": "^3.22.0"
+  }
+}
+EOF
+cat > "$WORK/package-lock.json" <<'EOF'
+{
+  "name": "fraiseql",
+  "version": "2.1.6",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fraiseql",
+      "version": "2.1.6",
+      "license": "MIT"
+    },
+    "node_modules/zod": {
+      "version": "3.22.0"
+    }
+  }
+}
+EOF
+cat > "$WORK/index.ts" <<'EOF'
+export const version = "2.0.0-alpha.1";
+EOF
+
+bump_ts_sdk_version 2.8.0 "$WORK/package.json" "$WORK/package-lock.json" "$WORK/index.ts"
+check "bump-ts: package.json version → 2.8.0" \
+    "$(grep -c '"version": "2.8.0"' "$WORK/package.json")" "1"
+check "bump-ts: lockfile bumps both package-own versions" \
+    "$(grep -c '"version": "2.8.0"' "$WORK/package-lock.json")" "2"
+check "bump-ts: lockfile dependency version (zod 3.22.0) untouched" \
+    "$(grep -c '"version": "3.22.0"' "$WORK/package-lock.json")" "1"
+check "bump-ts: index.ts version constant → 2.8.0 (L-ts-version)" \
+    "$(grep -c '^export const version = "2.8.0"' "$WORK/index.ts")" "1"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

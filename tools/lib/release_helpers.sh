@@ -106,3 +106,61 @@ index_body_has_version() {
     local body="$1" version="$2"
     printf '%s' "$body" | grep -qF "\"vers\":\"$version\""
 }
+
+# Bump the version in a Python SDK: the [project].version in pyproject.toml and
+# the __version__ constant in the package __init__.py. Both edits are anchored to
+# line-start so only the package's own version is rewritten — dependency pins
+# (`httpx>=0.27`, etc.) live elsewhere and are never line-anchored this way.
+#
+# Without this bump tools/release.sh leaves the SDK manifests frozen; the publish
+# job then builds the stale version and twine --skip-existing silently no-ops it
+# (audit H30 — v2.3.0–v2.6.0 Python SDK publishes never actually shipped).
+#
+# Usage: bump_python_sdk_version <version> <pyproject.toml> <__init__.py>
+bump_python_sdk_version() {
+    local version="$1" pyproject="$2" init_py="$3"
+    sed -i -E "s/^version = \"[0-9][^\"]*\"/version = \"${version}\"/" "$pyproject"
+    sed -i -E "s/^__version__ = \"[0-9][^\"]*\"/__version__ = \"${version}\"/" "$init_py"
+}
+
+# Bump the version in the TypeScript SDK: package.json, the two package-own
+# "version" fields in package-lock.json (root + packages[""], both within the
+# first dozen lines), and the exported `version` constant in src/index.ts.
+#
+# The lockfile edit is confined to lines 1-12 so the package's own versions are
+# rewritten while every dependency version deeper in the file is left intact.
+# Bumping the index.ts constant also fixes the stale "2.0.0-alpha.1" it had
+# drifted to (audit L-ts-version).
+#
+# Usage: bump_ts_sdk_version <version> <package.json> <package-lock.json> <index.ts>
+bump_ts_sdk_version() {
+    local version="$1" pkg="$2" lock="$3" index_ts="$4"
+    # package.json: the top-level "version" is the first such key in the file.
+    sed -i -E "0,/\"version\": \"[0-9][^\"]*\"/s//\"version\": \"${version}\"/" "$pkg"
+    # package-lock.json: only the package's own version fields live in lines 1-12.
+    sed -i -E "1,12 s/\"version\": \"[0-9][^\"]*\"/\"version\": \"${version}\"/" "$lock"
+    # index.ts exported constant (fixes L-ts-version).
+    sed -i -E "s/^export const version = \"[^\"]*\"/export const version = \"${version}\"/" "$index_ts"
+}
+
+# Honesty gate for the SDK publish jobs: refuse to publish when the SDK manifest
+# version does not match the release version being published. This is the exact
+# frozen state — the manifest stuck at 2.1.6 while v2.3.0–v2.6.0 tags were cut —
+# that silently no-oped four SDK releases behind green checkmarks (audit H30).
+# Prints a diagnostic and returns 1 on mismatch; returns 0 (with a confirmation)
+# when they match.
+#
+# Usage: assert_sdk_version_matches <manifest_version> <release_version> [label]
+assert_sdk_version_matches() {
+    local manifest="$1" release="$2" label="${3:-SDK}"
+    if [[ "$manifest" != "$release" ]]; then
+        echo "ERROR: ${label} manifest version '${manifest}' does not match release version '${release}'." >&2
+        echo "       The release tag is v${release} but the ${label} manifest was never bumped to it." >&2
+        echo "       Refusing to publish — this is the frozen-SDK state that silently no-oped" >&2
+        echo "       v2.3.0–v2.6.0 SDK publishes behind green checkmarks (audit H30)." >&2
+        echo "       Re-cut the release with 'make release VERSION=${release}' so tools/release.sh" >&2
+        echo "       bumps the SDK manifests in lockstep with the crates." >&2
+        return 1
+    fi
+    echo "OK: ${label} manifest is at the release version ${release}."
+}
