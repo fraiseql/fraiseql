@@ -64,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable casing acronyms (`[fraiseql.naming] acronyms`).** Identifiers shaped as a
+  lowercase word plus a digit (`s3`, `ipv4`, `oauth2`) are ambiguous to reverse — `phone1`
+  (from `phone_1`) and `s3` are structurally identical — so they now keep their digit attached
+  via an acronym registry. A built-in default set covers the common cases (`s3`, `ec2`, `ipv4`,
+  `ipv6`, `oauth2`, `sha256`, `md5`, `base64`, …); add your own `<word><digit>` keys with, e.g.,
+  `[fraiseql.naming]\nacronyms = ["widget3", "iso9001"]`. Registering an acronym declares its
+  JSONB key is the atomic form (`s3`, not `s_3`) — author the field accordingly. The list flows
+  from `fraiseql.toml` through the compiler into the compiled schema and is installed at server
+  boot; only the reverse (`to_snake_case`) consults it, so the GraphQL surface is unchanged.
 - **Opt-in auto-synthesis of mutation result unions (`[fraiseql.mutations] auto_error_union`).**
   When enabled, the compiler synthesizes a shared `MutationError` type and a per-mutation
   `<Mutation>Result` union (`= Entity | MutationError`) for every object-returning mutation,
@@ -92,10 +101,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reverse `to_snake_case` reinserts it (`phone1` → `phone_1`), so a field surfaced as `phone1`
   reads `data->>'phone_1'`. **Behavior change:** the GraphQL surface name of digit-suffixed
   fields changes from `phone_1` to `phone1`; clients querying the old `phone_1` name must switch
-  to `phone1` (or add an explicit GraphQL alias). **Caveat (matches v1):** a digit is treated as
-  its own word, so identifiers like `oauth2`, `ipv4`, `s3` map to `oauth_2`/`ipv_4`/`s_3`; a field
-  whose JSONB key is a literal no-underscore digit (`ipv4`) should author the key as `ipv_4` or
-  use an alias.
+  to `phone1` (or add an explicit GraphQL alias). Common acronyms (`s3`, `ipv4`, `oauth2`, …)
+  stay whole via the built-in acronym registry — extend it for your own `<word><digit>` keys
+  with `[fraiseql.naming] acronyms` (see Added). An unregistered `<word><digit>` name still
+  splits, so author the underscore form or add the acronym/an alias.
 - **Injected params now filter on a real column when the view has one (native-column inference
   gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
   explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to

@@ -1,7 +1,9 @@
 //! Shared utility functions for the `fraiseql-db` crate.
 
-use std::collections::HashSet;
-use std::sync::{LazyLock, OnceLock};
+use std::{
+    collections::HashSet,
+    sync::{LazyLock, OnceLock},
+};
 
 /// Built-in acronyms whose internal digit boundary is **not** split by
 /// [`to_snake_case`], so they round-trip atomically (`s3` ↔ `s3`, not `s_3`).

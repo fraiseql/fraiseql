@@ -186,7 +186,7 @@ pub async fn compile_to_schema(
                 config.validate()?;
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
-                naming_acronyms = config.fraiseql.naming.acronyms.clone();
+                naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
