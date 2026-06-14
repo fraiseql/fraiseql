@@ -83,6 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Injected params now filter on a real column when the view has one (native-column inference
+  gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
+  explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to
+  `native_columns`. The runtime then rendered `WHERE data->>'tenant_id' = $1` even when the backing
+  view had a real `tenant_id` column — returning 0 rows for inject-scoped list queries whose views
+  keep `tenant_id` as a column (not inside `data`). Native-column inference now consults inject-param
+  names against the introspected columns too; a match renders `WHERE tenant_id = $1::uuid`.
+  Explicit-arg behaviour (including the `NativeColumnFallback` warning) is unchanged, and inject-param
+  misses stay silent (a claim may legitimately live in the `data` JSONB). Requires recompiling with
+  `--database` so the inference can see the view's columns.
 - **SDK publishing is no longer silently frozen (H30, release integrity).** `tools/release.sh`
   bumped the Rust manifests but never the SDK manifests, so the Python `pyproject.toml`/
   `__init__.py` and the npm `package.json`/`package-lock.json` stayed pinned at `2.1.6`

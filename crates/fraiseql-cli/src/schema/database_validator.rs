@@ -343,7 +343,10 @@ pub async fn validate_schema_against_database(
                 }
             }
 
-            // L2: Detect native columns for direct (non-auto-param) arguments.
+            // L2: Detect native columns for direct (non-auto-param) arguments AND
+            // inject params. Both are filtered against the view at runtime, so a name
+            // that matches a real column must use the native-column path
+            // (`WHERE col = $N`) rather than the JSONB fallback (`data->>'name'`).
             let direct_args: Vec<&str> = query
                 .arguments
                 .iter()
@@ -351,22 +354,20 @@ pub async fn validate_schema_against_database(
                 .map(|a| a.name.as_str())
                 .collect();
 
-            if !direct_args.is_empty() {
-                let mut query_native: HashMap<String, String> = HashMap::new();
-                for arg_name in &direct_args {
-                    if let Some(col_type) = column_map.get(*arg_name) {
-                        query_native.insert((*arg_name).to_string(), col_type.clone());
-                    } else {
-                        warnings.push(DatabaseWarning::NativeColumnFallback {
-                            query_name: query.name.clone(),
-                            sql_source: source.clone(),
-                            arg_name:   (*arg_name).to_string(),
-                        });
-                    }
-                }
-                if !query_native.is_empty() {
-                    native_columns.insert(query.name.clone(), query_native);
-                }
+            let (query_native, arg_fallbacks) = detect_query_native_columns(
+                &direct_args,
+                query.inject_params.keys().map(String::as_str),
+                &column_map,
+            );
+            for arg_name in arg_fallbacks {
+                warnings.push(DatabaseWarning::NativeColumnFallback {
+                    query_name: query.name.clone(),
+                    sql_source: source.clone(),
+                    arg_name,
+                });
+            }
+            if !query_native.is_empty() {
+                native_columns.insert(query.name.clone(), query_native);
             }
 
             // L1: Check additional_views
@@ -679,3 +680,44 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
         anyhow::bail!("Unrecognized database URL scheme: {db_url}")
     }
 }
+
+/// Build a query's native-column map from its explicit (non-auto-param) arguments
+/// and its inject-param names, consulting the introspected `column_map`.
+///
+/// A name that matches a real view column is rendered as a native-column predicate
+/// (`WHERE col = $N`) at runtime; a name with no matching column falls back to the
+/// JSONB path (`data->>'name'`). inject params were previously omitted here, so an
+/// inject-scoped list query against a view that keeps e.g. `tenant_id` as a real
+/// column (and not inside `data`) rendered `data->>'tenant_id'` and matched no rows.
+///
+/// Returns the native-column map plus the explicit-arg names that did NOT resolve to
+/// a column — the caller emits a `NativeColumnFallback` warning for each. Inject-param
+/// misses are intentionally silent: a claim may legitimately live in the `data` JSONB.
+fn detect_query_native_columns<'a>(
+    direct_arg_names: &[&str],
+    inject_param_names: impl Iterator<Item = &'a str>,
+    column_map: &HashMap<String, String>,
+) -> (HashMap<String, String>, Vec<String>) {
+    let mut native: HashMap<String, String> = HashMap::new();
+    let mut arg_fallbacks: Vec<String> = Vec::new();
+
+    for arg in direct_arg_names {
+        if let Some(col_type) = column_map.get(*arg) {
+            native.insert((*arg).to_string(), col_type.clone());
+        } else {
+            arg_fallbacks.push((*arg).to_string());
+        }
+    }
+
+    for name in inject_param_names {
+        if let Some(col_type) = column_map.get(name) {
+            native.insert(name.to_string(), col_type.clone());
+        }
+    }
+
+    (native, arg_fallbacks)
+}
+
+#[cfg(test)]
+#[path = "database_validator_tests.rs"]
+mod database_validator_tests;
