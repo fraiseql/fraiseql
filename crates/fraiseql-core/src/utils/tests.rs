@@ -60,8 +60,15 @@ mod casing_tests {
 
     #[test]
     fn test_numbers() {
-        assert_eq!(to_snake_case("user2FA"), "user2fa"); // Numbers don't trigger underscore
-        assert_eq!(to_snake_case("level99Boss"), "level99boss");
+        // A digit is its own word: a digit after a letter and an uppercase word
+        // after a digit both get a boundary, mirroring FraiseQL v1's `camel_to_snake`
+        // and inverting `to_camel_case` (which collapses `phone_1` → `phone1`).
+        assert_eq!(to_snake_case("phone1"), "phone_1");
+        assert_eq!(to_snake_case("dns1Id"), "dns_1_id");
+        // Caveat (documented): acronym-with-digit identifiers split, so `2FA` /
+        // `99Boss` separate the digit. Author the underscore form or use an alias.
+        assert_eq!(to_snake_case("user2FA"), "user_2_fa");
+        assert_eq!(to_snake_case("level99Boss"), "level_99_boss");
     }
 
     #[test]
