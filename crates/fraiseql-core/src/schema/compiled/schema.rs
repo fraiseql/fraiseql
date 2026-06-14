@@ -232,8 +232,9 @@ pub struct CompiledSchema {
     /// Acronyms whose internal digit stays attached when resolving a GraphQL field
     /// name back to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`). Added
     /// to the built-in defaults at boot via `fraiseql_db::utils::set_runtime_acronyms`.
-    /// Empty by default, so schemas compiled before this field deserialize unchanged.
-    #[serde(default)]
+    /// Skipped when empty so a schema with no project acronyms serializes byte-for-byte
+    /// as before this field existed (no schema-hash churn; back-compat on load).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub naming_acronyms: Vec<String>,
 
     /// Schema format version emitted by the compiler.
