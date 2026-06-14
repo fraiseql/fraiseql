@@ -83,7 +83,7 @@ jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 # pin was unreferenced and conflicted with the exporter's 0.24 (audit H45).
 metrics-exporter-prometheus = {version = "0.18", optional = true}
 # OpenTelemetry (optional) — versions must match tracing-opentelemetry 0.32
-opentelemetry = {version = "0.31", optional = true}
+opentelemetry = {version = "0.32", optional = true}
 opentelemetry-otlp = {version = "0.31", features = ["http-proto"], optional = true}
 opentelemetry_sdk = {version = "0.31", features = ["rt-tokio"], optional = true}
 parking_lot = {workspace = true}
