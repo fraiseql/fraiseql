@@ -68,7 +68,6 @@ hostname = {version = "0.4", optional = true}
 indexmap = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
-linked-hash-map = {workspace = true}
 lru = {workspace = true}
 moka = {workspace = true}
 parking_lot = {workspace = true}

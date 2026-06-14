@@ -1,6 +1,6 @@
 # Trivy Vulnerability Exceptions for International Compliance
-# Last Updated: 2026-05-16
-# Review Schedule: Monthly
+# Last Updated: 2026-06-14
+# Review cadence: ON DEMAND / dispatch-only (NOT an automatic monthly scan — see below)
 # Approval: Security Team
 # Compliance: US (NIST/FedRAMP), EU (NIS2/GDPR), UK (NCSC), ISO 27001, SOC 2
 
@@ -17,11 +17,17 @@
 # - 🇬🇧 UK: NCSC CAF, Cyber Essentials Plus, UK GDPR
 # - 🌍 International: ISO 27001:2022, SOC 2, CSA CCM v4
 #
-# Approval Process:
-# 1. Security team reviews monthly (aligned with NIS2 Article 21)
-# 2. Exceptions removed when patches available (7-day SLA for HIGH/CRITICAL)
-# 3. All exceptions require written justification (FedRAMP/NIS2 compliance)
-# 4. Annual re-certification required (ISO 27001, SOC 2)
+# Review process (HONEST cadence — read before trusting "Last Updated" above):
+# Trivy image scans are dispatch-only since the 2026-06-01 CI cost cut: the
+# container-security / security-alerts workflows run on manual workflow_dispatch
+# (and around release cuts / ghcr image-mirror runs), NOT on a recurring monthly
+# timer. The "monthly review" and "7-day HIGH/CRITICAL SLA" this file used to
+# claim described an automatic cadence that no longer runs — do not rely on it.
+# 1. Exceptions are reviewed on demand when a scan is dispatched or a release is cut.
+# 2. Exceptions are removed when an upstream patch is available and adopted.
+# 3. All exceptions require written justification (FedRAMP/NIS2 compliance).
+# 4. To restore a recurring scan, add a `schedule:` trigger to container-security.yml
+#    (aligned with the image-mirror cadence) and refresh this header.
 #
 # EU NIS2 References:
 # - Article 21: Cybersecurity risk management measures
