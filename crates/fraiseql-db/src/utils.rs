@@ -1,5 +1,63 @@
 //! Shared utility functions for the `fraiseql-db` crate.
 
+use std::collections::HashSet;
+use std::sync::{LazyLock, OnceLock};
+
+/// Built-in acronyms whose internal digit boundary is **not** split by
+/// [`to_snake_case`], so they round-trip atomically (`s3` ↔ `s3`, not `s_3`).
+/// Lowercased; only `<word><digit>` shapes are relevant. Extend per project via
+/// the `[fraiseql.naming] acronyms` config — see [`set_runtime_acronyms`].
+static DEFAULT_ACRONYMS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    [
+        "s3", "ec2", "ipv4", "ipv6", "oauth1", "oauth2", "sha1", "sha256", "sha512", "md5",
+        "base64", "utf8", "p256", "p384",
+    ]
+    .into_iter()
+    .collect()
+});
+
+/// The effective acronym set (defaults ∪ project config), installed once at
+/// startup by [`set_runtime_acronyms`]. When unset (tests, library use),
+/// [`to_snake_case`] falls back to the built-in defaults.
+static RUNTIME_ACRONYMS: OnceLock<HashSet<String>> = OnceLock::new();
+
+/// Install the project's acronym additions (from `[fraiseql.naming] acronyms`) on
+/// top of the built-in defaults.
+///
+/// Idempotent — only the first call wins, so the server (at boot) and the CLI (at
+/// compile) each call it once. Terms are trimmed and lowercased; empties ignored.
+pub fn set_runtime_acronyms(extra: &[String]) {
+    let mut set: HashSet<String> = DEFAULT_ACRONYMS.iter().map(|s| (*s).to_string()).collect();
+    for term in extra {
+        let term = term.trim().to_ascii_lowercase();
+        if !term.is_empty() {
+            set.insert(term);
+        }
+    }
+    let _ = RUNTIME_ACRONYMS.set(set);
+}
+
+/// Whether `candidate` (a lowercase `<word><digit>` token) is a registered acronym
+/// in the effective set (runtime config if installed, else the built-in defaults).
+fn is_registered_acronym(candidate: &str) -> bool {
+    match RUNTIME_ACRONYMS.get() {
+        Some(set) => set.contains(candidate),
+        None => DEFAULT_ACRONYMS.contains(candidate),
+    }
+}
+
+/// Does the lowercase word at `word_start` plus the digit run at `digit_start`
+/// form a registered acronym (`s3`, `ipv4`, `oauth2`)? Used to suppress the
+/// letter→digit split so the acronym stays whole.
+fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) -> bool {
+    let mut end = digit_start;
+    while end < chars.len() && chars[end].is_ascii_digit() {
+        end += 1;
+    }
+    let candidate: String = chars[word_start..end].iter().collect::<String>().to_ascii_lowercase();
+    is_registered_acronym(&candidate)
+}
+
 /// Convert a camelCase / `PascalCase` field name to `snake_case` for JSONB key
 /// lookup.
 ///
@@ -15,19 +73,17 @@
 /// `"h_t_t_p_response"` — and idempotent: `to_snake_case("ip_address")` ==
 /// `"ip_address"`.
 ///
-/// # Digit boundaries
+/// # Digit boundaries and acronyms
 ///
-/// A digit segment is a word of its own, mirroring the inverse of `to_camel_case`
-/// (in `fraiseql-core`, which collapses `phone_1` → `phone1`). This function
-/// reconstructs the underscore so the round trip is bijective:
-/// - a digit after a lowercase letter gets a boundary: `"phone1"` → `"phone_1"`;
-/// - an uppercase word after a digit gets one too: `"dns1Id"` → `"dns_1_id"`.
+/// A digit segment is normally a word of its own, inverting `to_camel_case`'s
+/// collapse (`phone_1` → `phone1`): this function reinserts the boundary so the
+/// round trip is bijective — `"phone1"` → `"phone_1"`, `"dns1Id"` → `"dns_1_id"`.
 ///
-/// Consequence (matches FraiseQL v1): identifiers like `oauth2`, `ipv4`, `s3` are
-/// read as a letter word + a digit word, so they reverse to `oauth_2`, `ipv_4`,
-/// `s_3`. A field whose JSONB key is a literal `ipv4` (no underscore) therefore
-/// will not round-trip — author the key as `ipv_4`, or give the field an explicit
-/// GraphQL alias.
+/// Registered acronyms are the exception: a lowercase word plus a digit run that
+/// matches the acronym registry stays whole — `"s3"` → `"s3"`, `"ipv4"` → `"ipv4"`,
+/// `"s3Bucket"` → `"s3_bucket"`. The built-in defaults (`s3`, `ipv4`, `oauth2`, …)
+/// are extended per project via `[fraiseql.naming] acronyms` (see
+/// [`set_runtime_acronyms`]); an unregistered `oauth2`-shaped name still splits.
 ///
 /// # Examples
 ///
@@ -39,17 +95,22 @@
 /// assert_eq!(to_snake_case("HTTPResponse"), "http_response");
 /// assert_eq!(to_snake_case("phone1"), "phone_1");
 /// assert_eq!(to_snake_case("dns1Id"), "dns_1_id");
+/// assert_eq!(to_snake_case("s3"), "s3"); // built-in acronym, stays whole
+/// assert_eq!(to_snake_case("s3Bucket"), "s3_bucket");
 /// assert_eq!(to_snake_case("already_snake"), "already_snake");
 /// assert_eq!(to_snake_case("phone_1"), "phone_1"); // idempotent
 /// ```
 #[must_use]
 pub fn to_snake_case(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
     let mut result = String::with_capacity(name.len() + 5);
     let mut prev_was_upper = false;
     let mut prev_was_lower = false;
     let mut prev_was_digit = false;
+    // Start index (in `chars`) of the current run of consecutive lowercase letters,
+    // used to test a lowercase-word + digit run against the acronym registry.
+    let mut lower_run_start = 0usize;
 
-    let chars: Vec<char> = name.chars().collect();
     for (i, &c) in chars.iter().enumerate() {
         if c.is_uppercase() {
             // Insert a boundary underscore before an uppercase char when leaving a
@@ -67,9 +128,10 @@ pub fn to_snake_case(name: &str) -> String {
             prev_was_lower = false;
             prev_was_digit = false;
         } else if c.is_ascii_digit() {
-            // Insert a boundary underscore before a digit that directly follows a
-            // lowercase letter (letter→digit boundary): "phone1" → "phone_1".
-            if prev_was_lower {
+            // A digit after a lowercase letter normally opens a new word
+            // ("phone1" → "phone_1"). Suppress that split when the lowercase word
+            // plus this digit run is a registered acronym ("s3", "ipv4", "oauth2").
+            if prev_was_lower && !acronym_spans_digit(&chars, lower_run_start, i) {
                 result.push('_');
             }
             result.push(c);
@@ -77,9 +139,16 @@ pub fn to_snake_case(name: &str) -> String {
             prev_was_lower = false;
             prev_was_digit = true;
         } else {
+            if c.is_lowercase() {
+                if !prev_was_lower {
+                    lower_run_start = i;
+                }
+                prev_was_lower = true;
+            } else {
+                prev_was_lower = false;
+            }
             result.push(c);
             prev_was_upper = false;
-            prev_was_lower = c.is_lowercase();
             prev_was_digit = false;
         }
     }
