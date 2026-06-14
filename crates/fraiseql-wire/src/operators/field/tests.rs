@@ -38,7 +38,7 @@ fn test_field_validation() {
 #[test]
 fn test_field_to_sql_jsonb() {
     let field = Field::JsonbField("name".to_string());
-    assert_eq!(field.to_sql(), "(data->'name')");
+    assert_eq!(field.to_sql(), "(data->>'name')");
 }
 
 #[test]

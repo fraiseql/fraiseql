@@ -87,7 +87,13 @@ impl Field {
     #[must_use]
     pub fn to_sql(&self) -> String {
         match self {
-            Field::JsonbField(name) => format!("(data->'{}')", name),
+            // Text extraction (`->>`), matching this field's documented contract
+            // and the `sql_gen` cast strategy, which assumes JSONB fields are
+            // extracted as text before casting (`::numeric`, `::inet`, …). The
+            // previous `->` returned JSONB, so a string comparison saw a quoted
+            // value and the numeric/inet/ltree casts had no valid source type
+            // (audit L-wire-jsonb).
+            Field::JsonbField(name) => format!("(data->>'{}')", name),
             Field::DirectColumn(name) => name.clone(),
             Field::JsonbPath(path) => {
                 if path.is_empty() {
@@ -114,7 +120,7 @@ impl Field {
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Field::JsonbField(name) => write!(f, "data->'{}'", name),
+            Field::JsonbField(name) => write!(f, "data->>'{}'", name),
             Field::DirectColumn(name) => write!(f, "{}", name),
             Field::JsonbPath(path) => {
                 write!(f, "data")?;

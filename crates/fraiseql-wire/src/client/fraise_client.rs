@@ -178,13 +178,14 @@ impl FraiseClient {
                 let port = info.port.ok_or_else(|| {
                     crate::WireError::Config("TCP transport requires a port".into())
                 })?;
-                Transport::connect_tcp(host, port).await?
+                with_connect_timeout(config.connect_timeout, Transport::connect_tcp(host, port))
+                    .await?
             }
             TransportType::Unix => {
                 let path = info.unix_socket.as_ref().ok_or_else(|| {
                     crate::WireError::Config("Unix transport requires a socket path".into())
                 })?;
-                Transport::connect_unix(path).await?
+                with_connect_timeout(config.connect_timeout, Transport::connect_unix(path)).await?
             }
         };
 
@@ -255,7 +256,11 @@ impl FraiseClient {
                 let port = info.port.ok_or_else(|| {
                     crate::WireError::Config("TCP transport requires a port".into())
                 })?;
-                Transport::connect_tcp_tls(host, port, &tls_config).await?
+                with_connect_timeout(
+                    config.connect_timeout,
+                    Transport::connect_tcp_tls(host, port, &tls_config),
+                )
+                .await?
             }
             TransportType::Unix => {
                 return Err(crate::WireError::Config(
@@ -364,3 +369,31 @@ impl FraiseClient {
             .await
     }
 }
+
+/// Apply an optional connect timeout to a transport-connect future.
+///
+/// When `timeout` is `Some`, the future is bounded by [`tokio::time::timeout`] and a
+/// lapse surfaces as [`crate::WireError::Connection`]; when `None` the future runs
+/// to completion unbounded. The `connect_timeout` config field was parsed but never
+/// applied to the connect path (audit L-wire-timeout); the `connect_with_config*`
+/// methods now route their transport setup through this helper.
+pub(crate) async fn with_connect_timeout<F, T>(
+    timeout: Option<std::time::Duration>,
+    fut: F,
+) -> Result<T>
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    match timeout {
+        Some(d) => match tokio::time::timeout(d, fut).await {
+            Ok(result) => result,
+            Err(_) => Err(crate::WireError::Connection(format!(
+                "connection timed out after {d:?}"
+            ))),
+        },
+        None => fut.await,
+    }
+}
+
+#[cfg(test)]
+mod tests;

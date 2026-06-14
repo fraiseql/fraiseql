@@ -72,6 +72,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
+  - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
+    `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text
+    extraction — so a string comparison saw a quoted JSON value and the numeric/inet/ltree
+    casts had no valid source type. It now emits `(data->>'field')`.
+  - **Connection-string credentials are percent-decoded (L-wire-connstr).** The userinfo
+    parser split on the *first* `@` and never decoded `%XX` escapes, so a password containing
+    `@`, `:`, or `%` was mangled. It now splits on the last `@` and percent-decodes the user
+    and password (rejecting malformed `%` escapes).
+  - **`connect_timeout` is now applied (L-wire-timeout).** The config field was parsed but
+    never used; `connect_with_config`/`connect_with_config_and_tls` now bound the
+    transport-connect future with it, surfacing a lapse as `WireError::Connection`.
+  - **Removed a 29 MB `test_import` ELF binary committed to the repo (L-wire-elf).**
 - **Wire `metrics`-facade emissions are now captured by an installed recorder (H45).** The
   workspace carried two incompatible `metrics` facade versions — `fraiseql-wire` emitted via
   `metrics` 0.22 while the server's `metrics-exporter-prometheus` was built against 0.24 — and

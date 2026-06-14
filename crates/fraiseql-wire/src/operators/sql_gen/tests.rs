@@ -12,7 +12,7 @@ fn test_eq_operator_jsonb_string() {
     );
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
     // JSONB string fields get ::text cast for proper text comparison
-    assert_eq!(sql, "(data->'name')::text = $1");
+    assert_eq!(sql, "(data->>'name')::text = $1");
     assert_eq!(param_index, 1);
 }
 
@@ -36,7 +36,7 @@ fn test_len_eq_operator() {
     let mut params = HashMap::new();
     let op = WhereOperator::LenEq(Field::JsonbField("tags".to_string()), 5);
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-    assert_eq!(sql, "array_length((data->'tags'), 1) = 5");
+    assert_eq!(sql, "array_length((data->>'tags'), 1) = 5");
     assert_eq!(param_index, 0); // No parameters for length operators
 }
 
@@ -46,7 +46,7 @@ fn test_is_ipv4_operator() {
     let mut params = HashMap::new();
     let op = WhereOperator::IsIPv4(Field::JsonbField("ip".to_string()));
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-    assert_eq!(sql, "family((data->'ip')::inet) = 4");
+    assert_eq!(sql, "family((data->>'ip')::inet) = 4");
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn test_l2_distance_operator() {
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
     assert_eq!(
         sql,
-        "l2_distance((data->'embedding')::vector, $1::vector) < 0.5"
+        "l2_distance((data->>'embedding')::vector, $1::vector) < 0.5"
     );
     assert_eq!(param_index, 1);
 }
@@ -78,7 +78,7 @@ fn test_in_operator() {
         ],
     );
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-    assert_eq!(sql, "(data->'status') IN ($1, $2)");
+    assert_eq!(sql, "(data->>'status') IN ($1, $2)");
     assert_eq!(param_index, 2);
 }
 

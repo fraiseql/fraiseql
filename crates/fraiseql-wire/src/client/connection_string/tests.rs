@@ -13,6 +13,41 @@ fn test_parse_tcp_full() {
 }
 
 #[test]
+fn parse_tcp_percent_decodes_credentials() {
+    // Audit L-wire-connstr: credentials are percent-encoded in the URL and must
+    // be decoded. Password "p@ss:w%rd" encodes @→%40, :→%3A, %→%25; user "user"
+    // encodes the 'e' as %65 to prove decoding runs on the user too.
+    let info =
+        ConnectionInfo::parse("postgres://us%65r:p%40ss%3Aw%25rd@localhost:5432/db").unwrap();
+    assert_eq!(info.user, "user");
+    assert_eq!(
+        info.password.as_ref().map(|p| p.as_str()),
+        Some("p@ss:w%rd")
+    );
+    assert_eq!(info.host, Some("localhost".to_string()));
+    assert_eq!(info.port, Some(5432));
+    assert_eq!(info.database, "db");
+}
+
+#[test]
+fn parse_tcp_splits_userinfo_at_last_at() {
+    // A '@' inside the (encoded) password must not be mistaken for the
+    // userinfo/host delimiter — the last '@' delimits host.
+    let info = ConnectionInfo::parse("postgres://user:p%40ss@host/db").unwrap();
+    assert_eq!(info.password.as_ref().map(|p| p.as_str()), Some("p@ss"));
+    assert_eq!(info.host, Some("host".to_string()));
+}
+
+#[test]
+fn parse_tcp_rejects_invalid_percent_encoding() {
+    let result = ConnectionInfo::parse("postgres://user:p%ZZss@host/db");
+    assert!(
+        result.is_err(),
+        "invalid percent-encoding in credentials must be rejected"
+    );
+}
+
+#[test]
 fn test_parse_tcp_minimal() {
     let info = ConnectionInfo::parse("postgres://localhost/mydb").unwrap();
     assert_eq!(info.transport, TransportType::Tcp);

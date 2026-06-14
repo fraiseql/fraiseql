@@ -64,7 +64,7 @@ fn param_is_number(params: &ParamMap, key: usize, expected: f64) {
 fn startswith_jsonb_generates_like_prefix() {
     let op = WhereOperator::Startswith(jf("name"), "Jo".to_string());
     let (sql, idx, params) = gen(&op);
-    assert_eq!(sql, "(data->'name') LIKE $1");
+    assert_eq!(sql, "(data->>'name') LIKE $1");
     assert_eq!(idx, 1);
     param_is_string(&params, 1, "Jo%");
 }
@@ -84,7 +84,7 @@ fn istartswith_direct_column_generates_ilike_prefix() {
 fn endswith_jsonb_generates_like_suffix() {
     let op = WhereOperator::Endswith(jf("email"), ".com".to_string());
     let (sql, idx, params) = gen(&op);
-    assert_eq!(sql, "(data->'email') LIKE $1");
+    assert_eq!(sql, "(data->>'email') LIKE $1");
     assert_eq!(idx, 1);
     param_is_string(&params, 1, "%.com");
 }
@@ -114,7 +114,7 @@ fn icontains_direct_column_generates_ilike_contains() {
 fn like_jsonb_passes_pattern_verbatim() {
     let op = WhereOperator::Like(jf("code"), "ABC-%".to_string());
     let (sql, idx, params) = gen(&op);
-    assert_eq!(sql, "(data->'code') LIKE $1");
+    assert_eq!(sql, "(data->>'code') LIKE $1");
     assert_eq!(idx, 1);
     param_is_string(&params, 1, "ABC-%");
 }
@@ -476,7 +476,7 @@ fn array_overlaps_generates_overlap_operator() {
 fn jsonb_number_comparison_applies_numeric_cast() {
     let op = WhereOperator::Gt(jf("price"), Value::Number(100.0));
     let (sql, idx, _) = gen(&op);
-    assert_eq!(sql, "(data->'price')::numeric > $1");
+    assert_eq!(sql, "(data->>'price')::numeric > $1");
     assert_eq!(idx, 1);
 }
 
@@ -485,7 +485,7 @@ fn jsonb_number_comparison_applies_numeric_cast() {
 fn jsonb_boolean_comparison_applies_boolean_cast() {
     let op = WhereOperator::Eq(jf("active"), Value::Bool(true));
     let (sql, _, _) = gen(&op);
-    assert_eq!(sql, "(data->'active')::boolean = $1");
+    assert_eq!(sql, "(data->>'active')::boolean = $1");
 }
 
 /// Direct column number comparison does NOT apply any cast.
@@ -501,7 +501,7 @@ fn direct_column_number_comparison_has_no_cast() {
 fn jsonb_null_comparison_generates_is_null_no_cast() {
     let op = WhereOperator::Eq(jf("optional_field"), Value::Null);
     let (sql, idx, params) = gen(&op);
-    assert_eq!(sql, "(data->'optional_field') IS NULL");
+    assert_eq!(sql, "(data->>'optional_field') IS NULL");
     assert_eq!(idx, 0);
     assert!(params.is_empty());
 }

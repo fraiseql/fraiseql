@@ -129,7 +129,7 @@ const CARRIER_GRADE_RANGES: &[&str] = &["100.64.0.0/10"];
 /// let mut params = HashMap::new();
 /// let op = WhereOperator::Eq(Field::JsonbField("name".to_string()), Value::String("John".to_string()));
 /// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-/// assert_eq!(sql, "(data->'name')::text = $1");
+/// assert_eq!(sql, "(data->>'name')::text = $1");
 /// ```
 pub fn generate_where_operator_sql(
     operator: &WhereOperator,
