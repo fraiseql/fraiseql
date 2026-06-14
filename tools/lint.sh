@@ -119,7 +119,10 @@ run_check "async-trait-budget" check_async_trait
 check_gate_db() {
     local max="${FRAISEQL_DB_LIB_ALLOWS_MAX:-40}"
     local count
-    count=$(grep -c '#!\[allow(clippy' crates/fraiseql-db/src/lib.rs 2>/dev/null || echo 0)
+    # `grep -c` prints "0" and exits 1 on no match; `|| echo 0` would then emit a
+    # SECOND "0", making $count the two-line string "0\n0" and breaking the numeric
+    # comparison below. `|| true` keeps the single "0" grep already printed (L-lint-sh).
+    count=$(grep -c '#!\[allow(clippy' crates/fraiseql-db/src/lib.rs 2>/dev/null || true)
     echo "  fraiseql-db lib.rs crate-level allows: $count (max: $max)"
     for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do
         if grep -q "allow.*$lint" crates/fraiseql-db/src/lib.rs 2>/dev/null; then
@@ -174,14 +177,17 @@ run_check "dep-gate-federation-server" check_dep_gate
 # ---------------------------------------------------------------------------
 # Check: sql-helpers-sync — canonical SQL helpers match CLI-embedded copies
 # ---------------------------------------------------------------------------
+# Return 0/1 and let run_check report the ✅/❌ — calling fail/pass directly here
+# made run_check ALSO print ✅ on a divergence (the check returned 0 after fail),
+# so a real failure showed a green line (L-lint-sh).
 check_sql_helpers_sync() {
     if ! diff -q sql/helpers/mutation_response.sql \
                   crates/fraiseql-cli/sql/helpers/mutation_response.sql \
                   > /dev/null 2>&1; then
-        fail "sql/helpers/mutation_response.sql and crates/fraiseql-cli/sql/helpers/mutation_response.sql have diverged — copy the canonical file"
-        return
+        echo "  ERROR: sql/helpers/mutation_response.sql and crates/fraiseql-cli/sql/helpers/mutation_response.sql have diverged — copy the canonical file"
+        return 1
     fi
-    pass "SQL helper files in sync"
+    echo "  SQL helper files in sync"
 }
 run_check "sql-helpers-sync" check_sql_helpers_sync
 

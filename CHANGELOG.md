@@ -124,6 +124,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (TypeScript), with their package exports, and corrected the docstrings/examples to the real
   pattern: pass config as decorator arguments (`@fraiseql.query(sql_source="v_user")`) or via
   `fraiseql.toml`.
+- **One cross-SDK parity comparator; empty output fails (M-parity-comparators).** Two
+  comparators had drifted: the strict, CI-wired `sdks/official/tests/compare_schemas.py` and a
+  lenient copy `tools/compare_parity_schemas.py` that *skipped* any item missing from a
+  candidate — so an SDK generator emitting nothing passed vacuously. The lenient copy is
+  removed and `make parity-compare` now uses the strict comparator (which hard-fails when
+  type/query/mutation name sets differ, including against empty output).
+- **`tools/lint.sh` reports failures honestly (L-lint-sh).** The `sql-helpers-sync` check
+  called `fail`/`pass` itself and then returned 0, so `run_check` *also* printed ✅ on a real
+  divergence; it now returns a status and lets `run_check` report. The `lint-gate-db` count
+  used `grep -c … || echo 0`, which emitted a two-line `"0\n0"` on no match and broke the
+  numeric comparison; it now uses `|| true`.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text

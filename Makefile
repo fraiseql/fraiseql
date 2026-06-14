@@ -883,13 +883,13 @@ parity-generate:
 ## Compare parity schemas against each other and the golden fixture
 parity-compare: parity-generate
 	@echo "=== Comparing parity schemas ==="
-	@python3 tools/compare_parity_schemas.py \
-	    /tmp/parity-python.json \
-	    /tmp/parity-typescript.json \
-	    /tmp/parity-go.json \
-	    /tmp/parity-java.json \
-	    /tmp/parity-php.json \
-	    $(PARITY_GOLDEN)
+	@python3 sdks/official/tests/compare_schemas.py \
+	    --reference /tmp/parity-python.json \
+	    --compare /tmp/parity-typescript.json \
+	              /tmp/parity-go.json \
+	              /tmp/parity-java.json \
+	              /tmp/parity-php.json \
+	              $(PARITY_GOLDEN)
 
 ## Run all parity checks (generate + compare)
 test-parity: parity-compare
