@@ -17,10 +17,9 @@
 ///
 /// # Digit boundaries
 ///
-/// A digit segment is a word of its own, mirroring the inverse of
-/// [`to_camel_case`](fraiseql_core::utils::casing::to_camel_case) (which collapses
-/// `phone_1` → `phone1`). This function reconstructs the underscore so the round
-/// trip is bijective:
+/// A digit segment is a word of its own, mirroring the inverse of `to_camel_case`
+/// (in `fraiseql-core`, which collapses `phone_1` → `phone1`). This function
+/// reconstructs the underscore so the round trip is bijective:
 /// - a digit after a lowercase letter gets a boundary: `"phone1"` → `"phone_1"`;
 /// - an uppercase word after a digit gets one too: `"dns1Id"` → `"dns_1_id"`.
 ///
