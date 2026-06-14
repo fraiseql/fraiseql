@@ -33,6 +33,28 @@ mod config_tests {
     }
 
     #[test]
+    fn test_naming_acronyms_default_empty() {
+        let config = TomlProjectConfig::default();
+        assert!(config.fraiseql.naming.acronyms.is_empty());
+    }
+
+    #[test]
+    fn test_parse_naming_acronyms_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.naming]
+acronyms = ["s3", "widget5"]
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.fraiseql.naming.acronyms, vec!["s3", "widget5"]);
+    }
+
+    #[test]
     fn test_parse_role_definitions_from_toml() {
         let toml_str = r#"
 [project]

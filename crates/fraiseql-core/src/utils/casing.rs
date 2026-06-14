@@ -10,7 +10,7 @@
 /// historical drift where two copies disagreed on acronym field names
 /// (`userID` → `user_id`, never `user_i_d`). See
 /// [`fraiseql_db::utils::to_snake_case`].
-pub use fraiseql_db::utils::to_snake_case;
+pub use fraiseql_db::utils::{set_runtime_acronyms, to_snake_case};
 
 /// Convert `snake_case` to camelCase.
 ///

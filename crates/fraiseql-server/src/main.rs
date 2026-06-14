@@ -237,6 +237,9 @@ async fn load_schema(config: &ServerConfig) -> anyhow::Result<CompiledSchema> {
     validate_schema_path(&config.schema_path)?;
     let schema_loader = CompiledSchemaLoader::new(&config.schema_path);
     let schema = schema_loader.load().await?;
+    // Install the schema's casing acronyms (on top of the built-in defaults) so the
+    // runtime's `to_snake_case` JSONB-key resolution matches the compiled surface.
+    fraiseql_core::utils::casing::set_runtime_acronyms(&schema.naming_acronyms);
     tracing::info!("Compiled schema loaded successfully");
     Ok(schema)
 }

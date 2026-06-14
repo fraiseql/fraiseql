@@ -79,6 +79,9 @@ pub struct FraiseQLSettings {
     /// Mutation compilation options (`[fraiseql.mutations]`)
     #[serde(default)]
     pub mutations:   MutationsConfig,
+    /// Naming/casing options (`[fraiseql.naming]`)
+    #[serde(default)]
+    pub naming:      NamingTomlConfig,
 }
 
 impl Default for FraiseQLSettings {
@@ -89,8 +92,20 @@ impl Default for FraiseQLSettings {
             security:    SecurityConfig::default(),
             tenancy:     security::TenancyTomlConfig::default(),
             mutations:   MutationsConfig::default(),
+            naming:      NamingTomlConfig::default(),
         }
     }
+}
+
+/// Naming/casing options from `[fraiseql.naming]`.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NamingTomlConfig {
+    /// Acronyms whose internal digit stays attached when a GraphQL field name is
+    /// mapped back to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`),
+    /// added on top of the engine's built-in defaults. Author the atomic form
+    /// (`s3`, not `s_3`). Example: `acronyms = ["s3", "ipv4"]`.
+    pub acronyms: Vec<String>,
 }
 
 /// Mutation compilation options from `[fraiseql.mutations]`.

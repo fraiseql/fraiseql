@@ -176,6 +176,8 @@ pub async fn compile_to_schema(
     // different TOML format (TomlSchema vs TomlProjectConfig) that is not compatible.
     // Opt-in mutation-error-union synthesis, read from [fraiseql.mutations] below.
     let mut auto_error_union = false;
+    // Casing acronyms from [fraiseql.naming], added on top of the built-in defaults.
+    let mut naming_acronyms: Vec<String> = Vec::new();
     if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
         match TomlProjectConfig::from_file("fraiseql.toml") {
@@ -184,6 +186,7 @@ pub async fn compile_to_schema(
                 config.validate()?;
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
+                naming_acronyms = config.fraiseql.naming.acronyms.clone();
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
@@ -211,6 +214,11 @@ pub async fn compile_to_schema(
     } else {
         info!("No fraiseql.toml found, using default security configuration");
     }
+
+    // Install the project's casing acronyms so compile-time key inference
+    // (native-column resolution, DDL) agrees with the runtime. Defaults apply
+    // when none are configured.
+    fraiseql_core::utils::casing::set_runtime_acronyms(&naming_acronyms);
 
     // 2b. Validate @tenant_id annotations when tenancy mode is "row".
     // Extract tenancy config from the already-embedded security JSON.
@@ -258,6 +266,10 @@ pub async fn compile_to_schema(
     let mut schema =
         SchemaConverter::convert_with_options(intermediate, &ConvertOptions { auto_error_union })
             .context("Failed to convert schema to compiled format")?;
+
+    // Carry the project's casing acronyms into the compiled schema so the runtime
+    // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
+    schema.naming_acronyms = naming_acronyms;
 
     // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");
