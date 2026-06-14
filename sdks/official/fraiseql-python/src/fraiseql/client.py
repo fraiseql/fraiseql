@@ -16,38 +16,26 @@ from typing import Any
 
 import httpx
 
+# The error hierarchy lives in fraiseql.errors so the sync and async clients share
+# ONE FraiseQLError base — `except fraiseql.FraiseQLError` then catches errors from
+# either client (H27). These names are re-exported here so existing
+# `from fraiseql.client import FraiseQLError, ...` imports keep working.
+from fraiseql.errors import (
+    FraiseQLAuthError,
+    FraiseQLDatabaseError,
+    FraiseQLError,
+    FraiseQLRateLimitError,
+    FraiseQLUnsupportedError,
+)
 
-class FraiseQLError(Exception):
-    """Base error for FraiseQL GraphQL errors."""
-
-    def __init__(self, message: str, errors: list[dict[str, Any]] | None = None) -> None:
-        super().__init__(message)
-        self.errors = errors or []
-
-
-class FraiseQLAuthError(FraiseQLError):
-    """Raised when the server returns an authentication error."""
-
-
-class FraiseQLUnsupportedError(FraiseQLError):
-    """Raised when the server returns an unsupported operation error."""
-
-    def __init__(
-        self,
-        message: str,
-        errors: list[dict[str, Any]] | None = None,
-        backend: str | None = None,
-    ) -> None:
-        super().__init__(message, errors)
-        self.backend = backend
-
-
-class FraiseQLRateLimitError(FraiseQLError):
-    """Raised when the server returns a rate limit error."""
-
-
-class FraiseQLDatabaseError(FraiseQLError):
-    """Raised when the server returns a database error."""
+__all__ = [
+    "FraiseQLAuthError",
+    "FraiseQLClient",
+    "FraiseQLDatabaseError",
+    "FraiseQLError",
+    "FraiseQLRateLimitError",
+    "FraiseQLUnsupportedError",
+]
 
 
 def _classify_error(errors: list[dict[str, Any]]) -> FraiseQLError:

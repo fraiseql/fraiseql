@@ -1,7 +1,28 @@
 """FraiseQL errors and exceptions.
 
-Provides a hierarchy of typed exceptions for both schema authoring
-errors and client-side GraphQL/network errors.
+This module is the single source of the FraiseQL SDK error hierarchy. Both the
+synchronous :class:`fraiseql.FraiseQLClient` and the asynchronous
+:class:`fraiseql.AsyncFraiseQLClient` raise subclasses of the one
+:class:`FraiseQLError` base defined here, so the documented catch-all works for
+either client::
+
+    try:
+        result = await client.query("{ users { id } }")
+    except fraiseql.FraiseQLError as exc:
+        ...  # catches GraphQLError, NetworkError, TimeoutError,
+             # AuthenticationError, and every sync-client error too
+
+Error classification differs by client, by design:
+
+* The **async** client classifies by transport: HTTP 401/403 →
+  :class:`AuthenticationError`, timeouts → :class:`TimeoutError`, other
+  transport failures → :class:`NetworkError`, and a non-empty GraphQL ``errors``
+  array → :class:`GraphQLError`.
+* The **sync** client classifies by the GraphQL ``extensions.code`` of the first
+  error → :class:`FraiseQLAuthError` / :class:`FraiseQLUnsupportedError` /
+  :class:`FraiseQLRateLimitError` / :class:`FraiseQLDatabaseError`.
+
+Both sets are subclasses of :class:`FraiseQLError`.
 """
 
 from __future__ import annotations
@@ -10,7 +31,20 @@ from typing import Any
 
 
 class FraiseQLError(Exception):
-    """Base class for all FraiseQL SDK errors."""
+    """Base class for all FraiseQL SDK errors.
+
+    Args:
+        message: Human-readable error message.
+        errors: Raw GraphQL error dicts, when the error originated from a
+            GraphQL ``errors`` array. Empty for transport-level errors.
+    """
+
+    def __init__(self, message: str = "", errors: list[dict[str, Any]] | None = None) -> None:
+        super().__init__(message)
+        self.errors = errors or []
+
+
+# ── Async client errors (classified by transport) ─────────────────────────────
 
 
 class GraphQLError(FraiseQLError):
@@ -25,9 +59,8 @@ class GraphQLError(FraiseQLError):
     """
 
     def __init__(self, errors: list[dict[str, Any]]) -> None:
-        self.errors = errors
         message = errors[0].get("message", "GraphQL error") if errors else "GraphQL error"
-        super().__init__(message)
+        super().__init__(message, errors)
 
 
 class NetworkError(FraiseQLError):
@@ -52,6 +85,37 @@ class AuthenticationError(FraiseQLError):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
         super().__init__(f"Authentication failed (HTTP {status_code})")
+
+
+# ── Sync client errors (classified by GraphQL ``extensions.code``) ─────────────
+
+
+class FraiseQLAuthError(FraiseQLError):
+    """``UNAUTHENTICATED`` / ``UNAUTHORIZED`` extensions code from the sync client."""
+
+
+class FraiseQLUnsupportedError(FraiseQLError):
+    """``UNSUPPORTED_OPERATION`` extensions code from the sync client."""
+
+    def __init__(
+        self,
+        message: str,
+        errors: list[dict[str, Any]] | None = None,
+        backend: str | None = None,
+    ) -> None:
+        super().__init__(message, errors)
+        self.backend = backend
+
+
+class FraiseQLRateLimitError(FraiseQLError):
+    """``RATE_LIMITED`` extensions code from the sync client."""
+
+
+class FraiseQLDatabaseError(FraiseQLError):
+    """``DATABASE_ERROR`` / ``INTERNAL_ERROR`` extensions code from the sync client."""
+
+
+# ── Schema-authoring errors ────────────────────────────────────────────────────
 
 
 class FederationValidationError(ValueError):

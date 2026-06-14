@@ -84,6 +84,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`assert_sdk_version_matches`) that refuses to publish when the manifest version does not
   match the release tag; the validation steps now assert the *new* tag version specifically.
   New unit coverage in `make test-release-tooling` exercises the bump and the gate.
+- **Python SDK: `except fraiseql.FraiseQLError` now catches async-client errors (H27).**
+  There were two unrelated `FraiseQLError` classes — one in `client.py` (the package-level
+  `fraiseql.FraiseQLError`) and one in `errors.py` (the base of `GraphQLError`/`NetworkError`/
+  `TimeoutError`/`AuthenticationError` raised by `AsyncFraiseQLClient`). They shared a name
+  but no inheritance, so the documented catch-all silently caught nothing the async client
+  raised (`issubclass` was `False`). The hierarchy is now consolidated in `errors.py` under a
+  single `FraiseQLError` base; `client.py` re-exports it, so both clients' errors are
+  catchable as `fraiseql.FraiseQLError` and existing `from fraiseql.client import FraiseQLError`
+  imports keep working. The two clients deliberately classify differently (async: HTTP status;
+  sync: GraphQL `extensions.code`), now documented on the module. Behaviour change: code that
+  relied on the catch-all *not* catching async errors will now catch them.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text
