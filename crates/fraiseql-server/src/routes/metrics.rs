@@ -422,6 +422,18 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         sub_rejected = subs.subscriptions_rejected,
     );
 
+    // Append `metrics`-facade emissions captured by the Prometheus recorder
+    // (e.g. fraiseql-wire's ~40 counters/histograms). Empty unless the recorder
+    // was installed at startup (audit H45).
+    #[cfg(feature = "metrics")]
+    {
+        let facade = crate::metrics_recorder::render();
+        if !facade.is_empty() {
+            output.push('\n');
+            output.push_str(&facade);
+        }
+    }
+
     (
         axum::http::StatusCode::OK,
         [("Content-Type", "text/plain; version=0.0.4")],

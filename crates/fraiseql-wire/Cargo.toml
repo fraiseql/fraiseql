@@ -23,8 +23,11 @@ base64 = "0.22"  # Base64 encoding/decoding
 bytes = "1"
 futures = "0.3"
 hmac = "0.13"  # HMAC-SHA256
-# Metrics for observability
-metrics = "0.22"  # Metrics collection framework
+# Metrics for observability. Pinned to 0.24 to match the recorder the server
+# installs via metrics-exporter-prometheus 0.18 — a facade-version mismatch means
+# emissions and the recorder bind to different global statics, silently dropping
+# every wire metric (audit H45).
+metrics = "0.24"  # Metrics collection framework
 pbkdf2 = "0.13"  # Key derivation for SCRAM
 rand = "0.9"  # Random nonce generation
 # TLS support
@@ -55,6 +58,9 @@ zeroize = {version = "1.6", features = ["std", "derive"]}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+# Prometheus recorder for the metrics-facade scrape test (audit H45). Pulls a
+# matching `metrics` 0.24, so a wire emission and the recorder share one global.
+metrics-exporter-prometheus = "0.18"
 # Integration tests connect through the test-support harness (env-URL first; optional
 # local-testcontainers spawn). Dagger provides the Postgres service in CI.
 fraiseql-test-support = {path = "../fraiseql-test-support"}

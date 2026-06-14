@@ -50,6 +50,10 @@ pub mod validation;
 // Renamed to avoid conflicts with runtime modules
 pub mod metrics_server;
 
+/// Process-global `metrics`-facade recorder (Prometheus) install + render.
+#[cfg(feature = "metrics")]
+pub mod metrics_recorder;
+
 // fraiseql-runtime modules (merged)
 
 /// Runtime configuration types loaded from `fraiseql.toml` or environment variables.

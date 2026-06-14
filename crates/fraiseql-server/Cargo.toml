@@ -75,8 +75,12 @@ http-body-util = { version = "0.1.3", optional = true }
 ipnet = {version = "2", features = ["serde"]}
 # Authentication (JWT, OAuth, OIDC)
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
-# Metrics (optional)
-metrics = {version = "0.22", optional = true}
+# Metrics (optional). The server emits its own metrics via hand-rolled atomics
+# (see metrics_server.rs); the `metrics` *facade* crate is only needed to install
+# a recorder so transitive crates' (e.g. fraiseql-wire) facade emissions are
+# captured — that recorder is installed via metrics-exporter-prometheus, which
+# pulls a matching `metrics` 0.24 transitively. The previous direct `metrics` 0.22
+# pin was unreferenced and conflicted with the exporter's 0.24 (audit H45).
 metrics-exporter-prometheus = {version = "0.18", optional = true}
 # OpenTelemetry (optional) — versions must match tracing-opentelemetry 0.32
 opentelemetry = {version = "0.31", optional = true}
@@ -133,6 +137,9 @@ zeroize = "1.8"
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
+# `metrics` facade, test-only: lets the recorder-scrape test emit a facade metric
+# and assert it renders (the production server does not emit facade metrics — H45).
+metrics = "0.24"
 fraiseql-auth = {workspace = true}
 fraiseql-cli = {workspace = true}
 fraiseql-federation = {workspace = true, features = ["test-utils"]}
@@ -174,7 +181,7 @@ functions = []
 default = ["auth", "cli"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
-metrics = ["dep:metrics", "metrics-exporter-prometheus"]
+metrics = ["dep:metrics-exporter-prometheus"]
 # Multi-database runtime support (#327).
 # Each flag enables the matching adapter in fraiseql-core / fraiseql-db so that
 # the server binary can dispatch on the URL scheme at startup. PostgreSQL is

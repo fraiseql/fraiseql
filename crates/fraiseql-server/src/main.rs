@@ -499,6 +499,15 @@ async fn main() -> anyhow::Result<()> {
         "Server configuration loaded"
     );
 
+    // Install the global `metrics`-facade recorder so transitive crates
+    // (e.g. fraiseql-wire) have their facade emissions captured and exported via
+    // the `/metrics` endpoint (audit H45). No-op unless the `metrics` feature is
+    // built and metrics are enabled in config.
+    #[cfg(feature = "metrics")]
+    if config.metrics_enabled {
+        fraiseql_server::metrics_recorder::install();
+    }
+
     let schema = load_schema(&config).await?;
     init_security(&schema)?;
 

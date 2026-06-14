@@ -72,6 +72,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wire `metrics`-facade emissions are now captured by an installed recorder (H45).** The
+  workspace carried two incompatible `metrics` facade versions — `fraiseql-wire` emitted via
+  `metrics` 0.22 while the server's `metrics-exporter-prometheus` was built against 0.24 — and
+  no recorder was installed at all, so the emission and the (absent) recorder bound to
+  different process-global statics and every one of wire's ~40 counters/histograms/gauges was
+  silently dropped. `fraiseql-wire` is bumped to `metrics` 0.24 (single facade version in the
+  lock), the server installs a process-global `PrometheusBuilder` recorder at startup behind
+  the `metrics` feature, and the `/metrics` endpoint appends the rendered facade metrics to
+  its hand-rolled output. The server's unreferenced direct `metrics` 0.22 dependency (the
+  server emits its own metrics via hand-rolled atomics, not the facade) was dropped.
 - **Wire stream pause/resume now actually reaches the background reader (H43).**
   `JsonStream` allocated its pause/resume state lazily, on the first `pause()` call — but the
   background reader task had already captured `None` clones of those handles at spawn time,
