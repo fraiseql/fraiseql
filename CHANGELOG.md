@@ -117,6 +117,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `normaliseConfig` dropped any spec without a `jwt:<claim>` shape; it now validates the
     param identifier, the `jwt:<claim>` source, and argument-name collisions and throws —
     matching the Python SDK's `_validate_inject`.
+- **SDK: the no-op `config()` helper is removed (H29).** Both SDKs shipped a `config()` that
+  the docs told users to `return` from a decorated function (`return fraiseql.config(sql_source=...)`)
+  — but its result was stored in a holder nothing ever read, so the call did nothing. Removed
+  `config()`/`_ConfigHolder` (Python) and `config()`/`getPendingConfig`/`ConfigHolder`
+  (TypeScript), with their package exports, and corrected the docstrings/examples to the real
+  pattern: pass config as decorator arguments (`@fraiseql.query(sql_source="v_user")`) or via
+  `fraiseql.toml`.
 - **Wire hygiene cluster (L-wire-*).** A set of low-severity wire-crate correctness fixes:
   - **`Field::JsonbField` extracts text (`->>`) as documented (L-wire-jsonb).** It emitted
     `(data->'field')` (JSONB) while its own doc and the `sql_gen` cast strategy assume text

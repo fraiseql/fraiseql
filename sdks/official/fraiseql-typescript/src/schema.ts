@@ -45,64 +45,6 @@ function validateSchemaBeforeExport(schema: Schema): void {
 }
 
 /**
- * Configuration holder for temporary config during function definition.
- *
- * This is used by the config() function to store configuration that will be
- * applied by decorators.
- */
-class ConfigHolder {
-  static pendingConfig: Record<string, unknown> | null = null;
-}
-
-/**
- * Configuration helper for queries and mutations.
- *
- * This function is called inside decorated functions to specify SQL mapping
- * and other configuration. The config is stored temporarily and applied by
- * the decorator.
- *
- * @param config - Configuration options:
- *   - sqlSource: SQL view name (queries) or function name (mutations)
- *   - operation: Mutation operation type (CREATE, UPDATE, DELETE, CUSTOM)
- *   - autoParams: Auto-parameter configuration (limit, offset, where, order_by)
- *   - jsonbColumn: JSONB column name for flexible schemas
- *
- * @example
- * ```ts
- * @Query()
- * function users(limit: number = 10) {
- *   return config({
- *     sqlSource: "v_user",
- *     autoParams: { limit: true, offset: true, where: true }
- *   });
- * }
- *
- * @Mutation()
- * function createUser(name: string, email: string) {
- *   return config({
- *     sqlSource: "fn_create_user",
- *     operation: "CREATE"
- *   });
- * }
- * ```
- */
-export function config(configObj: Record<string, unknown>): void {
-  ConfigHolder.pendingConfig = configObj;
-}
-
-/**
- * Get pending configuration (internal use).
- *
- * @returns The pending configuration or null if none
- * @internal
- */
-export function getPendingConfig(): Record<string, unknown> | null {
-  const pending = ConfigHolder.pendingConfig;
-  ConfigHolder.pendingConfig = null;
-  return pending;
-}
-
-/**
  * Export the schema registry to a JSON file.
  *
  * This function should be called after all decorators have been processed

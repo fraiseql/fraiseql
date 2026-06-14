@@ -6,7 +6,6 @@ __all__ = [
     "CompiledSchema",
     "Federation",
     "Schema",
-    "config",
     "export_schema",
     "export_types",
     "get_schema_dict",
@@ -255,45 +254,6 @@ class TypeInfo:
         """Fields that require other fields for resolution."""
         fed = self._def.get("federation")
         return fed.get("requires") if fed else None
-
-
-class _ConfigHolder:
-    """Temporary holder for config during function definition."""
-
-    _pending_config: dict[str, Any] | None = None
-
-
-def config(**kwargs: Any) -> None:
-    """Configuration helper for queries and mutations.
-
-    This function is called inside decorated functions to specify SQL mapping
-    and other configuration. The config is stored temporarily and applied by
-    the decorator.
-
-    Args:
-        **kwargs: Configuration options:
-            - sql_source: SQL view name (queries) or function name (mutations)
-            - operation: Mutation operation type (CREATE, UPDATE, DELETE, CUSTOM)
-            - auto_params: Auto-parameter configuration (limit, offset, where, order_by)
-            - jsonb_column: JSONB column name for flexible schemas
-
-    Examples:
-        >>> @fraiseql.query
-        ... def users(limit: int = 10) -> list[User]:
-        ...     return fraiseql.config(
-        ...         sql_source="v_user",
-        ...         auto_params={"limit": True, "offset": True, "where": True}
-        ...     )
-
-        >>> @fraiseql.mutation
-        ... def create_user(name: str, email: str) -> User:
-        ...     return fraiseql.config(
-        ...         sql_source="fn_create_user",
-        ...         operation="CREATE"
-        ...     )
-    """
-    # Store config temporarily - decorator will pick it up
-    _ConfigHolder._pending_config = kwargs
 
 
 def export_schema(

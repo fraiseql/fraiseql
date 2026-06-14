@@ -173,15 +173,15 @@ def test_export_types_no_queries_or_mutations() -> None:
         name: str
 
     # Queries and mutations are defined but should NOT appear in types.json
-    @fraiseql.query
+    @fraiseql.query(sql_source="v_user")
     def get_user(user_id: str) -> User:
-        """Get a user (query moves to TOML)."""
-        return fraiseql.config(sql_source="v_user")
+        """Get a user (query config moves to TOML)."""
+        ...
 
-    @fraiseql.mutation
+    @fraiseql.mutation(sql_source="m_create_user")
     def create_user(name: str, email: str) -> User:
-        """Create a user (mutation moves to TOML)."""
-        return fraiseql.config(sql_source="m_create_user")
+        """Create a user (mutation config moves to TOML)."""
+        ...
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "schema_types.json"

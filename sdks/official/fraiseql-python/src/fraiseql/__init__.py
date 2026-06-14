@@ -29,9 +29,9 @@ Example:
         name: str
         email: str
 
-    @fraiseql.query
+    @fraiseql.query(sql_source="v_user")
     def users(limit: int = 10) -> list[User]:
-        return fraiseql.config(sql_source="v_user", returns_list=True)
+        ...
 
     # Export minimal types.json (use fraiseql.toml for queries, security, etc.)
     fraiseql.export_types("types.json")
@@ -63,7 +63,7 @@ from fraiseql.errors import (
 from fraiseql.registry import SchemaRegistry, generate_schema_json
 from fraiseql.retry import RetryConfig
 from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
-from fraiseql.schema import Federation, config, export_schema, export_types, get_schema_dict
+from fraiseql.schema import Federation, export_schema, export_types, get_schema_dict
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
 from fraiseql.validators import (
     ScalarValidationError,
@@ -108,7 +108,6 @@ __all__ = [
     "Time",
     "TimeoutError",
     "Vector",
-    "config",
     "describe_scope_format",
     "enum",
     "error",

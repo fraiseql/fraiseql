@@ -88,7 +88,7 @@ export type {
 } from "./decorators";
 
 // Export schema functions
-export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString } from "./schema";
+export { exportSchema, exportTypes, getSchemaDict, exportSchemaToString } from "./schema";
 
 // Export scalar types for schema authoring
 export {
