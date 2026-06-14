@@ -5,8 +5,9 @@ requires = ["hatchling"]
 [dependency-groups]
 dev = [
   "pytest>=9.0.2",
+  # anyio ships the `@pytest.mark.anyio` plugin itself; the separate
+  # `pytest-anyio` PyPI name is a parked 2021 stub (0.0.0) that does nothing.
   "anyio[trio]>=4.0",
-  "pytest-anyio>=0.0.0",
   "httpx>=0.27",
   "ruff>=0.8.0",
   "ty>=0.0.1a8"

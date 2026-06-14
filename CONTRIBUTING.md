@@ -545,6 +545,29 @@ rejected by `make lint-expect` — they are functionally equivalent to `.unwrap(
 
 ---
 
+## Dependency Hygiene
+
+Rust workspace dependencies are governed by `deny.toml` (`cargo deny check` — licenses,
+advisories, bans, sources) and `make security`, which also runs the crypto-provider gate
+(`tools/check-crypto-providers.sh`: the default `fraiseql-server` build must link exactly
+one rustls provider — ring). Accepted advisories carry a deadline enforced by
+`make lint-deadlines`.
+
+The `tutorial/`, `examples/`, and `sdks/` directories are **not** covered by Dependabot.
+Keep them current by hand:
+
+- **Pin + lock runnable apps.** `tutorial/` ships a committed `package-lock.json`; the
+  Python SDK ships `uv.lock`. Regenerate the lock (`npm install --package-lock-only`,
+  `uv lock`) whenever you change a manifest.
+- **Floor past known CVEs**, don't pin to the vulnerable version (e.g. `python-jose>=3.4.0`,
+  `body-parser ^1.20.3`).
+- **`examples/cascade-create-post` and `examples/analytics_dashboard` target the legacy v1
+  Python framework** (`fraiseql[fastapi]==1.8.1`, `@fraiseql.mutation(...)`). Do **not** bump
+  their `fraiseql` pin to v2 — v2 has no `[fastapi]` extra and a different API; the bump
+  would break them. Port or retire them as a code change, not a dependency bump.
+
+---
+
 ## Getting Help
 
 - **Questions**: Open a GitHub Discussion
