@@ -4,8 +4,8 @@
 //! - Database schema setup (observer tables)
 //! - Mock webhook server management
 //! - Observer configuration builders
-//! - Change log entry insertion (Change-Spine contract shape: object_data = after-image,
-//!   object_data_before = pre-image)
+//! - Change log entry insertion (Change-Spine contract shape: `object_data` = after-image,
+//!   `object_data_before` = pre-image)
 //! - Assertion helpers
 //!
 //! **Execution engine:** none
