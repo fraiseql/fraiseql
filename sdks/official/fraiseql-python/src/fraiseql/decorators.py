@@ -167,6 +167,48 @@ def _validate_changelog_pre_image(cfg: dict[str, Any], context: str) -> None:
         raise TypeError(msg)
 
 
+def _validate_subscribable(
+    subscribable_tables: list[str] | None,
+    subscribable_pre_image: bool,
+    context: str,
+) -> None:
+    """Validate the `@subscribable` opt-in (#366) and its pre-image flag.
+
+    ``subscribable_tables`` (if provided) must be a non-empty list of strings;
+    ``subscribable_pre_image`` must be a bool and only has meaning alongside
+    ``subscribable_tables``.
+
+    Args:
+        subscribable_tables: The declared base tables, or ``None``.
+        subscribable_pre_image: The pre-image opt-in flag.
+        context: Human-readable decorator description for error messages.
+
+    Raises:
+        TypeError: If either value has the wrong type.
+        ValueError: If ``subscribable_tables`` is empty, or
+            ``subscribable_pre_image`` is set without tables.
+    """
+    if subscribable_tables is not None:
+        if not isinstance(subscribable_tables, list) or not all(
+            isinstance(t, str) for t in subscribable_tables
+        ):
+            msg = f"{context}: subscribable_tables must be a list of strings."
+            raise TypeError(msg)
+        if not subscribable_tables:
+            msg = f"{context}: subscribable_tables must not be empty when provided."
+            raise ValueError(msg)
+
+    if not isinstance(subscribable_pre_image, bool):
+        msg = (
+            f"{context}: subscribable_pre_image must be a bool "
+            f"(got {subscribable_pre_image.__class__.__name__!r})."
+        )
+        raise TypeError(msg)
+    if subscribable_pre_image and not subscribable_tables:
+        msg = f"{context}: subscribable_pre_image=True has no effect without subscribable_tables."
+        raise ValueError(msg)
+
+
 def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
     """Validate the ``input_style`` flag in *cfg* if present.
 
@@ -445,36 +487,10 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 )
                 raise ValueError(msg)
 
-        # Validate subscribable_tables if provided
-        if subscribable_tables is not None:
-            if not isinstance(subscribable_tables, list) or not all(
-                isinstance(t, str) for t in subscribable_tables
-            ):
-                msg = (
-                    f"@fraiseql.type on {c.__name__!r}: subscribable_tables must be "
-                    "a list of strings."
-                )
-                raise TypeError(msg)
-            if not subscribable_tables:
-                msg = (
-                    f"@fraiseql.type on {c.__name__!r}: subscribable_tables must not "
-                    "be empty when provided."
-                )
-                raise ValueError(msg)
-
-        # subscribable_pre_image only has meaning alongside subscribable_tables.
-        if not isinstance(subscribable_pre_image, bool):
-            msg = (
-                f"@fraiseql.type on {c.__name__!r}: subscribable_pre_image must be a bool "
-                f"(got {subscribable_pre_image.__class__.__name__!r})."
-            )
-            raise TypeError(msg)
-        if subscribable_pre_image and not subscribable_tables:
-            msg = (
-                f"@fraiseql.type on {c.__name__!r}: subscribable_pre_image=True has no "
-                "effect without subscribable_tables."
-            )
-            raise ValueError(msg)
+        # Validate the @subscribable opt-in + its pre-image flag (#366).
+        _validate_subscribable(
+            subscribable_tables, subscribable_pre_image, f"@fraiseql.type on {c.__name__!r}"
+        )
 
         # Validate sql_source if provided
         if sql_source is not None:
