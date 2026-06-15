@@ -92,6 +92,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **List field and argument types now compile to a list, not a single object (#434).** The CLI
+  schema converter's `parse_field_type` matched built-in scalar names and routed everything else
+  — including the SDL list string `"[Item!]"` — to `FieldType::Object`, so a list field arrived
+  as `Object("[Item!]")`: a single object whose type name does not exist. The runtime then
+  projected `parent { items { id } }` as `{"items": {"id": null}}` (one null object) instead of
+  `{"items": [{"id": …}]}`. `parse_field_type` now unwraps an SDL list wrapper (`[Inner]` /
+  `[Inner!]`, recursing for nested lists like `[[Inner!]!]`) into `FieldType::List`, and strips a
+  trailing non-null `!` before matching the base name (outer-field nullability is tracked
+  separately). This applies to both type fields and list query arguments (`ids: [ID!]`).
 - **Digit-suffixed field names now camelize and resolve correctly (`phone_1` → `phone1`).**
   A field whose `snake_case` name ended in a digit segment (`phone_1`, `address_2`, `line_2`)
   was emitted into the GraphQL schema unchanged (`phone_1`) while every other field camelized,

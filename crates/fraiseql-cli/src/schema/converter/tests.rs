@@ -136,6 +136,84 @@ fn convert_field_authorize_absent_defaults_false() {
     assert!(!compiled.authorize, "absent authorize must compile to authorize == false");
 }
 
+// ── #434: list field types must compile to FieldType::List ──────────────
+//
+// `parse_field_type` matched built-in scalar names and routed everything else —
+// including the SDL list string "[Foo!]" — to FieldType::Object, so a list field
+// (or list query argument) became Object("[Foo!]"), a single object whose type
+// name does not exist, and projected at runtime as one null object, not a list.
+
+#[test]
+fn parse_field_type_unwraps_list_of_objects() {
+    assert_eq!(
+        SchemaConverter::parse_field_type("[Item!]").unwrap(),
+        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+    );
+}
+
+#[test]
+fn parse_field_type_unwraps_nullable_element_list() {
+    assert_eq!(
+        SchemaConverter::parse_field_type("[Item]").unwrap(),
+        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+    );
+}
+
+#[test]
+fn parse_field_type_unwraps_list_of_scalars() {
+    assert_eq!(
+        SchemaConverter::parse_field_type("[String!]").unwrap(),
+        FieldType::List(Box::new(FieldType::String)),
+    );
+}
+
+#[test]
+fn parse_field_type_strips_trailing_nonnull() {
+    assert_eq!(
+        SchemaConverter::parse_field_type("Item!").unwrap(),
+        FieldType::Object("Item".to_string()),
+    );
+    assert_eq!(SchemaConverter::parse_field_type("String!").unwrap(), FieldType::String);
+}
+
+#[test]
+fn parse_field_type_nested_list() {
+    assert_eq!(
+        SchemaConverter::parse_field_type("[[Item!]!]").unwrap(),
+        FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Object("Item".to_string()))))),
+    );
+}
+
+#[test]
+fn parse_field_type_plain_scalar_and_object_unchanged() {
+    assert_eq!(SchemaConverter::parse_field_type("String").unwrap(), FieldType::String);
+    assert_eq!(
+        SchemaConverter::parse_field_type("User").unwrap(),
+        FieldType::Object("User".to_string()),
+    );
+}
+
+#[test]
+fn convert_field_list_type_compiles_to_list() {
+    let intermediate = IntermediateField {
+        name:           "items".to_string(),
+        field_type:     "[Item!]".to_string(),
+        nullable:       false,
+        description:    None,
+        directives:     None,
+        requires_scope: None,
+        on_deny:        None,
+        authorize:      None,
+        hierarchy:      None,
+    };
+    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    assert_eq!(
+        compiled.field_type,
+        FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+        "a list field must compile to FieldType::List, not Object(\"[Item!]\")"
+    );
+}
+
 #[test]
 fn test_convert_type_with_fields() {
     let intermediate = IntermediateSchema {

@@ -199,7 +199,13 @@ impl SchemaConverter {
 
     /// Parse string type name to `FieldType` enum
     ///
-    /// Handles built-in scalars and custom object types.
+    /// Handles built-in scalars, custom object types, and SDL list/non-null
+    /// wrappers. A list field/argument arrives as the SDL string `"[Inner!]"`,
+    /// which is unwrapped (recursively) into [`FieldType::List`] so the runtime
+    /// projects it as a list rather than a single object (#434). A trailing `!`
+    /// (non-null marker — list-element non-null, or a redundant marker; outer
+    /// field nullability is tracked separately in `nullable`) is stripped before
+    /// the base name is matched.
     ///
     /// # Errors
     ///
@@ -207,22 +213,36 @@ impl SchemaConverter {
     /// `FieldType::Object`. The `Result` return type is reserved for future
     /// strict validation.
     pub(super) fn parse_field_type(type_name: &str) -> Result<FieldType> {
-        match type_name {
-            "String" => Ok(FieldType::String),
-            "Int" => Ok(FieldType::Int),
-            "Float" => Ok(FieldType::Float),
-            "Boolean" => Ok(FieldType::Boolean),
-            "ID" => Ok(FieldType::Id),
-            "DateTime" => Ok(FieldType::DateTime),
-            "Date" => Ok(FieldType::Date),
-            "Time" => Ok(FieldType::Time),
-            "Json" => Ok(FieldType::Json),
-            "UUID" => Ok(FieldType::Uuid),
-            "Decimal" => Ok(FieldType::Decimal),
-            "Vector" => Ok(FieldType::Vector),
-            // Custom object types (User, Post, etc.)
-            custom => Ok(FieldType::Object(custom.to_string())),
+        let type_name = type_name.trim();
+
+        // Strip a trailing non-null marker first — it can wrap a list ("[Inner!]!")
+        // or a scalar/object ("Inner!"). Doing this before the list check lets a
+        // non-null list unwrap correctly; outer field nullability is tracked
+        // separately in `nullable`.
+        let type_name = type_name.strip_suffix('!').unwrap_or(type_name).trim();
+
+        // SDL list wrapper: "[Inner]" / "[Inner!]" → List(parse(Inner)). Recurse so
+        // nested lists ("[[Inner!]!]") and the element non-null marker are handled.
+        if let Some(inner) = type_name.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+            return Ok(FieldType::List(Box::new(Self::parse_field_type(inner)?)));
         }
+
+        Ok(match type_name {
+            "String" => FieldType::String,
+            "Int" => FieldType::Int,
+            "Float" => FieldType::Float,
+            "Boolean" => FieldType::Boolean,
+            "ID" => FieldType::Id,
+            "DateTime" => FieldType::DateTime,
+            "Date" => FieldType::Date,
+            "Time" => FieldType::Time,
+            "Json" => FieldType::Json,
+            "UUID" => FieldType::Uuid,
+            "Decimal" => FieldType::Decimal,
+            "Vector" => FieldType::Vector,
+            // Custom object types (User, Post, etc.)
+            custom => FieldType::Object(custom.to_string()),
+        })
     }
 
     /// Check whether a string is a safe SQL identifier.
