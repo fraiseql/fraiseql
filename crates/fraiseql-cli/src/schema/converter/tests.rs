@@ -1685,6 +1685,51 @@ mod tenancy_tests {
         assert_eq!(schema.mutations[0].inject.get("tenant_id"), Some(&"jwt:tenant_id".to_string()));
     }
 
+    // ── input_style threading (flatten default / explicit jsonb) ─────────
+
+    /// An absent / unset `input_style` converts to the `Flatten` default.
+    #[test]
+    fn convert_mutation_defaults_input_style_to_flatten() {
+        use fraiseql_core::schema::InputStyle;
+
+        use crate::schema::SchemaConverter;
+        let md = SchemaConverter::convert_mutation(make_mutation("createUser", "User")).unwrap();
+        assert_eq!(md.input_style, InputStyle::Flatten);
+    }
+
+    /// `input_style = jsonb` threads through orthogonally to the real DML verb:
+    /// the mutation keeps its `Insert` operation (so the Change Spine logs the
+    /// true verb) while opting into single-JSONB input passing.
+    #[test]
+    fn convert_mutation_threads_jsonb_input_style_with_real_verb() {
+        use fraiseql_core::schema::{InputStyle, MutationOperation};
+
+        use crate::schema::SchemaConverter;
+        let im = IntermediateMutation {
+            operation: Some("INSERT".to_string()),
+            sql_source: Some("create_user".to_string()),
+            input_style: InputStyle::Jsonb,
+            ..make_mutation("createUser", "User")
+        };
+        let md = SchemaConverter::convert_mutation(im).unwrap();
+        assert_eq!(md.input_style, InputStyle::Jsonb);
+        assert!(matches!(md.operation, MutationOperation::Insert { .. }));
+    }
+
+    /// The authoring JSON contract: lowercase `"flatten"`/`"jsonb"`, with an
+    /// absent key defaulting to `flatten` (byte-identical to pre-`input_style`).
+    #[test]
+    fn intermediate_mutation_input_style_json_contract() {
+        use fraiseql_core::schema::InputStyle;
+        let absent: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
+        assert_eq!(absent.input_style, InputStyle::Flatten);
+        let jsonb: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "input_style": "jsonb" }"#)
+                .unwrap();
+        assert_eq!(jsonb.input_style, InputStyle::Jsonb);
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(

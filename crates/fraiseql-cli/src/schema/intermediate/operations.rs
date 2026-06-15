@@ -1,6 +1,7 @@
 //! Query/mutation structs: `IntermediateQuery`, `IntermediateMutation`,
 //! `IntermediateArgument`, `IntermediateAutoParams`, `IntermediateQueryDefaults`.
 
+use fraiseql_core::schema::InputStyle;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -166,6 +167,19 @@ pub struct IntermediateMutation {
     /// authored before this field existed keeps logging.
     #[serde(default = "default_changelog")]
     pub changelog: bool,
+
+    /// How the GraphQL `input` argument is passed to the SQL function:
+    /// `"flatten"` (positional columns, the default) or `"jsonb"` (the whole
+    /// input as one `jsonb` arg). See [`InputStyle`].
+    ///
+    /// Orthogonal to [`operation`](IntermediateMutation::operation): set
+    /// `"jsonb"` (via the authoring SDK's
+    /// `@fraiseql.mutation(input_style="jsonb")`) so a backend using the
+    /// single-`jsonb`-wrapper convention can register the real DML verb and
+    /// still receive the whole input as one argument. Defaults to `"flatten"`,
+    /// byte-identical to a schema authored before this field existed.
+    #[serde(default, skip_serializing_if = "InputStyle::is_flatten")]
+    pub input_style: InputStyle,
 }
 
 impl Default for IntermediateMutation {
@@ -187,6 +201,7 @@ impl Default for IntermediateMutation {
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
             changelog:               default_changelog(),
+            input_style:             InputStyle::Flatten,
         }
     }
 }

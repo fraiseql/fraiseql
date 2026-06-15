@@ -14,7 +14,7 @@ use fraiseql_cli::schema::{
         IntermediateType,
     },
 };
-use fraiseql_core::schema::{CursorType, NamingConvention};
+use fraiseql_core::schema::{CursorType, InputStyle, NamingConvention};
 use indexmap::IndexMap;
 
 /// Test: E2E complete rich filter compilation pipeline
@@ -476,6 +476,7 @@ fn test_e2e_full_field_assertion() {
             invalidates_fact_tables: vec![],
             invalidates_views:       vec![],
             changelog:               true,
+            input_style:             InputStyle::Flatten,
         }],
         enums:                vec![],
         input_types:          vec![],

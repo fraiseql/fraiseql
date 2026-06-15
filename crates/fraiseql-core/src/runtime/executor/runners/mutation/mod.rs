@@ -24,7 +24,7 @@ use crate::{
         mutation_result::{MutationOutcome, parse_mutation_row},
         project_entity, suggest_similar,
     },
-    schema::{CompiledSchema, MutationOperation, NamingConvention},
+    schema::{CompiledSchema, InputStyle, MutationOperation, NamingConvention},
     security::SecurityContext,
 };
 
@@ -404,17 +404,27 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // the PK).
     let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
 
+    // An explicit `input_style = jsonb` opt-in (orthogonal to the DML verb):
+    // forward the whole input as one JSONB arg regardless of the operation, so a
+    // backend using the single-`jsonb`-wrapper convention can register the real
+    // verb (Insert/Delete/Custom) instead of being forced to Update purely to opt
+    // into single-JSONB passing — letting the Change Spine record the true
+    // `modification_type` (#400 / `input_style`).
+    let jsonb_input_style = matches!(mutation_def.input_style, InputStyle::Jsonb);
+
     // The whole `input` object is forwarded as ONE JSONB arg — never flattened to
     // positional columns — when the operation is Update (three-state semantics
-    // above) OR the structured `input` arg is not a known Input type (a custom
-    // `mutation(input: JSON)`, or an Update whose Input type is absent from the
-    // compiled schema). On that path the keys must be recased from the camelCase
-    // GraphQL surface to canonical snake_case so the function can read them —
-    // field-driven when the Input type is known (preserves intentional names),
-    // acronym-aware key-driven `to_snake_case` otherwise (#400). The flatten path
-    // below gets recasing for free via positional args + recase_input_field_value.
+    // above), the mutation opts in via `input_style = jsonb`, OR the structured
+    // `input` arg is not a known Input type (a custom `mutation(input: JSON)`, or
+    // an Update whose Input type is absent from the compiled schema). On that path
+    // the keys must be recased from the camelCase GraphQL surface to canonical
+    // snake_case so the function can read them — field-driven when the Input type
+    // is known (preserves intentional names), acronym-aware key-driven
+    // `to_snake_case` otherwise (#400). The flatten path below gets recasing for
+    // free via positional args + recase_input_field_value.
     let known_input_type = input_type_name.and_then(|n| ctx.schema.find_input_type(n)).is_some();
-    let pass_input_as_single_jsonb = input_arg_is_structured && (is_update || !known_input_type);
+    let pass_input_as_single_jsonb =
+        input_arg_is_structured && (is_update || jsonb_input_style || !known_input_type);
 
     if pass_input_as_single_jsonb {
         // Forward the whole `input` value as ONE JSONB arg, re-cased from the

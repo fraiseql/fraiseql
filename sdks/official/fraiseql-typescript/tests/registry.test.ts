@@ -316,4 +316,47 @@ describe("SchemaRegistry", () => {
       }).toThrow("changelog must be a boolean");
     });
   });
+
+  describe("inputStyle flag", () => {
+    it("should normalise camelCase inputStyle to snake_case input_style", () => {
+      SchemaRegistry.registerMutation("createOrder", "Order", false, false, [], undefined, {
+        sqlSource: "fn_create_order",
+        operation: "CREATE",
+        inputStyle: "jsonb",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect(mutation["input_style"]).toBe("jsonb");
+      expect(mutation["inputStyle"]).toBeUndefined();
+      // Orthogonal to the verb: the real operation survives alongside input_style.
+      expect(mutation["operation"]).toBe("CREATE");
+    });
+
+    it("should leave input_style out of mutation output when omitted", () => {
+      SchemaRegistry.registerMutation("createInvoice", "Invoice", false, false, [], undefined, {
+        sqlSource: "fn_create_invoice",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect("input_style" in mutation).toBe(false);
+    });
+
+    it("should reject an unknown inputStyle value", () => {
+      expect(() => {
+        SchemaRegistry.registerMutation("createShipment", "Shipment", false, false, [], undefined, {
+          sqlSource: "fn_create_shipment",
+          inputStyle: "blob",
+        });
+      }).toThrow("inputStyle must be one of flatten, jsonb");
+    });
+
+    it("should reject a non-string inputStyle value", () => {
+      expect(() => {
+        SchemaRegistry.registerMutation("createParcel", "Parcel", false, false, [], undefined, {
+          sqlSource: "fn_create_parcel",
+          inputStyle: true,
+        });
+      }).toThrow("inputStyle must be a string");
+    });
+  });
 });

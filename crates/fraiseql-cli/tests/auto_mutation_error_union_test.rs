@@ -15,7 +15,7 @@ use fraiseql_cli::schema::{
     ConvertOptions, SchemaConverter,
     intermediate::{IntermediateMutation, IntermediateSchema, IntermediateType, IntermediateUnion},
 };
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::schema::{CompiledSchema, InputStyle};
 use indexmap::IndexMap;
 
 fn object_type(name: &str) -> IntermediateType {
@@ -40,6 +40,7 @@ fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         invalidates_fact_tables: Vec::new(),
         invalidates_views:       Vec::new(),
         changelog:               true,
+        input_style:             InputStyle::Flatten,
     }
 }
 

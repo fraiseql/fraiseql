@@ -62,7 +62,7 @@ mod subscription_types;
 pub use changelog::inject_changelog;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
-    DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
+    DirectiveDefinition, DirectiveLocationKind, InputStyle, MutationDefinition, MutationOperation,
     QueryDefinition, SubscribableEntity, canonicalize_json, is_safe_sql_identifier,
 };
 pub use config_types::{

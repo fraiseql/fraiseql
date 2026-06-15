@@ -255,6 +255,9 @@ export interface Schema {
 /** Valid HTTP methods for REST annotations. */
 const VALID_REST_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
+/** Valid `input_style` values: how the `input` arg is passed to the SQL function. */
+const VALID_INPUT_STYLES = new Set(["flatten", "jsonb"]);
+
 /** An inject param name must be a plain identifier (ports the Python SDK rule). */
 const INJECT_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** An inject source must be `jwt:<claim>` with an identifier claim. */
@@ -275,6 +278,7 @@ function normaliseConfig(
     relayCursorType: "relay_cursor_type",
     requiresRole: "requires_role",
     additionalViews: "additional_views",
+    inputStyle: "input_style",
   };
 
   // REST annotation validation
@@ -298,6 +302,21 @@ function normaliseConfig(
   // deserialises; omitting it lets the compiler default it to true.
   if ("changelog" in config && typeof config.changelog !== "boolean") {
     throw new Error(`changelog must be a boolean (got ${typeof config.changelog})`);
+  }
+
+  // input_style controls how the `input` arg reaches the SQL function: "flatten"
+  // (positional columns, the default) or "jsonb" (the whole input as one jsonb
+  // arg). Orthogonal to operation; omitting it lets the compiler default it to
+  // "flatten". Reject unknown values loudly at authoring time.
+  if ("inputStyle" in config) {
+    if (typeof config.inputStyle !== "string") {
+      throw new Error(`inputStyle must be a string (got ${typeof config.inputStyle})`);
+    }
+    if (!VALID_INPUT_STYLES.has(config.inputStyle)) {
+      throw new Error(
+        `inputStyle must be one of ${[...VALID_INPUT_STYLES].join(", ")} (got '${config.inputStyle}')`
+      );
+    }
   }
 
   const result: Record<string, unknown> = {};

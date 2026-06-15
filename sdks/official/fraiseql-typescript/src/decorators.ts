@@ -192,6 +192,19 @@ export interface MutationConfig extends OperationConfig {
    * flag are both on).
    */
   changelog?: boolean;
+  /**
+   * How the GraphQL `input` argument is passed to the SQL function:
+   * `"flatten"` (positional columns, the default) or `"jsonb"` (the whole input
+   * as one `jsonb` argument).
+   *
+   * Orthogonal to `operation`: set `inputStyle: "jsonb"` so a backend using the
+   * single-`jsonb`-wrapper convention (`fn(input_payload jsonb, …)`) can register
+   * the real DML verb (`CREATE`/`DELETE`/`CUSTOM`) instead of being forced to
+   * `UPDATE` purely to opt into single-JSONB input passing — the Change Spine then
+   * records the true `modification_type`. Omitting it leaves the key out of the
+   * JSON, and the compiler defaults it to `"flatten"`.
+   */
+  inputStyle?: "flatten" | "jsonb";
 }
 
 /**

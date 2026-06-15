@@ -962,6 +962,71 @@ def test_mutation_changelog_non_bool_raises() -> None:
             pass
 
 
+# ── @fraiseql.mutation input_style tests ──────────────────────────────────────
+
+
+def test_mutation_input_style_jsonb_passes_through() -> None:
+    """input_style="jsonb" is emitted so the compiler takes the single-JSONB path."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_order", operation="CREATE", input_style="jsonb")
+    def create_order(amount: int) -> Order:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "createOrder")
+    assert mut["input_style"] == "jsonb"
+    # Orthogonal to the verb: the real operation survives alongside input_style.
+    assert mut["operation"] == "CREATE"
+
+
+def test_mutation_input_style_omitted_absent_from_json() -> None:
+    """Omitting input_style leaves the key out — the compiler defaults it to flatten."""
+
+    @fraiseql.type
+    class Invoice:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_invoice")
+    def create_invoice(amount: int) -> Invoice:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "createInvoice")
+    assert "input_style" not in mut
+
+
+def test_mutation_input_style_invalid_value_raises() -> None:
+    """An unknown input_style value is rejected at authoring time."""
+
+    @fraiseql.type
+    class Shipment:
+        id: int
+
+    with pytest.raises(ValueError, match="must be one of flatten, jsonb"):
+
+        @fraiseql.mutation(sql_source="fn_create_shipment", input_style="blob")
+        def create_shipment(name: str) -> Shipment:
+            pass
+
+
+def test_mutation_input_style_non_str_raises() -> None:
+    """A non-string input_style value is rejected at authoring time."""
+
+    @fraiseql.type
+    class Parcel:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a str"):
+
+        @fraiseql.mutation(sql_source="fn_create_parcel", input_style=True)
+        def create_parcel(name: str) -> Parcel:
+            pass
+
+
 # ============================================================================
 # sql_source identifier validation
 # ============================================================================

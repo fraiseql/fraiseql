@@ -28,6 +28,7 @@ from fraiseql.scope import validate_scope
 from fraiseql.types import extract_field_info, extract_function_signature
 
 _VALID_REST_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+_VALID_INPUT_STYLES = {"flatten", "jsonb"}
 _INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
@@ -141,6 +142,37 @@ def _validate_changelog(cfg: dict[str, Any], context: str) -> None:
     if "changelog" in cfg and not isinstance(cfg["changelog"], bool):
         msg = f"{context}: changelog= must be a bool (got {cfg['changelog'].__class__.__name__!r})."
         raise TypeError(msg)
+
+
+def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
+    """Validate the ``input_style`` flag in *cfg* if present.
+
+    Controls how the GraphQL ``input`` argument is passed to the SQL function:
+    ``"flatten"`` (positional columns, the default) or ``"jsonb"`` (the whole
+    input as one ``jsonb`` argument). It is orthogonal to ``operation`` — set
+    ``"jsonb"`` so a backend using the single-``jsonb``-wrapper convention can
+    register the real DML verb (and the Change Spine logs the true
+    ``modification_type``). Absent is fine — the compiler defaults it to
+    ``"flatten"``.
+
+    Args:
+        cfg: Config dict that may contain ``input_style``.
+        context: Human-readable decorator description for error messages.
+
+    Raises:
+        TypeError: If ``input_style`` is present but not a ``str``.
+        ValueError: If ``input_style`` is not ``"flatten"`` or ``"jsonb"``.
+    """
+    if "input_style" not in cfg:
+        return
+    value = cfg["input_style"]
+    if not isinstance(value, str):
+        msg = f"{context}: input_style= must be a str (got {value.__class__.__name__!r})."
+        raise TypeError(msg)
+    if value not in _VALID_INPUT_STYLES:
+        choices = ", ".join(sorted(_VALID_INPUT_STYLES))
+        msg = f"{context}: input_style= must be one of {choices} (got {value!r})."
+        raise ValueError(msg)
 
 
 if TYPE_CHECKING:
@@ -674,6 +706,13 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
           rest of the schema keeps logging. Omitting it leaves the key out of the JSON,
           and the compiler defaults it to true (a row is written only when the global
           ``[changelog]`` switch and this per-mutation flag are both on).
+        - input_style: "flatten" (default) or "jsonb". Orthogonal to ``operation``:
+          set ``input_style="jsonb"`` so a backend using the single-``jsonb``-wrapper
+          convention (``fn(input_payload jsonb, …)``) can register the real DML verb
+          (CREATE/DELETE/CUSTOM) instead of being forced to UPDATE purely to opt into
+          single-JSONB input passing — the Change Spine then records the true
+          modification_type. Omitting it leaves the key out of the JSON, and the
+          compiler defaults it to "flatten" (today's positional-column behavior).
 
     Database support:
         - PostgreSQL: full support
@@ -760,6 +799,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # changelog= validation — fail fast at authoring time
         _validate_changelog(cfg, f"@fraiseql.mutation on {f.__name__!r}")
+
+        # input_style= validation — fail fast at authoring time
+        _validate_input_style(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # Register mutation with schema registry
         # description= in cfg overrides the docstring

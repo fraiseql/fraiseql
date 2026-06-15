@@ -89,6 +89,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry (`ORDER BY pk DESC LIMIT 1`, honouring the `object_type` filter) and echoing its cursor as
   `next_cursor`. This lets a consumer checkpoint at the real tail without replaying history — the
   server-side half of the `from_now` consumer fix (the consumer half lands in a later release).
+- **Per-mutation `input_style: flatten | jsonb`, decoupling input-passing from the DML verb.**
+  A new opt-in mutation flag controls how the GraphQL `input` argument reaches the SQL function,
+  independently of `operation`. The executor takes the single-JSONB-argument path when
+  `input_style == jsonb` **or** the operation is `Update` (today's behavior). This lets a backend
+  using the single-JSONB wrapper convention (`fn(input_payload jsonb, …) RETURNS app.mutation_response`)
+  register the *real* verb (`Insert`/`Delete`/`Custom`) and still receive the whole input as one
+  `jsonb` arg — so the Change Spine records the true `modification_type` instead of a blanket
+  `UPDATE` (creates and deletes were previously indistinguishable in the audit/CDC stream when a
+  backend forced `operation = Update` purely to opt into single-JSONB passing). The forced
+  single-JSONB path composes with the #400 acronym-aware input-key recasing. Surfaced as
+  `@fraiseql.mutation(input_style="jsonb")` in the Python SDK and `@Mutation({ inputStyle: "jsonb" })`
+  in the TypeScript SDK. Fully opt-in and backward compatible: the default `flatten` is
+  byte-for-byte today's behavior, and an absent value adds no compiled-schema bytes (no codegen
+  schema-hash churn).
 
 ### Fixed
 

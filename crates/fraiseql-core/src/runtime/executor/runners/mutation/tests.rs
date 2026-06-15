@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use fraiseql_db::ChangeLogWrite;
 
 use crate::{
     db::{
@@ -657,21 +658,28 @@ mod mutation {
     // The executor passes the entire input object as a single JSONB arg so that
     // SQL functions can use `input ? 'field'` to test key presence.
 
-    /// Mock adapter that captures the args passed to `execute_function_call`.
-    /// Returns a minimal v2 `mutation_response` so the full execution path runs.
+    /// Mock adapter that captures the args passed to `execute_function_call`,
+    /// plus the change-log `modification_type` (DML verb) routed through the
+    /// outbox write. Returns a minimal v2 `mutation_response` so the full
+    /// execution path runs.
     struct CapturingFunctionCallAdapter {
-        captured_args:  std::sync::Mutex<Vec<serde_json::Value>>,
+        captured_args:              std::sync::Mutex<Vec<serde_json::Value>>,
         /// Optional `updated_fields` value for the returned success row. `Null`
         /// (the default) omits the column so `parse_mutation_row` defaults it to an
         /// empty list; set via [`with_updated_fields`] to exercise the #433 path.
-        updated_fields: serde_json::Value,
+        updated_fields:             serde_json::Value,
+        /// DML verb the executor handed the Change Spine on the last call, captured
+        /// via `execute_function_call_with_changelog` to exercise the `input_style`
+        /// path (the real verb must survive, not collapse to `UPDATE`).
+        captured_modification_type: std::sync::Mutex<Option<String>>,
     }
 
     impl CapturingFunctionCallAdapter {
         fn new() -> Self {
             Self {
-                captured_args:  std::sync::Mutex::new(Vec::new()),
-                updated_fields: serde_json::Value::Null,
+                captured_args:              std::sync::Mutex::new(Vec::new()),
+                updated_fields:             serde_json::Value::Null,
+                captured_modification_type: std::sync::Mutex::new(None),
             }
         }
 
@@ -683,6 +691,13 @@ mod mutation {
 
         fn args(&self) -> Vec<serde_json::Value> {
             self.captured_args.lock().unwrap().clone()
+        }
+
+        /// The DML verb the executor handed the Change Spine for the last call
+        /// (`"INSERT"`/`"UPDATE"`/`"DELETE"`/`"CUSTOM"`), or `None` if no
+        /// change-log row was written.
+        fn modification_type(&self) -> Option<String> {
+            self.captured_modification_type.lock().unwrap().clone()
         }
     }
 
@@ -708,6 +723,22 @@ mod mutation {
             }
             row.insert("message".to_string(), json!(""));
             Ok(vec![row])
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            // Capture the DML verb the executor derived from the mutation's
+            // `operation` so a test can assert the Change Spine records the
+            // real verb (not a blanket UPDATE). Then delegate so `args` are
+            // captured by `execute_function_call` exactly as the real path does.
+            *self.captured_modification_type.lock().unwrap() =
+                changelog.map(|c| c.modification_type.to_string());
+            self.execute_function_call(function_name, args).await
         }
 
         async fn execute_with_projection(
@@ -1131,6 +1162,165 @@ mod mutation {
             captured[2]
         );
         assert_eq!(captured[2][0]["max_connections"], 2);
+    }
+
+    // ── input_style: decouple input-passing from the DML verb ────────────────
+    //
+    // A backend using the single-JSONB wrapper convention
+    // (`fn(input_payload jsonb, …)`) can register the *real* verb
+    // (`Insert`/`Delete`/`Custom`) plus `input_style = jsonb` instead of being
+    // forced to `Update` purely to opt into single-JSONB passing — so the
+    // Change Spine records the true `modification_type`. `flatten` (the default)
+    // is byte-for-byte today's behaviour.
+
+    /// Build a single-`input`-arg mutation with an explicit `operation` and
+    /// `input_style`, over a *registered* Input type and a `CamelCase` surface —
+    /// so `flatten` flattens to positional args while `jsonb` forwards one
+    /// re-cased JSONB blob. (`full_name` exercises the #400 recasing.)
+    fn schema_input_style_mutation(
+        operation: crate::schema::MutationOperation,
+        input_style: crate::schema::InputStyle,
+    ) -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "SaveUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("full_name", "String"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "save_user".to_string(),
+            return_type: "User".to_string(),
+            sql_source: Some("save_user".to_string()),
+            operation,
+            input_style,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("SaveUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("save_user", "User")
+        });
+        schema
+    }
+
+    /// A mutation registered with the real verb (`Insert`) **plus**
+    /// `input_style = jsonb` must forward the whole `input` as ONE JSONB arg —
+    /// exactly as an `Update` does today, including the #400 acronym-aware key
+    /// recasing — instead of flattening to positional columns. Because the verb
+    /// is no longer forced to `Update`, the Change Spine records the true
+    /// `INSERT`.
+    #[tokio::test]
+    async fn insert_with_jsonb_input_style_forwards_single_jsonb_and_logs_real_verb() {
+        use crate::schema::{InputStyle, MutationOperation};
+        let schema = schema_input_style_mutation(
+            MutationOperation::Insert {
+                table: "save_user".to_string(),
+            },
+            InputStyle::Jsonb,
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            1,
+            "input_style=jsonb must pass exactly one JSONB arg, got {captured:?}"
+        );
+        assert!(
+            captured[0].is_object(),
+            "the single arg must be a JSON object (JSONB): {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["id"], "u1");
+        // #400 recasing composes on the forced single-JSONB path.
+        assert_eq!(
+            captured[0]["full_name"], "Alice",
+            "camelCase key must recase to canonical on the jsonb path: {:?}",
+            captured[0]
+        );
+        assert!(
+            captured[0].get("fullName").is_none(),
+            "verbatim camelCase key must not survive: {:?}",
+            captured[0]
+        );
+        // The real verb survives → Change Spine logs INSERT, not a blanket UPDATE.
+        assert_eq!(
+            adapter_ref.modification_type().as_deref(),
+            Some("INSERT"),
+            "Change Spine must record the real verb"
+        );
+    }
+
+    /// `input_style = jsonb` is orthogonal to the verb: a `Delete` keeps its
+    /// verb (Change Spine logs `DELETE`) while still receiving the whole input
+    /// as one JSONB arg.
+    #[tokio::test]
+    async fn delete_with_jsonb_input_style_forwards_single_jsonb_and_logs_delete_verb() {
+        use crate::schema::{InputStyle, MutationOperation};
+        let schema = schema_input_style_mutation(
+            MutationOperation::Delete {
+                table: "save_user".to_string(),
+            },
+            InputStyle::Jsonb,
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1" } });
+        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            1,
+            "input_style=jsonb must pass one JSONB arg for a Delete too, got {captured:?}"
+        );
+        assert_eq!(captured[0]["id"], "u1");
+        assert_eq!(adapter_ref.modification_type().as_deref(), Some("DELETE"));
+    }
+
+    /// Regression guard: the default / explicit `flatten` input style is
+    /// unchanged — a non-`Update` mutation still flattens its Input type to
+    /// positional args (and logs its real verb).
+    #[tokio::test]
+    async fn flatten_input_style_insert_still_flattens_to_positional_args() {
+        use crate::schema::{InputStyle, MutationOperation};
+        let schema = schema_input_style_mutation(
+            MutationOperation::Insert {
+                table: "save_user".to_string(),
+            },
+            InputStyle::Flatten,
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 2, "flatten must keep positional args, got {captured:?}");
+        assert_eq!(captured[0], "u1");
+        assert_eq!(captured[1], "Alice");
+        assert_eq!(adapter_ref.modification_type().as_deref(), Some("INSERT"));
     }
 
     // ── #400 tail: single-JSONB-arg recasing when no Input type drives it ──

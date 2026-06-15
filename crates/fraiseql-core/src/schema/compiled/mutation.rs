@@ -131,11 +131,78 @@ pub struct MutationDefinition {
     /// a compiled schema produced before this field existed keeps logging.
     #[serde(default = "default_changelog")]
     pub changelog: bool,
+
+    /// How the GraphQL `input` argument is passed to the SQL function:
+    /// [`Flatten`](InputStyle::Flatten) (positional columns, the default) or
+    /// [`Jsonb`](InputStyle::Jsonb) (the whole input as one `jsonb` arg).
+    ///
+    /// Orthogonal to [`operation`](Self::operation): `jsonb` forces the
+    /// single-JSONB-argument path regardless of the DML verb, so an
+    /// `Insert`/`Delete`/`Custom` mutation backed by a single-`jsonb`-wrapper
+    /// function (`fn(input_payload jsonb, …)`) keeps its real verb — and the
+    /// Change Spine records the true `modification_type` — while still
+    /// receiving the whole input as one argument. `Update` mutations always
+    /// take the single-JSONB path whatever this is set to.
+    ///
+    /// Defaults to `flatten`; an absent value is byte-identical to the
+    /// behavior before this field existed (so it adds no compiled-schema bytes
+    /// and does not churn the codegen schema hash).
+    #[serde(default, skip_serializing_if = "InputStyle::is_flatten")]
+    pub input_style: InputStyle,
 }
 
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
 const fn default_changelog() -> bool {
     true
+}
+
+/// How a mutation's GraphQL `input` argument is forwarded to its SQL function.
+///
+/// This is **orthogonal** to [`MutationOperation`] (the DML verb). Decoupling
+/// the input-passing style from the verb lets a backend that uses the
+/// single-JSONB wrapper convention
+/// (`fn(input_payload jsonb, …) RETURNS app.mutation_response`) register the
+/// *real* operation (`Insert`/`Delete`/`Custom`) instead of being forced to
+/// `Update` purely to opt into single-JSONB passing — which in turn lets the
+/// Change Spine record the true `modification_type`.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::InputStyle;
+///
+/// assert_eq!(InputStyle::default(), InputStyle::Flatten);
+/// assert!(InputStyle::Flatten.is_flatten());
+/// assert!(!InputStyle::Jsonb.is_flatten());
+/// ```
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InputStyle {
+    /// Flatten the Input type's fields into positional SQL arguments.
+    ///
+    /// The default and today's behavior for `Insert`/`Delete`/`Custom`
+    /// mutations whose `input` is a known Input type.
+    #[default]
+    Flatten,
+
+    /// Forward the entire `input` object as a single `jsonb` argument.
+    ///
+    /// Mirrors how `Update` mutations (and a raw `input: JSON` arg) are passed
+    /// today, including the `#400` acronym-aware input-key recasing on that
+    /// path.
+    Jsonb,
+}
+
+impl InputStyle {
+    /// Whether this is the [`Flatten`](Self::Flatten) default.
+    ///
+    /// Used as the serde `skip_serializing_if` predicate so a `flatten`
+    /// mutation serializes byte-identically to one authored before this field
+    /// existed, leaving the codegen schema hash unchanged.
+    #[must_use]
+    pub const fn is_flatten(&self) -> bool {
+        matches!(self, Self::Flatten)
+    }
 }
 
 impl MutationDefinition {
@@ -158,6 +225,7 @@ impl MutationDefinition {
             upsert_function:         None,
             requires_role:           None,
             changelog:               true,
+            input_style:             InputStyle::Flatten,
         }
     }
 
