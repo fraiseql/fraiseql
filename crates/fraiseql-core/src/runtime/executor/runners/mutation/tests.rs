@@ -1117,6 +1117,262 @@ mod mutation {
         assert_eq!(captured[2][0]["max_connections"], 2);
     }
 
+    // ── #400 tail: single-JSONB-arg recasing when no Input type drives it ──
+    //
+    // The field-driven `recase_input_payload` only fires when a *registered*
+    // Input type supplies the per-field name map. A custom `mutation(input: JSON)`
+    // — or an Update whose Input type is absent from the compiled schema — reaches
+    // the SQL function with the whole object as one verbatim camelCase JSONB blob.
+    // These pin the acronym-aware key-driven `to_snake_case` fallback on that path.
+
+    /// Build a single-`input`-arg mutation with an explicit operation and arg type;
+    /// optionally register `input_type` so the field-driven path is/ isn't available.
+    fn schema_single_input_arg(
+        operation: crate::schema::MutationOperation,
+        arg_type: crate::schema::FieldType,
+        input_type: Option<crate::schema::InputObjectDefinition>,
+    ) -> CompiledSchema {
+        use crate::schema::{MutationDefinition, NamingConvention};
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        if let Some(it) = input_type {
+            schema.input_types.push(it);
+        }
+        schema.mutations.push(MutationDefinition {
+            name: "m".to_string(),
+            return_type: "Res".to_string(),
+            sql_source: Some("m".to_string()),
+            operation,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name: "input".to_string(),
+                arg_type,
+                nullable: false,
+                default_value: None,
+                description: None,
+                deprecation: None,
+            }],
+            ..MutationDefinition::new("m", "Res")
+        });
+        schema
+    }
+
+    /// A digit/acronym/nested payload to assert the bijective `to_snake_case`
+    /// mapping matches the read path on the key-driven single-JSONB path.
+    fn acronym_digit_nested_vars() -> serde_json::Value {
+        serde_json::json!({
+            "input": {
+                "dns1Id": "d",
+                "s3Key": "k",
+                "ipv4Cidr": "10.0.0.0/8",
+                "oauth2Token": "t",
+                "locationId": "loc",
+                "nested": { "fullName": "Alice", "s3Key": "n" },
+                "tags": [{ "maxConnections": 2 }]
+            }
+        })
+    }
+
+    fn assert_acronym_digit_nested_recased(p: &serde_json::Value) {
+        assert_eq!(p["dns_1_id"], "d", "digit boundary split: {p:?}");
+        assert_eq!(p["s3_key"], "k", "s3 acronym kept whole: {p:?}");
+        assert_eq!(p["ipv4_cidr"], "10.0.0.0/8", "ipv4 acronym kept whole: {p:?}");
+        assert_eq!(p["oauth2_token"], "t", "oauth2 acronym kept whole: {p:?}");
+        assert_eq!(p["location_id"], "loc", "plain camel→snake: {p:?}");
+        // Recurse into nested objects and lists of objects.
+        assert_eq!(p["nested"]["full_name"], "Alice", "nested object recased: {p:?}");
+        assert_eq!(p["nested"]["s3_key"], "n", "nested acronym recased: {p:?}");
+        assert_eq!(p["tags"][0]["max_connections"], 2, "list element recased: {p:?}");
+        for stale in ["dns1Id", "s3Key", "ipv4Cidr", "oauth2Token", "locationId"] {
+            assert!(p.get(stale).is_none(), "verbatim '{stale}' must not survive: {p:?}");
+        }
+    }
+
+    /// A custom `mutation(input: JSON)` passes the whole input object as one JSONB
+    /// arg with NO registered Input type. Its keys must still be recased with the
+    /// canonical acronym-aware `to_snake_case`, recursing into nested objects/lists.
+    #[tokio::test]
+    async fn custom_json_input_arg_recases_keys_to_snake_case() {
+        use crate::schema::{FieldType, MutationOperation};
+        let schema = schema_single_input_arg(MutationOperation::Custom, FieldType::Json, None);
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        executor
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "custom JSON input must pass as exactly one JSONB arg");
+        assert_acronym_digit_nested_recased(&captured[0]);
+    }
+
+    /// Same key-driven recasing on an Update whose `input` arg is a raw `JSON`
+    /// scalar (no Input type) — exercises the three-state single-JSONB path too.
+    #[tokio::test]
+    async fn update_json_input_arg_recases_keys_to_snake_case() {
+        use crate::schema::{FieldType, MutationOperation};
+        let schema = schema_single_input_arg(
+            MutationOperation::Update {
+                table: "m".to_string(),
+            },
+            FieldType::Json,
+            None,
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        executor
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "update JSON input must pass as exactly one JSONB arg");
+        assert_acronym_digit_nested_recased(&captured[0]);
+    }
+
+    /// An Update whose declared Input type is ABSENT from the compiled schema
+    /// (incomplete schema) must not leak verbatim camelCase: `recase_input_payload`
+    /// falls back to the key-driven transform instead of forwarding the object as-is.
+    #[tokio::test]
+    async fn update_unregistered_input_type_recases_keys() {
+        use crate::schema::{FieldType, MutationOperation};
+        let schema = schema_single_input_arg(
+            MutationOperation::Update {
+                table: "m".to_string(),
+            },
+            FieldType::Input("MissingInput".to_string()),
+            None, // deliberately not registered
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        executor
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "unregistered-input update must still pass one JSONB arg");
+        assert_acronym_digit_nested_recased(&captured[0]);
+    }
+
+    /// A raw `input: JSON` arg may be a top-level array (not an object): each
+    /// object element's keys must be recased, and the whole array forwarded as one
+    /// JSONB arg (no regression vs. the old catch-all path, which passed it through).
+    #[tokio::test]
+    async fn custom_json_input_array_value_recases_elements() {
+        use crate::schema::{FieldType, MutationOperation};
+        let schema = schema_single_input_arg(MutationOperation::Custom, FieldType::Json, None);
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": [{ "s3Key": "a", "maxConnections": 1 }, { "dns1Id": "b" }]
+        });
+        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "array input must pass as exactly one JSONB arg");
+        let arr = &captured[0];
+        assert_eq!(arr[0]["s3_key"], "a", "array element keys recased: {arr:?}");
+        assert_eq!(arr[0]["max_connections"], 1, "{arr:?}");
+        assert_eq!(arr[1]["dns_1_id"], "b", "{arr:?}");
+    }
+
+    /// `Preserve` naming leaves a single-JSONB custom input untouched (the GraphQL
+    /// surface already uses canonical names — recasing must be opt-in via `CamelCase`).
+    #[tokio::test]
+    async fn custom_json_input_preserve_convention_unchanged() {
+        use crate::schema::{FieldType, MutationOperation, NamingConvention};
+        let mut schema = schema_single_input_arg(MutationOperation::Custom, FieldType::Json, None);
+        schema.naming_convention = NamingConvention::Preserve;
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "dns1Id": "d", "s3Key": "k" } });
+        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+
+        let p = &adapter_ref.args()[0];
+        assert_eq!(p["dns1Id"], "d", "Preserve must not recase: {p:?}");
+        assert_eq!(p["s3Key"], "k", "Preserve must not recase: {p:?}");
+    }
+
+    /// A single scalar `input` arg (e.g. `String`) is NOT a JSONB payload — it must
+    /// still pass straight through as a positional scalar, not be misrouted to the
+    /// single-JSONB path (which would reject it as a missing object). Regression
+    /// guard for the structured-arg gate.
+    #[tokio::test]
+    async fn single_scalar_input_arg_passes_through() {
+        use crate::schema::{FieldType, MutationOperation};
+        let schema = schema_single_input_arg(MutationOperation::Custom, FieldType::String, None);
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": "hello" });
+        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "scalar input passes as one positional arg");
+        assert_eq!(captured[0], "hello", "scalar input value must pass through verbatim");
+    }
+
+    /// A free-form `JSON` argument on a MULTI-argument mutation is out of scope:
+    /// only the single-`input` convention is recased, so its camelCase keys survive.
+    #[tokio::test]
+    async fn multiarg_json_argument_not_recased() {
+        use crate::schema::{FieldType, MutationDefinition, MutationOperation, NamingConvention};
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.mutations.push(MutationDefinition {
+            name: "m".to_string(),
+            return_type: "Res".to_string(),
+            sql_source: Some("m".to_string()),
+            operation: MutationOperation::Custom,
+            arguments: vec![
+                crate::schema::ArgumentDefinition {
+                    name:          "name".to_string(),
+                    arg_type:      FieldType::String,
+                    nullable:      false,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                },
+                crate::schema::ArgumentDefinition {
+                    name:          "metadata".to_string(),
+                    arg_type:      FieldType::Json,
+                    nullable:      false,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                },
+            ],
+            ..MutationDefinition::new("m", "Res")
+        });
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "name": "x", "metadata": { "s3Key": "k" } });
+        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0], "x");
+        assert_eq!(
+            captured[1]["s3Key"], "k",
+            "free-form JSON arg on a multi-arg mutation must NOT be recased: {:?}",
+            captured[1]
+        );
+    }
+
     // ── #414: required input-field enforcement on the flatten path ─────────
 
     /// Insert/Delete/Custom flatten path schema with a required field

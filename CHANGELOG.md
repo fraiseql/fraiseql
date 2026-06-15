@@ -129,6 +129,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   their canonical `snake_case` names (via the same acronym-aware `to_snake_case`, scalar-only as
   federation mutations are) before SQL generation, gated by a `recase_input_keys` flag set from
   the schema's `naming_convention == CamelCase` (off for `Preserve`).
+- **Mutation input recasing now also covers the single-JSONB-argument path when no Input type
+  drives it (#400).** The field-driven recasing above only fires when a *registered* Input type
+  supplies the per-field name map. A custom `mutation(input: JSON)` whose SQL function takes
+  `(input jsonb, …)` — and an Update whose declared Input type is absent from the compiled
+  schema — fell through to the catch-all argument path and reached the function with the whole
+  object as one **verbatim camelCase** JSONB blob, so `jsonb_populate_record(NULL::…, input)` /
+  `input->>'snake_field'` saw keys it could not read (spurious validation error or
+  `affected_count = 0` no-op). The single-JSONB path now recases the object's keys itself: it
+  uses the field-driven map when the Input type is known, and otherwise the canonical
+  acronym-aware `to_snake_case` directly on the keys — recursing into nested objects and lists,
+  leaving scalar values untouched. Because that is the same `to_snake_case` the read path uses,
+  write keys round-trip exactly as reads do (`dns1Id` → `dns_1_id`, `s3Key` → `s3_key`,
+  `ipv4Cidr` → `ipv4_cidr`, `oauth2Token` → `oauth2_token`). It is gated by
+  `naming_convention == CamelCase` and scoped to the single `input`-named argument, so a
+  `Preserve` schema, a plain-scalar `input` arg, and free-form JSON arguments on multi-argument
+  mutations are all left untouched. This is the last single-JSONB-convention backend's reason to
+  keep a hand-rolled `jsonb_camel_to_snake(input)` write shim.
 - **Injected params now filter on a real column when the view has one (native-column inference
   gap).** Compile-time native-column inference (`database_validator.rs`) consulted only a query's
   explicit arguments, so an injected param (e.g. a `tenant_id` from a JWT claim) was never added to

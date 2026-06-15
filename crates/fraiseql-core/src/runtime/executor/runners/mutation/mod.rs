@@ -136,21 +136,29 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
 /// but the Update path forwards the whole object as one JSONB arg — so without
 /// this the SQL function receives surface-cased keys it cannot read (#400).
 ///
-/// Driven by the input type's per-field map (not a lossy `camel→snake` regex),
-/// so intentional names / acronyms in the canonical field names are preserved.
-/// A [`NamingConvention::Preserve`] schema, an unknown input type, and keys that
-/// match no field are all left untouched.
+/// Driven by the input type's per-field map (not a lossy `camel→snake` regex)
+/// when one is available, so intentional names / acronyms in the canonical field
+/// names are preserved, and keys that match no field are left untouched.
+///
+/// When no per-field map is available — `input_type_name` is `None` (a raw `JSON`
+/// input arg) or names a type absent from the compiled schema — it falls back to
+/// the canonical acronym-aware key transform ([`recase_jsonb_keys_to_snake`]) so a
+/// single-JSONB payload still reaches the function as `snake_case` (#400). A
+/// [`NamingConvention::Preserve`] schema is always left untouched.
 fn recase_input_payload(
     value: serde_json::Value,
-    input_type_name: &str,
+    input_type_name: Option<&str>,
     schema: &CompiledSchema,
 ) -> serde_json::Value {
     // Preserve convention: the GraphQL surface already uses the canonical names.
     if schema.naming_convention != NamingConvention::CamelCase {
         return value;
     }
-    let Some(input_type) = schema.find_input_type(input_type_name) else {
-        return value;
+    // No per-field name map (raw `JSON` arg, or an Input type missing from the
+    // compiled schema): recase the keys directly with the canonical reverse so the
+    // single-JSONB path is not left forwarding verbatim camelCase keys (#400).
+    let Some(input_type) = input_type_name.and_then(|n| schema.find_input_type(n)) else {
+        return recase_jsonb_keys_to_snake(value);
     };
     match value {
         serde_json::Value::Object(map) => {
@@ -189,16 +197,44 @@ fn recase_input_field_value(
         return value;
     };
     match value {
-        serde_json::Value::Object(_) => recase_input_payload(value, &nested, schema),
+        serde_json::Value::Object(_) => recase_input_payload(value, Some(nested.as_str()), schema),
         serde_json::Value::Array(items) => serde_json::Value::Array(
             items
                 .into_iter()
                 .map(|it| match it {
-                    serde_json::Value::Object(_) => recase_input_payload(it, &nested, schema),
+                    serde_json::Value::Object(_) => {
+                        recase_input_payload(it, Some(nested.as_str()), schema)
+                    },
                     other => other,
                 })
                 .collect(),
         ),
+        other => other,
+    }
+}
+
+/// Recase every object key of a single-JSONB input payload to canonical
+/// `snake_case` with the engine's one canonical acronym-aware reverse
+/// ([`to_snake_case`](crate::utils::to_snake_case)), recursing into nested objects
+/// and arrays; scalar values are untouched.
+///
+/// The fallback for [`recase_input_payload`] when no registered Input type
+/// supplies a per-field name map — a custom `mutation(input: JSON)`, or an Update
+/// whose Input type is absent from the compiled schema. Sharing `to_snake_case`
+/// with the read path makes write keys round-trip exactly as reads do: `dns1Id` →
+/// `dns_1_id` (digit split), `s3Key` → `s3_key` (registered acronym kept whole).
+fn recase_jsonb_keys_to_snake(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (key, val) in map {
+                out.insert(crate::utils::to_snake_case(&key), recase_jsonb_keys_to_snake(val));
+            }
+            serde_json::Value::Object(out)
+        },
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(recase_jsonb_keys_to_snake).collect())
+        },
         other => other,
     }
 }
@@ -333,16 +369,28 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
     let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
 
-    // Detect single-input-object pattern
-    let input_type_name =
-        if mutation_def.arguments.len() == 1 && mutation_def.arguments[0].name == "input" {
-            match &mutation_def.arguments[0].arg_type {
-                crate::schema::FieldType::Input(name) => Some(name.as_str()),
-                _ => None,
-            }
-        } else {
-            None
-        };
+    // Detect the single-`input`-object pattern: exactly one argument named "input".
+    // `input_type_name` is its declared Input type when it has one (vs a raw `JSON`
+    // scalar — a custom `mutation(input: JSON)` whose SQL function takes
+    // `(input jsonb, …)`); it drives the field-level flatten/recase path below.
+    let single_input_arg =
+        mutation_def.arguments.len() == 1 && mutation_def.arguments[0].name == "input";
+    let input_type_name = if single_input_arg {
+        match &mutation_def.arguments[0].arg_type {
+            crate::schema::FieldType::Input(name) => Some(name.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    // A single `input` arg shaped as a JSON payload — a structured Input type or a
+    // raw `JSON` scalar — as opposed to a plain scalar (`input: String`), which is
+    // a positional arg, not a JSONB blob.
+    let input_arg_is_structured = single_input_arg
+        && matches!(
+            &mutation_def.arguments[0].arg_type,
+            crate::schema::FieldType::Input(_) | crate::schema::FieldType::Json
+        );
 
     // Update mutations pass the entire input object as a single JSONB arg, which
     // preserves all three field states that typed positional args cannot express:
@@ -356,19 +404,38 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // the PK).
     let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
 
-    if let Some(input_type_name) = input_type_name.filter(|_| is_update) {
-        // Pass the entire input object as a single JSONB arg, re-cased from the
+    // The whole `input` object is forwarded as ONE JSONB arg — never flattened to
+    // positional columns — when the operation is Update (three-state semantics
+    // above) OR the structured `input` arg is not a known Input type (a custom
+    // `mutation(input: JSON)`, or an Update whose Input type is absent from the
+    // compiled schema). On that path the keys must be recased from the camelCase
+    // GraphQL surface to canonical snake_case so the function can read them —
+    // field-driven when the Input type is known (preserves intentional names),
+    // acronym-aware key-driven `to_snake_case` otherwise (#400). The flatten path
+    // below gets recasing for free via positional args + recase_input_field_value.
+    let known_input_type = input_type_name.and_then(|n| ctx.schema.find_input_type(n)).is_some();
+    let pass_input_as_single_jsonb = input_arg_is_structured && (is_update || !known_input_type);
+
+    if pass_input_as_single_jsonb {
+        // Forward the whole `input` value as ONE JSONB arg, re-cased from the
         // GraphQL surface naming convention to the schema's canonical (stored)
         // field names so the SQL function — which reads `payload->>'snake_field'`
-        // / jsonb_populate_record — sees the values. The Insert path below gets
-        // this for free via positional args; the Update path must do it
-        // explicitly (fixes #400).
-        let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
-        if let Some(obj) = input_obj {
-            let payload = serde_json::Value::Object(obj.clone());
-            args.push(recase_input_payload(payload, input_type_name, &ctx.schema));
-        } else if !mutation_def.arguments[0].nullable {
-            missing_required.push("input");
+        // / jsonb_populate_record — sees the values (#400). The Insert path below
+        // gets this for free via positional args; this path must do it explicitly.
+        //
+        // Usually an object (an Input type or `input: JSON`); a raw `input: JSON`
+        // arg may also be an array or scalar, so recase recurses into objects and
+        // lists and leaves scalars untouched. An absent or explicit-null value on a
+        // non-null no-default arg is a missing required argument; otherwise the
+        // arg's default (or SQL NULL) is forwarded so the function keeps its arity.
+        let arg = &mutation_def.arguments[0];
+        match vars_obj.and_then(|obj| obj.get("input")) {
+            Some(value) if !value.is_null() => {
+                args.push(recase_input_payload(value.clone(), input_type_name, &ctx.schema));
+            },
+            _ if !arg.nullable && arg.default_value.is_none() => missing_required.push("input"),
+            _ => args
+                .push(arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())),
         }
     } else if let Some(input_type) = input_type_name.and_then(|n| ctx.schema.find_input_type(n)) {
         // Insert / Delete / Custom: flatten Input type fields to positional typed args.
