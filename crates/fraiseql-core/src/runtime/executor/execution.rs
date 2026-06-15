@@ -187,9 +187,19 @@ impl<A: DatabaseAdapter> Executor<A> {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.ctx.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation { name, selections } => {
-                self.execute_mutation_query(&name, variables, security_context, &selections)
-                    .await
+            QueryType::Mutation {
+                name,
+                selections,
+                arguments,
+            } => {
+                self.execute_mutation_query(
+                    &name,
+                    variables,
+                    security_context,
+                    &selections,
+                    &arguments,
+                )
+                .await
             },
             QueryType::NodeQuery { selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type

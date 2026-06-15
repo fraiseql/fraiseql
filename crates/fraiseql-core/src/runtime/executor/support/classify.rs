@@ -118,10 +118,16 @@ impl<A: DatabaseAdapter> Executor<A> {
                     message: e.to_string(),
                     path:    Some("fragments".to_string()),
                 })?;
+            // Carry the root field's inline arguments (e.g. `input: { ... }`) so
+            // the mutation runner can resolve inline-literal inputs with nested
+            // `$var` references against the request variables.
+            let arguments =
+                parsed.selections.first().map(|s| s.arguments.clone()).unwrap_or_default();
             return Ok((
                 QueryType::Mutation {
                     name: root_field.clone(),
                     selections,
+                    arguments,
                 },
                 None,
             ));

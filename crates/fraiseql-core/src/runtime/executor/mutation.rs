@@ -120,6 +120,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         selections: &[FieldSelection],
+        inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -143,6 +144,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             variables,
             security_context,
             selections,
+            inline_arguments,
         )
         .await
     }

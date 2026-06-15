@@ -106,6 +106,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **GraphQL variables nested inside object/list literal arguments are now substituted.**
+  A variable used as a value *inside* an object or list literal argument
+  (`where: { field: { eq: $v } }`, `createMachine(input: { f: $v })`) was not resolved from the
+  request `variables` map — only a whole-argument variable (`where: $where`, `input: $input`) was.
+  Nested `$v` placeholders reached WHERE-clause SQL generation and mutation input coercion verbatim,
+  so filters silently matched nothing and inline mutation inputs surfaced as a missing required
+  argument. The matcher now recurses into object/list members (depth-bounded; an unknown variable
+  resolves to `null`, matching GraphQL's treatment of an omitted nullable), and the mutation path
+  carries the root field's inline arguments so an inline `input: { ... }` literal with nested vars
+  is visible before required-argument validation. Whole-argument behavior is unchanged.
+
 - **Mutation results now surface `updatedFields`, selection-gated (#433).** The executor
   surfaced the `cascade` wire payload without the SQL function embedding it in the entity
   JSONB, but its sibling envelope column `updated_fields` (the GraphQL field names a mutation

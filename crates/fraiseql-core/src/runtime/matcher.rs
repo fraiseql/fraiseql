@@ -286,14 +286,61 @@ impl QueryMatcher {
         }
         // Parse the JSON value
         let parsed: serde_json::Value = serde_json::from_str(&arg.value_json).ok()?;
-        // Check if the parsed value is a string starting with "$" (variable reference)
+        // Check if the WHOLE value is a string variable reference (`field: $var`).
+        // Preserve the existing semantics: an undefined whole-arg variable drops
+        // the argument (returns None) rather than inserting null.
         if let Some(s) = parsed.as_str() {
             if let Some(var_name) = s.strip_prefix('$') {
                 return variables.get(var_name).cloned();
             }
+            // Plain literal string.
+            return Some(parsed);
         }
-        // Literal value (number, boolean, string, object, array, null)
-        Some(parsed)
+        // Object / list literal: variables can appear NESTED inside it (e.g.
+        // `where: { field: { eq: $var } }` or `input: { f: $var }`). The parser
+        // serializes each nested `Variable("v")` AST node to the JSON string
+        // `"$v"`, so walk the value and substitute those placeholders.
+        Some(Self::resolve_nested_variables(parsed, variables, 0))
+    }
+
+    /// Recursively substitute `"$var"` placeholder strings inside a parsed
+    /// argument value with their concrete values from the `variables` map.
+    ///
+    /// The GraphQL parser flattens each `Variable("v")` AST node to the JSON
+    /// string `"$v"` (see `serialize_value_inner`), so a variable can appear at
+    /// any depth inside an object or list argument literal. This walks objects
+    /// and arrays and replaces those placeholders. An unknown variable resolves
+    /// to JSON `null` — matching GraphQL's treatment of an omitted nullable.
+    /// Depth is bounded (mirroring the parser's serialization limit) to guard
+    /// against pathological nesting.
+    pub(crate) fn resolve_nested_variables(
+        value: serde_json::Value,
+        variables: &HashMap<String, serde_json::Value>,
+        depth: usize,
+    ) -> serde_json::Value {
+        use serde_json::Value;
+        const MAX_VAR_DEPTH: usize = 64;
+        if depth >= MAX_VAR_DEPTH {
+            return value;
+        }
+        match value {
+            Value::String(s) => match s.strip_prefix('$') {
+                Some(var_name) => variables.get(var_name).cloned().unwrap_or(Value::Null),
+                None => Value::String(s),
+            },
+            Value::Array(items) => Value::Array(
+                items
+                    .into_iter()
+                    .map(|v| Self::resolve_nested_variables(v, variables, depth + 1))
+                    .collect(),
+            ),
+            Value::Object(map) => Value::Object(
+                map.into_iter()
+                    .map(|(k, v)| (k, Self::resolve_nested_variables(v, variables, depth + 1)))
+                    .collect(),
+            ),
+            other => other,
+        }
     }
 
     /// Get the compiled schema.

@@ -121,7 +121,9 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
         variables: Option<&serde_json::Value>,
         selections: &[FieldSelection],
     ) -> Result<serde_json::Value> {
-        execute_mutation_impl(&self.ctx, mutation_name, variables, None, selections).await
+        // The typed SupportsMutations API supplies the input via `variables`; it
+        // has no inline-literal root arguments to resolve.
+        execute_mutation_impl(&self.ctx, mutation_name, variables, None, selections, &[]).await
     }
 }
 
@@ -270,6 +272,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     variables: Option<&serde_json::Value>,
     security_ctx: Option<&SecurityContext>,
     selections: &[FieldSelection],
+    inline_arguments: &[crate::graphql::GraphQLArgument],
 ) -> Result<serde_json::Value> {
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -363,6 +366,36 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     //    unwrap the object's fields and pass them positionally in the order defined by the
     //    input type's field list.  This keeps the SQL function signature flat while letting
     //    the GraphQL API use the standard input object pattern.
+    //
+    //    Merge the root field's inline arguments (e.g. `createMachine(input: { ... })`)
+    //    into the variables view first, so an inline-literal input — including one whose
+    //    fields reference nested `$var`s — is visible below. This mirrors the query path
+    //    (QueryMatcher merges inline args; whole-arg request variables take precedence).
+    //    `merged_variables` owns the value the shadowed `variables` borrows for the rest
+    //    of the function; it is `Some` only when an inline arg added a new key.
+    let merged_variables: Option<serde_json::Value> = if inline_arguments.is_empty() {
+        None
+    } else {
+        let var_map = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
+        let mut obj = match variables {
+            Some(serde_json::Value::Object(m)) => m.clone(),
+            _ => serde_json::Map::new(),
+        };
+        let mut added = false;
+        for arg in inline_arguments {
+            if !obj.contains_key(&arg.name) {
+                if let Some(val) =
+                    crate::runtime::matcher::QueryMatcher::resolve_inline_arg(arg, &var_map)
+                {
+                    obj.insert(arg.name.clone(), val);
+                    added = true;
+                }
+            }
+        }
+        added.then(|| serde_json::Value::Object(obj))
+    };
+    let variables = merged_variables.as_ref().or(variables);
+
     let vars_obj = variables.and_then(|v| v.as_object());
 
     let mut missing_required: Vec<&str> = Vec::new();

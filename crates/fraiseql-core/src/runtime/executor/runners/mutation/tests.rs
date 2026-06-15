@@ -1080,6 +1080,34 @@ mod mutation {
         assert_eq!(captured[1], "bob@example.com");
     }
 
+    /// End-to-end wiring for nested variables in an inline mutation-input literal:
+    /// `create_user(input: { name: $n, email: $e })` with `$n`/`$e` supplied as
+    /// request variables. The inline `input` literal is not in the `variables`
+    /// map, so `classify` must carry the root field's arguments and
+    /// `execute_mutation_impl` must merge them (resolving the nested `$var`s)
+    /// before flattening — otherwise the SQL function sees the literal strings
+    /// `"$n"`/`"$e"` (or the required-arg check rejects the call).
+    #[tokio::test]
+    async fn inline_mutation_input_literal_resolves_nested_variables() {
+        let schema = schema_with_insert_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "n": "Bob", "e": "bob@example.com" });
+        executor
+            .execute("mutation { create_user(input: { name: $n, email: $e }) { id } }", Some(&vars))
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        // Insert flattens CreateUserInput → positional [name, email], with the
+        // nested $n/$e substituted (not the verbatim "$n"/"$e").
+        assert_eq!(captured.len(), 2, "insert flattens to two positional args, got {captured:?}");
+        assert_eq!(captured[0], "Bob", "nested $n must resolve, got {:?}", captured[0]);
+        assert_eq!(captured[1], "bob@example.com", "nested $e must resolve, got {:?}", captured[1]);
+    }
+
     /// #400 — On the Insert/Custom flatten path, a field whose type is a nested
     /// input object is passed as one positional JSONB arg. Its *keys* must be
     /// recased to canonical names too (recursing into nested objects/lists), or a

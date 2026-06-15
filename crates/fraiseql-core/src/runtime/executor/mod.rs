@@ -215,12 +215,16 @@ enum QueryType {
     IntrospectionType(String),
 
     /// GraphQL mutation.
-    /// Contains the root field name and the full result selection set (including
+    /// Contains the root field name, the full result selection set (including
     /// inline `... on TypeName` fragments), so projection can mirror the query
-    /// path's selection-faithful, depth-aware behaviour.
+    /// path's selection-faithful, depth-aware behaviour, and the root field's
+    /// inline arguments (e.g. `createMachine(input: { ... })`) so the runner can
+    /// resolve inline-literal inputs — including nested `$var` references — that
+    /// don't appear in the request `variables` map.
     Mutation {
         name:       String,
         selections: Vec<crate::graphql::FieldSelection>,
+        arguments:  Vec<crate::graphql::GraphQLArgument>,
     },
 
     /// Relay global node lookup: `node(id: ID!)`.

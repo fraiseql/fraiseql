@@ -2033,6 +2033,88 @@ mod matcher_tests {
         let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
         assert_eq!(result, Some(serde_json::json!([1, 2, 3])));
     }
+
+    // resolve_inline_arg: variables NESTED inside object/list literals
+    // ------------------------------------------------------------------------
+    // `where: { field: { eq: $v } }` / `input: { f: $v }` — the parser serializes
+    // each nested Variable("v") to the JSON string "$v", so they must be
+    // substituted at any depth (not only whole-argument `field: $var`). Without the
+    // fix these placeholders reached SQL/coercion verbatim (filters matched
+    // nothing; inline mutation inputs surfaced as missing required arguments).
+
+    #[test]
+    fn test_resolve_inline_arg_nested_variable_in_object() {
+        // where: { status: { eq: $v } }
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "where".to_string(),
+            value_json: r#"{"status":{"eq":"$v"}}"#.to_string(),
+            value_type: "object".to_string(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("v".to_string(), serde_json::json!("active"));
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!({"status": {"eq": "active"}})));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_nested_variable_in_list() {
+        // ids: [$a, 2, $b]
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "ids".to_string(),
+            value_json: r#"["$a",2,"$b"]"#.to_string(),
+            value_type: "list".to_string(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("a".to_string(), serde_json::json!(1));
+        vars.insert("b".to_string(), serde_json::json!(3));
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!([1, 2, 3])));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_nested_variable_in_mutation_input() {
+        // createMachine(input: { name: $n, count: $c })
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "input".to_string(),
+            value_json: r#"{"name":"$n","count":"$c"}"#.to_string(),
+            value_type: "object".to_string(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("n".to_string(), serde_json::json!("widget"));
+        vars.insert("c".to_string(), serde_json::json!(7));
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!({"name": "widget", "count": 7})));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_nested_unknown_variable_is_null() {
+        // where: { f: { eq: $missing } } with no such variable → null
+        // (GraphQL's treatment of an omitted nullable; not a verbatim "$missing").
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "where".to_string(),
+            value_json: r#"{"f":{"eq":"$missing"}}"#.to_string(),
+            value_type: "object".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(result, Some(serde_json::json!({"f": {"eq": serde_json::Value::Null}})));
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_nested_plain_strings_preserved() {
+        // Non-`$` strings nested in a literal must pass through unchanged.
+        let arg = crate::graphql::GraphQLArgument {
+            name:       "where".to_string(),
+            value_json: r#"{"status":{"eq":"active"},"tags":["a","b"]}"#.to_string(),
+            value_type: "object".to_string(),
+        };
+        let vars = HashMap::new();
+        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+        assert_eq!(
+            result,
+            Some(serde_json::json!({"status": {"eq": "active"}, "tags": ["a", "b"]}))
+        );
+    }
 }
 
 mod runtime_mod_tests {
