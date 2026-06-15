@@ -4,7 +4,8 @@
 //! - Database schema setup (observer tables)
 //! - Mock webhook server management
 //! - Observer configuration builders
-//! - Change log entry insertion with Debezium envelopes
+//! - Change log entry insertion (Change-Spine contract shape: object_data = after-image,
+//!   object_data_before = pre-image)
 //! - Assertion helpers
 //!
 //! **Execution engine:** none
@@ -53,8 +54,8 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 1. Create core schema
     sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
-    // 2. Create tb_entity_change_log (with Debezium envelope). DROP first so a stale shape from a
-    //    prior run can't survive — the columns the poller decodes must match the change-log
+    // 2. Create tb_entity_change_log (Change-Spine contract shape). DROP first so a stale shape
+    //    from a prior run can't survive — the columns the poller decodes must match the change-log
     //    contract types: object_id is UUID and fk_customer_org / fk_contact are BIGINT (the
     //    poller's ChangeLogRow decodes them as Uuid / Option<i64>). The poller also projects the
     //    Change-Spine envelope columns top-level: tenant_id (public-facing UUID, distinct from the
@@ -75,6 +76,7 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             modification_type TEXT NOT NULL,
             change_status TEXT,
             object_data JSONB NOT NULL,
+            object_data_before JSONB,
             extra_metadata JSONB,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             tenant_id UUID,
@@ -369,7 +371,10 @@ pub async fn create_test_observer(
     Ok(row.0)
 }
 
-/// Insert a change log entry with Debezium envelope
+/// Insert a change log entry in the Change-Spine contract shape: `object_data` is
+/// the after-image and `object_data_before` the pre-image (the Debezium op is
+/// derived from `modification_type` by the reader — no `{op,before,after}`
+/// envelope is stored).
 pub async fn insert_change_log_entry(
     pool: &PgPool,
     event_type: &str, // INSERT, UPDATE, DELETE
@@ -378,39 +383,20 @@ pub async fn insert_change_log_entry(
     data: serde_json::Value,
     before_data: Option<serde_json::Value>,
 ) -> Result<i64, sqlx::Error> {
-    // Convert event type to Debezium operation code
-    let op_code = match event_type.to_uppercase().as_str() {
-        "INSERT" | "C" => "c",
-        "UPDATE" | "U" => "u",
-        "DELETE" | "D" => "d",
-        _ => "c", // Default to create
-    };
-
-    // Build Debezium envelope
-    let object_data = json!({
-        "op": op_code,
-        "before": before_data,
-        "after": data,
-        "source": {
-            "db": "fraiseql_test",
-            "table": entity_type
-        },
-        "ts_ms": chrono::Utc::now().timestamp_millis()
-    });
-
     let row: (i64,) = sqlx::query_as(
         r"
         INSERT INTO core.tb_entity_change_log (
-            object_type, object_id, modification_type, object_data
+            object_type, object_id, modification_type, object_data, object_data_before
         )
-        VALUES ($1, $2::uuid, $3, $4)
+        VALUES ($1, $2::uuid, $3, $4, $5)
         RETURNING pk_entity_change_log
         ",
     )
     .bind(entity_type)
     .bind(entity_id)
     .bind(event_type)
-    .bind(object_data)
+    .bind(data)
+    .bind(before_data)
     .fetch_one(pool)
     .await?;
 

@@ -103,6 +103,7 @@ mod bridge_tests {
                 modification_type TEXT NOT NULL,
                 change_status TEXT,
                 object_data JSONB,
+                object_data_before JSONB,
                 extra_metadata JSONB,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 tenant_id UUID,
