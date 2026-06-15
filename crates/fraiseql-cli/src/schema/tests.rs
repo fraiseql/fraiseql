@@ -1102,6 +1102,41 @@ sql_source = "touch_order"
         let touch = schema.mutations.iter().find(|m| m.name == "touch_order").unwrap();
         assert_eq!(touch.input_style, InputStyle::Flatten);
     }
+
+    #[test]
+    fn toml_mutation_changelog_pre_image_threads_to_intermediate() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[types.Price]
+sql_source = "v_price"
+
+[types.Price.fields.id]
+type = "ID"
+
+[mutations.update_price]
+return_type = "Price"
+operation = "UPDATE"
+sql_source = "update_price"
+changelog_pre_image = true
+
+[mutations.touch_price]
+return_type = "Price"
+operation = "UPDATE"
+sql_source = "touch_price"
+"#;
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
+        // Explicit changelog_pre_image = true threads through.
+        let update = schema.mutations.iter().find(|m| m.name == "update_price").unwrap();
+        assert!(update.changelog_pre_image);
+        // Absent changelog_pre_image defaults to false (after-image only).
+        let touch = schema.mutations.iter().find(|m| m.name == "touch_price").unwrap();
+        assert!(!touch.changelog_pre_image);
+    }
 }
 
 mod multi_file_loader_tests {

@@ -48,6 +48,7 @@ fn convert_aggregates_subscribable_tables_into_compiled() {
             IntermediateType {
                 name: "Tag".to_string(),
                 subscribable_tables: Some(vec![]),
+                subscribable_pre_image: false,
                 ..Default::default()
             },
         ],
@@ -61,6 +62,30 @@ fn convert_aggregates_subscribable_tables_into_compiled() {
         compiled.subscribable[0].tables,
         vec!["tb_post".to_string(), "public.tb_post_archive".to_string()]
     );
+    assert!(
+        !compiled.subscribable[0].pre_image,
+        "pre_image defaults off when subscribable_pre_image is unset"
+    );
+}
+
+#[test]
+fn convert_threads_subscribable_pre_image_into_compiled() {
+    // changelog_pre_image out-of-band parity: subscribable_pre_image=true on a
+    // @subscribable type threads into SubscribableEntity.pre_image, so the
+    // generated capture triggers record OLD into object_data_before.
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "Price".to_string(),
+            subscribable_tables: Some(vec!["tb_price".to_string()]),
+            subscribable_pre_image: true,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    assert_eq!(compiled.subscribable.len(), 1);
+    assert!(compiled.subscribable[0].pre_image, "subscribable_pre_image threads through");
 }
 
 #[test]
@@ -220,8 +245,8 @@ fn test_convert_type_with_fields() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "Int".to_string(),
@@ -245,12 +270,13 @@ fn test_convert_type_with_fields() {
                     hierarchy:      None,
                 },
             ],
-            description:         Some("User type".to_string()),
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            Some("User type".to_string()),
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -348,14 +374,15 @@ fn test_convert_query_with_arguments() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            name:                   "User".to_string(),
+            fields:                 vec![],
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -425,14 +452,15 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "Item".to_string(),
-            fields:              vec![],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            name:                   "Item".to_string(),
+            fields:                 vec![],
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -492,14 +520,15 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "Item".to_string(),
-            fields:              vec![],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            name:                   "Item".to_string(),
+            fields:                 vec![],
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -561,8 +590,8 @@ fn test_convert_field_with_deprecated_directive() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "oldId".to_string(),
                     field_type:     "Int".to_string(),
@@ -589,12 +618,13 @@ fn test_convert_field_with_deprecated_directive() {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1114,8 +1144,8 @@ fn test_convert_type_implements_interface() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1139,12 +1169,13 @@ fn test_convert_type_implements_interface() {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec!["Node".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec!["Node".to_string()],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1206,8 +1237,8 @@ fn test_validate_unknown_interface() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![IntermediateField {
+            name:                   "User".to_string(),
+            fields:                 vec![IntermediateField {
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1218,12 +1249,13 @@ fn test_validate_unknown_interface() {
                 authorize:      None,
                 hierarchy:      None,
             }],
-            description:         None,
-            implements:          vec!["UnknownInterface".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec!["UnknownInterface".to_string()],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1265,8 +1297,8 @@ fn test_validate_missing_interface_field() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
                     name:           "name".to_string(),
@@ -1280,12 +1312,13 @@ fn test_validate_missing_interface_field() {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec!["Node".to_string()],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec!["Node".to_string()],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1342,8 +1375,8 @@ fn test_convert_union() {
         version:              "2.0.0".to_string(),
         types:                vec![
             IntermediateType {
-                name:                "User".to_string(),
-                fields:              vec![IntermediateField {
+                name:                   "User".to_string(),
+                fields:                 vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1354,16 +1387,17 @@ fn test_convert_union() {
                     authorize:      None,
                     hierarchy:      None,
                 }],
-                description:         None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                subscribable_tables: None,
+                description:            None,
+                implements:             vec![],
+                requires_role:          None,
+                is_error:               false,
+                relay:                  false,
+                subscribable_tables:    None,
+                subscribable_pre_image: false,
             },
             IntermediateType {
-                name:                "Post".to_string(),
-                fields:              vec![IntermediateField {
+                name:                   "Post".to_string(),
+                fields:                 vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1374,12 +1408,13 @@ fn test_convert_union() {
                     authorize:      None,
                     hierarchy:      None,
                 }],
-                description:         None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                subscribable_tables: None,
+                description:            None,
+                implements:             vec![],
+                requires_role:          None,
+                is_error:               false,
+                relay:                  false,
+                subscribable_tables:    None,
+                subscribable_pre_image: false,
             },
         ],
         enums:                vec![],
@@ -1431,8 +1466,8 @@ fn test_convert_field_requires_scope() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "Employee".to_string(),
-            fields:              vec![
+            name:                   "Employee".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1478,12 +1513,13 @@ fn test_convert_field_requires_scope() {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],
@@ -1557,6 +1593,7 @@ mod tenancy_tests {
             is_error: false,
             relay: false,
             subscribable_tables: None,
+            subscribable_pre_image: false,
         }
     }
 
@@ -1728,6 +1765,44 @@ mod tenancy_tests {
             serde_json::from_str(r#"{ "name": "m", "return_type": "R", "input_style": "jsonb" }"#)
                 .unwrap();
         assert_eq!(jsonb.input_style, InputStyle::Jsonb);
+    }
+
+    // ── changelog_pre_image threading (default off / explicit on) ─────────
+
+    /// An absent / unset `changelog_pre_image` converts to `false` (after-image
+    /// only — byte-identical to the behavior before the flag existed).
+    #[test]
+    fn convert_mutation_defaults_changelog_pre_image_to_false() {
+        use crate::schema::SchemaConverter;
+        let md = SchemaConverter::convert_mutation(make_mutation("createUser", "User")).unwrap();
+        assert!(!md.changelog_pre_image);
+    }
+
+    /// `changelog_pre_image = true` threads through to the compiled mutation so the
+    /// outbox CTE records the entity's pre-image into `object_data_before`.
+    #[test]
+    fn convert_mutation_threads_changelog_pre_image() {
+        use crate::schema::SchemaConverter;
+        let im = IntermediateMutation {
+            changelog_pre_image: true,
+            ..make_mutation("updatePrice", "Price")
+        };
+        let md = SchemaConverter::convert_mutation(im).unwrap();
+        assert!(md.changelog_pre_image);
+    }
+
+    /// The authoring JSON contract: an absent key defaults to `false`; `true`
+    /// threads through.
+    #[test]
+    fn intermediate_mutation_changelog_pre_image_json_contract() {
+        let absent: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
+        assert!(!absent.changelog_pre_image);
+        let on: IntermediateMutation = serde_json::from_str(
+            r#"{ "name": "m", "return_type": "R", "changelog_pre_image": true }"#,
+        )
+        .unwrap();
+        assert!(on.changelog_pre_image);
     }
 
     #[test]

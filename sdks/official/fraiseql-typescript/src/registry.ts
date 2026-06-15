@@ -279,6 +279,7 @@ function normaliseConfig(
     requiresRole: "requires_role",
     additionalViews: "additional_views",
     inputStyle: "input_style",
+    changelogPreImage: "changelog_pre_image",
   };
 
   // REST annotation validation
@@ -302,6 +303,14 @@ function normaliseConfig(
   // deserialises; omitting it lets the compiler default it to true.
   if ("changelog" in config && typeof config.changelog !== "boolean") {
     throw new Error(`changelog must be a boolean (got ${typeof config.changelog})`);
+  }
+
+  // changelog_pre_image opt-in flag must be a real boolean; omitting it lets the
+  // compiler default it to false (after-image only).
+  if ("changelogPreImage" in config && typeof config.changelogPreImage !== "boolean") {
+    throw new Error(
+      `changelogPreImage must be a boolean (got ${typeof config.changelogPreImage})`
+    );
   }
 
   // input_style controls how the `input` arg reaches the SQL function: "flatten"

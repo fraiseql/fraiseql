@@ -193,6 +193,19 @@ export interface MutationConfig extends OperationConfig {
    */
   changelog?: boolean;
   /**
+   * Whether a successful, state-changing run of this mutation also records the
+   * changed entity's pre-image (before-state) into the Change-Spine
+   * `object_data_before` column, alongside the after-state in `object_data` —
+   * sourced from an optional `entity_before` on the mutation's
+   * `app.mutation_response`.
+   *
+   * Defaults to `false`. Set `changelogPreImage: true` for audit-sensitive
+   * mutations that need an inline Debezium-style `{before, after}` on the single
+   * change event. Omitting it leaves the key out of the JSON, and the compiler
+   * defaults it to `false` (after-image only, today's behavior).
+   */
+  changelogPreImage?: boolean;
+  /**
    * How the GraphQL `input` argument is passed to the SQL function:
    * `"flatten"` (positional columns, the default) or `"jsonb"` (the whole input
    * as one `jsonb` argument).

@@ -107,16 +107,16 @@ impl Default for QueryDefinition {
 #[serde(default, deny_unknown_fields)]
 pub struct MutationDefinition {
     /// Return type name
-    pub return_type: String,
+    pub return_type:         String,
     /// SQL function or procedure source.
     ///
     /// When absent, the compiler resolves the function name from the `[crud]`
     /// naming config using the `operation` and the entity name derived from
     /// `return_type`. A compile error is emitted if both are missing.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sql_source:  Option<String>,
+    pub sql_source:          Option<String>,
     /// Operation type (CREATE, UPDATE, DELETE)
-    pub operation:   String,
+    pub operation:           String,
     /// How the GraphQL `input` argument is passed to the SQL function:
     /// `"flatten"` (positional columns, the default) or `"jsonb"` (the whole
     /// input as one `jsonb` arg).
@@ -126,22 +126,33 @@ pub struct MutationDefinition {
     /// still receive the whole input as one argument — letting the Change Spine
     /// record the true `modification_type`. Defaults to `"flatten"`.
     #[serde(default = "default_input_style")]
-    pub input_style: String,
+    pub input_style:         String,
+    /// Whether a successful, state-changing run of this mutation also records the
+    /// changed entity's pre-image (before-state) into the Change-Spine
+    /// `object_data_before` column, sourced from an optional `entity_before` on the
+    /// mutation's `app.mutation_response`.
+    ///
+    /// Set `true` to opt an audit-sensitive mutation into an inline Debezium-style
+    /// `{before, after}` on the single change event. Defaults to `false`,
+    /// byte-identical to a schema authored before this field existed.
+    #[serde(default)]
+    pub changelog_pre_image: bool,
     /// Mutation description
-    pub description: Option<String>,
+    pub description:         Option<String>,
     /// Mutation arguments
-    pub args:        Vec<ArgumentDefinition>,
+    pub args:                Vec<ArgumentDefinition>,
 }
 
 impl Default for MutationDefinition {
     fn default() -> Self {
         Self {
-            return_type: "String".to_string(),
-            sql_source:  None,
-            operation:   "CREATE".to_string(),
-            input_style: default_input_style(),
-            description: None,
-            args:        vec![],
+            return_type:         "String".to_string(),
+            sql_source:          None,
+            operation:           "CREATE".to_string(),
+            input_style:         default_input_style(),
+            changelog_pre_image: false,
+            description:         None,
+            args:                vec![],
         }
     }
 }

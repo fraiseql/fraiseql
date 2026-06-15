@@ -129,6 +129,10 @@ pub const ENTITY_CHANGE_LOG_CONTRACT: &[ContractColumn] = &[
         udt:  "jsonb",
     },
     ContractColumn {
+        name: "object_data_before",
+        udt:  "jsonb",
+    },
+    ContractColumn {
         name: "updated_fields",
         udt:  "_text",
     },
@@ -209,6 +213,7 @@ pub const ENTITY_CHANGE_LOG_CONTRACT_COLUMNS: &[&str] = &[
     "modification_type",
     "object_id",
     "object_data",
+    "object_data_before",
     "updated_fields",
     "cascade",
     "duration_ms",

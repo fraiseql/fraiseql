@@ -412,8 +412,8 @@ fn test_e2e_full_field_assertion() {
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -437,12 +437,13 @@ fn test_e2e_full_field_assertion() {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         queries:              vec![IntermediateQuery {
             name:              "users".to_string(),
@@ -477,6 +478,7 @@ fn test_e2e_full_field_assertion() {
             invalidates_views:       vec![],
             changelog:               true,
             input_style:             InputStyle::Flatten,
+            changelog_pre_image:     false,
         }],
         enums:                vec![],
         input_types:          vec![],

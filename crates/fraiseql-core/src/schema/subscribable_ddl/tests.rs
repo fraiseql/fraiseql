@@ -16,6 +16,14 @@ fn one(entity_type: &str, tables: &[&str]) -> SubscribableEntity {
     SubscribableEntity {
         entity_type: entity_type.to_string(),
         tables:      tables.iter().map(|t| (*t).to_string()).collect(),
+        pre_image:   false,
+    }
+}
+
+fn one_pre_image(entity_type: &str, tables: &[&str]) -> SubscribableEntity {
+    SubscribableEntity {
+        pre_image: true,
+        ..one(entity_type, tables)
     }
 }
 
@@ -49,6 +57,22 @@ fn passes_entity_type_and_convention_columns_as_args() {
             "EXECUTE FUNCTION core.fn_entity_change_log_capture('Post', 'id', 'tenant_id')"
         ),
         "object_type is the GraphQL type name; pk/tenant use the conventions: {ddl}"
+    );
+    // A non-opted-in entity passes exactly three args — byte-identical to before
+    // the pre-image flag existed (the function COALESCEs an absent TG_ARGV[3]).
+    assert!(!ddl.contains("'tenant_id', 'true'"), "no pre-image 4th arg when off: {ddl}");
+}
+
+#[test]
+fn pre_image_opt_in_appends_the_flag_as_the_fourth_trigger_arg() {
+    let ddl = generate_capture_trigger_ddl(&schema_with(vec![one_pre_image("Post", &["tb_post"])]));
+    // changelog_pre_image parity: an opted-in entity passes 'true' as TG_ARGV[3],
+    // so the capture function records OLD into object_data_before for its tables.
+    assert!(
+        ddl.contains(
+            "EXECUTE FUNCTION core.fn_entity_change_log_capture('Post', 'id', 'tenant_id', 'true')"
+        ),
+        "pre-image opt-in appends 'true' as the 4th capture-function arg: {ddl}"
     );
 }
 

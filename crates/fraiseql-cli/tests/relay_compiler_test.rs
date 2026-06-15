@@ -24,8 +24,8 @@ fn relay_intermediate_schema() -> IntermediateSchema {
     IntermediateSchema {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
-            name:                "User".to_string(),
-            fields:              vec![
+            name:                   "User".to_string(),
+            fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(), // matches Node interface
@@ -49,12 +49,13 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
             ],
-            description:         None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               true,
-            subscribable_tables: None,
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            relay:                  true,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
         }],
         enums:                vec![],
         input_types:          vec![],

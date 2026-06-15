@@ -42,6 +42,11 @@ CREATE TABLE core.tb_entity_change_log (
     -- Changed-entity identity + payload (JSON as NVARCHAR(MAX)).
     object_id            UNIQUEIDENTIFIER NULL,
     object_data          NVARCHAR(MAX) NULL,
+    -- Opt-in pre-image (changelog_pre_image): the changed entity's BEFORE-state.
+    -- object_data stays the after-image; the pre-image is this separate column,
+    -- never an envelope. Contract parity — the Change Spine outbox CTE that
+    -- populates it is PostgreSQL-only; NULL on SQL Server until a writer lands.
+    object_data_before   NVARCHAR(MAX) NULL,
     updated_fields       NVARCHAR(MAX) NULL,
     -- `cascade` is a reserved keyword in SQL Server → bracket-quoted (an unquoted
     -- `cascade` is a syntax error). The portable outbox INSERT quotes it likewise.
@@ -85,6 +90,18 @@ BEGIN
     ALTER TABLE core.tb_entity_change_log DROP COLUMN acting_for;
     ALTER TABLE core.tb_entity_change_log ADD acting_for UNIQUEIDENTIFIER NULL;
 END
+GO
+
+-- Add `object_data_before` (changelog_pre_image) on a pre-existing table (the
+-- CREATE above is skipped when the table exists). Guarded on sys.columns so it is
+-- a no-op on a fresh table that already has it. object_data stays the after-image;
+-- this is the separate before-image column. The CTE that writes it is PG-only.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('core.tb_entity_change_log')
+      AND name = 'object_data_before'
+)
+    ALTER TABLE core.tb_entity_change_log ADD object_data_before NVARCHAR(MAX) NULL;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_entity_log_type'

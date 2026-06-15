@@ -95,6 +95,15 @@ pub struct ChangeLogWrite<'a> {
     /// it is stamped without a DB lookup. `None` (→ SQL NULL) for a non-delegated
     /// request, an unauthenticated mutation, or a subject that is not UUID-shaped.
     pub acting_for:        Option<uuid::Uuid>,
+    /// Whether this outbox write also records the changed entity's **pre-image**
+    /// (before-state) into the `object_data_before JSONB` column, sourced from the
+    /// function's own `entity_before` (the after-image comes from `entity`). Set
+    /// from `MutationDefinition.changelog_pre_image`; `false` (the default) leaves
+    /// `object_data_before` out of the INSERT entirely (NULL), byte-for-byte
+    /// today's behavior. The changed-entity payload itself is read from the
+    /// returned row inside the outbox CTE, so this flag only selects which SQL
+    /// form the adapter emits.
+    pub pre_image:         bool,
 }
 
 impl<'a> ChangeLogWrite<'a> {
@@ -117,6 +126,7 @@ impl<'a> ChangeLogWrite<'a> {
             trace_context: None,
             actor_type: None,
             acting_for: None,
+            pre_image: false,
         }
     }
 
@@ -172,6 +182,17 @@ impl<'a> ChangeLogWrite<'a> {
     #[must_use]
     pub const fn with_acting_for(mut self, acting_for: Option<uuid::Uuid>) -> Self {
         self.acting_for = acting_for;
+        self
+    }
+
+    /// Opt this outbox write into recording the changed entity's pre-image into
+    /// the `object_data_before` column (from the function's `entity_before`). When
+    /// `false` (the default), `object_data_before` is omitted from the INSERT
+    /// entirely, byte-for-byte today's behavior. Set from
+    /// `MutationDefinition.changelog_pre_image`.
+    #[must_use]
+    pub const fn with_pre_image(mut self, pre_image: bool) -> Self {
+        self.pre_image = pre_image;
         self
     }
 }

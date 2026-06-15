@@ -265,11 +265,8 @@ mod e2e_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": entity_id.to_string(), "total": 250.00, "status": "new" }
-            }),
+            object_data:          json!({ "id": entity_id.to_string(), "total": 250.00, "status": "new" }),
+            object_data_before:   None,
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,
@@ -313,11 +310,8 @@ mod e2e_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "status": "new", "total": 250.00 },
-                "after": { "status": "shipped", "total": 250.00 }
-            }),
+            object_data:          json!({ "status": "shipped", "total": 250.00 }),
+            object_data_before:   Some(json!({ "status": "new", "total": 250.00 })),
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,
@@ -355,11 +349,10 @@ mod e2e_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "DELETE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "d",
-                "before": { "id": entity_id.to_string(), "name": "John Doe", "email": "john@example.com" },
-                "after": null
-            }),
+            object_data:          Value::Null,
+            object_data_before:   Some(
+                json!({ "id": entity_id.to_string(), "name": "John Doe", "email": "john@example.com" }),
+            ),
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,
@@ -396,11 +389,8 @@ mod e2e_tests {
                 object_id:            entity_id.to_string(),
                 modification_type:    "INSERT".to_string(),
                 change_status:        "success".to_string(),
-                object_data:          json!({
-                    "op": "c",
-                    "before": null,
-                    "after": { "id": entity_id.to_string() }
-                }),
+                object_data:          json!({ "id": entity_id.to_string() }),
+                object_data_before:   None,
                 extra_metadata:       None,
                 tenant_id:            None,
                 duration_ms:          None,
@@ -434,11 +424,8 @@ mod e2e_tests {
                 object_id:            entity_id.to_string(),
                 modification_type:    "INSERT".to_string(),
                 change_status:        "success".to_string(),
-                object_data:          json!({
-                    "op": "c",
-                    "before": null,
-                    "after": { "id": entity_id.to_string(), "org": org_id }
-                }),
+                object_data:          json!({ "id": entity_id.to_string(), "org": org_id }),
+                object_data_before:   None,
                 extra_metadata:       None,
                 tenant_id:            None,
                 duration_ms:          None,
@@ -469,19 +456,16 @@ mod e2e_tests {
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
             object_data:          json!({
-                "op": "u",
-                "before": {
-                    "status": "pending",
-                    "items": 5,
-                    "tracking_number": "123456"
-                },
-                "after": {
-                    "status": "shipped",
-                    "items": 5,
-                    "tracking_number": "123456",
-                    "shipped_at": "2026-01-22T16:30:00Z"
-                }
+                "status": "shipped",
+                "items": 5,
+                "tracking_number": "123456",
+                "shipped_at": "2026-01-22T16:30:00Z"
             }),
+            object_data_before:   Some(json!({
+                "status": "pending",
+                "items": 5,
+                "tracking_number": "123456"
+            })),
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,
@@ -528,11 +512,8 @@ mod e2e_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": entity_id.to_string() }
-            }),
+            object_data:          json!({ "id": entity_id.to_string() }),
+            object_data_before:   None,
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,
@@ -562,11 +543,8 @@ mod e2e_tests {
             object_id:            "not-a-uuid".to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": "invalid" }
-            }),
+            object_data:          json!({ "id": "invalid" }),
+            object_data_before:   None,
             extra_metadata:       None,
             tenant_id:            None,
             duration_ms:          None,

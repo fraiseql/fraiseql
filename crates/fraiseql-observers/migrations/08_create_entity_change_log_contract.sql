@@ -56,6 +56,13 @@ ALTER TABLE core.tb_entity_change_log
     -- Changed-entity identity + payload.
     ADD COLUMN IF NOT EXISTS object_id          UUID,
     ADD COLUMN IF NOT EXISTS object_data        JSONB,
+    -- Opt-in pre-image (changelog_pre_image): the changed entity's BEFORE-state,
+    -- recorded only by mutations/tables that opt in (NULL otherwise). object_data
+    -- stays the AFTER-image from EVERY producer (executor outbox AND #366 capture
+    -- trigger); the pre-image lives in this separate column, never as a
+    -- {before,after} envelope inside object_data. A Debezium event is the
+    -- core.v_entity_change_log_debezium projection below, not a stored shape.
+    ADD COLUMN IF NOT EXISTS object_data_before JSONB,
     ADD COLUMN IF NOT EXISTS updated_fields     TEXT[],
     ADD COLUMN IF NOT EXISTS cascade            JSONB,
     -- Perf observability (#392): populated by the executor's in-txn write.
@@ -164,6 +171,7 @@ SELECT
         'modification_type',    modification_type,
         'change_status',        change_status,
         'object_data',          object_data,
+        'object_data_before',   object_data_before,
         'updated_fields',       updated_fields,
         'cascade',              cascade,
         'duration_ms',          duration_ms,
@@ -180,3 +188,33 @@ COMMENT ON TABLE core.tb_entity_change_log IS
 
 COMMENT ON VIEW core.v_entity_change_log IS
     'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log.';
+
+-- ----------------------------------------------------------------------------
+-- Debezium projection — a view, NOT a stored shape (changelog_pre_image).
+-- The base table keeps object_data uniformly the after-image and the pre-image
+-- in object_data_before; `op`/`source` are already columns, so the classic
+-- Debezium `{before, after, op, source}` event is a pure projection. Consumers
+-- that want a Debezium-shaped event read this view; the base table never stores
+-- an envelope. `before` is NULL for rows whose producer did not opt into the
+-- pre-image; `after` is NULL for a DELETE (the row has no after-state).
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW core.v_entity_change_log_debezium AS
+SELECT
+    pk_entity_change_log,
+    seq,
+    object_data_before AS before,
+    object_data        AS after,
+    modification_type  AS op,            -- INSERT / UPDATE / DELETE / CUSTOM
+    jsonb_build_object(
+        'object_type', object_type,
+        'object_id',   object_id,
+        'tenant_id',   tenant_id,
+        'commit_time', commit_time,
+        'seq',         seq,
+        'trace_id',    trace_id,
+        'actor_type',  actor_type
+    ) AS source
+FROM core.tb_entity_change_log;
+
+COMMENT ON VIEW core.v_entity_change_log_debezium IS
+    'Debezium {before, after, op, source} projection over tb_entity_change_log (changelog_pre_image). before = object_data_before, after = object_data (the uniform after-image), op = modification_type. Pure projection — no envelope is stored in the base table.';

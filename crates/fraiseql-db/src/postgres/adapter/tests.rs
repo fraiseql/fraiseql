@@ -111,7 +111,7 @@ async fn test_with_pool_size_malformed_url_returns_connection_pool_error() {
 
 #[test]
 fn changelog_cte_runs_the_function_once_and_inserts_the_outbox_row() {
-    let sql = super::database::build_changelog_cte_sql(r#""app"."fn_create_user""#, 2);
+    let sql = super::database::build_changelog_cte_sql(r#""app"."fn_create_user""#, 2, false);
 
     // The function is materialised so a volatile mutation runs EXACTLY once even
     // though both the INSERT CTE and the primary SELECT read it.
@@ -134,7 +134,7 @@ fn changelog_cte_runs_the_function_once_and_inserts_the_outbox_row() {
 #[test]
 fn changelog_cte_threads_object_type_fallback_and_modification_type_after_args() {
     // 2 function args => object_type fallback is $3, modification_type is $4.
-    let sql = super::database::build_changelog_cte_sql(r#""fn_x""#, 2);
+    let sql = super::database::build_changelog_cte_sql(r#""fn_x""#, 2, false);
     assert!(
         sql.contains("COALESCE(r.entity_type, $3)"),
         "object_type falls back to $n+1 when entity_type is NULL: {sql}"
@@ -143,7 +143,7 @@ fn changelog_cte_threads_object_type_fallback_and_modification_type_after_args()
     assert!(sql.contains("$4,"), "modification_type verb is $n+2: {sql}");
 
     // 0 args => fallback is $1, verb is $2.
-    let zero = super::database::build_changelog_cte_sql(r#""fn_y""#, 0);
+    let zero = super::database::build_changelog_cte_sql(r#""fn_y""#, 0, false);
     assert!(
         zero.contains(r#"SELECT * FROM "fn_y"()"#),
         "no-arg call has empty parens: {zero}"
@@ -158,7 +158,7 @@ fn changelog_cte_threads_object_type_fallback_and_modification_type_after_args()
 #[test]
 fn changelog_cte_threads_actor_envelope_after_trace_context() {
     // 2 function args => trace_context is $8, actor_type $9, acting_for $10.
-    let sql = super::database::build_changelog_cte_sql(r#""fn_x""#, 2);
+    let sql = super::database::build_changelog_cte_sql(r#""fn_x""#, 2, false);
     // Both actor columns are in the INSERT list, after trace_context and before
     // commit_time.
     assert!(
@@ -172,7 +172,7 @@ fn changelog_cte_threads_actor_envelope_after_trace_context() {
 
 #[test]
 fn changelog_cte_only_logs_effective_changes_and_stamps_the_duration_marker() {
-    let sql = super::database::build_changelog_cte_sql(r#""fn_z""#, 1);
+    let sql = super::database::build_changelog_cte_sql(r#""fn_z""#, 1, false);
     // Only an effective change (succeeded AND state_changed) is logged — no-ops
     // and business-logic failures must NOT fan out to the spine.
     assert!(
@@ -199,7 +199,7 @@ fn changelog_cte_only_logs_effective_changes_and_stamps_the_duration_marker() {
 
 #[test]
 fn changelog_cte_maps_mutation_response_columns_to_contract_columns() {
-    let sql = super::database::build_changelog_cte_sql(r#""fn_w""#, 0);
+    let sql = super::database::build_changelog_cte_sql(r#""fn_w""#, 0, false);
     // The changed-entity payload columns come straight off the function's
     // app.mutation_response row (object_id<-entity_id, object_data<-entity, …).
     for needle in [
@@ -217,7 +217,7 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
     // 2 function args => tenant_id is the $5 envelope param ($n+3), appended
     // AFTER object_type ($3) and modification_type ($4) so the SQL text is stable
     // for prepare_cached regardless of the tenant value.
-    let sql = super::database::build_changelog_cte_sql(r#""fn_e""#, 2);
+    let sql = super::database::build_changelog_cte_sql(r#""fn_e""#, 2, false);
     assert!(
         sql.contains("$5::uuid"),
         "tenant_id is the $n+3 envelope param, cast to uuid: {sql}"
@@ -250,4 +250,53 @@ fn changelog_cte_stamps_the_envelope_tenant_commit_time_and_lets_seq_default() {
         sql.contains("acting_for, commit_time)"),
         "INSERT column list ends at commit_time, omitting seq for its DEFAULT: {sql}"
     );
+}
+
+#[test]
+fn changelog_cte_omits_object_data_before_when_pre_image_is_off() {
+    // Default path (opt-out): no pre-image column, no entity_before read — the SQL
+    // is byte-for-byte today's behavior. `object_data` stays the after-image.
+    let sql = super::database::build_changelog_cte_sql(r#""fn_o""#, 2, false);
+    assert!(
+        !sql.contains("object_data_before"),
+        "pre_image=false must NOT add the object_data_before column: {sql}"
+    );
+    assert!(
+        !sql.contains("r.entity_before"),
+        "pre_image=false must NOT read r.entity_before: {sql}"
+    );
+    // Still threads the after-image and the unchanged INSERT column list.
+    assert!(
+        sql.contains("object_id, object_data, updated_fields"),
+        "after-image object_data column is unchanged: {sql}"
+    );
+    assert!(
+        sql.contains("r.entity_id, r.entity, r.updated_fields"),
+        "after-image r.entity is unchanged: {sql}"
+    );
+}
+
+#[test]
+fn changelog_cte_records_the_pre_image_when_opted_in() {
+    // Opt-in (changelog_pre_image=true): the before-state is recorded into
+    // object_data_before from the function's own entity_before column, ALONGSIDE
+    // the after-image (object_data <- entity). object_data stays the after-image
+    // for every consumer; the pre-image is a separate column, never an envelope.
+    let sql = super::database::build_changelog_cte_sql(r#""fn_p""#, 2, true);
+    assert!(
+        sql.contains("object_id, object_data, object_data_before, updated_fields"),
+        "pre_image=true adds object_data_before AFTER object_data in the INSERT list: {sql}"
+    );
+    assert!(
+        sql.contains("r.entity_id, r.entity, r.entity_before, r.updated_fields"),
+        "pre_image=true selects r.entity_before AFTER r.entity (after-image unchanged): {sql}"
+    );
+    // The positional envelope params are unaffected — the pre-image is a column on
+    // `r`, not a bound parameter, so $n+1.. keep their meaning and the statement
+    // still differs in TEXT from the off form (so prepare_cached keys them apart).
+    assert!(
+        sql.contains("COALESCE(r.entity_type, $3)"),
+        "object_type fallback still $n+1: {sql}"
+    );
+    assert!(sql.contains("$10::uuid"), "acting_for still $n+8: {sql}");
 }

@@ -180,6 +180,19 @@ pub struct IntermediateMutation {
     /// byte-identical to a schema authored before this field existed.
     #[serde(default, skip_serializing_if = "InputStyle::is_flatten")]
     pub input_style: InputStyle,
+
+    /// Whether a successful, state-changing run of this mutation also records the
+    /// changed entity's pre-image (before-state) into the Change-Spine
+    /// `object_data_before` column, sourced from an optional `entity_before` on the
+    /// mutation's `app.mutation_response`.
+    ///
+    /// Set `true` (via the authoring SDK's
+    /// `@fraiseql.mutation(changelog_pre_image=True)` or TOML
+    /// `changelog_pre_image = true`) to opt an audit-sensitive mutation into an
+    /// inline Debezium-style `{before, after}`. Defaults to `false`,
+    /// byte-identical to a schema authored before this field existed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub changelog_pre_image: bool,
 }
 
 impl Default for IntermediateMutation {
@@ -202,6 +215,7 @@ impl Default for IntermediateMutation {
             invalidates_views:       Vec::new(),
             changelog:               default_changelog(),
             input_style:             InputStyle::Flatten,
+            changelog_pre_image:     false,
         }
     }
 }

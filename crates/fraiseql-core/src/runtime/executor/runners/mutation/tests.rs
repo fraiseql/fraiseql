@@ -672,6 +672,10 @@ mod mutation {
         /// via `execute_function_call_with_changelog` to exercise the `input_style`
         /// path (the real verb must survive, not collapse to `UPDATE`).
         captured_modification_type: std::sync::Mutex<Option<String>>,
+        /// Whether the executor opted the last change-log write into the pre-image
+        /// (`ChangeLogWrite.pre_image`), captured to exercise the
+        /// `changelog_pre_image` path. `None` if no change-log row was written.
+        captured_pre_image:         std::sync::Mutex<Option<bool>>,
     }
 
     impl CapturingFunctionCallAdapter {
@@ -680,6 +684,7 @@ mod mutation {
                 captured_args:              std::sync::Mutex::new(Vec::new()),
                 updated_fields:             serde_json::Value::Null,
                 captured_modification_type: std::sync::Mutex::new(None),
+                captured_pre_image:         std::sync::Mutex::new(None),
             }
         }
 
@@ -698,6 +703,12 @@ mod mutation {
         /// change-log row was written.
         fn modification_type(&self) -> Option<String> {
             self.captured_modification_type.lock().unwrap().clone()
+        }
+
+        /// Whether the last change-log write opted into the pre-image
+        /// (`changelog_pre_image`), or `None` if no change-log row was written.
+        fn pre_image(&self) -> Option<bool> {
+            *self.captured_pre_image.lock().unwrap()
         }
     }
 
@@ -738,6 +749,7 @@ mod mutation {
             // captured by `execute_function_call` exactly as the real path does.
             *self.captured_modification_type.lock().unwrap() =
                 changelog.map(|c| c.modification_type.to_string());
+            *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
             self.execute_function_call(function_name, args).await
         }
 
@@ -1349,6 +1361,64 @@ mod mutation {
         assert_eq!(captured[0], "u1");
         assert_eq!(captured[1], "Alice");
         assert_eq!(adapter_ref.modification_type().as_deref(), Some("INSERT"));
+    }
+
+    // ── changelog_pre_image threading (opt-in pre-image) ──────────────────
+    //
+    // The per-mutation `changelog_pre_image` flag rides on the `ChangeLogWrite`
+    // the executor hands the adapter: when set, the outbox CTE also records the
+    // entity's before-state into `object_data_before`. The flag must reach the
+    // adapter intact; off (the default) is byte-for-byte today's behaviour.
+
+    /// `changelog_pre_image = true` reaches the adapter's `ChangeLogWrite`, so the
+    /// outbox CTE opts into the `object_data_before` pre-image.
+    #[tokio::test]
+    async fn changelog_pre_image_flag_reaches_the_change_log_write() {
+        use crate::schema::{InputStyle, MutationOperation};
+        let mut schema = schema_input_style_mutation(
+            MutationOperation::Update {
+                table: "save_user".to_string(),
+            },
+            InputStyle::Flatten,
+        );
+        schema.mutations[0].changelog_pre_image = true;
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+
+        assert_eq!(
+            adapter_ref.pre_image(),
+            Some(true),
+            "changelog_pre_image=true must reach the ChangeLogWrite"
+        );
+    }
+
+    /// Default / absent `changelog_pre_image` leaves the pre-image off — the
+    /// outbox CTE writes only the after-image, byte-for-byte today's behaviour.
+    #[tokio::test]
+    async fn changelog_pre_image_defaults_off() {
+        use crate::schema::{InputStyle, MutationOperation};
+        let schema = schema_input_style_mutation(
+            MutationOperation::Insert {
+                table: "save_user".to_string(),
+            },
+            InputStyle::Flatten,
+        );
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+
+        assert_eq!(
+            adapter_ref.pre_image(),
+            Some(false),
+            "an unset changelog_pre_image must leave the pre-image off"
+        );
     }
 
     // ── #400 tail: single-JSONB-arg recasing when no Input type drives it ──

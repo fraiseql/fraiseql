@@ -75,6 +75,7 @@ impl SchemaExtractor for PythonExtractor {
                 is_error: false,
                 relay: false,
                 subscribable_tables: None,
+                subscribable_pre_image: false,
             });
         }
 

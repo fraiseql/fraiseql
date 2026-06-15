@@ -40,11 +40,17 @@
 --   * `modification_type` = TG_OP ('INSERT' | 'UPDATE' | 'DELETE').
 --   * `object_id`         = the row's PK column (TG_ARGV[1], default 'id'),
 --                           which MUST be a UUID — see the guard below.
---   * `object_data`       = a Debezium-style envelope `{op, before, after}` with
---                           the lowercase op code ('c' | 'u' | 'd'); this is the
---                           exact shape the reader decodes
---                           (`ChangeLogEntry::debezium_operation` /
---                           `after_values` / `before_values`).
+--   * `object_data`       = the AFTER-image (`to_jsonb(NEW)`), or NULL for a
+--                           DELETE — uniform with the executor outbox so
+--                           `object_data` is the after-image from EVERY producer
+--                           (the reader decodes it as the after-image; the op is
+--                           `modification_type`). NOT a {op,before,after} envelope.
+--   * `object_data_before`= the BEFORE-image (`to_jsonb(OLD)`) for UPDATE/DELETE,
+--                           but ONLY when this table opts into the pre-image
+--                           (TG_ARGV[3] = 'true', the changelog_pre_image parity);
+--                           NULL otherwise and for an INSERT. A Debezium
+--                           `{before, after, op, source}` event is the
+--                           core.v_entity_change_log_debezium projection.
 --   * `tenant_id`         = the configured tenant column (TG_ARGV[2], default
 --                           'tenant_id') if present and UUID-shaped, else the
 --                           cooperative session GUC `fraiseql.tenant_id` — so the
@@ -88,6 +94,11 @@ DECLARE
     v_object_type TEXT := TG_ARGV[0];                       -- GraphQL type name
     v_pk_col      TEXT := COALESCE(TG_ARGV[1], 'id');       -- UUID public-id column
     v_tenant_col  TEXT := COALESCE(TG_ARGV[2], 'tenant_id');-- tenant column ('' = none)
+    -- changelog_pre_image opt-in: when the generated trigger passes 'true' as
+    -- TG_ARGV[3], also record the changed entity's pre-image (OLD) into
+    -- object_data_before. An absent 4th arg (non-opted-in / pre-this-feature
+    -- triggers) COALESCEs to off, capturing the after-image only.
+    v_pre_image   BOOLEAN := COALESCE(TG_ARGV[3], 'false')::boolean;
     -- Cooperative session enrichment (NULL for an anonymous external write).
     v_actor_type     TEXT := NULLIF(current_setting('fraiseql.actor_type',     true), '');
     v_schema_version TEXT := NULLIF(current_setting('fraiseql.schema_version', true), '');
@@ -118,14 +129,15 @@ BEGIN
     --     UUID-PK guard so a NULL/!UUID object_id can never reach the poller.
     IF TG_OP = 'INSERT' THEN
         INSERT INTO core.tb_entity_change_log
-            (object_type, modification_type, object_id, object_data, tenant_id,
+            (object_type, modification_type, object_id, object_data, object_data_before, tenant_id,
              actor_type, acting_for, schema_version, change_status, extra_metadata,
              commit_time)
         SELECT
             v_object_type,
             'INSERT',
             (to_jsonb(n) ->> v_pk_col)::uuid,
-            jsonb_build_object('op', 'c', 'before', NULL, 'after', to_jsonb(n)),
+            to_jsonb(n),   -- object_data = the after-image (NEW), uniform with the executor outbox
+            NULL,          -- object_data_before: an INSERT has no before-image
             COALESCE(
                 CASE WHEN (to_jsonb(n) ->> v_tenant_col) ~ c_uuid_re
                      THEN (to_jsonb(n) ->> v_tenant_col)::uuid END,
@@ -139,14 +151,17 @@ BEGIN
 
     ELSIF TG_OP = 'UPDATE' THEN
         INSERT INTO core.tb_entity_change_log
-            (object_type, modification_type, object_id, object_data, tenant_id,
+            (object_type, modification_type, object_id, object_data, object_data_before, tenant_id,
              actor_type, acting_for, schema_version, change_status, extra_metadata,
              commit_time)
         SELECT
             v_object_type,
             'UPDATE',
             (to_jsonb(n) ->> v_pk_col)::uuid,
-            jsonb_build_object('op', 'u', 'before', to_jsonb(o), 'after', to_jsonb(n)),
+            to_jsonb(n),   -- object_data = the after-image (NEW)
+            -- object_data_before = the pre-image (OLD), only when this table opts
+            -- into changelog_pre_image (TG_ARGV[3] = 'true'); else NULL.
+            CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END,
             COALESCE(
                 CASE WHEN (to_jsonb(n) ->> v_tenant_col) ~ c_uuid_re
                      THEN (to_jsonb(n) ->> v_tenant_col)::uuid END,
@@ -162,14 +177,16 @@ BEGIN
 
     ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO core.tb_entity_change_log
-            (object_type, modification_type, object_id, object_data, tenant_id,
+            (object_type, modification_type, object_id, object_data, object_data_before, tenant_id,
              actor_type, acting_for, schema_version, change_status, extra_metadata,
              commit_time)
         SELECT
             v_object_type,
             'DELETE',
             (to_jsonb(o) ->> v_pk_col)::uuid,
-            jsonb_build_object('op', 'd', 'before', to_jsonb(o), 'after', NULL),
+            NULL,          -- object_data: a DELETE has no after-image
+            -- object_data_before = the pre-image (OLD), only when opted in; else NULL.
+            CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END,
             COALESCE(
                 CASE WHEN (to_jsonb(o) ->> v_tenant_col) ~ c_uuid_re
                      THEN (to_jsonb(o) ->> v_tenant_col)::uuid END,
@@ -187,4 +204,4 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION core.fn_entity_change_log_capture() IS
-    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes Debezium-enveloped core.tb_entity_change_log rows for external writes. Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';
+    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes contract-conforming core.tb_entity_change_log rows for external writes — object_data = the after-image (NEW), object_data_before = the pre-image (OLD) when the table opts into changelog_pre_image (TG_ARGV[3]). Uniform with the executor outbox; a Debezium event is the core.v_entity_change_log_debezium projection. Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';

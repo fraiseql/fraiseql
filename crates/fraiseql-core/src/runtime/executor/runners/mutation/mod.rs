@@ -640,6 +640,11 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             .with_trace_context(trace_context_json.as_deref())
             .with_actor_type(actor_type)
             .with_acting_for(acting_for)
+            // Opt-in pre-image: when this mutation sets `changelog_pre_image`, the
+            // outbox CTE also records the entity's before-state (from the
+            // function's `entity_before`) into `object_data_before`. Off by
+            // default → no extra column, byte-for-byte today's behavior.
+            .with_pre_image(mutation_def.changelog_pre_image)
     });
     let rows = ctx
         .adapter

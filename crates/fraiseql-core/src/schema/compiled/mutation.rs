@@ -149,6 +149,29 @@ pub struct MutationDefinition {
     /// and does not churn the codegen schema hash).
     #[serde(default, skip_serializing_if = "InputStyle::is_flatten")]
     pub input_style: InputStyle,
+
+    /// Whether a successful, state-changing run of this mutation also records the
+    /// changed entity's **pre-image** (before-state) into the Change-Spine
+    /// `object_data_before` column, alongside the after-image it already writes to
+    /// `object_data`. Default `false`.
+    ///
+    /// The pre-image is sourced from an optional `entity_before` on the mutation's
+    /// `app.mutation_response` (the same way the after-image is sourced from
+    /// `entity`); the outbox CTE reads `r.entity_before` **only when this is set**,
+    /// so an opted-in mutation's response type must expose that column.
+    ///
+    /// Opt-in per mutation so the audit cost (extra storage + a backend that
+    /// computes the pre-mutation snapshot) is paid only by the audit-sensitive
+    /// mutations that need an inline Debezium-style `{before, after}` on the single
+    /// event — most consumers react to the after-state, and an update's
+    /// before-state is the previous row's after-state, reconstructable from the
+    /// seq-ordered stream.
+    ///
+    /// Defaults to `false`; an absent value is byte-identical to the behavior
+    /// before this field existed (so it adds no compiled-schema bytes and does not
+    /// churn the codegen schema hash).
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub changelog_pre_image: bool,
 }
 
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
@@ -226,6 +249,7 @@ impl MutationDefinition {
             requires_role:           None,
             changelog:               true,
             input_style:             InputStyle::Flatten,
+            changelog_pre_image:     false,
         }
     }
 

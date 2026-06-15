@@ -220,6 +220,7 @@ fn subscribable_round_trips_when_present() {
         subscribable: vec![SubscribableEntity {
             entity_type: "Post".to_string(),
             tables:      vec!["tb_post".to_string(), "public.tb_post_archive".to_string()],
+            pre_image:   false,
         }],
         ..CompiledSchema::default()
     };
@@ -236,6 +237,7 @@ fn subscribable_participates_in_content_hash() {
         subscribable: vec![SubscribableEntity {
             entity_type: "Post".to_string(),
             tables:      vec!["tb_post".to_string()],
+            pre_image:   false,
         }],
         ..CompiledSchema::default()
     };

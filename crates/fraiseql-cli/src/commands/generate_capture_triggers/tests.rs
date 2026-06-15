@@ -23,6 +23,7 @@ fn includes_function_then_triggers_when_requested() {
     let schema = schema_with(vec![SubscribableEntity {
         entity_type: "Post".to_string(),
         tables:      vec!["tb_post".to_string()],
+        pre_image:   false,
     }]);
     let ddl = build_ddl(&schema, true);
     // Self-contained: the function definition precedes the generated triggers.
@@ -45,6 +46,7 @@ fn omits_function_when_not_requested() {
     let schema = schema_with(vec![SubscribableEntity {
         entity_type: "Post".to_string(),
         tables:      vec!["tb_post".to_string()],
+        pre_image:   false,
     }]);
     let ddl = build_ddl(&schema, false);
     assert!(

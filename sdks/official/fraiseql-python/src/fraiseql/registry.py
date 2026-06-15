@@ -85,6 +85,7 @@ class SchemaRegistry:
         key_fields: list[str] | None = None,
         extends: bool = False,
         subscribable_tables: list[str] | None = None,
+        subscribable_pre_image: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -106,6 +107,10 @@ class SchemaRegistry:
                 this type's subscriptions (#366). Emitted as ``subscribable_tables``
                 only when non-empty; the compiler aggregates these into the
                 compiled schema's capture-trigger declarations.
+            subscribable_pre_image: Whether the capture triggers on those tables
+                also record the pre-image (OLD) into ``object_data_before`` (the
+                ``changelog_pre_image`` out-of-band parity). Emitted only when
+                ``True`` and there are tables to subscribe.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -145,6 +150,10 @@ class SchemaRegistry:
         # declarations into the compiled schema.
         if subscribable_tables:
             type_def["subscribable_tables"] = subscribable_tables
+            # Only meaningful alongside tables; emit only when opted in (snake_case,
+            # skip-when-false → byte-identical JSON for the common case).
+            if subscribable_pre_image:
+                type_def["subscribable_pre_image"] = True
 
         cls._types[name] = type_def
 

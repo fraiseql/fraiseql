@@ -62,7 +62,9 @@ struct ChangeLogRow {
     object_id:            Uuid, // public-facing UUID
     modification_type:    String,
     change_status:        Option<String>,
-    object_data:          Option<Value>, // nullable on the contract
+    object_data:          Option<Value>, // nullable on the contract (the after-image)
+    object_data_before:   Option<Value>, /* the pre-image (changelog_pre_image); NULL unless
+                                          * opted in */
     extra_metadata:       Option<Value>,
     created_at:           Option<DateTime<Utc>>,
     tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
@@ -150,8 +152,18 @@ pub struct ChangeLogEntry {
     /// Status (success, failed, etc.)
     pub change_status: String,
 
-    /// Debezium envelope with before/after/op/source
+    /// The changed entity's **after-image** (the `object_data` contract column),
+    /// uniform across every producer (executor outbox AND the #366 capture
+    /// trigger). `Value::Null` for a DELETE (no after-state) or when the producer
+    /// wrote no payload. The Debezium operation is [`modification_type`](Self::modification_type),
+    /// not a key inside this value — the base table never stores a
+    /// `{op, before, after}` envelope.
     pub object_data: Value,
+
+    /// The changed entity's **pre-image** (the `object_data_before` contract
+    /// column), recorded only by producers that opt into `changelog_pre_image`;
+    /// `None` otherwise. Surfaced by [`before_values`](Self::before_values).
+    pub object_data_before: Option<Value>,
 
     /// Additional metadata (JSON)
     pub extra_metadata: Option<Value>,
@@ -192,40 +204,42 @@ pub struct ChangeLogEntry {
 }
 
 impl ChangeLogEntry {
-    /// Parse Debezium envelope to get operation code
+    /// The Debezium operation code (`'c'`/`'u'`/`'d'`/`'r'`) derived from
+    /// [`modification_type`](Self::modification_type).
+    ///
+    /// The change-log contract stores the verb in `modification_type` and the
+    /// after-image in `object_data` (NOT a `{op, before, after}` envelope), so the
+    /// op is mapped from the verb: `INSERT`→`'c'`, `UPDATE`→`'u'`, `DELETE`→`'d'`,
+    /// and anything else (e.g. `CUSTOM`/`NOOP`) → `'r'`.
     ///
     /// # Errors
     ///
-    /// Returns [`ObserverError::TemplateRenderingFailed`] if the `op` field is
-    /// missing or empty in the Debezium envelope.
+    /// Infallible today (any verb maps to a code); kept returning [`Result`] so
+    /// callers and a future strict mode need not change.
     pub fn debezium_operation(&self) -> Result<char> {
-        self.object_data
-            .get("op")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.chars().next())
-            .ok_or_else(|| ObserverError::TemplateRenderingFailed {
-                reason: "Missing 'op' field in Debezium envelope".to_string(),
-            })
-    }
-
-    /// Get "after" values (entity state after change)
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ObserverError::TemplateRenderingFailed`] if the `after` field is
-    /// absent in the Debezium envelope.
-    pub fn after_values(&self) -> Result<Value> {
-        self.object_data.get("after").cloned().ok_or_else(|| {
-            ObserverError::TemplateRenderingFailed {
-                reason: "Missing 'after' field in Debezium envelope".to_string(),
-            }
+        Ok(match self.modification_type.to_uppercase().as_str() {
+            "INSERT" => 'c',
+            "UPDATE" => 'u',
+            "DELETE" => 'd',
+            _ => 'r',
         })
     }
 
-    /// Get "before" values (entity state before change)
+    /// The entity's **after** state — the `object_data` column directly (the
+    /// uniform after-image), not a key inside an envelope.
+    ///
+    /// # Errors
+    ///
+    /// Infallible today; kept returning [`Result`] for call-site stability.
+    pub fn after_values(&self) -> Result<Value> {
+        Ok(self.object_data.clone())
+    }
+
+    /// The entity's **before** state — the `object_data_before` column. `None`
+    /// unless the producing mutation/table opted into `changelog_pre_image`.
     #[must_use]
     pub fn before_values(&self) -> Option<Value> {
-        self.object_data.get("before").cloned()
+        self.object_data_before.clone()
     }
 
     /// Convert to `EntityEvent` for observer processing
@@ -420,6 +434,7 @@ impl ChangeLogListener {
                     modification_type,
                     change_status,
                     object_data,
+                    object_data_before,
                     extra_metadata,
                     created_at,
                     tenant_id,
@@ -454,6 +469,7 @@ impl ChangeLogListener {
             modification_type: mod_type,
             change_status: status,
             object_data: data,
+            object_data_before: data_before,
             extra_metadata: meta,
             created_at: created,
             tenant_id: tenant,
@@ -479,6 +495,7 @@ impl ChangeLogListener {
                 modification_type: mod_type,
                 change_status: status.unwrap_or_default(),
                 object_data: data.unwrap_or(Value::Null),
+                object_data_before: data_before,
                 extra_metadata: meta,
                 created_at: created_at_str,
                 // Trinity: tenant_id is the public-facing UUID partition stamp,

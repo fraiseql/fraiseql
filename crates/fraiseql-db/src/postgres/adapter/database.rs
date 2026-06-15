@@ -289,7 +289,7 @@ pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> 
 /// [`crate::changelog::DURATION_CALC_VERSION`]. `commit_time` is the DB clock at
 /// INSERT; `seq` is omitted so the column's `SEQUENCE` default fires (so any
 /// INSERTer, incl. cooperative external producers, gets a monotonic value).
-pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String {
+pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize, pre_image: bool) -> String {
     let placeholders: Vec<String> = (1..=n_args).map(|i| format!("${i}")).collect();
     let object_type_idx = n_args + 1;
     let modification_type_idx = n_args + 2;
@@ -302,18 +302,36 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize) -> String 
     let started_var = crate::changelog::STARTED_AT_VAR;
     let duration = crate::changelog::duration_ms_sql(started_var);
     let calc_version = crate::changelog::DURATION_CALC_VERSION;
+    // Pre-image (opt-in, #changelog_pre_image): also record the changed entity's
+    // before-state from the function's own `entity_before` column, alongside the
+    // after-image `entity`. Adds `object_data_before` to the INSERT and
+    // `r.entity_before` to the SELECT ONLY when requested — `object_data` stays
+    // the after-image for every consumer; an absent flag emits today's SQL
+    // byte-for-byte. No new placeholder: the before-image is a column on `r`, like
+    // `r.entity`. The two SQL forms differ in text, so `prepare_cached` keys them
+    // as separate statements automatically (no extra cache discriminator needed).
+    let after_before_cols = if pre_image {
+        "object_data, object_data_before"
+    } else {
+        "object_data"
+    };
+    let after_before_vals = if pre_image {
+        "r.entity, r.entity_before"
+    } else {
+        "r.entity"
+    };
     format!(
         "WITH r AS MATERIALIZED (SELECT * FROM {quoted_fn}({args})), \
          _changelog AS ( \
            INSERT INTO core.tb_entity_change_log \
-             (object_type, modification_type, object_id, object_data, \
+             (object_type, modification_type, object_id, {after_before_cols}, \
               updated_fields, cascade, started_at, duration_ms, extra_metadata, \
               tenant_id, trace_id, schema_version, trace_context, \
               actor_type, acting_for, commit_time) \
            SELECT \
              COALESCE(r.entity_type, ${object_type_idx}), \
              ${modification_type_idx}, \
-             r.entity_id, r.entity, r.updated_fields, r.cascade, \
+             r.entity_id, {after_before_vals}, r.updated_fields, r.cascade, \
              current_setting('{started_var}')::timestamptz, \
              {duration}, \
              jsonb_build_object('duration_calc_version', {calc_version}::int), \
@@ -732,7 +750,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let quoted_fn = quote_postgres_identifier(function_name);
         // One statement: run the function once and INSERT its outbox row in the
         // same txn, atomically, with no extra connection acquire (Change Spine).
-        let sql = build_changelog_cte_sql(&quoted_fn, args.len());
+        let sql = build_changelog_cte_sql(&quoted_fn, args.len(), changelog.pre_image);
 
         // Function args first; then the threaded change-log envelope params —
         // object_type fallback ($n+1), modification_type verb ($n+2), the

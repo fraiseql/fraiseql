@@ -49,11 +49,8 @@ mod change_log_tests {
             object_id:            "order-id".to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": "order-id" }
-            }),
+            object_data:          json!({ "id": "order-id" }),
+            object_data_before:   None,
             extra_metadata:       None,
             created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
@@ -78,11 +75,8 @@ mod change_log_tests {
             object_id:            "user-id".to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "name": "old" },
-                "after": { "name": "new" }
-            }),
+            object_data:          json!({ "name": "new" }),
+            object_data_before:   Some(json!({ "name": "old" })),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
@@ -108,11 +102,8 @@ mod change_log_tests {
             object_id:            "prod-id".to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "price": 100 },
-                "after": { "price": 150 }
-            }),
+            object_data:          json!({ "price": 150 }),
+            object_data_before:   Some(json!({ "price": 100 })),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
@@ -167,11 +158,8 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": entity_id.to_string(), "total": 150.00, "status": "pending" }
-            }),
+            object_data:          json!({ "id": entity_id.to_string(), "total": 150.00, "status": "pending" }),
+            object_data_before:   None,
             extra_metadata:       None,
             created_at:           "2026-01-22T10:30:00+00:00".to_string(),
         };
@@ -204,11 +192,8 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "status": "pending", "total": 100.00 },
-                "after": { "status": "shipped", "total": 100.00 }
-            }),
+            object_data:          json!({ "status": "shipped", "total": 100.00 }),
+            object_data_before:   Some(json!({ "status": "pending", "total": 100.00 })),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:35:00+00:00".to_string(),
         };
@@ -245,11 +230,10 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "DELETE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "d",
-                "before": { "id": entity_id.to_string(), "email": "user@example.com" },
-                "after": null
-            }),
+            object_data:          Value::Null,
+            object_data_before:   Some(
+                json!({ "id": entity_id.to_string(), "email": "user@example.com" }),
+            ),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:40:00+00:00".to_string(),
         };
@@ -280,11 +264,8 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "name": "Widget" },
-                "after": { "name": "Widget", "description": "A useful widget" }
-            }),
+            object_data:          json!({ "name": "Widget", "description": "A useful widget" }),
+            object_data_before:   Some(json!({ "name": "Widget" })),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:45:00+00:00".to_string(),
         };
@@ -316,11 +297,8 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "UPDATE".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "u",
-                "before": { "name": "John", "temp_field": "value" },
-                "after": { "name": "John" }
-            }),
+            object_data:          json!({ "name": "John" }),
+            object_data_before:   Some(json!({ "name": "John", "temp_field": "value" })),
             extra_metadata:       None,
             created_at:           "2026-01-22T10:50:00+00:00".to_string(),
         };
@@ -352,11 +330,8 @@ mod change_log_tests {
             object_id:            entity_id.to_string(),
             modification_type:    "INSERT".to_string(),
             change_status:        "success".to_string(),
-            object_data:          json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": entity_id.to_string() }
-            }),
+            object_data:          json!({ "id": entity_id.to_string() }),
+            object_data_before:   None,
             extra_metadata:       None,
             created_at:           "2026-01-22T15:30:45.123456+00:00".to_string(),
         };
@@ -368,8 +343,8 @@ mod change_log_tests {
     }
 
     /// Build a minimal `INSERT` entry, overriding only the Trinity/envelope
-    /// columns under test. The Debezium payload is a valid `op:c` so
-    /// `to_entity_event` succeeds.
+    /// columns under test. `object_data` is the after-image and
+    /// `modification_type = INSERT`, so `to_entity_event` succeeds (op `c`).
     fn entry_with_envelope(
         fk_customer_org: &str,
         tenant_id: Option<&str>,
@@ -394,11 +369,8 @@ mod change_log_tests {
             object_id: entity_id.to_string(),
             modification_type: "INSERT".to_string(),
             change_status: "success".to_string(),
-            object_data: json!({
-                "op": "c",
-                "before": null,
-                "after": { "id": entity_id.to_string() }
-            }),
+            object_data: json!({ "id": entity_id.to_string() }),
+            object_data_before: None,
             extra_metadata: None,
             created_at: "2026-01-22T10:00:00+00:00".to_string(),
         }

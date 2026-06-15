@@ -66,6 +66,21 @@ pub struct SubscribableEntity {
     /// optionally schema-qualified `["public.tb_post"]`). A capture trigger is
     /// installed on each.
     pub tables: Vec<String>,
+
+    /// Whether the capture triggers on this entity's tables also record the
+    /// changed entity's **pre-image** (OLD) into `object_data_before` — the
+    /// out-of-band parity for the per-mutation
+    /// [`changelog_pre_image`](super::MutationDefinition::changelog_pre_image).
+    ///
+    /// The trigger always unifies `object_data` on the after-image (NEW)
+    /// regardless of this flag; `pre_image` only adds the separate before-image
+    /// column for opted-in tables, so audit-sensitive entities get an inline
+    /// Debezium `{before, after}` even for raw external writes. Default `false`
+    /// (opt in via `@subscribable(tables=[...], pre_image=True)`); an absent value
+    /// is byte-identical to before this field existed, so it does not churn the
+    /// codegen schema hash.
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub pre_image: bool,
 }
 
 /// Complete compiled schema - all type information for serving.

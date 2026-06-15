@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS tb_entity_change_log (
     -- Changed-entity identity + payload.
     object_id            CHAR(36)     NULL,
     object_data          JSON         NULL,
+    -- Opt-in pre-image (changelog_pre_image): the changed entity's BEFORE-state.
+    -- object_data stays the after-image; the pre-image is this separate column,
+    -- never an envelope. Contract parity — the Change Spine outbox CTE that
+    -- populates it is PostgreSQL-only; NULL on MySQL until a writer lands.
+    object_data_before   JSON         NULL,
     updated_fields       JSON         NULL,
     `cascade`            JSON         NULL,
     -- Perf observability (#392): NULL on MySQL (no request-scoped GUC clock).
@@ -82,6 +87,24 @@ SET @retype_acting_for := (
 PREPARE retype_stmt FROM @retype_acting_for;
 EXECUTE retype_stmt;
 DEALLOCATE PREPARE retype_stmt;
+
+-- Add `object_data_before` (changelog_pre_image) on a pre-existing table (the
+-- CREATE TABLE IF NOT EXISTS above is a no-op there). MySQL 8.0 has no
+-- `ADD COLUMN IF NOT EXISTS`, so guard on information_schema via a prepared
+-- statement (same shape as the acting_for retype); a fresh table already has the
+-- column, so the guard yields a no-op `SELECT 1`.
+SET @add_object_data_before := (
+    SELECT IF(COUNT(*) > 0,
+              'SELECT 1',
+              'ALTER TABLE tb_entity_change_log ADD COLUMN object_data_before JSON NULL AFTER object_data')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tb_entity_change_log'
+      AND COLUMN_NAME = 'object_data_before'
+);
+PREPARE add_odb_stmt FROM @add_object_data_before;
+EXECUTE add_odb_stmt;
+DEALLOCATE PREPARE add_odb_stmt;
 
 ALTER TABLE tb_entity_change_log
     COMMENT = 'FraiseQL change-log contract (Change Spine Tier 0 outbox), MySQL variant. Superset of perf (#392) + envelope columns. See docs/architecture/change-log-contract.md.';

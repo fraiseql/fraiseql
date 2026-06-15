@@ -65,6 +65,25 @@ fn migration_sql_covers_every_contract_column() {
 }
 
 #[test]
+fn migration_declares_the_pre_image_column_and_debezium_view() {
+    let sql = entity_change_log_contract_sql();
+    // changelog_pre_image: the additive before-image column + the Debezium
+    // projection view (the envelope is a view, never a stored shape).
+    assert!(
+        sql.contains("ADD COLUMN IF NOT EXISTS object_data_before JSONB"),
+        "pre-image column is added additively"
+    );
+    assert!(
+        sql.contains("CREATE OR REPLACE VIEW core.v_entity_change_log_debezium"),
+        "Debezium projection view is created"
+    );
+    assert!(
+        sql.contains("object_data_before AS before") && sql.contains("object_data        AS after"),
+        "the view projects before/after from the two columns"
+    );
+}
+
+#[test]
 fn migration_declares_both_tenant_id_and_fk_customer_org() {
     let sql = entity_change_log_contract_sql();
     // tenant_id (RLS stamp) and fk_customer_org (join FK) are complementary —
@@ -134,16 +153,34 @@ fn capture_trigger_suppresses_app_mediated_writes() {
 }
 
 #[test]
-fn capture_trigger_writes_the_debezium_envelope_per_op() {
+fn capture_trigger_writes_the_after_image_into_object_data_not_an_envelope() {
     let sql = entity_change_log_capture_trigger_sql();
-    // The reader decodes object_data as a Debezium envelope keyed by lowercase op
-    // ('c'/'u'/'d') with before/after — the trigger must emit exactly that.
-    assert!(sql.contains("'op', 'c'"), "INSERT → op 'c'");
-    assert!(sql.contains("'op', 'u'"), "UPDATE → op 'u'");
-    assert!(sql.contains("'op', 'd'"), "DELETE → op 'd'");
+    // Unified contract shape (changelog_pre_image): object_data is the after-image
+    // (NEW) from every producer, NOT a {op,before,after} envelope. The op is the
+    // modification_type column; the reader derives the Debezium code from it.
     assert!(
-        sql.contains("jsonb_build_object('op'"),
-        "builds the op/before/after Debezium envelope"
+        sql.contains("object_data, object_data_before, tenant_id"),
+        "INSERT column list carries object_data + object_data_before: {sql}"
+    );
+    assert!(
+        !sql.contains("jsonb_build_object('op'"),
+        "no {{op,before,after}} envelope is built into object_data anymore: {sql}"
+    );
+    assert!(!sql.contains("'op', 'c'"), "no inline op code: {sql}");
+}
+
+#[test]
+fn capture_trigger_records_pre_image_only_when_opted_in() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // The per-table opt-in is TG_ARGV[3]; OLD reaches object_data_before only when
+    // it is on, so a non-opted-in table captures the after-image only.
+    assert!(
+        sql.contains("v_pre_image"),
+        "reads the pre-image opt-in flag from TG_ARGV[3]: {sql}"
+    );
+    assert!(
+        sql.contains("CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END"),
+        "object_data_before = OLD only when the table opts in: {sql}"
     );
 }
 

@@ -90,6 +90,7 @@ impl SchemaConverter {
                     .map(|tables| fraiseql_core::schema::SubscribableEntity {
                         entity_type: t.name.clone(),
                         tables:      tables.clone(),
+                        pre_image:   t.subscribable_pre_image,
                     })
             })
             .collect();

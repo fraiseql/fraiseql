@@ -41,6 +41,7 @@ fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         invalidates_views:       Vec::new(),
         changelog:               true,
         input_style:             InputStyle::Flatten,
+        changelog_pre_image:     false,
     }
 }
 

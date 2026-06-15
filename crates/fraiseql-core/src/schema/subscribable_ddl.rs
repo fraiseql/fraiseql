@@ -60,6 +60,7 @@ const PG_IDENT_MAX: usize = 63;
 /// schema.subscribable.push(SubscribableEntity {
 ///     entity_type: "Post".to_string(),
 ///     tables:      vec!["tb_post".to_string()],
+///     pre_image:   false,
 /// });
 /// let ddl = generate_capture_trigger_ddl(&schema);
 /// assert!(ddl.contains("CREATE TRIGGER"));
@@ -88,7 +89,12 @@ fn entity_ddl(entity: &SubscribableEntity) -> String {
     for table in &entity.tables {
         match split_qualified_ident(table) {
             Some((schema_part, table_part)) => {
-                out.push_str(&table_ddl(&entity.entity_type, schema_part.as_deref(), &table_part));
+                out.push_str(&table_ddl(
+                    &entity.entity_type,
+                    schema_part.as_deref(),
+                    &table_part,
+                    entity.pre_image,
+                ));
             },
             None => {
                 let _ = write!(
@@ -104,12 +110,26 @@ fn entity_ddl(entity: &SubscribableEntity) -> String {
 }
 
 /// Emit the three statement-level triggers for one validated table.
-fn table_ddl(entity_type: &str, schema_part: Option<&str>, table_part: &str) -> String {
+fn table_ddl(
+    entity_type: &str,
+    schema_part: Option<&str>,
+    table_part: &str,
+    pre_image: bool,
+) -> String {
     let target = match schema_part {
         Some(s) => format!("\"{s}\".\"{table_part}\""),
         None => format!("\"{table_part}\""),
     };
-    let args = format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}'", sql_string_literal(entity_type));
+    // TG_ARGV: entity_type ($0), pk column ($1), tenant column ($2). For
+    // pre-image-opted-in entities, append the pre_image flag ($3 = 'true') so the
+    // capture function also records OLD into object_data_before. Omit it
+    // otherwise, so a non-opted-in table's DDL is byte-identical to before this
+    // flag existed (the function COALESCEs an absent $3 to off).
+    let args = if pre_image {
+        format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}', 'true'", sql_string_literal(entity_type))
+    } else {
+        format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}'", sql_string_literal(entity_type))
+    };
 
     let mut out = String::new();
     for (suffix, when, referencing) in [

@@ -144,6 +144,29 @@ def _validate_changelog(cfg: dict[str, Any], context: str) -> None:
         raise TypeError(msg)
 
 
+def _validate_changelog_pre_image(cfg: dict[str, Any], context: str) -> None:
+    """Validate the ``changelog_pre_image`` opt-in flag in *cfg* if present.
+
+    When ``True``, the Change Spine also records the changed entity's pre-image
+    (before-state) into ``object_data_before`` alongside the after-state. It must
+    be a real ``bool`` so the compiler's typed field deserialises. Absent is fine
+    — the compiler defaults it to ``False`` (after-image only, today's behavior).
+
+    Args:
+        cfg: Config dict that may contain ``changelog_pre_image``.
+        context: Human-readable decorator description for error messages.
+
+    Raises:
+        TypeError: If ``changelog_pre_image`` is present but not a ``bool``.
+    """
+    if "changelog_pre_image" in cfg and not isinstance(cfg["changelog_pre_image"], bool):
+        msg = (
+            f"{context}: changelog_pre_image= must be a bool "
+            f"(got {cfg['changelog_pre_image'].__class__.__name__!r})."
+        )
+        raise TypeError(msg)
+
+
 def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
     """Validate the ``input_style`` flag in *cfg* if present.
 
@@ -345,6 +368,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     key_fields: list[str] | None = None,
     extends: bool = False,
     subscribable_tables: list[str] | None = None,
+    subscribable_pre_image: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -373,6 +397,11 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             mutation executor are de-duplicated automatically. Each table must
             expose a UUID ``id`` column. When ``None`` (the default), the type's
             tables are not captured.
+        subscribable_pre_image: When ``True``, the capture triggers on
+            ``subscribable_tables`` also record the changed entity's pre-image
+            (OLD) into ``object_data_before`` — the out-of-band parity for a
+            mutation's ``changelog_pre_image``. Default ``False`` (after-image
+            only). Only meaningful together with ``subscribable_tables``.
 
     Returns:
         The original class (unmodified)
@@ -433,6 +462,20 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 )
                 raise ValueError(msg)
 
+        # subscribable_pre_image only has meaning alongside subscribable_tables.
+        if not isinstance(subscribable_pre_image, bool):
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: subscribable_pre_image must be a bool "
+                f"(got {subscribable_pre_image.__class__.__name__!r})."
+            )
+            raise TypeError(msg)
+        if subscribable_pre_image and not subscribable_tables:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: subscribable_pre_image=True has no "
+                "effect without subscribable_tables."
+            )
+            raise ValueError(msg)
+
         # Validate sql_source if provided
         if sql_source is not None:
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.type on {c.__name__!r}")
@@ -471,6 +514,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             key_fields=key_fields,
             extends=extends,
             subscribable_tables=subscribable_tables,
+            subscribable_pre_image=subscribable_pre_image,
         )
 
         # Generate CRUD operations if requested
@@ -706,6 +750,12 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
           rest of the schema keeps logging. Omitting it leaves the key out of the JSON,
           and the compiler defaults it to true (a row is written only when the global
           ``[changelog]`` switch and this per-mutation flag are both on).
+        - changelog_pre_image: bool (default false). Set ``changelog_pre_image=True`` to
+          also record the changed entity's pre-image (before-state) into the Change-Spine
+          ``object_data_before`` column, alongside the after-state in ``object_data`` —
+          sourced from an optional ``entity_before`` on the mutation's
+          ``app.mutation_response``. For audit-sensitive mutations that need an inline
+          Debezium-style ``{before, after}``; off by default (after-image only).
         - input_style: "flatten" (default) or "jsonb". Orthogonal to ``operation``:
           set ``input_style="jsonb"`` so a backend using the single-``jsonb``-wrapper
           convention (``fn(input_payload jsonb, …)``) can register the real DML verb
@@ -799,6 +849,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # changelog= validation — fail fast at authoring time
         _validate_changelog(cfg, f"@fraiseql.mutation on {f.__name__!r}")
+
+        # changelog_pre_image= validation — fail fast at authoring time
+        _validate_changelog_pre_image(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # input_style= validation — fail fast at authoring time
         _validate_input_style(cfg, f"@fraiseql.mutation on {f.__name__!r}")

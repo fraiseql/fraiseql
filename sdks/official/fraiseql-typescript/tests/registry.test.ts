@@ -359,4 +359,35 @@ describe("SchemaRegistry", () => {
       }).toThrow("inputStyle must be a string");
     });
   });
+
+  describe("changelogPreImage flag", () => {
+    it("should normalise camelCase changelogPreImage to snake_case changelog_pre_image", () => {
+      SchemaRegistry.registerMutation("updatePrice", "Price", false, false, [], undefined, {
+        sqlSource: "fn_update_price",
+        changelogPreImage: true,
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect(mutation["changelog_pre_image"]).toBe(true);
+      expect(mutation["changelogPreImage"]).toBeUndefined();
+    });
+
+    it("should leave changelog_pre_image out of mutation output when omitted", () => {
+      SchemaRegistry.registerMutation("createQuote", "Quote", false, false, [], undefined, {
+        sqlSource: "fn_create_quote",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect("changelog_pre_image" in mutation).toBe(false);
+    });
+
+    it("should reject a non-boolean changelogPreImage value", () => {
+      expect(() => {
+        SchemaRegistry.registerMutation("createInvoice", "Invoice", false, false, [], undefined, {
+          sqlSource: "fn_create_invoice",
+          changelogPreImage: "yes",
+        });
+      }).toThrow("changelogPreImage must be a boolean");
+    });
+  });
 });

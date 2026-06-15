@@ -103,6 +103,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the TypeScript SDK, and `input_style = "jsonb"` on a `[mutations.<name>]` table in the TOML
   schema. Fully opt-in and backward compatible: the default `flatten` is byte-for-byte today's
   behavior, and an absent value adds no compiled-schema bytes (no codegen schema-hash churn).
+- **Per-mutation `changelog_pre_image` — opt-in Debezium-style pre-image for the Change Spine.**
+  A new opt-in flag makes a mutation also record the changed entity's **before-state** alongside
+  the after-state it already writes, into a new nullable `object_data_before JSONB` column on
+  `core.tb_entity_change_log`. The pre-image is sourced from an optional `entity_before` on the
+  mutation's `app.mutation_response` (the same way the after-image is sourced from `entity`), and
+  the in-transaction outbox CTE reads `r.entity_before` **only when the flag is set**. `object_data`
+  stays the after-image for *every* consumer — the pre-image is a separate column, never a
+  `{before, after}` envelope — so audit-sensitive mutations (price/contract/order edits, financial
+  deletes) get an inline `{before, after}` without paying that cost on every change. The
+  out-of-band #366 capture trigger is unified on the same shape: it now writes `object_data = NEW`
+  (after-image) and, for tables that opt in via `@subscribable(tables=[...], pre_image=True)`,
+  `object_data_before = OLD`. A new `core.v_entity_change_log_debezium` view projects the classic
+  `{before, after, op, source}` event from the columns (a view, not a stored shape). Surfaced as
+  `@fraiseql.mutation(changelog_pre_image=True)` in the Python SDK,
+  `@Mutation({ changelogPreImage: true })` in the TypeScript SDK, and `changelog_pre_image = true`
+  on a `[mutations.<name>]` table in the TOML schema. Fully opt-in and backward compatible: the
+  default is off (after-image only, byte-for-byte today's behavior) and an absent value adds no
+  compiled-schema bytes (no codegen schema-hash churn). The nullable column is added to the
+  PostgreSQL, MySQL, and SQL Server contracts for parity; only the PostgreSQL outbox CTE and
+  capture trigger write it.
 
 ### Fixed
 
@@ -550,6 +570,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The #366 external-write capture trigger now writes the after-image into `object_data`, not a
+  `{op, before, after}` envelope (changelog_pre_image unification).** To make `object_data` the
+  after-image from *every* producer (executor outbox AND capture trigger), the shipped capture
+  trigger function (`core.fn_entity_change_log_capture`) now writes `object_data = to_jsonb(NEW)`
+  (NULL for a DELETE) and, only for tables that opt into the pre-image, `object_data_before =
+  to_jsonb(OLD)`; the Debezium `op` is the `modification_type` column. The change-log reader's
+  `ChangeLogEntry::debezium_operation` / `after_values` / `before_values` were updated to match
+  (op derived from `modification_type`, after from `object_data`, before from `object_data_before`).
+  **Migration note:** any consumer that read trigger-captured `object_data` as a `{op,before,after}`
+  envelope must switch to the column shape (or read the new `core.v_entity_change_log_debezium`
+  view, which reconstructs the envelope). Executor-written rows are unaffected — they already wrote
+  the after-image into `object_data`.
 - **Default builds now link a single rustls crypto provider — ring (M-dual-crypto).** Every
   default build previously compiled *both* `aws-lc-rs` and `ring` into one `rustls 0.23`
   because `fraiseql-server` and `fraiseql-wire` pulled rustls/tokio-rustls with their default

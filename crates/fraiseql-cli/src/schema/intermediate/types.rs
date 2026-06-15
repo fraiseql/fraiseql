@@ -56,6 +56,14 @@ pub struct IntermediateType {
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscribable_tables: Option<Vec<String>>,
+
+    /// `@subscribable(..., pre_image=True)` — whether the capture triggers on this
+    /// type's tables also record the changed entity's pre-image (OLD) into
+    /// `object_data_before`, the out-of-band parity for a mutation's
+    /// `changelog_pre_image`. Only meaningful alongside `subscribable_tables`;
+    /// `false`/absent (the default) captures the after-image only.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub subscribable_pre_image: bool,
 }
 
 /// Field definition in intermediate format

@@ -1027,6 +1027,55 @@ def test_mutation_input_style_non_str_raises() -> None:
             pass
 
 
+# ── @fraiseql.mutation changelog_pre_image tests ──────────────────────────────
+
+
+def test_mutation_changelog_pre_image_true_passes_through() -> None:
+    """changelog_pre_image=True is emitted so the outbox records object_data_before."""
+
+    @fraiseql.type
+    class Price:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_update_price", changelog_pre_image=True)
+    def update_price(value: int) -> Price:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "updatePrice")
+    assert mut["changelog_pre_image"] is True
+
+
+def test_mutation_changelog_pre_image_omitted_absent_from_json() -> None:
+    """Omitting changelog_pre_image leaves the key out — the compiler defaults it false."""
+
+    @fraiseql.type
+    class Quote:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_quote")
+    def create_quote(name: str) -> Quote:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "createQuote")
+    assert "changelog_pre_image" not in mut
+
+
+def test_mutation_changelog_pre_image_non_bool_raises() -> None:
+    """A non-boolean changelog_pre_image value is rejected at authoring time."""
+
+    @fraiseql.type
+    class Invoice:
+        id: int
+
+    with pytest.raises(TypeError, match="changelog_pre_image= must be a bool"):
+
+        @fraiseql.mutation(sql_source="fn_create_invoice", changelog_pre_image="yes")
+        def create_invoice(name: str) -> Invoice:
+            pass
+
+
 # ============================================================================
 # sql_source identifier validation
 # ============================================================================
@@ -1191,6 +1240,39 @@ def test_type_subscribable_tables_must_not_be_empty() -> None:
 
         @fraiseql.type(subscribable_tables=[])
         class EmptyPost:
+            id: int
+
+
+def test_type_subscribable_pre_image_emitted_when_opted_in() -> None:
+    """subscribable_pre_image=True emits the flag so capture triggers record OLD."""
+
+    @fraiseql.type(subscribable_tables=["tb_price"], subscribable_pre_image=True)
+    class Price:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Price")
+    assert t["subscribable_pre_image"] is True
+
+
+def test_type_subscribable_pre_image_absent_by_default() -> None:
+    """A @subscribable type without pre_image does not emit the key (after-image only)."""
+
+    @fraiseql.type(subscribable_tables=["tb_post"])
+    class Post2:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Post2")
+    assert "subscribable_pre_image" not in t
+
+
+def test_type_subscribable_pre_image_without_tables_raises() -> None:
+    """subscribable_pre_image=True has no effect without subscribable_tables → rejected."""
+    with pytest.raises(ValueError, match="subscribable_pre_image=True has no effect"):
+
+        @fraiseql.type(subscribable_pre_image=True)
+        class Lonely:
             id: int
 
 
