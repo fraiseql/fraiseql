@@ -660,14 +660,25 @@ mod mutation {
     /// Mock adapter that captures the args passed to `execute_function_call`.
     /// Returns a minimal v2 `mutation_response` so the full execution path runs.
     struct CapturingFunctionCallAdapter {
-        captured_args: std::sync::Mutex<Vec<serde_json::Value>>,
+        captured_args:  std::sync::Mutex<Vec<serde_json::Value>>,
+        /// Optional `updated_fields` value for the returned success row. `Null`
+        /// (the default) omits the column so `parse_mutation_row` defaults it to an
+        /// empty list; set via [`with_updated_fields`] to exercise the #433 path.
+        updated_fields: serde_json::Value,
     }
 
     impl CapturingFunctionCallAdapter {
         fn new() -> Self {
             Self {
-                captured_args: std::sync::Mutex::new(Vec::new()),
+                captured_args:  std::sync::Mutex::new(Vec::new()),
+                updated_fields: serde_json::Value::Null,
             }
+        }
+
+        /// Set the `updated_fields` column the success row reports (#433).
+        fn with_updated_fields(mut self, updated_fields: serde_json::Value) -> Self {
+            self.updated_fields = updated_fields;
+            self
         }
 
         fn args(&self) -> Vec<serde_json::Value> {
@@ -690,6 +701,11 @@ mod mutation {
             row.insert("state_changed".to_string(), json!(true));
             row.insert("entity".to_string(), json!({"id": "1"}));
             row.insert("entity_type".to_string(), json!("User"));
+            // Only emit the column when set, so the default row stays unchanged for
+            // the many existing tests that read `captured_args` and ignore the row.
+            if !self.updated_fields.is_null() {
+                row.insert("updated_fields".to_string(), self.updated_fields.clone());
+            }
             row.insert("message".to_string(), json!(""));
             Ok(vec![row])
         }
@@ -1619,6 +1635,84 @@ mod mutation {
             !obj.contains_key("email"),
             "absent field 'email' must NOT appear in JSONB (leave DB value unchanged)"
         );
+    }
+
+    // ── #433: updated_fields surfaced as updatedFields, selection-gated ─────
+
+    fn updated_fields_executor(
+        updated_fields: serde_json::Value,
+    ) -> Executor<CapturingFunctionCallAdapter> {
+        use crate::schema::MutationDefinition;
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_update_user".to_string()),
+            ..MutationDefinition::new("updateUser", "User")
+        });
+        let adapter = CapturingFunctionCallAdapter::new().with_updated_fields(updated_fields);
+        Executor::new(schema, Arc::new(adapter))
+    }
+
+    /// When the client selects `updatedFields`, the success arm surfaces the
+    /// mutation's changed field names (symmetric with `cascade`).
+    #[tokio::test]
+    async fn mutation_surfaces_updated_fields_when_selected() {
+        use serde_json::json;
+        let executor = updated_fields_executor(json!(["name", "email"]));
+        let result = executor
+            .execute("mutation { updateUser { __typename updatedFields } }", None)
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("updateUser")).unwrap();
+        assert_eq!(
+            data.get("updatedFields"),
+            Some(&json!(["name", "email"])),
+            "updatedFields must surface the changed field names; got {data}"
+        );
+    }
+
+    /// When `updatedFields` is NOT selected, it must be absent — projected shapes
+    /// stay exact for field-count assertions.
+    #[tokio::test]
+    async fn mutation_omits_updated_fields_when_not_selected() {
+        use serde_json::json;
+        let executor = updated_fields_executor(json!(["name"]));
+        let result = executor.execute("mutation { updateUser { id } }", None).await.unwrap();
+        let data = result.get("data").and_then(|d| d.get("updateUser")).unwrap();
+        assert!(
+            data.get("updatedFields").is_none(),
+            "updatedFields must be absent when not selected; got {data}"
+        );
+    }
+
+    /// An empty `updated_fields` (a noop) surfaces as `[]` when selected, not absent.
+    #[tokio::test]
+    async fn mutation_surfaces_empty_updated_fields_as_array() {
+        use serde_json::json;
+        let executor = updated_fields_executor(json!([]));
+        let result = executor
+            .execute("mutation { updateUser { updatedFields } }", None)
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("updateUser")).unwrap();
+        assert_eq!(
+            data.get("updatedFields"),
+            Some(&json!([])),
+            "an empty updated_fields must surface as [] when selected; got {data}"
+        );
+    }
+
+    /// `updatedFields` selection is detected inside an inline fragment too (mirrors
+    /// the `__typename` detection), so a client nesting it still gets it.
+    #[tokio::test]
+    async fn mutation_surfaces_updated_fields_selected_in_inline_fragment() {
+        use serde_json::json;
+        let executor = updated_fields_executor(json!(["name"]));
+        let result = executor
+            .execute("mutation { updateUser { ... on User { updatedFields } } }", None)
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("updateUser")).unwrap();
+        assert_eq!(data.get("updatedFields"), Some(&json!(["name"])), "got {data}");
     }
 }
 

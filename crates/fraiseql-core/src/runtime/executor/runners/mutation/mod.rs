@@ -724,6 +724,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             entity,
             entity_type,
             cascade,
+            updated_fields,
             ..
         } => {
             // Resolve the concrete GraphQL type of the success entity: the
@@ -765,6 +766,22 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             if let Some(cascade_json) = cascade {
                 if let serde_json::Value::Object(ref mut map) = projected {
                     map.insert("cascade".to_string(), cascade_json);
+                }
+            }
+
+            // Surface `updated_fields` (the GraphQL field names this mutation
+            // changed) as `updatedFields`, symmetric with `cascade` but
+            // selection-gated — present only when the client selects it, so a
+            // mutation that does not ask for it keeps an exact projected shape
+            // (#433). An empty list (noop) still surfaces as `[]` when selected.
+            if selections_contain_field(selections, "updatedFields") {
+                if let serde_json::Value::Object(ref mut map) = projected {
+                    map.insert(
+                        "updatedFields".to_string(),
+                        serde_json::Value::Array(
+                            updated_fields.into_iter().map(serde_json::Value::String).collect(),
+                        ),
+                    );
                 }
             }
 

@@ -2149,11 +2149,13 @@ mod mutation_result_tests {
                 entity_type,
                 entity_id,
                 cascade,
+                updated_fields,
             } => {
                 assert_eq!(e, entity);
                 assert_eq!(entity_type.as_deref(), Some("Machine"));
                 assert!(entity_id.is_none());
                 assert!(cascade.is_none());
+                assert!(updated_fields.is_empty(), "no updated_fields column set → empty");
             },
             MutationOutcome::Error { .. } => panic!("expected Success"),
         }

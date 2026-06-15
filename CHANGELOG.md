@@ -92,6 +92,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Mutation results now surface `updatedFields`, selection-gated (#433).** The executor
+  surfaced the `cascade` wire payload without the SQL function embedding it in the entity
+  JSONB, but its sibling envelope column `updated_fields` (the GraphQL field names a mutation
+  changed) was parsed into the typed `mutation_response` row and then dropped at the success
+  boundary, so `mutation { updateOrder(input: $input) { updatedFields … } }` silently returned
+  no `updatedFields` key. The success arm now injects `updatedFields` symmetric with `cascade`,
+  but **selection-gated** — present only when the client selects it (including inside an inline
+  fragment), so a mutation that does not ask for it keeps an exact projected shape. An empty
+  list (a noop) surfaces as `[]` when selected.
 - **List field and argument types now compile to a list, not a single object (#434).** The CLI
   schema converter's `parse_field_type` matched built-in scalar names and routed everything else
   — including the SDL list string `"[Item!]"` — to `FieldType::Object`, so a list field arrived
