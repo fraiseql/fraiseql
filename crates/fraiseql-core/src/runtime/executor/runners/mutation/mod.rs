@@ -392,7 +392,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 }
             }
         }
-        added.then(|| serde_json::Value::Object(obj))
+        added.then_some(serde_json::Value::Object(obj))
     };
     let variables = merged_variables.as_ref().or(variables);
 
