@@ -117,6 +117,16 @@ pub struct MutationDefinition {
     pub sql_source:  Option<String>,
     /// Operation type (CREATE, UPDATE, DELETE)
     pub operation:   String,
+    /// How the GraphQL `input` argument is passed to the SQL function:
+    /// `"flatten"` (positional columns, the default) or `"jsonb"` (the whole
+    /// input as one `jsonb` arg).
+    ///
+    /// Orthogonal to `operation`: set `"jsonb"` so a backend using the
+    /// single-`jsonb`-wrapper convention can register the real DML verb and
+    /// still receive the whole input as one argument — letting the Change Spine
+    /// record the true `modification_type`. Defaults to `"flatten"`.
+    #[serde(default = "default_input_style")]
+    pub input_style: String,
     /// Mutation description
     pub description: Option<String>,
     /// Mutation arguments
@@ -129,8 +139,14 @@ impl Default for MutationDefinition {
             return_type: "String".to_string(),
             sql_source:  None,
             operation:   "CREATE".to_string(),
+            input_style: default_input_style(),
             description: None,
             args:        vec![],
         }
     }
+}
+
+/// Serde default for [`MutationDefinition::input_style`]: positional flatten.
+fn default_input_style() -> String {
+    "flatten".to_string()
 }

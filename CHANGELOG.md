@@ -99,10 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `UPDATE` (creates and deletes were previously indistinguishable in the audit/CDC stream when a
   backend forced `operation = Update` purely to opt into single-JSONB passing). The forced
   single-JSONB path composes with the #400 acronym-aware input-key recasing. Surfaced as
-  `@fraiseql.mutation(input_style="jsonb")` in the Python SDK and `@Mutation({ inputStyle: "jsonb" })`
-  in the TypeScript SDK. Fully opt-in and backward compatible: the default `flatten` is
-  byte-for-byte today's behavior, and an absent value adds no compiled-schema bytes (no codegen
-  schema-hash churn).
+  `@fraiseql.mutation(input_style="jsonb")` in the Python SDK, `@Mutation({ inputStyle: "jsonb" })`
+  in the TypeScript SDK, and `input_style = "jsonb"` on a `[mutations.<name>]` table in the TOML
+  schema. Fully opt-in and backward compatible: the default `flatten` is byte-for-byte today's
+  behavior, and an absent value adds no compiled-schema bytes (no codegen schema-hash churn).
 
 ### Fixed
 

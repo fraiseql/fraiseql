@@ -1066,6 +1066,42 @@ operation = "DELETE"
         assert_eq!(update.sql_source.as_deref(), Some("app.update_user"));
         assert_eq!(delete.sql_source.as_deref(), Some("app.delete_user"));
     }
+
+    #[test]
+    fn toml_mutation_input_style_threads_to_intermediate() {
+        use fraiseql_core::schema::InputStyle;
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[types.Order]
+sql_source = "v_order"
+
+[types.Order.fields.id]
+type = "ID"
+
+[mutations.create_order]
+return_type = "Order"
+operation = "CREATE"
+sql_source = "create_order"
+input_style = "jsonb"
+
+[mutations.touch_order]
+return_type = "Order"
+operation = "CREATE"
+sql_source = "touch_order"
+"#;
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
+        // Explicit input_style = "jsonb" threads through, orthogonal to the verb.
+        let create = schema.mutations.iter().find(|m| m.name == "create_order").unwrap();
+        assert_eq!(create.input_style, InputStyle::Jsonb);
+        // Absent input_style defaults to flatten.
+        let touch = schema.mutations.iter().find(|m| m.name == "touch_order").unwrap();
+        assert_eq!(touch.input_style, InputStyle::Flatten);
+    }
 }
 
 mod multi_file_loader_tests {

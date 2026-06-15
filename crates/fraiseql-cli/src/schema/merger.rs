@@ -507,6 +507,7 @@ impl SchemaMerger {
                 "return_type": toml_mutation.return_type,
                 "sql_source": sql_source,
                 "operation": toml_mutation.operation,
+                "input_style": toml_mutation.input_style,
                 "description": toml_mutation.description,
                 "args": toml_mutation.args.iter().map(|arg| json!({
                     "name": arg.name,
