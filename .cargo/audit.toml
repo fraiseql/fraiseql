@@ -18,7 +18,7 @@ ignore = [
   "RUSTSEC-2026-0098",
   "RUSTSEC-2026-0099",
   # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099. Deadline 2026-06-15.
-  "RUSTSEC-2026-0104",
+  "RUSTSEC-2026-0104"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

@@ -194,7 +194,7 @@ portable, fully-parameterized INSERT for non-PostgreSQL dialects is
 
 For these rows **`duration_ms` and `started_at` are legitimately `NULL`** —
 there is no FraiseQL request context to measure. This is expected, not drift;
-#392's `null-rate` subcommand exists to measure exactly this population.
+# 392's `null-rate` subcommand exists to measure exactly this population.
 
 ---
 
