@@ -371,10 +371,11 @@ pub async fn create_test_observer(
     Ok(row.0)
 }
 
-/// Insert a change log entry in the Change-Spine contract shape: `object_data` is
-/// the after-image and `object_data_before` the pre-image (the Debezium op is
-/// derived from `modification_type` by the reader — no `{op,before,after}`
-/// envelope is stored).
+/// Insert a change log entry in the Change-Spine contract shape.
+///
+/// `object_data` is the after-image and `object_data_before` the pre-image (the
+/// Debezium op is derived from `modification_type` by the reader — no
+/// `{op,before,after}` envelope is stored).
 pub async fn insert_change_log_entry(
     pool: &PgPool,
     event_type: &str, // INSERT, UPDATE, DELETE
