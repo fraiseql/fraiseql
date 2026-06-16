@@ -849,6 +849,23 @@ async fn row_to_map_renders_numeric_uuid_and_timestamp() {
     );
 }
 
+// A `SMALLINT`/`int2` column must decode to a JSON number, not null. The
+// headline symptom: `app.mutation_response.http_status` is `SMALLINT`, so a
+// failed mutation's `MutationError.httpStatus` arrived absent because the value
+// fell through `row_to_map`'s integer ladder (which started at `i32`/`int4`) to
+// `Null`. Literal cast keeps the fixture seed-independent.
+#[tokio::test]
+async fn row_to_map_renders_smallint() {
+    let adapter = create_test_adapter().await;
+    let rows = adapter
+        .execute_raw_query("SELECT 404::int2 AS http_status")
+        .await
+        .expect("query failed");
+    let row = &rows[0];
+
+    assert_eq!(row["http_status"], json!(404), "SMALLINT/int2 must not be null");
+}
+
 // Cross-type conformance: one table of (SQL expression → expected JSON), so the
 // next time a type drifts back to a silent null a shared test fails. Each column
 // is a literal cast, keeping the fixture seed-independent.
@@ -858,6 +875,7 @@ async fn row_to_map_type_conformance() {
     let rows = adapter
         .execute_raw_query(
             "SELECT \
+               7::int2                                      AS c_smallint, \
                1::int4                                      AS c_int, \
                9000000000::int8                             AS c_bigint, \
                1.5::float8                                  AS c_float, \
@@ -876,6 +894,7 @@ async fn row_to_map_type_conformance() {
         .expect("query failed");
     let r = &rows[0];
 
+    assert_eq!(r["c_smallint"], json!(7));
     assert_eq!(r["c_int"], json!(1));
     assert_eq!(r["c_bigint"], json!(9_000_000_000i64));
     assert_eq!(r["c_float"], json!(1.5));

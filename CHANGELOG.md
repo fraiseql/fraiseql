@@ -136,6 +136,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`SMALLINT`/`int2` columns now decode to JSON numbers instead of `null` (incl.
+  `mutation_response.http_status`).** The PostgreSQL `row_to_map` decoder tried `i32`/`i64`
+  for integers but had no `i16` branch, so a non-null `int2` value fell through the type
+  ladder to `Null` (`FromSql for i32` rejects `int2`). The headline symptom: a failed
+  mutation's `MutationError.httpStatus` came back **absent** — the `http_status` `SMALLINT`
+  column nulled here, so the parser's `Option<i16>` read `None` and the projection's
+  `if let Some(code)` guard skipped the field, while `errorClass` (a `TEXT` column) resolved
+  fine through the same path. An `i16` branch is added to `row_to_map`, fixing `httpStatus`
+  (404 not_found / 409 conflict / 422 validation / 500 internal) and every other `SMALLINT`
+  column generally. No behavior change for any other column type.
+
 - **GraphQL variables nested inside object/list literal arguments are now substituted.**
   A variable used as a value *inside* an object or list literal argument
   (`where: { field: { eq: $v } }`, `createMachine(input: { f: $v })`) was not resolved from the

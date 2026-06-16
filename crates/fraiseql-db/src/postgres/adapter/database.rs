@@ -145,7 +145,15 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
         let column_name = column.name().to_string();
-        let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
+        let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i16>(idx) {
+            // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`).
+            // Without this branch a non-null int2 fell through to `Null` because
+            // `FromSql for i32` rejects int2 — which dropped `MutationError`'s
+            // `httpStatus` to absent. Order among i16/i32/i64 is correctness-
+            // neutral (each `FromSql` accepts only its own PG int width), so this
+            // sits first for readability.
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, i32>(idx) {
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, i64>(idx) {
             serde_json::json!(v)
