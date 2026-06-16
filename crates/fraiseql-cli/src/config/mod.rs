@@ -10,6 +10,7 @@ pub mod toml_schema;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use fraiseql_core::schema::NamingConvention;
 pub use runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 pub use security::SecurityConfig;
 use serde::{Deserialize, Serialize};
@@ -98,14 +99,34 @@ impl Default for FraiseQLSettings {
 }
 
 /// Naming/casing options from `[fraiseql.naming]`.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NamingTomlConfig {
+    /// GraphQL surface naming convention for the JSON-schema compile workflow
+    /// (`fraiseql-cli compile schema.json`). Defaults to `camelCase`:
+    /// `snake_case` columns/functions in the database, `camelCase` operation and
+    /// field names exposed to clients, with incoming mutation input keys recased
+    /// `camelCase` → `snake_case` before they reach the SQL functions. Set
+    /// `convention = "preserve"` to keep names exactly as authored (`snake_case`
+    /// on the wire, no recasing). This knob does not apply to the author-in-TOML
+    /// workflow, which carries its own `naming_convention`.
+    pub convention: NamingConvention,
     /// Acronyms whose internal digit stays attached when a GraphQL field name is
     /// mapped back to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`),
     /// added on top of the engine's built-in defaults. Author the atomic form
     /// (`s3`, not `s_3`). Example: `acronyms = ["s3", "ipv4"]`.
-    pub acronyms: Vec<String>,
+    pub acronyms:   Vec<String>,
+}
+
+impl Default for NamingTomlConfig {
+    fn default() -> Self {
+        Self {
+            // Workflow-B compiles to a camelCase GraphQL surface by default; see
+            // the `convention` field docs. Override with `convention = "preserve"`.
+            convention: NamingConvention::CamelCase,
+            acronyms:   Vec::new(),
+        }
+    }
 }
 
 /// Mutation compilation options from `[fraiseql.mutations]`.

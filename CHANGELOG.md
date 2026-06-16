@@ -64,6 +64,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`naming_convention` is now configurable for the JSON-schema compile workflow
+  (`[fraiseql.naming] convention`).** Previously only the author-in-TOML workflow could set a
+  naming convention; the `fraiseql-cli compile schema.json` + `fraiseql.toml` workflow was
+  hardwired to `preserve`, so a backend on that path could never activate the server's
+  single-JSONB mutation input-key recasing (gated on `camelCase`) and had to hand-roll a
+  `camelCase → snake_case` input shim. `[fraiseql.naming] convention = "preserve" | "camelCase"`
+  now flows through the compiler into the compiled schema's `naming_convention`, the same value
+  the TOML workflow already populated. With `camelCase`, the engine owns all casing end-to-end
+  (`snake_case` columns/functions in the database, `camelCase` operation/field names to clients,
+  input keys recased before they reach the SQL functions), letting such backends delete the shim.
 - **Configurable casing acronyms (`[fraiseql.naming] acronyms`).** Identifiers shaped as a
   lowercase word plus a digit (`s3`, `ipv4`, `oauth2`) are ambiguous to reverse — `phone1`
   (from `phone_1`) and `s3` are structurally identical — so they now keep their digit attached
@@ -570,6 +580,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (JSON-compile workflow only): the default naming convention is now `camelCase`,
+  not `preserve`.** The `fraiseql-cli compile schema.json` + `fraiseql.toml` workflow now
+  compiles to a `camelCase` GraphQL surface by default — `snake_case` columns/functions in the
+  database, `camelCase` operation and field names exposed to clients, with mutation input keys
+  recased `camelCase → snake_case` before they reach the SQL functions. This matches the
+  standard GraphQL convention and the casing most (JS) clients expect. The default applies even
+  when no `fraiseql.toml` is present. **Migration:** a backend relying on the old `snake_case`-
+  on-the-wire behavior must set `[fraiseql.naming]\nconvention = "preserve"` to keep names exactly
+  as authored. The author-in-TOML workflow (`TomlSchema`) is unaffected — it carries its own
+  `naming_convention` (still defaulting to `preserve`).
 - **The #366 external-write capture trigger now writes the after-image into `object_data`, not a
   `{op, before, after}` envelope (changelog_pre_image unification).** To make `object_data` the
   after-image from *every* producer (executor outbox AND capture trigger), the shipped capture

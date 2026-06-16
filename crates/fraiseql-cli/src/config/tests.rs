@@ -55,6 +55,60 @@ acronyms = ["s3", "widget5"]
     }
 
     #[test]
+    fn test_naming_convention_defaults_to_camel_case() {
+        // Workflow-B compiles to a camelCase GraphQL surface by default, both when
+        // [fraiseql.naming] is absent entirely and when it is present without a
+        // `convention` key.
+        let config = TomlProjectConfig::default();
+        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.naming]
+acronyms = ["s3"]
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+    }
+
+    #[test]
+    fn test_parse_naming_convention_preserve_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.naming]
+convention = "preserve"
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.fraiseql.naming.convention, NamingConvention::Preserve);
+    }
+
+    #[test]
+    fn test_parse_naming_convention_camel_case_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.naming]
+convention = "camelCase"
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+    }
+
+    #[test]
     fn test_parse_role_definitions_from_toml() {
         let toml_str = r#"
 [project]

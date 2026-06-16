@@ -6,7 +6,7 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
-    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, canonicalize_json,
+    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, NamingConvention, canonicalize_json,
 };
 use tracing::{info, warn};
 
@@ -178,6 +178,12 @@ pub async fn compile_to_schema(
     let mut auto_error_union = false;
     // Casing acronyms from [fraiseql.naming], added on top of the built-in defaults.
     let mut naming_acronyms: Vec<String> = Vec::new();
+    // GraphQL surface convention for the legacy JSON (Workflow-B) path. Defaults
+    // to camelCase (snake_case DB, camelCase client surface + input recasing);
+    // [fraiseql.naming] convention = "preserve" restores the as-authored names.
+    // The TomlSchema path carries its own naming_convention via the merger and is
+    // left untouched (see the `if !is_toml` apply below).
+    let mut naming_convention = NamingConvention::CamelCase;
     if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
         match TomlProjectConfig::from_file("fraiseql.toml") {
@@ -187,6 +193,7 @@ pub async fn compile_to_schema(
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
                 naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
+                naming_convention = config.fraiseql.naming.convention;
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
@@ -219,6 +226,15 @@ pub async fn compile_to_schema(
     // (native-column resolution, DDL) agrees with the runtime. Defaults apply
     // when none are configured.
     fraiseql_core::utils::casing::set_runtime_acronyms(&naming_acronyms);
+
+    // Apply the naming convention to the legacy JSON (Workflow-B) path. The
+    // JSON schema never carries one, so without this it would fall to the enum
+    // default (Preserve); Workflow-B instead defaults to CamelCase (overridable
+    // via [fraiseql.naming].convention). The TomlSchema path already carries its
+    // own convention from the merger, so it is left untouched.
+    if !is_toml {
+        intermediate.naming_convention = naming_convention;
+    }
 
     // 2b. Validate @tenant_id annotations when tenancy mode is "row".
     // Extract tenancy config from the already-embedded security JSON.
