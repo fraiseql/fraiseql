@@ -7,10 +7,11 @@ name: Release Smoke
 # missed by the 0.7 → 0.8 migration — only surfaced because a user ran the
 # published binary; the bug class is "code compiles, server panics on boot."
 #
-# Boots `fraiseql-server` against the existing e2e fixture (docker/e2e/) and
-# asserts the default health endpoint responds within ~30s. Mirrors the
-# `integration-http-e2e` job in ci.yml but is wired to release-track events
-# so a failure blocks the release.
+# Boots `fraiseql-server` against the existing e2e fixture (docker/e2e/),
+# asserts the default health endpoint responds within ~30s, and then runs one
+# real GraphQL query through the full parse → SQL → execute → serialize pipeline
+# (coverage gap §5: smoke more than /health). Mirrors the `integration-http-e2e`
+# job in ci.yml but is wired to release-track events so a failure blocks release.
 
 on:
   push:
@@ -94,6 +95,26 @@ jobs:
           done
           echo "::error::Timed out waiting for /health after 30s." >&2
           exit 1
+
+      - name: Smoke a GraphQL query (parse → SQL → execute → serialize)
+        run: |
+          set -eu
+          # The e2e fixture exposes a `users` list query over v_users (init-postgres.sql
+          # seeds one row). A 200 with a `data.users` payload and no `errors` exercises
+          # the full query pipeline — strictly more than /health, which only proves the
+          # router mounted.
+          status=$(curl -s -o /tmp/gql.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8815/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"{ users { id name } }"}')
+          echo "HTTP $status"; cat /tmp/gql.json; echo
+          test "$status" = "200" || { echo "::error::/graphql returned HTTP $status (expected 200)" >&2; exit 1; }
+          grep -q '"data"'  /tmp/gql.json || { echo "::error::/graphql response missing data" >&2; exit 1; }
+          grep -q '"users"' /tmp/gql.json || { echo "::error::/graphql response missing users field" >&2; exit 1; }
+          if grep -q '"errors"' /tmp/gql.json; then
+            echo "::error::/graphql response contained errors" >&2; exit 1
+          fi
+          echo "GraphQL query smoke OK."
 
       - name: Stop server
         if: always()
