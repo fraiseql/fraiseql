@@ -45,9 +45,9 @@ pub fn is_redirect_uri_allowed(candidate: &str, allowlist: &[String]) -> bool {
     let Ok(candidate_url) = Url::parse(candidate) else {
         return false;
     };
-    allowlist
-        .iter()
-        .any(|entry| Url::parse(entry).is_ok_and(|entry_url| redirect_uri_matches(&candidate_url, &entry_url)))
+    allowlist.iter().any(|entry| {
+        Url::parse(entry).is_ok_and(|entry_url| redirect_uri_matches(&candidate_url, &entry_url))
+    })
 }
 
 /// Match a single candidate URL against a single allow-list entry URL (see
@@ -107,13 +107,13 @@ fn build_redirect_with_tokens(
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").
-    providers:             HashMap<String, Arc<dyn OAuthProvider>>,
+    providers:              HashMap<String, Arc<dyn OAuthProvider>>,
     /// CSRF state store (in-memory or Redis).
-    state_store:           Arc<dyn StateStore>,
+    state_store:            Arc<dyn StateStore>,
     /// Session backend for creating sessions after successful auth.
-    session_store:         Arc<dyn SessionStore>,
+    session_store:          Arc<dyn SessionStore>,
     /// Optional user store for account linking (same email → same user).
-    user_store:            Option<Arc<dyn AccountStore>>,
+    user_store:             Option<Arc<dyn AccountStore>>,
     /// Allow-list of permitted `redirect_uri` values (#427).
     ///
     /// When **empty** (the default), `callback` returns the session tokens as JSON and no
@@ -335,13 +335,13 @@ pub async fn list_providers(
 /// # Query parameters
 ///
 /// - `provider` — **required**: provider name (must match a registered provider).
-/// - `redirect_uri` — **required**: client application callback URI. Always validated for
-///   presence and length. When a redirect-URI allow-list is configured (#427, via
+/// - `redirect_uri` — **required**: client application callback URI. Always validated for presence
+///   and length. When a redirect-URI allow-list is configured (#427, via
 ///   [`MultiProviderAuthState::with_redirect_uri_allowlist`]), it must additionally match the
 ///   allow-list (else `400`); the validated URI is bound to the CSRF state and [`callback`]
-///   redirects the browser to it with the tokens in the fragment. With no allow-list
-///   configured, the URI is **not** used as a redirect target and [`callback`] returns the
-///   session tokens as JSON — so there is no open-redirect surface in that mode.
+///   redirects the browser to it with the tokens in the fragment. With no allow-list configured,
+///   the URI is **not** used as a redirect target and [`callback`] returns the session tokens as
+///   JSON — so there is no open-redirect surface in that mode.
 ///
 /// # Responses
 ///

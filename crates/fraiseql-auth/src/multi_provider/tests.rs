@@ -186,14 +186,19 @@ impl OAuthProvider for MockProvider {
     }
 }
 
-fn state_with_allowlist(allowlist: Vec<String>) -> (Arc<MultiProviderAuthState>, Arc<InMemoryStateStore>) {
+fn state_with_allowlist(
+    allowlist: Vec<String>,
+) -> (Arc<MultiProviderAuthState>, Arc<InMemoryStateStore>) {
     let state_store = Arc::new(InMemoryStateStore::new());
-    let mut state = MultiProviderAuthState::new(
-        state_store.clone(),
-        Arc::new(InMemorySessionStore::new()),
-    )
-    .with_redirect_uri_allowlist(allowlist);
-    state.register_provider("mock", Arc::new(MockProvider { name: "mock".to_string() }));
+    let mut state =
+        MultiProviderAuthState::new(state_store.clone(), Arc::new(InMemorySessionStore::new()))
+            .with_redirect_uri_allowlist(allowlist);
+    state.register_provider(
+        "mock",
+        Arc::new(MockProvider {
+            name: "mock".to_string(),
+        }),
+    );
     (Arc::new(state), state_store)
 }
 

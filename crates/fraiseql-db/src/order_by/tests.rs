@@ -204,8 +204,9 @@ fn test_render_order_by_columns_no_keyword_prefix() {
         OrderByClause::new("lastName".to_string(), OrderDirection::Asc),
         OrderByClause::new("createdAt".to_string(), OrderDirection::Desc),
     ];
-    let cols =
-        render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL).unwrap().unwrap();
+    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL)
+        .unwrap()
+        .unwrap();
     // No leading "ORDER BY" — the backend's query builder supplies the keyword.
     assert_eq!(cols, "data->>'last_name' ASC, data->>'created_at' DESC");
     assert!(!cols.contains("ORDER BY"));
@@ -214,9 +215,13 @@ fn test_render_order_by_columns_no_keyword_prefix() {
 #[test]
 fn test_render_order_by_columns_matches_append_body() {
     // The bare list must equal append_order_by's output minus the " ORDER BY " prefix.
-    let clauses = [OrderByClause::new("createdAt".to_string(), OrderDirection::Desc)];
-    let cols =
-        render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL).unwrap().unwrap();
+    let clauses = [OrderByClause::new(
+        "createdAt".to_string(),
+        OrderDirection::Desc,
+    )];
+    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL)
+        .unwrap()
+        .unwrap();
     let mut sql = String::new();
     append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL).unwrap();
     assert_eq!(sql, format!(" ORDER BY {cols}"));
