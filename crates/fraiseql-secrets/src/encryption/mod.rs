@@ -14,19 +14,9 @@ use rand::RngCore as _;
 
 use crate::secrets_manager::SecretsError;
 
-pub mod compliance;
 pub mod credential_rotation;
-pub mod dashboard;
 pub mod database_adapter;
-pub mod error_recovery;
-pub mod mapper;
 pub mod middleware;
-pub mod performance;
-pub mod query_builder;
-pub mod refresh_trigger;
-pub mod rotation_api;
-pub mod schema;
-pub mod transaction;
 
 pub use credential_rotation::KeyVersion;
 
