@@ -130,8 +130,8 @@ fn test_int32_overflow_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for Int32 overflow, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for Int32 overflow, got: {result:?}"
     );
 }
 
@@ -143,8 +143,8 @@ fn test_int32_from_non_number_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for non-number Int32, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for non-number Int32, got: {result:?}"
     );
 }
 
@@ -158,8 +158,8 @@ fn test_int64_from_non_number_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for non-number Int64, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for non-number Int64, got: {result:?}"
     );
 }
 
@@ -173,8 +173,8 @@ fn test_float64_from_non_number_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for non-number Float64, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for non-number Float64, got: {result:?}"
     );
 }
 
@@ -201,8 +201,8 @@ fn test_boolean_from_string_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for string in Boolean column, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for string in Boolean column, got: {result:?}"
     );
 }
 
@@ -214,8 +214,8 @@ fn test_boolean_from_number_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for number in Boolean column, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for number in Boolean column, got: {result:?}"
     );
 }
 
@@ -313,8 +313,8 @@ fn test_timestamp_microsecond_from_invalid_string_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for invalid timestamp string, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for invalid timestamp string, got: {result:?}"
     );
 }
 
@@ -330,8 +330,8 @@ fn test_timestamp_microsecond_from_boolean_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for boolean in Timestamp column, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for boolean in Timestamp column, got: {result:?}"
     );
 }
 
@@ -372,8 +372,8 @@ fn test_date32_from_invalid_string_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for invalid date string, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for invalid date string, got: {result:?}"
     );
 }
 
@@ -385,23 +385,23 @@ fn test_date32_from_boolean_returns_error() {
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for boolean in Date32 column, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for boolean in Date32 column, got: {result:?}"
     );
 }
 
 // --- Unsupported types ---
 
 #[test]
-fn test_unsupported_data_type_returns_invalid_ticket_error() {
+fn test_unsupported_data_type_returns_conversion_error() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::LargeUtf8, false)]));
     let mut row = HashMap::new();
     row.insert("val".to_string(), json!("hello"));
     let rows = vec![row];
     let result = convert_db_rows_to_arrow(&rows, &schema);
     assert!(
-        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
-        "expected InvalidTicket error for unsupported data type, got: {result:?}"
+        matches!(result, Err(ArrowFlightError::Conversion(_))),
+        "expected Conversion error for unsupported data type, got: {result:?}"
     );
 }
 

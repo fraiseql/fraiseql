@@ -1291,7 +1291,7 @@ impl FraiseQLFlightService {
 
         let health_status = serde_json::json!({
             "status": "healthy",
-            "version": "2.0.0-a1",
+            "version": env!("CARGO_PKG_VERSION"),
             "timestamp": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_secs()),

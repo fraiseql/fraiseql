@@ -338,7 +338,22 @@ impl ClickHouseSink {
         loop {
             tokio::select! {
                 // Receive next batch from channel
-                Some(record_batch) = rx.recv() => {
+                maybe_batch = rx.recv() => {
+                    let Some(record_batch) = maybe_batch else {
+                        // Channel closed (all senders dropped): flush any buffered rows
+                        // and return cleanly instead of spinning on the timeout branch
+                        // forever (the `Some(..)` pattern would silently disable this
+                        // arm on `None`, never terminating the loop).
+                        if !batch_buffer.is_empty() {
+                            info!(
+                                count = batch_buffer.len(),
+                                "Flushing final batch on channel close"
+                            );
+                            self.flush_batch(&batch_buffer).await?;
+                            batch_buffer.clear();
+                        }
+                        return Ok(());
+                    };
                     match self.process_batch(&record_batch) {
                         Ok(rows) => {
                             batch_buffer.extend(rows);

@@ -10,10 +10,6 @@ pub enum ArrowFlightError {
     #[error("Arrow error: {0}")]
     Arrow(#[from] arrow::error::ArrowError),
 
-    /// Flight protocol error
-    #[error("Flight error: {0}")]
-    Flight(String),
-
     /// Invalid ticket format or content
     #[error("Invalid ticket: {0}")]
     InvalidTicket(String),

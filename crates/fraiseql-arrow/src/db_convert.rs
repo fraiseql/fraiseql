@@ -107,31 +107,31 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                 .and_then(|i| i32::try_from(i).ok())
                 .map(|i| Value::Int(i64::from(i)))
                 .ok_or_else(|| {
-                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Int32"))
+                    ArrowFlightError::Conversion(format!("Cannot convert {n} to Int32"))
                 }),
-            _ => Err(ArrowFlightError::InvalidTicket(format!(
+            _ => Err(ArrowFlightError::Conversion(format!(
                 "Expected number for Int32, got {json_val}"
             ))),
         },
         DataType::Int64 => match json_val {
             JsonValue::Number(n) => n.as_i64().map(Value::Int).ok_or_else(|| {
-                ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Int64"))
+                ArrowFlightError::Conversion(format!("Cannot convert {n} to Int64"))
             }),
-            _ => Err(ArrowFlightError::InvalidTicket(format!(
+            _ => Err(ArrowFlightError::Conversion(format!(
                 "Expected number for Int64, got {json_val}"
             ))),
         },
         DataType::Float64 => match json_val {
             JsonValue::Number(n) => n.as_f64().map(Value::Float).ok_or_else(|| {
-                ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Float64"))
+                ArrowFlightError::Conversion(format!("Cannot convert {n} to Float64"))
             }),
-            _ => Err(ArrowFlightError::InvalidTicket(format!(
+            _ => Err(ArrowFlightError::Conversion(format!(
                 "Expected number for Float64, got {json_val}"
             ))),
         },
         DataType::Boolean => match json_val {
             JsonValue::Bool(b) => Ok(Value::Bool(*b)),
-            _ => Err(ArrowFlightError::InvalidTicket(format!("Expected boolean, got {json_val}"))),
+            _ => Err(ArrowFlightError::Conversion(format!("Expected boolean, got {json_val}"))),
         },
         DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, _) => {
             // Expect ISO 8601 string or Unix timestamp (microseconds)
@@ -149,16 +149,16 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                                 Value::Timestamp(dt.timestamp_micros())
                             })
                             .map_err(|_| {
-                                ArrowFlightError::InvalidTicket(format!(
+                                ArrowFlightError::Conversion(format!(
                                     "Cannot parse ISO 8601 timestamp: {s}"
                                 ))
                             })
                     }
                 },
                 JsonValue::Number(n) => n.as_i64().map(Value::Timestamp).ok_or_else(|| {
-                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Timestamp"))
+                    ArrowFlightError::Conversion(format!("Cannot convert {n} to Timestamp"))
                 }),
-                _ => Err(ArrowFlightError::InvalidTicket(format!(
+                _ => Err(ArrowFlightError::Conversion(format!(
                     "Expected string or number for Timestamp, got {json_val}"
                 ))),
             }
@@ -175,21 +175,21 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                         Value::Date(days)
                     })
                     .map_err(|_| {
-                        ArrowFlightError::InvalidTicket(format!(
+                        ArrowFlightError::Conversion(format!(
                             "Cannot parse ISO 8601 date (YYYY-MM-DD): {s}"
                         ))
                     })
             },
             JsonValue::Number(n) => {
                 n.as_i64().and_then(|i| i32::try_from(i).ok()).map(Value::Date).ok_or_else(|| {
-                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Date32"))
+                    ArrowFlightError::Conversion(format!("Cannot convert {n} to Date32"))
                 })
             },
-            _ => Err(ArrowFlightError::InvalidTicket(format!(
+            _ => Err(ArrowFlightError::Conversion(format!(
                 "Expected string or number for Date32, got {json_val}"
             ))),
         },
-        _ => Err(ArrowFlightError::InvalidTicket(format!("Unsupported data type: {data_type:?}"))),
+        _ => Err(ArrowFlightError::Conversion(format!("Unsupported data type: {data_type:?}"))),
     }
 }
 
