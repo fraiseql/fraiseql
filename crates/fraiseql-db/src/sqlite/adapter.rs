@@ -1,16 +1,17 @@
-//! SQLite database adapter — **read-only** (queries only, no mutations).
+//! SQLite database adapter.
 //!
-//! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
-//! but does **not** implement [`SupportsMutations`](crate::SupportsMutations). Attempting
-//! to compile a schema with mutations and run it against SQLite will produce a
-//! **compile-time error** at the mutation executor call site.
+//! Supports query execution (`execute_where_query`, `execute_raw_query`) and
+//! direct-SQL mutations: [`DatabaseAdapter::supports_mutations`] returns `true`
+//! and [`mutation_strategy`](DatabaseAdapter::mutation_strategy) is
+//! [`MutationStrategy::DirectSql`], so INSERT/UPDATE/DELETE run via
+//! [`execute_direct_mutation`](DatabaseAdapter::execute_direct_mutation). SQLite
+//! does **not** support stored-procedure (`CALL`) mutations — those remain a
+//! PostgreSQL/MySQL/SQL Server capability.
 //!
 //! # When to use SQLite
 //!
-//! - Unit testing queries without a real database
-//! - Schema exploration and local development (read-only)
-//!
-//! For mutation support, use PostgreSQL, MySQL, or SQL Server.
+//! - Unit testing queries and direct-SQL mutations without a real database
+//! - Schema exploration and local development
 
 use std::fmt::Write;
 
