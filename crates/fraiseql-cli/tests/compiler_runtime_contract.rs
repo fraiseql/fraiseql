@@ -7,13 +7,13 @@
 //! (`token_revocation: null` boot-refusal; serde-default divergences). These tests
 //! compile real fixtures with the CLI binary and assert that:
 //!
-//! 1. `RuntimeConfig::from_compiled_schema` — the server's boot-time config seam —
-//!    accepts the compiler's output (it must not refuse valid compiler output), and
-//! 2. an enterprise security toggle set in `fraiseql.toml` survives the full
-//!    emit → parse → runtime-config-derivation chain (proving the field is *consumed*,
-//!    not silently dropped or defaulted), and
-//! 3. every field the compiler emits is preserved through `from_json` (parse drops
-//!    nothing) — caught by a non-null-leaf round-trip superset check.
+//! 1. `RuntimeConfig::from_compiled_schema` — the server's boot-time config seam — accepts the
+//!    compiler's output (it must not refuse valid compiler output), and
+//! 2. an enterprise security toggle set in `fraiseql.toml` survives the full emit → parse →
+//!    runtime-config-derivation chain (proving the field is *consumed*, not silently dropped or
+//!    defaulted), and
+//! 3. every field the compiler emits is preserved through `from_json` (parse drops nothing) —
+//!    caught by a non-null-leaf round-trip superset check.
 
 use std::{collections::BTreeSet, fs, process::Command};
 
