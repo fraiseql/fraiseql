@@ -47,6 +47,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `true` — including the Helm values and the PodSecurityPolicy). Lower-severity
   demo/example/test deployment artifacts are tracked in #436.
 
+### Removed
+
+- **Unwired "enterprise" field-encryption modules removed from `fraiseql-secrets`
+  (BREAKING).** The `encryption::{compliance, dashboard, error_recovery, mapper,
+  performance, query_builder, refresh_trigger, rotation_api, schema, transaction}`
+  modules (~7,300 LOC) had zero production consumers — reachable only from their own
+  tests, never from the server binary. They are no longer part of the public API. The
+  encryption primitives (`FieldEncryption`, `VersionedFieldEncryption`) and the three
+  wired modules (`middleware`, `database_adapter`, `credential_rotation`) are retained.
+  This matches the field-encryption stance documented in v2.7.0 (the write path is
+  inert; the server refuses to boot on encryption-marked fields).
+- **`fraiseql_core::validation::CustomScalarRegistry` removed (BREAKING).** It was a
+  public API wired to nothing. The `CustomScalar` trait it managed is unaffected.
+- **Dead CLI command handlers removed.** The unreachable `generate-proto`/`openapi`
+  handlers, the `gateway` command module (no `Commands` variant), and the orphaned
+  `codegen` tree they depended on are gone (~3,600 LOC), along with the now-unused
+  `prost`/`prost-types`/`thiserror` dependencies. No wired subcommand changes.
+- **`fraiseql-db` empty `grpc` feature removed** (it gated nothing; real gRPC lives
+  behind `fraiseql-server`'s `grpc` feature), and the `fraiseql-core` passthrough with it.
+- **`ArrowFlightError::Flight` variant removed** — defined but never constructed. The
+  enum is `#[non_exhaustive]`, so downstream matches (which already need a wildcard arm)
+  are unaffected.
+
+### Changed
+
+- **The `lint --verbose` CLI flag was removed** — it was parsed and discarded. The
+  global `--verbose` flag is unaffected.
+- `fraiseql-arrow` type-conversion errors now surface as `ArrowFlightError::Conversion`
+  instead of the mislabeled `InvalidTicket`. `ClickHouseSink::run` now terminates (with a
+  final flush) when its channel closes instead of spinning forever, and the health-check
+  `version` reports `CARGO_PKG_VERSION` instead of a hardcoded `2.0.0-a1`.
+- `fraiseql federation check --json` no longer double-prints its result under the global
+  `--json` flag; `fraiseql run` now warns loudly when a sibling `fraiseql.toml` fails to
+  parse instead of silently falling back to defaults.
+
+### Added
+
+- **Compiler→runtime contract gate.** A new test (`fraiseql-cli`) compiles fixtures with
+  the real CLI and asserts the server boot seam (`RuntimeConfig::from_compiled_schema`)
+  accepts the output, that an enterprise security toggle survives emit→parse→derive, and
+  that core parse drops no compiler-emitted field — closing the class behind two past
+  config-drift boot failures.
+- **Signature-verification tests** for the Postmark and LemonSqueezy webhook verifiers
+  (previously the only two of 13 with zero coverage), and a loud-failure assertion for
+  the `fraiseql-test-support` database-URL harness.
+- **`release-smoke`** now runs one real GraphQL query through the full pipeline, not just
+  the health endpoint.
+
 ## [2.8.0] - 2026-06-18
 
 ### Security
