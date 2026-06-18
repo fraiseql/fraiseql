@@ -10,7 +10,7 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
-    graphql::parse_graphql_document,
+    graphql::{estimate_query_cost, parse_graphql_document},
     security::SecurityContext,
 };
 use fraiseql_error::FraiseQLError;
@@ -624,6 +624,22 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         registry
             .try_acquire_rps(key)
             .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    }
+
+    // M-quotas (cost): reject a query whose estimated cost exceeds the tenant's
+    // per-operation cost budget (#379). Same chokepoint and 429 surfacing as the
+    // other per-tenant quotas; only an explicitly-keyed, registered tenant carries
+    // a budget. The re-parse + estimate are skipped unless a budget is configured;
+    // a query that fails to parse here is left for the executor to reject.
+    if let (Some(key), Some(registry)) = (tenant_key.as_deref(), state.tenant_registry()) {
+        if registry.has_cost_budget(key) {
+            if let Ok(doc) = parse_graphql_document(&query) {
+                let cost = estimate_query_cost(&doc, &executor.schema().operation_cost_weights);
+                registry
+                    .check_cost_budget(key, cost)
+                    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+            }
+        }
     }
 
     // Preserve subject for audit logging before security_context is consumed.

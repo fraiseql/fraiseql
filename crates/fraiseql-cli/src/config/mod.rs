@@ -68,32 +68,38 @@ impl Default for ProjectConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct FraiseQLSettings {
     /// Path to the GraphQL schema file
-    pub schema_file: String,
+    pub schema_file:  String,
     /// Path to the output compiled schema file
-    pub output_file: String,
+    pub output_file:  String,
     /// Security configuration
     #[serde(rename = "security")]
-    pub security:    SecurityConfig,
+    pub security:     SecurityConfig,
     /// Tenancy isolation configuration
     #[serde(default)]
-    pub tenancy:     security::TenancyTomlConfig,
+    pub tenancy:      security::TenancyTomlConfig,
     /// Mutation compilation options (`[fraiseql.mutations]`)
     #[serde(default)]
-    pub mutations:   MutationsConfig,
+    pub mutations:    MutationsConfig,
     /// Naming/casing options (`[fraiseql.naming]`)
     #[serde(default)]
-    pub naming:      NamingTomlConfig,
+    pub naming:       NamingTomlConfig,
+    /// Per-operation `@cost` weight overrides (`[fraiseql.cost_weights]`, #379):
+    /// root query/mutation name → manual cost weight, consulted by the runtime
+    /// per-tenant cost-budget check. Empty by default.
+    #[serde(default)]
+    pub cost_weights: std::collections::HashMap<String, usize>,
 }
 
 impl Default for FraiseQLSettings {
     fn default() -> Self {
         Self {
-            schema_file: "schema.json".to_string(),
-            output_file: "schema.compiled.json".to_string(),
-            security:    SecurityConfig::default(),
-            tenancy:     security::TenancyTomlConfig::default(),
-            mutations:   MutationsConfig::default(),
-            naming:      NamingTomlConfig::default(),
+            schema_file:  "schema.json".to_string(),
+            output_file:  "schema.compiled.json".to_string(),
+            security:     SecurityConfig::default(),
+            tenancy:      security::TenancyTomlConfig::default(),
+            mutations:    MutationsConfig::default(),
+            naming:       NamingTomlConfig::default(),
+            cost_weights: std::collections::HashMap::new(),
         }
     }
 }

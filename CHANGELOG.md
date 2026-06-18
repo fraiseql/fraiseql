@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Per-tenant GraphQL operation cost budgets (#379).** `max_query_depth` and the
+  complexity limit stop naive recursion, but not an expensive within-depth query. A new
+  per-tenant `cost_budget` (on `TenantQuota`, settable via the tenant admin API) rejects a
+  request whose estimated cost exceeds the tenant's budget at the same chokepoint as the
+  rate/concurrency quotas (HTTP 429). The cost reuses the existing complexity score
+  (`estimate_query_cost`); a root operation listed in `[fraiseql.cost_weights]` counts as
+  its manual `@cost` weight instead of its walked subtree, letting operators pin the cost
+  of a known-expensive query. Off by default (no budget configured ⇒ unlimited). Persisted-
+  queries-only enforcement is available today via `[security.trusted_documents] mode =
+  "strict"`; a dedicated `[security] persisted_queries_only` shorthand is tracked as a
+  follow-up.
 - **The production Docker Compose no longer exposes backing services to the network
   (H46).** `docker-compose.prod.yml` published PostgreSQL (`5432`), Redis (`6379`), and
   Prometheus (`9090`) on `0.0.0.0` — and because Docker's port publishing inserts its own

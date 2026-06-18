@@ -181,6 +181,9 @@ pub async fn compile_to_schema(
     let mut auto_error_union = false;
     // Casing acronyms from [fraiseql.naming], added on top of the built-in defaults.
     let mut naming_acronyms: Vec<String> = Vec::new();
+    // Per-operation @cost weight overrides from [fraiseql.cost_weights] (#379).
+    let mut operation_cost_weights: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
     // GraphQL surface convention for the legacy JSON (Workflow-B) path. Defaults
     // to camelCase (snake_case DB, camelCase client surface + input recasing);
     // [fraiseql.naming] convention = "preserve" restores the as-authored names.
@@ -196,6 +199,7 @@ pub async fn compile_to_schema(
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
                 naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
+                operation_cost_weights.clone_from(&config.fraiseql.cost_weights);
                 naming_convention = config.fraiseql.naming.convention;
 
                 info!("Applying security configuration to schema...");
@@ -289,6 +293,13 @@ pub async fn compile_to_schema(
     // Carry the project's casing acronyms into the compiled schema so the runtime
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
     schema.naming_acronyms = naming_acronyms;
+
+    // Carry the project's @cost weight overrides (#379) into the compiled schema so
+    // the runtime per-tenant cost-budget check can apply them. Non-clobbering: only
+    // overwrite when configured, leaving any value a future merger path may set.
+    if !operation_cost_weights.is_empty() {
+        schema.operation_cost_weights = operation_cost_weights;
+    }
 
     // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");

@@ -1302,4 +1302,44 @@ mod complexity_tests {
         assert_eq!(twice.depth, once.depth, "spreading twice must not change depth");
         assert_eq!(twice.complexity, once.complexity * 2, "each spread contributes once");
     }
+
+    // ── Cost estimation for per-tenant budgets (#379) ──
+
+    fn cost(query: &str, weights: &[(&str, usize)]) -> usize {
+        let doc = parse_graphql_document(query).expect("valid query");
+        let map: std::collections::HashMap<String, usize> =
+            weights.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
+        estimate_query_cost(&doc, &map)
+    }
+
+    #[test]
+    fn cost_with_no_overrides_equals_complexity() {
+        let query = "{ users(limit: 10) { id name } posts { id } }";
+        let complexity = RequestValidator::default().analyze(query).expect("valid").complexity;
+        assert_eq!(
+            cost(query, &[]),
+            complexity,
+            "cost must equal the complexity score when there are no @cost overrides"
+        );
+    }
+
+    #[test]
+    fn root_cost_override_replaces_subtree() {
+        // No override: users = 1 + (id, name, email = 3) = 4.
+        assert_eq!(cost("{ users { id name email } }", &[]), 4);
+        // @cost(weight: 100) on `users` replaces the whole subtree cost.
+        assert_eq!(cost("{ users { id name email } }", &[("users", 100)]), 100);
+    }
+
+    #[test]
+    fn override_targets_only_the_named_root_field() {
+        // `users` overridden to 50; `posts` still walked (1 + id = 2).
+        assert_eq!(cost("{ users { id } posts { id } }", &[("users", 50)]), 52);
+    }
+
+    #[test]
+    fn cost_includes_pagination_multiplier_when_not_overridden() {
+        // users(limit: 10) = 1 + 1 * 10 = 11.
+        assert_eq!(cost("{ users(limit: 10) { id } }", &[]), 11);
+    }
 }

@@ -55,6 +55,30 @@ acronyms = ["s3", "widget5"]
     }
 
     #[test]
+    fn test_cost_weights_default_empty() {
+        let config = TomlProjectConfig::default();
+        assert!(config.fraiseql.cost_weights.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cost_weights_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.cost_weights]
+expensiveReport = 5000
+searchUsers = 250
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.fraiseql.cost_weights.get("expensiveReport"), Some(&5000));
+        assert_eq!(config.fraiseql.cost_weights.get("searchUsers"), Some(&250));
+    }
+
+    #[test]
     fn test_naming_convention_defaults_to_camel_case() {
         // Workflow-B compiles to a camelCase GraphQL surface by default, both when
         // [fraiseql.naming] is absent entirely and when it is present without a

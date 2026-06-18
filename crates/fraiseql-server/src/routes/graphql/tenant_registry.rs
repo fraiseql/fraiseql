@@ -84,6 +84,11 @@ pub struct TenantQuota {
     /// Maximum storage in bytes (soft limit, checked periodically).
     #[serde(default)]
     pub max_storage_bytes:    Option<u64>,
+    /// Maximum estimated cost of a single GraphQL operation (#379). `None` means
+    /// no cost budget. A request whose `estimate_query_cost` exceeds this is
+    /// rejected at the same chokepoint as the rate/concurrency quotas (429).
+    #[serde(default)]
+    pub cost_budget:          Option<usize>,
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
@@ -355,6 +360,40 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
                 entry.value().quota.max_requests_per_sec.unwrap_or(0),
             ),
             None => Ok(()),
+        }
+    }
+
+    /// Returns `true` if the tenant has a per-operation cost budget configured.
+    ///
+    /// Lets the caller skip the (otherwise wasted) cost estimation + query re-parse
+    /// for tenants with no budget.
+    #[must_use]
+    pub fn has_cost_budget(&self, key: &str) -> bool {
+        self.tenants.get(key).is_some_and(|e| e.value().quota.cost_budget.is_some())
+    }
+
+    /// Reject a request whose estimated `cost` exceeds the tenant's per-operation
+    /// cost budget (#379).
+    ///
+    /// Returns `Ok(())` when within budget or when no budget is configured. Like
+    /// the rate/concurrency quotas, this is only meaningful for an explicitly-keyed,
+    /// registered tenant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::NotFound`] if the tenant key is not registered, or
+    /// [`FraiseQLError::RateLimited`] when `cost` exceeds the configured budget.
+    pub fn check_cost_budget(&self, key: &str, cost: usize) -> fraiseql_error::Result<()> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        match entry.value().quota.cost_budget {
+            Some(budget) if cost > budget => Err(FraiseQLError::RateLimited {
+                message:          format!(
+                    "Tenant '{key}' operation cost {cost} exceeds the per-request cost budget of \
+                     {budget}"
+                ),
+                retry_after_secs: 1,
+            }),
+            _ => Ok(()),
         }
     }
 

@@ -66,6 +66,10 @@ pub struct TenantRegistrationRequest {
     /// Maximum storage in bytes (soft limit). `None` = unlimited.
     #[serde(default)]
     pub max_storage_bytes:    Option<u64>,
+    /// Maximum estimated cost of a single GraphQL operation (#379). `None` = no
+    /// cost budget.
+    #[serde(default)]
+    pub cost_budget:          Option<usize>,
 }
 
 /// Response for tenant write operations.
@@ -223,6 +227,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         max_requests_per_sec: body.max_requests_per_sec,
         max_concurrent:       body.max_concurrent,
         max_storage_bytes:    body.max_storage_bytes,
+        cost_budget:          body.cost_budget,
     };
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);

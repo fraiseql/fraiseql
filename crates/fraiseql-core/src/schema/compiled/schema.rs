@@ -163,6 +163,16 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscribable: Vec<SubscribableEntity>,
 
+    /// Per-operation `@cost(weight: N)` overrides (#379): root query/mutation name
+    /// → manual cost weight, consulted by the runtime per-tenant cost-budget check
+    /// (`estimate_query_cost`) so a top-level operation counts as exactly `N`
+    /// instead of its walked subtree complexity. Aggregated by the compiler from
+    /// each operation's `@cost` annotation. Empty (and omitted from the compiled
+    /// JSON) when no operation carries `@cost` — so a schema that predates this
+    /// field deserializes and re-serializes byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub operation_cost_weights: HashMap<String, usize>,
+
     /// Federation metadata for Apollo Federation v2 support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub federation: Option<FederationConfig>,

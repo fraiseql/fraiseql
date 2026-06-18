@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use graphql_parser::query::{
-    Definition, Document, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
+    Definition, Document, Field, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
 };
 
 /// Parse a GraphQL query source into a [`graphql_parser`] document.
@@ -523,6 +523,88 @@ impl<'a> DocumentAnalyzer<'a> {
             aliases,
         }
     }
+
+    /// Complexity contribution of a single field — `1` for a leaf, else
+    /// `1 + nested_complexity * pagination_multiplier`. This is exactly the
+    /// per-field score [`selection_metrics`](Self::selection_metrics) assigns, so
+    /// a cost walk with no `@cost` overrides equals the complexity score.
+    fn field_complexity(&mut self, field: &'a Field<'a, String>, budget: usize) -> usize {
+        if field.selection_set.items.is_empty() {
+            1
+        } else {
+            let nested = self.selection_metrics(&field.selection_set, budget);
+            let multiplier = extract_limit_multiplier(&field.arguments);
+            1usize.saturating_add(nested.complexity.saturating_mul(multiplier))
+        }
+    }
+
+    /// Document cost for per-tenant budget enforcement.
+    ///
+    /// Equals the complexity score, except a top-level (root) operation field
+    /// whose name carries an `@cost` weight contributes exactly that weight (its
+    /// subtree is not walked). Root inline fragments/spreads fall back to the
+    /// normal complexity contribution.
+    fn document_cost<S: std::hash::BuildHasher>(
+        &mut self,
+        document: &'a Document<'a, String>,
+        root_weights: &HashMap<String, usize, S>,
+    ) -> usize {
+        let mut cost = 0usize;
+        for def in &document.definitions {
+            if let Definition::Operation(op) = def {
+                cost =
+                    cost.saturating_add(self.root_cost(operation_selection_set(op), root_weights));
+            }
+        }
+        cost
+    }
+
+    fn root_cost<S: std::hash::BuildHasher>(
+        &mut self,
+        selection_set: &'a SelectionSet<'a, String>,
+        root_weights: &HashMap<String, usize, S>,
+    ) -> usize {
+        let mut cost = 0usize;
+        for sel in &selection_set.items {
+            let c = match sel {
+                Selection::Field(field) => root_weights
+                    .get(field.name.as_str())
+                    .copied()
+                    .unwrap_or_else(|| self.field_complexity(field, FRAGMENT_SPREAD_DEPTH_LIMIT)),
+                Selection::InlineFragment(inline) => {
+                    self.root_cost(&inline.selection_set, root_weights)
+                },
+                Selection::FragmentSpread(spread) => {
+                    self.resolve_fragment(
+                        spread.fragment_name.as_str(),
+                        FRAGMENT_SPREAD_DEPTH_LIMIT,
+                    )
+                    .complexity
+                },
+            };
+            cost = cost.saturating_add(c);
+        }
+        cost
+    }
+}
+
+/// Estimate a parsed document's cost for per-tenant budget enforcement.
+///
+/// The cost equals the AST complexity score (so it is consistent with the
+/// `max_complexity` gate), except a top-level operation field whose name appears
+/// in `root_cost_weights` contributes exactly that `@cost` weight instead of its
+/// walked subtree. With an empty map the result equals
+/// [`RequestValidator::analyze`]'s `complexity`.
+#[must_use]
+pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
+    document: &'a Document<'a, String>,
+    root_cost_weights: &HashMap<String, usize, S>,
+) -> usize {
+    let fragments = collect_fragments(document);
+    // usize::MAX sentinels so a fragment cycle yields a saturating (rejected) cost
+    // rather than an artificial cap.
+    let mut analyzer = DocumentAnalyzer::new(&fragments, usize::MAX, usize::MAX);
+    analyzer.document_cost(document, root_cost_weights)
 }
 
 /// The top-level selection set of any operation kind.

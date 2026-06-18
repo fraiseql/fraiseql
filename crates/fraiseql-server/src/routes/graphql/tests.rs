@@ -1268,6 +1268,7 @@ mod tenant_registry_tests {
             max_concurrent:       Some(2),
             max_requests_per_sec: None,
             max_storage_bytes:    None,
+            cost_budget:          None,
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1287,6 +1288,38 @@ mod tenant_registry_tests {
     }
 
     #[test]
+    fn test_cost_budget_rejects_over_budget_and_admits_within() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent:       None,
+            max_requests_per_sec: None,
+            max_storage_bytes:    None,
+            cost_budget:          Some(100),
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+
+        assert!(registry.has_cost_budget("tenant-abc"));
+        // At or below budget → admitted (only cost > budget is rejected).
+        registry
+            .check_cost_budget("tenant-abc", 100)
+            .expect("cost == budget is admitted");
+        registry.check_cost_budget("tenant-abc", 1).expect("cheap query admitted");
+        // Over budget → RateLimited (429).
+        let err = registry.check_cost_budget("tenant-abc", 101).unwrap_err();
+        assert!(matches!(err, FraiseQLError::RateLimited { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn test_no_cost_budget_admits_any_cost() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        assert!(!registry.has_cost_budget("tenant-abc"));
+        registry
+            .check_cost_budget("tenant-abc", usize::MAX)
+            .expect("no budget → unlimited");
+    }
+
+    #[test]
     fn test_no_concurrency_limit_returns_none() {
         let registry = TenantExecutorRegistry::new(default_executor());
         registry.upsert("tenant-abc", tenant_executor("abc"));
@@ -1302,6 +1335,7 @@ mod tenant_registry_tests {
             max_concurrent:       Some(1),
             max_requests_per_sec: None,
             max_storage_bytes:    None,
+            cost_budget:          None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1343,6 +1377,7 @@ mod tenant_registry_tests {
             max_requests_per_sec: Some(100),
             max_concurrent:       Some(10),
             max_storage_bytes:    Some(1_000_000),
+            cost_budget:          None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
