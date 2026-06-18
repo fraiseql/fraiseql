@@ -39,8 +39,8 @@ const (
 
 	// SYNC:* feature sets lifted verbatim from ci.yml's Test Suite job — keep in
 	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
-	coreTestFeatures   = "arrow,federation,grpc,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
-	dbTestFeatures     = "grpc,mysql,postgres,sqlite,sqlserver,wire-backend"
+	coreTestFeatures   = "arrow,federation,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
+	dbTestFeatures     = "mysql,postgres,sqlite,sqlserver,wire-backend"
 	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
 )
 
