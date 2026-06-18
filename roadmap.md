@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.3.0 (Released 2026-05-03)
-**In Development**: v2.4.0-dev (active branch: `dev`)
+**Current Stable**: v2.8.0 (Released 2026-06-18)
+**In Development**: v2.9.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -158,13 +158,114 @@ Focused on critical quality fixes and production hardening: stale cache after ho
 
 ---
 
-## v2.4.0 - TBD
+## v2.4.0 - Multi-Database Runtime & Release-Pipeline Repair ✅ Released 2026-06-04
 
-**Status**: Planning
+**Released**: 2026-06-04
 
-> Themes and scope to be defined. Candidates include: additional SDK improvements,
-> `async_trait` migration (pending RTN stabilization), and `# Errors` doc coverage
-> expansion in fraiseql-core.
+Brought the multi-database story to the running server, opened the entity change log to GraphQL consumers, and repaired the release automation that had silently failed to publish v2.3.x.
+
+### Completed
+
+- **Multi-database runtime** — `fraiseql-server` / `fraiseql run` select the backend at runtime (PostgreSQL, MySQL, SQLite, SQL Server) from configuration
+- **Entity change log over GraphQL** (#149) — opt-in, pull-based event consumption
+- **`fraiseql generate-client typescript`** — typed TypeScript clients from a compiled schema
+- **FreeBSD** (`x86_64-unknown-freebsd`) added as a CI-enforced compile target (#148)
+- **Mutation response shape matches the query contract** (#410, #400) — success/error projected by the same engine: `__typename` only when selected, nested typed-object fields projected and selection-subset, input payload recased to canonical field names
+- **Session variables now reach mutation SQL functions and RLS policies** (#329) — `set_session_variables` removed in favour of connection-affine `*_with_session` methods
+- **Security wave** — `POST /auth/revoke[-all]` now authenticated (#358); observer admin API now authenticated (#348); MCP tool calls enforce RLS + auth; presign endpoint consults RLS (#335); `[auth_hs256]` requires `audience` (#359); `FRAISEQL_OBSERVERS_ALLOW_INSECURE` refused in production (#347); webhook dispatch logs no longer leak URLs/headers/bodies (#346); query-complexity scorer is overflow-safe (fail-closed)
+- **Release pipeline repaired** — `build.rs` no longer modifies the source tree during `cargo publish`; all 15 publishable crates (incl. `fraiseql-functions`, `fraiseql-storage`) publish in topological order; dry-run covers every crate. First v2.x where `cargo install fraiseql-server` works
+- **axum 0.7→0.8 boot panic fixed** (#316, #317) — stale `:listener_id` path-capture literal corrected to `{listener_id}`
+
+---
+
+## v2.5.0 - Authorization & Observer Correctness ✅ Released 2026-06-08
+
+**Released**: 2026-06-08
+
+Pluggable authorization at the operation and field level, plus a sweep that made the observer subsystem behave as documented.
+
+### Completed
+
+- **Operation-level authorization** (#422) — pluggable `Authorizer`
+- **Dynamic field-level authorization** (#423) — pluggable `FieldAuthorizer`
+- **HMAC-signed outbound observer webhooks** (#345)
+- **PostgreSQL token-revocation backend** (#357); failed-login lockout config now honoured (#356); PKCE refuses to boot without state encryption in production (#360); JWKS rotation evicts revoked keys (#361)
+- **Top-level page-size ceiling** (#421) — root-query `first`/`last`/`limit` clamped (>1000 rejected, BREAKING)
+- **WebSocket subscriptions enforce tenant dispatch** (#331); suspended tenant → 503 + `Retry-After` (#332); multi-tenant runtime wired into the server binary (#330)
+- **Storage hardening** — list-prefix LIKE-injection fix (#339), stored-XSS hardening + `Content-Disposition: attachment` default (#337), cross-bucket collision fix (#336), upload-cap fix (#338), routes reachable from the binary (#334)
+- **Observer correctness** — DLQ CLI talks to the real API (#341); email action no longer reports false success (#349); transport selection honoured, NATS no longer silently on PostgreSQL (#350); DLQ double-fire fix (#344); `max_dlq_size` honoured (#343); router prefix fix (#340)
+- **Input validation** — required input fields enforced before the DB call (#414, compiled-schema format adds `nullable`, BREAKING); client-input DB errors return 400 not 500 (#413)
+- **`fraiseql-cli validate --against-db` / `doctor --against-db`** — static + PL/pgSQL mutation-contract drift checks (#409)
+
+---
+
+## v2.6.0 - Change Spine ✅ Released 2026-06-10
+
+**Released**: 2026-06-10
+
+The Change Spine: a portable, in-transaction change-log outbox owned as a shipped contract, with multi-database support and a consumer/observability surface.
+
+### Completed
+
+- **In-transaction outbox** — the mutation executor writes `core.tb_entity_change_log` in the same transaction as the write, with prepared-statement caching on the function-call path and a per-mutation `@fraiseql.mutation(changelog=False)` opt-out (Python + TS SDKs)
+- **`core.tb_entity_change_log` owned as a shipped contract** with envelope stamping and reader reconcile
+- **Live MySQL + SQL Server in-transaction outbox** — multi-DB portability
+- **`fraiseql doctor --against-db`** — change-log contract drift check (#380)
+- **`fraiseql perf`** — change-log performance observability (#392)
+- **Envelope/perf columns surfaced on the observer event path** — `tenant_id`, `duration_ms`, `seq`, `trace_id` (#375), `schema_version` (#377)
+
+> The v2.6.0 changelog entries were folded under the `[2.7.0]` heading in `CHANGELOG.md`
+> (the `[2.6.0]` section header is missing). Tag `v2.6.0` was cut at `09f41b987`.
+
+---
+
+## v2.7.0 - Security Wave (Audit Phases 01–05) ✅ Released 2026-06-13
+
+**Released**: 2026-06-13
+
+First half of the 2026-06-11 security-audit remediation campaign: injection, authz-bypass/IDOR, inert controls, and DoS/panic surface.
+
+### Completed
+
+- **Injection & authz bypass** — MySQL stored-procedure mutation path parameterized (C1, critical); Relay `node(id:)` enforces row-level authz (H2, IDOR); federation `_entities` fails closed + per-row tenant/owner scoping; admin-plane endpoints require auth + admin scope (H5, H6); storage overwrite ownership (H9); Arrow Flight `BulkExport` behind a table allow-list (H39); introspection hides role-gated mutations; webhook `body_template` JSON-escaped (H11)
+- **Multi-tenant fail-closed** — subscription tenant gate, suspended-tenant rejection, per-tenant concurrency + RPS quotas (M-quotas)
+- **DoS / panic surface** — complexity validator no longer pinnable via fragment spreads (H4); UTF-8-safe `?select=` parser + recursion guard (H17, H18); char-boundary-safe truncation (H20); PostgreSQL/Arrow/GCS panics fail loud (H34, H38); `/auth/v1/authorize` rate-limited (H25); wire message-size cap (M-wire-msg-cap)
+- **Inert controls activated** — token revocation enforced on every request + revoke-all; REST 5xx sanitization; refuse-boot on at-rest-encryption-marked fields; dead audit logger + false compliance claims removed (H13); security headers on every response; GET-mutation → 405; XFF-untrusting limiter; refuse-boot on server-side `[tls]`
+- **Change Spine follow-ups** — external-write capture trigger (#366), actor model `actor_type`/`acting_for` (#390, BREAKING change-log contract), reader `schema_version` (#377)
+- **gRPC/REST mutation fixes** — gRPC read `status` not `succeeded`; REST 204 carries no body; REST error responses preserve structured `details`
+
+---
+
+## v2.8.0 - Correctness Train (Audit Phases 06–12) ✅ Released 2026-06-18
+
+**Released**: 2026-06-18
+
+Second half of the audit campaign — a correctness sweep across auth, honest-failure, data, wire protocol, server drift, SDKs, and dependency hygiene — plus several opt-in authoring features.
+
+### Completed
+
+- **Security** — `sql_query` read-only guard inspects CTE bodies (M-cte-classifier); Deno function limits enforced by V8, not string matching (M-deno-limits); SSRF guards converged + DNS-rebinding-hardened across functions/federation/observers; PKCE verification constant-time on all paths; JWKS fetch pins to the validated IP (M-jwks-toctou); Vault AppRole validates address before sending credentials (H15)
+- **Configurable naming** — `[fraiseql.naming] convention` for the JSON-schema compile workflow; `[fraiseql.naming] acronyms` registry for `<word><digit>` keys
+- **Opt-in authoring features** — `[fraiseql.mutations] auto_error_union` (synthesizes `MutationError` + per-mutation result unions); per-mutation `input_style: flatten | jsonb` (decouples input-passing from the DML verb); per-mutation `changelog_pre_image` (Debezium-style before-state into `object_data_before`); changelog tail query `?latest=true` (H28)
+- **Correctness fixes** — `SMALLINT`/`int2` decodes to JSON numbers incl. `httpStatus`; GraphQL variables nested in object/list literals substituted; `updatedFields` surfaced selection-gated (#433); list field/argument types compile to a list not a single object (#434); digit-suffixed field names camelize bijectively (`phone_1` ↔ `phone1`, BREAKING surface name); mutation input recasing covers nested composites on Insert/Custom (#400)
+- **Cross-cutting phases** — auth-correctness (account-takeover, Vault deadlock/base64/SSRF), honest-failure (stubs fail loud, #426 CLI setup), data-correctness & adapter drift, wire-protocol correctness + unified metrics 0.24, server constructor/dispatcher unification, SDK publishing un-frozen (was silently frozen at 2.1.6) + one Python error base, dependency/supply-chain hygiene (crypto consolidated on `ring`, crypto-provider gate)
+- **Release** — published to crates.io (×16), PyPI, npm (OIDC Trusted Publishing + SLSA provenance), Docker, GitHub release
+
+---
+
+## v2.9.0 - In Development
+
+**Status**: Planning (active branch: `dev`)
+
+> Candidate themes for the next minor. Final scope TBD.
+
+- **Audit campaign close-out** — Phases 13–16 of the 2026-06-11 remediation: ops hardening (H46 unauthenticated `docker-compose.prod.yml` ports — security), quality sweep, coverage-gap follow-ups, finalize
+- **Auth foundation** — persistent identity store (#411) → Argon2id local-password authenticator (#412), unblocking magic links/TOTP/reset (#367), social OAuth (#368), SAML/SCIM (#381)
+- **Change-Spine / CDC** — WAL-tail CDC source (#366 follow-up), Change-Spine envelope delivery (#425), outbound CDC → Kafka/NATS/Kinesis (#382)
+- **Audit "make-it-real" deferrals** — federation distributed saga (#429), webhooks inbound receiver (#431), real observer transports (#428), allow-list-backed `redirect_uri` (#427)
+- **Hard deadline** — `rustls-0.21` (via opt-in `aws-s3`) reaches EOL 2026-09-01; needs a `hyper-rustls-0.27` `HttpClient` swap before then (accepted in `deny.toml` until the deadline)
+
+See `.phases/2026-06-11-audit-remediation/` and `.phases/2026-05-31-release-train/track-3-enhancements/ROADMAP.md` for detailed plans.
 
 ---
 
@@ -310,7 +411,7 @@ See `releasing.md` for the full cadence policy.
 ### Version Support
 
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
-- **Current stable**: v2.3.0 (released May 2026)
+- **Current stable**: v2.8.0 (released June 2026)
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes
