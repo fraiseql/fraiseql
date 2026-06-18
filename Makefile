@@ -450,6 +450,13 @@ test-release-tooling:
 lint-routes:
 	@bash tools/check-route-syntax.sh
 
+# Gate: deployment artifacts must not re-expose backing services (H46) or regress the
+# Phase-13 sweep — loopback-only ports, authenticated Redis, fail-loud secrets, no
+# :latest pins, no readOnlyRootFilesystem: false. See tools/check-deploy-security.sh.
+.PHONY: lint-deploy-security
+lint-deploy-security:
+	@bash tools/check-deploy-security.sh
+
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
 	cargo +nightly fmt --all

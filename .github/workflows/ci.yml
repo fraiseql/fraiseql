@@ -64,6 +64,19 @@ jobs:
       - name: Check axum route capture syntax
         run: bash tools/check-route-syntax.sh
 
+  # Deployment-security gate (Phase 13 / H46): shipped compose + k8s/deploy
+  # manifests must not re-expose backing services, ship unauthenticated Redis,
+  # use empty-default secrets, pin :latest, or run a writable root filesystem.
+  deploy-security-check:
+    name: Deploy Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Check deployment artifacts
+        run: bash tools/check-deploy-security.sh
+
   # Guard against silent rot in the async-jobs federation example. The subgraph
   # is a standalone crate (detached from the workspace), so it is not covered by
   # the workspace clippy job above — check + lint it on its own here.
@@ -650,6 +663,8 @@ jobs:
         env:
           RUST_LOG: debug
           FRAISEQL_OBSERVERS_ALLOW_INSECURE: "true"
+          # Test broker speaks plaintext nats:// (L-nats-plaintext opt-in, non-prod only).
+          FRAISEQL_NATS_ALLOW_PLAINTEXT: "true"
 
       - name: Show NATS logs on failure
         if: failure()
@@ -722,6 +737,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
+          FRAISEQL_OBSERVERS_ALLOW_INSECURE: "true"
+          # Test broker speaks plaintext nats:// (L-nats-plaintext opt-in, non-prod only).
+          FRAISEQL_NATS_ALLOW_PLAINTEXT: "true"
 
       - name: Run fraiseql-server observer runtime tests
         run: cargo test -p fraiseql-server --features "observers-nats" --test observer_runtime_integration_test -- --ignored --test-threads=1
@@ -730,6 +748,8 @@ jobs:
           RUST_LOG: debug
           FRAISEQL_ALLOW_PRIVATE_WEBHOOKS: "true"
           FRAISEQL_OBSERVERS_ALLOW_INSECURE: "true"
+          # Test broker speaks plaintext nats:// (L-nats-plaintext opt-in, non-prod only).
+          FRAISEQL_NATS_ALLOW_PLAINTEXT: "true"
 
   # Integration tests for TLS wire protocol (PostgreSQL with TLS)
   integration-tls:

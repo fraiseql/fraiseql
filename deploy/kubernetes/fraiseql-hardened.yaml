@@ -28,7 +28,7 @@ spec:
     rule: 'MustRunAs'
     seLinuxOptions:
       level: "s0:c123,c456"
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
 
 ---
 # NetworkPolicy - Deny all by default, allow specific ingress
@@ -126,7 +126,8 @@ spec:
 
       containers:
       - name: fraiseql
-        image: fraiseql:latest
+        # Pinned for reproducible deploys (never :latest). Bump on upgrade.
+        image: fraiseql:2.8.0
         imagePullPolicy: IfNotPresent
 
         # Container security context
@@ -136,7 +137,7 @@ spec:
             drop:
             - ALL
             add: []
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 65532
           runAsGroup: 65532

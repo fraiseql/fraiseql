@@ -37,7 +37,8 @@ spec:
 
       containers:
       - name: fraiseql-server
-        image: fraiseql/fraiseql-server:latest
+        # Pinned for reproducible deploys (never :latest). Bump on upgrade.
+        image: fraiseql/fraiseql-server:2.8.0
         imagePullPolicy: IfNotPresent
 
         ports:

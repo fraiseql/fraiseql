@@ -884,6 +884,32 @@ mod nats_tests {
         let result = validate_nats_url("http://nats.example.com:4222");
         assert!(result.is_err(), "non-nats:// scheme must be rejected");
     }
+
+    #[test]
+    fn validate_nats_url_rejects_plaintext_by_default() {
+        // L-nats-plaintext: a public-host plaintext nats:// URL must be refused
+        // when the plaintext opt-in is absent, before any DNS resolution. Clear
+        // the opt-in and production markers so the result is deterministic.
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_NATS_ALLOW_PLAINTEXT", None::<&str>),
+                ("FRAISEQL_ENV", None),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || {
+                let result = validate_nats_url("nats://nats.example.com:4222");
+                assert!(result.is_err(), "plaintext nats:// must be refused by default");
+                if let Err(e) = result {
+                    let msg = e.to_string();
+                    assert!(
+                        msg.contains("tls://") || msg.contains("plaintext"),
+                        "error should explain the TLS requirement: {msg}"
+                    );
+                }
+            },
+        );
+    }
 }
 
 #[cfg(feature = "postgres")]

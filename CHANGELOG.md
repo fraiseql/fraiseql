@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **The production Docker Compose no longer exposes backing services to the network
+  (H46).** `docker-compose.prod.yml` published PostgreSQL (`5432`), Redis (`6379`), and
+  Prometheus (`9090`) on `0.0.0.0` — and because Docker's port publishing inserts its own
+  `iptables` rules ahead of the host firewall, those services were reachable from the
+  internet regardless of any `ufw`/firewall policy. Redis additionally ran with no
+  password (`protected-mode` is off once a port is published), so anyone who could reach
+  it had full command access. The backing-service ports are now bound to `127.0.0.1`
+  (containers still reach each other by service name over the bridge network, and host
+  loopback access remains for local admin/migration tooling), Redis now requires
+  `--requirepass ${REDIS_PASSWORD}`, and `${DB_PASSWORD}`/`${REDIS_PASSWORD}` use a
+  fail-loud `:?` guard so an unset secret aborts startup instead of silently creating a
+  passwordless database. The root dev `docker-compose.yml` backing services were likewise
+  rebound to loopback. A static gate (`tools/check-deploy-security.sh`, wired into
+  ShellGates/CI) prevents regressions. **Operator action:** if you relied on reaching
+  Postgres/Redis/Prometheus from another host via the published port, front them with an
+  SSH tunnel or reverse proxy, and set `DB_PASSWORD` and `REDIS_PASSWORD` in your
+  environment.
+- **The NATS observer transport refuses plaintext `nats://` by default
+  (L-nats-plaintext).** Change-log events bridged to NATS previously crossed the wire in
+  the clear over `nats://` with no TLS enforcement. `validate_nats_url` now requires
+  `tls://`; plaintext `nats://` is accepted only when `FRAISEQL_NATS_ALLOW_PLAINTEXT` is
+  set to `1`/`true` **and** no production marker is present (`KUBERNETES_SERVICE_HOST`,
+  `FRAISEQL_ENV=production`, `FRAISEQL_PROFILE=production`) — the same refused-in-production
+  policy as the SSRF bypass, but a separate flag so allowing plaintext NATS does not also
+  disable the outbound SSRF guards. **Behavior change:** a deployment configured with a
+  `nats://` URL must switch to `tls://` (or set the opt-in outside production).
+- **Presigned storage URLs are now clamped to a maximum validity (L-presigned-expiry).**
+  The `GET /storage/v1/object/sign/*key` endpoint accepted an unbounded `expiry_secs`, so a
+  client could mint a credential-free URL valid for years. The requested expiry is now
+  clamped to a configurable ceiling (default 7 days, `StorageRouteState::with_max_presign_expiry_secs`).
+- **Hardened the shipped Kubernetes and Helm deployment manifests.** `k8s/service.yaml`
+  carried a `Secret` with the literal database password `password`; it is now a
+  non-functional placeholder with guidance to inject the real value out-of-band. The raw
+  manifests, the Helm chart, and the "hardened" manifest pinned images to `:latest` (now
+  `2.8.0`) and ran with a writable root filesystem (`readOnlyRootFilesystem: false`, now
+  `true` — including the Helm values and the PodSecurityPolicy). Lower-severity
+  demo/example/test deployment artifacts are tracked in #436.
+
 ## [2.8.0] - 2026-06-18
 
 ### Security

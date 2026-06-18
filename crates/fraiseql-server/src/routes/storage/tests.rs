@@ -13,7 +13,10 @@ use axum::{
 };
 use tower::ServiceExt as _;
 
-use super::{DEFAULT_MAX_UPLOAD_BYTES, StorageRouteState, storage_router};
+use super::{
+    DEFAULT_MAX_PRESIGN_EXPIRY_SECS, DEFAULT_MAX_UPLOAD_BYTES, StorageRouteState,
+    clamp_presign_expiry, storage_router,
+};
 use crate::storage::LocalStorageBackend;
 
 /// Build a test router backed by a local filesystem backend in a temp dir.
@@ -210,6 +213,33 @@ async fn presigned_url_not_supported_by_local_backend() {
     let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["code"], "file_storage_error");
+}
+
+#[test]
+fn presign_expiry_within_ceiling_is_preserved() {
+    // L-presigned-expiry: a request below the ceiling is honoured verbatim.
+    assert_eq!(clamp_presign_expiry(300, DEFAULT_MAX_PRESIGN_EXPIRY_SECS), 300);
+}
+
+#[test]
+fn presign_expiry_above_ceiling_is_clamped() {
+    // L-presigned-expiry: an over-long (or absurd) request is clamped to the ceiling.
+    assert_eq!(
+        clamp_presign_expiry(u64::MAX, DEFAULT_MAX_PRESIGN_EXPIRY_SECS),
+        DEFAULT_MAX_PRESIGN_EXPIRY_SECS
+    );
+    assert_eq!(
+        clamp_presign_expiry(DEFAULT_MAX_PRESIGN_EXPIRY_SECS + 1, DEFAULT_MAX_PRESIGN_EXPIRY_SECS),
+        DEFAULT_MAX_PRESIGN_EXPIRY_SECS
+    );
+}
+
+#[test]
+fn default_state_has_presign_expiry_ceiling() {
+    let dir = tempfile::tempdir().unwrap();
+    let backend = Arc::new(LocalStorageBackend::new(dir.path().to_str().unwrap()));
+    let state = StorageRouteState::new(backend);
+    assert_eq!(state.max_presign_expiry_secs, DEFAULT_MAX_PRESIGN_EXPIRY_SECS);
 }
 
 // ── state ─────────────────────────────────────────────────────────────────

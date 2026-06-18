@@ -31,23 +31,32 @@ use crate::storage::{StorageBackend, validate_key};
 /// Default maximum upload size: 100 `MiB`.
 pub const DEFAULT_MAX_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
 
+/// Default ceiling on a presigned-URL's validity: 7 days.
+pub const DEFAULT_MAX_PRESIGN_EXPIRY_SECS: u64 = 7 * 24 * 60 * 60;
+
 /// Shared state for all storage route handlers.
 #[derive(Clone)]
 pub struct StorageRouteState {
     /// The configured storage backend (local, S3, GCS, Azure, …).
-    pub backend:          Arc<dyn StorageBackend>,
+    pub backend:                 Arc<dyn StorageBackend>,
     /// Maximum allowed upload body size in bytes.
     ///
     /// Requests that exceed this limit are rejected with HTTP 413 before the
     /// body is forwarded to the backend, preventing memory exhaustion on the
     /// server when large files are sent.
-    pub max_upload_bytes: usize,
+    pub max_upload_bytes:        usize,
     /// Optional key prefix prepended to every storage key.
     ///
     /// Used for per-tenant isolation: set this to the tenant's ID so that
     /// tenant A's keys (`"tenantA/file.txt"`) are disjoint from tenant B's
     /// (`"tenantB/file.txt"`).  When `None`, keys are used as-is.
-    pub tenant_prefix:    Option<String>,
+    pub tenant_prefix:           Option<String>,
+    /// Ceiling on a presigned URL's requested validity, in seconds.
+    ///
+    /// A presigned URL grants credential-free access to an object for its
+    /// lifetime, so an unbounded expiry is a standing exposure.  Requests for a
+    /// longer validity are clamped down to this ceiling (L-presigned-expiry).
+    pub max_presign_expiry_secs: u64,
 }
 
 impl StorageRouteState {
@@ -58,6 +67,7 @@ impl StorageRouteState {
             backend,
             max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES,
             tenant_prefix: None,
+            max_presign_expiry_secs: DEFAULT_MAX_PRESIGN_EXPIRY_SECS,
         }
     }
 
@@ -65,6 +75,13 @@ impl StorageRouteState {
     #[must_use]
     pub const fn with_max_upload_bytes(mut self, bytes: usize) -> Self {
         self.max_upload_bytes = bytes;
+        self
+    }
+
+    /// Override the ceiling on presigned-URL validity (in seconds).
+    #[must_use]
+    pub const fn with_max_presign_expiry_secs(mut self, secs: u64) -> Self {
+        self.max_presign_expiry_secs = secs;
         self
     }
 
@@ -235,6 +252,19 @@ const fn default_expiry_secs() -> u64 {
     3600
 }
 
+/// Clamp a client-requested presigned-URL validity to the configured ceiling.
+///
+/// Returns `requested_secs` when it is within `ceiling_secs`, otherwise the
+/// ceiling — so a presigned URL never outlives the configured maximum
+/// (L-presigned-expiry).
+const fn clamp_presign_expiry(requested_secs: u64, ceiling_secs: u64) -> u64 {
+    if requested_secs < ceiling_secs {
+        requested_secs
+    } else {
+        ceiling_secs
+    }
+}
+
 /// `GET /storage/v1/object/sign/*key` — generate a presigned URL.
 ///
 /// Returns a time-limited URL granting direct access to the object without
@@ -249,7 +279,10 @@ pub async fn presigned_url_handler(
         return file_error_response(&e);
     }
 
-    let expiry = Duration::from_secs(params.expiry_secs);
+    // L-presigned-expiry: a presigned URL grants credential-free access for its
+    // whole lifetime, so clamp a client-requested expiry to the configured ceiling.
+    let expiry_secs = clamp_presign_expiry(params.expiry_secs, state.max_presign_expiry_secs);
+    let expiry = Duration::from_secs(expiry_secs);
     let full_key = prefixed_key(state.tenant_prefix.as_deref(), &key);
 
     match state.backend.presigned_url(&full_key, expiry).await {
@@ -257,7 +290,7 @@ pub async fn presigned_url_handler(
             StatusCode::OK,
             axum::Json(PresignedUrlResponse {
                 url,
-                expires_in: params.expiry_secs,
+                expires_in: expiry_secs,
             }),
         )
             .into_response(),

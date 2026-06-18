@@ -67,5 +67,12 @@ metadata:
     app: fraiseql
 type: Opaque
 stringData:
-  # IMPORTANT: Update this with actual database credentials
-  database-url: "postgresql://fraiseql:password@postgres:5432/fraiseql"
+  # SECURITY: do NOT apply this manifest as-is. The value below is a non-functional
+  # placeholder, not a credential. Provide the real connection string out-of-band so
+  # a secret never lands in version control, e.g.:
+  #
+  #   kubectl -n fraiseql create secret generic fraiseql-secrets \
+  #     --from-literal=database-url='postgresql://fraiseql:<REAL_PASSWORD>@postgres:5432/fraiseql'
+  #
+  # or render it from your secret manager (Vault, SOPS, External Secrets, …).
+  database-url: "REPLACE_ME__SET_VIA_SECRET_MANAGER"

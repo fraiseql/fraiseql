@@ -24,14 +24,15 @@ spec:
         fsGroup: 65532
       containers:
       - name: fraiseql
-        image: fraiseql:latest
+        # Pinned for reproducible deploys (never :latest). Bump on upgrade.
+        image: fraiseql:2.8.0
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
               - ALL
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 65532
         ports:

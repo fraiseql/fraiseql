@@ -21,7 +21,8 @@ services:
       POSTGRES_PASSWORD: fraiseql
       POSTGRES_DB: fraiseql
     ports:
-      - "5432:5432"
+      # Loopback-only: reachable for local dev tooling, not from the network.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -35,7 +36,8 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # Loopback-only: reachable for local dev tooling, not from the network.
+      - "127.0.0.1:6379:6379"
     networks:
       - fraiseql-net
 

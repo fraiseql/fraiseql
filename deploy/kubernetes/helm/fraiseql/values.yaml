@@ -6,7 +6,8 @@
 image:
   repository: fraiseql
   pullPolicy: IfNotPresent
-  tag: latest
+  # Pinned for reproducible deploys (never "latest"). Bump on upgrade.
+  tag: "2.8.0"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -31,7 +32,7 @@ securityContext:
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 65532
 

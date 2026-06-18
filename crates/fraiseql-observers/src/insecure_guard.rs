@@ -118,5 +118,59 @@ pub fn is_outbound_insecure_allowed() -> bool {
     true
 }
 
+/// Env var that allows plaintext `nats://` NATS connections (no transport TLS).
+/// Accepted values: `1`, `true` (case-insensitive).  Refused in production
+/// regardless of the value.
+pub const NATS_ALLOW_PLAINTEXT_ENV: &str = "FRAISEQL_NATS_ALLOW_PLAINTEXT";
+
+/// Whether the NATS-plaintext production refusal has already been logged at
+/// ERROR (once per process; see [`PRODUCTION_REFUSAL_LOGGED`] for the rationale).
+static NATS_PLAINTEXT_REFUSAL_LOGGED: AtomicBool = AtomicBool::new(false);
+
+/// Returns `true` only when [`NATS_ALLOW_PLAINTEXT_ENV`] is set AND no production
+/// marker is present.
+///
+/// Plaintext `nats://` carries change-log events with no transport encryption.
+/// It is refused by default; this escape hatch mirrors
+/// [`is_outbound_insecure_allowed`] (honoured in dev/test only, refused in
+/// production via [`is_production_environment`]) but is a **separate** flag so
+/// allowing plaintext NATS does not also disable the outbound SSRF guards.
+#[must_use]
+pub fn is_nats_plaintext_allowed() -> bool {
+    let requested = std::env::var(NATS_ALLOW_PLAINTEXT_ENV)
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+
+    if !requested {
+        return false;
+    }
+
+    if is_production_environment() {
+        if NATS_PLAINTEXT_REFUSAL_LOGGED
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            error!(
+                "{NATS_ALLOW_PLAINTEXT_ENV}=true requested in a production environment \
+                 (KUBERNETES_SERVICE_HOST set, FRAISEQL_ENV=production, or \
+                 FRAISEQL_PROFILE=production). Plaintext nats:// remains refused — use \
+                 tls:// for the NATS transport. This bypass is for local development only."
+            );
+        }
+        warn!(
+            target: "fraiseql_observers::insecure_guard",
+            "Refused {NATS_ALLOW_PLAINTEXT_ENV} bypass in production environment"
+        );
+        return false;
+    }
+
+    warn!(
+        target: "fraiseql_observers::insecure_guard",
+        "{NATS_ALLOW_PLAINTEXT_ENV}=true — NATS transport allowed over plaintext nats:// \
+         (no TLS). This MUST NOT be set in production."
+    );
+    true
+}
+
 #[cfg(test)]
 mod tests;

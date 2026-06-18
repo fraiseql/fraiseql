@@ -228,6 +228,7 @@ func (m *FraiseqlCi) ShellGates(
 		"make test-release-tooling",
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
+		"bash tools/check-deploy-security.sh",
 		"bash tools/check-audit-lockstep.sh",
 		"bash tools/check-deadlines.sh",
 	}, "\n")
@@ -1391,6 +1392,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithEnvVariable("MAILHOG_API", fmt.Sprintf("http://%s:8025", mailhogBindHost)).
 		WithEnvVariable("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true").
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
+		// The bound JetStream service speaks plaintext nats:// (bridge_integration);
+		// opt into plaintext for the test broker (L-nats-plaintext).
+		WithEnvVariable("FRAISEQL_NATS_ALLOW_PLAINTEXT", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -1413,6 +1417,10 @@ func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directo
 		WithServiceBinding(natsBindHost, m.natsService()).
 		WithEnvVariable("NATS_URL", natsURL).
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
+		// The bound JetStream service speaks plaintext nats://; the transport now
+		// refuses plaintext by default (L-nats-plaintext), so opt in for the test
+		// broker (honoured only outside production).
+		WithEnvVariable("FRAISEQL_NATS_ALLOW_PLAINTEXT", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

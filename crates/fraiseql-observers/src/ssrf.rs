@@ -113,16 +113,36 @@ pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
 
 /// Validate that a NATS URL is safe to connect to.
 ///
-/// Accepts `nats://` and `tls://` schemes only; rejects private/loopback hosts.
+/// Accepts `tls://` always; accepts plaintext `nats://` only when the operator
+/// has opted in via `FRAISEQL_NATS_ALLOW_PLAINTEXT` in a non-production
+/// environment (L-nats-plaintext). Rejects every other scheme and any
+/// private/loopback host.
 ///
 /// # Errors
 ///
-/// Returns `ObserverError::InvalidConfig` if the URL is invalid or targets a forbidden host.
+/// Returns `ObserverError::InvalidConfig` if the URL uses an unsupported scheme,
+/// uses plaintext `nats://` without an explicit opt-in, or targets a forbidden host.
 #[cfg(feature = "nats")]
 pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
-    if !url.starts_with("nats://") && !url.starts_with("tls://") {
+    let is_tls = url.starts_with("tls://");
+    let is_plaintext = url.starts_with("nats://");
+    if !is_tls && !is_plaintext {
         return Err(ObserverError::InvalidConfig {
             message: format!("NATS URL must use nats:// or tls:// scheme (got: {url})"),
+        });
+    }
+    // L-nats-plaintext: plaintext nats:// has no transport encryption — change-log
+    // events would cross the wire in the clear. Refuse it by default; the
+    // `FRAISEQL_NATS_ALLOW_PLAINTEXT` escape hatch is honoured only outside
+    // production (see `crate::insecure_guard`). tls:// is always allowed.
+    if is_plaintext && !crate::insecure_guard::is_nats_plaintext_allowed() {
+        return Err(ObserverError::InvalidConfig {
+            message: format!(
+                "NATS URL uses plaintext nats:// without TLS (got: {url}). Use tls:// for an \
+                 encrypted connection, or set {}=true in a non-production environment to allow \
+                 plaintext.",
+                crate::insecure_guard::NATS_ALLOW_PLAINTEXT_ENV
+            ),
         });
     }
     validate_outbound_url(url)

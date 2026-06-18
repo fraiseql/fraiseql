@@ -1,3 +1,22 @@
+# FraiseQL production stack.
+#
+# Security posture (H46): only the application's own port (8815) is published to
+# host interfaces. The backing services (PostgreSQL, Redis, Prometheus) are bound
+# to loopback (127.0.0.1) so they are NOT reachable from the network — Docker's
+# port publishing bypasses host firewalls (ufw/iptables), so an unqualified
+# "5432:5432" would expose the database to the internet regardless of ufw rules.
+# Containers reach each other by service name over the `fraiseql-net` bridge, so
+# the loopback bindings cost nothing in-stack while keeping host access for local
+# admin/migration tooling.
+#
+# Required secrets (this file fails fast if either is unset — there is no insecure
+# default): DB_PASSWORD, REDIS_PASSWORD. Set them in a `.env` file beside this one
+# or in the deployment environment.
+#
+# MIGRATION (from a pre-2.9.0 compose): the backing-service ports moved from
+# 0.0.0.0 to 127.0.0.1, and Redis now requires a password. If you relied on
+# reaching Postgres/Redis/Prometheus from another host, front them with an SSH
+# tunnel or a reverse proxy instead of the raw published port.
 version: '3.8'
 
 services:
@@ -10,7 +29,7 @@ services:
       - "8815:8815"
     environment:
       RUST_LOG: warn
-      DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD}@postgres:5432/fraiseql
+      DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD:?DB_PASSWORD must be set}@postgres:5432/fraiseql
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,11 +47,12 @@ services:
     restart: always
     environment:
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       POSTGRES_DB: fraiseql
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
     ports:
-      - "5432:5432"
+      # Loopback-only: reachable on the host for admin/migrations, never the network.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -46,9 +66,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --appendfsync everysec
+    # requirepass closes the unauthenticated-Redis exposure (any client on a
+    # reachable interface could otherwise issue arbitrary commands).
+    command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     ports:
-      - "6379:6379"
+      # Loopback-only: not reachable from the network.
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -60,10 +83,13 @@ services:
       retries: 5
 
   prometheus:
-    image: prom/prometheus:latest
+    # Pinned (not :latest) for reproducible deploys; v2.53 is the current LTS line.
+    image: prom/prometheus:v2.53.0
     restart: always
     ports:
-      - "9090:9090"
+      # Loopback-only: the Prometheus UI/API is unauthenticated, so it must never
+      # be published to the network. Tunnel to 127.0.0.1:9090 for access.
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./tools/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
