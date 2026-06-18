@@ -114,7 +114,6 @@ pub async fn run() {
             compilation,
             fail_on_critical,
             fail_on_warning,
-            verbose: _,
         } => {
             let opts = commands::lint::LintOptions {
                 fail_on_critical,
@@ -169,7 +168,11 @@ pub async fn run() {
                     json || cli.json,
                 ) {
                     Ok(result) => {
-                        if !json {
+                        // `check::run` already prints the JSON result when either the
+                        // subcommand `--json` or the global `--json` is set (it receives
+                        // `json || cli.json`). Only format/print here when neither is set,
+                        // otherwise the result is emitted twice on global `--json`.
+                        if !(json || cli.json) {
                             println!(
                                 "{}",
                                 output::OutputFormatter::new(cli.json, cli.quiet).format(&result)

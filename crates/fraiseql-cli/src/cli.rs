@@ -259,10 +259,6 @@ EXAMPLES:
         /// Exit with error if any warning or critical issues found
         #[arg(long)]
         fail_on_warning: bool,
-
-        /// Show detailed issue descriptions
-        #[arg(long)]
-        verbose: bool,
     },
 
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)

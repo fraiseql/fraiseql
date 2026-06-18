@@ -37,7 +37,7 @@ use fraiseql_server::{
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use super::compile::{CompileOptions, compile_to_schema};
 use crate::config::{
@@ -422,7 +422,14 @@ fn load_runtime_config_from_toml(
                 return Ok((cfg.server, cfg.database));
             },
             Err(e) => {
-                info!("Could not parse TomlProjectConfig for runtime config: {e}");
+                // A sibling fraiseql.toml exists but failed to parse: warn loudly rather
+                // than silently falling back to defaults (the operator almost certainly
+                // intended this config to apply). Best-effort fallback is retained.
+                warn!(
+                    "Found {} but could not parse it for runtime config ({e}); \
+                     falling back to default [server]/[database] settings",
+                    toml_path.display()
+                );
             },
         }
     }

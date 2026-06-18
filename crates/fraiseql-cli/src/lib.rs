@@ -16,7 +16,6 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: this is the CLI crate; user-facing output is the contract
 
 pub mod cli;
-pub mod codegen;
 pub mod commands;
 pub mod config;
 pub mod introspection;
