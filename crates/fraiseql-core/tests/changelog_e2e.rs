@@ -230,7 +230,6 @@ fn page_query(cursor: i64, limit: i64) -> String {
 }
 
 #[tokio::test]
-#[ignore = "requires PostgreSQL container (testcontainers)"]
 async fn changelog_e2e_full_stack() {
     let container = common::testcontainer::get_test_container().await;
     let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());

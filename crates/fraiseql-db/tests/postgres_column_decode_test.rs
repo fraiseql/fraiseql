@@ -1,11 +1,11 @@
 #![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
-//! Integration tests for `row_to_map` with real PostgreSQL instances.
+//! Integration tests for PostgreSQL column decoding (TEXT[], ENUM, NULL) via
+//! tokio-postgres `Row::get` — the decode substrate the adapter builds on.
 //!
-//! These tests verify that `row_to_map` correctly handles TEXT[] and ENUM columns,
-//! including NULL values, against the harness-provided Postgres (Dagger-bound, or a
-//! local spawn with the `local-testcontainers` feature).
+//! The private `row_to_map` mapper itself is covered by the in-crate
+//! `postgres::adapter::integration_tests` (`row_to_map_renders_*`).
 
 use serde_json::json;
 
@@ -28,7 +28,7 @@ async fn connect_pg() -> (tokio_postgres::Client, fraiseql_test_support::Service
 }
 
 #[tokio::test]
-async fn row_to_map_handles_text_array_columns() {
+async fn pg_decodes_text_array_columns() {
     let (client, _svc) = connect_pg().await;
 
     // Create table with TEXT[] column
@@ -84,7 +84,7 @@ async fn row_to_map_handles_text_array_columns() {
 }
 
 #[tokio::test]
-async fn row_to_map_handles_enum_columns() {
+async fn pg_decodes_enum_columns() {
     let (client, _svc) = connect_pg().await;
 
     // Create ENUM type and table
@@ -140,7 +140,7 @@ async fn row_to_map_handles_enum_columns() {
 }
 
 #[tokio::test]
-async fn row_to_map_handles_mixed_types_with_nulls() {
+async fn pg_decodes_mixed_types_with_nulls() {
     let (client, _svc) = connect_pg().await;
 
     // Create test table with multiple types

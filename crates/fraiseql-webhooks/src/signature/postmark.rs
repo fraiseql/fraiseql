@@ -48,3 +48,6 @@ impl SignatureVerifier for PostmarkVerifier {
         Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
     }
 }
+
+#[cfg(test)]
+mod tests;
