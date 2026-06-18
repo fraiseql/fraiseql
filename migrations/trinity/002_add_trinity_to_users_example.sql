@@ -81,10 +81,12 @@ ALTER TABLE users
     ADD CONSTRAINT users_uuid_id_unique UNIQUE (uuid_id);
 
 -- Add identifier constraints
--- Note: identifier can be NULL for users without username
-ALTER TABLE users
-    ADD CONSTRAINT users_identifier_unique UNIQUE (identifier)
-    WHERE identifier IS NOT NULL;  -- Partial unique index
+-- Note: identifier can be NULL for users without username.
+-- A partial-unique constraint must be a UNIQUE INDEX, not a table-level
+-- UNIQUE constraint (PostgreSQL rejects a WHERE clause on ADD CONSTRAINT).
+CREATE UNIQUE INDEX users_identifier_unique
+    ON users (identifier)
+    WHERE identifier IS NOT NULL;
 
 -- Create indexes
 CREATE INDEX idx_users_uuid_id ON users(uuid_id);
