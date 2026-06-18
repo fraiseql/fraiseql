@@ -25,6 +25,11 @@ fn skip_if_no_s3() -> Option<()> {
 }
 
 /// Helper to create an `S3Backend` for testing.
+///
+/// When an S3-compatible endpoint is configured (CI binds `MinIO` and sets
+/// `S3_ENDPOINT`), the unique per-test bucket is provisioned before the backend is
+/// returned — otherwise every `put_object`/`get_object` below fails `NoSuchBucket`,
+/// because the backend constructor never creates the bucket itself.
 fn create_test_backend() -> S3Backend {
     let endpoint = std::env::var("S3_ENDPOINT").or_else(|_| std::env::var("AWS_ENDPOINT_URL")).ok();
 
@@ -32,7 +37,35 @@ fn create_test_backend() -> S3Backend {
     let bucket = format!("test-{}", uuid::Uuid::new_v4());
 
     let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
-    rt.block_on(async { S3Backend::new(&bucket, None, endpoint.as_deref()).await })
+    rt.block_on(async {
+        if let Some(ep) = endpoint.as_deref() {
+            ensure_test_bucket(ep, &bucket).await;
+        }
+        S3Backend::new(&bucket, None, endpoint.as_deref()).await
+    })
+}
+
+/// Create the per-test bucket against the configured S3 endpoint, tolerating a bucket we
+/// already own (idempotent). The backend resolves credentials and region from the AWS
+/// environment chain (CI injects `minioadmin` / `us-east-1`), so this provisioning client
+/// is built the same way `S3Backend::new` builds its own.
+async fn ensure_test_bucket(endpoint: &str, bucket: &str) {
+    let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
+    let s3_config = aws_sdk_s3::config::Builder::from(&config)
+        .endpoint_url(endpoint)
+        .force_path_style(true)
+        .build();
+    let client = aws_sdk_s3::Client::from_conf(s3_config);
+
+    if let Err(err) = client.create_bucket().bucket(bucket).send().await {
+        // An already-owned/existing bucket is fine; detect it structurally rather than by
+        // string-matching the SdkError Display. Any other error is a real provisioning
+        // failure and must fail the test loudly.
+        let already_ours = err
+            .as_service_error()
+            .is_some_and(|e| e.is_bucket_already_owned_by_you() || e.is_bucket_already_exists());
+        assert!(already_ours, "create test bucket {bucket} failed: {err:?}");
+    }
 }
 
 #[test]
