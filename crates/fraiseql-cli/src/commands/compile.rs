@@ -14,7 +14,10 @@ use crate::{
     config::TomlProjectConfig,
     schema::{
         ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer,
-        SchemaValidator, database_validator::validate_schema_against_database,
+        SchemaValidator,
+        database_validator::validate_schema_against_database,
+        mutation_contract::{Severity, validate_mutation_contract},
+        pg_catalog::PgCatalog,
     },
 };
 
@@ -314,6 +317,26 @@ pub async fn compile_to_schema(
         for query in &mut schema.queries {
             if let Some(cols) = db_report.native_columns.get(&query.name) {
                 query.native_columns = cols.clone();
+            }
+        }
+
+        // Mutation call/response contract (#384 item 3: inject_params resolve to real
+        // function arguments). PostgreSQL-only — the catalog reads `pg_proc`; other
+        // dialects are validated structurally above. Advisory like the rest of
+        // `compile --database`: findings warn, they never fail the compile.
+        if db_url.starts_with("postgres") {
+            info!("Validating mutation contract against the database...");
+            let catalog = PgCatalog::connect(db_url)
+                .context("Failed to connect for mutation-contract validation")?;
+            let contract = validate_mutation_contract(&schema, &catalog).await?;
+            for m in &contract.mutations {
+                for v in &m.violations {
+                    let kind = match v.severity() {
+                        Severity::Error => "contract error",
+                        Severity::Warn => "contract warning",
+                    };
+                    warn!("mutation `{}` (sql_source: {}): {v} [{kind}]", m.mutation, m.sql_source);
+                }
             }
         }
     } else {

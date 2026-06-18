@@ -113,6 +113,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `fraiseql-test-support` database-URL harness.
 - **`release-smoke`** now runs one real GraphQL query through the full pipeline, not just
   the health endpoint.
+- **`fraiseql compile --database` now lints more of the view contract (#384).** Three
+  residual checks were added to the compile-time database validator: (1) each mutation's
+  `inject_params` and call/response shape are validated against the real `pg_proc`
+  signature (PostgreSQL), reusing the `validate --against-db` contract logic; (2) a
+  query argument that resolves to a native column whose SQL type cannot drive the
+  predicate (e.g. an `Int` argument filtering a `uuid` column) is flagged — conservative,
+  so permissive `ID`/`String` filters never warn; and (3) the `MissingJsonKey` warning
+  now names the owning GraphQL type so the field is locatable. All findings remain
+  advisory warnings (the compile never fails on them).
 
 ### Fixed
 

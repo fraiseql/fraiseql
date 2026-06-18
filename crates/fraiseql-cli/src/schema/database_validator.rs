@@ -17,7 +17,7 @@ use fraiseql_core::{
         DatabaseType,
         introspector::{DatabaseIntrospector, RelationInfo},
     },
-    schema::CompiledSchema,
+    schema::{CompiledSchema, FieldType},
 };
 
 /// Report containing all database validation warnings and discovered metadata.
@@ -84,6 +84,8 @@ pub enum DatabaseWarning {
     MissingJsonKey {
         /// Name of the query.
         query_name:  String,
+        /// The GraphQL type that declares the field (where to fix it).
+        type_name:   String,
         /// The `sql_source` relation.
         sql_source:  String,
         /// The JSON column being sampled.
@@ -105,6 +107,22 @@ pub enum DatabaseWarning {
         sql_source: String,
         /// The argument name that has no matching native column.
         arg_name:   String,
+    },
+    /// L2: a direct query argument resolves to a native column whose SQL type cannot
+    /// cleanly drive the predicate for the argument's GraphQL scalar type (e.g. an
+    /// `Int` argument filtering a `uuid` column — `WHERE col = $N` errors or never
+    /// matches).
+    TypeConvertibility {
+        /// Name of the query.
+        query_name:   String,
+        /// The `sql_source` relation.
+        sql_source:   String,
+        /// The argument name.
+        arg_name:     String,
+        /// The argument's declared GraphQL type (e.g. `Int`).
+        graphql_type: String,
+        /// The native column's SQL type (e.g. `uuid`).
+        column_type:  String,
     },
 }
 
@@ -162,6 +180,7 @@ impl fmt::Display for DatabaseWarning {
             },
             Self::MissingJsonKey {
                 query_name,
+                type_name,
                 sql_source,
                 json_column,
                 field_name,
@@ -169,7 +188,7 @@ impl fmt::Display for DatabaseWarning {
             } => {
                 write!(
                     f,
-                    "query `{query_name}`: field `{field_name}` (key `{json_key}`) not found in `{sql_source}.{json_column}` sample data"
+                    "query `{query_name}`: field `{type_name}.{field_name}` (key `{json_key}`) not found in `{sql_source}.{json_column}` sample data"
                 )
             },
             Self::NativeColumnFallback {
@@ -182,6 +201,20 @@ impl fmt::Display for DatabaseWarning {
                     "query `{query_name}`: argument `{arg_name}` will use JSONB extraction \
                      (`{sql_source}.data->>''{arg_name}''`) — no native column `{arg_name}` found on \
                      `{sql_source}`. Add a native column with an index for O(log n) lookup."
+                )
+            },
+            Self::TypeConvertibility {
+                query_name,
+                sql_source,
+                arg_name,
+                graphql_type,
+                column_type,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: argument `{arg_name}` is `{graphql_type}` but the native column \
+                     `{sql_source}.{arg_name}` is `{column_type}` — the predicate may error or never match. \
+                     Align the argument type with the column, or store the field in `data` for JSONB extraction."
                 )
             },
         }
@@ -198,6 +231,74 @@ pub(crate) fn is_json_type(data_type: &str, db_type: DatabaseType) -> bool {
         // SQL Server has no native JSON type — always attempt JSON
         // validation for the configured jsonb_column
         DatabaseType::SQLServer => true,
+    }
+}
+
+/// Coarse SQL type families, used to flag argument↔column type mismatches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SqlFamily {
+    /// Integer/decimal/float numeric types.
+    Numeric,
+    /// Boolean.
+    Boolean,
+    /// UUID / `uniqueidentifier`.
+    Uuid,
+    /// Character/string types.
+    Text,
+    /// Date/time/interval types.
+    Temporal,
+    /// `json` / `jsonb`.
+    Json,
+    /// Anything else (custom domains, enums, arrays, geometry, …) — never flagged.
+    Other,
+}
+
+/// Classify a (any-dialect) SQL type string into a coarse [`SqlFamily`].
+///
+/// Strips length/precision and multi-word suffixes (`character varying`,
+/// `timestamp with time zone`, `double precision`) down to the leading base word.
+fn sql_type_family(sql_type: &str) -> SqlFamily {
+    let lower = sql_type.trim().to_lowercase();
+    let base = lower.split(['(', ' ', '[']).next().unwrap_or(lower.as_str());
+    match base {
+        "smallint" | "integer" | "int" | "int2" | "int4" | "int8" | "bigint" | "serial"
+        | "bigserial" | "smallserial" | "numeric" | "decimal" | "real" | "double" | "float"
+        | "float4" | "float8" | "money" | "mediumint" | "tinyint" => SqlFamily::Numeric,
+        "boolean" | "bool" | "bit" => SqlFamily::Boolean,
+        "uuid" | "uniqueidentifier" => SqlFamily::Uuid,
+        "text" | "varchar" | "char" | "bpchar" | "name" | "citext" | "nvarchar" | "nchar"
+        | "character" | "clob" | "string" => SqlFamily::Text,
+        "date" | "time" | "timestamp" | "timestamptz" | "timetz" | "datetime" | "datetime2"
+        | "interval" | "smalldatetime" => SqlFamily::Temporal,
+        "json" | "jsonb" => SqlFamily::Json,
+        _ => SqlFamily::Other,
+    }
+}
+
+/// Whether a query argument's GraphQL type can cleanly drive an equality predicate
+/// against a native column of `sql_type`.
+///
+/// Conservative by design: only the strongly-typed scalars (`Int`, `Float`,
+/// `Decimal`, `Boolean`, `UUID`) can flag a mismatch, and only against a *known*
+/// incompatible column family. Permissive scalars (`String`, `ID`, date/time, `JSON`,
+/// custom scalars) and non-scalar references never warn — the runtime binds them as
+/// text-coercible parameters, and `ID` intentionally spans uuid / integer / text keys.
+fn arg_type_convertible(field_type: &FieldType, sql_type: &str) -> bool {
+    // A list filter (`[ID!]`) drives the predicate with its element type.
+    let base = match field_type {
+        FieldType::List(inner) => inner.as_ref(),
+        other => other,
+    };
+    let family = sql_type_family(sql_type);
+    // Unknown column family → don't second-guess it.
+    if family == SqlFamily::Other {
+        return true;
+    }
+    match base {
+        FieldType::Int | FieldType::Float | FieldType::Decimal => family == SqlFamily::Numeric,
+        FieldType::Boolean => family == SqlFamily::Boolean,
+        FieldType::Uuid => matches!(family, SqlFamily::Uuid | SqlFamily::Text),
+        _ => true,
     }
 }
 
@@ -366,6 +467,24 @@ pub async fn validate_schema_against_database(
                     arg_name,
                 });
             }
+
+            // L2 (type-convertibility): a direct argument that resolved to a native
+            // column whose SQL type cannot cleanly drive the predicate is a likely
+            // authoring bug (e.g. an `Int` argument filtering a `uuid` column).
+            for arg in &query.arguments {
+                if let Some(col_type) = query_native.get(&arg.name) {
+                    if !arg_type_convertible(&arg.arg_type, col_type) {
+                        warnings.push(DatabaseWarning::TypeConvertibility {
+                            query_name:   query.name.clone(),
+                            sql_source:   source.clone(),
+                            arg_name:     arg.name.clone(),
+                            graphql_type: arg.arg_type.to_graphql_string(),
+                            column_type:  col_type.clone(),
+                        });
+                    }
+                }
+            }
+
             if !query_native.is_empty() {
                 native_columns.insert(query.name.clone(), query_native);
             }
@@ -460,6 +579,7 @@ async fn validate_json_keys(
             if !all_keys.contains(&json_key) && !all_keys.contains(field_str) {
                 warnings.push(DatabaseWarning::MissingJsonKey {
                     query_name: query.name.clone(),
+                    type_name: type_def.name.as_str().to_string(),
                     sql_source: source.to_string(),
                     json_column: jsonb_col.to_string(),
                     field_name: field_str.to_string(),

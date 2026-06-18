@@ -10,8 +10,8 @@ mod database_validator_tests {
             introspector::{DatabaseIntrospector, RelationInfo},
         },
         schema::{
-            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, MutationDefinition,
-            QueryDefinition, TypeDefinition,
+            ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType,
+            MutationDefinition, QueryDefinition, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -321,7 +321,56 @@ mod database_validator_tests {
         );
 
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
-        assert!(report.warnings.iter().any(|w| matches!(w, DatabaseWarning::MissingJsonKey { field_name, .. } if field_name == "email")));
+        // The warning names the owning GraphQL type so the field is locatable (#384 Gap C).
+        assert!(report.warnings.iter().any(|w| matches!(
+            w,
+            DatabaseWarning::MissingJsonKey { field_name, type_name, .. }
+                if field_name == "email" && type_name == "User"
+        )));
+    }
+
+    #[tokio::test]
+    async fn test_arg_type_convertibility_warning() {
+        // An `Int` argument that resolves to a `uuid` native column is flagged (#384 Gap B):
+        // the runtime predicate `WHERE id = $1` would error / never match.
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_order", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_order", vec![("data", "jsonb", false), ("id", "uuid", false)])
+            .with_json_samples("v_order", "data", vec![serde_json::json!({"total": 10})]);
+
+        let mut query = make_query("orders", "Order", "v_order");
+        query.arguments = vec![ArgumentDefinition::new("id", FieldType::Int)];
+        let schema =
+            make_schema(vec![make_type("Order", vec![("total", FieldType::Int)])], vec![query]);
+
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+        assert!(report.warnings.iter().any(|w| matches!(
+            w,
+            DatabaseWarning::TypeConvertibility { arg_name, graphql_type, column_type, .. }
+                if arg_name == "id" && graphql_type == "Int" && column_type == "uuid"
+        )));
+    }
+
+    #[tokio::test]
+    async fn test_id_arg_against_uuid_column_no_convertibility_warning() {
+        // The common `id: ID` filtering a uuid column must NOT warn — `ID` is permissive.
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_order", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_order", vec![("data", "jsonb", false), ("id", "uuid", false)])
+            .with_json_samples("v_order", "data", vec![serde_json::json!({"total": 10})]);
+
+        let mut query = make_query("orders", "Order", "v_order");
+        query.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+        let schema =
+            make_schema(vec![make_type("Order", vec![("total", FieldType::Int)])], vec![query]);
+
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::TypeConvertibility { .. }))
+        );
     }
 
     #[tokio::test]

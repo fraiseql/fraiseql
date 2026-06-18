@@ -11,9 +11,12 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_cli::schema::{
-    mutation_contract::{CallShape, ContractViolation, ExpectedCall, check_mutation},
+    mutation_contract::{
+        CallShape, ContractViolation, ExpectedCall, check_mutation, validate_mutation_contract,
+    },
     pg_catalog::PgCatalog,
 };
+use fraiseql_core::schema::{ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition};
 use tokio_postgres::NoTls;
 
 const SCHEMA: &str = "fql_397_test";
@@ -190,6 +193,55 @@ async fn missing_response_columns_are_reported() {
         }),
         "got {violations:?}"
     );
+
+    teardown().await;
+}
+
+/// Build a flat single-arg mutation (`FlatArgs` path) pointing at `sql_source`.
+fn flat_mutation(name: &str, sql_source: &str) -> MutationDefinition {
+    let mut m = MutationDefinition::new(name, "User");
+    m.sql_source = Some(sql_source.to_string());
+    // A single non-Input `input` arg takes the FlatArgs path (base arity 1, no inject).
+    m.arguments = vec![ArgumentDefinition::new("input", FieldType::String)];
+    m
+}
+
+/// End-to-end coverage of `validate_mutation_contract` — the schema-walking entry
+/// point `compile --database` calls (#384 item 3). Mixes a clean mutation with a
+/// broken one and asserts the aggregate report.
+#[tokio::test]
+async fn validate_mutation_contract_walks_schema_and_surfaces_violations() {
+    let Some(catalog) = setup().await else { return };
+
+    let schema = CompiledSchema {
+        mutations: vec![
+            // fn_create_user(p_input jsonb) RETURNS TABLE(succeeded, state_changed, entity) —
+            // clean.
+            flat_mutation("createUser", &qualified("fn_create_user")),
+            // fn_bad_response(input jsonb) RETURNS TABLE(status, message) — missing required cols.
+            flat_mutation("brokenUser", &qualified("fn_bad_response")),
+        ],
+        ..Default::default()
+    };
+
+    let report = validate_mutation_contract(&schema, &catalog).await.unwrap();
+    assert_eq!(report.checked, 2, "both mutations are DB-backed");
+    assert_eq!(report.skipped, 0);
+
+    // Only the broken mutation appears in the report; the clean one yields nothing.
+    assert_eq!(report.mutations.len(), 1, "got {:?}", report.mutations);
+    let broken = &report.mutations[0];
+    assert_eq!(broken.mutation, "brokenUser");
+    assert!(
+        broken.violations.contains(&ContractViolation::MissingRequiredColumn {
+            column: "succeeded",
+        }) && broken.violations.contains(&ContractViolation::MissingRequiredColumn {
+            column: "state_changed",
+        }),
+        "got {:?}",
+        broken.violations
+    );
+    assert!(report.error_count() >= 2);
 
     teardown().await;
 }
