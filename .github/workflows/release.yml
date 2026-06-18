@@ -44,11 +44,7 @@ jobs:
             echo "PYPI_TOKEN present" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "NPM_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
-          else
-            echo "NPM_TOKEN present" >> $GITHUB_STEP_SUMMARY
-          fi
+          # npm uses Trusted Publishing (OIDC) in npm-publish.yml — no NPM_TOKEN.
 
           if [ "$MISSING" -eq 1 ]; then
             echo "::error::Required secrets missing — cannot proceed with release"
@@ -614,83 +610,14 @@ jobs:
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ PyPI upload: FAILED" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
 
-  # Build and publish TypeScript package
-  publish-typescript:
-    name: Publish TypeScript Package to npm
-    environment: release
-    needs: create-github-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      # Honesty gate (audit H30): refuse to publish when the manifest version
-      # does not match the release tag. The npm manifest was frozen at 2.1.6 while
-      # v2.3.0–v2.6.0 tags were cut, so the "already published, skipping" branch
-      # (and the validation that installed the stale version) reported success
-      # while shipping nothing.
-      - name: Assert TypeScript SDK version matches the release tag
-        run: |
-          source tools/lib/release_helpers.sh
-          RELEASE_VERSION="${GITHUB_REF#refs/tags/v}"
-          MANIFEST_VERSION=$(node -p "require('./sdks/official/fraiseql-typescript/package.json').version")
-          assert_sdk_version_matches "$MANIFEST_VERSION" "$RELEASE_VERSION" "TypeScript SDK"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies and build
-        id: build-typescript
-        working-directory: sdks/official/fraiseql-typescript
-        run: |
-          npm ci
-          npm run build
-
-      - name: Publish to npm
-        id: publish-npm
-        working-directory: sdks/official/fraiseql-typescript
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "${PKG_NAME}@${PKG_VERSION} already published to npm, skipping"
-          else
-            npm publish --access public
-          fi
-
-      - name: Validate npm package
-        id: validate-npm
-        run: |
-          echo "Waiting for npm to index..."
-          sleep 10
-          echo "Testing npm package installation..."
-          # Assert the NEW release version specifically — not whatever the manifest
-          # happens to carry — so a no-op publish can never validate green (H30).
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          npm install "fraiseql@${VERSION}" --prefix /tmp/npm-validate
-          echo "fraiseql ${VERSION} successfully published to npm"
-        continue-on-error: true
-
-      - name: Report TypeScript publishing results
-        if: always()
-        run: |
-          echo "## TypeScript Package Publishing Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          [ "${{ steps.build-typescript.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ Build: FAILED" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-npm.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ npm upload: FAILED" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.validate-npm.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
+  # npm publishing moved to .github/workflows/npm-publish.yml (Trusted Publishing
+  # / OIDC, no NPM_TOKEN). It triggers on the same `v*` tag, so npm ships in
+  # lockstep with this pipeline.
 
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, build-binaries, publish-python, publish-typescript]
+    needs: [create-github-release, publish-crates, build-binaries, publish-python]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: always()

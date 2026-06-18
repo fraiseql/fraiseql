@@ -1,0 +1,110 @@
+name: npm Publish (Trusted Publishing)
+
+# Publishes the `fraiseql` npm package (sdks/official/fraiseql-typescript) using
+# npm Trusted Publishing (OIDC) — no long-lived NPM_TOKEN secret.
+#
+# Auth model: GitHub Actions presents a short-lived OIDC identity that npm
+# verifies against the package's configured trusted publisher
+# (repo=fraiseql/fraiseql, workflow=npm-publish.yml). Requires npm >= 11.5.1
+# and `id-token: write`. Provenance is generated automatically (repo is public
+# and package.json carries a matching `repository` field).
+#
+# Triggers:
+#   - push tag v*       : publishes npm in lockstep with the crates.io/PyPI release
+#                         pipeline (release.yml handles everything except npm).
+#   - workflow_dispatch : manual/backfill publish of whatever version the manifest
+#                         carries on the selected ref (used to ship v2.8.0 npm after
+#                         the token-based publish was retired).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    name: Publish fraiseql to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/v}" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            echo "source=tag" >> "$GITHUB_OUTPUT"
+          else
+            V="$(node -p "require('./sdks/official/fraiseql-typescript/package.json').version")"
+            echo "version=${V}" >> "$GITHUB_OUTPUT"
+            echo "source=manifest" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Honesty gate (audit H30): on a tag release, refuse to publish when the
+      # manifest version does not match the release tag — a frozen manifest must
+      # never report a green "already published, skipping" while shipping nothing.
+      - name: Assert manifest matches tag
+        if: steps.ver.outputs.source == 'tag'
+        run: |
+          source tools/lib/release_helpers.sh
+          MANIFEST_VERSION=$(node -p "require('./sdks/official/fraiseql-typescript/package.json').version")
+          assert_sdk_version_matches "$MANIFEST_VERSION" "${{ steps.ver.outputs.version }}" "TypeScript SDK"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Install dependencies and build
+        id: build
+        working-directory: sdks/official/fraiseql-typescript
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish to npm (OIDC, no token)
+        id: publish
+        working-directory: sdks/official/fraiseql-typescript
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "${PKG_NAME}@${PKG_VERSION} already published to npm, skipping"
+          else
+            npm publish --access public
+          fi
+
+      - name: Validate npm package
+        id: validate
+        run: |
+          echo "Waiting for npm to index..."
+          sleep 10
+          VERSION="${{ steps.ver.outputs.version }}"
+          npm install "fraiseql@${VERSION}" --prefix /tmp/npm-validate
+          echo "fraiseql ${VERSION} successfully published to npm"
+        continue-on-error: true
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "## npm Publish Results (Trusted Publishing)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${{ steps.ver.outputs.version }} (from ${{ steps.ver.outputs.source }})" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.build.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ Build: FAILED" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ npm upload: FAILED" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.validate.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ⚠️ Validation: SKIPPED/PENDING" >> "$GITHUB_STEP_SUMMARY"

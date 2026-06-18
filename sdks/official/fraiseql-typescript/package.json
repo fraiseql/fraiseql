@@ -2,6 +2,13 @@
   "name": "fraiseql",
   "version": "2.8.0",
   "description": "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring + HTTP client)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraiseql/fraiseql.git",
+    "directory": "sdks/official/fraiseql-typescript"
+  },
+  "homepage": "https://fraiseql.dev",
+  "bugs": "https://github.com/fraiseql/fraiseql/issues",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
