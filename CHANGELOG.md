@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-06-18
+
 ### Security
 
 - **The `sql_query` host read-only guard now inspects CTE bodies (M-cte-classifier).** The

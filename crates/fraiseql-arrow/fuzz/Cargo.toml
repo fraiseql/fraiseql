@@ -21,7 +21,7 @@ path = ".."
 edition = "2021"
 name = "fraiseql-arrow-fuzz"
 publish = false
-version = "2.7.0"
+version = "2.8.0"
 
 [package.metadata]
 cargo-fuzz = true
