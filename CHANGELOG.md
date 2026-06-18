@@ -46,6 +46,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.8.0`) and ran with a writable root filesystem (`readOnlyRootFilesystem: false`, now
   `true` — including the Helm values and the PodSecurityPolicy). Lower-severity
   demo/example/test deployment artifacts are tracked in #436.
+- **Allow-list-backed `redirect_uri` flow for multi-provider auth (#427).**
+  `GET /auth/v1/authorize` previously accepted a `redirect_uri` and then discarded it
+  (returning tokens as JSON), with a server-side redirect deliberately deferred as an
+  open-redirect risk. `MultiProviderAuthState::with_redirect_uri_allowlist` now enables a
+  safe redirect: `authorize` rejects any `redirect_uri` not on the allow-list (400) and
+  binds the validated URI to the CSRF state; `callback` redirects the browser to it with
+  the tokens in the URL fragment. Matching is exact scheme + host + port + path-boundary
+  prefix, so `https://app.example.com` does not match `https://app.example.com.evil.com`.
+  With no allow-list configured the legacy JSON response is preserved and the URI is never
+  used as a redirect target (no open-redirect surface). Closes the deferred audit finding
+  L-redirect-uri.
+- **SQL-layer hardening for shipped/template SQL (#437).** The two prod-init
+  `SECURITY DEFINER` functions now pin `SET search_path = pg_catalog`
+  (search-path-hijack hardening); the application role's grants are narrowed from
+  `ALL PRIVILEGES` to `SELECT, INSERT, UPDATE, DELETE` (+ `USAGE, SELECT` on sequences);
+  the `fraiseql` helper schema grants EXECUTE per function instead of the snapshot
+  `ON ALL FUNCTIONS … TO PUBLIC`; and the init-script role passwords are documented as
+  insecure placeholder defaults that must be overridden. (Change-spine view RLS — F6 — is
+  deferred to a dedicated effort.)
 
 ### Removed
 
@@ -94,6 +113,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `fraiseql-test-support` database-URL harness.
 - **`release-smoke`** now runs one real GraphQL query through the full pipeline, not just
   the health endpoint.
+
+### Fixed
+
+- **The FraiseQL-Wire database backend now honors `ORDER BY` (#442).** `FraiseWireAdapter`
+  silently dropped the `order_by` argument, so relay/keyset pagination over the
+  `wire-backend` feature returned database-native order. Both the streaming and the
+  in-memory limit/offset paths now push the (validated, dialect-aware) ordering down to the
+  wire query builder. Also removes a dead `build_query` method and an unreachable SQL Server
+  pagination branch, and de-duplicates the sqlite/sqlserver adapter test files.
 
 ## [2.8.0] - 2026-06-18
 

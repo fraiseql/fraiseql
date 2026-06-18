@@ -861,25 +861,37 @@ func (m *FraiseqlCi) integrationCrossDb(ctx context.Context, source *dagger.Dire
 		Stdout(ctx)
 }
 
-// integrationServerStorage binds a MinIO (S3-compatible) service and runs
-// fraiseql-server's storage_minio integration test (Tier-C migrated off the MinIO
-// testcontainer). The test reads MINIO_ENDPOINT via the harness and authenticates
-// with the minioadmin/minioadmin dev credentials; it creates the bucket idempotently
-// so the three tests share one bound MinIO under --test-threads=1.
+// integrationServerStorage binds a MinIO (S3-compatible) service and runs the S3 backend
+// against it from two angles:
+//   - fraiseql-server's storage_minio integration test (Tier-C migrated off the MinIO
+//     testcontainer), which reads MINIO_ENDPOINT via the harness; and
+//   - fraiseql-storage's own backend::s3 unit tests (audit #440), previously triple-gated
+//     (aws-s3 not in any CI feature set, #[ignore], skip-if-no-S3_ENDPOINT) and therefore
+//     never executed in CI — this is what let H40 (S3 NotFound detection) survive. Those
+//     tests read S3_ENDPOINT and create their own per-test bucket.
+//
+// Both authenticate with the minioadmin/minioadmin dev credentials. The storage run is
+// filtered to backend::s3 so an --include-ignored sweep does not also pull in the crate's
+// DB-backed metadata/migrations/routes tests (no Postgres is bound in this leg).
 func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagger.Directory) (string, error) {
 	minioEndpoint := fmt.Sprintf("http://%s:9000", minioBindHost)
 
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: server-storage (Dagger-bound MinIO; tests read MINIO_ENDPOINT)'",
+		"echo '### integration: server-storage (Dagger-bound MinIO; tests read MINIO_ENDPOINT / S3_ENDPOINT)'",
 		"cargo test -p fraiseql-server --features aws-s3 --test storage_minio_integration_test -- --test-threads=1",
+		"echo '### integration: storage backend::s3 unit tests (audit #440; read S3_ENDPOINT)'",
+		"cargo test -p fraiseql-storage --features aws-s3 backend::s3 -- --include-ignored --test-threads=1",
 		"echo 'test-integration OK: server-storage suite passed'",
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(minioBindHost, m.minioService()).
 		WithEnvVariable("MINIO_ENDPOINT", minioEndpoint).
+		// fraiseql-storage's s3/tests.rs reads S3_ENDPOINT (or AWS_ENDPOINT_URL), whereas
+		// the server test reads MINIO_ENDPOINT; both point at the same bound MinIO.
+		WithEnvVariable("S3_ENDPOINT", minioEndpoint).
 		// The S3 backend resolves credentials from the AWS env chain at request time
 		// (not just when constructed), so inject them as real process env, not only via
 		// the test's temp_env scope.
