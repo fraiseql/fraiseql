@@ -1,5 +1,13 @@
--- FraiseQL Production Database Initialization
--- This script sets up the production database with optimal settings
+-- FraiseQL Database Initialization
+-- This script bootstraps roles, extensions, and helper functions.
+--
+-- ⚠️  SECURITY: the role passwords below are INSECURE PLACEHOLDER DEFAULTS for
+--     local/demo use only. A plain `.sql` init script cannot read environment
+--     variables, so these literals MUST be replaced before any non-local use —
+--     either edit them here for a one-off, or drive role creation from a shell
+--     init script (`/docker-entrypoint-initdb.d/*.sh`) that sources them from
+--     `${FRAISEQL_APP_PASSWORD:?}` / `${PROMETHEUS_PASSWORD:?}`. The compose
+--     stacks that mount this file are demo/test stacks (see #436).
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -7,22 +15,23 @@ CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
 CREATE EXTENSION IF NOT EXISTS "pg_buffercache";
 CREATE EXTENSION IF NOT EXISTS "pgvector";
 
--- Create monitoring role for Prometheus
+-- Create monitoring role for Prometheus (placeholder password — see header)
 CREATE ROLE prometheus WITH LOGIN PASSWORD 'prometheus_password';
 GRANT pg_monitor TO prometheus;
 
--- Create application user
+-- Create application user (placeholder password — see header)
 CREATE ROLE fraiseql_app WITH LOGIN PASSWORD 'fraiseql_app_password';
 GRANT CONNECT ON DATABASE fraiseql_prod TO fraiseql_app;
 
--- Grant necessary permissions
+-- Grant necessary permissions. The application performs CRUD only — it never
+-- needs DDL/owner privileges, so grant the four data verbs rather than ALL.
 GRANT USAGE ON SCHEMA public TO fraiseql_app;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO fraiseql_app;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO fraiseql_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO fraiseql_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO fraiseql_app;
 
--- Set up default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fraiseql_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fraiseql_app;
+-- Set up default privileges for future objects (same narrowed grants)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fraiseql_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO fraiseql_app;
 
 -- Create vector extension optimized settings
 -- These settings are optimized for vector operations
@@ -49,7 +58,10 @@ RETURNS TABLE (
     FROM pg_stat_user_indexes
     WHERE indexname LIKE '%embedding%'
     ORDER BY idx_scan DESC;
-$$ LANGUAGE sql SECURITY DEFINER;
+-- SECURITY DEFINER runs as the (superuser) owner; pin search_path to pg_catalog so a
+-- caller cannot hijack unqualified name resolution to escalate (only pg_catalog objects
+-- are referenced here).
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog;
 
 -- Health check function
 CREATE OR REPLACE FUNCTION health_check()
@@ -67,7 +79,8 @@ BEGIN
     ) INTO result;
     RETURN result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- SECURITY DEFINER: pin search_path to pg_catalog (search-path-hijack hardening).
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog;
 
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION get_vector_index_stats() TO prometheus;

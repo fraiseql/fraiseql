@@ -191,12 +191,15 @@ See fraiseql.mutation_err documentation.';
 -- ============================================================================
 -- Permissions
 -- ============================================================================
--- Grant EXECUTE on all functions to PUBLIC so application roles can call them
--- without explicit grants. The fraiseql schema itself is owned by the
--- FraiseQL database role and not writable by application code.
+-- Grant EXECUTE per function (not `ON ALL FUNCTIONS`, which is a one-time snapshot
+-- that would also blanket-grant any future function added to this schema). These are
+-- pure IMMUTABLE response builders with no data access. The fraiseql schema itself is
+-- owned by the FraiseQL database role and not writable by application code.
 
 GRANT USAGE ON SCHEMA fraiseql TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA fraiseql TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.library_version() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_ok(JSONB, UUID, TEXT, BOOLEAN, TEXT[], JSONB, JSONB) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT) TO PUBLIC;
 
 -- ============================================================================
 -- Tests (run as: \i sql/helpers/mutation_response.sql)

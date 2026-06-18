@@ -19,6 +19,14 @@ CREATE INDEX IF NOT EXISTS idx_tenants_is_active ON tenants(is_active);
 
 -- Add tenant isolation to existing tables (if they exist)
 -- These statements will succeed or be silently ignored if columns don't exist
+--
+-- tenant_id is added NULLABLE on these pre-existing tables, by design (audit #437 F7):
+--   * audit_log's FK is ON DELETE SET NULL, which *requires* a nullable column;
+--   * users may already hold rows with no tenant to backfill to, so SET NOT NULL would
+--     fail on upgrade.
+-- A NULL stamp is fail-safe for tenant-scoped reads: `WHERE tenant_id = $x` excludes
+-- NULL rows (NULL = x is never true) rather than leaking them across tenants. New
+-- tenant-scoped tables (e.g. 0012_rbac.sql) declare tenant_id NOT NULL from the start.
 
 -- Add tenant_id to users table if users table exists and doesn't have tenant_id
 DO $$
