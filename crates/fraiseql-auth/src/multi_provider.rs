@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::{
     account_linking::AccountStore, handlers::generate_secure_state, provider::OAuthProvider,
@@ -25,17 +26,104 @@ const MAX_REDIRECT_URI_BYTES: usize = 2_048;
 /// Maximum length for the `provider` query parameter.
 const MAX_PROVIDER_NAME_BYTES: usize = 128;
 
+/// Separator between the provider name and the bound `redirect_uri` in the stored CSRF
+/// state value (#427). A newline cannot appear in a provider name or a (percent-encoded)
+/// URI, so this round-trips unambiguously; a value with no separator is a legacy
+/// provider-only entry with no bound redirect.
+const STATE_VALUE_SEPARATOR: char = '\n';
+
+/// Returns `true` if `candidate` is permitted by the `redirect_uri` allow-list (#427).
+///
+/// A candidate is allowed when some allow-list entry has the **same scheme, host, and
+/// port**, and the entry's path is a **path-boundary prefix** of the candidate's path
+/// (an exact path, or the entry ends at a `/` boundary). Host comparison is exact:
+/// `https://app.example.com` does **not** match `https://app.example.com.evil.com`, and
+/// an entry path of `/cb` does not match `/cbEVIL`. An empty allow-list permits nothing;
+/// an unparseable candidate is rejected.
+#[must_use]
+pub fn is_redirect_uri_allowed(candidate: &str, allowlist: &[String]) -> bool {
+    let Ok(candidate_url) = Url::parse(candidate) else {
+        return false;
+    };
+    allowlist
+        .iter()
+        .any(|entry| Url::parse(entry).is_ok_and(|entry_url| redirect_uri_matches(&candidate_url, &entry_url)))
+}
+
+/// Match a single candidate URL against a single allow-list entry URL (see
+/// [`is_redirect_uri_allowed`]).
+fn redirect_uri_matches(candidate: &Url, entry: &Url) -> bool {
+    if candidate.scheme() != entry.scheme()
+        || candidate.host_str() != entry.host_str()
+        || candidate.port_or_known_default() != entry.port_or_known_default()
+    {
+        return false;
+    }
+    let (candidate_path, entry_path) = (candidate.path(), entry.path());
+    candidate_path == entry_path
+        || candidate_path
+            .strip_prefix(entry_path)
+            .is_some_and(|rest| entry_path.ends_with('/') || rest.starts_with('/'))
+}
+
+/// Encode the CSRF-state stored value, optionally binding a validated `redirect_uri`.
+fn encode_state_value(provider: &str, redirect_uri: Option<&str>) -> String {
+    match redirect_uri {
+        Some(uri) => format!("{provider}{STATE_VALUE_SEPARATOR}{uri}"),
+        None => provider.to_string(),
+    }
+}
+
+/// Decode the CSRF-state stored value into `(provider, bound_redirect_uri)`.
+fn decode_state_value(value: &str) -> (String, Option<String>) {
+    match value.split_once(STATE_VALUE_SEPARATOR) {
+        Some((provider, uri)) => (provider.to_string(), Some(uri.to_string())),
+        None => (value.to_string(), None),
+    }
+}
+
+/// Build the fragment-delivery redirect URL for the implicit-style token hand-off (#427).
+///
+/// Tokens are placed in the URL fragment (`#…`), which browsers neither send to servers nor
+/// include in the `Referer` header — the standard OAuth implicit-flow delivery tradeoff (the
+/// tokens remain visible in browser history). The `redirect_uri` has already been validated
+/// against the allow-list before reaching here.
+fn build_redirect_with_tokens(
+    redirect_uri: &str,
+    access_token: &str,
+    refresh_token: &str,
+    expires_in: u64,
+    provider: &str,
+) -> String {
+    format!(
+        "{redirect_uri}#access_token={}&token_type=Bearer&expires_in={expires_in}&refresh_token={}&provider={}",
+        urlencoding::encode(access_token),
+        urlencoding::encode(refresh_token),
+        urlencoding::encode(provider),
+    )
+}
+
 /// Shared state for the multi-provider auth endpoints.
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").
-    providers:     HashMap<String, Arc<dyn OAuthProvider>>,
+    providers:             HashMap<String, Arc<dyn OAuthProvider>>,
     /// CSRF state store (in-memory or Redis).
-    state_store:   Arc<dyn StateStore>,
+    state_store:           Arc<dyn StateStore>,
     /// Session backend for creating sessions after successful auth.
-    session_store: Arc<dyn SessionStore>,
+    session_store:         Arc<dyn SessionStore>,
     /// Optional user store for account linking (same email → same user).
-    user_store:    Option<Arc<dyn AccountStore>>,
+    user_store:            Option<Arc<dyn AccountStore>>,
+    /// Allow-list of permitted `redirect_uri` values (#427).
+    ///
+    /// When **empty** (the default), `callback` returns the session tokens as JSON and no
+    /// server-side redirect is performed — there is no open-redirect surface because the
+    /// client-supplied `redirect_uri` is never used as a redirect target. When **non-empty**,
+    /// `authorize` rejects any `redirect_uri` not matched by the list (400), binds the
+    /// validated URI to the CSRF state token, and `callback` performs an implicit-style
+    /// fragment redirect to it. Entries are matched by scheme + host + port + path-boundary
+    /// prefix (see [`is_redirect_uri_allowed`]).
+    redirect_uri_allowlist: Vec<String>,
 }
 
 impl MultiProviderAuthState {
@@ -46,6 +134,7 @@ impl MultiProviderAuthState {
             state_store,
             session_store,
             user_store: None,
+            redirect_uri_allowlist: Vec::new(),
         }
     }
 
@@ -56,6 +145,18 @@ impl MultiProviderAuthState {
     /// linking when the same email appears across different providers.
     pub fn with_user_store(mut self, user_store: Arc<dyn AccountStore>) -> Self {
         self.user_store = Some(user_store);
+        self
+    }
+
+    /// Configure the allow-list of permitted `redirect_uri` values (#427).
+    ///
+    /// Enabling this turns on the server-side redirect flow: `authorize` rejects any
+    /// `redirect_uri` not on the list, and `callback` redirects the browser to the
+    /// validated URI with the tokens delivered in the URL fragment (OAuth implicit style).
+    /// With no allow-list configured, the legacy JSON-token response is preserved.
+    #[must_use = "builder method returns the modified state"]
+    pub fn with_redirect_uri_allowlist(mut self, allowlist: Vec<String>) -> Self {
+        self.redirect_uri_allowlist = allowlist;
         self
     }
 
@@ -234,12 +335,13 @@ pub async fn list_providers(
 /// # Query parameters
 ///
 /// - `provider` — **required**: provider name (must match a registered provider).
-/// - `redirect_uri` — **required**: client application callback URI. It is validated for presence
-///   and length but is **not currently used for a server-side redirect**: [`callback`] returns the
-///   session tokens as JSON for the client to handle. A server-side redirect to this URI is
-///   intentionally not implemented yet because it would be an open-redirect vector without a
-///   configured allow-list of permitted redirect URIs. Tracked as a follow-up feature in #427
-///   (allow-list-backed redirect flow).
+/// - `redirect_uri` — **required**: client application callback URI. Always validated for
+///   presence and length. When a redirect-URI allow-list is configured (#427, via
+///   [`MultiProviderAuthState::with_redirect_uri_allowlist`]), it must additionally match the
+///   allow-list (else `400`); the validated URI is bound to the CSRF state and [`callback`]
+///   redirects the browser to it with the tokens in the fragment. With no allow-list
+///   configured, the URI is **not** used as a redirect target and [`callback`] returns the
+///   session tokens as JSON — so there is no open-redirect surface in that mode.
 ///
 /// # Responses
 ///
@@ -267,12 +369,24 @@ pub async fn authorize(
         return json_error(StatusCode::BAD_REQUEST, "redirect_uri exceeds maximum length");
     }
 
+    // #427: when an allow-list is configured the `redirect_uri` must match it, and is then
+    // bound to the CSRF state for a server-side redirect in `callback`. With no allow-list
+    // the URI is never used as a redirect target (JSON-token response), so there is no
+    // open-redirect surface and only presence/length are enforced.
+    let bound_redirect_uri = if state.redirect_uri_allowlist.is_empty() {
+        None
+    } else if is_redirect_uri_allowed(&q.redirect_uri, &state.redirect_uri_allowlist) {
+        Some(q.redirect_uri.clone())
+    } else {
+        return json_error(StatusCode::BAD_REQUEST, "redirect_uri is not allow-listed");
+    };
+
     // Look up provider
     let Some(provider) = state.get_provider(&q.provider) else {
         return json_error(StatusCode::BAD_REQUEST, &format!("unknown provider: {}", q.provider));
     };
 
-    // Generate state and store with provider name
+    // Generate state and store with provider name (and the bound redirect_uri, if any)
     let state_value = generate_secure_state();
 
     let Ok(now) = std::time::SystemTime::now()
@@ -284,7 +398,8 @@ pub async fn authorize(
 
     let expiry = now + 600; // 10 minutes
 
-    if let Err(e) = state.state_store.store(state_value.clone(), q.provider.clone(), expiry).await {
+    let state_payload = encode_state_value(&q.provider, bound_redirect_uri.as_deref());
+    if let Err(e) = state.state_store.store(state_value.clone(), state_payload, expiry).await {
         tracing::error!("state store failed: {e}");
         return json_error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -347,10 +462,11 @@ pub async fn callback(
         return json_error(StatusCode::BAD_REQUEST, "missing code or state parameter");
     };
 
-    // Consume state (atomic remove) and get provider name
-    let Ok((provider_name, expiry)) = state.state_store.retrieve(&state_token).await else {
+    // Consume state (atomic remove) and decode the provider name + any bound redirect_uri.
+    let Ok((state_payload, expiry)) = state.state_store.retrieve(&state_token).await else {
         return json_error(StatusCode::BAD_REQUEST, "invalid or expired state token");
     };
+    let (provider_name, bound_redirect_uri) = decode_state_value(&state_payload);
 
     // Check state expiry. Fail-closed: if the clock cannot be read, reject rather than
     // treat the (possibly expired) CSRF state as valid (matches the authorize path).
@@ -425,6 +541,19 @@ pub async fn callback(
         },
     };
 
+    // #427: if a validated redirect_uri was bound at authorize time, hand the tokens off via
+    // an implicit-style fragment redirect; otherwise return the legacy JSON token response.
+    if let Some(redirect_uri) = bound_redirect_uri {
+        let location = build_redirect_with_tokens(
+            &redirect_uri,
+            &session_tokens.access_token,
+            &session_tokens.refresh_token,
+            session_tokens.expires_in,
+            &provider_name,
+        );
+        return Redirect::to(&location).into_response();
+    }
+
     Json(AuthTokenResponse {
         access_token:  session_tokens.access_token,
         refresh_token: Some(session_tokens.refresh_token),
@@ -438,3 +567,6 @@ pub async fn callback(
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests;
