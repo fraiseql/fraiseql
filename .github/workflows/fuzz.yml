@@ -1,29 +1,50 @@
 name: Fuzz Testing
 
-# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). schedule trigger
-# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
+# Weekly libFuzzer campaign over the maintained fuzz targets (audit #441), plus a manual
+# trigger with a configurable per-target time budget.
+#
+# Hosted CI was disabled for the Dagger migration (2026-05-31). This is a deliberately
+# low-frequency (weekly) re-enable: fuzzing targets the dominant escaped-bug class in this
+# repo — "compiles clean, panics/misbehaves at boot or under load" — which the static audit
+# cannot catch. The corpus is persisted across runs via actions/cache so coverage compounds.
 on:
-  workflow_dispatch:       # Manual trigger
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: "Per-target fuzz time budget, in seconds"
+        required: false
+        default: "1800"
+  schedule:
+    - cron: "0 4 * * 0"   # Sundays 04:00 UTC
 
 env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
+  # workflow_dispatch can override the budget; the scheduled run uses the default below.
+  FUZZ_MAX_TOTAL_TIME: ${{ github.event.inputs.max_total_time || '900' }}
 
 jobs:
-  fuzz-core:
-    name: Fuzz fraiseql-core (${{ matrix.target }})
+  fuzz:
+    name: Fuzz ${{ matrix.crate }} / ${{ matrix.target }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
+      # Maintained target set (audit #441 minimum). Each (crate, target) is build-verified
+      # against the current API. The remaining libFuzzer targets are tracked for triage in
+      # the campaign issue before being added here.
       matrix:
-        target:
-          - graphql_parser
-          - schema_deser
-          - sql_codegen
-          - schema_compile
-          - toml_config
-          - query_variables
+        include:
+          - { crate: fraiseql-core,       target: graphql_parser }
+          - { crate: fraiseql-core,       target: complexity }
+          - { crate: fraiseql-core,       target: schema_deser }
+          - { crate: fraiseql-core,       target: toml_config }
+          - { crate: fraiseql-wire,       target: protocol_decode }
+          - { crate: fraiseql-wire,       target: json_validate }
+          - { crate: fraiseql-db,         target: where_from_json }
+          - { crate: fraiseql-db,         target: projection_generator }
+          - { crate: fraiseql-federation, target: subgraph_response }
+          - { crate: fraiseql-server,     target: graphql_request }
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - uses: dtolnay/rust-toolchain@nightly
@@ -31,53 +52,29 @@ jobs:
         uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
+      - name: Restore / persist fuzz corpus
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
+        with:
+          path: crates/${{ matrix.crate }}/fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.crate }}-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.crate }}-${{ matrix.target }}-
+      - name: Run fuzzer
         run: |
-          cd crates/fraiseql-core
+          cd crates/${{ matrix.crate }}
           mkdir -p fuzz/corpus/${{ matrix.target }}
+          # Only pass a seed corpus when one is committed for this target.
+          seed="fuzz/seed_corpus/${{ matrix.target }}"
+          [ -d "$seed" ] || seed=""
           cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
+            fuzz/corpus/${{ matrix.target }} $seed \
+            -- -max_total_time="${FUZZ_MAX_TOTAL_TIME}" \
                -max_len=65536 \
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: fuzz-crash-core-${{ matrix.target }}
-          path: crates/fraiseql-core/fuzz/artifacts/${{ matrix.target }}/
-
-  fuzz-wire:
-    name: Fuzz fraiseql-wire (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - protocol_decode
-          - scram_parse
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-      - name: Run fuzzer (1 hour)
-        run: |
-          cd crates/fraiseql-wire
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            fuzz/corpus/${{ matrix.target }} \
-            fuzz/seed_corpus/${{ matrix.target }} \
-            -- -max_total_time=3600 \
-               -max_len=65536 \
-               -rss_limit_mb=2048
-      - name: Upload crash artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: fuzz-crash-wire-${{ matrix.target }}
-          path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/
+          name: fuzz-crash-${{ matrix.crate }}-${{ matrix.target }}
+          path: crates/${{ matrix.crate }}/fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
