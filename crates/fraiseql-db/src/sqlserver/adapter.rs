@@ -422,13 +422,10 @@ impl DatabaseAdapter for SqlServerAdapter {
                 );
                 params.push(serde_json::Value::Number(lim.into()));
             }
-        } else if has_order && limit.is_some() {
-            // ORDER BY without OFFSET — SQL Server needs OFFSET 0 for FETCH
-            param_count += 1;
-            write!(sql, " OFFSET 0 ROWS FETCH NEXT @p{param_count} ROWS ONLY")
-                .expect("write to String is infallible: fmt::Write for String always returns Ok");
-            params.push(serde_json::Value::Number(limit.expect("checked above").into()));
         }
+        // Note: there is no `else if has_order` arm — `has_order` implies `order_by` is
+        // non-empty, which forces `needs_offset_fetch == true`, so the `if` above always
+        // handles the ordered case (audit #442: that arm was unreachable).
 
         self.execute_raw(&sql, params).await
     }

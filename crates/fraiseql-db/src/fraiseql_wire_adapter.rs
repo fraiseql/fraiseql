@@ -3,13 +3,14 @@
 //! This adapter integrates fraiseql-wire as an alternative database backend,
 //! providing streaming JSON queries with low memory overhead.
 
-use std::{collections::HashMap, fmt::Write};
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
+    order_by::render_order_by_columns,
     traits::DatabaseAdapter,
     types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
@@ -105,41 +106,11 @@ impl FraiseWireAdapter {
         self
     }
 
-    /// Build SQL query from view and WHERE clause.
+    /// Execute manual query with in-memory LIMIT/OFFSET slicing.
     ///
-    /// # Errors
-    ///
-    /// Returns [`FraiseQLError::Validation`] if the WHERE clause contains an
-    /// operator that cannot be serialized to SQL by [`WhereSqlGenerator`].
-    fn build_query(
-        &self,
-        view: &str,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-    ) -> Result<String> {
-        let mut sql = format!("SELECT data FROM {view} ");
-
-        if let Some(clause) = where_clause {
-            let where_sql = WhereSqlGenerator::to_sql(clause)?;
-            sql.push_str("WHERE ");
-            sql.push_str(&where_sql);
-            sql.push(' ');
-        }
-
-        // Reason (expect below): fmt::Write for String is infallible.
-        if let Some(offset_val) = offset {
-            write!(sql, "OFFSET {offset_val} ").expect("write to String");
-        }
-
-        if let Some(limit_val) = limit {
-            write!(sql, "LIMIT {limit_val}").expect("write to String");
-        }
-
-        Ok(sql.trim().to_string())
-    }
-
-    /// Execute manual query with raw SQL (for limit/offset support).
+    /// fraiseql-wire's `QueryBuilder` does not expose LIMIT/OFFSET, so this collects the
+    /// (optionally ordered + filtered) stream and applies the window in memory. `order_by`
+    /// is pushed down to the wire builder so the slice is taken over correctly-sorted rows.
     ///
     /// # Errors
     ///
@@ -151,21 +122,14 @@ impl FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        // Build complete SQL with LIMIT/OFFSET (used for debugging/logging if needed)
-        let _sql = self.build_query(view, where_clause, limit, offset)?;
-
         // Create fresh client
         let client = self.factory.create_client().await?;
 
-        // fraiseql-wire doesn't expose raw SQL execution publicly,
-        // so we need to use a workaround: use the query builder but construct
-        // the full query manually by passing it through where_sql
-        // This is a temporary solution until fraiseql-wire supports LIMIT/OFFSET
-
-        // For now, we'll use the connection directly through an internal API
-        // This requires accessing the conn field which is private
-        // As a workaround, we'll collect all results and slice them in memory
+        // fraiseql-wire doesn't expose LIMIT/OFFSET on its QueryBuilder, so we collect the
+        // full (filtered + ordered) stream and slice the window in memory below. ORDER BY is
+        // pushed down so the slice is taken over sorted rows, not DB-native order.
 
         // Pass view name directly - fraiseql-wire now uses entity names as-is (fixed in commit
         // 6c78e30)
@@ -174,6 +138,12 @@ impl FraiseWireAdapter {
         if let Some(clause) = where_clause {
             let where_sql = WhereSqlGenerator::to_sql(clause)?;
             builder = builder.where_sql(where_sql);
+        }
+
+        // FraiseWire is PostgreSQL-only (see `database_type`); render the bare ORDER BY
+        // column list (the wire builder supplies the `ORDER BY` keyword itself).
+        if let Some(columns) = render_order_by_columns(order_by, DatabaseType::PostgreSQL)? {
+            builder = builder.order_by(columns);
         }
 
         let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
@@ -242,11 +212,18 @@ impl DatabaseAdapter for FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // fraiseql-wire generates SQL as: SELECT data FROM {entity}
         // where entity is used exactly as provided (no prefix modifications)
         let entity = view;
+
+        // Add LIMIT and OFFSET if provided
+        // Note: fraiseql-wire QueryBuilder doesn't expose limit/offset, so these cases
+        // collect-and-slice in memory (order_by is pushed down there too).
+        if limit.is_some() || offset.is_some() {
+            return self.execute_manual_query(view, where_clause, limit, offset, order_by).await;
+        }
 
         // Create fresh client
         let client = self.factory.create_client().await?;
@@ -260,13 +237,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
             builder = builder.where_sql(where_sql);
         }
 
-        // Add LIMIT and OFFSET if provided
-        // Note: fraiseql-wire QueryBuilder doesn't have built-in limit/offset,
-        // so we need to add them to the ORDER BY clause or handle differently
-        // For now, we'll build manual SQL for these cases
-        if limit.is_some() || offset.is_some() {
-            // Fall back to manual SQL building for limit/offset
-            return self.execute_manual_query(view, where_clause, limit, offset).await;
+        // Honor ORDER BY (audit #442: previously dropped — relay/keyset pagination over the
+        // wire backend silently returned DB-native order). FraiseWire is PostgreSQL-only.
+        if let Some(columns) = render_order_by_columns(order_by, DatabaseType::PostgreSQL)? {
+            builder = builder.order_by(columns);
         }
 
         // Execute streaming query

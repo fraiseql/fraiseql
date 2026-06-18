@@ -16,20 +16,6 @@ fn test_adapter_with_chunk_size() {
 }
 
 #[test]
-fn test_build_query_simple() {
-    let adapter = FraiseWireAdapter::new("postgres://localhost/test");
-    let sql = adapter.build_query("v_user", None, None, None).unwrap();
-    assert_eq!(sql, "SELECT data FROM v_user");
-}
-
-#[test]
-fn test_build_query_with_limit_offset() {
-    let adapter = FraiseWireAdapter::new("postgres://localhost/test");
-    let sql = adapter.build_query("v_user", None, Some(10), Some(5)).unwrap();
-    assert_eq!(sql, "SELECT data FROM v_user OFFSET 5 LIMIT 10");
-}
-
-#[test]
 fn test_pool_metrics() {
     let adapter = FraiseWireAdapter::new("postgres://localhost/test");
     let metrics = adapter.pool_metrics();

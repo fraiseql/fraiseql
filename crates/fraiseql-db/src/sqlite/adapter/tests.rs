@@ -178,6 +178,236 @@ async fn test_function_call_returns_unsupported_error() {
     );
 }
 
+#[tokio::test]
+async fn test_supports_mutations() {
+    let adapter = SqliteAdapter::in_memory().await.unwrap();
+    assert!(adapter.supports_mutations());
+    assert_eq!(adapter.mutation_strategy(), MutationStrategy::DirectSql);
+}
+
+// ── Direct mutation tests ────────────────────────────────────────────────
+
+/// Create an in-memory adapter with a `users` table for mutation testing.
+async fn setup_mutation_table() -> SqliteAdapter {
+    let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+    adapter
+        .pool
+        .execute(
+            "CREATE TABLE \"users\" (\
+                pk_user INTEGER PRIMARY KEY AUTOINCREMENT, \
+                name TEXT NOT NULL, \
+                email TEXT NOT NULL UNIQUE, \
+                tenant_id TEXT\
+            )",
+        )
+        .await
+        .expect("Failed to create users table");
+    adapter
+}
+
+#[tokio::test]
+async fn test_direct_mutation_insert() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    let columns = vec!["name".to_string(), "email".to_string()];
+    let values = vec![json!("Alice"), json!("alice@example.com")];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Insert,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row["status"], json!("new"));
+    assert_eq!(row["entity_type"], json!("User"));
+    assert!(row["entity_id"].is_null());
+    let entity = &row["entity"];
+    assert_eq!(entity["name"], "Alice");
+    assert_eq!(entity["email"], "alice@example.com");
+    assert_eq!(entity["pk_user"], 1);
+}
+
+#[tokio::test]
+async fn test_direct_mutation_insert_with_inject_params() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    let columns = vec!["name".to_string(), "email".to_string()];
+    let inject_columns = vec!["tenant_id".to_string()];
+    let values = vec![json!("Bob"), json!("bob@example.com"), json!("tenant-42")];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Insert,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &inject_columns,
+        return_type:    "User",
+    };
+
+    let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+    let entity = &rows[0]["entity"];
+    assert_eq!(entity["tenant_id"], "tenant-42");
+}
+
+#[tokio::test]
+async fn test_direct_mutation_update() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    // Seed a row
+    adapter
+        .pool
+        .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+        .await
+        .unwrap();
+
+    let columns = vec!["pk_user".to_string(), "name".to_string()];
+    let values = vec![json!(1), json!("Alice Updated")];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Update,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+    let row = &rows[0];
+    assert_eq!(row["status"], json!("updated"));
+    assert_eq!(row["entity_id"], json!("1"));
+    assert_eq!(row["entity"]["name"], "Alice Updated");
+    assert_eq!(row["entity"]["email"], "alice@example.com");
+}
+
+#[tokio::test]
+async fn test_direct_mutation_delete() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    // Seed a row
+    adapter
+        .pool
+        .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+        .await
+        .unwrap();
+
+    let columns = vec!["pk_user".to_string()];
+    let values = vec![json!(1)];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Delete,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+    let row = &rows[0];
+    assert_eq!(row["status"], json!("deleted"));
+    assert_eq!(row["entity_id"], json!("1"));
+    assert_eq!(row["entity"]["name"], "Alice");
+
+    // Verify row is actually gone
+    let remaining = adapter.execute_raw_query("SELECT * FROM \"users\"").await.unwrap();
+    assert!(remaining.is_empty());
+}
+
+#[tokio::test]
+async fn test_direct_mutation_delete_nonexistent_row() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    let columns = vec!["pk_user".to_string()];
+    let values = vec![json!(999)];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Delete,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let err = adapter
+        .execute_direct_mutation(&ctx)
+        .await
+        .expect_err("Expected error for nonexistent row");
+    assert!(matches!(err, FraiseQLError::Validation { .. }));
+    assert!(err.to_string().contains("no rows"));
+}
+
+#[tokio::test]
+async fn test_direct_mutation_constraint_violation() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    adapter
+        .pool
+        .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+        .await
+        .unwrap();
+
+    // Insert duplicate email (UNIQUE constraint)
+    let columns = vec!["name".to_string(), "email".to_string()];
+    let values = vec![json!("Bob"), json!("alice@example.com")];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Insert,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let err = adapter
+        .execute_direct_mutation(&ctx)
+        .await
+        .expect_err("Expected constraint violation");
+    assert!(matches!(err, FraiseQLError::Database { .. }));
+}
+
+#[tokio::test]
+async fn test_direct_mutation_null_handling() {
+    use crate::traits::DirectMutationOp;
+
+    let adapter = setup_mutation_table().await;
+    adapter
+        .pool
+        .execute("INSERT INTO \"users\" (name, email) VALUES ('Alice', 'alice@example.com')")
+        .await
+        .unwrap();
+
+    // Update tenant_id to null
+    let columns = vec!["pk_user".to_string(), "tenant_id".to_string()];
+    let values = vec![json!(1), serde_json::Value::Null];
+
+    let ctx = DirectMutationContext {
+        operation:      DirectMutationOp::Update,
+        table:          "users",
+        columns:        &columns,
+        values:         &values,
+        inject_columns: &[],
+        return_type:    "User",
+    };
+
+    let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
+    assert!(rows[0]["entity"]["tenant_id"].is_null());
+}
+
 // ── WHERE operator matrix ─────────────────────────────────────────────────
 
 #[tokio::test]

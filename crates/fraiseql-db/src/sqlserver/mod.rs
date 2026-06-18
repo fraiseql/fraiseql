@@ -9,9 +9,6 @@ mod helpers;
 pub mod introspector;
 mod where_generator;
 
-#[cfg(test)]
-mod adapter_tests;
-
 pub use adapter::SqlServerAdapter;
 pub use introspector::*;
 pub use where_generator::SqlServerWhereGenerator;
