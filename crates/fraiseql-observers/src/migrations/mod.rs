@@ -60,6 +60,33 @@ pub const fn entity_change_log_capture_trigger_sql() -> &'static str {
     include_str!("../../migrations/11_create_change_log_capture_trigger.sql")
 }
 
+/// SQL DDL that enables Row-Level Security on `core.tb_entity_change_log` and
+/// installs its tenant-isolation policies (audit #437 finding F6 / #443).
+///
+/// Turns the change-log table fail-closed: a role that is neither the table owner
+/// nor `BYPASSRLS`, and that has not set the `fraiseql.tenant_id` session GUC,
+/// reads zero change-log rows (deny-by-default). The trusted internal consumers
+/// (poller, NATS bridges, server handlers, executor outbox) must run as the table
+/// owner or a `BYPASSRLS` role — a **BREAKING** operator requirement, since a
+/// role without it silently sees an empty change-log. Uses `ENABLE` (not `FORCE`)
+/// so the owner and the `SECURITY DEFINER` capture function are exempt.
+///
+/// PostgreSQL only; idempotent (`ENABLE` no-ops when already on; `DROP POLICY IF
+/// EXISTS` + `CREATE POLICY` replaces cleanly). Requires the contract table from
+/// [`entity_change_log_contract_sql`] to exist first.
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_observers::migrations::entity_change_log_rls_sql();
+/// assert!(sql.contains("ENABLE ROW LEVEL SECURITY"));
+/// assert!(sql.contains("p_change_log_tenant_read"));
+/// ```
+#[must_use]
+pub const fn entity_change_log_rls_sql() -> &'static str {
+    include_str!("../../migrations/12_enable_change_log_rls.sql")
+}
+
 /// One column of the `core.tb_entity_change_log` contract: its name and the
 /// canonical PostgreSQL base type the migration installs it as.
 ///

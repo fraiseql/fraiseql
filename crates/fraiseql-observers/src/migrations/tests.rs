@@ -3,6 +3,7 @@
 use super::{
     ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS,
     entity_change_log_capture_trigger_sql, entity_change_log_contract_sql,
+    entity_change_log_rls_sql,
 };
 
 #[test]
@@ -139,6 +140,24 @@ fn capture_trigger_function_is_idempotent_and_named() {
 }
 
 #[test]
+fn capture_trigger_is_security_definer_with_pinned_search_path() {
+    let sql = entity_change_log_capture_trigger_sql();
+    // Under change-log RLS (#443 / #437 F6) the capture fn must INSERT as the table
+    // OWNER so an uncooperative external write still produces a change-log row even
+    // when the writing role is a NOBYPASSRLS app role. SECURITY DEFINER provides
+    // that; a pinned search_path makes it safe — the fn can be invoked under a
+    // trigger on a table in any schema, so an unpinned path is a hijack surface.
+    assert!(
+        sql.contains("SECURITY DEFINER"),
+        "capture fn must be SECURITY DEFINER so it writes the change-log row under RLS: {sql}"
+    );
+    assert!(
+        sql.contains("SET search_path = pg_catalog, core"),
+        "a SECURITY DEFINER fn must pin its search_path to prevent hijack: {sql}"
+    );
+}
+
+#[test]
 fn capture_trigger_suppresses_app_mediated_writes() {
     let sql = entity_change_log_capture_trigger_sql();
     // The suppression contract: an exact match against the executor's marker GUC
@@ -208,6 +227,90 @@ fn capture_trigger_guards_object_id_to_a_uuid() {
         "filters captured rows to a strict UUID PK shape"
     );
     assert!(sql.contains("v_pk_col"), "uses the configurable PK column");
+}
+
+// ── #443 / #437 F6 change-log RLS ────────────────────────────────────────────
+
+#[test]
+fn rls_migration_enables_but_does_not_force_rls() {
+    let sql = entity_change_log_rls_sql();
+    // ENABLE (owner + BYPASSRLS skip policies) is required so the SECURITY DEFINER
+    // capture fn and the trusted BYPASSRLS consumers keep working; FORCE would
+    // break both.
+    assert!(
+        sql.contains("ALTER TABLE core.tb_entity_change_log ENABLE ROW LEVEL SECURITY"),
+        "enables RLS on the change-log table: {sql}"
+    );
+    assert!(
+        !sql.contains("FORCE ROW LEVEL SECURITY"),
+        "must NOT force RLS (owner / capture fn / BYPASSRLS consumers must stay exempt): {sql}"
+    );
+}
+
+#[test]
+fn rls_read_policy_is_fail_closed_on_the_tenant_guc() {
+    let sql = entity_change_log_rls_sql();
+    // Deny-by-default: an unset/empty fraiseql.tenant_id GUC maps to NULL, so
+    // `tenant_id = NULL` hides the row (no `''::uuid` cast error).
+    assert!(
+        sql.contains("CREATE POLICY p_change_log_tenant_read ON core.tb_entity_change_log"),
+        "creates the named SELECT policy: {sql}"
+    );
+    assert!(sql.contains("FOR SELECT"), "the read policy governs SELECT: {sql}");
+    assert!(
+        sql.contains("NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid"),
+        "reads the tenant GUC fail-closed (unset/empty → NULL → 0 rows): {sql}"
+    );
+}
+
+#[test]
+fn rls_insert_policy_is_permissive() {
+    let sql = entity_change_log_rls_sql();
+    // The executor outbox + DEFINER capture fn are trusted to stamp tenant_id; a
+    // permissive INSERT never rejects an anonymous (NULL-tenant) external write.
+    assert!(
+        sql.contains("CREATE POLICY p_change_log_insert ON core.tb_entity_change_log"),
+        "creates the named INSERT policy: {sql}"
+    );
+    assert!(
+        sql.contains("FOR INSERT") && sql.contains("WITH CHECK (true)"),
+        "the insert policy is permissive: {sql}"
+    );
+}
+
+#[test]
+fn rls_makes_views_security_invoker_on_pg15_plus() {
+    let sql = entity_change_log_rls_sql();
+    // A plain view runs as its owner and would bypass the base-table RLS; both
+    // read views must be flipped to security_invoker so they enforce it, guarded on
+    // PG 15+ (the option does not exist on older servers).
+    assert!(
+        sql.contains("server_version_num") && sql.contains("150000"),
+        "the view flip is guarded on PostgreSQL >= 15: {sql}"
+    );
+    for view in [
+        "core.v_entity_change_log",
+        "core.v_entity_change_log_debezium",
+    ] {
+        assert!(
+            sql.contains(&format!("ALTER VIEW {view} SET (security_invoker = true)")),
+            "{view} is flipped to security_invoker so it honours the base-table RLS: {sql}"
+        );
+    }
+}
+
+#[test]
+fn rls_migration_is_rerun_safe() {
+    let sql = entity_change_log_rls_sql();
+    // Idempotent: DROP POLICY IF EXISTS before each CREATE; CREATE SCHEMA IF NOT EXISTS.
+    assert!(
+        sql.contains("DROP POLICY IF EXISTS p_change_log_tenant_read"),
+        "read policy is dropped-if-exists before create: {sql}"
+    );
+    assert!(
+        sql.contains("DROP POLICY IF EXISTS p_change_log_insert"),
+        "insert policy is dropped-if-exists before create: {sql}"
+    );
 }
 
 #[test]

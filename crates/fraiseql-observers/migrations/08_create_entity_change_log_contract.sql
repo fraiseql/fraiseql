@@ -15,9 +15,15 @@
 --     older-framework) table up to the contract — every added column is
 --     nullable or defaulted, so it is safe on a populated table.
 --   - It never drops or renames an existing column. In particular `tenant_id`
---     (the RLS/JWT partition stamp) is ADDED alongside `fk_customer_org` (the
+--     (the per-tenant partition key) is ADDED alongside `fk_customer_org` (the
 --     internal join FK) — the two are complementary under the Trinity pattern,
 --     NOT a rename.
+--
+-- Tenant isolation is enforced by migration 12 (`12_enable_change_log_rls.sql`,
+-- audit #437 F6 / #443): it turns on Row-Level Security so this table reads
+-- fail-closed (deny-by-default) for any role that is not the owner / `BYPASSRLS` /
+-- has not set the `fraiseql.tenant_id` GUC. The trusted cross-tenant consumers
+-- (poller, NATS bridges, server handlers, executor) must run as `BYPASSRLS`/owner.
 --
 -- PostgreSQL DDL. MySQL / SQL Server variants are 09_*/10_* (mirroring
 -- migrations 04_*/05_*). The view is the portable read surface.
@@ -46,9 +52,10 @@ ALTER TABLE core.tb_entity_change_log
     -- Defaulted backbone (backfills on a pre-existing table that lacks them).
     ADD COLUMN IF NOT EXISTS id                 UUID        NOT NULL DEFAULT gen_random_uuid(),
     ADD COLUMN IF NOT EXISTS created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- Spine envelope: RLS/JWT partition stamp, the Trinity public-facing
-    -- identifier (UUID), complementary to the internal join FK fk_customer_org
-    -- (BIGINT). Stamped explicitly from SecurityContext.tenant_id at write time.
+    -- Spine envelope: the per-tenant partition key + RLS partition key (enforced
+    -- by migration 12), the Trinity public-facing identifier (UUID), complementary
+    -- to the internal join FK fk_customer_org (BIGINT). Stamped explicitly from
+    -- SecurityContext.tenant_id at write time.
     ADD COLUMN IF NOT EXISTS tenant_id          UUID,
     -- Internal join FKs (Trinity fk_{entity}) — existing observer schema, kept.
     ADD COLUMN IF NOT EXISTS fk_customer_org    BIGINT,
@@ -133,7 +140,9 @@ CREATE INDEX IF NOT EXISTS idx_entity_log_type
 -- Time-range scans.
 CREATE INDEX IF NOT EXISTS idx_entity_log_created
     ON core.tb_entity_change_log (created_at);
--- Per-tenant ordered fan-out (RLS-clean consumer reads).
+-- Per-tenant ordered fan-out. Cross-tenant consumers (poller/bridges) read the
+-- whole stream as a BYPASSRLS/owner role; this index also serves the migration-12
+-- per-tenant RLS read policy (tenant_id = the fraiseql.tenant_id GUC).
 CREATE INDEX IF NOT EXISTS idx_entity_log_tenant_seq
     ON core.tb_entity_change_log (tenant_id, seq);
 -- Per-object-type dedup on (object_type, seq).
@@ -184,10 +193,10 @@ SELECT
 FROM core.tb_entity_change_log;
 
 COMMENT ON TABLE core.tb_entity_change_log IS
-    'FraiseQL change-log contract (Change Spine Tier 0 outbox). Owned by the framework; superset of perf (#392) + envelope columns. See docs/architecture/change-log-contract.md.';
+    'FraiseQL change-log contract (Change Spine Tier 0 outbox). Owned by the framework; superset of perf (#392) + envelope columns. Row-Level Security is enabled by migration 12 (#437 F6 / #443): reads are deny-by-default; cross-tenant consumers must run as BYPASSRLS/owner. See docs/architecture/change-log-contract.md.';
 
 COMMENT ON VIEW core.v_entity_change_log IS
-    'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log.';
+    'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log. Plain view — inherits the base table RLS (migration 12) for the querying role; a trusted cross-tenant operator surface, restrict SELECT to trusted/BYPASSRLS roles.';
 
 -- ----------------------------------------------------------------------------
 -- Debezium projection — a view, NOT a stored shape (changelog_pre_image).
@@ -217,4 +226,4 @@ SELECT
 FROM core.tb_entity_change_log;
 
 COMMENT ON VIEW core.v_entity_change_log_debezium IS
-    'Debezium {before, after, op, source} projection over tb_entity_change_log (changelog_pre_image). before = object_data_before, after = object_data (the uniform after-image), op = modification_type. Pure projection — no envelope is stored in the base table.';
+    'Debezium {before, after, op, source} projection over tb_entity_change_log (changelog_pre_image). before = object_data_before, after = object_data (the uniform after-image), op = modification_type. Pure projection — no envelope is stored in the base table. Plain view — inherits the base table RLS (migration 12); a trusted cross-tenant operator surface.';

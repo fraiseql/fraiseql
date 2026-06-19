@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Row-Level Security on the change-spine change-log — BREAKING (#437 F6 / #443).**
+  `core.tb_entity_change_log` holds the full before/after payload for every tenant,
+  and until now any database role with `SELECT` on the table or its views
+  (`core.v_entity_change_log`, `core.v_entity_change_log_debezium`) could read all
+  of them — the contract called `tenant_id` an "RLS partition stamp" but RLS was
+  never enabled. Migration `12_enable_change_log_rls.sql` turns it on: the table is
+  now **deny-by-default** (a role that is neither owner nor `BYPASSRLS`, and has not
+  set the `fraiseql.tenant_id` GUC, reads zero rows), with a forward-looking
+  per-tenant SELECT policy and a permissive INSERT policy (the executor outbox + the
+  now-`SECURITY DEFINER` capture function stamp the tenant). The two views are
+  flipped to `security_invoker = true` (PostgreSQL 15+) so they enforce the
+  base-table RLS instead of bypassing it as the view owner; on PostgreSQL < 15 the
+  migration warns and the views must be access-restricted to trusted roles. The
+  capture function `core.fn_entity_change_log_capture()` is now `SECURITY DEFINER`
+  with a pinned `search_path = pg_catalog, core`, so external-write capture keeps
+  working under RLS. **Operator action (BREAKING):** the change-log consumers
+  (poller, the 3 NATS bridges, the server changelog HTTP handlers, the mutation
+  executor outbox) all run on the server's database role — that role must be the
+  table owner or carry `BYPASSRLS`, otherwise the CDC pipeline and the admin
+  change-log query silently return empty. FraiseQL does not set `fraiseql.tenant_id`
+  on its read paths today, so the practical effect is deny-by-default; per-tenant
+  GUC filtering is forward-looking. MySQL / SQL Server change-log isolation is a
+  tracked follow-up.
 - **Per-tenant GraphQL operation cost budgets (#379).** `max_query_depth` and the
   complexity limit stop naive recursion, but not an expensive within-depth query. A new
   per-tenant `cost_budget` (on `TenantQuota`, settable via the tenant admin API) rejects a

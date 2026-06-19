@@ -85,9 +85,25 @@
 
 CREATE SCHEMA IF NOT EXISTS core;
 
+-- SECURITY DEFINER + pinned search_path (#443 / #437 F6)
+-- ------------------------------------------------------
+-- Once `core.tb_entity_change_log` carries `ENABLE ROW LEVEL SECURITY` (migration
+-- 12), an uncooperative external write fires this trigger as the *writing* role —
+-- which in production is a NOBYPASSRLS app role. A SECURITY INVOKER capture fn would
+-- then INSERT under that role and the permissive INSERT policy still lets the row in,
+-- but the fn also needs to run as the table OWNER so it remains correct if the write
+-- policy is ever tightened, and so it is never the weak link. It is therefore
+-- SECURITY DEFINER: it executes as the fn owner (the migration deployer / table
+-- owner), who is exempt from the row policies under ENABLE (not FORCE). Because a
+-- SECURITY DEFINER fn can be reached via a trigger on a table in ANY schema, its
+-- search_path MUST be pinned (`SET search_path = pg_catalog, core`) to foreclose a
+-- search-path-hijack escalation; the body references only pg_catalog builtins, the
+-- fully-qualified `core.tb_entity_change_log`, and the trigger transition tables.
 CREATE OR REPLACE FUNCTION core.fn_entity_change_log_capture()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, core
 AS $fn$
 DECLARE
     -- Install-time configuration, baked into each CREATE TRIGGER via TG_ARGV.
@@ -204,4 +220,4 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION core.fn_entity_change_log_capture() IS
-    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes contract-conforming core.tb_entity_change_log rows for external writes — object_data = the after-image (NEW), object_data_before = the pre-image (OLD) when the table opts into changelog_pre_image (TG_ARGV[3]). Uniform with the executor outbox; a Debezium event is the core.v_entity_change_log_debezium projection. Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';
+    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes contract-conforming core.tb_entity_change_log rows for external writes — object_data = the after-image (NEW), object_data_before = the pre-image (OLD) when the table opts into changelog_pre_image (TG_ARGV[3]). Uniform with the executor outbox; a Debezium event is the core.v_entity_change_log_debezium projection. SECURITY DEFINER with a pinned search_path (#443 / #437 F6) so an external write captures a row even under change-log RLS (it runs as the table owner, exempt under ENABLE). Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';

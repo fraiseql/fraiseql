@@ -1387,6 +1387,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// #349 email happy-path: send through lettre to the bound MailHog sink and
 		// assert the message arrived (real SMTP wire format, not a stub).
 		"cargo test -p fraiseql-observers --test smtp_integration -- --ignored --test-threads=1",
+		// #443 / #437 F6: change-log RLS isolation under a NOBYPASSRLS role (the
+		// superuser DATABASE_URL would mask the policy). The test creates its own
+		// tenant/consumer roles off the superuser connection — no extra env needed.
+		"cargo test -p fraiseql-observers --features postgres --test rls_isolation -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 

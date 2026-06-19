@@ -44,7 +44,7 @@ Placement: schema `core` (matches the existing reader and the
 |---|---|---|---|---|
 | `pk_entity_change_log` | `BIGINT GENERATED ALWAYS AS IDENTITY PK` | `int8` | reader cursor | always |
 | `id` | `UUID NOT NULL DEFAULT gen_random_uuid()` | `uuid` | reader dedup / NATS id | always |
-| `tenant_id` | `UUID` | `uuid` | RLS/JWT partition stamp (Trinity public id) | executor |
+| `tenant_id` | `UUID` | `uuid` | RLS partition key (migration 12) + Trinity public id | executor |
 | `fk_customer_org` | `BIGINT` | `int8` | internal join FK (Trinity `fk_{entity}`) | app / producer |
 | `fk_contact` | `BIGINT` | `int8` | actor join FK | app / producer |
 | `object_type` | `TEXT NOT NULL` | `text` | perf #392 + reader | executor |
@@ -87,10 +87,12 @@ them:
 
 - **`fk_customer_org`** — internal `BIGINT` foreign key, the Trinity `fk_{entity}`
   join slot. Kept as-is.
-- **`tenant_id`** — the RLS/JWT partition key carried in the JWT →
-  `SecurityContext`, a **UUID** (the public-facing identifier). Stamped
-  *explicitly* at write time so out-of-session consumers (the change-log poller,
-  the NATS bridge) re-authorize fan-out without reconstructing tenant identity
+- **`tenant_id`** — the per-tenant partition key carried in the JWT →
+  `SecurityContext`, a **UUID** (the public-facing identifier). It is the RLS
+  partition key enforced by migration 12 (see "RLS / tenant isolation" below).
+  Stamped *explicitly* at write time so out-of-session consumers (the change-log
+  poller, the NATS bridge) re-authorize fan-out without reconstructing tenant
+  identity
   from connection state — tenant identity is not portable across isolation
   models (PG `search_path` / MySQL current-DB / MSSQL `SESSION_CONTEXT`).
 
@@ -255,6 +257,53 @@ and the shipped contract, sourced from the same
   cannot fix it (e.g. a legacy `object_id text`) — `ALTER … TYPE` manually.
 - **Extra** non-contract column → warning; left untouched (app-specific columns
   are safe to keep).
+
+---
+
+## RLS / tenant isolation (#437 F6 / #443)
+
+`core.tb_entity_change_log` holds the full before/after payload for **every**
+tenant. Migration `12_enable_change_log_rls.sql` turns on Row-Level Security so the
+table is **fail-closed**: a database role that is neither the table owner nor
+`BYPASSRLS`, and that has not set the `fraiseql.tenant_id` session GUC, reads
+**zero** change-log rows.
+
+- **Policies.** `ENABLE` (not `FORCE`) ROW LEVEL SECURITY; a SELECT policy
+  `USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)`
+  and a permissive `FOR INSERT WITH CHECK (true)` (the executor outbox and the
+  `SECURITY DEFINER` capture function are trusted to stamp the tenant; this never
+  rejects an anonymous external-write capture).
+- **What it enforces today vs. forward-looking.** FraiseQL does **not** set
+  `fraiseql.tenant_id` on its read paths (row-mode tenancy uses WHERE-clause
+  injection; schema-mode uses `SET search_path`). So the policy's *practical*
+  effect today is **deny-by-default**: only trusted (`BYPASSRLS`/owner) roles read
+  the change-log. The per-tenant `tenant_id = GUC` shape is forward-looking — a
+  reader that sets the GUC sees exactly its own tenant — but no current code path
+  does.
+- **Views.** `core.v_entity_change_log` and `core.v_entity_change_log_debezium`
+  are flipped to `security_invoker = true` (PostgreSQL 15+) so they run as the
+  *querying* role and honour the base-table RLS instead of bypassing it as the view
+  owner. On PostgreSQL < 15 the migration warns: the views stay owner-run and must
+  be protected by restricting `SELECT` on them to trusted roles. (A reader of the
+  views under `security_invoker` also needs `SELECT` on the underlying table.)
+- **Capture under RLS.** The capture function `core.fn_entity_change_log_capture()`
+  is `SECURITY DEFINER` with a pinned `search_path = pg_catalog, core` (migration
+  11), so an uncooperative external write still produces a change-log row — the
+  function runs as the table owner, exempt under `ENABLE`.
+
+### Operator action (BREAKING)
+
+The trusted cross-tenant consumers — the change-log poller, the three NATS bridges,
+the server changelog HTTP handlers, and the mutation executor's outbox INSERT — run
+on the server's database role. That role **must** be the table owner or carry
+`BYPASSRLS`, otherwise the CDC pipeline and the admin change-log query silently
+return an empty result. The `fraiseql perf` CLI reader connects with the operator's
+own role; grant it `BYPASSRLS` or run it as a tenant with `fraiseql.tenant_id` set.
+
+> CI's `fraiseql_test` superuser bypasses RLS automatically, which is why the
+> isolation test (`crates/fraiseql-observers/tests/rls_isolation.rs`) runs its
+> assertions under a dedicated `NOBYPASSRLS` role — a superuser would mask the
+> policy entirely. MySQL / SQL Server change-log isolation is a tracked follow-up.
 
 ---
 
