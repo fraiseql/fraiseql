@@ -16,6 +16,13 @@
 
 use fraiseql_cli::schema::pg_catalog::{PgCatalog, PlpgsqlCheckOutcome};
 
+/// The three change-log relations the PUBLIC-grants check inspects.
+const CHANGE_LOG_RELATIONS: [&str; 3] = [
+    "tb_entity_change_log",
+    "v_entity_change_log",
+    "v_entity_change_log_debezium",
+];
+
 async fn catalog() -> Option<PgCatalog> {
     let url = fraiseql_test_support::try_database_url()?;
     match PgCatalog::connect(&url) {
@@ -140,4 +147,58 @@ async fn table_columns_absent_table_is_empty() {
         .await
         .expect("introspection of an absent table must not error");
     assert!(cols.is_empty(), "absent table → empty column list, got: {cols:?}");
+}
+
+/// `change_log_public_grants` runs against real PostgreSQL (`aclexplode` over
+/// `pg_class.relacl`) and, for any change-log relation that exists, reports the
+/// PUBLIC privileges. The shipped migration 12 `REVOKE ALL … FROM PUBLIC` means a
+/// present relation must show **no** PUBLIC privileges (#443); an absent relation
+/// is simply omitted.
+#[tokio::test]
+async fn change_log_public_grants_reads_clean_baseline() {
+    let Some(catalog) = catalog().await else {
+        return;
+    };
+    let grants = catalog
+        .change_log_public_grants()
+        .await
+        .expect("change-log PUBLIC-grants introspection must not error");
+
+    for g in &grants {
+        assert!(
+            CHANGE_LOG_RELATIONS.contains(&g.relname.as_str()),
+            "only the three change-log relations are reported, got: {}",
+            g.relname
+        );
+        assert!(
+            g.privileges.is_empty(),
+            "migration 12 REVOKEs all PUBLIC privileges; `core.{}` still grants {:?}",
+            g.relname,
+            g.privileges
+        );
+    }
+}
+
+/// `capture_fn_security` runs against real PostgreSQL (`pg_proc.prosecdef` +
+/// `proconfig`) and, when `core.fn_entity_change_log_capture()` exists, reports it
+/// as `SECURITY DEFINER` with a pinned `search_path` (the migration-11 posture,
+/// #443 / #437 F6). An absent function introspects to `None` without erroring.
+#[tokio::test]
+async fn capture_fn_security_reads_definer_and_pinned_search_path() {
+    let Some(catalog) = catalog().await else {
+        return;
+    };
+    let status = catalog
+        .capture_fn_security()
+        .await
+        .expect("capture-function security introspection must not error");
+
+    if let Some(s) = status {
+        assert!(s.security_definer, "the capture function must be SECURITY DEFINER");
+        assert!(
+            s.search_path.as_deref().is_some_and(|sp| sp.contains("core")),
+            "the capture function must pin a search_path including `core`, got: {:?}",
+            s.search_path
+        );
+    }
 }

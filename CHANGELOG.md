@@ -174,6 +174,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so permissive `ID`/`String` filters never warn; and (3) the `MissingJsonKey` warning
   now names the owning GraphQL type so the field is locatable. All findings remain
   advisory warnings (the compile never fails on them).
+- **`fraiseql doctor --against-db` gained two change-log hardening checks (#443).**
+  Alongside the existing change-log RLS posture check, the live-database pass now
+  verifies the rest of the migration-12 / migration-11 hardening: (1) **Change-log
+  PUBLIC grants** warns when `PUBLIC` still holds any privilege on
+  `core.tb_entity_change_log` or its two views (the `REVOKE ALL … FROM PUBLIC`
+  least-privilege baseline is not in force — every tenant's before/after payload is
+  world-readable); and (2) **Change-log capture function** warns when
+  `core.fn_entity_change_log_capture()` is not `SECURITY DEFINER`, or is DEFINER but
+  has no pinned `search_path` (a DEFINER function reachable from a trigger on any
+  schema with a mutable `search_path` is a privilege-escalation vector). Both are
+  advisory warnings; an absent table or function is an informational pass
+  (single-tenant or pre-migration deployments).
 
 ### Fixed
 

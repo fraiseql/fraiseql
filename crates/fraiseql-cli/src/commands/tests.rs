@@ -961,6 +961,92 @@ mod doctor_tests {
         assert!(c.hint.is_some());
     }
 
+    // ── change-log PUBLIC grants check (#443) ────────────────────────────────
+    use crate::schema::pg_catalog::{CaptureFnSecurity, PublicGrant};
+
+    fn grant(relname: &str, privileges: &[&str]) -> PublicGrant {
+        PublicGrant {
+            relname:    relname.to_string(),
+            privileges: privileges.iter().map(|s| (*s).to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn changelog_public_grants_absent_is_pass() {
+        // None of the three relations present → informational skip.
+        assert_eq!(changelog_public_grants_check(&[]).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_public_grants_clean_is_pass() {
+        // REVOKE ALL FROM PUBLIC held on all three → least-privilege baseline intact.
+        let g = [
+            grant("tb_entity_change_log", &[]),
+            grant("v_entity_change_log", &[]),
+            grant("v_entity_change_log_debezium", &[]),
+        ];
+        let c = changelog_public_grants_check(&g);
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert!(c.detail.contains("least-privilege"));
+    }
+
+    #[test]
+    fn changelog_public_grants_world_readable_warns() {
+        // A stray PUBLIC grant on a view → the world-readable footgun.
+        let g = [
+            grant("tb_entity_change_log", &[]),
+            grant("v_entity_change_log", &["SELECT"]),
+        ];
+        let c = changelog_public_grants_check(&g);
+        assert_eq!(c.status, CheckStatus::Warn);
+        assert!(c.detail.contains("v_entity_change_log"));
+        assert!(c.detail.contains("SELECT"));
+        assert!(c.hint.is_some());
+    }
+
+    // ── capture function security check (#443 / #437 F6) ─────────────────────
+
+    #[test]
+    fn capture_fn_absent_is_pass() {
+        assert_eq!(capture_fn_security_check(None).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn capture_fn_definer_with_pinned_search_path_is_pass() {
+        let s = CaptureFnSecurity {
+            security_definer: true,
+            search_path:      Some("pg_catalog, core".to_string()),
+        };
+        let c = capture_fn_security_check(Some(&s));
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert!(c.detail.contains("pg_catalog, core"));
+    }
+
+    #[test]
+    fn capture_fn_invoker_warns() {
+        let s = CaptureFnSecurity {
+            security_definer: false,
+            search_path:      None,
+        };
+        let c = capture_fn_security_check(Some(&s));
+        assert_eq!(c.status, CheckStatus::Warn);
+        assert!(c.detail.contains("SECURITY INVOKER"));
+        assert!(c.hint.is_some());
+    }
+
+    #[test]
+    fn capture_fn_definer_without_search_path_warns_the_injection_vector() {
+        // The high-value case: DEFINER but mutable search_path → escalation vector.
+        let s = CaptureFnSecurity {
+            security_definer: true,
+            search_path:      None,
+        };
+        let c = capture_fn_security_check(Some(&s));
+        assert_eq!(c.status, CheckStatus::Warn);
+        assert!(c.detail.contains("search_path"));
+        assert!(c.hint.is_some());
+    }
+
     #[test]
     fn test_schema_exists_pass() {
         let f = temp_file_with("{}");

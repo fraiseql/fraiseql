@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::toml_schema::TomlSchema,
-    schema::pg_catalog::{ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome},
+    schema::pg_catalog::{
+        CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
+        PublicGrant,
+    },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -497,6 +500,8 @@ pub async fn run_with_db_checks(
     if let Some(url) = against_db {
         checks.extend(changelog_contract_checks(url).await);
         checks.extend(changelog_rls_checks(url).await);
+        checks.extend(changelog_public_grants_checks(url).await);
+        checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
     }
 
@@ -663,6 +668,161 @@ pub(crate) fn changelog_rls_check(status: Option<&ChangeLogRlsStatus>) -> Doctor
         "Grant BYPASSRLS to this role (ALTER ROLE … BYPASSRLS) or connect the change-log consumers \
          as the table owner.",
     )
+}
+
+const CHANGELOG_PUBLIC_GRANTS_NAME: &str = "Change-log PUBLIC grants";
+
+/// Run the change-log PUBLIC-grants check against a live database (#443).
+///
+/// Connects, reads which privileges `PUBLIC` holds on the change-log table and its
+/// two views, and classifies via [`changelog_public_grants_check`]. A connection
+/// or introspection failure becomes a single `Fail` check (never panics).
+async fn changelog_public_grants_checks(db_url: &str) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                CHANGELOG_PUBLIC_GRANTS_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match catalog.change_log_public_grants().await {
+        Ok(grants) => vec![changelog_public_grants_check(&grants)],
+        Err(e) => vec![DoctorCheck::fail(
+            CHANGELOG_PUBLIC_GRANTS_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read pg_class.relacl for the core schema",
+        )],
+    }
+}
+
+/// Classify the PUBLIC-grants posture of the change-log relations into a doctor
+/// check (#443).
+///
+/// Pure — no database access — so the matrix is unit-tested without a connection.
+/// `REVOKE ALL … FROM PUBLIC` (migration 12) keeps the change-log — every tenant's
+/// before/after payload — off the world-readable `PUBLIC` pseudo-role, making
+/// explicit grants the primary control and RLS defence-in-depth. A relation that
+/// still grants any privilege to PUBLIC is the **world-readable footgun** → `Warn`.
+/// An empty input (none of the three relations present) is an informational `Pass`
+/// (single-tenant or pre-migration deployments).
+pub(crate) fn changelog_public_grants_check(grants: &[PublicGrant]) -> DoctorCheck {
+    if grants.is_empty() {
+        return DoctorCheck::pass(
+            CHANGELOG_PUBLIC_GRANTS_NAME,
+            "change-log table/views not present — skipped",
+        );
+    }
+
+    let exposed: Vec<String> = grants
+        .iter()
+        .filter(|g| !g.privileges.is_empty())
+        .map(|g| {
+            // array_agg order is unspecified; sort so the message is deterministic.
+            let mut privs = g.privileges.clone();
+            privs.sort();
+            format!("core.{} ({})", g.relname, privs.join(", "))
+        })
+        .collect();
+
+    if exposed.is_empty() {
+        return DoctorCheck::pass(
+            CHANGELOG_PUBLIC_GRANTS_NAME,
+            "no PUBLIC privileges on the change-log table or views (least-privilege baseline \
+             intact)",
+        );
+    }
+
+    DoctorCheck::warn(
+        CHANGELOG_PUBLIC_GRANTS_NAME,
+        format!(
+            "PUBLIC can still access the change-log — every tenant's before/after payload is \
+             world-readable: {}",
+            exposed.join("; ")
+        ),
+        "REVOKE ALL ON <relation> FROM PUBLIC (or re-run migration \
+         12_enable_change_log_rls.sql) so only explicitly granted roles read the change-log.",
+    )
+}
+
+const CAPTURE_FN_SECURITY_NAME: &str = "Change-log capture function";
+
+/// Run the capture-function security check against a live database (#443 /
+/// #437 F6).
+///
+/// Connects, reads whether `core.fn_entity_change_log_capture()` is
+/// `SECURITY DEFINER` with a pinned `search_path`, and classifies via
+/// [`capture_fn_security_check`]. A connection or introspection failure becomes a
+/// single `Fail` check (never panics).
+async fn capture_fn_security_checks(db_url: &str) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                CAPTURE_FN_SECURITY_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match catalog.capture_fn_security().await {
+        Ok(status) => vec![capture_fn_security_check(status.as_ref())],
+        Err(e) => vec![DoctorCheck::fail(
+            CAPTURE_FN_SECURITY_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read pg_proc for the core schema",
+        )],
+    }
+}
+
+/// Classify the capture-function security posture into a doctor check (#443 /
+/// #437 F6).
+///
+/// Pure — no database access — so the matrix is unit-tested without a connection.
+/// `core.fn_entity_change_log_capture()` runs from triggers on arbitrary tables
+/// and must be `SECURITY DEFINER` (so external-write capture runs as the table
+/// owner, exempt under change-log RLS) **with a pinned `search_path`** (a DEFINER
+/// function with a mutable `search_path` is a classic privilege-escalation
+/// vector). An absent function is an informational `Pass` (single-tenant or
+/// pre-migration-11). `SECURITY INVOKER`, or DEFINER without a pinned
+/// `search_path`, is a `Warn`.
+pub(crate) fn capture_fn_security_check(status: Option<&CaptureFnSecurity>) -> DoctorCheck {
+    let Some(s) = status else {
+        return DoctorCheck::pass(
+            CAPTURE_FN_SECURITY_NAME,
+            "core.fn_entity_change_log_capture not present — skipped",
+        );
+    };
+
+    if !s.security_definer {
+        return DoctorCheck::warn(
+            CAPTURE_FN_SECURITY_NAME,
+            "core.fn_entity_change_log_capture is SECURITY INVOKER — under change-log RLS, an \
+             external write by a NOBYPASSRLS role runs the capture as that role instead of the \
+             table owner, so the capture row is not written.",
+            "Re-apply migration 11_create_change_log_capture_trigger.sql so the capture function \
+             is SECURITY DEFINER with a pinned search_path.",
+        );
+    }
+
+    match &s.search_path {
+        None => DoctorCheck::warn(
+            CAPTURE_FN_SECURITY_NAME,
+            "core.fn_entity_change_log_capture is SECURITY DEFINER but has no pinned search_path — \
+             a DEFINER function reachable from a trigger on any schema with a mutable search_path \
+             is a privilege-escalation vector.",
+            "ALTER FUNCTION core.fn_entity_change_log_capture() SET search_path = pg_catalog, core \
+             (or re-apply migration 11).",
+        ),
+        Some(sp) => DoctorCheck::pass(
+            CAPTURE_FN_SECURITY_NAME,
+            format!("SECURITY DEFINER with pinned search_path = {sp}"),
+        ),
+    }
 }
 
 /// Compare a live `core.tb_entity_change_log` against the shipped contract and

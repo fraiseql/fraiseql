@@ -113,6 +113,38 @@ pub struct ChangeLogRlsStatus {
     pub role_name:   String,
 }
 
+/// PUBLIC-held privileges on one change-log relation, for the `fraiseql doctor`
+/// least-privilege check (#443).
+///
+/// Migration 12 `REVOKE ALL … FROM PUBLIC` keeps the change-log — every tenant's
+/// before/after payload — off the world-readable `PUBLIC` pseudo-role; a non-empty
+/// `privileges` means that REVOKE is not in force and the relation is
+/// world-accessible.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicGrant {
+    /// Relation name (`tb_entity_change_log` / `v_entity_change_log` /
+    /// `v_entity_change_log_debezium`).
+    pub relname:    String,
+    /// Privilege types currently granted to PUBLIC (e.g. `["SELECT"]`); empty when
+    /// the least-privilege baseline is intact.
+    pub privileges: Vec<String>,
+}
+
+/// Security posture of `core.fn_entity_change_log_capture()` for the
+/// `fraiseql doctor` capture-function check (#443 / #437 F6).
+///
+/// The external-write capture function must be `SECURITY DEFINER` (so it runs as
+/// the table owner, exempt under change-log RLS) **with a pinned `search_path`** (a
+/// DEFINER function with a mutable `search_path` is a privilege-escalation vector).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureFnSecurity {
+    /// Whether the function is `SECURITY DEFINER` (`pg_proc.prosecdef`).
+    pub security_definer: bool,
+    /// The pinned `search_path` value from `pg_proc.proconfig` (the text after
+    /// `search_path=`), or `None` when no `search_path` is pinned.
+    pub search_path:      Option<String>,
+}
+
 /// A live PostgreSQL connection pool for catalog introspection.
 pub struct PgCatalog {
     pool: Pool,
@@ -394,6 +426,84 @@ impl PgCatalog {
             can_bypass:  row.get("can_bypass"),
             is_owner:    row.get("is_owner"),
             role_name:   row.get("role_name"),
+        }))
+    }
+
+    /// Read the privileges granted to the `PUBLIC` pseudo-role on the three
+    /// change-log relations (the table + its two views) that exist in `core`
+    /// (#443).
+    ///
+    /// Returns one [`PublicGrant`] per *present* relation, listing the privileges
+    /// PUBLIC currently holds (empty when none). An empty vec means none of the
+    /// three relations exist — the doctor check reads that as "not present,
+    /// skipped". PUBLIC grants are read from `pg_class.relacl` via `aclexplode`
+    /// (the PUBLIC grantee has OID `0`); a `NULL` ACL (the default for a fresh
+    /// relation) explodes to no rows, i.e. PUBLIC holds nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or the catalog query fails.
+    pub async fn change_log_public_grants(&self) -> Result<Vec<PublicGrant>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rows = client
+            .query(
+                "SELECT c.relname, \
+                        COALESCE( \
+                          array_agg(DISTINCT a.privilege_type) FILTER (WHERE a.grantee = 0), \
+                          ARRAY[]::text[]) AS public_privs \
+                 FROM pg_class c \
+                   JOIN pg_namespace n ON n.oid = c.relnamespace \
+                   LEFT JOIN LATERAL aclexplode(c.relacl) a ON true \
+                 WHERE n.nspname = 'core' \
+                   AND c.relname IN ('tb_entity_change_log', 'v_entity_change_log', \
+                                     'v_entity_change_log_debezium') \
+                 GROUP BY c.relname \
+                 ORDER BY c.relname",
+                &[],
+            )
+            .await
+            .context("failed to query change-log PUBLIC grants from pg_class.relacl")?;
+        Ok(rows
+            .iter()
+            .map(|row| PublicGrant {
+                relname:    row.get("relname"),
+                privileges: row.get("public_privs"),
+            })
+            .collect())
+    }
+
+    /// Read the security posture of `core.fn_entity_change_log_capture()` (#443 /
+    /// #437 F6): whether it is `SECURITY DEFINER` (`pg_proc.prosecdef`) and the
+    /// pinned `search_path` from `pg_proc.proconfig`, if any.
+    ///
+    /// Returns `None` when the function is absent — the doctor check reads that as
+    /// "not present, skipped".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or the catalog query fails.
+    pub async fn capture_fn_security(&self) -> Result<Option<CaptureFnSecurity>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rows = client
+            .query(
+                "SELECT p.prosecdef AS security_definer, \
+                        (SELECT cfg FROM unnest(p.proconfig) AS cfg \
+                          WHERE cfg LIKE 'search_path=%' LIMIT 1) AS search_path_cfg \
+                 FROM pg_proc p \
+                   JOIN pg_namespace n ON n.oid = p.pronamespace \
+                 WHERE n.nspname = 'core' AND p.proname = 'fn_entity_change_log_capture' \
+                 LIMIT 1",
+                &[],
+            )
+            .await
+            .context("failed to query capture-function security from pg_proc")?;
+        Ok(rows.first().map(|row| {
+            let raw: Option<String> = row.get("search_path_cfg");
+            CaptureFnSecurity {
+                security_definer: row.get("security_definer"),
+                search_path:      raw
+                    .map(|s| s.strip_prefix("search_path=").unwrap_or(&s).to_string()),
+            }
         }))
     }
 }
