@@ -64,15 +64,18 @@ services:
       PGDATABASE: ecommerce
     volumes:
       - ./db:/db
+    # ON_ERROR_STOP=1 makes each step abort on the first SQL error instead of
+    # printing "Migrations completed!" over a half-initialized schema.
     command: >
       sh -c "
+        set -e &&
         echo 'Running migrations...' &&
-        psql -f /db/migrations/001_initial_schema.sql &&
-        psql -f /db/views/product_views.sql &&
-        psql -f /db/views/customer_order_views.sql &&
-        psql -f /db/functions/cart_functions.sql &&
-        psql -f /db/functions/order_functions.sql &&
-        psql -f /db/functions/customer_functions.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/migrations/001_initial_schema.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/views/product_views.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/views/customer_order_views.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/functions/cart_functions.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/functions/order_functions.sql &&
+        psql -v ON_ERROR_STOP=1 -f /db/functions/customer_functions.sql &&
         echo 'Migrations completed!'
       "
 

@@ -258,9 +258,21 @@ SELECT
                     'id', p.id,
                     'name', p.name,
                     'slug', p.slug,
-                    'price', MIN(pv.price),
+                    -- Per-product price/stock via correlated subqueries: MIN/SUM
+                    -- cannot be nested inside the outer json_agg aggregate, and
+                    -- joining variants/inventory here would multiply each item row.
+                    'price', (
+                        SELECT MIN(pv.price)
+                        FROM product_variants pv
+                        WHERE pv.product_id = p.id AND pv.is_active = true
+                    ),
                     'image_url', pi.url,
-                    'in_stock', COALESCE(SUM(i.quantity - i.reserved_quantity), 0) > 0
+                    'in_stock', COALESCE((
+                        SELECT SUM(i.quantity - i.reserved_quantity)
+                        FROM product_variants pv
+                        JOIN inventory i ON i.variant_id = pv.id
+                        WHERE pv.product_id = p.id AND pv.is_active = true
+                    ), 0) > 0
                 )
             ) ORDER BY wi.priority DESC, wi.created_at DESC
         ) FILTER (WHERE wi.id IS NOT NULL),
@@ -269,8 +281,6 @@ SELECT
 FROM wishlists w
 LEFT JOIN wishlist_items wi ON wi.wishlist_id = w.id
 LEFT JOIN products p ON wi.product_id = p.id AND p.is_active = true
-LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active = true
-LEFT JOIN inventory i ON i.variant_id = pv.id
 LEFT JOIN LATERAL (
     SELECT url FROM product_images
     WHERE product_id = p.id

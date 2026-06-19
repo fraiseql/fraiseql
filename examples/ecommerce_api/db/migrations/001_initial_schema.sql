@@ -6,6 +6,21 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For full-text search
 CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- For crypt()/gen_salt() password hashing
 
+-- Shared mutation result type. Every CQRS function in db/functions/ returns
+-- this composite (FraiseQL maps it to the GraphQL mutation result), so it must
+-- exist before those files run. Field order is the contract the ROW(...)::
+-- mutation_response casts rely on.
+CREATE TYPE mutation_response AS (
+    status          text,   -- e.g. 'new' | 'updated' | 'conflict:duplicate' | 'failed:error'
+    message         text,
+    entity_id       text,
+    entity_type     text,
+    entity          jsonb,
+    updated_fields  text[],
+    cascade         jsonb,
+    metadata        jsonb
+);
+
 -- Categories table with hierarchical structure
 CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -110,18 +110,21 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Add customer address
+-- Required parameters first, then the optional (defaulted) ones — PostgreSQL
+-- rejects a non-default parameter after a defaulted one. Callers use named
+-- arguments, so the grouping does not change call sites.
 CREATE OR REPLACE FUNCTION add_customer_address(
     p_customer_id UUID,
     p_type VARCHAR,
     p_first_name VARCHAR,
     p_last_name VARCHAR,
-    p_company VARCHAR DEFAULT NULL,
     p_address_line1 VARCHAR,
-    p_address_line2 VARCHAR DEFAULT NULL,
     p_city VARCHAR,
+    p_country_code VARCHAR,
+    p_company VARCHAR DEFAULT NULL,
+    p_address_line2 VARCHAR DEFAULT NULL,
     p_state_province VARCHAR DEFAULT NULL,
     p_postal_code VARCHAR DEFAULT NULL,
-    p_country_code VARCHAR,
     p_phone VARCHAR DEFAULT NULL,
     p_is_default BOOLEAN DEFAULT false
 ) RETURNS mutation_response AS $$
@@ -274,11 +277,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Submit product review
+-- Required parameters first (p_rating is required), then the optional ones —
+-- PostgreSQL rejects a non-default parameter after a defaulted one.
 CREATE OR REPLACE FUNCTION submit_review(
     p_customer_id UUID,
     p_product_id UUID,
-    p_order_id UUID DEFAULT NULL,
     p_rating INTEGER,
+    p_order_id UUID DEFAULT NULL,
     p_title VARCHAR DEFAULT NULL,
     p_comment TEXT DEFAULT NULL
 ) RETURNS mutation_response AS $$

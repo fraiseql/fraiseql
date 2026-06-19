@@ -241,6 +241,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in-memory limit/offset paths now push the (validated, dialect-aware) ordering down to the
   wire query builder. Also removes a dead `build_query` method and an unreachable SQL Server
   pagination branch, and de-duplicates the sqlite/sqlserver adapter test files.
+- **The `ecommerce_api` example's database now initializes cleanly (#446).** The flat
+  `docker-compose` migration tree (`db/migrations` + `db/views` + `db/functions`) had
+  several latent SQL errors that left the schema half-built — `migrate` printed
+  "Migrations completed!" regardless because `psql` ran without `ON_ERROR_STOP`. Fixed:
+  the shared `mutation_response` composite type (returned by every function but never
+  defined in the flat tree) is now created in `001_initial_schema.sql`; `add_customer_address()`
+  and `submit_review()` reorder their parameters so no required parameter follows a defaulted
+  one (PostgreSQL rejects that); the `product_detail` / `customer_wishlists` views compute
+  per-product images, variants, price and stock via correlated subqueries instead of
+  `json_agg(DISTINCT …)` over multiplying joins (invalid `ORDER BY`/`json`-equality/nested-aggregate
+  forms); and `related_products` counts shared tags with an `INTERSECT` instead of the
+  non-existent `&` array operator. The `migrate` step now runs each file with
+  `ON_ERROR_STOP=1` so a broken migration fails loudly. Verified end-to-end against
+  PostgreSQL (full init + mutation calls + view reads). Found while hardening the examples
+  for #438.
 
 ## [2.8.0] - 2026-06-18
 

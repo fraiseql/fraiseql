@@ -50,36 +50,50 @@ SELECT
         'slug', c.slug,
         'parent_id', c.parent_id
     ) as category,
-    -- All images
+    -- All images, ordered by position. A correlated subquery (not a join +
+    -- json_agg) so the image list isn't multiplied by the variant/inventory
+    -- joins below — that multiplication is also why the old DISTINCT + ORDER BY
+    -- form was invalid (ORDER BY pi.position is not part of the DISTINCT value).
     COALESCE(
-        json_agg(DISTINCT
-            json_build_object(
-                'id', pi.id,
-                'url', pi.url,
-                'alt_text', pi.alt_text,
-                'position', pi.position,
-                'is_primary', pi.is_primary
-            ) ORDER BY pi.position
-        ) FILTER (WHERE pi.id IS NOT NULL),
+        (
+            SELECT json_agg(
+                json_build_object(
+                    'id', pi.id,
+                    'url', pi.url,
+                    'alt_text', pi.alt_text,
+                    'position', pi.position,
+                    'is_primary', pi.is_primary
+                ) ORDER BY pi.position
+            )
+            FROM product_images pi
+            WHERE pi.product_id = p.id
+        ),
         '[]'::json
     ) as images,
-    -- Variants with inventory
+    -- Variants with inventory. Also a correlated subquery: `json` has no
+    -- equality operator, so the old `json_agg(DISTINCT json_build_object(...))`
+    -- could not run, and the join chain multiplied rows anyway.
     COALESCE(
-        json_agg(DISTINCT
-            json_build_object(
-                'id', pv.id,
-                'sku', pv.sku,
-                'name', pv.name,
-                'price', pv.price,
-                'compare_at_price', pv.compare_at_price,
-                'attributes', pv.attributes,
-                'inventory', json_build_object(
-                    'quantity', i.quantity,
-                    'reserved', i.reserved_quantity,
-                    'available', i.quantity - i.reserved_quantity
-                )
+        (
+            SELECT json_agg(
+                json_build_object(
+                    'id', pv.id,
+                    'sku', pv.sku,
+                    'name', pv.name,
+                    'price', pv.price,
+                    'compare_at_price', pv.compare_at_price,
+                    'attributes', pv.attributes,
+                    'inventory', json_build_object(
+                        'quantity', i.quantity,
+                        'reserved', i.reserved_quantity,
+                        'available', i.quantity - i.reserved_quantity
+                    )
+                ) ORDER BY pv.id
             )
-        ) FILTER (WHERE pv.id IS NOT NULL),
+            FROM product_variants pv
+            LEFT JOIN inventory i ON i.variant_id = pv.id
+            WHERE pv.product_id = p.id
+        ),
         '[]'::json
     ) as variants,
     -- Review summary
@@ -96,9 +110,6 @@ SELECT
     ) as review_summary
 FROM products p
 LEFT JOIN categories c ON p.category_id = c.id
-LEFT JOIN product_images pi ON pi.product_id = p.id
-LEFT JOIN product_variants pv ON pv.product_id = p.id
-LEFT JOIN inventory i ON i.variant_id = pv.id
 LEFT JOIN reviews r ON r.product_id = p.id AND r.status = 'approved'
 GROUP BY p.id, c.id, c.name, c.slug, c.parent_id;
 
@@ -240,7 +251,12 @@ SELECT DISTINCT
         WHEN p1.brand = p2.brand AND p1.brand IS NOT NULL THEN 2
         ELSE 0
     END +
-    COALESCE(array_length(p1.tags & p2.tags, 1), 0) as relevance_score
+    -- Count of shared tags. Core PostgreSQL has no `&` array-intersection
+    -- operator (that is the intarray extension, int[] only), so intersect the
+    -- unnested text[] tags and count; cardinality of an empty array is 0.
+    cardinality(ARRAY(
+        SELECT unnest(p1.tags) INTERSECT SELECT unnest(p2.tags)
+    )) as relevance_score
 FROM products p1
 JOIN products p2 ON p1.id != p2.id AND p2.is_active = true
 LEFT JOIN product_variants pv ON pv.product_id = p2.id AND pv.is_active = true
