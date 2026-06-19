@@ -357,6 +357,42 @@ async fn test_tenant_filtering_no_tenant_passes_through() {
 }
 
 // ============================================================================
+// Change-Spine envelope propagation (#425)
+// ============================================================================
+
+#[tokio::test]
+async fn test_change_spine_envelope_round_trips_through_bridge() {
+    use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
+
+    // The full envelope must survive observer EntityEvent → BridgeEntityEvent →
+    // SubscriptionEvent so it can be delivered to subscription clients.
+    let envelope = ChangeSpineEnvelope {
+        actor_type:     Some("ai_agent".to_string()),
+        acting_for:     Some("11111111-1111-1111-1111-111111111111".to_string()),
+        schema_version: Some("v3".to_string()),
+        tenant_id:      Some("org_42".to_string()),
+        duration_ms:    Some(7),
+        seq:            Some(99),
+    };
+    let entity_event =
+        EntityEvent::new("Order", "order_1", "UPDATE", serde_json::json!({"id": "order_1"}))
+            .with_change_spine(envelope.clone());
+
+    let sub_event = EventBridge::convert_event(entity_event);
+    assert_eq!(sub_event.change_spine, Some(envelope));
+}
+
+#[tokio::test]
+async fn test_no_change_spine_envelope_passes_through() {
+    // Events without a stamped envelope carry no change_spine (no extensions emitted).
+    let entity_event =
+        EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
+
+    let sub_event = EventBridge::convert_event(entity_event);
+    assert!(sub_event.change_spine.is_none());
+}
+
+// ============================================================================
 // Combined: Broadcast + Presence stats
 // ============================================================================
 

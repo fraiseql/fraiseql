@@ -198,6 +198,26 @@ impl ServerMessage {
         }
     }
 
+    /// Create a next (data) message that also carries GraphQL `extensions`.
+    ///
+    /// Mirrors [`Self::next`] but populates the `extensions` field of the
+    /// graphql-transport-ws `ExecutionResult` payload — the spec-blessed,
+    /// safely-ignorable slot used to deliver the Change-Spine envelope to
+    /// subscription clients (#425).
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // Reason: data/extensions are moved into the json! macro
+    pub fn next_with_extensions(
+        id: impl Into<String>,
+        data: serde_json::Value,
+        extensions: serde_json::Value,
+    ) -> Self {
+        Self {
+            message_type: ServerMessageType::Next.as_str().to_string(),
+            id:           Some(id.into()),
+            payload:      Some(serde_json::json!({ "data": data, "extensions": extensions })),
+        }
+    }
+
     /// Create error message.
     #[must_use]
     #[allow(clippy::needless_pass_by_value)] // Reason: errors is consumed by serde_json::to_value, which requires an owned value

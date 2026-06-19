@@ -180,6 +180,74 @@ async fn ws_e2e_subscribe_and_receive_next_frame() {
     assert_eq!(data["orderCreated"]["status"], "pending");
 }
 
+/// #425 acceptance: a delivered `next` frame carries the Change-Spine envelope in
+/// the graphql-transport-ws `extensions.changeSpine` slot, with the resolved
+/// `data` untouched. Proves the envelope round-trips event → payload → client.
+#[tokio::test]
+async fn ws_e2e_next_frame_carries_change_spine_envelope() {
+    use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
+
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager.clone());
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_1",
+            "payload": { "query": "subscription { orderCreated { id status } }" }
+        }),
+    )
+    .await;
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
+
+    // Publish an event stamped with the full Change-Spine envelope.
+    let event = SubscriptionEvent::new(
+        "Order",
+        "order_42",
+        SubscriptionOperation::Create,
+        json!({"id": "order_42", "status": "pending"}),
+    )
+    .with_change_spine(ChangeSpineEnvelope {
+        actor_type: Some("ai_agent".to_string()),
+        acting_for: Some("11111111-1111-1111-1111-111111111111".to_string()),
+        schema_version: Some("v3".to_string()),
+        duration_ms: Some(12),
+        seq: Some(42),
+        ..Default::default()
+    });
+    assert_eq!(manager.publish_event(event), 1, "event should match exactly one subscription");
+
+    let next_frame = recv_json(&mut stream).await;
+    assert_eq!(next_frame["type"], "next", "expected next frame, got {next_frame}");
+    let payload = &next_frame["payload"];
+
+    // Resolved data is unchanged (no regression).
+    assert_eq!(payload["data"]["orderCreated"]["id"], "order_42");
+    assert_eq!(payload["data"]["orderCreated"]["status"], "pending");
+
+    // Envelope rides in extensions.changeSpine, camelCase, unset fields omitted.
+    let cs = &payload["extensions"]["changeSpine"];
+    assert_eq!(cs["actorType"], "ai_agent");
+    assert_eq!(cs["actingFor"], "11111111-1111-1111-1111-111111111111");
+    assert_eq!(cs["schemaVersion"], "v3");
+    assert_eq!(cs["durationMs"], 12);
+    assert_eq!(cs["seq"], 42);
+    assert!(cs.get("tenantId").is_none(), "unset envelope fields are omitted");
+}
+
 /// Verify the `connection_init` -> `connection_ack` handshake in isolation.
 #[tokio::test]
 async fn ws_e2e_connection_init_ack_handshake() {

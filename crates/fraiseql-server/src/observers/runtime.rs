@@ -16,6 +16,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig,
     EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy, InMemoryTransport,
@@ -1025,6 +1026,20 @@ async fn process_entity_event(
                 // Propagate tenant_id for multi-tenant filtering.
                 if let Some(ref tid) = event.tenant_id {
                     bridge_event = bridge_event.with_tenant_id(tid);
+                }
+                // Propagate the Change-Spine envelope (actor / provenance) for
+                // client delivery (#425). Built from the observer event's stamped
+                // fields; omitted entirely when the producer stamped none.
+                let envelope = ChangeSpineEnvelope {
+                    actor_type:     event.actor_type.clone(),
+                    acting_for:     event.acting_for.clone(),
+                    schema_version: event.schema_version.clone(),
+                    tenant_id:      event.tenant_id.clone(),
+                    duration_ms:    event.duration_ms,
+                    seq:            event.seq,
+                };
+                if !envelope.is_empty() {
+                    bridge_event = bridge_event.with_change_spine(envelope);
                 }
                 if let Err(e) = sender.try_send(bridge_event) {
                     warn!("Failed to forward event {} to EventBridge: {}", event.id, e);

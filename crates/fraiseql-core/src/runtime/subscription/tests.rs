@@ -259,6 +259,7 @@ fn test_webhook_payload_from_event() {
         timestamp:       chrono::Utc::now(),
         sequence_number: 42,
         tenant_id:       None,
+        change_spine:    None,
     };
 
     let payload = WebhookPayload::from_event(&event, "order_created");
@@ -332,6 +333,7 @@ fn test_kafka_message_from_event() {
         timestamp:       chrono::Utc::now(),
         sequence_number: 100,
         tenant_id:       None,
+        change_spine:    None,
     };
 
     let message = KafkaMessage::from_event(&event, "user_updated");
@@ -358,6 +360,7 @@ fn test_kafka_message_key() {
         timestamp:       chrono::Utc::now(),
         sequence_number: 1,
         tenant_id:       None,
+        change_spine:    None,
     };
 
     let message = KafkaMessage::from_event(&event, "test_sub");
@@ -1142,6 +1145,61 @@ fn test_subscription_error_rbac_variants_constructible() {
     );
 }
 
+mod change_spine_envelope_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::super::{ChangeSpineEnvelope, SubscriptionEvent, SubscriptionOperation};
+
+    #[test]
+    fn serializes_camel_case_and_omits_none_fields() {
+        let env = ChangeSpineEnvelope {
+            actor_type:     Some("ai_agent".to_string()),
+            acting_for:     None,
+            schema_version: Some("v3".to_string()),
+            tenant_id:      None,
+            duration_ms:    Some(12),
+            seq:            Some(42),
+        };
+        let v = serde_json::to_value(&env).unwrap();
+        assert_eq!(v["actorType"], "ai_agent");
+        assert_eq!(v["schemaVersion"], "v3");
+        assert_eq!(v["durationMs"], 12);
+        assert_eq!(v["seq"], 42);
+        // None fields are omitted entirely (not serialized as null).
+        let obj = v.as_object().unwrap();
+        assert!(!obj.contains_key("actingFor"), "None acting_for is omitted");
+        assert!(!obj.contains_key("tenantId"), "None tenant_id is omitted");
+    }
+
+    #[test]
+    fn is_empty_distinguishes_stamped_from_unstamped() {
+        assert!(ChangeSpineEnvelope::default().is_empty());
+        let env = ChangeSpineEnvelope {
+            actor_type: Some("system_job".to_string()),
+            ..Default::default()
+        };
+        assert!(!env.is_empty());
+    }
+
+    #[test]
+    fn with_change_spine_attaches_envelope_to_event() {
+        let env = ChangeSpineEnvelope {
+            actor_type: Some("human_user".to_string()),
+            ..Default::default()
+        };
+        let event = SubscriptionEvent::new(
+            "Order",
+            "ord_1",
+            SubscriptionOperation::Update,
+            serde_json::json!({"id": "ord_1"}),
+        )
+        .with_change_spine(env);
+        assert_eq!(
+            event.change_spine.expect("envelope attached").actor_type.as_deref(),
+            Some("human_user")
+        );
+    }
+}
+
 mod protocol_tests {
     #![allow(clippy::unwrap_used)]
     use super::super::protocol::*;
@@ -1178,6 +1236,21 @@ mod protocol_tests {
         assert!(json.contains("next"));
         assert!(json.contains("op_1"));
         assert!(json.contains("orderCreated"));
+    }
+
+    #[test]
+    fn next_with_extensions_carries_data_and_extensions() {
+        // The next payload must be the graphql-transport-ws ExecutionResult shape:
+        // { data, extensions } — data untouched, envelope under extensions (#425).
+        let data = serde_json::json!({ "orderUpdated": { "id": "ord_7" } });
+        let extensions = serde_json::json!({ "changeSpine": { "actorType": "human_user" } });
+        let msg = ServerMessage::next_with_extensions("op_2", data, extensions);
+
+        assert_eq!(msg.message_type, "next");
+        assert_eq!(msg.id, Some("op_2".to_string()));
+        let payload = msg.payload.expect("next message has a payload");
+        assert_eq!(payload["data"]["orderUpdated"]["id"], "ord_7");
+        assert_eq!(payload["extensions"]["changeSpine"]["actorType"], "human_user");
     }
 
     #[test]

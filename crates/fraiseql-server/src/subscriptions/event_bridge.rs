@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::runtime::subscription::{
-    SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
+    ChangeSpineEnvelope, SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
 };
 use tokio::sync::mpsc;
 use tracing::{debug, info};
@@ -77,6 +77,11 @@ pub struct EntityEvent {
 
     /// Tenant identifier for multi-tenant filtering (`fk_customer_org`).
     pub tenant_id: Option<String>,
+
+    /// Change-Spine envelope metadata for client delivery (#425). Propagated
+    /// through to the `SubscriptionEvent` and emitted in the `next` payload's
+    /// `extensions.changeSpine`; not used for filtering.
+    pub change_spine: Option<ChangeSpineEnvelope>,
 }
 
 impl EntityEvent {
@@ -95,6 +100,7 @@ impl EntityEvent {
             data,
             old_data: None,
             tenant_id: None,
+            change_spine: None,
         }
     }
 
@@ -109,6 +115,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
         self.tenant_id = Some(tenant_id.into());
+        self
+    }
+
+    /// Attach the Change-Spine envelope for client delivery (#425).
+    #[must_use]
+    pub fn with_change_spine(mut self, envelope: ChangeSpineEnvelope) -> Self {
+        self.change_spine = Some(envelope);
         self
     }
 }
@@ -173,6 +186,11 @@ impl EventBridge {
         // Propagate tenant_id for multi-tenant filtering
         if let Some(tenant_id) = entity_event.tenant_id {
             event = event.with_tenant_id(tenant_id);
+        }
+
+        // Propagate the Change-Spine envelope for client delivery (#425)
+        if let Some(envelope) = entity_event.change_spine {
+            event = event.with_change_spine(envelope);
         }
 
         event

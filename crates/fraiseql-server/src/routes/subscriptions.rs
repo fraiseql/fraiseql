@@ -901,11 +901,22 @@ async fn send_server_message(
 }
 
 /// Create a "next" message for a subscription event.
+///
+/// When the event carries a Change-Spine envelope (#425), it rides in the
+/// graphql-transport-ws `ExecutionResult` `extensions` slot as `changeSpine` —
+/// the spec-blessed, client-ignorable channel — leaving the resolved entity
+/// `data` untouched. Events without an envelope produce the plain `next` message.
 fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> ServerMessage {
     let data = serde_json::json!({
         payload.subscription_name.clone(): payload.data
     });
-    ServerMessage::next(operation_id, data)
+    match &payload.event.change_spine {
+        Some(envelope) => {
+            let extensions = serde_json::json!({ "changeSpine": envelope });
+            ServerMessage::next_with_extensions(operation_id, data, extensions)
+        },
+        None => ServerMessage::next(operation_id, data),
+    }
 }
 
 /// Extract subscription name from a GraphQL subscription query.

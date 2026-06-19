@@ -240,6 +240,35 @@ mod event_bridge_tests {
         );
     }
 
+    #[test]
+    fn convert_event_propagates_change_spine_envelope() {
+        use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
+
+        let envelope = ChangeSpineEnvelope {
+            actor_type:     Some("ai_agent".to_string()),
+            acting_for:     Some("11111111-1111-1111-1111-111111111111".to_string()),
+            schema_version: Some("v3".to_string()),
+            tenant_id:      Some("22222222-2222-2222-2222-222222222222".to_string()),
+            duration_ms:    Some(7),
+            seq:            Some(99),
+        };
+        let entity_event = EntityEvent::new(
+            "Order",
+            "order_123",
+            "UPDATE",
+            serde_json::json!({ "id": "order_123" }),
+        )
+        .with_change_spine(envelope.clone());
+
+        let subscription_event = EventBridge::convert_event(entity_event);
+
+        assert_eq!(
+            subscription_event.change_spine,
+            Some(envelope),
+            "the Change-Spine envelope must round-trip through convert_event (#425)"
+        );
+    }
+
     #[tokio::test]
     async fn test_event_bridge_spawning() {
         let schema = Arc::new(CompiledSchema::new());

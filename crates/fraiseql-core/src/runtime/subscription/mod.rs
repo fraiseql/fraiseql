@@ -65,8 +65,8 @@ pub use kafka::{KafkaAdapter, KafkaConfig, KafkaMessage};
 pub use manager::SubscriptionManager;
 pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};
 pub use types::{
-    ActiveSubscription, SubscriptionEvent, SubscriptionId, SubscriptionOperation,
-    SubscriptionPayload,
+    ActiveSubscription, ChangeSpineEnvelope, SubscriptionEvent, SubscriptionId,
+    SubscriptionOperation, SubscriptionPayload,
 };
 pub use webhook::{WebhookAdapter, WebhookPayload, WebhookTransportConfig};
 /// Backward-compatible type alias — use [`WebhookTransportConfig`] in new code.

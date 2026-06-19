@@ -102,3 +102,64 @@ fn no_tenant_sources_resolves_to_none() {
         resolve_subscription_tenant(None, &HeaderMap::new(), &state(false, &[])).unwrap();
     assert!(resolved.is_none());
 }
+
+/// `create_next_message` wire-contract (#425): the Change-Spine envelope rides in
+/// the graphql-transport-ws `extensions.changeSpine` slot, leaving `data` untouched;
+/// events without an envelope keep the plain payload.
+mod create_next_message_tests {
+    use fraiseql_core::runtime::subscription::{
+        ChangeSpineEnvelope, SubscriptionEvent, SubscriptionId, SubscriptionOperation,
+        SubscriptionPayload,
+    };
+
+    use super::super::create_next_message;
+
+    fn payload_with(envelope: Option<ChangeSpineEnvelope>) -> SubscriptionPayload {
+        let mut event = SubscriptionEvent::new(
+            "Order",
+            "ord_1",
+            SubscriptionOperation::Update,
+            serde_json::json!({ "id": "ord_1" }),
+        );
+        if let Some(env) = envelope {
+            event = event.with_change_spine(env);
+        }
+        SubscriptionPayload {
+            subscription_id: SubscriptionId::new(),
+            subscription_name: "orderUpdated".to_string(),
+            event,
+            data: serde_json::json!({ "id": "ord_1", "status": "PAID" }),
+        }
+    }
+
+    #[test]
+    fn attaches_envelope_under_extensions_change_spine() {
+        let env = ChangeSpineEnvelope {
+            actor_type: Some("human_user".to_string()),
+            schema_version: Some("v3".to_string()),
+            seq: Some(42),
+            ..Default::default()
+        };
+        let msg = create_next_message("op_1", &payload_with(Some(env)));
+        let payload = msg.payload.expect("next payload");
+        // Resolved data is untouched under `data.<subscriptionName>`.
+        assert_eq!(payload["data"]["orderUpdated"]["status"], "PAID");
+        // Envelope rides in extensions.changeSpine, camelCase, nulls omitted.
+        let cs = &payload["extensions"]["changeSpine"];
+        assert_eq!(cs["actorType"], "human_user");
+        assert_eq!(cs["schemaVersion"], "v3");
+        assert_eq!(cs["seq"], 42);
+        assert!(cs.get("actingFor").is_none(), "unset envelope fields are omitted");
+    }
+
+    #[test]
+    fn no_envelope_emits_no_extensions() {
+        let msg = create_next_message("op_1", &payload_with(None));
+        let payload = msg.payload.expect("next payload");
+        assert_eq!(payload["data"]["orderUpdated"]["status"], "PAID");
+        assert!(
+            payload.get("extensions").is_none(),
+            "events without an envelope keep the plain next payload (back-compat)"
+        );
+    }
+}

@@ -186,6 +186,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schema with a mutable `search_path` is a privilege-escalation vector). Both are
   advisory warnings; an absent table or function is an informational pass
   (single-tenant or pre-migration deployments).
+- **GraphQL subscription clients now receive the Change-Spine envelope (#425).** Each
+  delivered `next` event carries the audit / provenance metadata the Change-Spine
+  already records — `actorType` (human / service account / AI agent / system job),
+  `actingFor` (the human a delegated agent acted for, #390), `schemaVersion` (the
+  producer schema, #377), `tenantId`, `durationMs`, and `seq` — bringing the
+  subscription path to the same envelope parity the change-log reader and NATS bridges
+  have. The envelope rides in the graphql-transport-ws `extensions.changeSpine` slot of
+  the `next` payload (the spec-blessed, client-ignorable channel), so the resolved
+  entity `data` is untouched and no schema or SDK-codegen change is required. It is
+  always present, carrying only the fields the producer stamped (unset fields are
+  omitted); an event with no stamped envelope delivers the plain payload unchanged. The
+  metadata round-trips observer `EntityEvent` → `BridgeEntityEvent` → `SubscriptionEvent`
+  → client, with tenant filtering and resolved-`data` delivery unaffected.
 
 ### Fixed
 

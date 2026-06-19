@@ -63,6 +63,60 @@ impl std::fmt::Display for SubscriptionOperation {
     }
 }
 
+/// Change-Spine envelope metadata delivered to subscription clients alongside the
+/// resolved entity data (#425).
+///
+/// Carries the audit / provenance context the Change-Spine records for every
+/// change — who made it (`actor_type`), who a delegated agent acted for
+/// (`acting_for`), the producer `schema_version`, the `tenant_id`, the mutation
+/// `duration_ms`, and the durable `seq`. Serialized camelCase into the subscription
+/// `next` payload's `extensions.changeSpine` slot; `None` fields are omitted, so a
+/// producer that stamped nothing yields an empty object (see [`Self::is_empty`],
+/// which callers use to skip emitting it entirely).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeSpineEnvelope {
+    /// Actor classification of the request that produced the change:
+    /// `"human_user"`, `"service_account"`, `"ai_agent"`, or `"system_job"` (#390).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_type: Option<String>,
+
+    /// For a delegated-agent request (RFC 8693 `act` claim), the public-facing UUID
+    /// of the underlying human the agent acts for (#390).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acting_for: Option<String>,
+
+    /// Schema version of the producer that wrote the change (#377).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<String>,
+
+    /// Public-facing tenant UUID stamp (a display copy of the event's `tenant_id`;
+    /// server-side tenant filtering uses the event's own field, not this).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
+
+    /// Wall-clock duration of the originating mutation, in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i32>,
+
+    /// Monotonic Change-Spine sequence for durable ordering / dedup.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seq: Option<i64>,
+}
+
+impl ChangeSpineEnvelope {
+    /// True when no envelope field is set — callers skip emitting an empty object.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.actor_type.is_none()
+            && self.acting_for.is_none()
+            && self.schema_version.is_none()
+            && self.tenant_id.is_none()
+            && self.duration_ms.is_none()
+            && self.seq.is_none()
+    }
+}
+
 /// An event from the database that may trigger subscriptions.
 ///
 /// This is the internal event format, captured from LISTEN/NOTIFY or CDC.
@@ -96,6 +150,12 @@ pub struct SubscriptionEvent {
     /// Tenant identifier for multi-tenant isolation (from `fk_customer_org`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<String>,
+
+    /// Change-Spine envelope metadata for client delivery (#425). Carried for the
+    /// subscription `next` payload's `extensions.changeSpine`; not used for
+    /// server-side filtering.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_spine: Option<ChangeSpineEnvelope>,
 }
 
 impl SubscriptionEvent {
@@ -117,6 +177,7 @@ impl SubscriptionEvent {
             data,
             old_data: None,
             tenant_id: None,
+            change_spine: None,
         }
     }
 
@@ -138,6 +199,13 @@ impl SubscriptionEvent {
     #[must_use]
     pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
         self.tenant_id = Some(tenant_id.into());
+        self
+    }
+
+    /// Attach the Change-Spine envelope for client delivery (#425).
+    #[must_use]
+    pub fn with_change_spine(mut self, envelope: ChangeSpineEnvelope) -> Self {
+        self.change_spine = Some(envelope);
         self
     }
 }
