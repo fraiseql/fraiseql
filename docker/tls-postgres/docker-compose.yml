@@ -1,13 +1,16 @@
+# Local TLS test fixture for the wire driver's TLS handshake tests. The password
+# is a throwaway fixture credential; the port is bound to 127.0.0.1 so it stays
+# locally usable without network exposure. Override POSTGRES_PASSWORD if needed.
 services:
   postgres-tls:
     image: postgres:17-alpine
     container_name: fraiseql-postgres-tls
     environment:
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_test}
       POSTGRES_DB: fraiseql_tls_test
     ports:
-      - "5433:5432"  # Use 5433 to avoid conflict with local PostgreSQL
+      - "127.0.0.1:5433:5432"  # Use 5433 to avoid conflict with local PostgreSQL
     volumes:
       - ./certs:/certs:ro
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro

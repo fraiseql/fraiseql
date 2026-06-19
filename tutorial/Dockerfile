@@ -41,5 +41,8 @@ ENV NODE_ENV=production
 ENV TUTORIAL_PORT=3001
 ENV FRAISEQL_API_URL=http://fraiseql-server:8000
 
+# Drop privileges: run as the non-root `node` user provided by the base image
+USER node
+
 # Start tutorial server
 CMD ["node", "src/server.js"]

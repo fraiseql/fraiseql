@@ -1,4 +1,11 @@
-# FraiseQL Production Deployment - Pre-built Images
+# FraiseQL Demo Deployment - Pre-built Images
+#
+# NOTE: despite the "prod" filename, this is a local DEMO stack (blog example +
+# tutorial + admin dashboard), not a production template. The genuine production
+# deployment artifacts live at the repo root (docker-compose.prod.yml), k8s/, and
+# the Helm chart. The demo credentials below are weak by design; backing-service
+# ports are bound to 127.0.0.1 so the stack is locally usable but not reachable
+# from the network. Override POSTGRES_PASSWORD before any non-local use.
 #
 # Uses pre-built Docker images from Docker Hub / Container Registry
 # No local compilation required - images are built in CI/CD pipeline
@@ -24,10 +31,10 @@ services:
     environment:
       POSTGRES_DB: blog_fraiseql
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_dev}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-blog-data:/var/lib/postgresql/data
       - ./examples/basic/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -50,7 +57,7 @@ services:
     image: fraiseql/server:latest
     container_name: fraiseql-prod-server
     environment:
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev@postgres-blog:5432/blog_fraiseql
+      DATABASE_URL: postgresql://fraiseql:${POSTGRES_PASSWORD:-fraiseql_dev}@postgres-blog:5432/blog_fraiseql
       FRAISEQL_SCHEMA_PATH: /app/schemas/blog/schema.compiled.json
       FRAISEQL_BIND_ADDR: 0.0.0.0:8000
       RUST_LOG: info

@@ -1,4 +1,10 @@
-# FraiseQL Production Multi-Example Deployment - Pre-built Images
+# FraiseQL Demo Multi-Example Deployment - Pre-built Images
+#
+# NOTE: despite the "prod" filename, this is a local DEMO stack running all three
+# reference examples at once, not a production template. The demo credentials are
+# weak by design; backing-service (postgres) ports are bound to 127.0.0.1 so the
+# stack is locally usable but not reachable from the network. Override
+# POSTGRES_PASSWORD before any non-local use.
 #
 # Uses pre-built Docker images from Docker Hub
 # Runs all 3 examples simultaneously without local compilation
@@ -28,10 +34,10 @@ services:
     environment:
       POSTGRES_DB: blog_fraiseql
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_dev}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-blog-data:/var/lib/postgresql/data
       - ./examples/basic/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -49,7 +55,7 @@ services:
     image: fraiseql/server:latest
     container_name: fraiseql-prod-server-blog
     environment:
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev@postgres-blog:5432/blog_fraiseql
+      DATABASE_URL: postgresql://fraiseql:${POSTGRES_PASSWORD:-fraiseql_dev}@postgres-blog:5432/blog_fraiseql
       FRAISEQL_SCHEMA_PATH: /app/schemas/blog/schema.compiled.json
       FRAISEQL_BIND_ADDR: 0.0.0.0:8000
       RUST_LOG: info
@@ -93,10 +99,10 @@ services:
     environment:
       POSTGRES_DB: ecommerce_fraiseql
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_dev}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres-ecommerce-data:/var/lib/postgresql/data
       - ./examples/ecommerce/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -114,7 +120,7 @@ services:
     image: fraiseql/server:latest
     container_name: fraiseql-prod-server-ecommerce
     environment:
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev@postgres-ecommerce:5432/ecommerce_fraiseql
+      DATABASE_URL: postgresql://fraiseql:${POSTGRES_PASSWORD:-fraiseql_dev}@postgres-ecommerce:5432/ecommerce_fraiseql
       FRAISEQL_SCHEMA_PATH: /app/schemas/ecommerce/schema.compiled.json
       FRAISEQL_BIND_ADDR: 0.0.0.0:8001
       RUST_LOG: info
@@ -158,10 +164,10 @@ services:
     environment:
       POSTGRES_DB: streaming_fraiseql
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_dev}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres-streaming-data:/var/lib/postgresql/data
       - ./examples/streaming/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -179,7 +185,7 @@ services:
     image: fraiseql/server:latest
     container_name: fraiseql-prod-server-streaming
     environment:
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev@postgres-streaming:5432/streaming_fraiseql
+      DATABASE_URL: postgresql://fraiseql:${POSTGRES_PASSWORD:-fraiseql_dev}@postgres-streaming:5432/streaming_fraiseql
       FRAISEQL_SCHEMA_PATH: /app/schemas/streaming/schema.compiled.json
       FRAISEQL_BIND_ADDR: 0.0.0.0:8002
       RUST_LOG: info

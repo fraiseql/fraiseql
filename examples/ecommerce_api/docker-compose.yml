@@ -1,3 +1,7 @@
+# E-commerce example — local development stack. The credentials are weak by
+# design and the backing-service (postgres, redis) ports are bound to 127.0.0.1
+# so they stay locally usable without network exposure. Override POSTGRES_PASSWORD
+# before any non-local use.
 version: '3.8'
 
 services:
@@ -5,10 +9,10 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: ecommerce
-      POSTGRES_PASSWORD: ecommerce123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce123}
       POSTGRES_DB: ecommerce
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d
@@ -21,7 +25,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -36,7 +40,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://ecommerce:ecommerce123@postgres:5432/ecommerce
+      DATABASE_URL: postgresql://ecommerce:${POSTGRES_PASSWORD:-ecommerce123}@postgres:5432/ecommerce
       REDIS_URL: redis://redis:6379
       ENVIRONMENT: development
     depends_on:
@@ -56,7 +60,7 @@ services:
     environment:
       PGHOST: postgres
       PGUSER: ecommerce
-      PGPASSWORD: ecommerce123
+      PGPASSWORD: ${POSTGRES_PASSWORD:-ecommerce123}
       PGDATABASE: ecommerce
     volumes:
       - ./db:/db

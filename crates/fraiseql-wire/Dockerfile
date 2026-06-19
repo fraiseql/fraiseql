@@ -1,3 +1,10 @@
+# CI/dev test fixture ONLY — not a shipped or deployable image.
+#
+# This builds a throwaway PostgreSQL instance for the fraiseql-wire driver's
+# integration tests. It deliberately listens on all interfaces
+# (listen_addresses = '*', host all all 0.0.0.0/0 md5) with a hardcoded
+# 'postgres' password so the test harness can reach it. Never expose this on a
+# real network or copy these settings into a deployed database.
 FROM alpine:latest
 
 # Install PostgreSQL and dependencies

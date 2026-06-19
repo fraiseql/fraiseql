@@ -1,5 +1,12 @@
-# Security Warning: Set environment variables before deploying:
-#   export GRAFANA_ADMIN_PASSWORD='your-secure-password'
+# Local observability demo stack (Loki + Promtail + Grafana).
+#
+# Security notes:
+#   - Loki has NO authentication (auth_enabled: false). Keep it on a trusted /
+#     internal network only — never expose it directly.
+#   - Grafana's admin password defaults to the placeholder `changeme`. Set a real
+#     one before deploying:  export GRAFANA_ADMIN_PASSWORD='your-secure-password'
+#   - The Grafana (3000) and Loki (3100) host ports are bound to 127.0.0.1 so this
+#     demo is locally usable without being reachable from the network.
 # For production, see docs/production/loki_integration.md#security
 
 version: '3.8'
@@ -9,7 +16,7 @@ services:
     image: grafana/loki:2.9.0
     container_name: fraiseql-loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
       - loki-data:/loki
@@ -43,7 +50,7 @@ services:
     image: grafana/grafana:10.0.0
     container_name: fraiseql-grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}

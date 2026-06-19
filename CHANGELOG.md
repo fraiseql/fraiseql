@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Demo / example / test deployment artifacts hardened (#436).** Follow-up to the
+  Phase 13 production deploy sweep, covering the demo/example/test residue the
+  production gate (`tools/check-deploy-security.sh`) does not guard. Docker port
+  publishing bypasses host firewalls, so every backing-service port in the demo and
+  test compose stacks (`docker/docker-compose.{prod,prod-examples,demo,examples,test}.yml`,
+  `docker/tls-postgres/`, `examples/ecommerce_api/`, `examples/async-jobs-subgraph/`,
+  `examples/observability/`) is now bound to `127.0.0.1` — still locally usable for
+  demos and CI, no longer reachable from the network. Weak literal passwords became
+  overridable env vars with a documented demo default
+  (`${POSTGRES_PASSWORD:-…}`) so the stacks still start out of the box while honouring
+  an override. The two misnamed `docker/docker-compose.prod*.yml` files now carry a
+  header clarifying they are local demo stacks, not production templates. Dockerfile
+  hardening: `tutorial/Dockerfile` and the two `examples/async-jobs-subgraph/*`
+  images now drop to a non-root `USER`; the federation example images pin
+  `FROM rust:latest` → `rust:1.92`; the `fraiseql-wire` CI test fixture gained a
+  comment marking its deliberately-open settings as test-only. Loki/Grafana/nginx
+  monitoring artifacts gained comments documenting their no-auth / TLS-terminated-
+  upstream assumptions. No production artifact changed; the deploy-security gate
+  still passes.
 - **Row-Level Security on the change-spine change-log — BREAKING (#437 F6 / #443).**
   `core.tb_entity_change_log` holds the full before/after payload for every tenant,
   and until now any database role with `SELECT` on the table or its views

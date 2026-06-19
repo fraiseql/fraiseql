@@ -26,6 +26,9 @@ COPY examples/async-jobs-subgraph/fraiseql-side/fraiseql.toml ./
 # `fraiseql compile` consumes the generated schema.json (see the basic
 # federation example for the authoring step).
 RUN fraiseql compile schema.json -o schema.compiled.json || true
+# Drop privileges: run as a non-root user (schema files stay world-readable)
+RUN groupadd -r app && useradd -r -g app app
+USER app
 ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
 ENV FRAISEQL_BIND_ADDR=0.0.0.0:8080
 EXPOSE 8080

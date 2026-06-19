@@ -2,6 +2,10 @@
 #
 # One-command docker setup for learning FraiseQL without local Rust compilation
 #
+# Local demo only: the postgres credentials are weak by design and its port is
+# bound to 127.0.0.1 (locally usable, not network-reachable). Override
+# POSTGRES_PASSWORD before any non-local use.
+#
 # Usage:
 #   docker compose -f docker/docker-compose.demo.yml up -d
 #
@@ -28,10 +32,10 @@ services:
     environment:
       POSTGRES_DB: blog_fraiseql
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraiseql_dev}
       POSTGRES_INITDB_ARGS: "-c max_connections=100"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-blog-data:/var/lib/postgresql/data
       - ./examples/basic/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -54,7 +58,7 @@ services:
       dockerfile: Dockerfile
     container_name: fraiseql-demo-server
     environment:
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev@postgres-blog:5432/blog_fraiseql
+      DATABASE_URL: postgresql://fraiseql:${POSTGRES_PASSWORD:-fraiseql_dev}@postgres-blog:5432/blog_fraiseql
       FRAISEQL_SCHEMA_PATH: /app/schemas/blog/schema.compiled.json
       FRAISEQL_BIND_ADDR: 0.0.0.0:8000
       RUST_LOG: info
