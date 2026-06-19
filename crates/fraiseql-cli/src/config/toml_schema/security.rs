@@ -9,46 +9,53 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Default policy to apply if none specified
-    pub default_policy:     Option<String>,
+    pub default_policy:         Option<String>,
     /// Custom authorization rules
-    pub rules:              Vec<AuthorizationRule>,
+    pub rules:                  Vec<AuthorizationRule>,
     /// Authorization policies
-    pub policies:           Vec<AuthorizationPolicy>,
+    pub policies:               Vec<AuthorizationPolicy>,
     /// Field-level authorization rules
-    pub field_auth:         Vec<FieldAuthRule>,
+    pub field_auth:             Vec<FieldAuthRule>,
     /// Enterprise security configuration (legacy flags)
-    pub enterprise:         EnterpriseSecurityConfig,
+    pub enterprise:             EnterpriseSecurityConfig,
     /// Error sanitization — controls what detail clients see in error responses
-    pub error_sanitization: Option<ErrorSanitizationTomlConfig>,
+    pub error_sanitization:     Option<ErrorSanitizationTomlConfig>,
     /// Rate limiting — per-endpoint request caps
-    pub rate_limiting:      Option<RateLimitingSecurityConfig>,
+    pub rate_limiting:          Option<RateLimitingSecurityConfig>,
     /// State encryption — AEAD encryption for OAuth state and PKCE blobs
-    pub state_encryption:   Option<StateEncryptionConfig>,
+    pub state_encryption:       Option<StateEncryptionConfig>,
     /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
-    pub pkce:               Option<PkceConfig>,
+    pub pkce:                   Option<PkceConfig>,
     /// API key authentication — static or database-backed key-based auth
-    pub api_keys:           Option<ApiKeySecurityConfig>,
+    pub api_keys:               Option<ApiKeySecurityConfig>,
     /// Token revocation — reject JWTs by `jti` after revocation
-    pub token_revocation:   Option<TokenRevocationSecurityConfig>,
+    pub token_revocation:       Option<TokenRevocationSecurityConfig>,
     /// Trusted documents — query allowlist (strict or permissive mode)
-    pub trusted_documents:  Option<TrustedDocumentsConfig>,
+    pub trusted_documents:      Option<TrustedDocumentsConfig>,
+    /// Force persisted-operations-only enforcement (#379).
+    ///
+    /// When `true`, the runtime forces the trusted-document store into `strict` mode
+    /// (reject any non-persisted operation) regardless of `[security.trusted_documents].mode`.
+    /// Requires a configured trusted-documents manifest to have any effect.
+    pub persisted_queries_only: bool,
 }
 
 impl Default for SecuritySettings {
     fn default() -> Self {
         Self {
-            default_policy:     Some("authenticated".to_string()),
-            rules:              vec![],
-            policies:           vec![],
-            field_auth:         vec![],
-            enterprise:         EnterpriseSecurityConfig::default(),
-            error_sanitization: None,
-            rate_limiting:      None,
-            state_encryption:   None,
-            pkce:               None,
-            api_keys:           None,
-            token_revocation:   None,
-            trusted_documents:  None,
+            default_policy:         Some("authenticated".to_string()),
+            rules:                  vec![],
+            policies:               vec![],
+            field_auth:             vec![],
+            enterprise:             EnterpriseSecurityConfig::default(),
+            error_sanitization:     None,
+            rate_limiting:          None,
+            state_encryption:       None,
+            pkce:                   None,
+            api_keys:               None,
+            token_revocation:       None,
+            trusted_documents:      None,
+            persisted_queries_only: false,
         }
     }
 }

@@ -55,6 +55,36 @@ mod initialization_tests {
         );
     }
 
+    /// #379: `[security] persisted_queries_only = true` forces the trusted-document
+    /// store into Strict mode (reject any non-persisted operation), regardless of the
+    /// declared `[security.trusted_documents].mode`. Without the flag, the declared
+    /// mode is honored.
+    #[test]
+    fn persisted_queries_only_forces_strict_mode() {
+        use super::super::initialization::effective_trusted_doc_mode;
+        use crate::trusted_documents::TrustedDocumentMode;
+
+        // The flag forces Strict even when the declared mode is permissive.
+        assert_eq!(
+            effective_trusted_doc_mode("permissive", true),
+            TrustedDocumentMode::Strict,
+            "persisted_queries_only=true must force Strict over a permissive declared mode"
+        );
+        assert_eq!(effective_trusted_doc_mode("strict", true), TrustedDocumentMode::Strict);
+
+        // Without the flag, the declared mode is honored.
+        assert_eq!(effective_trusted_doc_mode("strict", false), TrustedDocumentMode::Strict);
+        assert_eq!(
+            effective_trusted_doc_mode("permissive", false),
+            TrustedDocumentMode::Permissive,
+            "without the flag, a permissive schema stays permissive"
+        );
+
+        // An unknown/empty declared mode defaults to Permissive unless the flag forces Strict.
+        assert_eq!(effective_trusted_doc_mode("", false), TrustedDocumentMode::Permissive);
+        assert_eq!(effective_trusted_doc_mode("", true), TrustedDocumentMode::Strict);
+    }
+
     #[test]
     fn ssrf_blocks_localhost_by_name() {
         assert!(is_manifest_url_ssrf_blocked("http://localhost/manifest.json"));

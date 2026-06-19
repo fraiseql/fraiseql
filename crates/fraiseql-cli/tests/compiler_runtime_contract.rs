@@ -225,6 +225,68 @@ audit_logging_enabled = true
     );
 }
 
+/// #379: `[security] persisted_queries_only = true` must survive emit → parse and land
+/// in `security.additional` under the exact key the server reads in
+/// `trusted_docs_from_schema`. This is the compiler→runtime key-name contract for the
+/// flag — a rename on either side silently disables persisted-operations enforcement.
+#[test]
+fn persisted_queries_only_survives_emit_parse() {
+    let toml = r#"
+[schema]
+name = "contract_pqo"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[security]
+default_policy = "public"
+persisted_queries_only = true
+"#;
+    let compiled_json = compile(TYPES_JSON, toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false)
+        .expect("core must parse CLI-produced schema");
+    let security = schema.security.expect("security must be present");
+    assert_eq!(
+        security
+            .additional
+            .get("persisted_queries_only")
+            .and_then(serde_json::Value::as_bool),
+        Some(true),
+        "persisted_queries_only=true must survive emit→parse under the key the server reads"
+    );
+}
+
+/// Omitting the flag must compile to `persisted_queries_only = false` — never
+/// silently strict — so a schema without the flag leaves the server permissive.
+#[test]
+fn persisted_queries_only_defaults_false() {
+    let toml = r#"
+[schema]
+name = "contract_pqo_off"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[security]
+default_policy = "public"
+"#;
+    let compiled_json = compile(TYPES_JSON, toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();
+    let security = schema.security.expect("security must be present");
+    assert_eq!(
+        security
+            .additional
+            .get("persisted_queries_only")
+            .and_then(serde_json::Value::as_bool),
+        Some(false),
+        "omitting the flag must compile to false, not strict-by-default"
+    );
+}
+
 /// Collect the set of JSON paths whose value is a non-null scalar or a container,
 /// so a field present in one document but absent in the other is detectable.
 fn collect_nonnull_paths(value: &serde_json::Value, prefix: &str, out: &mut BTreeSet<String>) {

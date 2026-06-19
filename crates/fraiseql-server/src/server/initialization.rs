@@ -330,7 +330,28 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         tasks: &mut tokio::task::JoinSet<()>,
     ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {
         let security = schema.security.as_ref()?;
-        let td_cfg = security.additional.get("trusted_documents")?;
+
+        // #379: `[security] persisted_queries_only = true` is a top-level shorthand that
+        // forces the trusted-document store into Strict mode below. It only takes effect
+        // when a trusted-documents manifest is configured (there must be persisted
+        // operations to allow-list); warn loudly otherwise so the flag never fails silent.
+        let persisted_queries_only = security
+            .additional
+            .get("persisted_queries_only")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+
+        let Some(td_cfg) = security.additional.get("trusted_documents") else {
+            if persisted_queries_only {
+                warn!(
+                    "security.persisted_queries_only = true but no [security.trusted_documents] \
+                     is configured — the flag has no effect. Configure a trusted-documents \
+                     manifest (manifest_path or manifest_url) so persisted queries can be \
+                     allow-listed."
+                );
+            }
+            return None;
+        };
 
         #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
         #[derive(serde::Deserialize)]
@@ -352,14 +373,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .inspect_err(|e| warn!(error = %e, "Failed to deserialize trusted_documents config — disabling trusted documents"))
             .ok()?;
         if !cfg.enabled {
+            if persisted_queries_only {
+                warn!(
+                    "security.persisted_queries_only = true but [security.trusted_documents].enabled \
+                     = false — the flag has no effect; enable trusted documents with a manifest."
+                );
+            }
             return None;
         }
 
-        let mode = if cfg.mode.eq_ignore_ascii_case("strict") {
-            crate::trusted_documents::TrustedDocumentMode::Strict
-        } else {
-            crate::trusted_documents::TrustedDocumentMode::Permissive
-        };
+        let mode = effective_trusted_doc_mode(&cfg.mode, persisted_queries_only);
 
         if let Some(ref path) = cfg.manifest_path {
             match crate::trusted_documents::TrustedDocumentStore::from_manifest_file(
@@ -486,6 +509,28 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
             }
         });
+    }
+}
+
+// ── Trusted-documents enforcement mode (#379) ────────────────────────────────
+
+/// Resolve the effective trusted-document enforcement mode.
+///
+/// `[security] persisted_queries_only = true` forces [`TrustedDocumentMode::Strict`]
+/// — reject any operation that is not a persisted/trusted document — regardless of
+/// the declared `[security.trusted_documents].mode`. This lets an operator lock the
+/// server to persisted operations with a single top-level flag instead of having to
+/// also set `mode = "strict"` (#379).
+///
+/// [`TrustedDocumentMode::Strict`]: crate::trusted_documents::TrustedDocumentMode::Strict
+pub(super) const fn effective_trusted_doc_mode(
+    declared_mode: &str,
+    persisted_queries_only: bool,
+) -> crate::trusted_documents::TrustedDocumentMode {
+    if persisted_queries_only || declared_mode.eq_ignore_ascii_case("strict") {
+        crate::trusted_documents::TrustedDocumentMode::Strict
+    } else {
+        crate::trusted_documents::TrustedDocumentMode::Permissive
     }
 }
 
