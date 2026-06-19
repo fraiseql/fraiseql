@@ -3407,6 +3407,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-error",
+ "fraiseql-test-support",
  "hex",
  "hmac 0.13.0",
  "http 1.4.0",

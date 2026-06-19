@@ -28,6 +28,9 @@ use crate::{
     error::{AuthError, Result},
 };
 
+mod postgres;
+pub use postgres::{PostgresAccountStore, SCHEMA_SQL};
+
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
 /// A single provider credential linked to an account.

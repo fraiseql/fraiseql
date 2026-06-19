@@ -63,8 +63,8 @@ mod advanced_auth_integration_tests;
 mod tests;
 
 pub use account_linking::{
-    AccountLinkResult, AccountRecord, AccountStore, InMemoryAccountStore, ProviderLink,
-    normalize_email,
+    AccountLinkResult, AccountRecord, AccountStore, InMemoryAccountStore, PostgresAccountStore,
+    ProviderLink, normalize_email,
 };
 pub use anonymous::{AnonSignupResponse, AnonSignupState, anon_signup, upgrade_anonymous_session};
 pub use audit::logger::{

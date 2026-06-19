@@ -179,6 +179,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Persistent user / identity store (#411).** New `PostgresAccountStore` — a durable
+  PostgreSQL backend for the existing `AccountStore` trait, so account-linking survives a
+  process restart (the in-memory store loses it). It is a drop-in: same trait, same
+  `"user_<uuid>"` identifier that joins `_system.sessions.user_id`, so `multi_provider` /
+  `phone_otp` need no change beyond which `Arc<dyn AccountStore>` they are handed.
+  `init()` idempotently creates `core.tb_user` and `core.tb_auth_identity` (the
+  `CREATE … IF NOT EXISTS` form is the back-compat path for deployments with no user
+  table). Both tables carry a `tenant_id` and Row-Level Security **deny-by-default**
+  (mirroring the change-log RLS: `ENABLE`-not-`FORCE`, GUC `fraiseql.tenant_id`,
+  `REVOKE ALL … FROM PUBLIC`) — the store is the trusted owner that bypasses, while any
+  other role reads zero rows unless scoped to a tenant. Account-linking semantics
+  (verified-email cross-provider linking; H26 fail-closed on absent/unverified email)
+  match the in-memory store exactly, verified against PostgreSQL. This unblocks the
+  Argon2id local-password authenticator (#412), social auto-linking (#368), and SCIM
+  provisioning (#381). See `docs/auth/identity-store.md`.
 - **Compiler→runtime contract gate.** A new test (`fraiseql-cli`) compiles fixtures with
   the real CLI and asserts the server boot seam (`RuntimeConfig::from_compiled_schema`)
   accepts the output, that an enterprise security toggle survives emit→parse→derive, and

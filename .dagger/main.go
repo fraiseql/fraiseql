@@ -601,6 +601,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
+		// #411 durable identity store (PostgresAccountStore: core.tb_user / tb_auth_identity + RLS).
+		"cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
