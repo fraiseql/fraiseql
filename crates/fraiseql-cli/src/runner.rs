@@ -438,6 +438,23 @@ pub async fn run() {
             .await
         },
 
+        Commands::Watch {
+            input,
+            output,
+            reload_url,
+            admin_token,
+            database,
+        } => {
+            commands::watch::run(
+                &input,
+                &output,
+                reload_url.as_deref(),
+                admin_token.as_deref(),
+                database.as_deref(),
+            )
+            .await
+        },
+
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
             match commands::validate_documents::run(&manifest, &formatter) {

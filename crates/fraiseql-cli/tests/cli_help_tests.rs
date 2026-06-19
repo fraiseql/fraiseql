@@ -201,3 +201,23 @@ fn test_federation_graph_help_shows_usage_example() {
         .success()
         .stdout(predicate::str::is_match(r".{20,}").unwrap());
 }
+
+// ── watch --help (#383) ──────────────────────────────────────────────────────
+
+#[test]
+fn test_watch_help_shows_reload_url_flag() {
+    fraiseql()
+        .args(["watch", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--reload-url"));
+}
+
+#[test]
+fn test_watch_help_shows_admin_token_flag() {
+    fraiseql()
+        .args(["watch", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--admin-token"));
+}

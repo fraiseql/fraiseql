@@ -542,6 +542,35 @@ TOML CONFIG:
         introspection: bool,
     },
 
+    /// Watch a schema source and recompile + live-reload a running server on change
+    ///
+    /// Recompiles `schema.compiled.json` on every save and, with `--reload-url`,
+    /// POSTs it to a running server's `/api/v1/admin/reload-schema` endpoint for a
+    /// zero-downtime `ArcSwap` reload (no restart). Unlike `run --watch`, this drives
+    /// a server you started separately.
+    Watch {
+        /// Schema source to watch (fraiseql.toml or schema.json)
+        #[arg(value_name = "INPUT")]
+        input: String,
+
+        /// Compiled-schema output path (the server reads this on reload)
+        #[arg(short, long, default_value = "schema.compiled.json")]
+        output: String,
+
+        /// Base URL of a running server to live-reload (e.g. http://localhost:8080).
+        /// Omit to recompile to disk only.
+        #[arg(long, value_name = "URL")]
+        reload_url: Option<String>,
+
+        /// Bearer token for the server's admin reload endpoint
+        #[arg(long, value_name = "TOKEN")]
+        admin_token: Option<String>,
+
+        /// Database URL for compile-time validation (overrides DATABASE_URL)
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+    },
+
     /// Validate a trusted documents manifest
     ///
     /// Checks that the manifest JSON is well-formed and that each key

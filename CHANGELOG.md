@@ -124,6 +124,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `fraiseql-test-support` database-URL harness.
 - **`release-smoke`** now runs one real GraphQL query through the full pipeline, not just
   the health endpoint.
+- **`fraiseql watch` — recompile + zero-downtime live reload (#383).** A new CLI command
+  watches a schema source and, on every (debounced) save, recompiles `schema.compiled.json`
+  and — when `--reload-url` is given — POSTs it to a running server's
+  `POST /api/v1/admin/reload-schema` admin endpoint, which swaps the executor via `ArcSwap`
+  (in-flight queries finish on the old schema, no restart). Unlike `run --watch` (which
+  restarts an in-process server), `watch` drives a separately running server: `fraiseql
+  watch schema.json --reload-url http://localhost:8080 --admin-token $TOKEN`. Compile and
+  reload failures are reported but never stop the loop. Omit `--reload-url` to recompile to
+  disk only.
 - **`fraiseql compile --database` now lints more of the view contract (#384).** Three
   residual checks were added to the compile-time database validator: (1) each mutation's
   `inject_params` and call/response shape are validated against the real `pg_proc`
