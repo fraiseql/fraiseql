@@ -18,7 +18,12 @@ BEGIN
         RETURN ROW('conflict:duplicate', 'Email already registered', NULL, 'Customer', NULL, NULL::text[], NULL::jsonb, NULL::jsonb)::mutation_response;
     END IF;
 
-    -- Create customer (password should be hashed in application layer)
+    -- Create customer. The password is bcrypt-hashed here via pgcrypto so the
+    -- plaintext never lands in a column (matches the hashing in
+    -- mutation-patterns/02-validation/multiple-field-validation.sql). The
+    -- hierarchical schema variant
+    -- (db/0_schema/03_functions/030_customer_functions/0301_create_customer.sql)
+    -- takes an already-hashed value instead; the two intentionally diverge.
     INSERT INTO customers (
         email,
         password_hash,
@@ -27,7 +32,7 @@ BEGIN
         phone
     ) VALUES (
         LOWER(p_email),
-        p_password, -- In production, this should be properly hashed
+        crypt(p_password, gen_salt('bf')), -- bcrypt hash (pgcrypto)
         p_first_name,
         p_last_name,
         p_phone

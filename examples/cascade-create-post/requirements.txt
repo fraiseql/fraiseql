@@ -1,7 +1,12 @@
 # FraiseQL Example - Dependencies
+#
+# Pinned to the FraiseQL v2 line. The fully-resolved, hash-free transitive set
+# is in requirements.lock (generated with `uv pip compile requirements.txt`);
+# install from the lock for reproducible builds.
 
-# Core FraiseQL with FastAPI support
-fraiseql[fastapi]==1.8.1
+# Core FraiseQL (authoring SDK). v2 has no `fastapi` extra — FraiseQL v2 is a
+# compiled engine and Python is the authoring layer only.
+fraiseql==2.8.0
 
 # Database connectivity
 psycopg[binary]>=3.1.0

@@ -14,3 +14,23 @@ database_target = "postgresql"
 description = "Multi-tenant application with shared core and isolated tenant domains"
 name = "multitenant"
 version = "1.0.0"
+
+# Tenant isolation is enforced here, not in the views. Without this block every
+# query (listTenants, listResources, ...) is anonymous and returns every
+# tenant's rows to any caller. default_policy = "authenticated" closes the
+# anonymous read path; the per-tenant rules scope each row to the caller's own
+# tenant/organization. See README.md ("Tenant isolation").
+[security]
+default_policy = "authenticated"
+
+[[security.rules]]
+cacheable = false
+description = "Resources are visible only within the caller's own tenant"
+name = "scope_resources_to_tenant"
+rule = "user.tenant_id == object.tenant_id"
+
+[[security.rules]]
+cacheable = false
+description = "Tenants are visible only within the caller's own organization"
+name = "scope_tenants_to_organization"
+rule = "user.organization_id == object.organization_id"

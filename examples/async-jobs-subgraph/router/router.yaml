@@ -2,14 +2,14 @@
 #
 # The router serves the composed supergraph (router/supergraph.graphql, produced
 # by `rover supergraph compose`) on :8080 and fans queries out to the two
-# subgraphs. CORS is opened up so the GraphiQL/Playground in a browser can call
-# it during the demo.
+# subgraphs. CORS is scoped to the demo origin (http://localhost:3000) so the
+# GraphiQL/Playground in a browser can call it during the demo. Add origins to
+# the allow-list below rather than reaching for allow_any_origin.
 supergraph:
   listen: 0.0.0.0:4000
 cors:
   origins:
     - http://localhost:3000
-  allow_any_origin: true
 health_check:
   listen: 0.0.0.0:8088
   path: /health

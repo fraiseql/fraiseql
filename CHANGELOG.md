@@ -28,6 +28,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   monitoring artifacts gained comments documenting their no-auth / TLS-terminated-
   upstream assumptions. No production artifact changed; the deploy-security gate
   still passes.
+- **Example apps no longer ship insecure patterns users copy to prod (#438).**
+  Sibling of #436, covering the example *application* code (not the deploy
+  artifacts). Four findings fixed: (1) `examples/multitenant/fraiseql.toml` had no
+  `[security]` block, so `listTenants`/`listResources` returned every tenant's rows
+  to any anonymous caller — added `default_policy = "authenticated"` plus per-tenant
+  row-scoping rules (mirroring `examples/saas/`) and a "Tenant isolation" note in the
+  README. (2) `examples/ecommerce_api/.../customer_functions.sql` `register_customer()`
+  stored the plaintext password into `password_hash`; it now bcrypt-hashes via
+  `crypt(p_password, gen_salt('bf'))`, and the init migration creates the `pgcrypto`
+  extension. (3) `examples/async-jobs-subgraph/router/router.yaml` dropped
+  `allow_any_origin: true`, which silently overrode the `origins:` allow-list above
+  it. (4) `examples/analytics_dashboard/` and `examples/cascade-create-post/` were
+  re-pinned off the legacy v1 `fraiseql[fastapi]==1.8.1` to the v2 line
+  (`fraiseql==2.8.0`, no v2 `fastapi` extra) and gained a `requirements.lock`.
 - **Row-Level Security on the change-spine change-log — BREAKING (#437 F6 / #443).**
   `core.tb_entity_change_log` holds the full before/after payload for every tenant,
   and until now any database role with `SELECT` on the table or its views

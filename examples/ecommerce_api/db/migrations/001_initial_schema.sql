@@ -4,6 +4,7 @@
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For full-text search
+CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- For crypt()/gen_salt() password hashing
 
 -- Categories table with hierarchical structure
 CREATE TABLE categories (
