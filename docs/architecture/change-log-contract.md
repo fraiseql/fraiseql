@@ -280,16 +280,25 @@ table is **fail-closed**: a database role that is neither the table owner nor
   the change-log. The per-tenant `tenant_id = GUC` shape is forward-looking — a
   reader that sets the GUC sees exactly its own tenant — but no current code path
   does.
+- **Least-privilege grants.** Migration 12 also `REVOKE ALL … FROM PUBLIC` on the
+  table and both views, so the change-log is never world-readable. Grants are the
+  *primary* control (only an explicitly granted trusted/`BYPASSRLS` role reads it);
+  RLS is defence-in-depth on top, not the sole guard against a stray `GRANT`.
 - **Views.** `core.v_entity_change_log` and `core.v_entity_change_log_debezium`
-  are flipped to `security_invoker = true` (PostgreSQL 15+) so they run as the
-  *querying* role and honour the base-table RLS instead of bypassing it as the view
-  owner. On PostgreSQL < 15 the migration warns: the views stay owner-run and must
-  be protected by restricting `SELECT` on them to trusted roles. (A reader of the
-  views under `security_invoker` also needs `SELECT` on the underlying table.)
+  are created with `security_invoker = true` (PostgreSQL 15+) **in the contract
+  migration (08)** — born correct, not ALTER'd by a later migration — so they run as
+  the *querying* role and honour the base-table RLS instead of bypassing it as the
+  view owner. On PostgreSQL < 15 the option does not exist: 08 warns, the views stay
+  owner-run, and they must be protected by restricting `SELECT` to trusted roles. (A
+  reader of the views under `security_invoker` also needs `SELECT` on the underlying
+  table.)
 - **Capture under RLS.** The capture function `core.fn_entity_change_log_capture()`
   is `SECURITY DEFINER` with a pinned `search_path = pg_catalog, core` (migration
   11), so an uncooperative external write still produces a change-log row — the
   function runs as the table owner, exempt under `ENABLE`.
+- **`fraiseql doctor` check.** `fraiseql doctor --against-db <url>` warns when RLS
+  is enabled on the change-log but the connecting role is neither the table owner nor
+  `BYPASSRLS` — catching the silent-empty-pipeline footgun (below) before it bites.
 
 ### Operator action (BREAKING)
 

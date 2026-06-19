@@ -279,11 +279,12 @@ fn rls_insert_policy_is_permissive() {
 }
 
 #[test]
-fn rls_makes_views_security_invoker_on_pg15_plus() {
-    let sql = entity_change_log_rls_sql();
-    // A plain view runs as its owner and would bypass the base-table RLS; both
-    // read views must be flipped to security_invoker so they enforce it, guarded on
-    // PG 15+ (the option does not exist on older servers).
+fn contract_views_are_security_invoker_on_pg15_plus() {
+    // The views are born security_invoker in the contract migration (08), not
+    // ALTER'd by a later migration — a plain view runs as its owner and would
+    // bypass the base-table RLS, so both read views must enforce it as the querying
+    // role, guarded on PG 15+ (the option does not exist on older servers).
+    let sql = entity_change_log_contract_sql();
     assert!(
         sql.contains("server_version_num") && sql.contains("150000"),
         "the view flip is guarded on PostgreSQL >= 15: {sql}"
@@ -294,9 +295,32 @@ fn rls_makes_views_security_invoker_on_pg15_plus() {
     ] {
         assert!(
             sql.contains(&format!("ALTER VIEW {view} SET (security_invoker = true)")),
-            "{view} is flipped to security_invoker so it honours the base-table RLS: {sql}"
+            "{view} is set security_invoker so it honours the base-table RLS: {sql}"
         );
     }
+}
+
+#[test]
+fn rls_migration_revokes_public_access_and_does_not_touch_views() {
+    let sql = entity_change_log_rls_sql();
+    // Least-privilege baseline: the change-log + views are never world-readable, so
+    // RLS is defence-in-depth rather than the sole control.
+    assert!(sql.contains("FROM PUBLIC"), "the migration revokes PUBLIC access: {sql}");
+    for obj in [
+        "core.tb_entity_change_log",
+        "core.v_entity_change_log",
+        "core.v_entity_change_log_debezium",
+    ] {
+        assert!(
+            sql.contains(&format!("REVOKE ALL ON {obj}")),
+            "REVOKE ALL ON {obj} FROM PUBLIC is present: {sql}"
+        );
+    }
+    // The views are owned by migration 08 now; 12 must not correct them.
+    assert!(
+        !sql.contains("ALTER VIEW"),
+        "migration 12 must not ALTER the views — they are security_invoker in 08: {sql}"
+    );
 }
 
 #[test]

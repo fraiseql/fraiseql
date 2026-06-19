@@ -196,7 +196,7 @@ COMMENT ON TABLE core.tb_entity_change_log IS
     'FraiseQL change-log contract (Change Spine Tier 0 outbox). Owned by the framework; superset of perf (#392) + envelope columns. Row-Level Security is enabled by migration 12 (#437 F6 / #443): reads are deny-by-default; cross-tenant consumers must run as BYPASSRLS/owner. See docs/architecture/change-log-contract.md.';
 
 COMMENT ON VIEW core.v_entity_change_log IS
-    'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log. Plain view — inherits the base table RLS (migration 12) for the querying role; a trusted cross-tenant operator surface, restrict SELECT to trusted/BYPASSRLS roles.';
+    'Read projection over tb_entity_change_log. Exposes duration_ms + envelope columns top-level (perf #392) and every GraphQL field in the data JSONB (#149). Cursor key: pk_entity_change_log. security_invoker view (PG15+, set below) so it enforces the base-table RLS (migration 12) for the querying role; a trusted cross-tenant operator surface, restrict SELECT to trusted/BYPASSRLS roles.';
 
 -- ----------------------------------------------------------------------------
 -- Debezium projection — a view, NOT a stored shape (changelog_pre_image).
@@ -226,4 +226,31 @@ SELECT
 FROM core.tb_entity_change_log;
 
 COMMENT ON VIEW core.v_entity_change_log_debezium IS
-    'Debezium {before, after, op, source} projection over tb_entity_change_log (changelog_pre_image). before = object_data_before, after = object_data (the uniform after-image), op = modification_type. Pure projection — no envelope is stored in the base table. Plain view — inherits the base table RLS (migration 12); a trusted cross-tenant operator surface.';
+    'Debezium {before, after, op, source} projection over tb_entity_change_log (changelog_pre_image). before = object_data_before, after = object_data (the uniform after-image), op = modification_type. Pure projection — no envelope is stored in the base table. security_invoker view (PG15+, set below) so it enforces the base-table RLS (migration 12); a trusted cross-tenant operator surface.';
+
+-- ----------------------------------------------------------------------------
+-- View RLS-enforcement mode (#437 F6 / #443). A plain PostgreSQL view runs its
+-- underlying query as the view OWNER, so once migration 12 enables RLS on the base
+-- table these views would BYPASS it (reading as the superuser owner → every
+-- tenant). `security_invoker = true` (PostgreSQL 15+) makes a view run as the
+-- QUERYING role, so it honours the base-table policy + that role's
+-- fraiseql.tenant_id GUC. Set here, at the view definition, rather than as a later
+-- ALTER. Guarded on the server version: on < 15 the option does not exist, so the
+-- views stay owner-run and MUST be protected by restricting SELECT on them to
+-- trusted roles (the migration RAISEs a WARNING). Idempotent (SET is re-run safe);
+-- harmless while RLS is still off — security_invoker only changes the privilege
+-- context, which the trusted reader already satisfies.
+DO $$
+BEGIN
+    IF current_setting('server_version_num')::int >= 150000 THEN
+        EXECUTE 'ALTER VIEW core.v_entity_change_log SET (security_invoker = true)';
+        EXECUTE 'ALTER VIEW core.v_entity_change_log_debezium SET (security_invoker = true)';
+    ELSE
+        RAISE WARNING
+            'PostgreSQL % (< 15): change-log views cannot use security_invoker and will '
+            'bypass the base-table RLS once migration 12 enables it. Restrict SELECT on '
+            'core.v_entity_change_log and core.v_entity_change_log_debezium to trusted / '
+            'BYPASSRLS roles.',
+            current_setting('server_version');
+    END IF;
+END $$;

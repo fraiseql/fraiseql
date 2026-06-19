@@ -913,6 +913,54 @@ mod doctor_tests {
         f
     }
 
+    // ── change-log RLS check (#437 F6 / #443) ────────────────────────────────
+    use crate::schema::pg_catalog::ChangeLogRlsStatus;
+
+    fn rls_status(rls_enabled: bool, can_bypass: bool, is_owner: bool) -> ChangeLogRlsStatus {
+        ChangeLogRlsStatus {
+            rls_enabled,
+            can_bypass,
+            is_owner,
+            role_name: "app_role".to_string(),
+        }
+    }
+
+    #[test]
+    fn changelog_rls_absent_table_is_pass() {
+        assert_eq!(changelog_rls_check(None).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_rls_disabled_is_informational_pass() {
+        let s = rls_status(false, false, false);
+        assert_eq!(changelog_rls_check(Some(&s)).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_rls_enabled_with_bypass_is_pass() {
+        let s = rls_status(true, true, false);
+        let c = changelog_rls_check(Some(&s));
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert!(c.detail.contains("BYPASSRLS"));
+    }
+
+    #[test]
+    fn changelog_rls_enabled_with_owner_is_pass() {
+        let s = rls_status(true, false, true);
+        assert_eq!(changelog_rls_check(Some(&s)).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_rls_enabled_without_bypass_warns_the_footgun() {
+        // The high-value case: RLS on, the role can neither bypass nor own the
+        // table → the CDC pipeline + admin query silently read zero rows.
+        let s = rls_status(true, false, false);
+        let c = changelog_rls_check(Some(&s));
+        assert_eq!(c.status, CheckStatus::Warn);
+        assert!(c.detail.contains("ZERO rows"));
+        assert!(c.hint.is_some());
+    }
+
     #[test]
     fn test_schema_exists_pass() {
         let f = temp_file_with("{}");

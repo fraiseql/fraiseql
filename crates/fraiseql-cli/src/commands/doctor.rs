@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::toml_schema::TomlSchema,
-    schema::pg_catalog::{LiveColumn, PgCatalog, PlpgsqlCheckOutcome},
+    schema::pg_catalog::{ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome},
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -496,6 +496,7 @@ pub async fn run_with_db_checks(
     let mut checks = run_checks(config, schema, db_url);
     if let Some(url) = against_db {
         checks.extend(changelog_contract_checks(url).await);
+        checks.extend(changelog_rls_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
     }
 
@@ -583,6 +584,85 @@ async fn changelog_contract_checks(db_url: &str) -> Vec<DoctorCheck> {
             "Ensure the connecting role can read information_schema for the core schema",
         )],
     }
+}
+
+const CHANGELOG_RLS_NAME: &str = "Change-log RLS";
+
+/// Run the change-log RLS posture check against a live database (#437 F6 / #443).
+///
+/// Connects, reads whether RLS is enabled on `core.tb_entity_change_log` and
+/// whether the connecting role can read it, and classifies via
+/// [`changelog_rls_check`]. A connection or introspection failure becomes a single
+/// `Fail` check (never panics).
+async fn changelog_rls_checks(db_url: &str) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                CHANGELOG_RLS_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match catalog.change_log_rls_status().await {
+        Ok(status) => vec![changelog_rls_check(status.as_ref())],
+        Err(e) => vec![DoctorCheck::fail(
+            CHANGELOG_RLS_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read pg_class and pg_roles",
+        )],
+    }
+}
+
+/// Classify the change-log RLS posture into a doctor check.
+///
+/// Pure — no database access — so the matrix is unit-tested without a connection.
+/// The high-value case is the **silent-empty footgun**: RLS is enabled but the
+/// connecting role neither owns the table nor has `BYPASSRLS`, so the change-log
+/// poller, the NATS bridges, and the admin change-log query read **zero** rows
+/// without any error. That is a `Warn`. An absent table or RLS-disabled posture is
+/// an informational `Pass` (single-tenant or pre-migration-12 deployments).
+pub(crate) fn changelog_rls_check(status: Option<&ChangeLogRlsStatus>) -> DoctorCheck {
+    let Some(s) = status else {
+        return DoctorCheck::pass(
+            CHANGELOG_RLS_NAME,
+            "core.tb_entity_change_log not present — skipped",
+        );
+    };
+    if !s.rls_enabled {
+        return DoctorCheck::pass(
+            CHANGELOG_RLS_NAME,
+            "Row-Level Security is not enabled on core.tb_entity_change_log (single-tenant or \
+             pre-migration-12). Apply 12_enable_change_log_rls.sql to fail-close cross-tenant reads.",
+        );
+    }
+    if s.can_bypass || s.is_owner {
+        let how = if s.is_owner {
+            "owns the table"
+        } else {
+            "has BYPASSRLS"
+        };
+        return DoctorCheck::pass(
+            CHANGELOG_RLS_NAME,
+            format!(
+                "RLS enabled; the connecting role '{}' {how} — change-log consumers read all tenants.",
+                s.role_name
+            ),
+        );
+    }
+    DoctorCheck::warn(
+        CHANGELOG_RLS_NAME,
+        format!(
+            "RLS is enabled on core.tb_entity_change_log but the connecting role '{}' is neither \
+             the table owner nor BYPASSRLS — the change-log poller, the NATS bridges, and the admin \
+             change-log query will silently read ZERO rows.",
+            s.role_name
+        ),
+        "Grant BYPASSRLS to this role (ALTER ROLE … BYPASSRLS) or connect the change-log consumers \
+         as the table owner.",
+    )
 }
 
 /// Compare a live `core.tb_entity_change_log` against the shipped contract and

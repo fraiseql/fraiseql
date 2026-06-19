@@ -24,14 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration warns and the views must be access-restricted to trusted roles. The
   capture function `core.fn_entity_change_log_capture()` is now `SECURITY DEFINER`
   with a pinned `search_path = pg_catalog, core`, so external-write capture keeps
-  working under RLS. **Operator action (BREAKING):** the change-log consumers
-  (poller, the 3 NATS bridges, the server changelog HTTP handlers, the mutation
-  executor outbox) all run on the server's database role — that role must be the
-  table owner or carry `BYPASSRLS`, otherwise the CDC pipeline and the admin
-  change-log query silently return empty. FraiseQL does not set `fraiseql.tenant_id`
-  on its read paths today, so the practical effect is deny-by-default; per-tenant
-  GUC filtering is forward-looking. MySQL / SQL Server change-log isolation is a
-  tracked follow-up.
+  working under RLS. The migration also `REVOKE ALL … FROM PUBLIC` on the table and
+  both views (least-privilege baseline — the change-log is never world-readable, so
+  RLS is genuine defence-in-depth rather than the sole control). A new
+  `fraiseql doctor --against-db` check warns when RLS is enabled on the change-log
+  but the connecting role is neither the table owner nor `BYPASSRLS` — catching the
+  silent-empty-pipeline footgun before it bites in production. **Operator action
+  (BREAKING):** the change-log consumers (poller, the 3 NATS bridges, the server
+  changelog HTTP handlers, the mutation executor outbox) all run on the server's
+  database role — that role must be the table owner or carry `BYPASSRLS`, otherwise
+  the CDC pipeline and the admin change-log query silently return empty. FraiseQL
+  does not set `fraiseql.tenant_id` on its read paths today, so the practical effect
+  is deny-by-default; per-tenant GUC filtering is forward-looking. MySQL / SQL Server
+  change-log isolation is a tracked follow-up.
 - **Per-tenant GraphQL operation cost budgets (#379).** `max_query_depth` and the
   complexity limit stop naive recursion, but not an expensive within-depth query. A new
   per-tenant `cost_budget` (on `TenantQuota`, settable via the tenant admin API) rejects a

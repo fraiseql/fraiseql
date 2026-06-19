@@ -98,6 +98,21 @@ pub enum PlpgsqlCheckOutcome {
     },
 }
 
+/// Live Row-Level Security posture of `core.tb_entity_change_log` and whether the
+/// connecting role can read it under that posture (for the `fraiseql doctor`
+/// change-log RLS check, #437 F6 / #443).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeLogRlsStatus {
+    /// Whether `ENABLE ROW LEVEL SECURITY` is active on the table.
+    pub rls_enabled: bool,
+    /// Whether the connecting role bypasses RLS (`BYPASSRLS` or superuser).
+    pub can_bypass:  bool,
+    /// Whether the connecting role owns the table (owners are exempt under `ENABLE`).
+    pub is_owner:    bool,
+    /// The connecting role name (for the diagnostic message).
+    pub role_name:   String,
+}
+
 /// A live PostgreSQL connection pool for catalog introspection.
 pub struct PgCatalog {
     pool: Pool,
@@ -347,6 +362,39 @@ impl PgCatalog {
                 udt_name: row.get("udt_name"),
             })
             .collect())
+    }
+
+    /// Read the live RLS posture of `core.tb_entity_change_log` and whether the
+    /// connecting role can read it under that posture (#437 F6 / #443).
+    ///
+    /// Returns `None` when the table is absent (or invisible to the connecting
+    /// role) — the doctor check reads that as "not present, skipped".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or the catalog query fails.
+    pub async fn change_log_rls_status(&self) -> Result<Option<ChangeLogRlsStatus>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rows = client
+            .query(
+                "SELECT c.relrowsecurity AS rls_enabled, \
+                        (r.rolbypassrls OR r.rolsuper) AS can_bypass, \
+                        (pg_get_userbyid(c.relowner) = current_user) AS is_owner, \
+                        current_user::text AS role_name \
+                 FROM pg_class c \
+                   JOIN pg_namespace n ON n.oid = c.relnamespace \
+                   JOIN pg_roles r ON r.rolname = current_user \
+                 WHERE n.nspname = 'core' AND c.relname = 'tb_entity_change_log'",
+                &[],
+            )
+            .await
+            .context("failed to query change-log RLS status from pg_class/pg_roles")?;
+        Ok(rows.first().map(|row| ChangeLogRlsStatus {
+            rls_enabled: row.get("rls_enabled"),
+            can_bypass:  row.get("can_bypass"),
+            is_owner:    row.get("is_owner"),
+            role_name:   row.get("role_name"),
+        }))
     }
 }
 
