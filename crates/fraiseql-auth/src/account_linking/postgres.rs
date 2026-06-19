@@ -86,7 +86,8 @@ REVOKE ALL ON core.tb_auth_identity FROM PUBLIC;
 /// PostgreSQL-backed account store.
 ///
 /// Persists user accounts and their linked provider identities, so account linking
-/// survives a process restart. See the [module docs](self) for the schema and RLS posture.
+/// survives a process restart. See the module-level documentation for the schema and
+/// RLS posture.
 pub struct PostgresAccountStore {
     db: PgPool,
 }
