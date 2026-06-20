@@ -16,8 +16,12 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    account_linking::AccountStore, handlers::generate_secure_state, provider::OAuthProvider,
-    session::SessionStore, state_store::StateStore,
+    account_linking::{AccountStore, TrustedEmailProviders},
+    audit::logger::{AuditEventType, SecretType, get_audit_logger},
+    handlers::generate_secure_state,
+    provider::OAuthProvider,
+    session::SessionStore,
+    state_store::StateStore,
 };
 
 /// Maximum length for the `redirect_uri` query parameter.
@@ -107,13 +111,21 @@ fn build_redirect_with_tokens(
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").
-    providers:              HashMap<String, Arc<dyn OAuthProvider>>,
+    providers:               HashMap<String, Arc<dyn OAuthProvider>>,
     /// CSRF state store (in-memory or Redis).
-    state_store:            Arc<dyn StateStore>,
+    state_store:             Arc<dyn StateStore>,
     /// Session backend for creating sessions after successful auth.
-    session_store:          Arc<dyn SessionStore>,
+    session_store:           Arc<dyn SessionStore>,
     /// Optional user store for account linking (same email → same user).
-    user_store:             Option<Arc<dyn AccountStore>>,
+    user_store:              Option<Arc<dyn AccountStore>>,
+    /// Providers trusted to assert email verification for cross-provider auto-linking (#368).
+    ///
+    /// A provider's `email_verified = true` is honored for merging onto an existing
+    /// email-keyed account **only** when the provider is in this set; otherwise the claim is
+    /// downgraded to unverified and the identity is keyed on `(provider, provider_id)`, so an
+    /// untrusted IdP can never collapse into another user's account (fail-closed, mirrors H26).
+    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple`).
+    trusted_email_providers: TrustedEmailProviders,
     /// Allow-list of permitted `redirect_uri` values (#427).
     ///
     /// When **empty** (the default), `callback` returns the session tokens as JSON and no
@@ -123,7 +135,7 @@ pub struct MultiProviderAuthState {
     /// validated URI to the CSRF state token, and `callback` performs an implicit-style
     /// fragment redirect to it. Entries are matched by scheme + host + port + path-boundary
     /// prefix (see [`is_redirect_uri_allowed`]).
-    redirect_uri_allowlist: Vec<String>,
+    redirect_uri_allowlist:  Vec<String>,
 }
 
 impl MultiProviderAuthState {
@@ -134,6 +146,7 @@ impl MultiProviderAuthState {
             state_store,
             session_store,
             user_store: None,
+            trusted_email_providers: TrustedEmailProviders::default(),
             redirect_uri_allowlist: Vec::new(),
         }
     }
@@ -145,6 +158,19 @@ impl MultiProviderAuthState {
     /// linking when the same email appears across different providers.
     pub fn with_user_store(mut self, user_store: Arc<dyn AccountStore>) -> Self {
         self.user_store = Some(user_store);
+        self
+    }
+
+    /// Set which providers are trusted to assert email verification for cross-provider
+    /// auto-linking (#368).
+    ///
+    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple`). Pass
+    /// [`TrustedEmailProviders::none`] for a high-assurance "trust no one" posture, or
+    /// build a custom set with [`TrustedEmailProviders::trust`] / `distrust`. A provider not
+    /// in the set never auto-links on email even when it claims `email_verified = true`.
+    #[must_use = "builder method returns the modified state"]
+    pub fn with_trusted_email_providers(mut self, trusted: TrustedEmailProviders) -> Self {
+        self.trusted_email_providers = trusted;
         self
     }
 
@@ -304,6 +330,18 @@ impl AuthTokenResponseBuilder {
 
 fn json_error(status: StatusCode, message: &str) -> Response {
     (status, Json(serde_json::json!({ "error": message }))).into_response()
+}
+
+/// Effective email-verified flag for account linking (#368): a provider's claimed
+/// verification is honored only when the provider is trusted to assert it. An untrusted
+/// provider's `email_verified = true` is downgraded to `false`, so the identity is keyed on
+/// `(provider, provider_id)` and can never collapse into an existing email-keyed account.
+fn effective_email_verified(
+    trusted: &TrustedEmailProviders,
+    provider: &str,
+    claimed_verified: bool,
+) -> bool {
+    claimed_verified && trusted.is_trusted(provider)
 }
 
 // ---------------------------------------------------------------------------
@@ -505,13 +543,41 @@ pub async fn callback(
         },
     };
 
+    // #368: gate the provider's email-verified claim on the trust policy. An untrusted
+    // provider's `email_verified = true` is downgraded to unverified so it can never
+    // auto-link onto another user's email-keyed account (account takeover). Trusted
+    // providers (default: google + apple) keep their claim and link as before.
+    let provider_trusted = state.trusted_email_providers.is_trusted(&provider_name);
+    let email_verified = effective_email_verified(
+        &state.trusted_email_providers,
+        &provider_name,
+        user_info.email_verified,
+    );
+    if user_info.email_verified && !provider_trusted {
+        get_audit_logger().log_failure(
+            AuditEventType::AuthFailure,
+            SecretType::StateToken,
+            None,
+            "social_callback",
+            &format!(
+                "untrusted_provider_email_downgraded:{provider_name} — email_verified claim not \
+                 honored for account linking"
+            ),
+        );
+        tracing::warn!(
+            provider = %provider_name,
+            "provider asserted email_verified but is not in the trusted-email set; treating email \
+             as unverified for account linking (#368)"
+        );
+    }
+
     // Resolve local user ID — use AccountStore for account linking when available,
     // otherwise fall back to raw provider user ID.
     let local_user_id = if let Some(account_store) = &state.user_store {
         match account_store
             .link_or_create_user(
                 user_info.email.as_deref(),
-                user_info.email_verified,
+                email_verified,
                 &provider_name,
                 &user_info.id,
             )

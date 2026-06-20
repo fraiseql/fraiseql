@@ -229,3 +229,68 @@ async fn test_account_store_as_trait_object() {
         .unwrap();
     assert!(result.is_new);
 }
+
+// ── #368 — TrustedEmailProviders policy ───────────────────────────────
+
+#[test]
+fn trusted_default_contains_google_and_apple() {
+    let trusted = TrustedEmailProviders::default();
+    assert!(trusted.is_trusted("google"), "google is trusted by default");
+    assert!(trusted.is_trusted("apple"), "apple is trusted by default");
+}
+
+#[test]
+fn trusted_default_excludes_microsoft_github_and_unknown() {
+    // nOAuth: Azure AD's email is tenant-mutable; GitHub needs the unimplemented
+    // /user/emails second hop. Both are opt-in, never trusted by default.
+    let trusted = TrustedEmailProviders::default();
+    assert!(
+        !trusted.is_trusted("azure_ad"),
+        "Microsoft/Azure AD is NOT trusted by default (nOAuth)"
+    );
+    assert!(!trusted.is_trusted("github"), "GitHub is NOT trusted by default");
+    assert!(!trusted.is_trusted("evilcorp"), "an unknown provider is never trusted");
+}
+
+#[test]
+fn trusted_is_trusted_is_case_insensitive() {
+    let trusted = TrustedEmailProviders::default();
+    assert!(trusted.is_trusted("Google"));
+    assert!(trusted.is_trusted("  APPLE  "), "whitespace and case are normalized");
+}
+
+#[test]
+fn trusted_none_trusts_nothing() {
+    let trusted = TrustedEmailProviders::none();
+    assert!(!trusted.is_trusted("google"), "none() trusts no provider, not even google");
+    assert!(!trusted.is_trusted("apple"));
+    assert!(trusted.is_empty());
+}
+
+#[test]
+fn trusted_only_replaces_the_default_set() {
+    let trusted = TrustedEmailProviders::only(["keycloak"]);
+    assert!(trusted.is_trusted("keycloak"), "explicitly listed provider is trusted");
+    assert!(!trusted.is_trusted("google"), "only() replaces the default — google drops out");
+}
+
+#[test]
+fn trusted_trust_adds_a_provider() {
+    let trusted = TrustedEmailProviders::default().trust("azure_ad");
+    assert!(trusted.is_trusted("azure_ad"), "operator opted Microsoft in");
+    assert!(trusted.is_trusted("google"), "the default members remain");
+}
+
+#[test]
+fn trusted_distrust_removes_a_default() {
+    let trusted = TrustedEmailProviders::default().distrust("apple");
+    assert!(!trusted.is_trusted("apple"), "a default member can be dropped");
+    assert!(trusted.is_trusted("google"), "the other default member remains");
+}
+
+#[test]
+fn trusted_can_be_emptied_down_to_none_via_builder() {
+    // The "trust no one" posture must be reachable; distrusting both defaults empties it.
+    let trusted = TrustedEmailProviders::default().distrust("google").distrust("apple");
+    assert!(trusted.is_empty());
+}

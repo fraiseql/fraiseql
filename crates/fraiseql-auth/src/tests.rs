@@ -4983,21 +4983,24 @@ mod multi_provider_tests {
     async fn test_account_linking_same_email_different_providers() {
         use super::super::account_linking::InMemoryAccountStore;
 
+        // Both providers are default-trusted (#368), so a shared verified email links onto a
+        // single account. (An untrusted provider would be downgraded and kept separate — see
+        // `multi_provider::tests::untrusted_provider_verified_email_does_not_merge`.)
         let account_store = Arc::new(InMemoryAccountStore::new());
         let state = build_state_with_user_store(
             vec![
-                ("github", MockProvider::with_email("github", "alice@example.com")),
                 ("google", MockProvider::with_email("google", "alice@example.com")),
+                ("apple", MockProvider::with_email("apple", "alice@example.com")),
             ],
             Some(account_store.clone() as Arc<dyn AccountStore>),
         );
         let app = multi_auth_router(state);
 
-        let json1 = do_auth_round_trip(&app, "github").await;
-        let json2 = do_auth_round_trip(&app, "google").await;
+        let json1 = do_auth_round_trip(&app, "google").await;
+        let json2 = do_auth_round_trip(&app, "apple").await;
 
-        assert_eq!(json1["provider"], "github");
-        assert_eq!(json2["provider"], "google");
+        assert_eq!(json1["provider"], "google");
+        assert_eq!(json2["provider"], "apple");
 
         assert_eq!(account_store.len(), 1);
     }

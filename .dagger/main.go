@@ -607,6 +607,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test local_password -- --test-threads=1",
 		// #367 password reset (selector+verifier tokens, single-use, expiry, RLS).
 		"cargo test -p fraiseql-auth --test password_reset -- --test-threads=1",
+		// #368 social auto-link trust policy ∘ PostgresAccountStore (trusted vs untrusted → merge vs distinct).
+		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

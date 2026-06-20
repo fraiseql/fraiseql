@@ -18,6 +18,8 @@
 //!      `user_id` is returned.
 //! 3. The caller creates or refreshes a session keyed by the returned `user_id`.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -273,6 +275,146 @@ fn identity_key(verified_email: Option<&str>, provider: &str, provider_id: &str)
         Some(email) => format!("email:{email}"),
         None => format!("provider:{provider}\u{1f}{provider_id}"),
     }
+}
+
+// ─── Provider email-trust policy (#368) ─────────────────────────────────────────
+
+/// Set of `OAuth`/OIDC providers whose `email_verified` assertion FraiseQL trusts for
+/// **cross-provider auto-linking**.
+///
+/// # Why this exists (the H26 risk, one level up)
+///
+/// [`AccountStore::link_or_create_user`] merges two provider identities onto one account
+/// when they present the same *verified* email (H26). That is only safe if the provider
+/// asserting `email_verified = true` actually verified the address. A misconfigured or
+/// self-hosted IdP — or any provider that lets a user self-assert their email — can claim
+/// `email_verified = true` for an address it never owned and thereby link into another
+/// user's account (account takeover). This policy is the gate: a provider's verified claim
+/// is honored for auto-linking **only** when the provider is in the trusted set. An
+/// untrusted provider's claim is treated as unverified, so its identity is keyed on
+/// `(provider, provider_id)` and can never collapse into an existing email-keyed account
+/// (fail-closed — the same posture as H26).
+///
+/// # Both sides of the merge
+///
+/// The gate reasons about the *incoming* provider, but the merge is also safe on the
+/// *existing*-account side by construction: only a verified email from a trusted source
+/// ever enters the merge-able `email:<normalized>` key space. Unverified identities
+/// (local-password and phone sign-ups pass `email_verified = false`; see [`crate::local_password`])
+/// live in the `(provider, provider_id)` key space and are therefore structurally never
+/// absorbed by a later trusted sign-in — closing the classic pre-hijack where an
+/// attacker pre-seeds an unverified local account under the victim's email.
+///
+/// # Default trusted set
+///
+/// [`TrustedEmailProviders::default`] (and [`builtin_default`](Self::builtin_default))
+/// trust exactly:
+///
+/// - `google` — Google issues the OIDC `email_verified` claim in the signed ID token and sets it
+///   from its own verification of the address (or domain ownership for Workspace); it is meaningful
+///   to rely on.
+/// - `apple` — Apple issues the address itself (including Private Relay aliases) and always
+///   verifies ownership, so its `email_verified` claim is authoritative.
+///
+/// Deliberately **excluded** from the default (opt in explicitly once vetted):
+///
+/// - `azure_ad` / Microsoft — the `email` claim is **not** reliably verified and is tenant-mutable
+///   (the *nOAuth* class, 2023), so it must not auto-link by default.
+/// - `github` — a verified primary email requires the `/user/emails` second-hop, which is not yet
+///   implemented; its `email_verified` is fail-closed to `false`.
+/// - any generic/custom OIDC provider — FraiseQL cannot vouch for an operator-run IdP.
+///
+/// # Overriding (up *and* down)
+///
+/// Trust is trivially adjustable in either direction and is meant to read explicitly at
+/// the wiring site:
+///
+/// ```
+/// use fraiseql_auth::TrustedEmailProviders;
+///
+/// // Add a vetted provider on top of the defaults.
+/// let extended = TrustedEmailProviders::default().trust("keycloak");
+/// assert!(extended.is_trusted("keycloak") && extended.is_trusted("google"));
+///
+/// // Drop a default.
+/// let narrowed = TrustedEmailProviders::default().distrust("apple");
+/// assert!(!narrowed.is_trusted("apple"));
+///
+/// // High-assurance deployments: trust no one, in one call.
+/// let strict = TrustedEmailProviders::none();
+/// assert!(!strict.is_trusted("google"));
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedEmailProviders {
+    /// Normalized (lowercased, trimmed) provider names trusted to assert email verification.
+    providers: HashSet<String>,
+}
+
+impl TrustedEmailProviders {
+    /// The built-in default trusted set: `google` and `apple` (see the type docs for the
+    /// per-provider rationale). Equivalent to [`TrustedEmailProviders::default`].
+    #[must_use]
+    pub fn builtin_default() -> Self {
+        Self::only(["google", "apple"])
+    }
+
+    /// Trust **no** provider. Every social identity is keyed on `(provider, provider_id)`
+    /// and can never auto-merge on email — the one-call "trust no one" posture for
+    /// high-assurance or regulated deployments.
+    #[must_use]
+    pub fn none() -> Self {
+        Self {
+            providers: HashSet::new(),
+        }
+    }
+
+    /// Trust exactly the given providers, **replacing** the default set.
+    #[must_use]
+    pub fn only(providers: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            providers: providers.into_iter().map(|p| normalize_provider(&p.into())).collect(),
+        }
+    }
+
+    /// Add a provider to the trusted set (builder-style).
+    #[must_use]
+    pub fn trust(mut self, provider: impl Into<String>) -> Self {
+        self.providers.insert(normalize_provider(&provider.into()));
+        self
+    }
+
+    /// Remove a provider from the trusted set (builder-style) — e.g. to drop a default.
+    #[must_use]
+    pub fn distrust(mut self, provider: &str) -> Self {
+        self.providers.remove(&normalize_provider(provider));
+        self
+    }
+
+    /// Return `true` if `provider` is trusted to assert email verification for
+    /// auto-linking. Matching is case- and surrounding-whitespace-insensitive.
+    #[must_use]
+    pub fn is_trusted(&self, provider: &str) -> bool {
+        self.providers.contains(&normalize_provider(provider))
+    }
+
+    /// Return `true` if no provider is trusted (the "trust no one" posture).
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.providers.is_empty()
+    }
+}
+
+impl Default for TrustedEmailProviders {
+    /// The built-in default trusted set ([`TrustedEmailProviders::builtin_default`]).
+    fn default() -> Self {
+        Self::builtin_default()
+    }
+}
+
+/// Normalize a provider name for trust comparison (trim + lowercase), matching the way
+/// providers register their names (e.g. `"google"`).
+fn normalize_provider(provider: &str) -> String {
+    provider.trim().to_lowercase()
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
