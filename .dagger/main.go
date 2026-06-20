@@ -605,6 +605,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1",
 		// #412 local-password authenticator (Argon2id signup/login/rehash/disabled + RLS).
 		"cargo test -p fraiseql-auth --test local_password -- --test-threads=1",
+		// #367 password reset (selector+verifier tokens, single-use, expiry, RLS).
+		"cargo test -p fraiseql-auth --test password_reset -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

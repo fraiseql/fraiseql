@@ -55,7 +55,12 @@ use crate::{
     account_linking::{AccountStore, SCHEMA_SQL as IDENTITY_SCHEMA_SQL, normalize_email},
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
+    session::SessionStore,
 };
+
+mod reset;
+
+pub use reset::{PASSWORD_RESET_SCHEMA_SQL, RESET_TOKEN_TTL_SECS, ResetEmailSender};
 
 /// Provider name recorded for local-password identities in `core.tb_auth_identity`.
 const LOCAL_PROVIDER: &str = "local";
@@ -121,16 +126,24 @@ REVOKE ALL ON core.tb_password_credential FROM PUBLIC;
 /// `PgPool` role must own (or `BYPASSRLS`) the `core` tables — calling `init` creates
 /// them, so the connecting role owns them by construction.
 pub struct LocalPasswordAuthenticator {
-    db:         PgPool,
+    db:            PgPool,
     /// Resolves/creates users at signup (provider `"local"`). Any [`AccountStore`] that
     /// persists into `core.tb_auth_identity` works; in practice this is
     /// [`PostgresAccountStore`](crate::PostgresAccountStore), since login resolves
     /// email → `user_id` through that table.
-    accounts:   Arc<dyn AccountStore>,
-    argon2:     Argon2<'static>,
+    accounts:      Arc<dyn AccountStore>,
+    argon2:        Argon2<'static>,
     /// A real Argon2id hash, built from `argon2`'s parameters, used to equalize the
     /// verification cost of an unknown-user login with a real one.
-    dummy_hash: String,
+    dummy_hash:    String,
+    /// Delivers reset links for [`start_password_reset`](Self::start_password_reset).
+    /// Wired via [`with_email_sender`](Self::with_email_sender); `None` issues tokens
+    /// without delivering them (a warning is logged).
+    email_sender:  Option<Arc<dyn reset::ResetEmailSender>>,
+    /// Revoked on a successful [`confirm_password_reset`](Self::confirm_password_reset).
+    /// Wired via [`with_session_store`](Self::with_session_store); `None` skips revocation
+    /// (a warning is logged).
+    session_store: Option<Arc<dyn SessionStore>>,
 }
 
 impl LocalPasswordAuthenticator {
@@ -175,6 +188,8 @@ impl LocalPasswordAuthenticator {
             accounts,
             argon2,
             dummy_hash,
+            email_sender: None,
+            session_store: None,
         }
     }
 
@@ -197,6 +212,10 @@ impl LocalPasswordAuthenticator {
             .execute(&self.db)
             .await
             .map_err(|e| db_error("initialize password credential store", &e))?;
+        sqlx::raw_sql(reset::PASSWORD_RESET_SCHEMA_SQL)
+            .execute(&self.db)
+            .await
+            .map_err(|e| db_error("initialize password reset token store", &e))?;
         Ok(())
     }
 
@@ -436,6 +455,14 @@ fn validate_credentials(email: &str, password: &str) -> Result<()> {
             reason: "email is empty or malformed".to_string(),
         });
     }
+    validate_password(password)
+}
+
+/// Enforce the password length policy without touching the database.
+///
+/// Shared by signup ([`validate_credentials`]) and password reset so both apply the same
+/// floor and DoS ceiling.
+fn validate_password(password: &str) -> Result<()> {
     let len = password.len();
     if len < MIN_PASSWORD_LEN {
         return Err(AuthError::InvalidRegistration {

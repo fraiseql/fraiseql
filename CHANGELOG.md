@@ -179,6 +179,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Password reset for local accounts (#367).** `LocalPasswordAuthenticator` gains
+  `start_password_reset` / `confirm_password_reset` — a single-use, one-hour,
+  non-enumerable reset on top of #412's Argon2 credentials. This is the reset slice
+  deferred from the #367 bundle until #412 and the #349 email path shipped (both now done).
+  Tokens use a **selector + verifier** scheme: the opaque token is `selector.verifier`, but
+  the store (`core.tb_password_reset_token`, FK-linked to `core.tb_user`, same
+  deny-by-default RLS as #411/#412) keeps only the selector and `sha256(verifier)`, so a
+  database read cannot forge a usable token; redemption looks the row up by selector and
+  compares the verifier hash in **constant time**. `start_password_reset` always returns
+  `Ok(())` and dispatches the link in a spawned task, so an unknown or OAuth-only email is
+  indistinguishable from a real one. `confirm_password_reset` validates the token, sets the
+  new Argon2id hash, marks it used under an atomic single-use guard, invalidates the user's
+  other outstanding tokens, and revokes the user's sessions. Email delivery is abstracted
+  behind the new `ResetEmailSender` trait, so `fraiseql-auth` carries no SMTP dependency;
+  HTTP endpoints and a concrete sender are deferred to the local-auth route wiring, matching
+  #412's service-only precedent. Email verification (the remaining #367 sub-flow) and reset
+  rate limiting are tracked follow-ups. See `docs/auth/local-password.md`.
 - **Local password authentication (#412).** New `LocalPasswordAuthenticator` — email +
   password signup / login / secure storage using **Argon2id** (constant-time verify,
   per-credential random salt), built on the #411 identity store. Credentials live in a

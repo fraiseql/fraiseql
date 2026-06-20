@@ -83,7 +83,10 @@ pub use handlers::{
 };
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
-pub use local_password::{LocalPasswordAuthenticator, PASSWORD_SCHEMA_SQL};
+pub use local_password::{
+    LocalPasswordAuthenticator, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL,
+    RESET_TOKEN_TTL_SECS, ResetEmailSender,
+};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use multi_provider::{

@@ -101,6 +101,63 @@ When a successful login's stored hash used weaker Argon2 parameters than the cur
 policy, the (correct) password is transparently re-hashed and the stored hash is updated.
 A rehash failure never fails the login — the next login retries.
 
+## Password reset (#367)
+
+`start_password_reset` / `confirm_password_reset` add a single-use, one-hour,
+non-enumerable reset on top of the same credential store. Like signup/login they ship as a
+library primitive: you construct the authenticator and wire your own routes — no HTTP
+endpoint or SMTP client is built in.
+
+```rust
+use fraiseql_auth::{ResetEmailSender, SessionStore};
+
+let auth = LocalPasswordAuthenticator::new(pool, accounts)
+    .with_email_sender(email_sender)    // Arc<dyn ResetEmailSender>: delivers the link
+    .with_session_store(session_store); // Arc<dyn SessionStore>: revoked on a reset
+auth.init().await?; // also creates core.tb_password_reset_token
+
+// Non-enumerable: always Ok(()), whether or not the email has a local account.
+auth.start_password_reset("alice@example.com").await?;
+// The user clicks the emailed link; your route hands the token back here.
+auth.confirm_password_reset(&token, "a brand new passphrase!").await?;
+```
+
+### Token design: selector + verifier
+
+The opaque token handed to the user is `selector.verifier` (base64url). The store
+(`core.tb_password_reset_token`, FK-linked to `core.tb_user`, same deny-by-default RLS as
+above) keeps only the **selector** (indexed, non-secret) and **`sha256(verifier)`** — never
+the raw token. Redemption looks the row up by selector (no secret in the `WHERE`, so the
+lookup is not an existence oracle), then compares the SHA-256 of the presented verifier
+against the stored hash in **constant time**. A full database read cannot forge a usable
+token: it would need a SHA-256 preimage of a 256-bit CSPRNG verifier. SHA-256 (not Argon2)
+suffices precisely because the verifier is high-entropy — there is no brute-force surface.
+
+### Start is non-enumerable
+
+`start_password_reset(email)` always returns `Ok(())`. The credential lookup runs on every
+path, a token is issued only for an email that has a local credential, and the link is
+dispatched in a spawned task — so an unknown or OAuth-only email returns indistinguishably
+from one that issued a token. The audit log records the precise reason
+(`no_local_credential` on the no-op path; success otherwise).
+
+### Confirm is single-use and rotates everything
+
+`confirm_password_reset(token, new_password)` enforces the same password-length policy as
+signup, then: verifies the token, rejects it if expired or already used, sets the new
+Argon2id hash, marks the token used under an atomic guard (`WHERE used_at IS NULL AND
+expires_at > now()` — a concurrent second redemption affects zero rows and is rejected),
+invalidates the user's **other** outstanding tokens, and revokes the user's sessions via
+the wired `SessionStore`. Any unredeemable token (unknown / malformed / expired / used /
+wrong verifier) returns one generic `InvalidToken`; the audit log records the precise
+reason.
+
+Email delivery is abstracted behind `ResetEmailSender` so `fraiseql-auth` carries no SMTP
+dependency; provide a concrete sender (e.g. `lettre`, or one bridging the #349 observer
+SMTP path) when you wire routes. Without a sender, a token is still issued and persisted but
+a warning is logged rather than delivering it; without a session store, the password changes
+but a warning notes that outstanding sessions were not revoked.
+
 ## Deferred
 
 Named here so they are tracked, not assumed handled:
@@ -112,6 +169,12 @@ Named here so they are tracked, not assumed handled:
 - **Non-enumerable signup.** `EmailAlreadyRegistered` (409) is a signup existence oracle.
   The standard "we emailed you" mitigation needs the email-action path (#349), not yet
   shipped, so v1 returns the distinct error and documents it.
-- **Password reset / email verification** — #367, reusing the #349 email path.
+- **HTTP endpoints and a concrete `ResetEmailSender`** for the reset flow above — deferred
+  to the step that wires the local-auth routes (login/signup have none yet either). The
+  service primitive and the `ResetEmailSender` trait ship now.
+- **Email verification** — the remaining #367 sub-flow, reusing the same #349 email path;
+  it is what will promote `core.tb_user.email` from `NULL` for a local account.
 - **Configurable password policy.** v1 enforces a fixed minimum (12 bytes) and maximum
-  (4096 bytes, a DoS guard) length.
+  (4096 bytes, a DoS guard) length, shared by signup and password reset.
+- **Reset rate limiting.** `start_password_reset` is not yet rate-limited against
+  token-issuance flooding — the same follow-up as login rate limiting above.
