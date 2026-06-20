@@ -12,7 +12,12 @@
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** truncates the shared `core` tables on setup → run `--test-threads=1`.
-#![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic, clippy::unimplemented)] // Reason: test code — panics, skip diagnostics, and unreachable mock methods are acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::print_stderr,
+    clippy::panic,
+    clippy::unimplemented
+)] // Reason: test code — panics, skip diagnostics, and unreachable mock methods are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (Argon2id, PostgreSQL, RLS) throughout the docs
 
 use std::{
