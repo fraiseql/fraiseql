@@ -276,6 +276,11 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 			"apt-get", "install", "-y", "--no-install-recommends",
 			"mold", "clang", "pkg-config", "libssl-dev", "cmake",
 			"protobuf-compiler", "python3", "libsasl2-dev", "zlib1g-dev",
+			// libxml2-dev + libxmlsec1-dev: samael's `xmlsec` backend (the #381
+			// `auth-saml` feature). The shared clippy/rustdoc/test legs compile
+			// `--all-features`, which turns auth-saml on, so the C stack must live in
+			// the base. Mirrors the local requirement (`pacman -S xmlsec` on Arch).
+			"libxml2-dev", "libxmlsec1-dev",
 		}).
 		// rustfmt + clippy on the pinned stable, plus rust-analyzer to satisfy
 		// rust-toolchain.toml (avoids a mid-run auto-install); a minimal nightly
@@ -622,10 +627,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 }
 
 // integrationSaml runs the #381 SAML SP-login + ACS suite behind the non-default
-// `auth-saml` feature. samael's signature verification needs the libxml2 + xmlsec1 C
-// stack, which the shared rustBase deliberately omits to keep every other leg lean — so
-// this dedicated leg installs it. These C deps mirror the local requirement exactly
-// (`pacman -S xmlsec` on Arch == the apt packages below on Debian); keep both in sync.
+// `auth-saml` feature. The libxml2 + xmlsec1 C stack samael needs lives in rustBase (the
+// shared legs compile `--all-features`, which turns auth-saml on), so this leg only binds
+// Postgres and runs the suite.
 //
 // The `--lib saml::` line runs the verification core + attack matrix (XSW / XXE /
 // comment-truncation / replay / weak-digest) — no database, but it is what makes this leg
@@ -647,13 +651,6 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
-		// libxml2-dev + libxmlsec1-dev are SAML-only; libssl-dev + pkg-config are already
-		// in rustBase but listed for an explicit, copy-pasteable C-dep manifest.
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
-			"libxml2-dev", "libxmlsec1-dev", "libssl-dev", "pkg-config",
-		}).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
