@@ -136,6 +136,14 @@ fn build_pool(connection_string: &str, max_size: usize, timeout_secs: Option<u64
     }
     cfg.pool = Some(pool_cfg);
 
+    // Connections use `NoTls` by design (#445). FraiseQL's deployment model terminates
+    // transport security outside the adapter: the database is reached over a trusted
+    // network — a TLS-terminating proxy (pgbouncer, cloud-sql-proxy, a service mesh) or a
+    // loopback/private link (the prod compose stacks bind Postgres to loopback, #436/H46).
+    // This mirrors the server-side TLS stance (terminated at the ingress/proxy, not the app).
+    // A `sslmode=require` in the connection string is therefore NOT honored here; wiring a
+    // rustls `MakeTlsConnect` through deadpool is a deliberate future extension, not a
+    // silent partial one.
     cfg.create_pool(Some(Runtime::Tokio1), NoTls)
         .map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to create connection pool: {e}"),

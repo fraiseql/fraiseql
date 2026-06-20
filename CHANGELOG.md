@@ -167,6 +167,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`fraiseql-db` adapter integration tests read DB URLs from the test harness, and the
+  `PostgresAdapter` `NoTls` stance is documented (#445).** The feature-gated
+  `postgres`/`mysql`/`sqlserver` adapter + introspector integration tests no longer hardcode
+  `localhost:5433`/`:3307`/`:1434`; they now source their URL from the new
+  `fraiseql_test_support::{database_url, mysql_url, sqlserver_url}` env-URL helpers, so they
+  resolve under Dagger service bindings (local == CI). The `PostgresAdapter` connection pool
+  uses `NoTls` by design (transport security is terminated at a proxy or trusted
+  loopback/private link, mirroring the server-TLS stance); this is now documented at the call
+  site rather than left implicit. Residual cleanup split out of #442.
 - **The `lint --verbose` CLI flag was removed** — it was parsed and discarded. The
   global `--verbose` flag is unaffected.
 - `fraiseql-arrow` type-conversion errors now surface as `ArrowFlightError::Conversion`

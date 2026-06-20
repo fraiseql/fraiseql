@@ -26,12 +26,15 @@ use serde_json::json;
 use super::*;
 use crate::{WhereClause, WhereOperator, traits::DatabaseAdapter, types::DatabaseType};
 
-const TEST_DB_URL: &str =
-    "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
+// Test DB URL from the `fraiseql_test_support` env-URL harness (`DATABASE_URL`), so this
+// suite runs against a Dagger-bound service (local == CI) instead of a hardcoded host.
+fn test_db_url() -> String {
+    fraiseql_test_support::database_url()
+}
 
 // Helper to create test adapter
 async fn create_test_adapter() -> PostgresAdapter {
-    PostgresAdapter::new(TEST_DB_URL)
+    PostgresAdapter::new(&test_db_url())
         .await
         .expect("Failed to create test adapter - is PostgreSQL running? Use: docker compose -f docker-compose.test.yml up -d postgres-test")
 }
@@ -50,7 +53,7 @@ async fn test_adapter_creation() {
 
 #[tokio::test]
 async fn test_adapter_with_custom_pool_size() {
-    let adapter = PostgresAdapter::with_pool_size(TEST_DB_URL, 5)
+    let adapter = PostgresAdapter::with_pool_size(&test_db_url(), 5)
         .await
         .expect("Failed to create adapter");
 
@@ -666,7 +669,7 @@ async fn execute_raw_query_surfaces_sqlstate_22p02_for_malformed_cast() {
 #[tokio::test]
 async fn pool_prewarms_to_min_size() {
     let adapter = PostgresAdapter::with_pool_config(
-        TEST_DB_URL,
+        &test_db_url(),
         PoolPrewarmConfig {
             min_size:     5,
             max_size:     20,
@@ -687,7 +690,7 @@ async fn pool_prewarms_to_min_size() {
 #[tokio::test]
 async fn pool_prewarm_zero_min_size_creates_one_connection() {
     let adapter = PostgresAdapter::with_pool_config(
-        TEST_DB_URL,
+        &test_db_url(),
         PoolPrewarmConfig {
             min_size:     0,
             max_size:     10,
@@ -707,7 +710,7 @@ async fn pool_prewarm_zero_min_size_creates_one_connection() {
 #[tokio::test]
 async fn pool_prewarm_min_capped_at_max() {
     let adapter = PostgresAdapter::with_pool_config(
-        TEST_DB_URL,
+        &test_db_url(),
         PoolPrewarmConfig {
             min_size:     100,
             max_size:     3,
@@ -728,7 +731,7 @@ async fn pool_prewarm_min_capped_at_max() {
 #[tokio::test]
 async fn pool_timeout_causes_fast_failure_when_exhausted() {
     let adapter = PostgresAdapter::with_pool_config(
-        TEST_DB_URL,
+        &test_db_url(),
         PoolPrewarmConfig {
             min_size:     1,
             max_size:     1,
@@ -758,7 +761,7 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
 #[tokio::test]
 async fn acquire_does_not_retry_on_timeout_error() {
     let adapter = PostgresAdapter::with_pool_config(
-        TEST_DB_URL,
+        &test_db_url(),
         PoolPrewarmConfig {
             min_size:     1,
             max_size:     1,

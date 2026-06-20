@@ -213,12 +213,16 @@ mod integration_tests {
     // Note: These tests require a running MySQL instance with test data.
     // Run with: cargo test --features test-mysql -p fraiseql-core db::mysql::adapter
 
-    const TEST_DB_URL: &str =
-        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    // Test DB URL from the `fraiseql_test_support` env-URL harness (`MYSQL_URL`), so this
+    // suite runs against a Dagger-bound service (local == CI) instead of a hardcoded host.
+    fn test_db_url() -> String {
+        fraiseql_test_support::mysql_url()
+    }
 
     #[tokio::test]
     async fn test_adapter_creation() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         let metrics = adapter.pool_metrics();
         assert!(metrics.total_connections > 0);
@@ -227,14 +231,16 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         adapter.health_check().await.expect("Health check failed");
     }
 
     #[tokio::test]
     async fn test_parameterized_limit_only() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), None, None)
@@ -246,7 +252,8 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_parameterized_offset_only() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, None, Some(1), None)
@@ -258,7 +265,8 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_parameterized_limit_and_offset() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), Some(1), None)
@@ -278,7 +286,8 @@ mod integration_tests {
 
         use crate::traits::DatabaseAdapter;
 
-        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&test_db_url()).await.expect("Failed to create MySQL adapter");
 
         // A real (non-temporary) table so the inserts are visible regardless of
         // which pooled connection each statement lands on. Best-effort cleanup

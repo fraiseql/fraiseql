@@ -248,11 +248,16 @@ mod integration_tests {
     // Note: These tests require a running SQL Server instance with test data.
     // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter
 
-    const TEST_DB_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    // Test connection string from the `fraiseql_test_support` env-URL harness
+    // (`SQLSERVER_URL`), so this suite runs against a Dagger-bound service (local == CI)
+    // instead of a hardcoded host.
+    fn test_db_url() -> String {
+        fraiseql_test_support::sqlserver_url()
+    }
 
     #[tokio::test]
     async fn test_adapter_creation() {
-        let adapter = SqlServerAdapter::new(TEST_DB_URL)
+        let adapter = SqlServerAdapter::new(&test_db_url())
             .await
             .expect("Failed to create SQL Server adapter");
 
@@ -263,7 +268,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        let adapter = SqlServerAdapter::new(TEST_DB_URL)
+        let adapter = SqlServerAdapter::new(&test_db_url())
             .await
             .expect("Failed to create SQL Server adapter");
 
@@ -272,7 +277,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_parameterized_limit_and_offset() {
-        let adapter = SqlServerAdapter::new(TEST_DB_URL)
+        let adapter = SqlServerAdapter::new(&test_db_url())
             .await
             .expect("Failed to create SQL Server adapter");
 

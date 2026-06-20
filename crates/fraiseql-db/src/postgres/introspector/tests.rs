@@ -37,19 +37,23 @@ mod integration_tests {
     use super::*;
     use crate::postgres::PostgresAdapter;
 
-    const TEST_DB_URL: &str =
-        "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
+    // Test DB URL from the `fraiseql_test_support` env-URL harness (`DATABASE_URL`), so this
+    // suite runs against a Dagger-bound service (local == CI) instead of a hardcoded host.
+    fn test_db_url() -> String {
+        fraiseql_test_support::database_url()
+    }
 
     // Helper to create test introspector
     async fn create_test_introspector() -> PostgresIntrospector {
-        let _adapter =
-            PostgresAdapter::new(TEST_DB_URL).await.expect("Failed to create test adapter");
+        let _adapter = PostgresAdapter::new(&test_db_url())
+            .await
+            .expect("Failed to create test adapter");
 
         // Extract pool from adapter (we need a way to get the pool)
         // For now, create a new pool directly
 
         let mut cfg = Config::new();
-        cfg.url = Some(TEST_DB_URL.to_string());
+        cfg.url = Some(test_db_url());
         cfg.manager = Some(ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
         });
