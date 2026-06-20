@@ -30,6 +30,8 @@ pub mod provider;
 pub mod providers;
 pub mod proxy;
 pub mod rate_limiting;
+#[cfg(feature = "auth-saml")]
+pub mod saml;
 pub mod security_config;
 pub mod security_init;
 pub mod session;
@@ -115,6 +117,12 @@ pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
 pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
+#[cfg(feature = "auth-saml")]
+pub use saml::{
+    SamlAttributeMapping, SamlAuthState, SamlError, SamlIdpConfig, SamlIdpConfigBuilder,
+    SamlReplayCache, VerifiedAssertion, effective_saml_email_verified, saml_acs, saml_login,
+    saml_provider_key, saml_routes, verify_saml_response,
+};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
     SecurityConfigFromSchema, StateEncryptionSettings,

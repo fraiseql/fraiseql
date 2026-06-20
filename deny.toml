@@ -48,6 +48,35 @@ unmaintained = "workspace"
 multiple-versions = "deny"
 wildcards = "allow"
 
+# samael (SAML SP, #381) is an opt-in `auth-saml`-only dependency; its build/derive stack
+# (derive_builder 0.20 → darling 0.20; bindgen → nom 7) and openssl-probe 0.1 pull older
+# duplicate versions than the rest of the workspace. Pinned to the samael-side versions so
+# only those exact duplicates are exempt; bump these if samael's tree moves.
+[[bans.skip]]
+name = "darling"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling 0.20; workspace on 0.23"
+version = "=0.20.11"
+
+[[bans.skip]]
+name = "darling_core"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_core 0.20; workspace on 0.23"
+version = "=0.20.11"
+
+[[bans.skip]]
+name = "darling_macro"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_macro 0.20; workspace on 0.23"
+version = "=0.20.11"
+
+[[bans.skip]]
+name = "nom"
+reason = "samael (#381 auth-saml) → bindgen → nom 7; workspace on nom 8"
+version = "=7.1.3"
+
+[[bans.skip]]
+name = "openssl-probe"
+reason = "samael (#381 auth-saml) → openssl-probe 0.1; workspace on 0.2"
+version = "=0.1.6"
+
 [[bans.skip]]
 name = "sha1"
 reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11 (#300)"

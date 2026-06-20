@@ -580,8 +580,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationFederation(ctx, source)
 	case "cross-db":
 		return m.integrationCrossDb(ctx, source)
+	case "saml":
+		return m.integrationSaml(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, cross-db)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, cross-db, saml)", suite)
 	}
 }
 
@@ -613,6 +615,45 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithEnvVariable("DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationSaml runs the #381 SAML SP-login + ACS suite behind the non-default
+// `auth-saml` feature. samael's signature verification needs the libxml2 + xmlsec1 C
+// stack, which the shared rustBase deliberately omits to keep every other leg lean — so
+// this dedicated leg installs it. These C deps mirror the local requirement exactly
+// (`pacman -S xmlsec` on Arch == the apt packages below on Debian); keep both in sync.
+//
+// The `--lib saml::` line runs the verification core + attack matrix (XSW / XXE /
+// comment-truncation / replay / weak-digest) — no database, but it is what makes this leg
+// able to go red on a verification regression. The `--test saml_sso` line binds Postgres
+// and exercises the tenant-bounded trust policy against the durable account store.
+func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: saml (#381 SP login + ACS; auth-saml feature, xmlsec1 C stack)'",
+		"echo \"### xmlsec1: $(xmlsec1-config --version)\"",
+		// Verification core + full attack matrix (no DB) — proves the leg can go red.
+		"cargo test -p fraiseql-auth --features auth-saml --lib saml:: -- --test-threads=1",
+		// Tenant-bounded trust policy ∘ PostgresAccountStore (reads DATABASE_URL via harness).
+		"cargo test -p fraiseql-auth --features auth-saml --test saml_sso -- --test-threads=1",
+		"echo 'test-integration OK: saml suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		// libxml2-dev + libxmlsec1-dev are SAML-only; libssl-dev + pkg-config are already
+		// in rustBase but listed for an explicit, copy-pasteable C-dep manifest.
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{
+			"apt-get", "install", "-y", "--no-install-recommends",
+			"libxml2-dev", "libxmlsec1-dev", "libssl-dev", "pkg-config",
+		}).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).

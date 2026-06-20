@@ -179,6 +179,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Native SAML 2.0 SP-initiated SSO + ACS (#381).** Opt-in `auth-saml` build feature adds
+  an in-process SAML Service Provider: `GET /auth/saml/login` (signed-relay-state
+  `AuthnRequest`) and `POST /auth/saml/acs`. Assertion verification (via `samael`/xmlsec1)
+  is fail-closed across the full attack surface — XML signature verified against the IdP
+  cert under a SHA-256+ algorithm allow-list, document *reduced to the signed bytes* before
+  parsing (XML Signature Wrapping defense), `DOCTYPE`/entity declarations rejected (XXE),
+  audience / `Recipient` / `Destination` / `NotBefore` / `NotOnOrAfter` / `InResponseTo`
+  enforced, and single-use assertion-ID replay protection. A verified assertion resolves to
+  a local user via the existing #411 account store keyed on `("saml:<idp>", NameID)`. Email
+  auto-linking is **off by default** and, when opted in per IdP (`trust_asserted_email`),
+  honored only when the merge is provably bounded to a single tenant — a tenant-bound IdP
+  fails closed rather than risk a cross-tenant nOAuth merge, and SAML is never added to the
+  global trusted-provider set. The `samael` XML/crypto C stack (libxml2 + xmlsec1) stays
+  behind the non-default feature, so the default build is unchanged; CI runs a dedicated
+  `integration: saml` Dagger suite. Multi-IdP discovery, per-tenant SAML config storage, and
+  SCIM provisioning remain on the #381 umbrella. See `docs/auth/saml-sso.md`.
 - **Password reset for local accounts (#367).** `LocalPasswordAuthenticator` gains
   `start_password_reset` / `confirm_password_reset` — a single-use, one-hour,
   non-enumerable reset on top of #412's Argon2 credentials. This is the reset slice
