@@ -1,6 +1,7 @@
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1.0"
+argon2 = "0.5"
 bcrypt = "0.15"
 async-trait = "0.1"
 axum = {workspace = true, features = ["macros"]}

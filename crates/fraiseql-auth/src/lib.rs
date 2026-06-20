@@ -15,6 +15,7 @@ pub mod error_sanitizer;
 pub mod handlers;
 pub mod jwks;
 pub mod jwt;
+pub mod local_password;
 pub mod middleware;
 pub mod monitoring;
 pub mod multi_provider;
@@ -82,6 +83,7 @@ pub use handlers::{
 };
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
+pub use local_password::{LocalPasswordAuthenticator, PASSWORD_SCHEMA_SQL};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use multi_provider::{

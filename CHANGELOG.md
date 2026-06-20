@@ -179,6 +179,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Local password authentication (#412).** New `LocalPasswordAuthenticator` — email +
+  password signup / login / secure storage using **Argon2id** (constant-time verify,
+  per-credential random salt), built on the #411 identity store. Credentials live in a
+  new `core.tb_password_credential` table FK-linked to `core.tb_user`, mirroring #411's
+  schema and deny-by-default RLS (`ENABLE`-not-`FORCE`, GUC `fraiseql.tenant_id`,
+  `REVOKE ALL … FROM PUBLIC`); `init()` is idempotent and self-sufficient. Security
+  posture is deliberate: signup resolves the user through the existing `AccountStore`
+  with provider `"local"` and `provider_id = normalize_email(email)`, links **fail-closed**
+  (`email_verified = false`, so an unverified local signup can never seize an existing
+  verified-email account — H26), and login is **non-enumerable** (unknown-user and
+  wrong-password return the same `InvalidCredentials` with the same Argon2 cost via a
+  same-parameter dummy hash; the server audit log keeps the precise reason). A correct
+  password on a disabled account returns the distinct `AccountDisabled`; a successful
+  login transparently rehashes when the cost policy strengthens. Always compiled, opt-in
+  at runtime. Rate-limiting/lockout, non-enumerable signup, and password reset are tracked
+  follow-ups (#367/#349). See `docs/auth/local-password.md`.
 - **Persistent user / identity store (#411).** New `PostgresAccountStore` — a durable
   PostgreSQL backend for the existing `AccountStore` trait, so account-linking survives a
   process restart (the in-memory store loses it). It is a drop-in: same trait, same

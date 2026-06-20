@@ -154,6 +154,27 @@ impl AuthError {
                 "rate_limited",
                 format!("Too many requests. Retry after {retry_after_secs} seconds"),
             ),
+            // SECURITY: unknown-user and wrong-password collapse to one response so the
+            // client cannot enumerate registered emails (no user-existence oracle).
+            Self::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_credentials",
+                "Invalid email or password".to_string(),
+            ),
+            Self::AccountDisabled => {
+                (StatusCode::FORBIDDEN, "account_disabled", "This account is disabled".to_string())
+            },
+            Self::EmailAlreadyRegistered => (
+                StatusCode::CONFLICT,
+                "email_already_registered",
+                "An account already exists for this email".to_string(),
+            ),
+            // The validation reason stays server-side; the client gets a generic message.
+            Self::InvalidRegistration { .. } => (
+                StatusCode::BAD_REQUEST,
+                "invalid_registration",
+                "Invalid registration details".to_string(),
+            ),
         }
     }
 
@@ -197,13 +218,18 @@ impl AuthError {
             Self::ForbiddenAlgorithm { alg } => {
                 warn!("OIDC algorithm-substitution attack rejected: forbidden algorithm '{alg}'");
             },
-            // No server-side logging needed for these variants
+            Self::InvalidRegistration { reason } => warn!("Local signup rejected: {reason}"),
+            // No additional logging here: the local-password flow audit-logs the precise
+            // reason (unknown_user / wrong_password / disabled) at the point of failure.
             Self::TokenExpired
             | Self::InvalidSignature
             | Self::TokenNotFound
             | Self::SessionRevoked
             | Self::InvalidState
-            | Self::RateLimited { .. } => {},
+            | Self::RateLimited { .. }
+            | Self::InvalidCredentials
+            | Self::AccountDisabled
+            | Self::EmailAlreadyRegistered => {},
         }
     }
 }

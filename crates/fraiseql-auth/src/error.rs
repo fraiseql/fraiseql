@@ -233,6 +233,39 @@ pub enum AuthError {
         /// The algorithm name from the JWT header (e.g., `"HS256"`).
         alg: String,
     },
+
+    /// A local email + password login failed because the user is unknown **or** the
+    /// password was wrong.
+    ///
+    /// These two cases are deliberately merged into a single variant so the client
+    /// cannot distinguish them (no user-existence oracle); the precise reason is recorded
+    /// in the server audit log instead. The login path equalizes timing across both
+    /// cases by always performing an Argon2 verification.
+    #[error("Invalid email or password")]
+    InvalidCredentials,
+
+    /// A local email + password login presented the **correct** password for an account
+    /// whose local sign-in has been administratively disabled.
+    ///
+    /// Only reachable after a successful password verification, so it never reveals
+    /// account state to a party that does not already hold valid credentials.
+    #[error("This account is disabled")]
+    AccountDisabled,
+
+    /// A local signup was attempted for an email that already has a local credential.
+    #[error("An account already exists for this email")]
+    EmailAlreadyRegistered,
+
+    /// A local signup was rejected by input validation (malformed email or a password
+    /// that violates the length policy).
+    ///
+    /// The `reason` carries the specific validation detail for server-side logging; the
+    /// `IntoResponse` impl returns a generic message to the client.
+    #[error("Invalid registration details: {reason}")]
+    InvalidRegistration {
+        /// Internal validation detail (not forwarded to callers).
+        reason: String,
+    },
 }
 
 /// Convenience alias for `Result<T, AuthError>`.
