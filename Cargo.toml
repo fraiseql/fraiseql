@@ -34,6 +34,7 @@ members = [
   "crates/fraiseql-test-support",
   "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
+  "crates/fraiseql-cdc-sinks",  # Outbound CDC: drains the change-log outbox to brokers (#382)
   "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-functions",  # Serverless functions runtime
   "crates/fraiseql-storage",  # Object storage backends
@@ -326,6 +327,7 @@ unused_variables = "warn"
 [workspace.metadata.crate-size-budget]
 fraiseql-arrow = 15_000
 fraiseql-auth = 25_000
+fraiseql-cdc-sinks = 10_000
 fraiseql-cli = 40_000
 fraiseql-core = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
 fraiseql-db = 25_000

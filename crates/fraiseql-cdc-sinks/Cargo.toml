@@ -1,0 +1,40 @@
+[dependencies]
+async-nats = {version = "0.47", optional = true}
+chrono = {workspace = true}
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"]}
+thiserror = "2.0"
+tokio = {workspace = true}
+tracing = {workspace = true}
+uuid = {workspace = true}
+
+[dev-dependencies]
+fraiseql-test-support = {path = "../fraiseql-test-support"}
+futures = "0.3"
+tokio = {workspace = true, features = ["test-util"]}
+
+[features]
+# Off by default: the broker client (async-nats, pure-Rust) is pulled only when a
+# deployment enables the NATS JetStream sink. The default build stays broker-free;
+# the drain worker + all pure encoding/sanitisation logic compile unconditionally.
+default = []
+cdc-nats-jetstream = ["dep:async-nats"]
+
+[lints]
+workspace = true
+
+[package]
+description = "Outbound change-data-capture: drains the FraiseQL change-log outbox to external brokers (#382)"
+name = "fraiseql-cdc-sinks"
+readme = "README.md"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
