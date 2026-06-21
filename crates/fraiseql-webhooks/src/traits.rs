@@ -47,29 +47,43 @@ pub trait SignatureVerifier: Send + Sync {
     }
 }
 
-/// Idempotency store abstraction for testing
+/// Atomic, transaction-scoped deduplication of inbound webhook deliveries.
+///
+/// A delivery is claimed *inside* the same transaction that runs its handler, so
+/// the claim and the handler's effects commit or roll back together. This is the
+/// only race-free shape: two concurrent duplicate deliveries serialise on the
+/// unique-key row lock, exactly one wins, and a handler failure rolls the claim
+/// back so the sender's retry reprocesses cleanly (no lost / double-processed
+/// events). A check-then-record split (read outside the transaction, write after)
+/// has a TOCTOU window where concurrent duplicates both pass the read and both
+/// process — which is why this trait exposes a single atomic [`claim`] rather
+/// than separate check / record calls.
+///
+/// [`claim`]: IdempotencyStore::claim
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait IdempotencyStore: Send + Sync {
-    /// Check if event has already been processed
-    async fn check(&self, provider: &str, event_id: &str) -> Result<bool>;
-
-    /// Record processed event
-    async fn record(
+    /// Atomically claim a `(provider, event_id)` delivery within the caller's
+    /// transaction.
+    ///
+    /// Returns `Ok(Some(id))` when the delivery is newly claimed (the caller
+    /// should process it) and `Ok(None)` when it was already claimed by an
+    /// earlier committed delivery (a duplicate the caller must silently discard).
+    ///
+    /// The claim must be performed with the supplied transaction so that it is
+    /// rolled back if the handler later fails — otherwise an event marked
+    /// processed but not handled would be lost.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WebhookError::Database`](crate::WebhookError::Database) if the
+    /// claim query fails.
+    async fn claim(
         &self,
+        tx: &mut Transaction<'_, Postgres>,
         provider: &str,
         event_id: &str,
         event_type: &str,
-        status: &str,
-    ) -> Result<uuid::Uuid>;
-
-    /// Update event status
-    async fn update_status(
-        &self,
-        provider: &str,
-        event_id: &str,
-        status: &str,
-        error: Option<&str>,
-    ) -> Result<()>;
+    ) -> Result<Option<uuid::Uuid>>;
 }
 
 /// Secret provider abstraction for testing

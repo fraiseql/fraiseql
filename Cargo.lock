@@ -4016,6 +4016,7 @@ dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
  "fraiseql-error",
+ "fraiseql-test-support",
  "futures",
  "hex",
  "hmac 0.13.0",

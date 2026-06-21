@@ -12,8 +12,7 @@ pub mod mocks {
     };
 
     use crate::{
-        Clock, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
-        signature::SignatureError,
+        Clock, Result, SecretProvider, SignatureVerifier, WebhookError, signature::SignatureError,
     };
 
     /// Mock signature verifier that always succeeds or fails based on configuration.
@@ -90,129 +89,6 @@ pub mod mocks {
                 signature: signature.to_string(),
             });
             Ok(self.should_succeed)
-        }
-    }
-
-    /// Mock idempotency store with in-memory storage
-    pub struct MockIdempotencyStore {
-        events: Mutex<HashMap<(String, String), IdempotencyRecord>>,
-    }
-
-    /// A record stored by [`MockIdempotencyStore`] representing a previously seen webhook event.
-    #[derive(Debug, Clone)]
-    pub struct IdempotencyRecord {
-        /// Unique identifier assigned when the event was first recorded.
-        pub id:         uuid::Uuid,
-        /// The event type string (e.g., `"payment_intent.succeeded"`).
-        pub event_type: String,
-        /// Processing status, e.g. `"success"` or `"failed"`.
-        pub status:     String,
-        /// Optional error message set when processing failed.
-        pub error:      Option<String>,
-    }
-
-    impl MockIdempotencyStore {
-        /// Create an empty idempotency store with no pre-existing events.
-        #[must_use]
-        pub fn new() -> Self {
-            Self {
-                events: Mutex::new(HashMap::new()),
-            }
-        }
-
-        /// Pre-populate with existing events for testing duplicates.
-        ///
-        /// # Panics
-        ///
-        /// Panics if the internal mutex is poisoned (a prior panic occurred
-        /// while the lock was held).
-        #[must_use]
-        pub fn with_existing_events(events: Vec<(&str, &str)>) -> Self {
-            let store = Self::new();
-            let mut map = store.events.lock().unwrap();
-            for (provider, event_id) in events {
-                map.insert(
-                    (provider.to_string(), event_id.to_string()),
-                    IdempotencyRecord {
-                        id:         uuid::Uuid::new_v4(),
-                        event_type: "test".to_string(),
-                        status:     "success".to_string(),
-                        error:      None,
-                    },
-                );
-            }
-            drop(map);
-            store
-        }
-
-        /// Retrieve the stored record for a `(provider, event_id)` pair, if one exists.
-        ///
-        /// # Panics
-        ///
-        /// Panics if the internal mutex is poisoned (a prior panic occurred
-        /// while the lock was held).
-        #[must_use]
-        pub fn get_record(&self, provider: &str, event_id: &str) -> Option<IdempotencyRecord> {
-            self.events
-                .lock()
-                .unwrap()
-                .get(&(provider.to_string(), event_id.to_string()))
-                .cloned()
-        }
-    }
-
-    impl Default for MockIdempotencyStore {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-
-    impl IdempotencyStore for MockIdempotencyStore {
-        async fn check(&self, provider: &str, event_id: &str) -> Result<bool> {
-            Ok(self
-                .events
-                .lock()
-                .unwrap()
-                .contains_key(&(provider.to_string(), event_id.to_string())))
-        }
-
-        async fn record(
-            &self,
-            provider: &str,
-            event_id: &str,
-            event_type: &str,
-            status: &str,
-        ) -> Result<uuid::Uuid> {
-            let id = uuid::Uuid::new_v4();
-            self.events.lock().unwrap().insert(
-                (provider.to_string(), event_id.to_string()),
-                IdempotencyRecord {
-                    id,
-                    event_type: event_type.to_string(),
-                    status: status.to_string(),
-                    error: None,
-                },
-            );
-            Ok(id)
-        }
-
-        async fn update_status(
-            &self,
-            provider: &str,
-            event_id: &str,
-            status: &str,
-            error: Option<&str>,
-        ) -> Result<()> {
-            if let Some(record) = self
-                .events
-                .lock()
-                .unwrap()
-                .get_mut(&(provider.to_string(), event_id.to_string()))
-            {
-                record.status = status.to_string();
-                record.error = error.map(std::string::ToString::to_string);
-            }
-            Ok(())
         }
     }
 

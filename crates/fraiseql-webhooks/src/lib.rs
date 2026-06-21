@@ -1,31 +1,34 @@
 //! # fraiseql-webhooks
 //!
-//! **Building blocks** for verifying inbound webhook signatures from third-party
-//! services. This crate provides constant-time signature verification and a
-//! [`traits::SignatureVerifier`] abstraction; it does **not** ship a turnkey
-//! inbound receiver pipeline.
+//! Verifying and **processing** inbound webhooks from third-party services. This
+//! crate provides constant-time signature verification and a genuinely-real
+//! receiver pipeline ([`WebhookPipeline`]) with atomic idempotency and
+//! transactional handler execution. It stops short of the HTTP layer: extracting
+//! the request and routing it to a provider is the caller's (or the server's) job,
+//! so the crate stays free of any web framework.
 //!
 //! ## What this crate provides
 //!
 //! - Per-provider signature verifiers ([`signature`]) returning `Ok(bool)` /
-//!   [`signature::SignatureError`].
-//! - The [`traits::SignatureVerifier`] trait so callers can register custom providers and resolve
-//!   them through a [`signature::ProviderRegistry`].
+//!   [`signature::SignatureError`], registrable via [`traits::SignatureVerifier`] and resolved
+//!   through a [`signature::ProviderRegistry`].
 //! - A constant-time comparison helper ([`signature::constant_time_eq`]).
+//! - [`WebhookPipeline`] — composes secret resolution → signature verification → atomic idempotency
+//!   claim → transactional handler into one [`process`](WebhookPipeline::process) call (see
+//!   "Security Properties").
+//! - [`PostgresIdempotencyStore`] — a durable delivery ledger whose claim is an `INSERT … ON
+//!   CONFLICT DO NOTHING` issued on the handler's transaction.
+//! - [`StaticSecretProvider`] — an in-memory [`SecretProvider`] for callers that load signing
+//!   secrets at startup.
 //!
-//! ## Not included — you must wire these yourself
+//! ## Not included — you wire these yourself
 //!
-//! This crate stops at signature verification. A complete inbound receiver
-//! needs the following, and **none of it lives here**:
-//!
-//! - **No HTTP receiver / routing** — extracting the body, header, and provider from a request and
-//!   dispatching to a handler is the caller's job.
-//! - **No idempotency store** — duplicate-delivery detection is *not* performed; the caller must
-//!   deduplicate by provider event id.
-//! - **No transaction management** — this crate runs no database transactions around handler
-//!   execution.
-//! - **No handler execution / payload routing** — mapping an event type to a database function and
-//!   invoking it is out of scope.
+//! - **No HTTP receiver / routing** — extracting the body, signature header, and provider from a
+//!   request and dispatching to [`WebhookPipeline::process`] is the caller's job (the server mounts
+//!   the route).
+//! - **No built-in event handler** — mapping a verified event to *your* database function is
+//!   inherently app-specific; you implement [`traits::EventHandler`] (the pipeline runs it inside
+//!   the delivery's transaction).
 //!
 //! ## Inbound vs. Outbound
 //!
@@ -53,7 +56,7 @@
 //!
 //! ## Security Properties
 //!
-//! These hold for the verifiers shipped here:
+//! For the signature verifiers:
 //!
 //! - **Constant-time comparison** — [`signature::constant_time_eq`] uses the `subtle` crate so HMAC
 //!   comparison does not leak timing information.
@@ -61,8 +64,16 @@
 //!   SendGrid) reject requests whose timestamp falls outside the configured tolerance window (5
 //!   minutes by default).
 //!
-//! Properties such as idempotency and transactional handler execution are **not**
-//! provided — see "Not included" above.
+//! For [`WebhookPipeline`]:
+//!
+//! - **Verify before any database work** — a forged or malformed signature is rejected before a
+//!   connection is taken, so an attacker cannot drive load onto the pool.
+//! - **Idempotency** — a duplicate delivery is detected and silently discarded. The claim is an
+//!   atomic `INSERT … ON CONFLICT DO NOTHING` on the handler's own transaction, so concurrent
+//!   duplicate deliveries serialise on the unique-key row lock and exactly one is processed.
+//! - **Transactional handler execution** — the idempotency claim and the handler commit or roll
+//!   back together. A handler failure rolls the claim back, so the sender's retry reprocesses the
+//!   event rather than it being lost as "seen but unhandled" (no lost / double-processed events).
 //!
 //! ## See Also
 //!
@@ -85,12 +96,18 @@
 //! - **Replay protection**: Timestamp-window validation for providers that sign a timestamp
 //! - **Custom providers**: Register your own verifier via [`traits::SignatureVerifier`]
 
+pub mod idempotency;
+pub mod pipeline;
+pub mod secret;
 pub mod signature;
 pub mod testing;
 pub mod traits;
 pub mod transaction;
 
 // Re-exports
+pub use idempotency::PostgresIdempotencyStore;
+pub use pipeline::{Delivery, Disposition, WebhookPipeline, verify_signature};
+pub use secret::StaticSecretProvider;
 pub use signature::SignatureError;
 // Re-export testing mocks for unit tests and integration tests with `testing` feature
 #[cfg(any(test, feature = "testing"))]
@@ -111,6 +128,13 @@ pub enum WebhookError {
     /// The inner string is the secret name that was not found.
     #[error("Missing webhook secret: {0}")]
     MissingSecret(String),
+
+    /// Signature verification failed: the delivery's signature did not match
+    /// (mismatch) or could not be parsed (bad format, expired timestamp). The
+    /// inner string is the reason. Constructed by the receiver pipeline; the
+    /// sender failed to authenticate, so this maps to HTTP 401.
+    #[error("Webhook signature verification failed: {0}")]
+    SignatureInvalid(String),
 
     /// A JSON value could not be deserialised. The inner string is the serde_json error message.
     #[error("Invalid payload: {0}")]
@@ -154,6 +178,8 @@ pub type Result<T> = std::result::Result<T, WebhookError>;
 ///   let the sender re-deliver.
 /// - [`WebhookError::MissingSecret`] → `FraiseQLError::Configuration` (5xx): a server-side
 ///   misconfiguration, not the sender's fault.
+/// - [`WebhookError::SignatureInvalid`] → `FraiseQLError::Authentication` (401): the sender failed
+///   to authenticate; a retry with the same (forged) signature will not succeed.
 /// - [`WebhookError::InvalidPayload`] → `FraiseQLError::Webhook` (400): the sender's payload is
 ///   genuinely malformed; a 4xx is correct.
 impl From<WebhookError> for fraiseql_error::FraiseQLError {
@@ -162,6 +188,9 @@ impl From<WebhookError> for fraiseql_error::FraiseQLError {
             WebhookError::Database(msg) => Self::database(format!("webhook: {msg}")),
             WebhookError::MissingSecret(name) => Self::Configuration {
                 message: format!("webhook secret not found: {name}"),
+            },
+            WebhookError::SignatureInvalid(reason) => Self::Authentication {
+                message: format!("webhook signature verification failed: {reason}"),
             },
             other @ WebhookError::InvalidPayload(_) => Self::Webhook(Box::new(other)),
         }
@@ -194,5 +223,15 @@ mod error_status_tests {
     fn invalid_payload_maps_to_4xx() {
         let err: FraiseQLError = WebhookError::InvalidPayload("bad json".into()).into();
         assert_eq!(err.status_code(), 400, "a malformed sender payload is a genuine 4xx");
+    }
+
+    #[test]
+    fn signature_invalid_maps_to_401() {
+        let err: FraiseQLError = WebhookError::SignatureInvalid("signature mismatch".into()).into();
+        assert_eq!(
+            err.status_code(),
+            401,
+            "a forged signature is an authentication failure, not a 400/500"
+        );
     }
 }

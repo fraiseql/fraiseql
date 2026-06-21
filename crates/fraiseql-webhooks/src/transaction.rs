@@ -1,9 +1,11 @@
 //! Transaction boundary management for webhook processing.
 //!
-//! This module ensures correct transaction isolation for webhook handlers:
-//! 1. Signature verification: No transaction (fail fast)
-//! 2. Idempotency check: Read-only transaction
-//! 3. Event processing: Single transaction with idempotency record + handler
+//! [`execute_in_transaction`] is the generic building block: it opens a transaction
+//! at a chosen isolation level, runs the caller's closure, and commits on `Ok` /
+//! rolls back on `Err`. [`crate::WebhookPipeline`] uses the same begin → claim →
+//! handle → commit shape inline so that the idempotency claim and the handler share
+//! one transaction (they commit or roll back together); callers driving their own
+//! closures can reach for this helper directly.
 
 use futures::future::BoxFuture;
 use sqlx::{PgPool, Postgres, Transaction};

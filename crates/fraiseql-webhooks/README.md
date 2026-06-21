@@ -4,10 +4,12 @@ Webhook signature verification and event processing for FraiseQL. This crate han
 
 ## Features
 
-- HMAC-SHA256 signature verification
-- Webhook event parsing
+- HMAC-SHA256 (and Ed25519 / ECDSA) signature verification for 15+ providers
 - Replay attack prevention via timestamp validation
 - Multiple signature scheme support
+- An inbound receiver pipeline (`WebhookPipeline`) with atomic idempotency
+  (duplicate deliveries are silently discarded) and transactional handler
+  execution (the idempotency claim and the handler commit or roll back together)
 
 ## Usage
 
