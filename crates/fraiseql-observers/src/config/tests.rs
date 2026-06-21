@@ -890,14 +890,44 @@ fn test_search_action_config_is_rejected_as_unsupported() {
     );
 }
 
+// ── #428: cache invalidation now has a real Redis transport ──
+//
+// A well-formed `cache`/invalidate config validates (transport availability is
+// enforced at dispatch, like the email action). `refresh` and an empty pattern
+// still fail loud at config-load.
+
 #[test]
-fn test_cache_action_config_is_rejected_as_unsupported() {
+fn test_cache_invalidate_action_config_is_accepted() {
     let action = ActionConfig::Cache {
-        key_pattern: "user:*".to_string(),
+        key_pattern: "app:user:{{ id }}".to_string(),
         action:      "invalidate".to_string(),
     };
     assert!(
-        matches!(action.validate(), Err(ObserverError::UnsupportedActionType { .. })),
-        "a well-formed Cache action config must be rejected as unsupported (H24)"
+        action.validate().is_ok(),
+        "a well-formed cache/invalidate action config must validate (#428)"
+    );
+}
+
+#[test]
+fn test_cache_refresh_action_config_is_rejected() {
+    let action = ActionConfig::Cache {
+        key_pattern: "user:*".to_string(),
+        action:      "refresh".to_string(),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+        "cache 'refresh' has no transport and must fail loud (#428)"
+    );
+}
+
+#[test]
+fn test_cache_action_config_rejects_empty_key_pattern() {
+    let action = ActionConfig::Cache {
+        key_pattern: String::new(),
+        action:      "invalidate".to_string(),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+        "an empty key_pattern must fail loud (#428)"
     );
 }

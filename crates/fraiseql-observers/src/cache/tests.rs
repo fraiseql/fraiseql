@@ -101,6 +101,82 @@ mod cache_tests {
     }
 }
 
+// ── #428: pure Redis glob escaping for the cache-invalidation action ──
+//
+// These run in the standard `test` leg (no `caching` feature needed) so the
+// security-critical escape-then-substitute boundary is covered on every push.
+mod glob_tests {
+    use serde_json::json;
+
+    use crate::cache::glob::{escape_redis_glob, has_unescaped_glob, render_key_pattern};
+
+    #[test]
+    fn escapes_full_redis_glob_metaclass() {
+        // Every operator AND the escape char itself must be backslash-escaped.
+        assert_eq!(escape_redis_glob("a*b"), r"a\*b");
+        assert_eq!(escape_redis_glob("a?b"), r"a\?b");
+        assert_eq!(escape_redis_glob("a[b]c"), r"a\[b\]c");
+        assert_eq!(escape_redis_glob(r"a\b"), r"a\\b");
+        assert_eq!(escape_redis_glob("plain"), "plain");
+    }
+
+    #[test]
+    fn detects_unescaped_glob_operators() {
+        assert!(has_unescaped_glob("app:user:*"));
+        assert!(has_unescaped_glob("app:user:?"));
+        assert!(has_unescaped_glob("app:user:[12]"));
+    }
+
+    #[test]
+    fn escaped_operators_are_not_treated_as_glob() {
+        // An operator that came from an escaped event value is literal.
+        assert!(!has_unescaped_glob(r"app:order:\*"));
+        assert!(!has_unescaped_glob(r"app:order:\?"));
+        assert!(!has_unescaped_glob(r"app:order:\["));
+        assert!(!has_unescaped_glob("app:order:123"));
+        // A lone `]` is not an operator on its own.
+        assert!(!has_unescaped_glob("app:order:1]"));
+    }
+
+    #[test]
+    fn render_substitutes_top_level_fields() {
+        let data = json!({ "id": 123, "name": "alice" });
+        assert_eq!(render_key_pattern("app:order:{{ id }}", &data, false), "app:order:123");
+        assert_eq!(render_key_pattern("app:user:{{ name }}", &data, false), "app:user:alice");
+    }
+
+    #[test]
+    fn escape_then_substitute_neutralizes_value_globs() {
+        // A wildcard in the (untrusted) event value must be escaped so it cannot
+        // widen the match — while the author's trailing `*` survives as a glob.
+        let data = json!({ "id": "a*b" });
+        let escaped = render_key_pattern("app:order:{{ id }}:*", &data, true);
+        assert_eq!(escaped, r"app:order:a\*b:*");
+        // Only the author's trailing `*` is an operator; the value's `*` is escaped.
+        assert!(has_unescaped_glob(&escaped));
+    }
+
+    #[test]
+    fn value_only_glob_takes_the_direct_path() {
+        // key_pattern with no template glob + a malicious value => no surviving
+        // glob after escaping => direct UNLINK of the literal key, no broad wipe.
+        let data = json!({ "id": "*" });
+        let escaped = render_key_pattern("app:order:{{ id }}", &data, true);
+        assert_eq!(escaped, r"app:order:\*");
+        assert!(!has_unescaped_glob(&escaped));
+        // The literal key actually targeted (raw render) is the real key name.
+        assert_eq!(render_key_pattern("app:order:{{ id }}", &data, false), "app:order:*");
+    }
+
+    #[test]
+    fn template_glob_with_no_value_glob_takes_the_scan_path() {
+        let data = json!({ "id": 7 });
+        let escaped = render_key_pattern("app:user:{{ id }}:*", &data, true);
+        assert_eq!(escaped, "app:user:7:*");
+        assert!(has_unescaped_glob(&escaped));
+    }
+}
+
 #[cfg(feature = "caching")]
 mod redis_tests {
     use crate::cache::redis::*;

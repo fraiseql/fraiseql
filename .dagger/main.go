@@ -1102,9 +1102,15 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: redis (core APQ + observers queue/lease) — Dagger-bound redis+postgres'",
+		"echo '### integration: redis (core APQ + observers queue/lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
 		"cargo test -p fraiseql-core --features redis-apq --lib redis -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
+		// #428: real cache-invalidation transport. The pure glob/escaping unit
+		// tests run non-ignored (the `--ignored` lib line above skips them); the
+		// integration binary seeds the bound Redis and asserts real UNLINKs
+		// (its Redis-touching tests self-skip when REDIS_URL is unset).
+		"cargo test -p fraiseql-observers --features caching --lib cache::tests::glob_tests -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,testing' --test cache_invalidation_redis -- --test-threads=1",
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")
 

@@ -92,7 +92,7 @@ mod tests;
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 #[cfg(feature = "caching")]
-pub use cache::redis::RedisCacheBackend;
+pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
 #[cfg(feature = "checkpoint")]
 pub use checkpoint::{
@@ -103,7 +103,8 @@ pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, MultiListenerConfig,
-    ObserverDefinition, ObserverRuntimeConfig, OverflowPolicy, RetryConfig, SmtpTlsMode,
+    ObserverDefinition, ObserverRuntimeConfig, OverflowPolicy, RedisConfig, RetryConfig,
+    SmtpTlsMode,
 };
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;

@@ -47,6 +47,11 @@
 //! - Hash prevents sensitive data in keys
 //! - Entity info in key for visibility/debugging
 
+/// Pure Redis glob-pattern helpers for the cache-invalidation action (#428).
+///
+/// Always compiled (the Redis transport that consumes them is `caching`-gated) so
+/// the security-critical escape-then-substitute logic is unit-tested on every push.
+mod glob;
 #[cfg(feature = "caching")]
 pub mod redis;
 

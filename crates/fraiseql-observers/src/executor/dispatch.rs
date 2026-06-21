@@ -32,16 +32,24 @@ pub trait ActionDispatcher: Send + Sync {
 
 /// Production action dispatcher that delegates to the concrete action structs.
 ///
-/// Only the action types with a real transport are held here. SMS / Push /
-/// Search / Cache are rejected as unsupported (H24), so they have no executor.
+/// Webhook / Slack / Email / Cache (the last only with the `caching` feature and
+/// a wired Redis invalidator) have real transports. SMS / Push / Search remain
+/// rejected as unsupported (H24), so they have no executor.
 #[allow(clippy::struct_field_names)] // Reason: `_action` postfix clarifies executor vs config fields
 pub(super) struct DefaultActionDispatcher {
     /// Webhook action executor
-    pub(super) webhook_action: Arc<WebhookAction>,
+    pub(super) webhook_action:    Arc<WebhookAction>,
     /// Slack action executor
-    pub(super) slack_action:   Arc<SlackAction>,
+    pub(super) slack_action:      Arc<SlackAction>,
     /// Email action executor
-    pub(super) email_action:   Arc<EmailAction>,
+    pub(super) email_action:      Arc<EmailAction>,
+    /// Redis cache-invalidation transport (#428).
+    ///
+    /// `None` means no Redis backend was wired: a `cache` action then fails loud
+    /// (permanent) rather than silently no-opping, exactly like an email action
+    /// with no SMTP backend.
+    #[cfg(feature = "caching")]
+    pub(super) cache_invalidator: Option<Arc<crate::cache::redis::RedisCacheInvalidator>>,
 }
 
 /// Maximum byte length accepted for a webhook URL.
@@ -223,7 +231,14 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         Err(e) => Err(e),
                     }
                 },
-                // SMS / Push / Search / Cache have no real transport wired. They
+                // Cache invalidation has a real Redis transport (#428) when the
+                // `caching` feature is compiled and an invalidator is wired;
+                // otherwise it fails loud (never a fabricated success).
+                ActionConfig::Cache {
+                    key_pattern,
+                    action: cache_action,
+                } => self.dispatch_cache(key_pattern, cache_action, event).await,
+                // SMS / Push / Search have no real transport wired. They
                 // previously delegated to stub actions that fabricated
                 // `success: true` and sent nothing (H24). They now fail loud here
                 // too (belt-and-suspenders with `ActionConfig::validate`, which
@@ -231,11 +246,69 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 // follow-up work.
                 ActionConfig::Sms { .. }
                 | ActionConfig::Push { .. }
-                | ActionConfig::Search { .. }
-                | ActionConfig::Cache { .. } => Err(ObserverError::UnsupportedActionType {
+                | ActionConfig::Search { .. } => Err(ObserverError::UnsupportedActionType {
                     action_type: action.action_type().to_string(),
                 }),
             }
+        })
+    }
+}
+
+impl DefaultActionDispatcher {
+    /// Dispatch a `cache` action.
+    ///
+    /// Only `action = "invalidate"` is implemented; `"refresh"` (and any other
+    /// value) fails loud. With the `caching` feature and a wired Redis
+    /// invalidator, the keys described by `key_pattern` are removed for real;
+    /// without a wired invalidator (or without the feature) the action fails loud
+    /// (permanent) so a non-functional cache integration is never silent.
+    #[cfg(feature = "caching")]
+    async fn dispatch_cache(
+        &self,
+        key_pattern: &str,
+        cache_action: &str,
+        event: &EntityEvent,
+    ) -> Result<ActionResult> {
+        if cache_action != "invalidate" {
+            return Err(ObserverError::InvalidActionConfig {
+                reason: format!(
+                    "Cache action {cache_action:?} is not supported; only \"invalidate\" is \
+                     implemented (#428)"
+                ),
+            });
+        }
+
+        let Some(invalidator) = self.cache_invalidator.as_ref() else {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: "Cache action has no Redis backend configured (#428): set \
+                         [observers.runtime.redis] and build the executor with a cache invalidator"
+                    .to_string(),
+            });
+        };
+
+        let start = std::time::Instant::now();
+        let removed = invalidator.invalidate(key_pattern, event).await?;
+        let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+        Ok(ActionResult {
+            action_type: "cache".to_string(),
+            success: true,
+            message: format!("invalidated {removed} key(s)"),
+            duration_ms,
+        })
+    }
+
+    /// Dispatch a `cache` action when the `caching` feature is not compiled:
+    /// there is no Redis transport, so the action always fails loud.
+    #[cfg(not(feature = "caching"))]
+    #[allow(clippy::unused_self, clippy::unused_async)] // Reason: mirrors the `caching` async signature so the call site is feature-agnostic
+    async fn dispatch_cache(
+        &self,
+        _key_pattern: &str,
+        _cache_action: &str,
+        _event: &EntityEvent,
+    ) -> Result<ActionResult> {
+        Err(ObserverError::UnsupportedActionType {
+            action_type: "cache".to_string(),
         })
     }
 }

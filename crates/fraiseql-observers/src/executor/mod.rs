@@ -85,8 +85,24 @@ pub struct ObserverExecutor {
 fn make_dispatcher(email_action: EmailAction) -> Arc<DefaultActionDispatcher> {
     Arc::new(DefaultActionDispatcher {
         webhook_action: Arc::new(WebhookAction::new()),
-        slack_action:   Arc::new(SlackAction::new()),
-        email_action:   Arc::new(email_action),
+        slack_action: Arc::new(SlackAction::new()),
+        email_action: Arc::new(email_action),
+        #[cfg(feature = "caching")]
+        cache_invalidator: None,
+    })
+}
+
+/// Build the production dispatcher with a wired Redis cache invalidator (#428).
+#[cfg(feature = "caching")]
+fn make_dispatcher_with_invalidator(
+    email_action: EmailAction,
+    cache_invalidator: Option<Arc<crate::cache::redis::RedisCacheInvalidator>>,
+) -> Arc<DefaultActionDispatcher> {
+    Arc::new(DefaultActionDispatcher {
+        webhook_action: Arc::new(WebhookAction::new()),
+        slack_action: Arc::new(SlackAction::new()),
+        email_action: Arc::new(email_action),
+        cache_invalidator,
     })
 }
 
@@ -179,6 +195,37 @@ impl ObserverExecutor {
             dlq_push_count: Arc::new(AtomicUsize::new(0)),
             action_timeout_ms: None,
             cache_backend,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
+        }
+    }
+
+    /// Create an executor whose `cache` actions invalidate keys via a real Redis
+    /// transport (#428).
+    ///
+    /// The email action is left unconfigured (use the other constructors for
+    /// SMTP). Build the `invalidator` with
+    /// [`RedisCacheInvalidator::connect`](crate::cache::redis::RedisCacheInvalidator::connect)
+    /// from the runtime [`RedisConfig`](crate::config::RedisConfig) — the same
+    /// `[observers.runtime.redis]` config used for dedup/result-cache.
+    ///
+    /// Only available when the `caching` feature is enabled.
+    #[cfg(feature = "caching")]
+    pub fn with_cache_invalidator(
+        matcher: EventMatcher,
+        dlq: Arc<dyn DeadLetterQueue>,
+        invalidator: Arc<crate::cache::redis::RedisCacheInvalidator>,
+    ) -> Self {
+        Self {
+            matcher: Arc::new(matcher),
+            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
+            condition_cache: dashmap::DashMap::new(),
+            dispatcher: make_dispatcher_with_invalidator(EmailAction::new(), Some(invalidator)),
+            dlq,
+            max_dlq_size: None,
+            dlq_push_count: Arc::new(AtomicUsize::new(0)),
+            action_timeout_ms: None,
+            cache_backend: None,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
         }

@@ -867,9 +867,10 @@ async fn test_dispatch_email_missing_subject_returns_invalid_config() {
     );
 }
 
-// H24: SMS / Push / Search / Cache have no real transport. They previously
-// fabricated `success: true` at dispatch and sent nothing; dispatch now fails
-// loud with `UnsupportedActionType` even for well-formed configs.
+// H24: SMS / Push / Search have no real transport. They previously fabricated
+// `success: true` at dispatch and sent nothing; dispatch now fails loud with
+// `UnsupportedActionType` even for well-formed configs. Cache gained a real
+// Redis transport (#428) but still fails loud when no backend is wired.
 
 #[tokio::test]
 async fn test_dispatch_sms_returns_unsupported() {
@@ -925,10 +926,14 @@ async fn test_dispatch_search_returns_unsupported() {
 }
 
 #[tokio::test]
-async fn test_dispatch_cache_returns_unsupported() {
+async fn test_dispatch_cache_without_backend_fails_loud() {
+    // `create_test_executor` wires NO cache invalidator. A cache action must then
+    // fail loud — never the pre-H24 fabricated success. Without the `caching`
+    // feature it is `UnsupportedActionType`; with `caching` but no wired Redis
+    // backend it is `ActionPermanentlyFailed`. Both are loud errors.
     let executor = create_test_executor();
     let action = ActionConfig::Cache {
-        key_pattern: "user:*".to_string(),
+        key_pattern: "app:user:{{ id }}".to_string(),
         action:      "invalidate".to_string(),
     };
     let event = test_event();
@@ -936,8 +941,8 @@ async fn test_dispatch_cache_returns_unsupported() {
     let result = executor.execute_action_internal(&action, &event).await;
 
     assert!(
-        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
-        "Cache dispatch must fail loud as unsupported: {result:?}"
+        result.is_err(),
+        "cache action with no backend must fail loud, never fabricate success: {result:?}"
     );
 }
 

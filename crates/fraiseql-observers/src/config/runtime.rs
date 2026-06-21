@@ -446,12 +446,36 @@ impl ActionConfig {
                 }
                 Ok(())
             },
+            // Cache invalidation has a real Redis transport (#428). Validate it
+            // structurally here (non-empty pattern, supported sub-action); the
+            // transport's availability is enforced at dispatch, exactly like the
+            // email action with no SMTP backend. `"refresh"` is not implemented
+            // yet, so it fails loud at config-load.
+            Self::Cache {
+                key_pattern,
+                action,
+            } => {
+                if key_pattern.is_empty() {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: "Cache action requires a non-empty 'key_pattern'".to_string(),
+                    });
+                }
+                if action != "invalidate" {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: format!(
+                            "Cache action {action:?} is not supported; only \"invalidate\" is \
+                             implemented (#428)"
+                        ),
+                    });
+                }
+                Ok(())
+            },
             // Not implemented: no real transport is wired for these action types.
             // They previously fabricated `success: true` at dispatch and sent
             // nothing (H24). Reject them at config-load time so a misconfigured
             // observer refuses to start rather than silently no-op. Real
             // transports are tracked as follow-up work.
-            Self::Sms { .. } | Self::Push { .. } | Self::Search { .. } | Self::Cache { .. } => {
+            Self::Sms { .. } | Self::Push { .. } | Self::Search { .. } => {
                 Err(ObserverError::UnsupportedActionType {
                     action_type: self.action_type().to_string(),
                 })

@@ -52,6 +52,10 @@ fraiseql-webhooks = {path = "../fraiseql-webhooks"}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
+# Raw Redis client for the #428 cache-invalidation integration test: seed keys and
+# assert deletions against the bound Redis service. Dev-only (the production Redis
+# dependency is the optional `redis` behind the `caching` feature).
+redis = {workspace = true}
 temp-env = {workspace = true}
 tokio-test = "0.4"
 wiremock = "0.6"
