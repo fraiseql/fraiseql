@@ -188,6 +188,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Outbound change-data-capture to NATS `JetStream` (#382, first slice).** A new,
+  additive, off-by-default `fraiseql-cdc-sinks` crate drains the framework-owned
+  `core.tb_entity_change_log` outbox — the rows the mutation executor *and* the #366
+  external-write capture trigger already write in-transaction — to an external broker,
+  closing the #366 → #382 CDC pair. A `DrainWorker` enqueues each new, matching outbox
+  row into a per-sink delivery-state table (`core.tb_cdc_sink_state`) keyed by a durable
+  `MAX(seq)` cursor (restart-safe, no separate cursor table), then publishes due rows in
+  `seq` order under `FOR UPDATE SKIP LOCKED`. Delivery is **at-least-once** — a broker
+  outage accumulates backlog and retries with capped exponential backoff rather than
+  losing events, and a permanent failure (e.g. an un-renderable subject) is
+  dead-lettered; consumers dedup on `(object_type, seq)`, carried as the NATS
+  `Nats-Msg-Id` header (which also engages `JetStream`'s server-side dedup window).
+  Per-tenant/per-table subject templating (`fraiseql.{tenant_id}.{table}`) sanitises
+  every interpolated segment against the NATS subject charset, failing closed on any
+  `.`/`*`/`>`/whitespace that could escape into another tenant's namespace. The NATS
+  sink rides the pure-Rust `async-nats` client behind the `cdc-nats-jetstream` feature;
+  the drain worker and all encoding/sanitisation logic compile with no broker feature.
+  Server auto-mount from `[cdc.outbound]` TOML, additional brokers (Kafka / NATS-core /
+  Kinesis / Pulsar), and Avro/Protobuf encodings remain on the #382 umbrella.
 - **Real distributed saga *forward* execution behind the `unstable-saga` feature (#429).**
   Follow-up to the audit H32 honesty fix that left the saga forward phase failing loud.
   The wiring is *additive*: the existing `SagaExecutor::{execute_step, execute_saga,

@@ -1456,6 +1456,11 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// superuser DATABASE_URL would mask the policy). The test creates its own
 		// tenant/consumer roles off the superuser connection — no extra env needed.
 		"cargo test -p fraiseql-observers --features postgres --test rls_isolation -- --ignored --test-threads=1",
+		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres
+		// (stub sink, no broker) + the NATS JetStream sink end-to-end vs the bound
+		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).
+		"cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-cdc-sinks --features cdc-nats-jetstream --test cdc_nats_e2e -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 

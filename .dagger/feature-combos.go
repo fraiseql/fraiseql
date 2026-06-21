@@ -134,6 +134,11 @@ var featureCombos = []featureCombo{
 	// SQLite/Postgres tests under -D warnings; the default-feature (fail-loud) path
 	// is covered by preflight `--all-features` and the workspace test leg.
 	{name: "fed-unstable-saga", crate: "fraiseql-federation", clippy: true, features: []string{"unstable-saga"}},
+	// ── cdc: the gated #382 NATS JetStream outbound sink ──────────────────────
+	// clippy `--all-targets` compiles the NatsJetStreamSink + its real-PG/NATS
+	// e2e test under -D warnings on MSRV; the default (broker-free) drain path is
+	// covered by preflight `--all-features` and the workspace test leg.
+	{name: "cdc-nats-jetstream", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-nats-jetstream"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the
