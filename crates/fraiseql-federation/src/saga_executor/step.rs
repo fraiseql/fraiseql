@@ -51,3 +51,67 @@ impl SagaExecutor {
         })
     }
 }
+
+/// Wired forward-phase execution (the `unstable-saga` feature).
+///
+/// These are additive: the fail-loud `execute_step` above keeps its signature and
+/// behaviour in every build (it is the published placeholder contract and the
+/// `#429` acceptance spec exercises it). The real local-mutation transport is
+/// exposed as the `*_local` methods, gated behind `unstable-saga` until proven.
+#[cfg(feature = "unstable-saga")]
+mod wired {
+    use fraiseql_db::traits::DatabaseAdapter;
+
+    use super::super::{SagaExecutor, StepExecutionResult, forward};
+    use crate::{
+        mutation_executor::FederationMutationExecutor,
+        saga_store::{SagaStep, StepState},
+    };
+
+    impl SagaExecutor {
+        /// Dispatch a single step's local mutation and map the outcome to a
+        /// [`StepExecutionResult`] plus the [`StepState`] to persist.
+        ///
+        /// Pure dispatch with no persistence — [`Self::execute_saga_local`] owns
+        /// step/saga state writes. The persisted [`crate::saga_store::MutationType`]
+        /// is rendered to a canonical verb (`create`/`update`/`delete`) for
+        /// `execute_local_mutation`, so no extra column is needed.
+        pub(crate) async fn dispatch_step<A: DatabaseAdapter>(
+            mutation_executor: &FederationMutationExecutor<A>,
+            step: &SagaStep,
+        ) -> (StepExecutionResult, StepState) {
+            let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
+            let started = std::time::Instant::now();
+            let outcome = mutation_executor
+                .execute_local_mutation(
+                    &step.typename,
+                    step.mutation_type.as_str(),
+                    &step.variables,
+                )
+                .await;
+            let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            forward::step_result_from(step_number, &outcome, duration_ms)
+        }
+
+        /// Execute (dispatch) a single saga step's real local mutation and report
+        /// the outcome.
+        ///
+        /// Performs the real mutation via
+        /// [`FederationMutationExecutor::execute_local_mutation`] and maps the
+        /// result, but does not persist — [`Self::execute_saga_local`] owns step and
+        /// saga state. A mutation failure is reported as `success: false` with the
+        /// error captured (never fabricated success, audit H32), not an `Err`.
+        ///
+        /// # Arguments
+        ///
+        /// * `mutation_executor` - Local mutation transport for the step's subgraph
+        /// * `step` - The persisted step definition (typename, mutation type, input)
+        pub async fn execute_step_local<A: DatabaseAdapter>(
+            &self,
+            mutation_executor: &FederationMutationExecutor<A>,
+            step: &SagaStep,
+        ) -> StepExecutionResult {
+            Self::dispatch_step(mutation_executor, step).await.0
+        }
+    }
+}

@@ -188,6 +188,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Real distributed saga *forward* execution behind the `unstable-saga` feature (#429).**
+  Follow-up to the audit H32 honesty fix that left the saga forward phase failing loud.
+  The wiring is *additive*: the existing `SagaExecutor::{execute_step, execute_saga,
+  get_execution_state}` keep their signatures and fail-loud `NotImplemented` behaviour in
+  every build (they are the published placeholder contract and the #429 acceptance spec).
+  With `unstable-saga`, new methods carry the real local-mutation path:
+  `execute_step_local` dispatches a step's real mutation via
+  `FederationMutationExecutor::execute_local_mutation` (the persisted `MutationType`
+  renders to a `create`/`update`/`delete` verb, so no schema change) and reports the
+  outcome without fabricating success; `execute_saga_local` marks the saga `Executing`,
+  drives steps in `order`, persists each step's real result and `Completed`/`Failed`
+  state, **stops at the first failed step**, and marks the saga `Completed` or `Failed`;
+  `execution_state` derives progress from persisted step state. A failed mutation persists
+  a real `Failed` transition, never a fabricated `Completed`. Compensation, recovery, and
+  the coordinator facade remain unwired in both builds. The wired dispatch/honest-failure
+  is proven against an in-memory SQLite adapter (no service); the multi-step orchestration
+  is proven against a real PostgreSQL saga store in the integration leg. The API is
+  unproven in production and may change without semver guarantees.
 - **Native SAML 2.0 SP-initiated SSO + ACS (#381).** Opt-in `auth-saml` build feature adds
   an in-process SAML Service Provider: `GET /auth/saml/login` (signed-relay-state
   `AuthnRequest`) and `POST /auth/saml/acs`. Assertion verification (via `samael`/xmlsec1)

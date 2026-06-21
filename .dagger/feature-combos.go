@@ -128,6 +128,12 @@ var featureCombos = []featureCombo{
 	{name: "functions-runtime-wasm", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"runtime-wasm"}},
 	{name: "functions-runtime-deno", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"runtime-deno"}},
 	{name: "functions-host-combined", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"host-live", "host-storage"}},
+
+	// ── federation: the gated #429 wired saga forward executor ────────────────
+	// clippy `--all-targets` compiles the wired execute_step/execute_saga + their
+	// SQLite/Postgres tests under -D warnings; the default-feature (fail-loud) path
+	// is covered by preflight `--all-features` and the workspace test leg.
+	{name: "fed-unstable-saga", crate: "fraiseql-federation", clippy: true, features: []string{"unstable-saga"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

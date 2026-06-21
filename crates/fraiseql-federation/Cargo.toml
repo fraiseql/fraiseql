@@ -36,6 +36,11 @@ uuid = {workspace = true}
 zeroize = "1.8"
 
 [dev-dependencies]
+# SQLite proves wired saga forward execution (#429) against a real
+# `DatabaseAdapter` with no external service; Postgres backs the saga store +
+# entity-mutation orchestration integration tests (`unstable-saga`, ignored).
+fraiseql-db = {workspace = true, default-features = false, features = ["sqlite", "postgres"]}
+chrono = {workspace = true}
 criterion = {version = "0.5", features = ["html_reports"]}
 proptest = {workspace = true}
 serde_json = {workspace = true}
@@ -54,6 +59,16 @@ test-utils = []
 # #
 # # These APIs may change without semver guarantees.
 unstable = []
+# # Enable real distributed saga *forward* execution (#429).
+# #
+# # Without this feature the saga forward phase fails loud with
+# # `SagaStoreError::NotImplemented` (the audit H32 honesty contract). With it,
+# # `SagaExecutor::{execute_step, execute_saga, get_execution_state}` dispatch the
+# # real local mutation, persist real step/saga state, and never fabricate
+# # success. Compensation, recovery, and the coordinator facade remain unwired.
+# #
+# # Unproven in production — the API may change without semver guarantees.
+unstable-saga = []
 
 [lints]
 workspace = true

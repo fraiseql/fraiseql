@@ -81,6 +81,7 @@ use uuid::Uuid;
 
 use crate::saga_store::PostgresSagaStore;
 
+mod forward;
 mod orchestrator;
 mod step;
 
