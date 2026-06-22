@@ -9,7 +9,9 @@
 
 use std::sync::Arc;
 
-use fraiseql_db::{ChangeLogWrite, ViewName};
+use fraiseql_db::{
+    ChangeLogWrite, DirectMutationContext, DirectMutationOp, MutationStrategy, ViewName,
+};
 
 use super::{
     super::{context::ExecutorContext, resolve_inject_value},
@@ -402,6 +404,12 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
     let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
 
+    // Column names parallel to `args`, populated alongside the value pushes below and
+    // consumed only by the DirectSql (e.g. SQLite) strategy to build INSERT/DELETE
+    // column lists. Left empty on the single-JSONB path, which DirectSql rejects.
+    let mut direct_columns: Vec<String> = Vec::new();
+    let mut direct_inject_columns: Vec<String> = Vec::new();
+
     // Detect the single-`input`-object pattern: exactly one argument named "input".
     // `input_type_name` is its declared Input type when it has one (vs a raw `JSON`
     // scalar — a custom `mutation(input: JSON)` whose SQL function takes
@@ -506,6 +514,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 // — recase its keys so the SQL function can read them (#400).
                 let raw = value.cloned().unwrap_or(serde_json::Value::Null);
                 args.push(recase_input_field_value(raw, &field.field_type, &ctx.schema));
+                direct_columns.push(field.name.clone());
             }
             if !missing_input_fields.is_empty() {
                 return Err(FraiseQLError::Validation {
@@ -533,6 +542,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
             }
         }));
+        direct_columns.extend(mutation_def.arguments.iter().map(|arg| arg.name.clone()));
     }
 
     if !missing_required.is_empty() {
@@ -565,100 +575,186 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         })?;
         for (param_name, source) in &mutation_def.inject_params {
             args.push(resolve_inject_value(param_name, source, sec_ctx)?);
+            direct_inject_columns.push(param_name.clone());
         }
     }
 
-    // 3b. Resolve session variables once and pass them to the adapter call so
-    //     they are applied on the same connection / transaction as the function
-    //     (fixes #329 — set_config(..., true) is transaction-local, so applying
-    //     it on a separate pooled connection left it invisible to the function).
-    //
-    // Only resolved when there are variables to inject or inject_started_at is
-    // enabled, and only on the authenticated path (security context present).
-    // The no-op default on non-PostgreSQL adapters means an empty slice here is
-    // effectively free there.
-    let resolved_session_vars = {
-        let sv = &ctx.schema.session_variables;
-        match security_ctx {
-            Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
-                crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)
-            },
-            _ => Vec::new(),
+    // 4. Dispatch by the adapter's mutation strategy: a stored-function call (PostgreSQL / MySQL /
+    //    SQL Server) or direct SQL (SQLite). The FunctionCall branch below is unchanged; DirectSql
+    //    builds INSERT/DELETE from the contract.
+    let outcome = if matches!(ctx.adapter.mutation_strategy(), MutationStrategy::DirectSql) {
+        // Direct-SQL adapters (SQLite) generate INSERT/DELETE directly from the
+        // mutation contract. Update and single-JSONB input styles cannot be
+        // expressed as positional columns here, and stored-function (`fn_*`)
+        // mutations are unavailable, so both are rejected with a clear error.
+        if pass_input_as_single_jsonb || direct_columns.is_empty() {
+            return Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "Mutation '{mutation_name}': direct-SQL adapters (e.g. SQLite) require flat \
+                     positional input columns and do not support Update / single-JSONB input \
+                     styles. Use PostgreSQL, MySQL, or SQL Server for those mutations."
+                ),
+            });
         }
+        let (operation, table) = match &mutation_def.operation {
+            MutationOperation::Insert { table } => (DirectMutationOp::Insert, table.as_str()),
+            MutationOperation::Delete { table } => (DirectMutationOp::Delete, table.as_str()),
+            MutationOperation::Update { .. } | MutationOperation::Custom => {
+                return Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "Mutation '{mutation_name}': direct-SQL adapters (e.g. SQLite) support \
+                         Insert and Delete mutations only; Update and custom / stored-procedure \
+                         mutations require PostgreSQL, MySQL, or SQL Server."
+                    ),
+                });
+            },
+        };
+        let direct_ctx = DirectMutationContext {
+            operation,
+            table,
+            columns: &direct_columns,
+            values: &args,
+            inject_columns: &direct_inject_columns,
+            return_type: &mutation_def.return_type,
+        };
+        let rows = ctx.adapter.execute_direct_mutation(&direct_ctx).await?;
+        let row_value = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
+            message: format!("Mutation '{mutation_name}': direct mutation affected no rows"),
+            path:    None,
+        })?;
+        let direct_obj = row_value.as_object().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Mutation '{mutation_name}': direct mutation result was not a JSON object"
+            ),
+            path:    None,
+        })?;
+        // The DirectSql adapter returns a compact `{status, entity_id, entity_type,
+        // entity, …}` envelope; reshape it into the canonical `mutation_response`
+        // that `parse_mutation_row` expects. The adapter already errors on a zero-row
+        // mutation, so reaching here means the write succeeded and changed state.
+        // `entity_id` is forwarded only when UUID-shaped (integer SQLite PKs are not
+        // UUIDs and would fail the `Option<Uuid>` field).
+        let mut response = serde_json::Map::new();
+        response.insert("succeeded".to_string(), serde_json::Value::Bool(true));
+        response.insert("state_changed".to_string(), serde_json::Value::Bool(true));
+        if let Some(entity) = direct_obj.get("entity") {
+            response.insert("entity".to_string(), entity.clone());
+        }
+        response.insert(
+            "entity_type".to_string(),
+            direct_obj
+                .get("entity_type")
+                .cloned()
+                .unwrap_or_else(|| serde_json::Value::String(mutation_def.return_type.clone())),
+        );
+        if let Some(id) = direct_obj
+            .get("entity_id")
+            .and_then(serde_json::Value::as_str)
+            .filter(|id| uuid::Uuid::parse_str(id).is_ok())
+        {
+            response.insert("entity_id".to_string(), serde_json::Value::String(id.to_string()));
+        }
+        let row_map: std::collections::HashMap<String, serde_json::Value> =
+            response.into_iter().collect();
+        parse_mutation_row(&row_map)?
+    } else {
+        // 3b. Resolve session variables once and pass them to the adapter call so
+        //     they are applied on the same connection / transaction as the function
+        //     (fixes #329 — set_config(..., true) is transaction-local, so applying
+        //     it on a separate pooled connection left it invisible to the function).
+        //
+        // Only resolved when there are variables to inject or inject_started_at is
+        // enabled, and only on the authenticated path (security context present).
+        // The no-op default on non-PostgreSQL adapters means an empty slice here is
+        // effectively free there.
+        let resolved_session_vars = {
+            let sv = &ctx.schema.session_variables;
+            match security_ctx {
+                Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
+                    crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)
+                },
+                _ => Vec::new(),
+            }
+        };
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+
+        // 4. Call the database function (session variables pinned to its connection) AND write the
+        //    change-log outbox row in the same transaction — the Change Spine transactional outbox.
+        //    The framework owns this write by default; apps drop their hand-rolled
+        //    per-mutation-function inserts on upgrade (a documented breaking change). The adapter
+        //    reads the changed-entity columns (object_id / object_data / updated_fields / cascade)
+        //    from the function's own mutation_response row; only the DML verb and a NOT-NULL
+        //    object_type fallback (the GraphQL return type) are threaded down here. Non-PostgreSQL
+        //    adapters ignore the change-log descriptor (multi-DB parity lands in phase-03).
+        //
+        //    Opt-out (default-on): a row is written only when the global switch
+        //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
+        //    individually opted out (`MutationDefinition.changelog`). Passing `None`
+        //    makes the adapter behave exactly like the session-affine path.
+        let modification_type = mutation_def.operation.kind_str().to_uppercase();
+        let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
+        // Envelope stamp (phase-03): stamp the tenant partition id EXPLICITLY from the
+        // SecurityContext — never reconstructed from connection / RLS state, because
+        // out-of-session spine consumers (poller, NATS bridge) bypass RLS and must
+        // re-authz fan-out from the row itself. `tenant_id` is the Trinity
+        // public-facing UUID; a request with no tenant, or a tenant identifier that
+        // is not UUID-shaped, leaves it NULL (we never abort a user's mutation over a
+        // log-row stamp). `trace_id` is the originating request's W3C trace id (#375),
+        // stamped onto the SecurityContext from the inbound `traceparent` header — NULL
+        // for a request with no trace context. `schema_version` is the compiled
+        // schema's content hash (#377), a per-deployment constant precomputed once on
+        // the ExecutorContext — NOT request-scoped — so a row records which deployment
+        // produced it (the #378 replay-correctness handle). `trace_context` is the
+        // request's full W3C trace context (#375), serialized JSON from the
+        // SecurityContext — NULL for a request with no trace context. `actor_type`
+        // is the request's actor classification and `acting_for` the delegated human
+        // an agent acts for (#390), both derived onto the SecurityContext at auth time
+        // — NULL for an unauthenticated mutation (no SecurityContext to stamp).
+        let tenant_uuid = security_ctx
+            .and_then(|c| c.tenant_id.as_ref())
+            .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
+        let trace_id = security_ctx.and_then(SecurityContext::trace_id);
+        // Serialize the trace context once, into a binding that outlives the write call
+        // (ChangeLogWrite borrows it as JSON text).
+        let trace_context_json = security_ctx
+            .and_then(SecurityContext::trace_context)
+            .map(serde_json::Value::to_string);
+        let actor_type = security_ctx.map(|c| c.actor_type().as_str());
+        let acting_for = security_ctx.and_then(SecurityContext::acting_for);
+        let changelog = write_changelog.then(|| {
+            ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
+                .with_tenant_id(tenant_uuid)
+                .with_trace_id(trace_id)
+                .with_schema_version(Some(&ctx.schema_version))
+                .with_trace_context(trace_context_json.as_deref())
+                .with_actor_type(actor_type)
+                .with_acting_for(acting_for)
+                // Opt-in pre-image: when this mutation sets `changelog_pre_image`, the
+                // outbox CTE also records the entity's before-state (from the
+                // function's `entity_before`) into `object_data_before`. Off by
+                // default → no extra column, byte-for-byte today's behavior.
+                .with_pre_image(mutation_def.changelog_pre_image)
+        });
+        let rows = ctx
+            .adapter
+            .execute_function_call_with_changelog(
+                sql_source,
+                &args,
+                &session_pairs,
+                changelog.as_ref(),
+            )
+            .await?;
+
+        // 5. Expect at least one row
+        let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
+            message: format!("Mutation '{mutation_name}': function returned no rows"),
+            path:    None,
+        })?;
+
+        // 6. Parse the mutation_response row
+        parse_mutation_row(&row)?
     };
-    let session_pairs: Vec<(&str, &str)> =
-        resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-
-    // 4. Call the database function (session variables pinned to its connection) AND write the
-    //    change-log outbox row in the same transaction — the Change Spine transactional outbox. The
-    //    framework owns this write by default; apps drop their hand-rolled per-mutation-function
-    //    inserts on upgrade (a documented breaking change). The adapter reads the changed-entity
-    //    columns (object_id / object_data / updated_fields / cascade) from the function's own
-    //    mutation_response row; only the DML verb and a NOT-NULL object_type fallback (the GraphQL
-    //    return type) are threaded down here. Non-PostgreSQL adapters ignore the change-log
-    //    descriptor (multi-DB parity lands in phase-03).
-    //
-    //    Opt-out (default-on): a row is written only when the global switch
-    //    (`RuntimeConfig.changelog_enabled`) is on AND this mutation is not
-    //    individually opted out (`MutationDefinition.changelog`). Passing `None`
-    //    makes the adapter behave exactly like the session-affine path.
-    let modification_type = mutation_def.operation.kind_str().to_uppercase();
-    let write_changelog = ctx.config.changelog_enabled && mutation_def.changelog;
-    // Envelope stamp (phase-03): stamp the tenant partition id EXPLICITLY from the
-    // SecurityContext — never reconstructed from connection / RLS state, because
-    // out-of-session spine consumers (poller, NATS bridge) bypass RLS and must
-    // re-authz fan-out from the row itself. `tenant_id` is the Trinity
-    // public-facing UUID; a request with no tenant, or a tenant identifier that
-    // is not UUID-shaped, leaves it NULL (we never abort a user's mutation over a
-    // log-row stamp). `trace_id` is the originating request's W3C trace id (#375),
-    // stamped onto the SecurityContext from the inbound `traceparent` header — NULL
-    // for a request with no trace context. `schema_version` is the compiled
-    // schema's content hash (#377), a per-deployment constant precomputed once on
-    // the ExecutorContext — NOT request-scoped — so a row records which deployment
-    // produced it (the #378 replay-correctness handle). `trace_context` is the
-    // request's full W3C trace context (#375), serialized JSON from the
-    // SecurityContext — NULL for a request with no trace context. `actor_type`
-    // is the request's actor classification and `acting_for` the delegated human
-    // an agent acts for (#390), both derived onto the SecurityContext at auth time
-    // — NULL for an unauthenticated mutation (no SecurityContext to stamp).
-    let tenant_uuid = security_ctx
-        .and_then(|c| c.tenant_id.as_ref())
-        .and_then(|t| uuid::Uuid::parse_str(t.as_str()).ok());
-    let trace_id = security_ctx.and_then(SecurityContext::trace_id);
-    // Serialize the trace context once, into a binding that outlives the write call
-    // (ChangeLogWrite borrows it as JSON text).
-    let trace_context_json = security_ctx
-        .and_then(SecurityContext::trace_context)
-        .map(serde_json::Value::to_string);
-    let actor_type = security_ctx.map(|c| c.actor_type().as_str());
-    let acting_for = security_ctx.and_then(SecurityContext::acting_for);
-    let changelog = write_changelog.then(|| {
-        ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
-            .with_tenant_id(tenant_uuid)
-            .with_trace_id(trace_id)
-            .with_schema_version(Some(&ctx.schema_version))
-            .with_trace_context(trace_context_json.as_deref())
-            .with_actor_type(actor_type)
-            .with_acting_for(acting_for)
-            // Opt-in pre-image: when this mutation sets `changelog_pre_image`, the
-            // outbox CTE also records the entity's before-state (from the
-            // function's `entity_before`) into `object_data_before`. Off by
-            // default → no extra column, byte-for-byte today's behavior.
-            .with_pre_image(mutation_def.changelog_pre_image)
-    });
-    let rows = ctx
-        .adapter
-        .execute_function_call_with_changelog(sql_source, &args, &session_pairs, changelog.as_ref())
-        .await?;
-
-    // 5. Expect at least one row
-    let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
-        message: format!("Mutation '{mutation_name}': function returned no rows"),
-        path:    None,
-    })?;
-
-    // 6. Parse the mutation_response row
-    let outcome = parse_mutation_row(&row)?;
 
     // 6a. Bump fact table versions after a successful mutation.
     //

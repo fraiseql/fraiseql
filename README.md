@@ -78,7 +78,7 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 | Feature          | PostgreSQL | MySQL | SQL Server | SQLite |
 |------------------|:----------:|:-----:|:----------:|:------:|
 | Queries          | ✅         | ✅    | ✅         | ✅     |
-| Mutations        | ✅         | ✅    | ✅         | ❌ read-only |
+| Mutations        | ✅         | ✅    | ✅         | ⚠️ Insert/Delete |
 | Relay pagination | ✅         | ✅    | ✅         | ❌     |
 | Full-text search | ✅         | ⚠️    | ⚠️         | ❌     |
 | Subscriptions    | ✅         | ⚠️    | ⚠️         | ❌     |
@@ -88,7 +88,7 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 **MySQL** (v2.1+) and **SQL Server** support queries, mutations, and relay cursor pagination. Subscriptions use polling-based observer bridges (not LISTEN/NOTIFY).
 
-**SQLite** is a **read-only** runtime — the server refuses schemas that declare mutations (use PostgreSQL/MySQL/SQL Server for those). It also lacks relay pagination, full-text search, and subscriptions. Recommended for local development and testing only.
+**SQLite** supports direct-SQL **Insert/Delete** mutations (via the `DirectSql` strategy); **Update** and stored-procedure (`fn_*`) mutations are not supported on SQLite. It also lacks relay pagination, full-text search, and subscriptions. Recommended for local development and testing only.
 
 See [docs/database-compatibility.md](docs/database-compatibility.md) for the full feature matrix.
 

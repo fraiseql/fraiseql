@@ -12,7 +12,8 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 | Feature | PostgreSQL | MySQL | SQL Server | SQLite |
 |---------|:----------:|:-----:|:----------:|:------:|
 | **SELECT queries** | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Mutations** (`fn_*` stored functions) | ✅ | ✅ | ✅ | ❌ read-only |
+| **Mutations** (`fn_*` stored functions) | ✅ | ✅ | ✅ | ❌ |
+| **Mutations** (direct-SQL Insert/Delete) | — | — | — | ✅ |
 | **Relay (keyset pagination, forward)** | ✅ v2.0 | ✅ v2.1 | ✅ v2.0 | ❌ |
 | **Relay (backward pagination)** | ✅ | ✅ | ✅ v2.1 | ❌ |
 | **Aggregate queries** | ✅ | ✅ | ✅ | ✅ limited |
@@ -43,24 +44,17 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 
 ### Mutations
 
-PostgreSQL, MySQL, and SQL Server execute mutations via stored database functions
-(`MutationStrategy::FunctionCall`, calling `fn_*`).
+Mutations run via one of two strategies, chosen per adapter:
 
-**SQLite is a read-only runtime.** `fraiseql-server` refuses to start when the compiled
-schema declares any mutation and the database URL is `sqlite://`
-(`url_guard::guard_sqlite_mutations`: *"SQLite is a read-only runtime adapter … mutations …
-cannot be executed against a SQLite database"*). The lower-level `fraiseql-db` `SqliteAdapter`
-does carry direct-SQL mutation primitives (`MutationStrategy::DirectSql`), but they are **not
-exposed through the server** — use a `postgresql://` / `mysql://` / `sqlserver://` URL for any
-mutating schema.
+- **Stored-procedure (`MutationStrategy::FunctionCall`)** — PostgreSQL, MySQL, and SQL Server
+  call `fn_*` database functions.
+- **Direct-SQL (`MutationStrategy::DirectSql`)** — SQLite generates `INSERT … RETURNING *` and
+  `DELETE … RETURNING *` from the mutation contract.
 
-The `fraiseql compile` CLI also warns when a schema containing mutations targets SQLite:
-
-```
-Warning: Schema contains N mutation(s) but target database is SQLite.
-         Mutations are not supported on SQLite.
-         See: https://fraiseql.dev/docs/database-compatibility
-```
+So **SQLite supports Insert and Delete mutations** through the executor. **Update** and
+stored-procedure (`fn_*`) mutations are **not** supported on SQLite: the server rejects schemas
+declaring an Update or custom mutation at startup (`url_guard::guard_sqlite_mutations`). Use a
+`postgresql://` / `mysql://` / `sqlserver://` URL for those.
 
 ### Relay Pagination
 
@@ -104,10 +98,10 @@ It is not portable to other databases by design.
 
 ### SQLite Scope
 
-SQLite is supported for **local development and testing** only, as a **read-only** runtime:
-the server refuses schemas that declare mutations (see *Mutations* above). It implements full
-SELECT queries but not mutations, JSONB (fact tables), or LISTEN/NOTIFY (subscriptions). Do not
-deploy SQLite in production.
+SQLite is supported for **local development and testing** only. It implements full SELECT
+queries and direct-SQL Insert/Delete mutations, but not Update / stored-procedure (`fn_*`)
+mutations, JSONB (fact tables), or LISTEN/NOTIFY (subscriptions). Do not deploy SQLite in
+production.
 
 ---
 
@@ -177,13 +171,16 @@ syntax differences and known limitations.
 
 | Feature | PostgreSQL | MySQL | SQL Server | SQLite |
 |---------|:----------:|:-----:|:----------:|:------:|
-| `SupportsMutations` trait | ✅ | ✅ | ✅ | ❌ compile-time¹ |
-| Function call syntax | `SELECT * FROM fn($1,$2)` | `SELECT * FROM fn(?,?)` | `SELECT * FROM fn(@p1,@p2)` | ❌ `Unsupported` |
-| Returns `mutation_response` | ✅ | ✅ | ✅ | — |
+| Stored-function (`fn_*`) mutations | ✅ | ✅ | ✅ | ❌¹ |
+| Function call syntax | `SELECT * FROM fn($1,$2)` | `SELECT * FROM fn(?,?)` | `SELECT * FROM fn(@p1,@p2)` | ❌ (uses direct SQL) |
+| Direct-SQL Insert/Delete | — | — | — | ✅ `INSERT/DELETE … RETURNING *` |
+| Returns `mutation_response` | ✅ | ✅ | ✅ | ✅ (reshaped) |
 | Mutation timing injection | ✅ session var | ❌ | ❌ | — |
 
-¹ Schemas containing mutations targeting SQLite produce a compile-time warning from
-`fraiseql compile`. At runtime, `execute_function_call` returns `FraiseQLError::Unsupported`.
+¹ SQLite executes **Insert** and **Delete** mutations via the direct-SQL strategy. Only
+**Update** and custom / stored-procedure (`fn_*`) mutations are unsupported on SQLite: those
+produce a compile-time warning from `fraiseql compile` and are rejected at server startup
+(`url_guard::guard_sqlite_mutations`).
 
 ### Window Functions
 

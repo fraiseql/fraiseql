@@ -250,6 +250,110 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn test_sqlite_insert_mutation_via_executor() {
+        use fraiseql_core::{
+            runtime::Executor,
+            schema::{
+                ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition,
+                MutationOperation,
+            },
+        };
+
+        let adapter =
+            Arc::new(SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter"));
+        adapter
+            .execute_raw_query(
+                "CREATE TABLE users (pk_user INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, \
+                 email TEXT)",
+            )
+            .await
+            .expect("create table");
+
+        let scalar = |name: &str| ArgumentDefinition {
+            name:          name.to_string(),
+            arg_type:      FieldType::String,
+            nullable:      false,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            arguments: vec![scalar("name"), scalar("email")],
+            operation: MutationOperation::Insert {
+                table: "users".to_string(),
+            },
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let executor = Executor::new(schema, Arc::clone(&adapter));
+        let result = executor
+            .execute(
+                "mutation { createUser(name: \"Alice\", email: \"alice@example.com\") \
+                 { name email } }",
+                None,
+            )
+            .await;
+        assert!(result.is_ok(), "SQLite insert mutation should succeed: {result:?}");
+
+        // The row must have actually landed in the table.
+        let rows = adapter
+            .execute_raw_query("SELECT name FROM users WHERE email = 'alice@example.com'")
+            .await
+            .expect("select");
+        assert_eq!(rows.len(), 1, "exactly one row inserted");
+        assert_eq!(rows[0].get("name").and_then(serde_json::Value::as_str), Some("Alice"));
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_delete_mutation_via_executor() {
+        use fraiseql_core::{
+            runtime::Executor,
+            schema::{
+                ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition,
+                MutationOperation,
+            },
+        };
+
+        let adapter =
+            Arc::new(SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter"));
+        adapter
+            .execute_raw_query(
+                "CREATE TABLE users (pk_user INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, \
+                 email TEXT)",
+            )
+            .await
+            .expect("create table");
+        adapter
+            .execute_raw_query("INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com')")
+            .await
+            .expect("seed");
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            arguments: vec![ArgumentDefinition {
+                name:          "pk_user".to_string(),
+                arg_type:      FieldType::Int,
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            operation: MutationOperation::Delete {
+                table: "users".to_string(),
+            },
+            ..MutationDefinition::new("deleteUser", "User")
+        });
+
+        let executor = Executor::new(schema, Arc::clone(&adapter));
+        let result = executor.execute("mutation { deleteUser(pk_user: 1) { name } }", None).await;
+        assert!(result.is_ok(), "SQLite delete mutation should succeed: {result:?}");
+
+        let rows = adapter.execute_raw_query("SELECT name FROM users").await.expect("select");
+        assert!(rows.is_empty(), "row should be deleted");
+    }
+
+    #[tokio::test]
     async fn test_sqlite_create_and_query_view() {
         let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
