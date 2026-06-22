@@ -75,7 +75,7 @@ Location: crates/fraiseql-core/src/validation/rate_limiting.rs
 
 | Attack | Status | Notes |
 |--------|--------|-------|
-| **Cost/complexity budget** | ❌ Not implemented | Planned for v2.2.0. Static complexity scoring per field not yet present. |
+| **Cost/complexity budget** | ⚠️ Partial (#379) | Per-tenant `cost_budget` and root-operation `@cost` weights are enforced at the rate-limit chokepoint (429 when exceeded). Fine-grained per-field cost scoring is not yet present — the score is the type-agnostic complexity count. |
 | **Fragment cycle detection** | ❓ Unverified | `graphql-parser` crate handles AST parsing; cycle detection depends on the library. |
 | **Introspection disable** | ❓ Unverified | No `disable_introspection` flag found in `validation.rs`. Check `routes/graphql/handler.rs`. |
 | **Batch query amplification** | ❓ Unverified | HTTP batching (array of operations) not confirmed present or absent. |
@@ -95,8 +95,9 @@ max_query_depth = 10
 max_page_size = 1000
 
 [fraiseql.security]
-# Max query complexity score — NOT YET IMPLEMENTED
-# max_query_complexity = 1000
+# Per-operation @cost weights are declared under [fraiseql.cost_weights]; per-tenant
+# cost budgets are configured via the tenant-quota admin API (cost_budget). (#379)
+# A single global max_query_complexity toggle is not yet implemented.
 
 [fraiseql.security.rate_limiting]
 # Rate limit for complexity error responses (default: 30 per 60s)
@@ -110,5 +111,5 @@ complexity_errors_window_secs  = 60
 
 1. **Fragment cycle detection** — confirm `graphql-parser` handles this or add explicit check
 2. **Introspection control** — add `allow_introspection: bool` flag to `RequestValidator`
-3. **Cost budget** — implement field-level cost scoring for v2.2.0
+3. **Per-field cost scoring** — extend the type-agnostic complexity score with per-field weights (per-tenant `cost_budget` and root-operation `@cost` weights already shipped in #379)
 4. **Field count limit** — add `max_fields_per_selection_set: usize` to `RequestValidator`

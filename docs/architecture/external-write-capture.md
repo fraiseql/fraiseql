@@ -69,10 +69,11 @@ reader, poller, and NATS bridges fan it out unchanged:
   trigger at install time. The reader and the subscription matcher key on the type
   name, never the table name, so no `table → type` lookup is needed.
 - **`modification_type`** — `INSERT` / `UPDATE` / `DELETE` (`TG_OP`).
-- **`object_data`** — a Debezium-style envelope `{op, before, after}` with the
-  lowercase op code (`c` / `u` / `d`); this is the exact shape the reader decodes
-  (`ChangeLogEntry::debezium_operation` / `after_values` / `before_values`).
-  `before` is the pre-image (UPDATE/DELETE), `after` the post-image (INSERT/UPDATE).
+- **`object_data`** — the **after-image** (`NEW`): the full post-mutation row as JSONB.
+  The op code is taken from `modification_type`, not embedded in `object_data`. The reader
+  still exposes `ChangeLogEntry::debezium_operation` / `after_values` / `before_values`.
+- **`object_data_before`** — the **pre-image** (`OLD`), recorded only for tables that opt in
+  via `@subscribable(pre_image=True)`; otherwise `NULL`.
 - **`object_id`** — the row's public id column (default `id`), which **must be a
   UUID** (see below).
 - **`tenant_id`** — the configured tenant column (default `tenant_id`) when present

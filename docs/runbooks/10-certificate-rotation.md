@@ -1,5 +1,16 @@
 # Runbook: Certificate Rotation (TLS/SSL Certificate Renewal)
 
+> **TLS is terminated at a reverse proxy / load balancer / ingress — not inside FraiseQL.**
+> FraiseQL serves plaintext HTTP and **refuses to boot if a `[tls]` section is configured**.
+> Rotate certificates **at the TLS terminator** (nginx/Caddy/Envoy, a cloud load balancer, or
+> the Kubernetes ingress) — see the *Kubernetes/Cloud Environment* and load-balancer sections
+> below, which are the supported path. The certbot/ACM/CSR mechanics in this runbook are
+> reusable, but install the renewed certificate **on the proxy** and reload the proxy. The
+> steps that copy certs into `/etc/fraiseql/certs` and "restart FraiseQL to serve TLS", and
+> the `openssl s_client -connect localhost:8815` / `https://localhost:8815` checks, describe an
+> **unsupported** in-process-TLS setup and do not apply to current FraiseQL — read them as
+> "the TLS-terminating proxy in front of FraiseQL".
+
 ## Symptoms
 
 - TLS certificate expiry warning from monitoring (< 30 days)

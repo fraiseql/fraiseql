@@ -18,7 +18,7 @@ HTTP Upload → Storage Router → Backend Adapter → S3 / GCS / Azure / Local
 
 | Backend | Feature Flag | Status |
 |---------|-------------|--------|
-| Amazon S3 / MinIO | `s3` | Stable |
+| Amazon S3 / MinIO | `aws-s3` | Stable |
 | Google Cloud Storage | `gcs` | Stable |
 | Azure Blob Storage | `azure-blob` | Stable |
 | Local filesystem | (default) | Development only |

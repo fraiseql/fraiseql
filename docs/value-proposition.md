@@ -1,7 +1,8 @@
 # FraiseQL Value Proposition
 
-**Status**: v2.3.0 | Production-Ready
-**Last Updated**: May 25, 2026
+**Status**: v2.8.0 (released) · v2.9.0 in development
+**Maturity**: The core engine is production-ready. Some enterprise features are experimental or not yet implemented — see the per-feature notes under [Feature Tiers](#feature-tiers).
+**Last Updated**: June 22, 2026
 
 ---
 
@@ -56,7 +57,7 @@ As a result, applications built with FraiseQL achieve significantly faster query
 
 - SQL injection is mathematically impossible (parameterized queries generated at compile time)
 - Field-level authorization pre-computed; no runtime decision overhead
-- Audit logging embedded in compiled schema
+- Auth event logging (login attempts) via the optional auth layer
 - Error messages automatically sanitized (configurable per environment)
 
 ---
@@ -106,7 +107,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Standard GraphQL operations: queries, mutations, subscriptions
 - Type system: objects, interfaces, unions, enums, input types, scalars
 - Automatic `WHERE` clause generation (150+ comparison operators)
-- Apollo Federation v2 with SAGA transactions
+- Apollo Federation v2 (entity resolution, federated subscriptions)
 - Query validation and projection optimization
 - Connection pooling and health checks
 - Four database backends: PostgreSQL, MySQL, SQLite, SQL Server
@@ -118,9 +119,8 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 **Security & Access Control**
 
 - Field-level authorization with JWT scope validation
-- Field-level encryption-at-rest for sensitive columns
 - Rate limiting on auth endpoints with configurable thresholds
-- Audit logging to PostgreSQL, syslog, or file backends
+- Auth event logging (login attempts) via fraiseql-auth
 - Constant-time token comparison (prevents timing attacks)
 - OAuth2/OIDC with 7+ pre-built providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, custom)
 - Multi-tenant isolation with automatic data scoping
@@ -140,19 +140,18 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Connection pool metrics and monitoring
 - Slow query detection and logging
 
-**Enabled**: `features = ["caching"]` in Cargo.toml
-**Configuration**: Runtime TOML configuration with Redis integration
+**Enabled**: Query result caching is built into the core engine (no feature flag). Redis-backed cache invalidation is provided by the `observers` feature.
+**Configuration**: Runtime TOML configuration
 
 ---
 
 **Event Processing & Webhooks**
 
 - Webhook delivery with exponential backoff retry (5 attempts, configurable)
-- Multiple action types: webhooks, Slack, email, SMS
+- Action types: webhook, Slack, email, and Redis cache-invalidation (SMS, push, and search are not yet implemented and fail loud)
 - Dead-letter queues for failed events
 - Event deduplication to prevent duplicates
 - Job persistence for durability
-- Elasticsearch integration for event search
 - Observability: Prometheus metrics for event processing
 
 **Enabled**: `features = ["observers"]` in Cargo.toml
@@ -193,12 +192,11 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 
 **Change Data Capture**
 
-- Automatic subscription to database write events
-- Publish/subscribe model for downstream systems
-- Integration with NATS JetStream for event streaming
-- Configurable event filtering per subscription
+- Capture trigger records database write events to a durable change log (per-table opt-in)
+- Durable outbox drain worker forwards changes to a message broker (at-least-once)
+- NATS JetStream sink for event streaming
 
-**Enabled**: `features = ["cdc"]` in Cargo.toml
+**Enabled**: The capture trigger ships with the compiled schema; outbound streaming is provided by the standalone `fraiseql-cdc-sinks` crate (feature `cdc-nats-jetstream`). NATS JetStream is the only sink today, and there is no server auto-mount yet (Kafka/Kinesis/Pulsar sinks and Avro/Protobuf encoding are planned).
 
 ---
 
@@ -324,7 +322,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 - Automatic N+1 query prevention
 - Field-level authorization without runtime overhead
 - SQL injection protection guaranteed at compile time
-- Audit logging for compliance
+- Auth event logging (login attempts)
 - Type-safe authoring in Python, TypeScript, Java, or Go
 - Self-hosted, full control over infrastructure
 
@@ -410,7 +408,7 @@ This enables:
 
 ## Maturity & Production Readiness
 
-**FraiseQL v2.3.0** is production-ready:
+**FraiseQL** (v2.8.0 released; v2.9.0 in development) ships a production-ready core:
 
 - Comprehensive test coverage across unit, integration, and E2E scenarios
 - Zero unsafe code blocks (`unsafe_code = "forbid"` workspace-wide)

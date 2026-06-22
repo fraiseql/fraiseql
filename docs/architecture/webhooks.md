@@ -32,6 +32,14 @@ Use it when **your own data changes** and you want downstream consumers to know:
 
 ## Inbound Webhook Receiver (`fraiseql-webhooks`)
 
+> **Status: library-core only.** `fraiseql-webhooks` currently ships the receiver
+> **pipeline** — signature verification, an atomic idempotency claim inside the handler
+> transaction, and transactional handoff. It is **not yet mounted as an HTTP route**: there
+> is no `POST /webhooks/{provider}` endpoint in the server and the `endpoint_path` config
+> below is not wired. The HTTP route, server mount, and provider/event-routing config are
+> planned. The security and transaction semantics described here are real and exercised by
+> the crate's tests.
+
 ### Supported Providers
 
 | Provider | Signature Algorithm | Header |

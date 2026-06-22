@@ -24,7 +24,7 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 
 ## Network
 
-- [ ] Enable TLS (`[tls]` section or reverse proxy)
+- [ ] Terminate TLS at a reverse proxy / load balancer — FraiseQL serves plaintext and **refuses to boot** if the `[tls]` section is set
 - [ ] Configure trusted proxy headers for accurate client IP extraction
 - [ ] Restrict admin endpoints to internal networks or VPN
 - [ ] Set CORS origins explicitly (avoid `*` in production)
@@ -39,20 +39,20 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 
 - [ ] Store database credentials in environment variables, not config files
 - [ ] Use HashiCorp Vault integration for secret management (`[secrets]`)
-- [ ] Enable field-level encryption for sensitive database columns
+- [ ] Encrypt sensitive columns at the database/storage layer — field-level at-rest encryption is **not implemented** (the server refuses to boot if a field is marked for encryption)
 - [ ] Ensure OTLP endpoint URLs do not contain embedded credentials
 
 ## Observability
 
 - [ ] Enable Prometheus metrics (`[metrics]`) and configure alerting
-- [ ] Enable audit logging for compliance (`[security.audit_logging]`)
+- [ ] Capture auth events (login attempts, authorization denials) via `fraiseql-auth` — note: a generic compliance audit subsystem with file/PostgreSQL/syslog backends is **not** provided
 - [ ] Configure OpenTelemetry tracing for distributed request tracing
 - [ ] Monitor the Grafana dashboard (`GET /api/v1/admin/grafana-dashboard`)
 
 ## Schema
 
 - [ ] Run `fraiseql-cli validate-documents` against your trusted document manifest
-- [ ] Set `max_query_depth` and `max_query_complexity` to prevent abuse
+- [ ] Set `max_query_depth`, and configure per-tenant `cost_budget` / `@cost` weights (#379) to prevent abuse
 - [ ] Review all mutation functions for proper input validation
 - [ ] Ensure schema files are read-only in production (prevents tampering)
 

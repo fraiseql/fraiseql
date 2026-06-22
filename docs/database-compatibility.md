@@ -12,14 +12,14 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 | Feature | PostgreSQL | MySQL | SQL Server | SQLite |
 |---------|:----------:|:-----:|:----------:|:------:|
 | **SELECT queries** | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Mutations (`fn_*`)** | ✅ | ✅ | ✅ | ❌ |
+| **Mutations** (`fn_*` stored functions) | ✅ | ✅ | ✅ | ❌ read-only |
 | **Relay (keyset pagination, forward)** | ✅ v2.0 | ✅ v2.1 | ✅ v2.0 | ❌ |
 | **Relay (backward pagination)** | ✅ | ✅ | ✅ v2.1 | ❌ |
 | **Aggregate queries** | ✅ | ✅ | ✅ | ✅ limited |
 | **Window functions** | ✅ Full | ⚠️ Partial | ⚠️ Partial | ❌ |
 | **Fact table queries (JSONB)** | ✅ | ❌ | ❌ | ❌ |
 | **Subscriptions (LISTEN/NOTIFY)** | ✅ | ❌ | ❌ | ❌ |
-| **Field-level encryption** | ✅ | ✅ | ✅ | ❌ |
+| **Field-level encryption** | ❌¹ | ❌¹ | ❌¹ | ❌¹ |
 | **APQ (in-memory)** | ✅ | ✅ | ✅ | ✅ |
 | **APQ (Redis-backed)** | ✅ | ✅ | ✅ | ✅ |
 | **Row-level security** | ✅ Native RLS | ✅ SQL WHERE | ✅ SQL WHERE | ✅ SQL WHERE |
@@ -35,6 +35,7 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 - ✅ v2.1 — Added in v2.1
 - ⚠️ Partial/limited support (see notes below)
 - ❌ Not supported — explicit `FraiseQLError::Unsupported` returned at runtime
+- ¹ Field-level at-rest encryption is **not implemented** on any backend: the write path is a no-op and the server refuses to boot if a field is marked for encryption. Encrypt at the database/storage layer instead.
 
 ---
 
@@ -42,10 +43,18 @@ PostgreSQL is the primary target; other backends are supported on a best-effort 
 
 ### Mutations
 
-SQLite has no stored procedure support. Calling a mutation on SQLite returns
-`FraiseQLError::Unsupported` at runtime. **Use PostgreSQL for any schema containing mutations.**
+PostgreSQL, MySQL, and SQL Server execute mutations via stored database functions
+(`MutationStrategy::FunctionCall`, calling `fn_*`).
 
-The `fraiseql compile` CLI warns when a schema containing mutations targets SQLite:
+**SQLite is a read-only runtime.** `fraiseql-server` refuses to start when the compiled
+schema declares any mutation and the database URL is `sqlite://`
+(`url_guard::guard_sqlite_mutations`: *"SQLite is a read-only runtime adapter … mutations …
+cannot be executed against a SQLite database"*). The lower-level `fraiseql-db` `SqliteAdapter`
+does carry direct-SQL mutation primitives (`MutationStrategy::DirectSql`), but they are **not
+exposed through the server** — use a `postgresql://` / `mysql://` / `sqlserver://` URL for any
+mutating schema.
+
+The `fraiseql compile` CLI also warns when a schema containing mutations targets SQLite:
 
 ```
 Warning: Schema contains N mutation(s) but target database is SQLite.
@@ -95,9 +104,10 @@ It is not portable to other databases by design.
 
 ### SQLite Scope
 
-SQLite is supported for **local development and testing** only. It implements full SELECT
-queries but lacks stored procedures (mutations), JSONB (fact tables), and LISTEN/NOTIFY
-(subscriptions). Do not deploy SQLite in production for any schema using these features.
+SQLite is supported for **local development and testing** only, as a **read-only** runtime:
+the server refuses schemas that declare mutations (see *Mutations* above). It implements full
+SELECT queries but not mutations, JSONB (fact tables), or LISTEN/NOTIFY (subscriptions). Do not
+deploy SQLite in production.
 
 ---
 
@@ -251,7 +261,7 @@ All four dialects use identical `WITH RECURSIVE` syntax for recursive CTEs.
 |---------|:----------:|:-----:|:----------:|:------:|
 | **Advisory locks** | ✅ `pg_try_advisory_lock()` | ❌ | ❌ | ❌ |
 | **Row-level security** | ✅ Native `CREATE POLICY` | ⚠️ WHERE injection | ⚠️ WHERE injection | ⚠️ WHERE injection |
-| **Field-level encryption** | ✅ via `fraiseql-secrets` | ✅ via `fraiseql-secrets` | ✅ via `fraiseql-secrets` | ❌ |
+| **Field-level encryption** | ❌ not implemented | ❌ not implemented | ❌ not implemented | ❌ not implemented |
 | **Connection pooling** | ✅ `deadpool-postgres` (default: 25) | ✅ `sqlx` (default: 10) | ✅ `bb8` + `tiberius` (default: 10) | ✅ `sqlx` (default: 5) |
 | **Upsert** | ✅ | ✅ | ✅ | ✅ |
 | **EXPLAIN support** | ✅ `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` | ❌ | ❌ | ❌ |

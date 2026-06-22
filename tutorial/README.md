@@ -455,12 +455,12 @@ Same as FraiseQL project
 
 ## Support
 
-- **Issues**: https://github.com/anthropics/fraiseql/issues
-- **Discussions**: https://github.com/anthropics/fraiseql/discussions
-- **Docs**: https://github.com/anthropics/fraiseql/tree/main/docs
+- **Issues**: https://github.com/fraiseql/fraiseql/issues
+- **Discussions**: https://github.com/fraiseql/fraiseql/discussions
+- **Docs**: https://github.com/fraiseql/fraiseql/tree/main/docs
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: June 2026
 **Maintained by**: FraiseQL Team
-**Status**: Production Ready
+**Status**: Tutorial / learning material

@@ -1,7 +1,7 @@
 # FraiseQL Service Level Agreement (SLA) and Objectives (SLO)
 
-**Version**: 2.0.0-beta.2
-**Last Updated**: February 2026
+**Version**: 2.8.0 (released) · 2.9.0 in development
+**Last Updated**: June 2026
 **Status**: Operational Standards
 
 ## Executive Summary
@@ -443,12 +443,13 @@ Success criteria: All synthetic tests pass within SLO latency bounds.
 
 **Log Retention**: 30 days (hot), 1 year (archive)
 
-**Audit Logging**: Enabled by default for:
+**Auth Event Logging** (`fraiseql-auth`): records
 
-- All authentication events
+- Authentication events (login attempts)
 - Authorization denials
-- Data access patterns (if enabled in schema config)
-- Configuration changes
+
+> A generic compliance audit subsystem (data-access patterns / configuration-change auditing
+> with file/PostgreSQL/syslog backends) is **not** provided.
 
 ---
 

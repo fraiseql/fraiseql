@@ -1,8 +1,8 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: May 25, 2026
+**Last Updated**: June 22, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.3.0 Production-Ready
+**Status**: v2.8.0 released · v2.9.0 in development (core production-ready; some enterprise features experimental — see notes)
 
 ---
 
@@ -52,7 +52,7 @@ FraiseQL v2 achieves four goals simultaneously:
 │                                                              │
 │  Capabilities:                                               │
 │  ├── Event listener: PostgreSQL NOTIFY → conditions → acts  │
-│  ├── Actions: webhook, email, SMS, Slack, push, search idx  │
+│  ├── Actions: webhook, email, Slack, cache-invalidate       │
 │  ├── Delivery: retry with backoff, dead letter queue, dedup │
 │  ├── Transports: in-memory, NATS, PG NOTIFY, MySQL/MSSQL   │
 │  ├── Job queue: persistent async jobs (Redis or PG)         │
@@ -573,22 +573,16 @@ extends to all query paths.
 
 ### 4. Data Protection at Rest
 
-- **Field-Level Encryption**: Encrypt sensitive database columns with configurable key rotation
-- **Secrets Management**: HashiCorp Vault integration with automatic secret refresh
-  - Dynamic secrets with TTL and automatic renewal
-  - Transit encryption for sensitive data in transit
-  - Lease management and automatic key rotation
-  - Fallback to environment variables and file-based backends
-- **Credential Rotation**: Automated rotation of authentication credentials
-  - Monitor rotation status and refresh triggers
-  - Dashboard for rotation history and compliance auditing
+- **Field-Level Encryption**: *Not implemented in this build.* The write path is a no-op and the server refuses to boot if any field is marked for encryption. Encrypt sensitive columns at the database or storage layer instead.
+- **Secrets Management**: HashiCorp Vault integration for fetching secrets (database password, JWT/OIDC signing secrets, API keys) at startup
+  - Lease/TTL and renewal handled by Vault
+  - Fallback to environment-variable and file-based backends
 
 ### 5. Audit & Compliance
 
-- **Audit Logging**: Track all mutations and admin operations
-  - Multiple backends: file, PostgreSQL, Syslog
+- **Auth Event Logging**: `fraiseql-auth` records authentication events (login attempts, authorization denials)
   - Redacted secrets in logs (implementation details hidden)
-  - Structured logging for compliance tooling
+  - Note: a generic compliance audit subsystem with file/PostgreSQL/Syslog backends is **not** provided; the in-memory secrets audit logger was removed
 - **Error Sanitization**: Hide implementation details from error messages
 - **Rate Limiting on Auth Endpoints**: Brute-force protection with configurable thresholds
 - **RBAC Management API**: Role-based access control with a built-in REST management API
@@ -648,19 +642,19 @@ extends to all query paths.
 | PostgreSQL | ✅ | ✅ | ✅ |
 | MySQL | ✅ | ✅ | ✅ |
 | SQL Server | ✅ | ✅ | ✅ |
-| SQLite | ✅ | ❌ | ❌ |
+| SQLite | ✅ | ❌ read-only | ❌ |
 
-Mutation support is gated by the `MutationCapable` marker trait.
-`SqliteAdapter` intentionally does not implement `MutationCapable` — attempting a mutation
-against `SqliteAdapter` returns `FraiseQLError::Validation` at runtime with a clear
-diagnostic message. Use SQLite for read-only development and unit testing.
+`fraiseql-server` treats SQLite as a **read-only** runtime: it refuses to start when the
+compiled schema declares any mutation against a `sqlite://` URL
+(`url_guard::guard_sqlite_mutations`). The lower-level `fraiseql-db` `SqliteAdapter` carries
+direct-SQL mutation primitives (`MutationStrategy::DirectSql`), but they are not exposed
+through the server. Use SQLite for read-only local development and testing. Relay pagination,
+JSONB fact tables, and LISTEN/NOTIFY subscriptions are also unavailable on SQLite.
 
-Adapters that support mutations: `PostgresAdapter`, `MySqlAdapter`, `SqlServerAdapter`,
-and `CachedDatabaseAdapter<A>` when `A: MutationCapable`.
-
-> **Note**: true compile-time enforcement would require a separate `execute_mutation()`
-> public API method. The current `execute()` entry point accepts raw GraphQL strings and
-> determines the operation type at runtime. This is a known limitation tracked in roadmap.md.
+> **Note**: the core crate exposes a compile-time-checked `execute_mutation()` API bounded on
+> the `SupportsMutations` marker trait (the core-level SQLite adapter does not implement it);
+> the always-available `execute()` entry point accepts raw GraphQL strings and determines the
+> operation type at runtime, where the SQLite read-only guard applies.
 
 ### Adding a New Database Backend
 
@@ -871,8 +865,8 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Production-ready (v2.3.0)
-**Last Updated**: May 25, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
+**Architecture Status**: Core production-ready (v2.8.0 released; v2.9.0 in development)
+**Last Updated**: June 22, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
 **Unsafe Code**: Zero (forbidden at compile time)
