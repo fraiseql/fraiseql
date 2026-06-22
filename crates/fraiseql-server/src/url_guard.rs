@@ -33,9 +33,9 @@ pub enum DatabaseScheme {
     Postgres,
     /// `mysql://` — requires `mysql` Cargo feature.
     MySql,
-    /// `sqlite://` — requires `sqlite` Cargo feature. Read-only (no
-    /// `SupportsMutations` impl); schemas with mutations are rejected at
-    /// startup.
+    /// `sqlite://` — requires `sqlite` Cargo feature. Supports direct-SQL
+    /// Insert/Delete mutations; Update and custom / stored-procedure mutations
+    /// are rejected at startup (see [`guard_sqlite_mutations`]).
     Sqlite,
     /// `sqlserver://` — requires `sqlserver` Cargo feature.
     SqlServer,
@@ -56,37 +56,48 @@ impl DatabaseScheme {
     }
 }
 
-/// Refuse to start a SQLite-backed server when the compiled schema declares
-/// any mutations.
+/// Refuse to start a SQLite-backed server when the compiled schema declares a
+/// mutation that the SQLite (`DirectSql`) strategy cannot execute.
 ///
-/// `SqliteAdapter` deliberately does not implement `SupportsMutations` (the
-/// adapter is read-only by design — see `crates/fraiseql-db/src/sqlite/`).
-/// Without this guard the server would start and then fail every mutation
-/// request at runtime; the diagnostic below tells the operator why and names
-/// the first few offending mutations.
+/// SQLite executes direct-SQL **Insert** and **Delete** mutations via the
+/// executor (`MutationStrategy::DirectSql`). **Update** and custom /
+/// stored-procedure (`fn_*`) mutations are not supported on SQLite. Without this
+/// guard the server would start and then fail those requests at runtime; the
+/// diagnostic below tells the operator why and names the first few offenders.
 ///
 /// # Errors
 ///
-/// Returns `anyhow::Error` when the schema contains one or more mutations.
+/// Returns `anyhow::Error` when the schema contains an Update or custom mutation.
 /// Callers should invoke this *before* constructing a SQLite adapter; the
 /// PostgreSQL / MySQL / SQL Server paths must not call it.
 pub fn guard_sqlite_mutations(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> anyhow::Result<()> {
-    if schema.mutations.is_empty() {
+    use fraiseql_core::schema::MutationOperation;
+
+    let unsupported: Vec<&str> = schema
+        .mutations
+        .iter()
+        .filter(|m| {
+            matches!(m.operation, MutationOperation::Update { .. } | MutationOperation::Custom)
+        })
+        .map(|m| m.name.as_str())
+        .collect();
+    if unsupported.is_empty() {
         return Ok(());
     }
-    let sample: Vec<&str> = schema.mutations.iter().take(3).map(|m| m.name.as_str()).collect();
-    let suffix = if schema.mutations.len() > sample.len() {
-        format!(", … (+{} more)", schema.mutations.len() - sample.len())
+    let sample: Vec<&str> = unsupported.iter().take(3).copied().collect();
+    let suffix = if unsupported.len() > sample.len() {
+        format!(", … (+{} more)", unsupported.len() - sample.len())
     } else {
         String::new()
     };
     anyhow::bail!(
-        "fraiseql-server: SQLite is a read-only runtime adapter, but the compiled schema declares \
-         {} mutation(s) which cannot be executed against a SQLite database. Use a postgresql:// / \
-         mysql:// / sqlserver:// URL, or remove the mutations from the schema. Affected: {}{}",
-        schema.mutations.len(),
+        "fraiseql-server: SQLite supports only direct-SQL Insert/Delete mutations, but the \
+         compiled schema declares {} Update or custom mutation(s) which cannot be executed \
+         against a SQLite database. Use a postgresql:// / mysql:// / sqlserver:// URL, or remove \
+         those mutations from the schema. Affected: {}{}",
+        unsupported.len(),
         sample.join(", "),
         suffix,
     )

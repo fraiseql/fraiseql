@@ -642,19 +642,18 @@ extends to all query paths.
 | PostgreSQL | ✅ | ✅ | ✅ |
 | MySQL | ✅ | ✅ | ✅ |
 | SQL Server | ✅ | ✅ | ✅ |
-| SQLite | ✅ | ❌ read-only | ❌ |
+| SQLite | ✅ | ⚠️ Insert/Delete | ❌ |
 
-`fraiseql-server` treats SQLite as a **read-only** runtime: it refuses to start when the
-compiled schema declares any mutation against a `sqlite://` URL
-(`url_guard::guard_sqlite_mutations`). The lower-level `fraiseql-db` `SqliteAdapter` carries
-direct-SQL mutation primitives (`MutationStrategy::DirectSql`), but they are not exposed
-through the server. Use SQLite for read-only local development and testing. Relay pagination,
-JSONB fact tables, and LISTEN/NOTIFY subscriptions are also unavailable on SQLite.
+SQLite executes direct-SQL **Insert** and **Delete** mutations through the executor
+(`MutationStrategy::DirectSql`, generating `INSERT … RETURNING *` / `DELETE … RETURNING *`).
+**Update** and stored-procedure (`fn_*`) mutations are **not** supported on SQLite — the server
+rejects schemas declaring them at startup (`url_guard::guard_sqlite_mutations`). Relay
+pagination, JSONB fact tables, and LISTEN/NOTIFY subscriptions are also unavailable on SQLite.
+Recommended for local development and testing.
 
-> **Note**: the core crate exposes a compile-time-checked `execute_mutation()` API bounded on
-> the `SupportsMutations` marker trait (the core-level SQLite adapter does not implement it);
-> the always-available `execute()` entry point accepts raw GraphQL strings and determines the
-> operation type at runtime, where the SQLite read-only guard applies.
+> **Note**: the core crate also exposes a compile-time-checked `execute_mutation()` API bounded
+> on the `SupportsMutations` marker trait; the always-available `execute()` entry point accepts
+> raw GraphQL strings and dispatches by the adapter's `mutation_strategy()` at runtime.
 
 ### Adding a New Database Backend
 

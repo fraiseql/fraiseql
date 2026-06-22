@@ -84,12 +84,20 @@ fn required_feature_matrix() {
 }
 
 mod sqlite_guard {
-    use fraiseql_core::schema::{CompiledSchema, MutationDefinition};
+    use fraiseql_core::schema::{CompiledSchema, MutationDefinition, MutationOperation};
 
     use super::super::guard_sqlite_mutations;
 
-    fn mutation(name: &str) -> MutationDefinition {
+    fn custom_mutation(name: &str) -> MutationDefinition {
+        // `MutationDefinition::new` defaults `operation` to `Custom`.
         MutationDefinition::new(name, "MutationResponse")
+    }
+
+    fn op_mutation(name: &str, operation: MutationOperation) -> MutationDefinition {
+        MutationDefinition {
+            operation,
+            ..MutationDefinition::new(name, "MutationResponse")
+        }
     }
 
     #[test]
@@ -99,30 +107,63 @@ mod sqlite_guard {
     }
 
     #[test]
-    fn rejects_schema_with_mutations_and_names_them() {
+    fn accepts_insert_and_delete_mutations() {
         let mut schema = CompiledSchema::default();
-        schema.mutations.push(mutation("createUser"));
-        schema.mutations.push(mutation("deletePost"));
+        schema.mutations.push(op_mutation(
+            "createUser",
+            MutationOperation::Insert {
+                table: "users".into(),
+            },
+        ));
+        schema.mutations.push(op_mutation(
+            "deleteUser",
+            MutationOperation::Delete {
+                table: "users".into(),
+            },
+        ));
+
+        guard_sqlite_mutations(&schema)
+            .expect("direct-SQL Insert/Delete mutations must be allowed on SQLite");
+    }
+
+    #[test]
+    fn rejects_update_and_custom_mutations_and_names_them() {
+        let mut schema = CompiledSchema::default();
+        // An Insert is allowed and must not be flagged.
+        schema.mutations.push(op_mutation(
+            "createUser",
+            MutationOperation::Insert {
+                table: "users".into(),
+            },
+        ));
+        schema.mutations.push(op_mutation(
+            "updateUser",
+            MutationOperation::Update {
+                table: "users".into(),
+            },
+        ));
+        schema.mutations.push(custom_mutation("doMagic"));
 
         let err = guard_sqlite_mutations(&schema)
-            .expect_err("SQLite + mutations must be rejected at startup")
+            .expect_err("SQLite + Update/custom mutations must be rejected at startup")
             .to_string();
 
-        assert!(err.contains("SQLite is a read-only"), "missing read-only callout: {err}");
-        assert!(err.contains("createUser"), "missing first mutation name: {err}");
-        assert!(err.contains("deletePost"), "missing second mutation name: {err}");
-        assert!(err.contains("2 mutation"), "missing mutation count: {err}");
+        assert!(err.contains("Insert/Delete"), "missing capability callout: {err}");
+        assert!(err.contains("updateUser"), "missing update mutation name: {err}");
+        assert!(err.contains("doMagic"), "missing custom mutation name: {err}");
+        assert!(err.contains("2 Update or custom"), "missing offender count: {err}");
+        assert!(!err.contains("createUser"), "Insert mutation must not be flagged: {err}");
     }
 
     #[test]
     fn truncates_long_mutation_lists_with_suffix() {
         let mut schema = CompiledSchema::default();
         for i in 0..5 {
-            schema.mutations.push(mutation(&format!("m{i}")));
+            schema.mutations.push(custom_mutation(&format!("m{i}")));
         }
 
         let err = guard_sqlite_mutations(&schema)
-            .expect_err("any mutations must be rejected on SQLite")
+            .expect_err("custom mutations must be rejected on SQLite")
             .to_string();
 
         assert!(err.contains("m0"), "missing first sample: {err}");

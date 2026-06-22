@@ -665,8 +665,9 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
 
 /// Emit warnings when schema uses features that SQLite does not support.
 ///
-/// SQLite lacks stored procedures (mutations) and relay/subscription support.
-/// A compile-time warning helps catch this before runtime failures.
+/// SQLite executes direct-SQL Insert/Delete mutations, but lacks Update /
+/// stored-procedure (`fn_*`) mutations and relay/subscription support. A
+/// compile-time warning helps catch this before runtime failures.
 fn check_sqlite_compatibility_warnings(
     schema: &CompiledSchema,
     input_path: &str,
@@ -681,16 +682,28 @@ fn check_sqlite_compatibility_warnings(
         return;
     }
 
-    let mutation_count = schema.mutations.len();
+    // SQLite executes direct-SQL Insert/Delete mutations via the `DirectSql` strategy;
+    // only Update and custom / stored-procedure (`fn_*`) mutations are unsupported.
+    let unsupported_mutation_count = schema
+        .mutations
+        .iter()
+        .filter(|m| {
+            matches!(
+                m.operation,
+                fraiseql_core::schema::MutationOperation::Update { .. }
+                    | fraiseql_core::schema::MutationOperation::Custom
+            )
+        })
+        .count();
     let relay_count = schema.queries.iter().filter(|q| q.relay).count();
     let subscription_count = schema.subscriptions.len();
 
-    if mutation_count > 0 {
+    if unsupported_mutation_count > 0 {
         warn!(
-            "Schema contains {} mutation(s) but target database is SQLite. \
-             Mutations are not supported on SQLite. \
+            "Schema contains {} Update or custom mutation(s) but target database is SQLite. \
+             SQLite supports only direct-SQL Insert/Delete mutations. \
              See: https://fraiseql.dev/docs/database-compatibility",
-            mutation_count,
+            unsupported_mutation_count,
         );
     }
     if relay_count > 0 {
