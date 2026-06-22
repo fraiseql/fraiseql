@@ -1,5 +1,15 @@
 # Cross-Subgraph Mutations: Saga Pattern
 
+> ⚠️ **Experimental — partially implemented.** Today FraiseQL implements only the **forward
+> phase** of a saga, behind the `unstable-saga` Cargo feature on `fraiseql-federation`, and it
+> dispatches over **local SQL** (`execute_step_local` / `execute_saga_local`). The distributed
+> **coordinator, compensation, on-restart recovery, and remote/HTTP subgraph dispatch are not
+> yet implemented** — `SagaCoordinator`, `SagaCompensator`, and `SagaRecoveryManager` return
+> `SagaStoreError::NotImplemented` (tracking issue #429).
+>
+> The rest of this guide describes the **target design**. The sections on compensation,
+> recovery, and cross-subgraph (remote) dispatch are aspirational until those phases land.
+
 The saga pattern coordinates mutations that must write to multiple subgraphs. Each step
 has a forward action and a compensation action. If any step fails, compensation runs in
 reverse order to roll back completed steps.
@@ -46,8 +56,9 @@ def create_order(self, *, order_input: OrderInput) -> OrderResult:
     ...
 ```
 
-The compiled schema embeds the saga plan; the FraiseQL runtime orchestrates the
-forward and compensation phases without additional application code.
+The compiled schema embeds the saga plan. The FraiseQL runtime orchestrates the **forward**
+phase without additional application code (experimental, `unstable-saga`); compensation-phase
+orchestration is not yet implemented.
 
 ## Execution Flow
 
@@ -83,8 +94,10 @@ Pending ──► Executing ──► Completed
                           CompensationFailed  ← all compensations ran, some failed
 ```
 
-States are persisted to `tb_saga_log` before each transition, enabling recovery on
-server restart without replaying steps that already completed.
+In the target design, states persist to `tb_saga_log` before each transition, enabling
+recovery on server restart without replaying completed steps. The states beyond `Completed`
+(`Failed`/`Compensating`/`Compensated`/`CompensationFailed`) belong to the compensation
+phase, which is not yet implemented.
 
 ## Compensation Contract
 
@@ -126,14 +139,17 @@ $$ LANGUAGE plpgsql;
 
 ## Recovery on Restart
 
-Saga state is durable. If FraiseQL restarts mid-saga:
+> **Not yet implemented.** `SagaRecoveryManager` returns `SagaStoreError::NotImplemented`.
+> The behavior below is the target design.
+
+In the target design, saga state is durable. If FraiseQL restarts mid-saga:
 
 1. `SagaRecoveryManager` scans `tb_saga_log` for sagas in `Executing` or `Compensating`
 2. In-flight sagas are resumed from the last committed step
 3. Steps marked `Completed` in the log are skipped (not re-executed)
 4. The recovery scan runs at server startup, before accepting traffic
 
-No manual intervention is required for crash recovery.
+No manual intervention would be required for crash recovery.
 
 ## Observability
 
@@ -149,6 +165,9 @@ fraiseql_saga_duration_seconds{quantile}   # end-to-end saga latency
 ```
 
 ## Configuration
+
+> Target design — the `[federation.saga]` keys below are not yet wired; the forward-phase
+> implementation is gated by the `unstable-saga` Cargo feature.
 
 ```toml
 # fraiseql.toml

@@ -6,7 +6,6 @@
 - `401 Unauthorized` for OIDC clients (cannot fetch OIDC secrets)
 - API keys cannot be validated (stored in Vault)
 - Database password cannot be retrieved from Vault
-- Field-level encryption keys unavailable
 - FraiseQL service cannot start (hangs on secrets initialization)
 - Metrics show `vault_connection_errors_total` increasing
 - Logs contain: `failed to connect to vault`, `token revoked`, `permission denied`
@@ -16,7 +15,6 @@
 - **Critical**: FraiseQL cannot operate without secrets
 - Authentication fails (no keys to validate tokens)
 - Database access fails (no password available)
-- Field decryption fails (no encryption keys)
 - Service must restart once Vault is available
 
 ## Investigation

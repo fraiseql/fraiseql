@@ -16,6 +16,14 @@ Extract three specialized crates from fraiseql-server:
 
 `fraiseql-server` depends on these and re-exports their public APIs for backward compatibility. Each crate has independent testing and dependency management.
 
+> **Update (v2.9.0):** the crate scopes have since changed. `fraiseql-webhooks` is now an
+> **inbound** receiver pipeline (signature verification + idempotency + transactional handoff);
+> the outbound delivery/retry surface described above no longer lives there — outbound delivery
+> is an observer action in `fraiseql-observers`. In `fraiseql-secrets`, the enterprise
+> field-encryption / key-rotation modules were removed: field-level at-rest encryption is **not
+> implemented** (the server refuses to boot if a field is marked for encryption); the crate
+> retains Vault-backed secret fetching. The extraction decision itself stands.
+
 ## Consequences
 
 **Positive:**

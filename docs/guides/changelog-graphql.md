@@ -154,9 +154,9 @@ A runnable version ships in [`examples/changelog-sidecar/`](https://github.com/f
 
 - The `read_role` sees **everything** mutations have written. Grant it only to
   operator-level users or trusted sidecars.
-- `object_data` is the Debezium-style envelope and may contain PII (before/after
-  row payloads). Apply field-level encryption at the source table if that is a
-  concern.
+- `object_data` is the after-image (the full post-mutation row payload) and may contain
+  PII. (An optional `object_data_before` pre-image column is recorded only when pre-image
+  capture is enabled.) Encrypt sensitive columns at the source table if that is a concern.
 - RLS does **not** apply to the changelog views by default — they see every row.
   For per-tenant changelog access, build a tenant-scoped view on top of
   `core.v_entity_change_log` in your own schema and point `[changelog] schema` at it.

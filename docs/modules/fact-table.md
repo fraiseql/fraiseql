@@ -187,7 +187,7 @@ use `JSON` or text columns without JSONB operators.
 | Database | Status | Notes |
 |----------|--------|-------|
 | PostgreSQL | ✅ Full | Native JSONB operators, fastest path |
-| MySQL | ❌ Not supported | JSON_EXTRACT works but JSONB operators absent; planned for v2.2 |
+| MySQL | ❌ Not supported | JSON_EXTRACT works but JSONB operators absent |
 | SQL Server | ❌ Not supported | JSON_VALUE available but no JSONB aggregation |
 | SQLite | ❌ Not supported | json_extract works but limited aggregation support |
 

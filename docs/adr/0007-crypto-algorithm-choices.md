@@ -2,6 +2,12 @@
 
 ## Status: Accepted
 
+> **Note (v2.9.0):** this ADR records algorithm *choices*. Field-level at-rest encryption is
+> **not active** in the current build — the write path is a no-op and the server refuses to
+> boot if a field is marked for encryption, so the AES-256-GCM choice below applies only
+> if/when that feature is implemented. The PKCE state encryption, webhook signature, and SCRAM
+> choices are in active use.
+
 ## Context
 
 FraiseQL requires cryptography for multiple purposes: field-level encryption, OAuth state protection, webhook signature verification, and SCRAM authentication. Different algorithms have different security properties and performance characteristics. Consistency reduces cognitive load and maintenance burden.

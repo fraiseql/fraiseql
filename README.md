@@ -78,7 +78,7 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 | Feature          | PostgreSQL | MySQL | SQL Server | SQLite |
 |------------------|:----------:|:-----:|:----------:|:------:|
 | Queries          | ✅         | ✅    | ✅         | ✅     |
-| Mutations        | ✅         | ✅    | ✅         | ✅ DirectSql |
+| Mutations        | ✅         | ✅    | ✅         | ❌ read-only |
 | Relay pagination | ✅         | ✅    | ✅         | ❌     |
 | Full-text search | ✅         | ⚠️    | ⚠️         | ❌     |
 | Subscriptions    | ✅         | ⚠️    | ⚠️         | ❌     |
@@ -88,7 +88,7 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 **MySQL** (v2.1+) and **SQL Server** support queries, mutations, and relay cursor pagination. Subscriptions use polling-based observer bridges (not LISTEN/NOTIFY).
 
-**SQLite** supports queries and mutations (via DirectSql strategy) but not relay pagination, full-text search, or subscriptions. Recommended for local development and testing only.
+**SQLite** is a **read-only** runtime — the server refuses schemas that declare mutations (use PostgreSQL/MySQL/SQL Server for those). It also lacks relay pagination, full-text search, and subscriptions. Recommended for local development and testing only.
 
 See [docs/database-compatibility.md](docs/database-compatibility.md) for the full feature matrix.
 
@@ -109,7 +109,7 @@ See [docs/database-compatibility.md](docs/database-compatibility.md) for the ful
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.3.2", features = ["server"] }
+fraiseql = { version = "2.8", features = ["server"] }
 ```
 
 **Schema authoring:**
@@ -136,8 +136,8 @@ npm install fraiseql        # TypeScript
 All queries are parameterized at compile time. Zero unsafe code (forbidden). Additional enterprise features:
 
 - OAuth2/OIDC authentication (7+ providers)
-- Field-level authorization and encryption-at-rest
-- Audit logging (file, PostgreSQL, Syslog)
+- Field-level authorization
+- Auth event logging (login attempts) via `fraiseql-auth`
 - Rate limiting on auth endpoints
 - Error sanitization (no implementation details leaked)
 - Constant-time token comparison

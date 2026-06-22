@@ -17,10 +17,10 @@ crates/fraiseql-federation/src/
 ├── dependency_graph.rs       # Cross-entity dependency ordering
 ├── mutation_executor.rs      # Cross-subgraph mutation dispatch
 ├── mutation_http_client.rs   # HTTP client for subgraph mutations (SSRF-protected)
-├── saga_coordinator.rs       # Distributed saga state machine (see below)
-├── saga_compensator.rs       # Compensation action executor
-├── saga_executor/            # Forward phase: step execution + state transitions
-├── saga_recovery_manager.rs  # On-restart recovery for in-flight sagas
+├── saga_coordinator.rs       # Distributed saga state machine — NOT YET IMPLEMENTED (fails loud)
+├── saga_compensator.rs       # Compensation action executor — NOT YET IMPLEMENTED (fails loud)
+├── saga_executor/            # Forward phase: step execution (experimental, `unstable-saga`)
+├── saga_recovery_manager.rs  # On-restart recovery — NOT YET IMPLEMENTED (fails loud)
 ├── saga_store.rs             # PostgreSQL persistence for saga state
 └── circuit_breaker (server)  # In fraiseql-server/src/federation/circuit_breaker.rs
 ```
@@ -66,9 +66,17 @@ _entities(representations: [...])
 
 ### Layer 3 — Cross-Subgraph Mutations (saga pattern)
 
-Mutations that write to multiple subgraphs use the saga orchestrator. Each saga
-step has a forward action and a compensation action. On failure, compensation runs
-in reverse order (N→1), ensuring best-effort rollback.
+> **Experimental.** Only the **forward** phase is implemented today, behind the
+> `unstable-saga` Cargo feature on `fraiseql-federation`, and it dispatches over **local
+> SQL** (`execute_step_local` / `execute_saga_local`). The distributed coordinator,
+> compensation, on-restart recovery, and remote/HTTP subgraph dispatch are **not yet
+> implemented** — `SagaCoordinator`, `SagaCompensator`, and `SagaRecoveryManager` return
+> `SagaStoreError::NotImplemented`. The forward/compensation design described below is the
+> target shape, not current behavior.
+
+Cross-subgraph mutations are designed to use a saga orchestrator. Each saga step has a
+forward action and a compensation action; on failure, compensation runs in reverse order
+(N→1) for best-effort rollback.
 
 See [federation-saga.md](../guides/federation-saga.md) for the developer guide.
 
@@ -103,7 +111,10 @@ Client → POST /graphql
            └── OPEN → 503 Service Unavailable + Retry-After header
 ```
 
-## Data Flow: Cross-Subgraph Mutation (Saga)
+## Data Flow: Cross-Subgraph Mutation (Saga — planned design)
+
+> The flow below is the **planned** saga design. Today only forward steps over local SQL
+> run behind `unstable-saga`; the coordinator and compensation phase are not implemented.
 
 ```
 Client → mutation { createOrder(...) }
@@ -128,8 +139,9 @@ Client → mutation { createOrder(...) }
   `IpAddr::parse()` to prevent bypass via `[::1]` notation.
 - **Batch size cap**: `MAX_ENTITIES_BATCH_SIZE = 1000` in `representation.rs`
   prevents memory exhaustion from oversized `_entities` queries.
-- **State isolation**: Saga state is persisted to `tb_saga_log` before each step,
-  enabling recovery on server restart without replaying completed steps.
+- **State isolation** (planned): saga state is intended to persist to `tb_saga_log` before
+  each step to enable recovery on restart. On-restart recovery is **not yet implemented**
+  (`SagaRecoveryManager` returns `NotImplemented`).
 
 ## Observability
 
@@ -140,9 +152,9 @@ Prometheus metrics emitted by the federation layer:
 | `fraiseql_federation_circuit_breaker_state{entity}` | 0=closed, 1=open, 2=half-open |
 | `fraiseql_federation_circuit_breaker_opens_total{entity}` | How often the breaker trips |
 | `fraiseql_federation_circuit_breaker_rejections_total{entity}` | Requests rejected while open |
-| `fraiseql_saga_steps_total{subgraph, status}` | Saga step outcomes |
-| `fraiseql_saga_duration_seconds` | End-to-end saga duration histogram |
-| `fraiseql_saga_compensations_total` | Number of compensation phases triggered |
+| `fraiseql_saga_steps_total{subgraph, status}` | Saga step outcomes (experimental, `unstable-saga`) |
+| `fraiseql_saga_duration_seconds` | End-to-end saga duration histogram (experimental) |
+| `fraiseql_saga_compensations_total` | Compensation phases triggered (compensation not yet implemented) |
 | `fraiseql_entity_resolution_duration_seconds{entity, strategy}` | Resolution latency |
 
 ## Enabling Federation

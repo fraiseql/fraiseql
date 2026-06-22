@@ -18,6 +18,13 @@ Use Cargo feature flags for conditional compilation of optional subsystems:
 
 Default features: minimal (core only). Users opt in via `Cargo.toml` features.
 
+> **Update (v2.9.0):** the concrete flag set has evolved. The umbrella `fraiseql` crate's
+> default feature is `postgres` (not "minimal"), and its current features are `arrow`, `cli`,
+> `federation`, `full`, `minimal`, `mysql`, `observers`, `postgres`, `server`, `sqlite`,
+> `sqlserver`, and `wire`. See
+> [`features-compatibility-matrix.md`](../features-compatibility-matrix.md) for the
+> authoritative per-crate list. The *strategy* in this ADR still holds.
+
 ## Consequences
 
 **Positive:**

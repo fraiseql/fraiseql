@@ -15,7 +15,7 @@ This directory contains operational runbooks for managing, troubleshooting, and 
 | [07 - Connection Pool Exhaustion](./07-connection-pool-exhaustion.md) | DB connection pool full | High |
 | [08 - Vault Unavailable](./08-vault-unavailable.md) | Secrets backend down | Critical |
 | [09 - Redis Failure](./09-redis-failure.md) | Redis unavailable (cache/rate limiting) | Medium |
-| [10 - Certificate Rotation](./10-certificate-rotation.md) | TLS cert expiry or renewal | Standard |
+| [10 - Certificate Rotation](./10-certificate-rotation.md) | TLS cert renewal at the reverse proxy / load balancer | Standard |
 | [11 - Schema Migration](./11-schema-migration.md) | Update compiled schema | Standard |
 | [12 - Incident Response](./12-incident-response.md) | General incident template | Variable |
 | [13 - Schema Hot-Reload Failure](./13-schema-hot-reload-failure.md) | Schema reload cycle failing | Medium |

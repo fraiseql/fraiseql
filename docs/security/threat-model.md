@@ -70,7 +70,7 @@ fraiseql-server (Axum 0.8)
 | Cross-tenant data leak | Shared cache entries | RLS WHERE in cache key | `cache/key.rs` | ✅ |
 | Cross-tenant data leak | RLS bypass via refactor | `RlsWhereClause` newtype (planned U2) | `runtime/rls.rs` | ⚠️ planned |
 | Token timing attack | Credential comparison | `subtle::ConstantTimeEq` | `constant_time.rs` | ✅ |
-| PKCE state inspection | State parameter sniffing | AES-GCM state encryption | `state_encryption.rs` | ✅ |
+| PKCE state inspection | State parameter sniffing | ChaCha20-Poly1305 state encryption (AES-256-GCM optional) | `state_encryption.rs` | ✅ |
 | Brute force on auth | Credential stuffing | Token-bucket rate limiting | `middleware/rate_limit/` | ✅ |
 | Alias amplification | 31+ aliases on one field | Hard cap at 30 aliases | `server/validation.rs:459` | ✅ |
 | Query depth bomb | Deeply nested query | Max depth 10 (configurable) | `server/validation.rs:457` | ✅ |
@@ -78,7 +78,7 @@ fraiseql-server (Axum 0.8)
 | Introspection abuse | Schema enumeration via __schema | Introspection disable flag | `server/validation.rs` | ⚠️ verify |
 | Resource amplification | Alias + batch combo | Alias cap + federation batch limit 1000 | `validation.rs`, `federation/` | ✅ |
 | Credential exposure | Plaintext secrets | HashiCorp Vault integration | `fraiseql-secrets` | ✅ |
-| Webhook replay | Timestamp-missing webhooks | Timestamp replay protection | `webhooks/` | ✅ |
+| Webhook replay | Timestamp-missing webhooks | Timestamp replay protection + idempotency claim (library pipeline; HTTP route not yet mounted) | `webhooks/` | ⚠️ library only |
 | SASL/SCRAM attack | Protocol-level credential theft | SCRAM-SHA-256 only | `fraiseql-wire/auth/scram.rs` | ✅ |
 | Template injection | Dynamic SQL in compiler IR | SQL fixed at compile time in IR | `compiler/ir.rs` | ✅ |
 | RBAC resource enumeration | 403 reveals resource exists | 404 on denied access | `api/rbac_management/` | ✅ |
@@ -92,7 +92,7 @@ See `docs/security/graphql-complexity-limits.md` for incomplete complexity prote
 
 - Fragment cycle detection: needs verification
 - Introspection disable: needs verification
-- Cost/complexity budget: not implemented (planned for v2.2.0)
+- Cost/complexity budget: per-tenant `cost_budget` + root-operation `@cost` weights enforced (#379); fine-grained per-field cost scoring is not yet implemented
 
 ---
 

@@ -11,7 +11,7 @@ describes what it contains, how to treat it, and how to move it from development
 
 - GraphQL type definitions
 - Pre-compiled SQL templates for each query and mutation
-- Security configuration (rate limits, audit settings, RLS anchors)
+- Security configuration (rate limits, error sanitization, RLS anchors)
 - Cache TTL overrides per query
 - Observer configuration (NATS URL, Redis URL)
 - Federation circuit breaker thresholds
