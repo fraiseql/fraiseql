@@ -62,7 +62,12 @@ async fn setup_schema(pool: &PgPool) {
              ADD COLUMN IF NOT EXISTS commit_time        TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS seq                BIGINT;
          ALTER TABLE core.tb_entity_change_log
-             ALTER COLUMN seq SET DEFAULT nextval('core.seq_entity_change_log');",
+             ALTER COLUMN seq SET DEFAULT nextval('core.seq_entity_change_log');
+         -- A DELETE row carries no after-image (object_data NULL), matching the
+         -- #366 capture trigger and the nullable contract. An older shared table
+         -- (e.g. one an earlier suite test hand-rolled) may have it NOT NULL;
+         -- align it to the contract so a delete row can be seeded. Idempotent.
+         ALTER TABLE core.tb_entity_change_log ALTER COLUMN object_data DROP NOT NULL;",
     )
     .execute(pool)
     .await
