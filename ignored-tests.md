@@ -32,6 +32,7 @@ model is gone. Integration coverage is the Dagger `integration*` legs.
 ## Categories that still carry `#[ignore]`
 
 ### TLS integration (`crates/fraiseql-wire/tests/tls_integration.rs`)
+
 Needs a Postgres configured for TLS. CI runs it in the Dagger wire leg with a
 SCRAM/TLS-bound Postgres; the harness falls back from `TLS_DATABASE_URL` to
 `DATABASE_URL`.
@@ -42,6 +43,7 @@ TLS_DATABASE_URL="postgres://user:pass@localhost/db" \
 ```
 
 ### Manual / on-demand DB suites
+
 Some `crates/*/src/**` unit modules and `crates/*/tests/*.rs` suites are
 `#[ignore]`-marked because they are slow, need extra extensions, or are manual
 load/fuzz checks. Each carries an in-file justification next to the attribute;
