@@ -79,7 +79,7 @@ input = input_decorator
 interface = interface_decorator
 union = union_decorator
 
-__version__ = "2.8.0"
+__version__ = "2.9.0"
 
 __all__ = [
     "ID",

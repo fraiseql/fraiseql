@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-06-22
+
 ### Security
 
 - **Demo / example / test deployment artifacts hardened (#436).** Follow-up to the

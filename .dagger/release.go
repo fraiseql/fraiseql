@@ -35,6 +35,7 @@ import (
 var legacyPublishOrder = []string{
 	// Tier 1: leaf crates (depend on none of the others).
 	"fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
+	"fraiseql-cdc-sinks",
 	// Tier 2: depend on tier 1.
 	"fraiseql-db", "fraiseql-storage",
 	// Tier 3.
