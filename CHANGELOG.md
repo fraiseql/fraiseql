@@ -167,6 +167,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Documentation accuracy sweep (#439).** `docs/` and the tutorial were swept against
+  current behavior, every claim verified against source. Capabilities that are inert or were
+  removed are now documented as such — field-level at-rest encryption (not implemented; the
+  server refuses to boot on encryption-marked fields), the removed secrets compliance audit
+  logger, the `sms`/`push`/`search` observer stubs, and distributed sagas (experimental,
+  forward-only behind `unstable-saga`). Partial features are framed honestly (inbound webhook
+  pipeline is library-only; CDC ships via the standalone `fraiseql-cdc-sinks` crate, not an
+  umbrella `cdc` feature). TLS docs reflect the reverse-proxy termination stance (the server
+  refuses to boot on `[tls]`), and stale version/flag strings were corrected. No behavior
+  change.
 - **`fraiseql-db` adapter integration tests read DB URLs from the test harness, and the
   `PostgresAdapter` `NoTls` stance is documented (#445).** The feature-gated
   `postgres`/`mysql`/`sqlserver` adapter + introspector integration tests no longer hardcode
@@ -188,6 +198,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SQLite Insert/Delete mutations via direct SQL.** SQLite gains write support: the
+  mutation runner now dispatches on the adapter's `MutationStrategy`, so a `DirectSql`
+  adapter (SQLite) executes `INSERT … RETURNING *` / `DELETE … RETURNING *` generated from
+  the mutation contract instead of calling a stored function. Insert and Delete mutations
+  work end-to-end through the server, making SQLite usable for local development and testing
+  of mutating schemas. Update (three-state JSONB) and stored-procedure (`fn_*`) mutations
+  remain PostgreSQL / MySQL / SQL Server only and are rejected at startup
+  (`url_guard::guard_sqlite_mutations`) with a clear diagnostic. The stored-function
+  (`FunctionCall`) path is byte-identical.
+- **Real Redis cache-invalidation observer transport (#428).** The observer `cache`
+  action's `invalidate` operation — previously a fail-loud stub — now has a real transport:
+  a `RedisCacheInvalidator` (behind the `caching` feature) deletes matching keys on the
+  application Redis keyspace. Untrusted event values are glob-escaped before substitution
+  into the key pattern, then dispatched either as a direct `UNLINK` (no glob) or a bounded
+  `SCAN … MATCH` + `UNLINK` (never `KEYS` / `DEL`). A missing backend fails loud rather than
+  silently no-opping, and a Redis outage surfaces as a retryable error so a stale cache is
+  never treated as success. `sms` / `push` / `search` actions and cache `refresh` remain
+  unimplemented (fail loud).
+- **Inbound webhook receiver pipeline (#431).** New `fraiseql-webhooks` library core for
+  receiving third-party callbacks: secret resolution → signature verification (no DB work on
+  a bad signature) → an **atomic idempotency claim inside the handler transaction**
+  (`INSERT … ON CONFLICT DO NOTHING RETURNING`), so a duplicate delivery is discarded and a
+  handler error rolls back both the effects and the claim for a clean retry. Ships a
+  `PostgresIdempotencyStore` (deny-by-default RLS) and a static secret provider. The HTTP
+  route and server mount are tracked follow-ups — this slice is the library pipeline only.
 - **Outbound change-data-capture to NATS `JetStream` (#382, first slice).** A new,
   additive, off-by-default `fraiseql-cdc-sinks` crate drains the framework-owned
   `core.tb_entity_change_log` outbox — the rows the mutation executor *and* the #366
