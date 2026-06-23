@@ -74,6 +74,25 @@ impl<A: DatabaseAdapter> Executor<A> {
             return Ok((QueryType::IntrospectionType(type_name.unwrap_or_default()), None));
         }
 
+        // Root `__typename` meta-field (GraphQL spec §"Type Name Introspection"):
+        // a single-root selection consisting solely of `__typename` (optionally
+        // aliased) resolves to the operation's root type name without a DB
+        // round-trip. Placed before the mutation branch so `mutation { __typename }`
+        // and `subscription { __typename }` resolve correctly instead of being
+        // routed as a (missing) mutation field. The `len() == 1` guard is
+        // load-bearing: mixed roots like `{ __typename users { id } }` fall through
+        // to `Regular` and are resolved by the multi-root pipeline.
+        if root_field == "__typename" && parsed.selections.len() == 1 {
+            let response_key = parsed.selections[0].response_key().to_string();
+            return Ok((
+                QueryType::TypeName {
+                    response_key,
+                    operation_type: parsed.operation_type.clone(),
+                },
+                None,
+            ));
+        }
+
         // Federation (Apollo Federation v1/v2 entry-points).
         if root_field == "_service" || root_field == "_entities" {
             return Ok((QueryType::Federation(root_field.clone()), None));

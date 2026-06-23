@@ -3,7 +3,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use super::{Executor, QueryType, pipeline, support};
+use super::{Executor, QueryType, pipeline, root_type_name, support};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -207,6 +207,15 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.query_runner()
                     .execute_node_query(query, variables, &selections, security_context)
                     .await
+            },
+            QueryType::TypeName {
+                response_key,
+                operation_type,
+            } => {
+                // Root `__typename` meta-field: resolve to the operation's root
+                // type name with no DB round-trip (spec §"Type Name Introspection").
+                let ty = root_type_name(&operation_type);
+                Ok(serde_json::json!({ "data": { response_key: ty } }))
             },
         }
     }

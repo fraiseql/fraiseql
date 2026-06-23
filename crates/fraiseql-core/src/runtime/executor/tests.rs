@@ -129,6 +129,33 @@ mod introspection {
     }
 }
 
+// ── mod typename: root __typename meta-field (#450) ───────────────────────
+
+mod typename {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_root_typename_resolves_to_query() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // The canonical zero-cost health probe: `{ __typename }` → "Query".
+        let result = executor.execute("{ __typename }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": { "__typename": "Query" } }));
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_aliased() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor.execute("{ ping: __typename }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": { "ping": "Query" } }));
+    }
+}
+
 // ── mod classify: query type detection ───────────────────────────────────
 
 mod classify {
@@ -155,6 +182,69 @@ mod classify {
             executor.classify_query(query).unwrap(),
             QueryType::IntrospectionType("User".to_string()),
         );
+    }
+
+    #[test]
+    fn test_detect_root_typename() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"{ __typename }";
+        assert_eq!(
+            executor.classify_query(query).unwrap(),
+            QueryType::TypeName {
+                response_key:   "__typename".to_string(),
+                operation_type: "query".to_string(),
+            },
+        );
+    }
+
+    #[test]
+    fn test_detect_root_typename_aliased() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // The response key is the alias when one is provided.
+        let query = r"{ ping: __typename }";
+        assert_eq!(
+            executor.classify_query(query).unwrap(),
+            QueryType::TypeName {
+                response_key:   "ping".to_string(),
+                operation_type: "query".to_string(),
+            },
+        );
+    }
+
+    #[test]
+    fn test_detect_root_typename_on_mutation() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // `mutation { __typename }` resolves to the Mutation root type — the
+        // classifier branch must precede the mutation branch.
+        let query = r"mutation { __typename }";
+        assert_eq!(
+            executor.classify_query(query).unwrap(),
+            QueryType::TypeName {
+                response_key:   "__typename".to_string(),
+                operation_type: "mutation".to_string(),
+            },
+        );
+    }
+
+    #[test]
+    fn test_classify_typename_prefix_is_regular() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // A field whose name merely begins with "__typename" must NOT be treated
+        // as the meta-field — exact match only (mirrors the node substring guard).
+        let query = r"{ __typenameExtra }";
+        assert_eq!(executor.classify_query(query).unwrap(), QueryType::Regular);
     }
 
     #[test]

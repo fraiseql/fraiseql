@@ -117,6 +117,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                 views_accessed: Vec::new(),
                 query_type:     "introspection".to_string(),
             }),
+            QueryType::TypeName { .. } => Ok(ExplainPlan {
+                sql:            String::new(),
+                parameters:     Vec::new(),
+                estimated_cost: 0,
+                views_accessed: Vec::new(),
+                query_type:     "typename".to_string(),
+            }),
             QueryType::Federation(_) => Ok(ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
