@@ -116,6 +116,26 @@ jobs:
           fi
           echo "GraphQL query smoke OK."
 
+      - name: Smoke the root __typename health probe (#450)
+        run: |
+          set -eu
+          # `{ __typename }` is the canonical zero-cost "is this a reachable GraphQL
+          # endpoint" probe used by many clients/test harnesses. It must resolve to
+          # the root operation type name ("Query") — #450 regressed this to a
+          # "Query '__typename' not found in schema" validation error.
+          status=$(curl -s -o /tmp/typename.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8815/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"{ __typename }"}')
+          echo "HTTP $status"; cat /tmp/typename.json; echo
+          test "$status" = "200" || { echo "::error::/graphql __typename returned HTTP $status (expected 200)" >&2; exit 1; }
+          grep -q '"__typename"[[:space:]]*:[[:space:]]*"Query"' /tmp/typename.json \
+            || { echo "::error::/graphql { __typename } did not resolve to \"Query\"" >&2; exit 1; }
+          if grep -q '"errors"' /tmp/typename.json; then
+            echo "::error::/graphql { __typename } response contained errors" >&2; exit 1
+          fi
+          echo "Root __typename probe smoke OK."
+
       - name: Stop server
         if: always()
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
