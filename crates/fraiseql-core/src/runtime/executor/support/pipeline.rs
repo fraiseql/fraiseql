@@ -15,7 +15,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::super::Executor;
+use super::super::{Executor, root_type_name};
 use crate::{
     db::traits::DatabaseAdapter,
     error::Result,
@@ -187,24 +187,35 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<PipelineResult> {
         MULTI_ROOT_QUERIES_TOTAL.fetch_add(1, Ordering::Relaxed);
 
-        // Pre-compute synthetic single-root query strings (owned — avoids borrow
-        // lifetime entanglement between iterations and the final zip).
-        let field_queries: Vec<(String, String)> = parsed
+        // Root `__typename` resolves to the operation's root type name with no DB
+        // round-trip (GraphQL spec §"Type Name Introspection"). It is a meta-field
+        // available at every selection set, including the root; dispatching it as a
+        // regular sub-query would fail `find_query`. We resolve it locally and only
+        // dispatch the genuine data-bearing roots.
+        let root_type = root_type_name(&parsed.operation_type);
+
+        // Synthetic single-root query strings for every data-bearing selection,
+        // tagged with their original index so results can be reassembled in request
+        // order. `__typename` roots are skipped here and resolved below. (Owned —
+        // avoids borrow lifetime entanglement between iterations and the final zip.)
+        let dispatched: Vec<(usize, String, String)> = parsed
             .selections
             .iter()
-            .map(|f| (f.response_key().to_string(), field_selection_to_query(f)))
+            .enumerate()
+            .filter(|(_, f)| f.name != "__typename")
+            .map(|(i, f)| (i, f.response_key().to_string(), field_selection_to_query(f)))
             .collect();
 
         // Pre-create one QueryRunner per sub-query (each is a cheap Arc::clone).
         // Storing them in a Vec ensures they live long enough for the futures to borrow from.
-        let runners: Vec<_> = field_queries.iter().map(|_| self.query_runner()).collect();
+        let runners: Vec<_> = dispatched.iter().map(|_| self.query_runner()).collect();
 
         // Build futures — each borrows from its corresponding runner in `runners`.
         // Both `runners` and `futs` are owned by this function scope, so the borrows are valid.
         let futs: Vec<_> = runners
             .iter()
-            .zip(field_queries.iter())
-            .map(|(runner, (_, query))| {
+            .zip(dispatched.iter())
+            .map(|(runner, (_, _, query))| {
                 runner.execute_regular_query_maybe_security(
                     query.as_str(),
                     variables,
@@ -216,18 +227,30 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Drive all futures concurrently (single-threaded cooperative multitasking).
         let results = futures::future::try_join_all(futs).await?;
 
-        // Extract the per-field `data` from each `{"data":{"field":[...]}}` Value response.
-        let fields = results
+        // Extract the per-field `data` from each `{"data":{"field":[...]}}` response,
+        // keyed by the original selection index.
+        let mut dispatched_data: std::collections::HashMap<usize, serde_json::Value> = results
             .into_iter()
-            .zip(field_queries.iter())
-            .map(|(response, (field_name, _))| {
-                let data = response["data"][field_name.as_str()].clone();
-                Ok(RootFieldResult {
-                    field_name: field_name.clone(),
-                    data,
-                })
+            .zip(dispatched.iter())
+            .map(|(response, (index, key, _))| (*index, response["data"][key.as_str()].clone()))
+            .collect();
+
+        // Reassemble in request order: `__typename` roots resolve locally; every
+        // other root pulls its dispatched data by index.
+        let fields = parsed
+            .selections
+            .iter()
+            .enumerate()
+            .map(|(index, f)| {
+                let field_name = f.response_key().to_string();
+                let data = if f.name == "__typename" {
+                    serde_json::Value::String(root_type.to_string())
+                } else {
+                    dispatched_data.remove(&index).unwrap_or(serde_json::Value::Null)
+                };
+                RootFieldResult { field_name, data }
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect();
 
         Ok(PipelineResult {
             fields,
