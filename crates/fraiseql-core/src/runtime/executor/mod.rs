@@ -237,11 +237,18 @@ enum QueryType {
     /// Root `__typename` meta-field — a single-root selection consisting solely
     /// of `__typename` (optionally aliased). Resolves to the operation's root
     /// type name (`Query` / `Mutation` / `Subscription`) without a DB round-trip.
-    /// Mixed roots (`{ __typename users { id } }`) are not classified here; they
-    /// fall through to `Regular` and are resolved in the multi-root pipeline.
+    ///
+    /// Carries the root [`FieldSelection`](crate::graphql::FieldSelection) so the
+    /// executor can honour the response key (alias) and evaluate `@skip` /
+    /// `@include` directives against the request variables.
+    ///
+    /// Scope: mixed roots (`{ __typename users { id } }`) are not classified
+    /// here — they fall through to `Regular` and are resolved by the multi-root
+    /// pipeline. Fragment-wrapped root `__typename` (`{ ...F }` or
+    /// `{ ... on Query { __typename } }`) is likewise not special-cased.
     TypeName {
-        /// Response key (alias if provided, otherwise `__typename`).
-        response_key:   String,
+        /// The root `__typename` selection (alias + `@skip`/`@include` directives).
+        selection:      Box<crate::graphql::FieldSelection>,
         /// Operation type string from the parsed query (`query` / `mutation` /
         /// `subscription`), used to resolve the root type name.
         operation_type: String,

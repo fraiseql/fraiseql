@@ -83,10 +83,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         // load-bearing: mixed roots like `{ __typename users { id } }` fall through
         // to `Regular` and are resolved by the multi-root pipeline.
         if root_field == "__typename" && parsed.selections.len() == 1 {
-            let response_key = parsed.selections[0].response_key().to_string();
             return Ok((
                 QueryType::TypeName {
-                    response_key,
+                    selection:      Box::new(parsed.selections[0].clone()),
                     operation_type: parsed.operation_type.clone(),
                 },
                 None,

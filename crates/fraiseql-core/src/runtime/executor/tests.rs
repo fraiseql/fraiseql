@@ -190,6 +190,53 @@ mod typename {
         let result = executor.execute("{ a: __typename b: __typename }", None).await.unwrap();
         assert_eq!(result, serde_json::json!({ "data": { "a": "Query", "b": "Query" } }));
     }
+
+    #[tokio::test]
+    async fn test_root_typename_skipped_directive() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // `@skip(if: true)` omits the meta-field, exactly like any other field.
+        let result = executor.execute("{ __typename @skip(if: true) }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": {} }));
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_excluded_directive() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor.execute("{ __typename @include(if: false) }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": {} }));
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_kept_directive() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // `@skip(if: false)` keeps the field — resolves to "Query".
+        let result = executor.execute("{ __typename @skip(if: false) }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": { "__typename": "Query" } }));
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_skip_via_variable() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // Directive condition driven by a request variable.
+        let vars = serde_json::json!({ "drop": true });
+        let result = executor
+            .execute("query($drop: Boolean!) { __typename @skip(if: $drop) }", Some(&vars))
+            .await
+            .unwrap();
+        assert_eq!(result, serde_json::json!({ "data": {} }));
+    }
 }
 
 // ── mod classify: query type detection ───────────────────────────────────
@@ -227,13 +274,16 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"{ __typename }";
-        assert_eq!(
-            executor.classify_query(query).unwrap(),
+        match executor.classify_query(query).unwrap() {
             QueryType::TypeName {
-                response_key:   "__typename".to_string(),
-                operation_type: "query".to_string(),
+                selection,
+                operation_type,
+            } => {
+                assert_eq!(selection.response_key(), "__typename");
+                assert_eq!(operation_type, "query");
             },
-        );
+            other => panic!("expected TypeName, got {other:?}"),
+        }
     }
 
     #[test]
@@ -244,13 +294,16 @@ mod classify {
 
         // The response key is the alias when one is provided.
         let query = r"{ ping: __typename }";
-        assert_eq!(
-            executor.classify_query(query).unwrap(),
+        match executor.classify_query(query).unwrap() {
             QueryType::TypeName {
-                response_key:   "ping".to_string(),
-                operation_type: "query".to_string(),
+                selection,
+                operation_type,
+            } => {
+                assert_eq!(selection.response_key(), "ping");
+                assert_eq!(operation_type, "query");
             },
-        );
+            other => panic!("expected TypeName, got {other:?}"),
+        }
     }
 
     #[test]
@@ -262,13 +315,16 @@ mod classify {
         // `mutation { __typename }` resolves to the Mutation root type — the
         // classifier branch must precede the mutation branch.
         let query = r"mutation { __typename }";
-        assert_eq!(
-            executor.classify_query(query).unwrap(),
+        match executor.classify_query(query).unwrap() {
             QueryType::TypeName {
-                response_key:   "__typename".to_string(),
-                operation_type: "mutation".to_string(),
+                selection,
+                operation_type,
+            } => {
+                assert_eq!(selection.response_key(), "__typename");
+                assert_eq!(operation_type, "mutation");
             },
-        );
+            other => panic!("expected TypeName, got {other:?}"),
+        }
     }
 
     #[test]
