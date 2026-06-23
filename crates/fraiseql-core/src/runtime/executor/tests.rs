@@ -154,6 +154,42 @@ mod typename {
         let result = executor.execute("{ ping: __typename }", None).await.unwrap();
         assert_eq!(result, serde_json::json!({ "data": { "ping": "Query" } }));
     }
+
+    #[tokio::test]
+    async fn test_root_typename_mixed_with_regular_field() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        // Mixed root: `__typename` resolves locally while `users` is dispatched.
+        let result = executor.execute("{ __typename users { id } }", None).await.unwrap();
+        assert_eq!(result["data"]["__typename"], "Query");
+        assert!(result["data"]["users"].is_array());
+        assert!(result["data"]["users"][0].get("id").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_mixed_trailing() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        // Order-independent: `__typename` after the real field must still resolve.
+        let result = executor.execute("{ users { id } __typename }", None).await.unwrap();
+        assert_eq!(result["data"]["__typename"], "Query");
+        assert!(result["data"]["users"].is_array());
+    }
+
+    #[tokio::test]
+    async fn test_root_typename_multiple_aliased() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // Several aliased `__typename` roots, no DB round-trip at all.
+        let result = executor.execute("{ a: __typename b: __typename }", None).await.unwrap();
+        assert_eq!(result, serde_json::json!({ "data": { "a": "Query", "b": "Query" } }));
+    }
 }
 
 // ── mod classify: query type detection ───────────────────────────────────
