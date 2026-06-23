@@ -233,6 +233,33 @@ enum QueryType {
     NodeQuery {
         selections: Vec<crate::graphql::FieldSelection>,
     },
+
+    /// Root `__typename` meta-field — a single-root selection consisting solely
+    /// of `__typename` (optionally aliased). Resolves to the operation's root
+    /// type name (`Query` / `Mutation` / `Subscription`) without a DB round-trip.
+    /// Mixed roots (`{ __typename users { id } }`) are not classified here; they
+    /// fall through to `Regular` and are resolved in the multi-root pipeline.
+    TypeName {
+        /// Response key (alias if provided, otherwise `__typename`).
+        response_key:   String,
+        /// Operation type string from the parsed query (`query` / `mutation` /
+        /// `subscription`), used to resolve the root type name.
+        operation_type: String,
+    },
+}
+
+/// Resolve a GraphQL operation type string to its root type name.
+///
+/// Matches the hardcoded root type names emitted by the introspection schema
+/// builder (`Query` / `Mutation` / `Subscription`), so a root `__typename`
+/// resolves to the same name as `__schema { queryType { name } }`. Defaults to
+/// `Query` for unknown operation strings.
+pub(in crate::runtime::executor) fn root_type_name(operation_type: &str) -> &'static str {
+    match operation_type {
+        "mutation" => "Mutation",
+        "subscription" => "Subscription",
+        _ => "Query",
+    }
 }
 
 /// Null out masked fields in a projected JSON result.

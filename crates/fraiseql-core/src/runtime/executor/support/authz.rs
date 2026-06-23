@@ -39,7 +39,9 @@ pub(in crate::runtime::executor) fn collect_authz_ops(
         QueryType::IntrospectionSchema => vec![(OperationKind::Query, "__schema".to_string())],
         QueryType::IntrospectionType(_) => vec![(OperationKind::Query, "__type".to_string())],
         QueryType::NodeQuery { .. } => vec![(OperationKind::Query, "node".to_string())],
-        // Mutations are gated at `execute_mutation_impl` (see fn-level docs).
-        QueryType::Mutation { .. } => Vec::new(),
+        // Both yield an empty op-list:
+        // - `Mutation` is gated downstream at `execute_mutation_impl` (see fn-level docs).
+        // - `TypeName` (`__typename`) is a GraphQL spec meta-field, always allowed.
+        QueryType::Mutation { .. } | QueryType::TypeName { .. } => Vec::new(),
     }
 }
