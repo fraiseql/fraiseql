@@ -209,13 +209,33 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .await
             },
             QueryType::TypeName {
-                response_key,
+                selection,
                 operation_type,
             } => {
                 // Root `__typename` meta-field: resolve to the operation's root
                 // type name with no DB round-trip (spec §"Type Name Introspection").
-                let ty = root_type_name(&operation_type);
-                Ok(serde_json::json!({ "data": { response_key: ty } }))
+                // Honour `@skip`/`@include` on the field — a skipped meta-field is
+                // omitted from `data`, exactly like any other skipped field.
+                let vars: std::collections::HashMap<String, serde_json::Value> = match variables {
+                    Some(serde_json::Value::Object(map)) => {
+                        map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                    },
+                    _ => std::collections::HashMap::new(),
+                };
+                let included =
+                    crate::graphql::DirectiveEvaluator::evaluate_directives(&selection, &vars)
+                        .map_err(|e| FraiseQLError::Validation {
+                            message: e.to_string(),
+                            path:    Some("directives".to_string()),
+                        })?;
+                let mut data = serde_json::Map::new();
+                if included {
+                    data.insert(
+                        selection.response_key().to_string(),
+                        serde_json::Value::String(root_type_name(&operation_type).to_string()),
+                    );
+                }
+                Ok(serde_json::json!({ "data": data }))
             },
         }
     }

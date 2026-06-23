@@ -192,6 +192,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         // available at every selection set, including the root; dispatching it as a
         // regular sub-query would fail `find_query`. We resolve it locally and only
         // dispatch the genuine data-bearing roots.
+        //
+        // NOTE: `@skip`/`@include` on a root field are not honoured on the
+        // multi-root path — `field_selection_to_query` drops directives when it
+        // re-serializes every root (a pre-existing limitation for all multi-root
+        // fields, not specific to `__typename`). The single-root `TypeName` path
+        // does honour them.
         let root_type = root_type_name(&parsed.operation_type);
 
         // Synthetic single-root query strings for every data-bearing selection,

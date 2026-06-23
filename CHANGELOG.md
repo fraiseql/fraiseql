@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Root `{ __typename }` resolves to the operation type name (#450).** A top-level
+  `{ __typename }` — the canonical zero-cost GraphQL health probe — was rejected with
+  `Query '__typename' not found in schema` because the query classifier only
+  special-cased `__schema`/`__type`. Per the GraphQL spec, `__typename` is a
+  meta-field available at every selection set; at the root it resolves to the
+  operation's root type name (`Query`/`Mutation`/`Subscription`). It now resolves with
+  no database round-trip — including when aliased (`{ ping: __typename }`), mixed with
+  real fields (`{ __typename users { id } }`, either order), repeated
+  (`{ a: __typename b: __typename }`), on a `mutation`, and under `@skip`/`@include`.
+  (Fragment-wrapped root `__typename` is not yet special-cased.)
+- **PostgreSQL statement-prepare failures surface the real diagnostic (#451).** A
+  failed prepare previously surfaced the opaque `Failed to prepare statement: db error`,
+  dropping the PostgreSQL diagnostic (e.g. `function "foo" does not exist`,
+  SQLSTATE 42883) that names the offending object — making server↔database contract
+  drift undiagnosable from logs. The diagnostic is now extracted into the message (the
+  SQL state was already populated); client-facing error sanitization is unchanged.
+
 ## [2.9.0] - 2026-06-22
 
 ### Security

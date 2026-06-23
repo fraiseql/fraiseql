@@ -375,11 +375,13 @@ async fn prepare_cached_stmt(
     sql: &str,
 ) -> Result<tokio_postgres::Statement> {
     client.prepare_cached(sql).await.map_err(|e| {
-        // Extract the underlying PostgreSQL diagnostic (SQLSTATE message, e.g.
-        // `function "foo" does not exist`) the same way the function-call path
-        // does — the top-level `Display` renders only as the opaque `db error`,
-        // dropping the one detail that names the offending object (#451). Fall
-        // back to `Display` so the message is never empty.
+        // Surface the underlying PostgreSQL diagnostic (SQLSTATE message, e.g.
+        // `function "foo" does not exist`). The top-level `Display` renders only
+        // as the opaque `db error`, dropping the one detail that names the
+        // offending object (#451). The function-call path extracts the same
+        // `as_db_error()` detail; here we put it *in place of* the useless
+        // `db error` (rather than alongside it), falling back to `Display` so the
+        // message is never empty.
         let detail = e.as_db_error().map_or_else(|| e.to_string(), |d| d.message().to_string());
         FraiseQLError::Database {
             message:   format!("Failed to prepare statement: {detail}"),
