@@ -1572,6 +1572,64 @@ fn test_convert_field_requires_scope() {
     assert_eq!(employee_type.fields[3].requires_scope, Some("admin".to_string()));
 }
 
+// ── promote_input_type_args (#456 Option 2: IR honesty) ──────────────────────
+
+#[test]
+fn promote_input_type_args_rewrites_object_to_input() {
+    use fraiseql_core::schema::{
+        ArgumentDefinition, CompiledSchema, FieldType, InputObjectDefinition, MutationDefinition,
+    };
+
+    let arg = |arg_type| ArgumentDefinition {
+        name: "input".to_string(),
+        arg_type,
+        nullable: false,
+        default_value: None,
+        description: None,
+        deprecation: None,
+    };
+
+    let mut schema = CompiledSchema {
+        input_types: vec![InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![],
+            description: None,
+            metadata:    None,
+        }],
+        ..Default::default()
+    };
+    // (1) arg naming an input type → Input
+    let mut m1 = MutationDefinition::new("createOrder", "Order");
+    m1.arguments = vec![arg(FieldType::Object("CreateOrderInput".to_string()))];
+    // (2) arg naming an OUTPUT object type → stays Object
+    let mut m2 = MutationDefinition::new("touchOrder", "Order");
+    m2.arguments = vec![arg(FieldType::Object("Order".to_string()))];
+    // (3) list of an input type → inner promoted to Input
+    let mut m3 = MutationDefinition::new("bulkCreate", "Order");
+    m3.arguments = vec![arg(FieldType::List(Box::new(FieldType::Object(
+        "CreateOrderInput".to_string(),
+    ))))];
+    schema.mutations = vec![m1, m2, m3];
+
+    SchemaConverter::promote_input_type_args(&mut schema);
+
+    assert_eq!(
+        schema.mutations[0].arguments[0].arg_type,
+        FieldType::Input("CreateOrderInput".to_string()),
+        "an Object naming a registered input type must become Input"
+    );
+    assert_eq!(
+        schema.mutations[1].arguments[0].arg_type,
+        FieldType::Object("Order".to_string()),
+        "an Object naming an output type must stay Object"
+    );
+    assert_eq!(
+        schema.mutations[2].arguments[0].arg_type,
+        FieldType::List(Box::new(FieldType::Input("CreateOrderInput".to_string()))),
+        "a list of an input type must promote its element to Input"
+    );
+}
+
 // ── tenancy converter tests ─────────────────────────────────────────────────
 
 mod tenancy_tests {
