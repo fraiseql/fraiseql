@@ -130,24 +130,31 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
 }
 
 /// Re-case a mutation input payload's keys from the GraphQL surface naming
-/// convention to the schema's canonical (stored) field names, recursing into
-/// nested input objects and arrays of input objects.
+/// convention to canonical `snake_case`, recursing into nested input objects and
+/// arrays of input objects.
 ///
-/// The compiled schema stores field names in their canonical (typically
-/// `snake_case`) form; with [`NamingConvention::CamelCase`] the GraphQL surface
-/// presents them as `camelCase`, so a client sends `camelCase` keys. The Insert
-/// path maps those to positional SQL args by name (casing handled implicitly),
-/// but the Update path forwards the whole object as one JSONB arg — so without
-/// this the SQL function receives surface-cased keys it cannot read (#400).
+/// The compiled schema stores field names in their GraphQL *surface* form: SDKs
+/// pre-case them (the Python SDK camelCases at `registry.py:233`; the
+/// `TypeScript` SDK stores whatever the author wrote, idiomatically
+/// `camelCase`), and the
+/// introspection layer renders them verbatim. With
+/// [`NamingConvention::CamelCase`] a client therefore sends `camelCase` keys. The
+/// Insert path maps those to positional SQL args by name (casing handled
+/// implicitly), but the Update / `input_style = jsonb` path forwards the whole
+/// object as one JSONB arg — so without this the SQL function receives
+/// surface-cased keys it cannot read (#400, #456).
 ///
-/// Driven by the input type's per-field map (not a lossy `camel→snake` regex)
-/// when one is available, so intentional names / acronyms in the canonical field
-/// names are preserved, and keys that match no field are left untouched.
+/// The input type's per-field map is used to *match* the incoming surface key and
+/// to drive recursion into nested input types; every emitted canonical key is
+/// then normalised with the engine's acronym-aware
+/// [`to_snake_case`](crate::utils::to_snake_case) so writes round-trip exactly as
+/// reads do (`s3Key → s3_key`, `dns1Id → dns_1_id`) — the same transform the
+/// fallback below uses, regardless of which SDK authored the schema (#456).
 ///
 /// When no per-field map is available — `input_type_name` is `None` (a raw `JSON`
 /// input arg) or names a type absent from the compiled schema — it falls back to
-/// the canonical acronym-aware key transform ([`recase_jsonb_keys_to_snake`]) so a
-/// single-JSONB payload still reaches the function as `snake_case` (#400). A
+/// the same key transform ([`recase_jsonb_keys_to_snake`]) so a single-JSONB
+/// payload still reaches the function as `snake_case` (#400). A
 /// [`NamingConvention::Preserve`] schema is always left untouched.
 fn recase_input_payload(
     value: serde_json::Value,
@@ -169,9 +176,18 @@ fn recase_input_payload(
             let mut out = serde_json::Map::with_capacity(map.len());
             for (key, val) in map {
                 // Match the incoming surface key against each field's surface name,
-                // then map back to the exact canonical name.
+                // then emit the canonical key in `snake_case`. The stored field
+                // name is the GraphQL *surface* name (SDKs pre-case it — e.g. the
+                // Python SDK camelCases at `registry.py:233`), so it cannot be
+                // forwarded verbatim; normalising with the engine's acronym-aware
+                // `to_snake_case` — the same transform the raw-`JSON` fallback and
+                // the read path use — is what reaches the function as `snake_case`
+                // regardless of which SDK authored the schema (#456 / #400).
                 let field = input_type.fields.iter().find(|f| schema.display_name(&f.name) == key);
-                let canonical = field.map_or(key, |f| f.name.clone());
+                let canonical = field.map_or_else(
+                    || crate::utils::to_snake_case(&key),
+                    |f| crate::utils::to_snake_case(&f.name),
+                );
                 let recased = match field {
                     Some(f) => recase_input_field_value(val, &f.field_type, schema),
                     None => val,
@@ -498,10 +514,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             //
             // Look up each field by its GraphQL surface name (`display_name`):
             // under `NamingConvention::CamelCase` the client sends camelCase keys
-            // while `input_type.fields` hold canonical (snake_case) names. Using
-            // the surface key both makes the required check correct and fixes the
-            // latent value-passing miss on the camelCase Insert path (previously
-            // only the Update path recased — see `recase_input_payload`).
+            // and `field.name` is itself the surface name (`display_name` is then a
+            // no-op), so matching on it makes the required check correct and finds
+            // the value to forward. The canonical column name handed to DirectSql is
+            // re-derived as `snake_case` below — see `recase_input_payload` (#456).
             let mut missing_input_fields: Vec<&str> = Vec::new();
             for field in &input_type.fields {
                 let key = ctx.schema.display_name(&field.name);
@@ -514,7 +530,11 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 // — recase its keys so the SQL function can read them (#400).
                 let raw = value.cloned().unwrap_or(serde_json::Value::Null);
                 args.push(recase_input_field_value(raw, &field.field_type, &ctx.schema));
-                direct_columns.push(field.name.clone());
+                // DirectSql (SQLite) builds its INSERT/DELETE column list from this:
+                // the column is `snake_case` in the table, while `field.name` is the
+                // GraphQL surface name (camelCase under `CamelCase`), so normalise it
+                // the same way the JSONB path normalises its keys (#456).
+                direct_columns.push(crate::utils::to_snake_case(&field.name));
             }
             if !missing_input_fields.is_empty() {
                 return Err(FraiseQLError::Validation {

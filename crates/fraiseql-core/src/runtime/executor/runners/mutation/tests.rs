@@ -1363,6 +1363,162 @@ mod mutation {
         assert_eq!(adapter_ref.modification_type().as_deref(), Some("INSERT"));
     }
 
+    /// #456 regression: a declared Input type whose field names are stored
+    /// **already camelCased** — exactly what the Python SDK emits (it
+    /// pre-camelCases field names, `registry.py:233`) — must still reach the SQL
+    /// function as `snake_case` on the single-JSONB path. Before the fix the
+    /// field-driven recase mapped the surface key back to the *stored* camelCase
+    /// name (a no-op), so a function reading `p_input->>'shipping_address'` saw
+    /// NULL. The recase now normalises every canonical key with the engine's
+    /// acronym-aware `to_snake_case`, matching the raw-`JSON` fallback path.
+    #[tokio::test]
+    async fn jsonb_input_style_camelcase_input_fields_recased_to_snake() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        // Field names stored already-camelCased, mirroring real SDK output.
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "create_order".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_order", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
+        });
+        executor.execute_mutation("create_order", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "camelCase-stored input field must reach the function as snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "gift");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive to the SQL function: {:?}",
+            captured[0]
+        );
+    }
+
+    /// End-to-end guard for the #456 follow-up: a camelCase schema serialized to
+    /// JSON and re-loaded via `CompiledSchema::from_json` (the server's real load
+    /// path) must keep `naming_convention = CamelCase`, and an **inline-literal**
+    /// `input_style="jsonb"` mutation driven through `Executor::execute` (the real
+    /// GraphQL request path, not the typed API) must reach the SQL function as
+    /// `snake_case`. The follow-up report suspected the convention was dropped to
+    /// `Preserve` somewhere between load and the runner; this reproduces that whole
+    /// pipeline in one test so any such regression fails here.
+    #[tokio::test]
+    async fn jsonb_inline_literal_recases_after_from_json_roundtrip() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        // Round-trip through the real load path: serialize **with a
+        // `_content_hash`** so `from_json` takes the same canonicalize → reserialize
+        // → deserialize branch the CLI-produced server file does (not the
+        // hash-absent shortcut), then re-parse exactly as `CompiledSchemaLoader`
+        // does on the server.
+        let mut value: serde_json::Value =
+            serde_json::from_str(&schema.to_json().unwrap()).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("_content_hash".to_string(), serde_json::Value::String(schema.content_hash()));
+        let json = serde_json::to_string(&value).unwrap();
+        let loaded = CompiledSchema::from_json(&json, false).unwrap();
+        assert_eq!(
+            loaded.naming_convention,
+            NamingConvention::CamelCase,
+            "naming_convention must survive the serialize/from_json round-trip"
+        );
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(loaded, adapter);
+
+        // Inline-literal argument (no `$variable`) — the report's exact repro and
+        // the standard GraphQL surface.
+        let doc = r#"mutation { createOrder(input: { shippingAddress: "1 Main St", customerNote: "x" }) { id } }"#;
+        executor.execute(doc, None).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "inline-literal camelCase input must reach the function as snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "x");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive to the SQL function: {:?}",
+            captured[0]
+        );
+    }
+
     // ── changelog_pre_image threading (opt-in pre-image) ──────────────────
     //
     // The per-mutation `changelog_pre_image` flag rides on the `ChangeLogWrite`
