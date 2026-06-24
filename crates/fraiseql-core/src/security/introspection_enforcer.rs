@@ -58,6 +58,32 @@ pub enum IntrospectionPolicy {
     InternalOnly,
 }
 
+impl IntrospectionPolicy {
+    /// Derive the policy from the server's two introspection config booleans.
+    ///
+    /// This is the single source of truth shared by the GraphQL request-path
+    /// gate (via `AppState::introspection_policy`) and the REST
+    /// `/introspection` endpoint mount decision, so the two agree by
+    /// construction:
+    ///
+    /// | `enabled` | `require_auth` | policy |
+    /// |-----------|----------------|--------|
+    /// | `false`   | (any)          | [`Disabled`](Self::Disabled) |
+    /// | `true`    | `true`         | [`InternalOnly`](Self::InternalOnly) |
+    /// | `true`    | `false`        | [`Allowed`](Self::Allowed) |
+    ///
+    /// The `enabled == false` row maps to `Disabled`, matching the
+    /// fail-closed server default (introspection off unless explicitly enabled).
+    #[must_use]
+    pub const fn from_config(enabled: bool, require_auth: bool) -> Self {
+        match (enabled, require_auth) {
+            (false, _) => Self::Disabled,
+            (true, true) => Self::InternalOnly,
+            (true, false) => Self::Allowed,
+        }
+    }
+}
+
 impl fmt::Display for IntrospectionPolicy {
     #[cfg_attr(test, mutants::skip)]
     // Reason: diagnostic Display impl — string values are not asserted by any test;

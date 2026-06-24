@@ -1,6 +1,6 @@
 //! `AppState` construction and configuration wiring for the server router.
 
-use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::{db::traits::DatabaseAdapter, security::IntrospectionPolicy};
 use tracing::info;
 
 use super::super::Server;
@@ -150,6 +150,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Apply GET query size limit from server config.
         state.max_get_query_bytes = self.config.max_get_query_bytes;
+
+        // Derive the introspection policy from the two server-config booleans.
+        // This is the single source of truth shared with the REST
+        // `/introspection` mount decision (`admin.rs`), so the GraphQL request
+        // path and the REST endpoint agree by construction.
+        state = state.with_introspection_policy(IntrospectionPolicy::from_config(
+            self.config.introspection_enabled,
+            self.config.introspection_require_auth,
+        ));
 
         // Attach APQ store if configured
         if let Some(ref store) = self.apq_store {

@@ -6,7 +6,10 @@ use axum::{
     Router, middleware,
     routing::{get, post, put},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    security::{IntrospectionPolicy, OidcValidator},
+};
 use tracing::{info, warn};
 
 use super::super::{
@@ -117,8 +120,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        // Conditionally add introspection endpoint (with optional auth)
-        if self.config.introspection_enabled {
+        // Conditionally add the REST `/introspection` endpoint. The mount
+        // decision uses the same `IntrospectionPolicy::from_config` derivation
+        // the GraphQL request-path gate uses (#453), so REST and GraphQL agree
+        // by construction: a non-`Disabled` policy is exactly
+        // `introspection_enabled == true`. The endpoint's own auth requirement
+        // (`InternalOnly` vs `Allowed`) is applied inside `mount_introspection`
+        // from `introspection_require_auth`.
+        if IntrospectionPolicy::from_config(
+            self.config.introspection_enabled,
+            self.config.introspection_require_auth,
+        ) != IntrospectionPolicy::Disabled
+        {
             app = self.mount_introspection(app, state);
         }
 

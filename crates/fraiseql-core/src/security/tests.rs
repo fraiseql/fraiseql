@@ -2026,6 +2026,16 @@ mod introspection_enforcer_tests {
     }
 
     #[test]
+    fn test_policy_from_config_truth_table() {
+        // The single source of truth shared by the GraphQL gate and the REST
+        // `/introspection` mount decision (#453).
+        assert_eq!(IntrospectionPolicy::from_config(false, true), IntrospectionPolicy::Disabled);
+        assert_eq!(IntrospectionPolicy::from_config(false, false), IntrospectionPolicy::Disabled);
+        assert_eq!(IntrospectionPolicy::from_config(true, true), IntrospectionPolicy::InternalOnly);
+        assert_eq!(IntrospectionPolicy::from_config(true, false), IntrospectionPolicy::Allowed);
+    }
+
+    #[test]
     fn test_enforcer_helpers() {
         let allowed = IntrospectionEnforcer::allowed();
         assert_eq!(allowed.policy(), IntrospectionPolicy::Allowed);

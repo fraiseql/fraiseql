@@ -8,6 +8,7 @@ use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::Executor,
     schema::CompiledSchema,
+    security::IntrospectionPolicy,
 };
 use tracing::info;
 
@@ -75,6 +76,14 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Defaults to `100_000` (100 `KiB`).  Configurable via
     /// `ServerConfig::max_get_query_bytes`.
     pub max_get_query_bytes:       usize,
+    /// Introspection policy for the GraphQL request path.
+    ///
+    /// Derived from `ServerConfig::introspection_enabled` /
+    /// `introspection_require_auth` via [`IntrospectionPolicy::from_config`] in
+    /// `build_app_state`. Defaults to [`IntrospectionPolicy::Disabled`]
+    /// (fail-closed) when no config is wired, matching the server's
+    /// introspection-off-by-default posture.
+    pub introspection_policy:      IntrospectionPolicy,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
     pub pool_tuner:                Option<Arc<crate::pool::PoolSizingAdvisor>>,
     /// Observer runtime handle for health probes (optional, requires `observers` feature).
@@ -170,6 +179,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             #[cfg(feature = "observers")]
             observer_runtime: None,
             max_get_query_bytes: 100_000,
+            introspection_policy: IntrospectionPolicy::Disabled,
             schema_path: None,
             reload_adapter: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -595,6 +605,17 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub const fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
         self.validator = validator;
+        self
+    }
+
+    /// Set the introspection policy for the GraphQL request path.
+    ///
+    /// Wired in `build_app_state` from the server config via
+    /// [`IntrospectionPolicy::from_config`]; the default is
+    /// [`IntrospectionPolicy::Disabled`] (fail-closed).
+    #[must_use]
+    pub const fn with_introspection_policy(mut self, policy: IntrospectionPolicy) -> Self {
+        self.introspection_policy = policy;
         self
     }
 
