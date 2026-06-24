@@ -1432,6 +1432,134 @@ mod mutation {
         );
     }
 
+    /// #456 ROOT CAUSE: the compiler emits an input-type mutation argument as
+    /// `FieldType::Object(name)` — never `FieldType::Input` — so a *real compiled*
+    /// schema's `input` arg is `Object("CreateOrderInput")`. The runtime must
+    /// recognise an `Object` naming a registered input type as a structured input
+    /// (via `find_input_type`), or it skips both the single-JSONB and flatten
+    /// branches and forwards the payload verbatim — camelCase keys to the SQL
+    /// function, no recasing, regardless of `naming_convention`. This mirrors the
+    /// beta-tester's `createEmailTemplate` (Object arg + `input_style=jsonb` +
+    /// camelCase surface); before the fix it forwarded camelCase verbatim.
+    #[tokio::test]
+    async fn jsonb_object_typed_input_arg_recased_to_snake() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                // The real compiled shape: Object naming a registered input type
+                // (NOT FieldType::Input, which the compiler never emits).
+                arg_type:      FieldType::Object("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
+        });
+        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "Object-typed input arg must be recognised and recased to snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "gift");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive: {:?}",
+            captured[0]
+        );
+    }
+
+    /// The flatten path (Insert without `input_style=jsonb`) must likewise
+    /// recognise an `Object`-typed input arg and flatten its camelCase fields to
+    /// positional args with `snake_case` column names — not fall through to verbatim
+    /// forwarding (#456).
+    #[tokio::test]
+    async fn flatten_object_typed_input_arg_recognised_and_flattened() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("fullName", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Flatten,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Object("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            2,
+            "Object-typed input arg must flatten to positional args, got {captured:?}"
+        );
+        assert_eq!(captured[0], "u1");
+        assert_eq!(captured[1], "Alice");
+    }
+
     /// End-to-end guard for the #456 follow-up: a camelCase schema serialized to
     /// JSON and re-loaded via `CompiledSchema::from_json` (the server's real load
     /// path) must keep `naming_convention = CamelCase`, and an **inline-literal**
