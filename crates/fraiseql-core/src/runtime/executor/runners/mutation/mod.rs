@@ -432,22 +432,38 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // `(input jsonb, …)`); it drives the field-level flatten/recase path below.
     let single_input_arg =
         mutation_def.arguments.len() == 1 && mutation_def.arguments[0].name == "input";
+    // The compiler emits an input-type reference as `FieldType::Object(name)`, never
+    // `FieldType::Input` (the converter's `parse_field_type` has no `Input` variant),
+    // so an `Object` whose name resolves to a registered input type IS a structured
+    // input arg. Without recognising it here the arg matches neither the
+    // single-JSONB nor the flatten branch and falls through to the verbatim
+    // standard-arg path — forwarding camelCase keys to the SQL function with no
+    // recasing, regardless of `naming_convention` (#456). The `find_input_type`
+    // guard is exact: only names registered as input types match, so output-object
+    // args are never misclassified.
     let input_type_name = if single_input_arg {
         match &mutation_def.arguments[0].arg_type {
             crate::schema::FieldType::Input(name) => Some(name.as_str()),
+            crate::schema::FieldType::Object(name)
+                if ctx.schema.find_input_type(name).is_some() =>
+            {
+                Some(name.as_str())
+            },
             _ => None,
         }
     } else {
         None
     };
-    // A single `input` arg shaped as a JSON payload — a structured Input type or a
-    // raw `JSON` scalar — as opposed to a plain scalar (`input: String`), which is
-    // a positional arg, not a JSONB blob.
+    // A single `input` arg shaped as a JSON payload — a structured Input type
+    // (`FieldType::Input`, or the `Object` the compiler actually emits for one) or a
+    // raw `JSON` scalar — as opposed to a plain scalar (`input: String`), which is a
+    // positional arg, not a JSONB blob.
     let input_arg_is_structured = single_input_arg
-        && matches!(
-            &mutation_def.arguments[0].arg_type,
-            crate::schema::FieldType::Input(_) | crate::schema::FieldType::Json
-        );
+        && match &mutation_def.arguments[0].arg_type {
+            crate::schema::FieldType::Input(_) | crate::schema::FieldType::Json => true,
+            crate::schema::FieldType::Object(name) => ctx.schema.find_input_type(name).is_some(),
+            _ => false,
+        };
 
     // Update mutations pass the entire input object as a single JSONB arg, which
     // preserves all three field states that typed positional args cannot express:
