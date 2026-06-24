@@ -1519,6 +1519,87 @@ mod mutation {
         );
     }
 
+    /// Server-path guard for the #456 follow-up: the GraphQL handler calls
+    /// `execute_with_security` for authenticated requests (handler.rs:649) — a
+    /// different dispatch entry than `execute`. A jsonb mutation driven through it
+    /// must recase `camelCase` input to `snake_case` identically, so the
+    /// authenticated path cannot silently diverge from the anonymous one.
+    #[tokio::test]
+    async fn jsonb_mutation_recases_through_execute_with_security() {
+        use chrono::Utc;
+
+        use crate::{
+            schema::{
+                FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
+                MutationDefinition, MutationOperation, NamingConvention,
+            },
+            security::SecurityContext,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![InputFieldDefinition::new("shippingAddress", "String!")],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+        schema.build_indexes();
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let sec_ctx = SecurityContext {
+            user_id:          "u".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+
+        let doc = r#"mutation { createOrder(input: { shippingAddress: "1 Main St" }) { id } }"#;
+        executor.execute_with_security(doc, None, &sec_ctx).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "authenticated dispatch must recase camelCase input to snake_case: {:?}",
+            captured[0]
+        );
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive: {:?}",
+            captured[0]
+        );
+    }
+
     // ── changelog_pre_image threading (opt-in pre-image) ──────────────────
     //
     // The per-mutation `changelog_pre_image` flag rides on the `ChangeLogWrite`

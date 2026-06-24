@@ -211,6 +211,30 @@ pub(crate) fn proto_value_to_json(value: &Value) -> serde_json::Value {
     }
 }
 
+/// Recursively recase every object key of a gRPC mutation arg to canonical
+/// `snake_case` with the engine's acronym-aware
+/// [`to_snake_case`](fraiseql_core::utils::to_snake_case), recursing into nested
+/// objects and arrays; scalar values are returned untouched.
+///
+/// Applied to each arg in [`execute_grpc_mutation`] only under
+/// [`NamingConvention::CamelCase`](fraiseql_core::schema::NamingConvention), so a
+/// nested `input` message reaches the SQL function as `snake_case` (#456). Shares
+/// `to_snake_case` with the read path, so writes round-trip exactly as reads
+/// (`s3Key` → `s3_key`, `dns1Id` → `dns_1_id`).
+pub(crate) fn recase_keys_to_snake(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .map(|(k, v)| (fraiseql_core::utils::to_snake_case(&k), recase_keys_to_snake(v)))
+                .collect(),
+        ),
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(recase_keys_to_snake).collect())
+        },
+        other => other,
+    }
+}
+
 /// Encode bytes as base64 for JSON serialization.
 fn base64_encode(bytes: &prost::bytes::Bytes) -> String {
     use base64::Engine;
@@ -404,13 +428,30 @@ pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
     adapter: &A,
     function_name: &str,
     request_msg: &DynamicMessage,
+    recase_input_keys: bool,
 ) -> Result<MutationResult, FraiseQLError> {
     // Extract arguments from the request message as JSON values.
+    //
+    // Object-valued args (a nested `input` message under the single-JSONB
+    // convention) serialize with the protobuf JSON name — `camelCase` for a
+    // `camelCase` GraphQL surface — so under `NamingConvention::CamelCase` their
+    // keys must be reversed to canonical `snake_case` before reaching a SQL
+    // function that reads `payload->>'snake_field'`, exactly as the GraphQL and
+    // REST mutation paths do via `recase_input_payload` (#456). Scalars carry no
+    // keys, so recasing is a no-op for them; `to_snake_case` is idempotent on
+    // already-`snake_case` keys.
     let args: Vec<serde_json::Value> = request_msg
         .descriptor()
         .fields()
         .filter(|f| request_msg.has_field(f))
-        .map(|f| proto_value_to_json(request_msg.get_field(&f).as_ref()))
+        .map(|f| {
+            let value = proto_value_to_json(request_msg.get_field(&f).as_ref());
+            if recase_input_keys {
+                recase_keys_to_snake(value)
+            } else {
+                value
+            }
+        })
         .collect();
 
     debug!(
