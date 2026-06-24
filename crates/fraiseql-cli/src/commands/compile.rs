@@ -6,7 +6,8 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
-    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, NamingConvention, canonicalize_json,
+    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, InputStyle, MutationOperation,
+    NamingConvention, canonicalize_json,
 };
 use tracing::{info, warn};
 
@@ -382,6 +383,10 @@ pub async fn compile_to_schema(
 
     // 5d. Warn when mutations have wide invalidation fan-out (HOT update pressure).
     warn_wide_cascade_mutations(&schema);
+
+    // 5e. Warn when a `preserve` schema would silently forward camelCase input keys
+    // to snake_case SQL functions on the single-JSONB mutation path (#456).
+    warn_jsonb_preserve_mismatch(&schema);
 
     Ok((schema, report))
 }
@@ -809,6 +814,80 @@ fn warn_wide_cascade_mutations(schema: &CompiledSchema) {
             total,
             targets.join(", "),
             alter_stmts.join("  "),
+        );
+    }
+}
+
+/// Detect single-JSONB mutations that would silently forward `camelCase` input
+/// keys to a `snake_case` SQL function under `naming_convention = "preserve"`.
+///
+/// Returns `(mutation_name, camelCase_field_names)` for every mutation that, on a
+/// `Preserve` schema, takes one declared `input` Input type through the
+/// single-JSONB path (`input_style = "jsonb"` or an `Update`) and whose Input
+/// type has `camelCase`-looking field name(s). Under `Preserve` the runtime
+/// forwards the payload verbatim — no `snake_case` recasing — so a function
+/// reading `payload->>'snake_field'` sees NULL for every multi-word field (#456).
+///
+/// Pure (no I/O) so it can be unit-tested; [`warn_jsonb_preserve_mismatch`] is the
+/// thin logging wrapper.
+pub(crate) fn jsonb_preserve_mismatches(schema: &CompiledSchema) -> Vec<(String, Vec<String>)> {
+    if schema.naming_convention != NamingConvention::Preserve {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for mutation in &schema.mutations {
+        // The single-JSONB path: an explicit `input_style = jsonb` or an Update,
+        // both of which forward the whole `input` object as one JSONB arg.
+        let single_jsonb = matches!(mutation.input_style, InputStyle::Jsonb)
+            || matches!(mutation.operation, MutationOperation::Update { .. });
+        if !single_jsonb {
+            continue;
+        }
+        // The single-`input`-object pattern: exactly one arg named "input" whose
+        // type is a declared input type (mirrors the runtime's detection). The
+        // compiler emits input-type references as `FieldType::Object`, never
+        // `FieldType::Input`, so recognise an `Object` naming a registered input
+        // type too — otherwise this warning is blind to every real compiled schema
+        // (#456).
+        let input_type_name = match mutation.arguments.as_slice() {
+            [arg] if arg.name == "input" => match &arg.arg_type {
+                FieldType::Input(name) => name.as_str(),
+                FieldType::Object(name) if schema.find_input_type(name).is_some() => name.as_str(),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        let Some(input_type) = schema.find_input_type(input_type_name) else {
+            continue;
+        };
+        // A field name with any uppercase letter is camelCase-looking — under
+        // Preserve it reaches the function verbatim and won't match a snake key.
+        let camel_fields: Vec<String> = input_type
+            .fields
+            .iter()
+            .filter(|f| f.name.chars().any(|c| c.is_ascii_uppercase()))
+            .map(|f| f.name.clone())
+            .collect();
+        if !camel_fields.is_empty() {
+            out.push((mutation.name.clone(), camel_fields));
+        }
+    }
+    out
+}
+
+/// Warn for every [`jsonb_preserve_mismatches`] hit — the silent #456
+/// misconfiguration where a `preserve` schema forwards camelCase input keys to a
+/// snake_case SQL function on the single-JSONB path.
+fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
+    for (mutation, fields) in jsonb_preserve_mismatches(schema) {
+        warn!(
+            "mutation '{mutation}' forwards its input as a single JSONB payload but the schema \
+             uses naming_convention = \"preserve\", and its input type has camelCase field(s) \
+             [{}]. Under 'preserve' the runtime forwards input keys verbatim (no snake_case \
+             recasing), so a SQL function reading payload->>'snake_field' will receive these \
+             camelCase keys and see NULL. Set naming_convention = \"camelCase\" (the default for \
+             new schemas) if the function expects snake_case keys, or rename the fields. (#456)",
+            fields.join(", "),
         );
     }
 }
