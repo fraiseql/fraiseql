@@ -5,13 +5,19 @@
 //!
 //! # Architecture
 //!
-//! The Introspection Enforcer acts as the fourth layer in the security middleware:
+//! The enforcer is invoked from the server's GraphQL request handler (after the
+//! query string is resolved, before execution) to gate `{ __schema }` /
+//! `{ __type }` on the configured [`IntrospectionPolicy`]. The policy is derived
+//! from the server's `introspection_enabled` / `introspection_require_auth`
+//! settings via [`IntrospectionPolicy::from_config`], the same derivation the
+//! REST `/introspection` endpoint uses.
+//!
 //! ```text
 //! GraphQL Query
 //!     ↓
 //! IntrospectionEnforcer::validate_query()
-//!     ├─ Check 1: Detect introspection patterns (__schema, __type)
-//!     ├─ Check 2: Check user authentication (if required)
+//!     ├─ Check 1: AST-detect a root `__schema` / `__type` field (never `__typename`)
+//!     ├─ Check 2: Check user authentication (for `InternalOnly`)
 //!     └─ Check 3: Apply policy enforcement
 //!     ↓
 //! Result<()> (query allowed or blocked)
@@ -145,7 +151,8 @@ impl IntrospectionConfig {
 /// Introspection Enforcer
 ///
 /// Controls and enforces policies around GraphQL introspection queries.
-/// Acts as the fourth layer in the security middleware pipeline.
+/// Invoked from the GraphQL request handler to block `{ __schema }` /
+/// `{ __type }` according to the configured [`IntrospectionPolicy`].
 #[derive(Debug, Clone)]
 pub struct IntrospectionEnforcer {
     policy: IntrospectionPolicy,
