@@ -55,6 +55,15 @@ use super::{
     runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig},
 };
 
+/// Default `naming_convention` for the TomlSchema compile path: `CamelCase`,
+/// matching the JSON-schema compile path (#456). Note: the derived
+/// [`Default`] for [`TomlSchema`] still yields the enum default (`Preserve`) for
+/// this field; only deserialization (the real compile path, via
+/// [`TomlSchema::parse_toml`]) applies this `camelCase` default.
+fn default_naming_convention() -> NamingConvention {
+    NamingConvention::CamelCase
+}
+
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -167,9 +176,14 @@ pub struct TomlSchema {
 
     /// Naming convention for GraphQL operation names.
     ///
-    /// `"preserve"` (default) keeps names as authored (snake_case from Python SDKs).
-    /// `"camelCase"` converts operation names to standard GraphQL camelCase.
-    #[serde(default)]
+    /// Defaults to `"camelCase"` — the standard GraphQL surface (`snake_case` in
+    /// the database, `camelCase` exposed to clients, with single-JSONB input-key
+    /// recasing) — matching the JSON-schema (`fraiseql-cli compile schema.json`)
+    /// compile path. This avoids the silent footgun where a TomlSchema-authored
+    /// schema defaulted to `Preserve` and forwarded camelCase input keys verbatim
+    /// to `snake_case` SQL functions (#456). Set `"preserve"` to keep names exactly
+    /// as authored (`snake_case`).
+    #[serde(default = "default_naming_convention")]
     pub naming_convention: NamingConvention,
 
     /// CRUD function naming config for automatic `sql_source` resolution.

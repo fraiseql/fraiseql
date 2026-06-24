@@ -81,7 +81,9 @@ mod compile_tests {
     use fraiseql_core::{
         schema::{
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
-            FieldDenyPolicy, FieldType, MutationDefinition, QueryDefinition, TypeDefinition,
+            FieldDenyPolicy, FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
+            MutationDefinition, MutationOperation, NamingConvention, QueryDefinition,
+            TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -89,7 +91,8 @@ mod compile_tests {
 
     use super::super::compile::{
         WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg,
-        infer_native_columns_from_arg_types, to_snake_case, wide_cascade_mutations,
+        infer_native_columns_from_arg_types, jsonb_preserve_mismatches, to_snake_case,
+        wide_cascade_mutations,
     };
 
     fn mutation_with_fanout(
@@ -162,6 +165,139 @@ mod compile_tests {
     fn test_wide_cascade_no_mutations_no_warnings() {
         let schema = CompiledSchema::default();
         assert!(wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD).is_empty());
+    }
+
+    // ── jsonb_preserve_mismatches (#456 compile-time warning) ────────────
+
+    /// Build a schema with one single-`input` mutation over a declared Input type.
+    fn schema_with_input_mutation(
+        naming: NamingConvention,
+        input_style: InputStyle,
+        operation: MutationOperation,
+        input_field_names: &[&str],
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema {
+            naming_convention: naming,
+            ..Default::default()
+        };
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      input_field_names
+                .iter()
+                .map(|n| InputFieldDefinition::new(*n, "String"))
+                .collect(),
+            description: None,
+            metadata:    None,
+        });
+        let mut m = MutationDefinition::new("createOrder", "Order");
+        m.input_style = input_style;
+        m.operation = operation;
+        m.arguments = vec![ArgumentDefinition {
+            name:          "input".to_string(),
+            arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+            nullable:      false,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        }];
+        schema.mutations.push(m);
+        schema
+    }
+
+    /// Same as [`schema_with_input_mutation`] but the input arg uses the real
+    /// compiled shape — `FieldType::Object(name)` naming a registered input type,
+    /// which is what the converter actually emits (never `FieldType::Input`).
+    fn schema_with_object_input_mutation(
+        naming: NamingConvention,
+        input_style: InputStyle,
+        operation: MutationOperation,
+        input_field_names: &[&str],
+    ) -> CompiledSchema {
+        let mut schema =
+            schema_with_input_mutation(naming, input_style, operation, input_field_names);
+        schema.mutations[0].arguments[0].arg_type =
+            FieldType::Object("CreateOrderInput".to_string());
+        schema
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_object_typed_input_arg() {
+        // The real compiled shape (Object naming an input type) must be detected —
+        // not just the synthetic FieldType::Input form (#456).
+        let schema = schema_with_object_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1, "Object-typed input arg must be detected");
+        assert_eq!(hits[0].1, vec!["shippingAddress"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_camelcase_fields_under_preserve() {
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress", "customerNote"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, "createOrder");
+        assert_eq!(hits[0].1, vec!["shippingAddress", "customerNote"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_update_operation_too() {
+        // An Update always uses the single-JSONB path even without input_style=jsonb.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Flatten,
+            MutationOperation::Update { table: "t".into() },
+            &["fullName"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1, "Update is single-JSONB and must be flagged");
+        assert_eq!(hits[0].1, vec!["fullName"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_when_naming_is_camel_case() {
+        // Under camelCase the runtime recases input keys, so no mismatch.
+        let schema = schema_with_input_mutation(
+            NamingConvention::CamelCase,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_for_snake_case_fields() {
+        // Snake_case fields under preserve reach the function correctly — no warning.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shipping_address", "customer_note"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_for_flatten_insert() {
+        // A flatten Insert maps fields to positional args (casing implicit), so the
+        // single-JSONB hazard does not apply.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Flatten,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
     }
 
     #[test]
