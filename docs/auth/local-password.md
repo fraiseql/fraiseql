@@ -37,9 +37,8 @@ parameters upgrade automatically on the next successful login (see *Rehash* belo
 
 ## Schema
 
-One table in the `core` schema, created idempotently by `init()` (which also ensures the
-
-# 411 identity tables it FK-references)
+One table in the `core` schema, created idempotently by `init()` (which also ensures
+the #411 identity tables it FK-references):
 
 | Table | Purpose |
 | --- | --- |
