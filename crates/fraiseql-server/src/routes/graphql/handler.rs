@@ -11,7 +11,7 @@ use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
     graphql::{estimate_query_cost, parse_graphql_document},
-    security::SecurityContext,
+    security::{IntrospectionEnforcer, SecurityContext, SecurityError},
 };
 use fraiseql_error::FraiseQLError;
 use tracing::{debug, error, warn};
@@ -401,6 +401,29 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         operation_name = ?request.operation_name,
         "Executing GraphQL query"
     );
+
+    // Enforce the introspection policy (#453) on the resolved query, before any
+    // execution. This is the single choke point every path (POST, GET, APQ,
+    // trusted documents) funnels through, so `{ __schema }` / `{ __type }`
+    // (single-root, aliased, or multi-root) cannot be served when the policy
+    // forbids it. `__typename` and normal queries are never blocked. A rejection
+    // is a GraphQL error in `errors[]` with HTTP 200, never a 5xx.
+    {
+        let enforcer = IntrospectionEnforcer::new(state.introspection_policy);
+        let user_id = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
+        if let Err(err) = enforcer.validate_query(&query, user_id) {
+            debug!(
+                policy = %state.introspection_policy,
+                "Introspection query rejected by policy"
+            );
+            metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+            let detail = match err {
+                SecurityError::IntrospectionDisabled { detail } => detail,
+                other => other.to_string(),
+            };
+            return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(detail)));
+        }
+    }
 
     // Validate request
     let validator = &state.validator;
