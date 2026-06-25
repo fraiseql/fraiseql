@@ -1483,14 +1483,16 @@ async fn test_admin_create_reloads_matcher() {
         .execute(&pool)
         .await
         .expect("clean logs");
-    sqlx::query("DELETE FROM tb_observer").execute(&pool).await.expect("clean observers");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("clean observers");
 
     // Runtime carrying the in-process matcher. Not started: matcher reload is
     // independent of the background poller, so this exercises only the reload
     // path the handler now triggers.
-    let runtime = Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(
-        pool.clone(),
-    ))));
+    let runtime =
+        Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()))));
 
     // Baseline matcher: zero observers in the (cleaned) table.
     let baseline = runtime.read().await.reload_observers().await.expect("baseline reload");
@@ -1498,7 +1500,7 @@ async fn test_admin_create_reloads_matcher() {
 
     let state = ObserverState {
         repository: ObserverRepository::new(pool.clone()),
-        runtime: Some(Arc::clone(&runtime)),
+        runtime:    Some(Arc::clone(&runtime)),
     };
 
     let entity_type = format!("Order_{test_id}");

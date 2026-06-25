@@ -416,9 +416,11 @@ fn warn_files_not_wired(config: &ServerConfig) {
 #[cfg(not(feature = "observers"))]
 fn warn_observers_feature_missing(config_path: Option<&str>) {
     let Some(path) = config_path else { return };
-    let Ok(contents) = std::fs::read_to_string(path) else { return };
-    let has_observers = toml::from_str::<toml::Table>(&contents)
-        .is_ok_and(|table| table.contains_key("observers"));
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let has_observers =
+        toml::from_str::<toml::Table>(&contents).is_ok_and(|table| table.contains_key("observers"));
     if has_observers {
         tracing::warn!(
             path,
