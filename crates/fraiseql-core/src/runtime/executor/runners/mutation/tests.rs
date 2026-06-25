@@ -479,8 +479,19 @@ mod mutation {
 
     /// Mock adapter that returns a failed `mutation_response` row (an error
     /// outcome with no entity), driving the executor down the mutation-error
-    /// fallback path.
-    struct MutationErrorMockAdapter;
+    /// path. `entity_type` is the optional concrete error type a real failure
+    /// branch stamps on the response (e.g. `"DuplicateEmailError"`); `None`
+    /// leaves the column absent, exercising the union-fallback resolution (#465).
+    struct MutationErrorMockAdapter {
+        entity_type: Option<&'static str>,
+    }
+
+    impl MutationErrorMockAdapter {
+        /// A failure row with no `entity_type` stamped (the union-fallback case).
+        const fn bare() -> Self {
+            Self { entity_type: None }
+        }
+    }
 
     #[async_trait]
     impl DatabaseAdapter for MutationErrorMockAdapter {
@@ -496,6 +507,9 @@ mod mutation {
             row.insert("error_class".to_string(), json!("conflict"));
             row.insert("message".to_string(), json!("already exists"));
             row.insert("http_status".to_string(), json!(409));
+            if let Some(et) = self.entity_type {
+                row.insert("entity_type".to_string(), json!(et));
+            }
             Ok(vec![row])
         }
 
@@ -572,7 +586,7 @@ mod mutation {
             ..MutationDefinition::new("createUser", "User")
         });
 
-        let adapter = Arc::new(MutationErrorMockAdapter);
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
         let executor = Executor::new(schema, adapter);
 
         // `__typename` is selected ONLY inside an inline fragment, never at the
@@ -621,7 +635,7 @@ mod mutation {
             ..MutationDefinition::new("createUser", "CreateUserResult")
         });
 
-        let adapter = Arc::new(MutationErrorMockAdapter);
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
         let executor = Executor::new(schema, adapter);
 
         let result = executor
@@ -650,6 +664,174 @@ mod mutation {
             Some("conflict"),
             "error_class must be surfaced as errorClass"
         );
+    }
+
+    /// #465: when the mutation's return type is the bare success entity (no result
+    /// union) and the schema declares an `is_error` type, a genuine failure must
+    /// project that declared error type — driven by the response's `entity_type` —
+    /// not leak the success entity's typename onto the result. Before the fix the
+    /// error arm consulted only `find_union(return_type)`, found nothing, and fell
+    /// back to emitting `__typename = <success entity>` with no error fields.
+    #[tokio::test]
+    async fn test_mutation_failure_projects_declared_error_type_from_entity_type() {
+        use crate::schema::{FieldDefinition, FieldType, MutationDefinition, TypeDefinition};
+
+        let mut schema = CompiledSchema::new();
+        // The success entity carries its own legacy `status` field (e.g. an order
+        // status) — the field the bug surfaced in place of the error.
+        let mut user = TypeDefinition::new("CreateUserSuccess", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::new("status", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("message", FieldType::String),
+                FieldDefinition::new("errorClass", FieldType::String),
+            ],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            // Bare success entity as the return type — no synthesized result union.
+            ..MutationDefinition::new("createUser", "CreateUserSuccess")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+        });
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on CreateUserSuccess { id } \
+                 ... on DuplicateEmailError { errorClass message } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("DuplicateEmailError"),
+            "a failed mutation must resolve to the declared error type, not the success entity"
+        );
+        assert_eq!(
+            data.get("errorClass").and_then(|v| v.as_str()),
+            Some("conflict"),
+            "the error arm must project the declared error type's fields"
+        );
+        assert_eq!(data.get("message").and_then(|v| v.as_str()), Some("already exists"),);
+        // The success entity arm must contribute nothing on a failure.
+        assert!(data.get("id").is_none(), "success-arm field 'id' must be absent on failure");
+    }
+
+    /// #465 (specificity): with a result union carrying *several* `is_error`
+    /// members, the response's `entity_type` selects the exact one the function
+    /// reported — not merely the first error member in the union. This both fixes
+    /// the mis-routing and sharpens multi-error unions.
+    #[tokio::test]
+    async fn test_mutation_failure_selects_specific_union_error_member() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("User", "v_user"));
+        // First error member — the one the OLD `find_union` resolution would pick.
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        // Second error member — the one the function actually produced.
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.unions.push(UnionDefinition::new("CreateUserResult").with_members(vec![
+            "User".to_string(),
+            "ValidationError".to_string(),
+            "DuplicateEmailError".to_string(),
+        ]));
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+        });
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on ValidationError { message } \
+                 ... on DuplicateEmailError { message } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("DuplicateEmailError"),
+            "entity_type must select the specific error member, not the first is_error member"
+        );
+    }
+
+    /// #465 (fallback): when the function does *not* stamp `entity_type`, the error
+    /// arm still resolves the union's `is_error` member, preserving the original
+    /// auto-error-union behaviour.
+    #[tokio::test]
+    async fn test_mutation_failure_falls_back_to_union_error_member_without_entity_type() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("User", "v_user"));
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("status", FieldType::String),
+                FieldDefinition::new("errorClass", FieldType::String),
+            ],
+            ..TypeDefinition::new("MutationError", "")
+        });
+        schema.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "MutationError".to_string()]),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+
+        // MutationErrorMockAdapter returns a failure row WITHOUT entity_type.
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on MutationError { errorClass } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("MutationError"),
+            "without entity_type the union's is_error member must still be resolved"
+        );
+        assert_eq!(data.get("errorClass").and_then(|v| v.as_str()), Some("conflict"));
     }
 
     // ── Three-state field semantics (issue #221) ───────────────────────────

@@ -50,6 +50,12 @@ pub enum MutationOutcome {
         message:     String,
         /// Suggested HTTP status code, when the composite supplied one.
         http_status: Option<i16>,
+        /// Concrete GraphQL type name for the failure (from the `entity_type`
+        /// column). On the error path a function stamps the declared error type it
+        /// produced (e.g. `"DuplicateEmailError"`), letting the executor route the
+        /// result onto the right `is_error` union member — symmetric with the
+        /// success arm's use of `entity_type` (#465).
+        entity_type: Option<String>,
         /// Structured metadata JSONB containing error-type field values.
         metadata:    JsonValue,
     },
@@ -179,6 +185,7 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
             error_class: class,
             message:     row.message.unwrap_or_default(),
             http_status: row.http_status,
+            entity_type: row.entity_type,
             metadata:    row.error_detail,
         })
     }
