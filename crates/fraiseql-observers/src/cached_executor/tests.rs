@@ -141,6 +141,7 @@ fn test_cache_key_generation() {
         url_env:            None,
         headers:            std::collections::HashMap::new(),
         body_template:      Some("{}".to_string()),
+        signing_secret:     None,
         signing_secret_env: None,
     };
 

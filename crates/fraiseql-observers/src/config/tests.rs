@@ -241,6 +241,7 @@ fn test_action_type_names() {
             url_env:            None,
             headers:            HashMap::new(),
             body_template:      None,
+            signing_secret:     None,
             signing_secret_env: None,
         }
         .action_type(),
@@ -268,6 +269,7 @@ fn test_webhook_action_validation() {
         url_env:            None,
         headers:            HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     };
 
@@ -282,6 +284,7 @@ fn test_webhook_action_validation() {
         url_env:            None,
         headers:            HashMap::new(),
         body_template:      Some("{}".to_string()),
+        signing_secret:     None,
         signing_secret_env: None,
     };
 
@@ -331,11 +334,63 @@ fn test_webhook_empty_signing_secret_env_is_rejected() {
         url_env:            None,
         headers:            HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: Some(String::new()),
     };
     assert!(
         matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
         "empty signing_secret_env must be rejected"
+    );
+}
+
+#[test]
+fn test_webhook_signing_secret_literal_deserializes() {
+    // #467: a per-subscription signing-secret literal is captured from config
+    // (round-trips through the observer `actions` JSONB).
+    let json = serde_json::json!({
+        "type": "webhook",
+        "url": "https://example.com/hook",
+        "signing_secret": "whsec_per_subscription"
+    });
+    let action: ActionConfig = serde_json::from_value(json).expect("deserialize webhook");
+    match action {
+        ActionConfig::Webhook { signing_secret, .. } => {
+            assert_eq!(signing_secret.as_deref(), Some("whsec_per_subscription"));
+        },
+        other => panic!("expected webhook, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_webhook_empty_signing_secret_literal_is_rejected() {
+    let action = ActionConfig::Webhook {
+        url:                Some("https://example.com".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret:     Some(String::new()),
+        signing_secret_env: None,
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+        "empty signing_secret literal must be rejected"
+    );
+}
+
+#[test]
+fn test_webhook_both_signing_secret_sources_rejected() {
+    // #467: a literal and an env-var name on the same action is ambiguous.
+    let action = ActionConfig::Webhook {
+        url:                Some("https://example.com".to_string()),
+        url_env:            None,
+        headers:            HashMap::new(),
+        body_template:      None,
+        signing_secret:     Some("whsec_literal".to_string()),
+        signing_secret_env: Some("MY_WEBHOOK_SECRET".to_string()),
+    };
+    assert!(
+        matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+        "setting both signing_secret and signing_secret_env must be rejected"
     );
 }
 

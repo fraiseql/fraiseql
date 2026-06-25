@@ -1230,6 +1230,7 @@ mod matcher_tests {
                 url_env:            None,
                 headers:            HashMap::default(),
                 body_template:      Some("{}".to_string()),
+                signing_secret:     None,
                 signing_secret_env: None,
             }],
             retry:      RetryConfig::default(),

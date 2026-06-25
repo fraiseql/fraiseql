@@ -345,6 +345,7 @@ fn webhook_action() -> ActionConfig {
         url_env:            None,
         headers:            std::collections::HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     }
 }
@@ -769,6 +770,7 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
         url_env:            None,
         headers:            std::collections::HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     };
     let event = test_event();
@@ -789,6 +791,7 @@ async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name()
         url_env:            Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
         headers:            std::collections::HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     };
     let event = test_event();
@@ -1548,15 +1551,15 @@ mod dispatch_tests {
 
     #[test]
     fn signing_secret_none_when_unconfigured() {
-        // No env var name configured → signing simply off (no error).
-        assert_eq!(resolve_signing_secret(None).unwrap(), None);
+        // Neither a literal nor an env var name → signing simply off (no error).
+        assert_eq!(resolve_signing_secret(None, None).unwrap(), None);
     }
 
     #[test]
     fn signing_secret_resolves_from_env() {
         temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET", Some("whsec_123"), || {
             assert_eq!(
-                resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET")).unwrap(),
+                resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET"), None).unwrap(),
                 Some("whsec_123".to_string())
             );
         });
@@ -1567,7 +1570,7 @@ mod dispatch_tests {
         // An operator who asked for signing must NOT get an unsigned delivery:
         // an absent env var is a hard error, never a silent skip (#345).
         temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET_UNSET", None::<&str>, || {
-            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_UNSET"));
+            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_UNSET"), None);
             assert!(
                 matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
                 "missing signing-secret env var must fail loud: {result:?}"
@@ -1578,10 +1581,46 @@ mod dispatch_tests {
     #[test]
     fn signing_secret_empty_env_fails_loud() {
         temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET_EMPTY", Some(""), || {
-            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_EMPTY"));
+            let result = resolve_signing_secret(Some("FRAISEQL_TEST_WEBHOOK_SECRET_EMPTY"), None);
             assert!(
                 matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
                 "empty signing-secret env var must fail loud: {result:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn signing_secret_resolves_from_literal() {
+        // A per-subscription literal is used verbatim — no env lookup (#467).
+        assert_eq!(
+            resolve_signing_secret(None, Some("whsec_per_subscription")).unwrap(),
+            Some("whsec_per_subscription".to_string())
+        );
+    }
+
+    #[test]
+    fn signing_secret_empty_literal_fails_loud() {
+        // Mirrors the empty-env case: asking for signing then handing an empty
+        // literal must error, never silently send unsigned (#467).
+        let result = resolve_signing_secret(None, Some(""));
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "empty signing-secret literal must fail loud: {result:?}"
+        );
+    }
+
+    #[test]
+    fn signing_secret_both_sources_is_ambiguous_and_fails() {
+        // Setting both a literal and an env var name on the same action is an
+        // ambiguous config; fail loud rather than silently picking one (#467).
+        temp_env::with_var("FRAISEQL_TEST_WEBHOOK_SECRET_BOTH", Some("from_env"), || {
+            let result = resolve_signing_secret(
+                Some("FRAISEQL_TEST_WEBHOOK_SECRET_BOTH"),
+                Some("from_literal"),
+            );
+            assert!(
+                matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+                "both signing-secret sources set must fail loud: {result:?}"
             );
         });
     }

@@ -207,6 +207,7 @@ mod integration_tests {
             url_env:            None,
             headers:            std::collections::HashMap::new(),
             body_template:      None,
+            signing_secret:     None,
             signing_secret_env: None,
         };
 
@@ -221,6 +222,7 @@ mod integration_tests {
             url_env:            None,
             headers:            std::collections::HashMap::new(),
             body_template:      Some("{}".to_string()),
+            signing_secret:     None,
             signing_secret_env: None,
         };
 
