@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   union's `is_error` member otherwise. This both fixes the mis-routing and, for unions
   with several error members, projects the *specific* error the function reported
   rather than the first one in the union. Success-path projection is unchanged.
+- **A SQL-`NULL` `updated_fields` no longer breaks mutation parsing (#473).** A failed
+  mutation's function commonly leaves `mutation_response.updated_fields` (a `TEXT[]`)
+  unset, which `row_to_map` renders as JSON `null`. The parser's `#[serde(default)]`
+  only fills an *absent* key, so an explicit null reached `Vec<String>`'s deserializer
+  and failed with `invalid type: null, expected a sequence` — turning the failed
+  mutation into an opaque parse error before the typed error arm was reached. A null
+  `updated_fields` column is now read as the empty list, matching the absent-key
+  behaviour. No function-side `updated_fields := ARRAY[]::text[]` boilerplate required.
 - **Root `{ __typename }` resolves to the operation type name (#450).** A top-level
   `{ __typename }` — the canonical zero-cost GraphQL health probe — was rejected with
   `Query '__typename' not found in schema` because the query classifier only
