@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`doctor --against-db` no longer emits two spurious reds on the Python-SDK flow (#488).**
+  (a) Connectivity reported "DATABASE_URL not set" even when `--against-db` connected fine,
+  because `run_with_db_checks` dropped `against_db` before the connectivity checks. The
+  effective URL (`--db-url` > `--against-db` > env) is now threaded through, so an
+  `--against-db`-only run reports the URL as set/reachable. (b) "TOML syntax valid" failed
+  because `--config` (a *runtime* config) was always parsed as a *schema-definition* TOML;
+  it is now syntax-only-parsed when `--schema` resolves to a compiled JSON, and only
+  schema-parsed when `--schema` is itself a `.toml` source. Malformed TOML and unreachable
+  databases still fail — the spurious reds are gone without masking real problems.
 - **Observer execution log now populates its request/response audit columns (#468).**
   `tb_observer_log` declares `action_index`, `action_type`, `response_status_code`,
   `response_payload`, and `request_payload`, but the runtime log writer left them

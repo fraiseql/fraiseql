@@ -177,6 +177,62 @@ pub fn check_toml_exists(path: &Path) -> DoctorCheck {
     }
 }
 
+/// The effective database URL for connectivity checks: `--db-url`, else
+/// `--against-db`, else (inside the checks) the `DATABASE_URL` env var.
+///
+/// `--against-db` is the URL the live passes already connect with, so a run that
+/// passes only `--against-db` must not report "DATABASE_URL not set" (#488).
+#[must_use]
+pub fn effective_db_url<'a>(
+    db_url: Option<&'a str>,
+    against_db: Option<&'a str>,
+) -> Option<&'a str> {
+    db_url.or(against_db)
+}
+
+/// Validate the `--config` file as TOML, choosing the right parse for its role.
+///
+/// When `--schema` is a compiled JSON, `--config` is a **runtime** config (server
+/// settings), so only its *syntax* is validated — parsing it as a schema-definition
+/// TOML would spuriously fail on the common Python-SDK + `--against-db` flow (#488).
+/// When `--schema` is itself a TOML (or no compiled JSON is given), `--config` may
+/// be the schema source, so the existing schema parse runs.
+#[must_use]
+pub fn check_config_toml(config_path: &Path, schema_path: &Path) -> DoctorCheck {
+    if schema_is_compiled_json(schema_path) {
+        check_toml_syntax(config_path)
+    } else {
+        check_toml_parses(config_path)
+    }
+}
+
+/// Whether `--schema` points at a compiled-JSON schema (vs a `.toml` schema
+/// source). Path-based by necessity: `run_checks` sees only paths, never schema
+/// *content*, so there is no richer "schema came from TOML" signal to prefer. The
+/// default `--schema schema.compiled.json` is covered by the `.json` extension.
+fn schema_is_compiled_json(schema_path: &Path) -> bool {
+    schema_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("json"))
+}
+
+/// Syntax-only TOML parse — catches malformed TOML without requiring
+/// schema-definition structure. Used for runtime-config `--config` files (#488).
+fn check_toml_syntax(path: &Path) -> DoctorCheck {
+    const NAME: &str = "config TOML syntax valid";
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            return DoctorCheck::fail(NAME, format!("cannot read: {e}"), "Check file permissions");
+        },
+    };
+    match toml::from_str::<toml::Value>(&content) {
+        Ok(_) => DoctorCheck::pass(NAME, ""),
+        Err(e) => {
+            let short = e.to_string().lines().next().unwrap_or("parse error").to_string();
+            DoctorCheck::fail(NAME, format!("parse error: {short}"), "Fix TOML syntax and retry")
+        },
+    }
+}
+
 /// Parse `fraiseql.toml`. Only called when the file actually exists.
 pub fn check_toml_parses(path: &Path) -> DoctorCheck {
     let content = match std::fs::read_to_string(path) {
@@ -461,10 +517,12 @@ pub fn run_checks(
         checks.push(check_schema_version(schema_path));
     }
 
-    // TOML config checks
+    // TOML config checks. When `--schema` is a compiled JSON, `--config` is a
+    // *runtime* config (not a schema definition), so only its syntax is checked —
+    // schema-parsing it would spuriously fail (#488).
     checks.push(check_toml_exists(config_path));
     if config_path.exists() {
-        checks.push(check_toml_parses(config_path));
+        checks.push(check_config_toml(config_path, schema_path));
     }
 
     // Environment / connectivity checks
@@ -501,7 +559,11 @@ pub async fn run_with_db_checks(
     schemas: &[String],
     json: bool,
 ) -> bool {
-    let mut checks = run_checks(config, schema, db_url);
+    // Connectivity prefers the explicit URL the run already connected with, so a
+    // `--against-db`-only run no longer reports "DATABASE_URL not set" (#488).
+    // Precedence: --db-url > --against-db > env (the env fallback lives in the
+    // checks themselves, for the no-flag case).
+    let mut checks = run_checks(config, schema, effective_db_url(db_url, against_db));
     if let Some(url) = against_db {
         checks.extend(changelog_contract_checks(url).await);
         checks.extend(changelog_rls_checks(url).await);
