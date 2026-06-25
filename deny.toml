@@ -142,10 +142,6 @@ name = "rand_core"
 reason = "transitive via rand 0.9"
 version = "=0.9.5"
 
-# windows-sys: the older roots and their entire windows-targets + windows_* leaf
-# subtrees are skip-tree'd below (one entry per root), so individual skips for
-# windows-sys / windows-targets / the per-arch leaf crates are unnecessary.
-
 [[bans.skip]]
 name = "wasi"
 reason = "transitive via getrandom 0.2"
@@ -296,6 +292,13 @@ name = "hyper"
 reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
 version = "=0.14.32"
 
+# windows ecosystem: multiple windows-sys major versions coexist transitively
+# (0.48 via older crates, 0.52 via the migration wave, 0.53 via notify 8 →
+# windows-sys 0.60). Each root pulls its own windows-targets + per-arch
+# windows_* leaf crates. Skip-tree the older roots so the whole subtree (targets
+# + all seven leaf crates) is exempt in one entry each, leaving windows-sys
+# 0.61 (which has no windows-targets dep) as the canonical version.
+
 [[bans.skip-tree]]
 name = "rustls"
 reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
@@ -310,13 +313,6 @@ version = "=0.11.1"
 name = "wasmtime"
 reason = "wasmtime v44 pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat; upgrade tracked for 2026-12-01"
 version = "=44.0.3"
-
-# windows ecosystem: multiple windows-sys major versions coexist transitively
-# (0.48 via older crates, 0.52 via the migration wave, 0.53 via notify 8 →
-# windows-sys 0.60). Each root pulls its own windows-targets + per-arch
-# windows_* leaf crates. Skip-tree the older roots so the whole subtree (targets
-# + all seven leaf crates) is exempt in one entry each, leaving windows-sys
-# 0.61 (which has no windows-targets dep) as the canonical version.
 [[bans.skip-tree]]
 name = "windows-sys"
 reason = "windows-sys 0.48 → windows-targets 0.48.5 → windows_* 0.48.5 leaf crates"
