@@ -757,6 +757,27 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         }
     }
 
+    // After-mutation function triggers (#460): once the mutation has committed,
+    // fire-and-forget any matching `after:mutation` functions on a live,
+    // I/O-capable host context. Gated on `functions-runtime` (the WASM runtime +
+    // live host are opt-in); a single `HashMap::get` of zero overhead when no
+    // hooks are registered. Errors are logged inside the spawned tasks and never
+    // affect the response that was already produced above.
+    #[cfg(feature = "functions-runtime")]
+    if let Some(ref hooks) = state.before_mutation_hooks {
+        if let Some(mutation_name) = detect_mutation_name(&query) {
+            let plans = crate::routes::after_mutation::plan_after_mutation_dispatch(
+                hooks,
+                executor.schema(),
+                &mutation_name,
+                &response_json,
+            );
+            if !plans.is_empty() {
+                crate::routes::after_mutation::spawn_after_mutation(hooks, plans);
+            }
+        }
+    }
+
     Ok(GraphQLResponse {
         body: response_json,
     })

@@ -172,6 +172,16 @@ grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:htt
 federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
 # Edge functions HTTP endpoint (POST /functions/v1/{name})
 functions = []
+# After-mutation function-trigger dispatch with a full I/O-capable host context
+# (outbound HTTP with an SSRF allowlist, secrets). Pulls in the WASM runtime and
+# the live host context, which are opt-in (#460), so the stock binary stays lean.
+# Enable this to actually run `after:mutation` functions after a committed
+# mutation; without it the dispatch step is compiled out.
+functions-runtime = [
+    "functions",
+    "fraiseql-functions/runtime-wasm",
+    "fraiseql-functions/host-live",
+]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]
