@@ -114,6 +114,7 @@ fn test_execution_summary_success() {
         tenant_rejected:    false,
         cache_hits:         0,
         cache_misses:       0,
+        action_details:     Vec::new(),
     };
 
     assert!(summary.is_success());
@@ -133,6 +134,7 @@ fn test_execution_summary_failure() {
         tenant_rejected:    false,
         cache_hits:         0,
         cache_misses:       0,
+        action_details:     Vec::new(),
     };
 
     assert!(!summary.is_success());
@@ -387,7 +389,7 @@ async fn test_retry_happy_path_succeeds_first_attempt() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary, 0)
         .await;
 
     assert_eq!(summary.successful_actions, 1, "expected 1 success");
@@ -410,7 +412,7 @@ async fn test_retry_total_duration_accumulated_on_success() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary, 0)
         .await;
 
     assert!((summary.total_duration_ms - 42.0).abs() < f64::EPSILON);
@@ -449,6 +451,7 @@ async fn test_retry_transient_then_success() {
                         success: true,
                         message: "ok".to_string(),
                         duration_ms: 1.0,
+                        status_code: None,
                     })
                 }
             })
@@ -467,7 +470,7 @@ async fn test_retry_transient_then_success() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary, 0)
         .await;
 
     assert_eq!(summary.successful_actions, 1);
@@ -495,7 +498,7 @@ async fn test_retry_permanent_error_no_retry() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary, 0)
         .await;
 
     // Called exactly once — no retry for permanent errors
@@ -525,7 +528,7 @@ async fn test_retry_exhausted_after_max_attempts() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary, 0)
         .await;
 
     // Should have been called max_attempts times (3) then failed
@@ -555,7 +558,7 @@ async fn test_retry_single_attempt_max_no_retry() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary, 0)
         .await;
 
     assert_eq!(dispatcher.call_count(), 1);
@@ -590,6 +593,7 @@ async fn test_retry_two_transient_then_success() {
                         success:     true,
                         message:     "ok".to_string(),
                         duration_ms: 1.0,
+                        status_code: None,
                     })
                 }
             })
@@ -610,6 +614,7 @@ async fn test_retry_two_transient_then_success() {
             &make_retry(5, 0),
             &FailurePolicy::Log,
             &mut summary,
+            0,
         )
         .await;
 
@@ -1275,6 +1280,7 @@ async fn test_mock_dispatcher_call_log_records_action_type() {
                 &make_retry(1, 0),
                 &FailurePolicy::Log,
                 &mut s,
+                0,
             )
             .await;
     }
@@ -1300,6 +1306,7 @@ async fn test_execution_summary_is_success_with_mock() {
             &make_retry(1, 0),
             &FailurePolicy::Log,
             &mut summary,
+            0,
         )
         .await;
 
@@ -1329,6 +1336,7 @@ async fn test_execution_summary_not_success_on_failure() {
             &make_retry(1, 0),
             &FailurePolicy::Log,
             &mut summary,
+            0,
         )
         .await;
 
@@ -1520,6 +1528,7 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
                     success: true,
                     message: "slow ok".to_string(),
                     duration_ms: 200.0,
+                    status_code: None,
                 })
             })
         }
@@ -1821,7 +1830,7 @@ async fn email_action_reports_failure_not_silent_success() {
     let mut summary = ExecutionSummary::new();
 
     executor
-        .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary)
+        .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary, 0)
         .await;
 
     assert_eq!(summary.successful_actions, 0, "a non-sending email must NOT count as success");

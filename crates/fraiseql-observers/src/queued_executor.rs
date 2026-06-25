@@ -222,6 +222,9 @@ impl QueuedExecutionSummary {
             tenant_rejected:    false,
             cache_hits:         0,
             cache_misses:       0,
+            // Queued execution defers dispatch, so no per-action detail is
+            // available at queue time (#468).
+            action_details:     Vec::new(),
         }
     }
 }

@@ -57,6 +57,7 @@ pub mod mocks {
                 success: true,
                 message: "mock success".to_string(),
                 duration_ms,
+                status_code: None,
             };
             self.responses.lock().unwrap().insert(action_type.to_string(), Ok(result));
         }
@@ -102,6 +103,7 @@ pub mod mocks {
                         success:     true,
                         message:     "mock default ok".to_string(),
                         duration_ms: 1.0,
+                        status_code: None,
                     }),
                 }
             })
@@ -213,6 +215,7 @@ pub mod mocks {
                 success: true,
                 message: "Mock execution".to_string(),
                 duration_ms: 10.0,
+                status_code: None,
             })
         }
     }

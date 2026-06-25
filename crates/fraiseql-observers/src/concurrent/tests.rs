@@ -31,6 +31,7 @@ mod concurrent_tests {
                 success:     true,
                 message:     "Test success".to_string(),
                 duration_ms: 10.0,
+                status_code: None,
             })
         }
     }
@@ -128,6 +129,7 @@ mod concurrent_tests {
                 success: true,
                 message: "Completed after delay".to_string(),
                 duration_ms,
+                status_code: None,
             })
         }
     }

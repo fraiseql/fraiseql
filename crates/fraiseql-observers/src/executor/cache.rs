@@ -48,6 +48,9 @@ impl ObserverExecutor {
                     success:     cached.success,
                     message:     cached.message,
                     duration_ms: cached.duration_ms,
+                    // A cache hit carries no fresh transport round-trip, so there
+                    // is no HTTP status to surface (#468).
+                    status_code: None,
                 });
             }
         }

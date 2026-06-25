@@ -18,9 +18,9 @@ use std::{
 use arc_swap::ArcSwap;
 use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
 use fraiseql_observers::{
-    ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig,
-    EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy, InMemoryTransport,
-    ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
+    ActionConfig as ObserverActionConfig, ActionExecutionDetail, ChangeLogListener,
+    ChangeLogListenerConfig, EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy,
+    InMemoryTransport, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
     config::{EmailSmtpConfig, TransportConfig, TransportKind},
     transport::{EventFilter, EventTransport},
 };
@@ -133,6 +133,17 @@ pub struct ObserverRuntimeConfig {
     /// `None` leaves the email action without a backend (it fails loud, #349);
     /// `Some(_)` builds a real `lettre` SMTP sender when the executor is created.
     pub email: Option<EmailSmtpConfig>,
+
+    /// Whether to persist the triggering event payload into the
+    /// `tb_observer_log.request_payload` column (#468).
+    ///
+    /// Default `false`: the non-sensitive audit columns (`action_type`,
+    /// `action_index`, `response_status_code`, `response_payload` summary) are
+    /// always written, but the request payload — which can carry PII from the
+    /// entity row — is only stored when an operator opts in via
+    /// `[observers.runtime].log_payloads`. Large payloads are truncated to a
+    /// marker regardless.
+    pub log_payloads: bool,
 }
 
 impl ObserverRuntimeConfig {
@@ -149,6 +160,7 @@ impl ObserverRuntimeConfig {
             max_dlq_size: None,
             transport: TransportConfig::default(),
             email: None,
+            log_payloads: false,
         }
     }
 
@@ -191,6 +203,14 @@ impl ObserverRuntimeConfig {
     #[must_use]
     pub fn with_email(mut self, email: Option<EmailSmtpConfig>) -> Self {
         self.email = email;
+        self
+    }
+
+    /// Enable persisting the triggering event payload into
+    /// `tb_observer_log.request_payload` (#468). Off by default.
+    #[must_use]
+    pub const fn with_log_payloads(mut self, log_payloads: bool) -> Self {
+        self.log_payloads = log_payloads;
         self
     }
 }
@@ -445,6 +465,7 @@ impl ObserverRuntime {
         let last_checkpoint = self.last_checkpoint.clone();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         let pool = self.config.pool.clone();
+        let log_payloads = self.config.log_payloads;
 
         // Clone Arc references for hot reload
         let matcher_ref = Arc::clone(&self.matcher);
@@ -549,6 +570,7 @@ impl ObserverRuntime {
                                         bridge_sender.as_ref(),
                                         &events_processed,
                                         &errors,
+                                        log_payloads,
                                     )
                                     .await;
                                 }
@@ -716,6 +738,7 @@ impl ObserverRuntime {
         let events_processed = self.events_processed.clone();
         let errors = self.errors.clone();
         let pool = self.config.pool.clone();
+        let log_payloads = self.config.log_payloads;
         let matcher_ref = Arc::clone(&self.matcher);
         let executor_ref = Arc::clone(&self.executor);
         let entity_type_index_ref = Arc::clone(&self.entity_type_index);
@@ -763,6 +786,7 @@ impl ObserverRuntime {
                                     bridge_sender.as_ref(),
                                     &events_processed,
                                     &errors,
+                                    log_payloads,
                                 )
                                 .await;
                             },
@@ -944,8 +968,11 @@ async fn process_entity_event(
     bridge_sender: Option<&mpsc::Sender<BridgeEntityEvent>>,
     events_processed: &std::sync::atomic::AtomicU64,
     errors: &std::sync::atomic::AtomicU64,
+    log_payloads: bool,
 ) {
     // Find matching observers using the current (possibly reloaded) matcher.
+    // Used only as a fallback duration source for the audit log (#468) — the
+    // executor performs its own matching internally for dispatch.
     let matching_observers = matcher.find_matches(event);
 
     // Process event using the current (possibly reloaded) executor.
@@ -972,14 +999,27 @@ async fn process_entity_event(
                 } else {
                     "error"
                 };
-                let duration_ms = if matching_observers.is_empty() {
-                    0
+                // Pick the per-action detail that best represents this row's
+                // outcome (#468): for a success row the first action that
+                // succeeded, for an error row the first that failed. In the
+                // common single-action observer case this is exact; the
+                // aggregate-per-observer model (one row per matched observer) is
+                // unchanged. `None` only when the executor produced no detail.
+                let representative = if status == "success" {
+                    summary.action_details.iter().find(|d| d.success)
+                } else {
+                    summary.action_details.iter().find(|d| !d.success)
+                }
+                .or_else(|| summary.action_details.first());
+
+                // Fallback duration (the pre-#468 average over matched observers)
+                // used only when no per-action detail is available.
+                let fallback_duration_ms = if matching_observers.is_empty() {
+                    None
                 } else {
                     #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-                    // Reason: observer count is small; average duration fits in i32
-                    {
-                        (summary.total_duration_ms / matching_observers.len() as f64) as i32
-                    }
+                    // Reason: observer count is small; average duration fits in i32.
+                    Some((summary.total_duration_ms / matching_observers.len() as f64) as i32)
                 };
 
                 // Write a log entry for each matched observer. A failed audit-log
@@ -988,30 +1028,17 @@ async fn process_entity_event(
                 // `warn!` (mirroring the EventBridge forward-failure handling below)
                 // so the dropped audit row is observable.
                 for observer_id in observer_ids {
-                    if let Err(e) = sqlx::query(
-                        // entity_id is bound as text (Uuid::to_string) and cast
-                        // to the column's uuid type — sqlx will not implicitly
-                        // coerce text to uuid on INSERT.
-                        "INSERT INTO tb_observer_log
-                         (fk_observer, event_id, entity_type, entity_id, event_type, status, duration_ms, attempt_number, max_attempts)
-                         VALUES ($1, $2, $3, $4::uuid, $5, $6, $7, 1, 3)",
+                    write_observer_log(
+                        pool,
+                        observer_id,
+                        event,
+                        status,
+                        representative,
+                        fallback_duration_ms,
+                        None,
+                        log_payloads,
                     )
-                    .bind(observer_id)
-                    .bind(event.id)
-                    .bind(&event.entity_type)
-                    .bind(event.entity_id.to_string())
-                    .bind(event.event_type.as_str())
-                    .bind(status)
-                    .bind(duration_ms)
-                    .execute(pool)
-                    .await
-                    {
-                        warn!(
-                            "Failed to write observer success log (observer {observer_id}, \
-                             event {}): {e}",
-                            event.id
-                        );
-                    }
+                    .await;
                 }
             }
 
@@ -1050,41 +1077,132 @@ async fn process_entity_event(
             errors.fetch_add(1, Ordering::Relaxed);
             error!("Failed to process event {}: {}", event.id, e);
 
-            // Write error logs for matched observers.
+            // Write error logs for matched observers. This is an event-level
+            // failure (e.g. condition-parser error), so there is no per-action
+            // detail to attribute — only the error message is recorded.
             let event_type_str = event.event_type.as_str().to_uppercase();
             let observer_ids_err = entity_type_index
                 .load()
                 .get(&(event.entity_type.clone(), event_type_str))
                 .cloned();
             if let Some(observer_ids) = observer_ids_err {
+                let error_message = e.to_string();
                 for observer_id in observer_ids {
-                    if let Err(log_err) = sqlx::query(
-                        // entity_id cast to uuid as in the success path above.
-                        "INSERT INTO tb_observer_log
-                         (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
-                         VALUES ($1, $2, $3, $4::uuid, $5, 'error', $6, 1, 3)",
+                    write_observer_log(
+                        pool,
+                        observer_id,
+                        event,
+                        "error",
+                        None,
+                        None,
+                        Some(&error_message),
+                        log_payloads,
                     )
-                    .bind(observer_id)
-                    .bind(event.id)
-                    .bind(&event.entity_type)
-                    .bind(event.entity_id.to_string())
-                    .bind(event.event_type.as_str())
-                    .bind(e.to_string())
-                    .execute(pool)
-                    .await
-                    {
-                        // Don't let a failed error-log write be swallowed too
-                        // (M-observer-log-swallow). The event error is already counted
-                        // and logged above; this surfaces the lost audit row.
-                        warn!(
-                            "Failed to write observer error log (observer {observer_id}, \
-                             event {}): {log_err}",
-                            event.id
-                        );
-                    }
+                    .await;
                 }
             }
         },
+    }
+}
+
+/// Maximum serialized size (bytes) of an event payload persisted into a JSONB
+/// audit column. A larger payload is replaced with a small marker so a single
+/// oversized event cannot bloat `tb_observer_log` (#468).
+const MAX_LOG_PAYLOAD_BYTES: usize = 64 * 1024;
+
+/// Clamp an event payload for persistence into `tb_observer_log.request_payload`.
+///
+/// Returns the value unchanged when its serialized form is within
+/// [`MAX_LOG_PAYLOAD_BYTES`]; otherwise returns a marker object recording the
+/// original size so the stored audit row stays bounded.
+fn truncate_log_payload(data: &serde_json::Value) -> serde_json::Value {
+    let size = serde_json::to_vec(data).map_or(0, |v| v.len());
+    if size > MAX_LOG_PAYLOAD_BYTES {
+        serde_json::json!({
+            "_truncated": true,
+            "_original_size_bytes": size,
+        })
+    } else {
+        data.clone()
+    }
+}
+
+/// Write a single `tb_observer_log` row, populating the per-action audit columns
+/// from `detail` when available (#468).
+///
+/// `action_type`, `action_index`, `response_status_code`, and the
+/// `response_payload` outcome summary are non-sensitive and always written when
+/// a per-action detail is present. `request_payload` carries the triggering
+/// event data — potentially PII — so it is only persisted when `log_payloads`
+/// is set, and is truncated to a marker past [`MAX_LOG_PAYLOAD_BYTES`].
+///
+/// A failed write is surfaced via `warn!` rather than swallowed
+/// (M-observer-log-swallow): the event itself already processed, so a dropped
+/// audit row is non-fatal but must remain observable.
+#[allow(clippy::too_many_arguments)]
+// Reason: a single INSERT site threading the event, the per-action detail, and
+// the privacy toggle so both success and error paths share one column contract.
+async fn write_observer_log(
+    pool: &PgPool,
+    observer_id: i64,
+    event: &ObserverEntityEvent,
+    status: &str,
+    detail: Option<&ActionExecutionDetail>,
+    fallback_duration_ms: Option<i32>,
+    fallback_error: Option<&str>,
+    log_payloads: bool,
+) {
+    let action_index = detail.map(|d| i32::try_from(d.action_index).unwrap_or(i32::MAX));
+    let action_type = detail.map(|d| d.action_type.clone());
+    let status_code = detail.and_then(|d| d.status_code).map(i32::from);
+    let duration_ms = detail
+        .map(|d| {
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: action durations are small; milliseconds fit in i32.
+            {
+                d.duration_ms as i32
+            }
+        })
+        .or(fallback_duration_ms);
+    // Non-sensitive outcome summary (message + success flag); always recorded.
+    let response_payload =
+        detail.map(|d| serde_json::json!({ "message": d.message, "success": d.success }));
+    // Request payload may carry PII → opt-in only, and truncated when large.
+    let request_payload = log_payloads.then(|| truncate_log_payload(&event.data));
+    // Prefer an explicit event-level error, else the action's own error.
+    let error_message = fallback_error
+        .map(ToString::to_string)
+        .or_else(|| detail.and_then(|d| d.error_message.clone()));
+
+    if let Err(e) = sqlx::query(
+        // entity_id is bound as text (Uuid::to_string) and cast to the column's
+        // uuid type — sqlx will not implicitly coerce text to uuid on INSERT.
+        "INSERT INTO tb_observer_log
+         (fk_observer, event_id, entity_type, entity_id, event_type, status,
+          action_index, action_type, response_status_code, response_payload,
+          request_payload, duration_ms, error_message, attempt_number, max_attempts)
+         VALUES ($1, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1, 3)",
+    )
+    .bind(observer_id)
+    .bind(event.id)
+    .bind(&event.entity_type)
+    .bind(event.entity_id.to_string())
+    .bind(event.event_type.as_str())
+    .bind(status)
+    .bind(action_index)
+    .bind(action_type)
+    .bind(status_code)
+    .bind(response_payload)
+    .bind(request_payload)
+    .bind(duration_ms)
+    .bind(error_message)
+    .execute(pool)
+    .await
+    {
+        warn!(
+            "Failed to write observer {status} log (observer {observer_id}, event {}): {e}",
+            event.id
+        );
     }
 }
 

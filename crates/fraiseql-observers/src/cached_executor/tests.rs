@@ -38,6 +38,7 @@ impl ActionExecutor for TestExecutor {
             success:     true,
             message:     "Test success".to_string(),
             duration_ms: 10.0,
+            status_code: None,
         })
     }
 }

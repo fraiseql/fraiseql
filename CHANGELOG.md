@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Observer execution log now populates its request/response audit columns (#468).**
+  `tb_observer_log` declares `action_index`, `action_type`, `response_status_code`,
+  `response_payload`, and `request_payload`, but the runtime log writer left them
+  `NULL` — it recorded only status/duration — so a webhook delivery-log / audit UI
+  built on the schema could not show response codes or bodies. The per-action result
+  (HTTP status, action type/index, outcome) is now threaded from the
+  `fraiseql-observers` executor back to the writer via a new
+  `ExecutionSummary.action_details` / `ActionExecutionDetail` contract and written to
+  the log. `action_type`, `action_index`, `response_status_code`, and the
+  `response_payload` outcome summary are non-sensitive and always populated;
+  `request_payload` (the triggering event data, which can carry PII) is gated behind
+  the new `[observers.runtime].log_payloads` flag (default off) and truncated to a
+  marker past 64 KiB. Part of the #471 "declared but unwired" cluster.
 - **PostgreSQL `ENUM` columns no longer decode to null in `row_to_map` (#472).** An
   enum-typed column (notably `app.mutation_response.error_class`, the
   `app.mutation_error_class` enum) fell through the `row_to_map` decode ladder to

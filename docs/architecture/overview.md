@@ -238,6 +238,11 @@ enabled = true
 [observers.runtime]
 channel_capacity = 1000
 max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
+# Persist the triggering event payload into tb_observer_log.request_payload (#468).
+# Off by default: the non-sensitive audit columns (action_type, action_index,
+# response_status_code, response_payload summary) are always written, but the
+# request payload may carry PII so it is opt-in (oversized payloads are truncated).
+log_payloads = false
 
 # Optional: event transport (#350). Defaults to PostgreSQL LISTEN/NOTIFY.
 # "nats" requires a binary built with `--features observers-nats`; a NATS
