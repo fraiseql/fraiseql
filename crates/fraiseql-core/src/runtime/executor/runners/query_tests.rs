@@ -1180,3 +1180,85 @@ mod node_authz {
         }
     }
 }
+
+// ── mod explicit_arg_recasing: #486 end-to-end (GraphQL arg → WHERE) ──────────
+//
+// Mirrors the #456 mutation-input e2e (`CapturingFunctionCallAdapter`): drive a
+// real GraphQL query through the executor and capture the WHERE clause the
+// adapter receives, proving a camelCase explicit argument resolves to the
+// snake_case JSONB column the stored data actually uses.
+mod explicit_arg_recasing {
+    use super::*;
+    use crate::schema::ArgumentDefinition;
+
+    /// Build a list query `orders(<arg>: String)` over `v_orders`.
+    fn orders_schema_with_arg(arg_name: &str) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name:                "orders".to_string(),
+            return_type:         "Order".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           vec![ArgumentDefinition::new(arg_name, FieldType::String)],
+            sql_source:          Some("v_orders".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
+        });
+        schema
+    }
+
+    /// Extract the single `Field` clause, unwrapping a one-element `And`.
+    fn single_field(clause: WhereClause) -> (Vec<String>, serde_json::Value) {
+        match clause {
+            WhereClause::Field { path, value, .. } => (path, value),
+            WhereClause::And(mut inner) if inner.len() == 1 => single_field(inner.remove(0)),
+            other => panic!("expected a single Field clause, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn multiword_camel_arg_filters_on_snake_column() {
+        let schema = orders_schema_with_arg("organizationId");
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute("{ orders(organizationId: \"abc\") { id } }", None)
+            .await
+            .unwrap();
+
+        let (path, value) =
+            single_field(adapter.captured_where().expect("explicit arg reaches the DB"));
+        assert_eq!(
+            path,
+            vec!["organization_id".to_string()],
+            "must filter data->>'organization_id'"
+        );
+        assert_eq!(value, serde_json::json!("abc"));
+    }
+
+    #[tokio::test]
+    async fn single_word_arg_is_unchanged() {
+        let schema = orders_schema_with_arg("status");
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor.execute("{ orders(status: \"open\") { id } }", None).await.unwrap();
+
+        let (path, _) =
+            single_field(adapter.captured_where().expect("explicit arg reaches the DB"));
+        assert_eq!(path, vec!["status".to_string()]);
+    }
+}
