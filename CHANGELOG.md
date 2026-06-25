@@ -22,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   applies to all of those. Genuinely-wrong functions (wrong arity, non-`jsonb` payload)
   are still caught. The fix lands on both `doctor --against-db` and `validate --against-db`
   from one change (shared `mutation_contract` module).
+- **Multi-word camelCase query filters no longer silently return `[]` (#486).** On the
+  query path, an explicit filter argument (`orders(organizationId: "x")`) built its
+  JSONB predicate from the raw camelCase name — `data->>'organizationId'` — which never
+  matches the stored `organization_id` key, so the filter silently dropped to an empty
+  result instead of erroring. The JSONB key is now `snake_case`d with the same
+  acronym-aware caser the WHERE-input and mutation-input paths use
+  (`crate::utils::to_snake_case`), so `organizationId` → `organization_id`,
+  `dns1Id` → `dns_1_id`. This closes the class across every arg-shaped filter surface:
+  explicit args + inject params (`query_params`), aggregate `where` and `groupBy`
+  fallback dimensions, window `where`, and the EXPLAIN diagnostics
+  (`build_where_from_variables` / display SQL). For `groupBy`, only the JSONB extraction
+  *path* is recased — the result *alias* keeps the camel surface name so the GraphQL
+  response key is unchanged (the #418/#410 rule). The query-side analog of the merged
+  #456 mutation-input fix; a six-surface parity test fences the class against future
+  filter surfaces that forget to recase.
 - **Observer execution log now populates its request/response audit columns (#468).**
   `tb_observer_log` declares `action_index`, `action_type`, `response_status_code`,
   `response_payload`, and `request_payload`, but the runtime log writer left them
