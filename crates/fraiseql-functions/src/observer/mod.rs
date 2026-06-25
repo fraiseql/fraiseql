@@ -128,6 +128,46 @@ impl FunctionObserver {
     ) -> Vec<crate::triggers::mutation::AfterMutationTrigger> {
         registry.after_mutation_triggers.find(&event.entity, event.event_kind)
     }
+
+    /// Execute a WASM module with a full I/O-capable host context.
+    ///
+    /// Unlike [`invoke`](Self::invoke) — which snapshots the host into a
+    /// sync-only `HostContextSnapshot` and so returns `Unsupported` for async
+    /// I/O — this routes to
+    /// [`WasmRuntime::invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context),
+    /// giving the guest live HTTP / query / storage access through `host`. The
+    /// after:mutation dispatcher uses this so side-effecting functions (webhooks,
+    /// external provisioning) can reach the network.
+    ///
+    /// Only the WASM runtime is supported on this path; an event whose module
+    /// targets another runtime returns `Unsupported`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if no WASM runtime is registered, the registered runtime is
+    /// not a [`WasmRuntime`](crate::runtime::wasm::WasmRuntime), or guest
+    /// execution fails.
+    #[cfg(feature = "runtime-wasm")]
+    pub async fn invoke_with_context(
+        &self,
+        module: &FunctionModule,
+        event: EventPayload,
+        host: Arc<dyn crate::runtime::wasm::host_bridge::DynHostContext>,
+        limits: ResourceLimits,
+    ) -> Result<FunctionResult> {
+        let runtime_box = self.runtimes.get(&RuntimeType::Wasm).ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "No WASM runtime registered for after:mutation dispatch".to_string(),
+            }
+        })?;
+        let runtime =
+            runtime_box.downcast_ref::<crate::runtime::wasm::WasmRuntime>().ok_or_else(|| {
+                fraiseql_error::FraiseQLError::Unsupported {
+                    message: "Invalid WASM runtime".to_string(),
+                }
+            })?;
+        runtime.invoke_with_context(module, event, host, limits).await
+    }
 }
 
 impl Default for FunctionObserver {
