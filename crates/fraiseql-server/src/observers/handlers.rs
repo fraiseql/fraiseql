@@ -27,7 +27,7 @@ pub struct ObserverState {
     /// self-consistent without a manual `POST /api/observers/runtime/reload`
     /// (#466). `None` when the admin API is mounted without a running
     /// background runtime (e.g. a control-plane-only deployment, or tests).
-    pub runtime: Option<std::sync::Arc<tokio::sync::RwLock<super::ObserverRuntime>>>,
+    pub runtime:    Option<std::sync::Arc<tokio::sync::RwLock<super::ObserverRuntime>>>,
 }
 
 /// Refresh the in-process matcher after a successful observer write so the admin
@@ -43,10 +43,7 @@ async fn refresh_runtime_after_write(state: &ObserverState) {
     };
     match runtime.read().await.reload_observers().await {
         Ok(count) => {
-            tracing::debug!(
-                observer_count = count,
-                "Observer matcher reloaded after admin write"
-            );
+            tracing::debug!(observer_count = count, "Observer matcher reloaded after admin write");
         },
         Err(e) => {
             tracing::warn!(
