@@ -143,6 +143,13 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             error_message TEXT,
             attempt_number INTEGER NOT NULL DEFAULT 1,
             max_attempts INTEGER NOT NULL DEFAULT 3,
+            -- #468 per-action audit columns written by write_observer_log. These
+            -- mirror migrations/06_create_observer_management.sql; the inline test
+            -- schema had drifted and lacked them, so the writer INSERT failed with
+            -- a missing-column error on response_status_code.
+            request_payload JSONB,
+            response_payload JSONB,
+            response_status_code INTEGER,
             trace_id VARCHAR(64),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
