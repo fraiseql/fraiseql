@@ -403,6 +403,33 @@ fn warn_files_not_wired(config: &ServerConfig) {
     );
 }
 
+/// Warn at startup when the config file declares an `[observers]` section but
+/// this binary was built without the `observers` feature (#469).
+///
+/// Without the feature the `ServerConfig.observers` field does not exist, so the
+/// section is parsed-and-discarded by serde with no error: the observer runtime
+/// never starts and the `/api/observers` admin routes return 404, with no
+/// signal as to why. Because the field is compiled out, we cannot inspect the
+/// deserialized `ServerConfig`; instead we re-read the raw TOML and check for a
+/// top-level `[observers]` table so the operator gets a clear, actionable
+/// warning rather than silent inaction.
+#[cfg(not(feature = "observers"))]
+fn warn_observers_feature_missing(config_path: Option<&str>) {
+    let Some(path) = config_path else { return };
+    let Ok(contents) = std::fs::read_to_string(path) else { return };
+    let has_observers = toml::from_str::<toml::Table>(&contents)
+        .is_ok_and(|table| table.contains_key("observers"));
+    if has_observers {
+        tracing::warn!(
+            path,
+            "[observers] is configured but this binary was built without the `observers` \
+             feature; the section is ignored — the observer runtime will not start and the \
+             /api/observers admin routes will return 404. Rebuild with `--features observers` \
+             (or `observers-nats` / `observers-enterprise`)."
+        );
+    }
+}
+
 /// Warn at startup when `[storage.<name>]` is configured for a database the
 /// binary cannot mount storage on. Object storage is PostgreSQL-only because the
 /// object-metadata repository requires a `sqlx::PgPool`.
@@ -515,6 +542,8 @@ async fn main() -> anyhow::Result<()> {
     init_security(&schema)?;
 
     warn_files_not_wired(&config);
+    #[cfg(not(feature = "observers"))]
+    warn_observers_feature_missing(cli.server.config.as_deref());
 
     // Box::pin: the per-scheme dispatch holds adapter init futures for all
     // enabled adapters, which combined exceeds clippy's `large_futures`
