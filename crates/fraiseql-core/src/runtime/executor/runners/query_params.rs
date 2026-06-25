@@ -29,7 +29,10 @@ pub fn inject_param_where_clause(
         }
     } else {
         WhereClause::Field {
-            path: vec![col.to_string()],
+            // Recase the JSONB key to snake_case so the predicate matches the stored
+            // key (parity with the WHERE-input / mutation-input paths, #486/#456).
+            // Idempotent for the common snake-from-config case.
+            path: vec![crate::utils::to_snake_case(col)],
             operator: WhereOperator::Eq,
             value,
         }
@@ -82,6 +85,11 @@ pub fn compute_projection_reduction(projected_field_count: usize) -> u32 {
 /// `WhereClause::NativeField` is emitted (enabling B-tree index lookup via
 /// `WHERE col = $N::type`).  Otherwise a `WhereClause::Field` is emitted
 /// (JSONB extraction: `WHERE data->>'col' = $N`).
+///
+/// The JSONB key is `snake_case`d with [`crate::utils::to_snake_case`] — the same
+/// caser the WHERE-input and mutation-input paths use — so a camelCase argument
+/// (`organizationId`) resolves to the stored key (`organization_id`) rather than a
+/// never-matching `organizationId` key (#486, mirrors the #456 mutation fix).
 pub fn combine_explicit_arg_where(
     existing: Option<WhereClause>,
     defined_args: &[crate::schema::ArgumentDefinition],
@@ -102,7 +110,12 @@ pub fn combine_explicit_arg_where(
                     }
                 } else {
                     WhereClause::Field {
-                        path:     vec![arg.name.clone()],
+                        // Recase the camelCase GraphQL arg name to the snake_case JSONB
+                        // key so `orders(organizationId: "x")` builds
+                        // `data->>'organization_id'` (matches) instead of
+                        // `data->>'organizationId'` (always NULL → silent `[]`).
+                        // Same caser as the WHERE-input path (#486, mirrors #456).
+                        path:     vec![crate::utils::to_snake_case(&arg.name)],
                         operator: WhereOperator::Eq,
                         value:    value.clone(),
                     }

@@ -106,19 +106,22 @@ fn insert_single_input_flattens_input_type_fields() {
 }
 
 #[test]
-fn insert_single_input_falls_back_to_flat_when_type_missing() {
+fn insert_single_input_takes_jsonb_path_when_type_missing() {
     let mut m = MutationDefinition::new("createUser", "CreateUserResult");
     m.sql_source = Some("fn_create_user".to_string());
     m.operation = MutationOperation::Insert {
         table: String::new(),
     };
     m.arguments = vec![single_input_arg("CreateUserInput")];
-    // CreateUserInput absent → flatten can't happen → flat args (1 positional).
+    // CreateUserInput absent → the runtime can't flatten an unknown type, so it
+    // forwards the whole input as one jsonb arg (`!known_input_type`, mirroring
+    // mutation/mod.rs:500). The gate must agree: JsonbPayload(1), arg-1 is jsonb.
     let schema = CompiledSchema::default();
 
     let ec = expected_call(&m, &schema).expect("DB-backed");
-    assert_eq!(ec.shape, CallShape::FlatArgs);
+    assert_eq!(ec.shape, CallShape::JsonbPayload);
     assert_eq!(ec.base_arity, 1);
+    assert!(ec.first_is_jsonb_payload);
 }
 
 #[test]
@@ -184,6 +187,239 @@ fn falls_back_to_operation_table_when_sql_source_absent() {
     let schema = CompiledSchema::default();
     let ec = expected_call(&m, &schema).expect("table fallback is DB-backed");
     assert_eq!(ec.sql_source, "fn_create_user");
+}
+
+// ─── #484: single-JSONB arity mirror (input_style == Jsonb) ──────────────────
+//
+// The contract gate must mirror the runtime predicate
+// (`mutation/mod.rs:499-500`): a single structured `input` arg is passed as ONE
+// jsonb payload when the op is Update, OR `input_style == Jsonb`, OR the input
+// type is unknown. Before the fix the gate only routed `Update` to JsonbPayload,
+// so every single-JSONB Insert/Delete/Custom false-failed with ArityMismatch.
+
+/// End-to-end: derive the expected call from the schema, then check it against
+/// the candidate functions — exactly what `doctor`/`validate --against-db` do.
+fn check(
+    m: &MutationDefinition,
+    schema: &CompiledSchema,
+    candidates: &[PgFunction],
+) -> Vec<ContractViolation> {
+    check_mutation(&expected_call(m, schema).expect("DB-backed mutation"), candidates)
+}
+
+/// `createOrder` with a single 6-field `input`, given operation + input style.
+fn order_mutation(
+    op: MutationOperation,
+    style: fraiseql_core::schema::InputStyle,
+) -> MutationDefinition {
+    let mut m = MutationDefinition::new("createOrder", "CreateOrderResult");
+    m.sql_source = Some("fn_create_order".to_string());
+    m.operation = op;
+    m.input_style = style;
+    m.arguments = vec![single_input_arg("CreateOrderInput")];
+    m
+}
+
+fn schema_with_order_input(fields: usize) -> CompiledSchema {
+    CompiledSchema {
+        input_types: vec![input_type("CreateOrderInput", fields)],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn jsonb_insert_single_input_no_false_arity_mismatch() {
+    use fraiseql_core::schema::InputStyle;
+    // input_style = jsonb + a single-jsonb function → the runtime sends one jsonb
+    // arg, so the gate must NOT expect the 6 flattened fields. (Today: ArityMismatch{6}.)
+    let m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Jsonb,
+    );
+    let schema = schema_with_order_input(6);
+    let candidates = vec![pg_function(
+        &["jsonb"],
+        &[Some("p_input")],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "single-jsonb insert must be clean");
+}
+
+#[test]
+fn jsonb_insert_with_inject_param_no_violations() {
+    use fraiseql_core::schema::InputStyle;
+    let mut m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Jsonb,
+    );
+    m.inject_params = inject(&["tenant_id"]);
+    let schema = schema_with_order_input(6);
+    let candidates = vec![pg_function(
+        &["jsonb", "uuid"],
+        &[Some("p_input"), Some("tenant_id")],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "jsonb + inject must be clean");
+}
+
+#[test]
+fn jsonb_insert_against_flattened_function_is_arity_mismatch() {
+    use fraiseql_core::schema::InputStyle;
+    // input_style = jsonb but the function actually flattens 6 args → genuinely
+    // wrong: the runtime sends 1 jsonb, the function wants 6. Still caught.
+    let m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Jsonb,
+    );
+    let schema = schema_with_order_input(6);
+    let candidates = vec![pg_function(
+        &["int4", "int4", "int4", "int4", "int4", "int4"],
+        &[None, None, None, None, None, None],
+        full_response_columns(),
+    )];
+    assert_eq!(
+        check(&m, &schema, &candidates),
+        vec![ContractViolation::ArityMismatch {
+            expected: 1,
+            found:    vec![6],
+        }],
+    );
+}
+
+#[test]
+fn flatten_insert_is_unchanged() {
+    use fraiseql_core::schema::InputStyle;
+    // Flatten style with a known 6-field input → still flattens to 6 args.
+    let m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Flatten,
+    );
+    let schema = schema_with_order_input(6);
+    let candidates = vec![pg_function(
+        &["text", "text", "text", "text", "text", "text"],
+        &[None, None, None, None, None, None],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "flatten path unchanged");
+}
+
+#[test]
+fn update_with_flatten_style_still_takes_jsonb_path() {
+    use fraiseql_core::schema::InputStyle;
+    // Update always uses the single-JSONB path regardless of input_style.
+    let m = order_mutation(
+        MutationOperation::Update {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Flatten,
+    );
+    let schema = schema_with_order_input(6);
+    let candidates = vec![pg_function(
+        &["jsonb"],
+        &[Some("p_input")],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "update→jsonb preserved");
+}
+
+#[test]
+fn jsonb_payload_wrong_type_is_flagged() {
+    use fraiseql_core::schema::InputStyle;
+    let m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Jsonb,
+    );
+    let schema = schema_with_order_input(6);
+    // Right arity (1) but arg-1 is text, not jsonb → the new path still asserts jsonb.
+    let candidates = vec![pg_function(
+        &["text"],
+        &[Some("p_input")],
+        full_response_columns(),
+    )];
+    assert!(
+        check(&m, &schema, &candidates).contains(&ContractViolation::PayloadNotJsonb {
+            actual: "text".to_string(),
+        }),
+        "single-jsonb path must assert arg-1 is jsonb",
+    );
+}
+
+#[test]
+fn custom_op_jsonb_style_is_not_update_only() {
+    use fraiseql_core::schema::{InputStyle, MutationOperation as Op};
+    // The gap is NOT update-only: a Custom (non-DML) op with jsonb style also
+    // takes the single-JSONB path. (Today: ArityMismatch{3}.)
+    let mut m = MutationDefinition::new("archiveOrder", "ArchiveOrderResult");
+    m.sql_source = Some("fn_archive_order".to_string());
+    m.operation = Op::Custom;
+    m.input_style = InputStyle::Jsonb;
+    m.arguments = vec![single_input_arg("ArchiveOrderInput")];
+    let schema = CompiledSchema {
+        input_types: vec![input_type("ArchiveOrderInput", 3)],
+        ..Default::default()
+    };
+    let candidates = vec![pg_function(
+        &["jsonb"],
+        &[Some("p_input")],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "custom + jsonb must be clean");
+}
+
+#[test]
+fn two_scalar_args_with_jsonb_style_stay_flat() {
+    use fraiseql_core::schema::InputStyle;
+    // No single structured `input` → input_arg_is_structured is false, so the
+    // jsonb arm must NOT fire even with input_style = jsonb. Stays FlatArgs(2).
+    let mut m = MutationDefinition::new("createOrder", "CreateOrderResult");
+    m.sql_source = Some("fn_create_order".to_string());
+    m.operation = MutationOperation::Insert {
+        table: "tb_order".to_string(),
+    };
+    m.input_style = InputStyle::Jsonb;
+    m.arguments = vec![
+        ArgumentDefinition::new("a", FieldType::Int),
+        ArgumentDefinition::new("b", FieldType::Int),
+    ];
+    let schema = CompiledSchema::default();
+    let candidates = vec![pg_function(
+        &["int4", "int4"],
+        &[None, None],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "two scalar args stay FlatArgs(2)");
+}
+
+#[test]
+fn preserve_naming_jsonb_single_input_holds() {
+    use fraiseql_core::schema::{InputStyle, NamingConvention};
+    let m = order_mutation(
+        MutationOperation::Insert {
+            table: "tb_order".to_string(),
+        },
+        InputStyle::Jsonb,
+    );
+    let schema = CompiledSchema {
+        input_types: vec![input_type("CreateOrderInput", 6)],
+        naming_convention: NamingConvention::Preserve,
+        ..Default::default()
+    };
+    let candidates = vec![pg_function(
+        &["jsonb"],
+        &[Some("p_input")],
+        full_response_columns(),
+    )];
+    assert_eq!(check(&m, &schema, &candidates), vec![], "arg-1-is-jsonb holds under Preserve");
 }
 
 // ─── check_mutation: call binding ───────────────────────────────────────────
