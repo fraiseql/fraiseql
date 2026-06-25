@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Opt-in fail-fast `sql_source` validation (#487).** A declared-but-unbacked
+  `sql_source` (a query view or mutation function that doesn't exist) used to surface
+  as an opaque per-request 500 while the server booted "healthy" — a bug an agent only
+  discovers by hitting it. Two new gates close that gap, both fed by the shared
+  `fraiseql_core::schema::sql_source_probes` work-list so they agree on "backed" by
+  construction:
+  - **CLI** — `validate --against-db` now runs an existence pass after the #397
+    mutation-contract check, printing a precise list of unbacked sources and **exiting
+    non-zero** when any are found (a CI/pre-push gate). Resolution mirrors the runtime
+    (qualified relations via `to_regclass` verbatim, functions via `pg_proc`).
+  - **Server** — an opt-in boot check (`validate_sql_sources` config key,
+    `--validate-sql-sources` flag, or `FRAISEQL_VALIDATE_SQL_SOURCES` env var; env/flag
+    win over the config key). **Default OFF** — boot is unchanged unless enabled.
+    Postgres-only; when on, an unbacked source fails boot with the precise list instead
+    of a later per-request 500. Once `validate --against-db` is wired into CI this
+    subsumes the existence half of the bespoke `check_management_drift.py` gate.
+
 ### Fixed
 
 - **`compile --database` no longer emits false "`sql_source … does not exist`" (#485).**

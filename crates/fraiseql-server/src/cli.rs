@@ -72,6 +72,12 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_SCHEMA_PATH")]
     pub schema_path: Option<String>,
 
+    /// Fail boot if any declared `sql_source` (query view / mutation function) is
+    /// not backed by the database, printing a precise list. Default OFF;
+    /// Postgres-only. Overrides the `validate_sql_sources` config key. (#487)
+    #[arg(long, env = "FRAISEQL_VALIDATE_SQL_SOURCES", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
+    pub validate_sql_sources: Option<bool>,
+
     // ── Metrics ──────────────────────────────────────────────────────────
     /// Enable Prometheus metrics endpoint.
     #[arg(long, env = "FRAISEQL_METRICS_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
@@ -161,6 +167,7 @@ impl ServerArgs {
                 .ok()
                 .and_then(|v| v.parse().ok()),
             schema_path:                std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            validate_sql_sources:       parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES"),
             metrics_enabled:            parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
             metrics_token:              std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
             admin_api_enabled:          parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
@@ -200,6 +207,11 @@ impl ServerArgs {
         }
         if let Some(ref path) = self.schema_path {
             config.schema_path = path.into();
+        }
+        // #487: the CLI flag / FRAISEQL_VALIDATE_SQL_SOURCES env var (both surface
+        // here as `Some`) override the `validate_sql_sources` config key.
+        if let Some(enabled) = self.validate_sql_sources {
+            config.validate_sql_sources = enabled;
         }
 
         // Metrics
