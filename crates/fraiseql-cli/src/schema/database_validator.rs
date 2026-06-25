@@ -44,6 +44,18 @@ pub enum DatabaseWarning {
         /// The `sql_source` value that was not found.
         sql_source: String,
     },
+    /// L1: a mutation's `sql_source` **function** does not exist.
+    ///
+    /// Distinct from [`MissingRelation`](Self::MissingRelation): a mutation's
+    /// `sql_source` names a SQL *function* (the runtime calls
+    /// `SELECT * FROM fn(...)`), not a view/table, so it is probed via `pg_proc`
+    /// rather than the relation catalog.
+    MissingFunction {
+        /// Name of the mutation.
+        mutation_name: String,
+        /// The `sql_source` function that was not found.
+        sql_source:    String,
+    },
     /// L1: `additional_view` does not exist.
     MissingAdditionalView {
         /// Name of the query.
@@ -136,6 +148,15 @@ impl fmt::Display for DatabaseWarning {
                 write!(
                     f,
                     "query `{query_name}`: sql_source `{sql_source}` does not exist in database"
+                )
+            },
+            Self::MissingFunction {
+                mutation_name,
+                sql_source,
+            } => {
+                write!(
+                    f,
+                    "mutation `{mutation_name}`: sql_source function `{sql_source}` does not exist in database"
                 )
             },
             Self::MissingAdditionalView {
@@ -324,22 +345,41 @@ fn relation_exists(
     }
 }
 
-/// Convert a `camelCase` or `PascalCase` field name to `snake_case`.
+/// L1 relation existence with runtime-faithful resolution.
 ///
-/// This matches the convention used by FraiseQL for JSONB key extraction.
-pub(crate) fn to_snake_case(name: &str) -> String {
-    let mut result = String::with_capacity(name.len() + 4);
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.push(ch.to_lowercase().next().unwrap_or(ch));
-        } else {
-            result.push(ch);
+/// For a **schema-qualified** source, probes via `to_regclass` on the
+/// case-sensitively-quoted identifier (search_path-independent — exactly how the
+/// runtime resolves it), so a mixed-case relation in an off-`search_path` schema
+/// is not falsely flagged. Falls back to the relation map for **bare** names
+/// (search_path-scoped, also matching the runtime) or when the connector cannot
+/// probe directly (non-Postgres).
+async fn relation_source_exists(
+    introspector: &impl DatabaseIntrospector,
+    schema_qualified: &HashMap<(String, String), RelationInfo>,
+    unqualified: &HashMap<String, Vec<String>>,
+    sql_source: &str,
+) -> fraiseql_core::Result<bool> {
+    let (schema, name) = split_schema_qualified(sql_source);
+    if let Some(s) = schema {
+        if let Some(exists) = introspector.qualified_relation_exists(s, name).await? {
+            return Ok(exists);
         }
     }
-    result
+    // Bare name, or a connector that can't probe → relation-map lookup.
+    Ok(relation_exists(schema_qualified, unqualified, sql_source))
+}
+
+/// L1 function existence for a mutation's `sql_source`.
+///
+/// A mutation's `sql_source` names a SQL *function*, so it is probed via `pg_proc`
+/// (not the relation catalog). When the connector cannot probe functions
+/// (non-Postgres), returns `true` — the check is skipped rather than false-failing.
+async fn function_source_exists(
+    introspector: &impl DatabaseIntrospector,
+    sql_source: &str,
+) -> fraiseql_core::Result<bool> {
+    let (schema, name) = split_schema_qualified(sql_source);
+    Ok(introspector.function_exists(schema, name).await?.unwrap_or(true))
 }
 
 /// Validate a compiled schema against a live database.
@@ -375,8 +415,10 @@ pub async fn validate_schema_against_database(
     // Validate queries
     for query in &schema.queries {
         if let Some(ref source) = query.sql_source {
-            // L1: Check relation exists
-            if !relation_exists(&schema_qualified, &unqualified, source) {
+            // L1: Check relation exists (qualified → to_regclass verbatim, bare → map).
+            if !relation_source_exists(introspector, &schema_qualified, &unqualified, source)
+                .await?
+            {
                 warnings.push(DatabaseWarning::MissingRelation {
                     query_name: query.name.clone(),
                     sql_source: source.clone(),
@@ -489,9 +531,11 @@ pub async fn validate_schema_against_database(
                 native_columns.insert(query.name.clone(), query_native);
             }
 
-            // L1: Check additional_views
+            // L1: Check additional_views (relations, same resolution as sql_source).
             for view in &query.additional_views {
-                if !relation_exists(&schema_qualified, &unqualified, view) {
+                if !relation_source_exists(introspector, &schema_qualified, &unqualified, view)
+                    .await?
+                {
                     warnings.push(DatabaseWarning::MissingAdditionalView {
                         query_name: query.name.clone(),
                         view_name:  view.clone(),
@@ -501,13 +545,15 @@ pub async fn validate_schema_against_database(
         }
     }
 
-    // Validate mutations (L1 only)
+    // Validate mutations (L1 only). A mutation's `sql_source` is a FUNCTION, not a
+    // relation — probe `pg_proc`, not the relation catalog (#485). Mirrors the
+    // shared `fraiseql_core::schema::sql_source_probes` Relation/Function split.
     for mutation in &schema.mutations {
         if let Some(ref source) = mutation.sql_source {
-            if !relation_exists(&schema_qualified, &unqualified, source) {
-                warnings.push(DatabaseWarning::MissingRelation {
-                    query_name: mutation.name.clone(),
-                    sql_source: source.clone(),
+            if !function_source_exists(introspector, source).await? {
+                warnings.push(DatabaseWarning::MissingFunction {
+                    mutation_name: mutation.name.clone(),
+                    sql_source:    source.clone(),
                 });
             }
         }
@@ -570,7 +616,10 @@ async fn validate_json_keys(
     if let Some(type_def) = type_def {
         for field in &type_def.fields {
             let field_str = field.name.as_str();
-            let json_key = to_snake_case(field_str);
+            // Use the canonical acronym/digit-aware caser the runtime queries with
+            // (`httpResponse` → `http_response`, not `h_t_t_p_response`), so the
+            // L3 JSON-key check never cries wolf on acronym/digit fields (#485).
+            let json_key = fraiseql_core::utils::to_snake_case(field_str);
             // Skip fields that are top-level columns (not from JSONB)
             // Convention: fields like "id", "pk_*", "fk_*" are columns, not JSON keys
             if field_str == "id" || field_str.starts_with("pk_") || field_str.starts_with("fk_") {
@@ -704,6 +753,40 @@ impl DatabaseIntrospector for AnyIntrospector {
             Self::Sqlite(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
             #[cfg(feature = "sqlserver")]
             Self::SqlServer(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
+        }
+    }
+
+    async fn function_exists(
+        &self,
+        schema: Option<&str>,
+        name: &str,
+    ) -> fraiseql_core::Result<Option<bool>> {
+        // Must delegate (not inherit the trait default) so the Postgres impl is
+        // actually used — otherwise every variant would return `None`.
+        match self {
+            Self::Postgres(i) => i.function_exists(schema, name).await,
+            #[cfg(feature = "mysql")]
+            Self::MySql(i) => i.function_exists(schema, name).await,
+            #[cfg(feature = "sqlite")]
+            Self::Sqlite(i) => i.function_exists(schema, name).await,
+            #[cfg(feature = "sqlserver")]
+            Self::SqlServer(i) => i.function_exists(schema, name).await,
+        }
+    }
+
+    async fn qualified_relation_exists(
+        &self,
+        schema: &str,
+        name: &str,
+    ) -> fraiseql_core::Result<Option<bool>> {
+        match self {
+            Self::Postgres(i) => i.qualified_relation_exists(schema, name).await,
+            #[cfg(feature = "mysql")]
+            Self::MySql(i) => i.qualified_relation_exists(schema, name).await,
+            #[cfg(feature = "sqlite")]
+            Self::Sqlite(i) => i.qualified_relation_exists(schema, name).await,
+            #[cfg(feature = "sqlserver")]
+            Self::SqlServer(i) => i.qualified_relation_exists(schema, name).await,
         }
     }
 }

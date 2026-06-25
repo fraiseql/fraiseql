@@ -24,6 +24,7 @@ mod database_validator_tests {
         relations:    Vec<RelationInfo>,
         columns:      HashMap<String, Vec<(String, String, bool)>>,
         json_samples: HashMap<(String, String), Vec<serde_json::Value>>,
+        functions:    std::collections::HashSet<String>,
         db_type:      DatabaseType,
     }
 
@@ -33,8 +34,16 @@ mod database_validator_tests {
                 relations: Vec::new(),
                 columns: HashMap::new(),
                 json_samples: HashMap::new(),
+                functions: std::collections::HashSet::new(),
                 db_type,
             }
+        }
+
+        /// Register a backing function (as the runtime would name it, e.g.
+        /// `fn_create_user` or `app.fn_create_order`).
+        fn with_function(mut self, name: &str) -> Self {
+            self.functions.insert(name.to_string());
+            self
         }
 
         fn with_relation(
@@ -110,6 +119,18 @@ mod database_validator_tests {
                 .get(&(table_name.to_string(), column_name.to_string()))
                 .cloned()
                 .unwrap_or_default())
+        }
+
+        async fn function_exists(
+            &self,
+            schema: Option<&str>,
+            name: &str,
+        ) -> fraiseql_core::Result<Option<bool>> {
+            let key = match schema {
+                Some(s) => format!("{s}.{name}"),
+                None => name.to_string(),
+            };
+            Ok(Some(self.functions.contains(&key)))
         }
     }
 
@@ -430,7 +451,9 @@ mod database_validator_tests {
     }
 
     #[tokio::test]
-    async fn test_mutation_missing_sql_source() {
+    async fn test_mutation_missing_function_reported_as_missing_function() {
+        // A mutation's sql_source is a FUNCTION — a missing one is MissingFunction,
+        // not MissingRelation (#485). The mock has no functions registered.
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL);
 
         let mut schema = make_schema(vec![], vec![]);
@@ -443,7 +466,31 @@ mod database_validator_tests {
         let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
         assert_eq!(report.warnings.len(), 1);
         assert!(
-            matches!(&report.warnings[0], DatabaseWarning::MissingRelation { sql_source, .. } if sql_source == "fn_create_user")
+            matches!(&report.warnings[0], DatabaseWarning::MissingFunction { sql_source, .. } if sql_source == "fn_create_user"),
+            "got {:?}",
+            report.warnings
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mutation_function_not_probed_as_relation() {
+        // The fix: a mutation backed by a real FUNCTION that is absent from the
+        // relation catalog must NOT false-fail (the old bug probed it as a relation).
+        let introspector =
+            MockIntrospector::new(DatabaseType::PostgreSQL).with_function("fn_create_user");
+
+        let mut schema = make_schema(vec![], vec![]);
+        schema.mutations.push(MutationDefinition {
+            name: "createUser".to_string(),
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+        assert!(
+            report.warnings.is_empty(),
+            "backed function must be clean, got {:?}",
+            report.warnings
         );
     }
 
@@ -496,12 +543,41 @@ mod database_validator_tests {
         );
     }
 
-    #[test]
-    fn test_to_snake_case() {
-        assert_eq!(to_snake_case("firstName"), "first_name");
-        assert_eq!(to_snake_case("name"), "name");
-        assert_eq!(to_snake_case("HTMLParser"), "h_t_m_l_parser");
-        assert_eq!(to_snake_case("already_snake"), "already_snake");
+    /// #485 caser-drift fix: the L3 JSON-key check derives the expected key with
+    /// the canonical acronym/digit-aware caser, so an acronym field (`httpResponse`
+    /// → `http_response`) matches the stored key instead of crying wolf with the
+    /// old uppercase-only `h_t_t_p_response`.
+    #[tokio::test]
+    async fn test_acronym_field_no_false_missing_json_key() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_log", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_log", vec![("data", "jsonb", false)])
+            .with_json_samples(
+                "v_log",
+                "data",
+                vec![serde_json::json!({"http_response": 200, "dns_1_id": "x"})],
+            );
+
+        let schema = make_schema(
+            vec![make_type(
+                "Log",
+                vec![
+                    ("httpResponse", FieldType::Int),
+                    ("dns1Id", FieldType::String),
+                ],
+            )],
+            vec![make_query("logs", "Log", "v_log")],
+        );
+
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::MissingJsonKey { .. })),
+            "acronym/digit fields must not false-flag MissingJsonKey, got {:?}",
+            report.warnings
+        );
     }
 
     #[test]
