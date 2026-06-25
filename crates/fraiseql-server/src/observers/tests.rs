@@ -405,6 +405,7 @@ mod router_construction {
     async fn observer_routes_constructs() {
         let state = ObserverState {
             repository: ObserverRepository::new(lazy_pool()),
+            runtime: None,
         };
         let _ = observer_routes(state);
     }
