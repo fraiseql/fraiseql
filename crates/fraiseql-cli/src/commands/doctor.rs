@@ -7,14 +7,18 @@
 
 use std::{net::TcpStream, path::Path, time::Duration};
 
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     config::toml_schema::TomlSchema,
-    schema::pg_catalog::{
-        CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
-        PublicGrant,
+    schema::{
+        mutation_contract::{ContractReport, Severity, validate_mutation_contract},
+        pg_catalog::{
+            CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
+            PublicGrant,
+        },
     },
 };
 
@@ -481,13 +485,14 @@ pub fn run_checks(
 /// Returns `true` if all checks passed (exit 0), `false` if any check failed
 /// (exit 1). Warnings do not trigger an exit-1.
 /// Execute the doctor command including the optional `--against-db` live-DB
-/// passes: the change-log contract drift check (#380) and the PL/pgSQL
-/// body-resolution pass (#409).
+/// passes: the change-log contract drift check (#380), the PL/pgSQL
+/// body-resolution pass (#409), and the mutation→function contract drift check
+/// (#384).
 ///
 /// Runs the standard checks, then — when `against_db` is set — appends the
-/// change-log contract drift report and the internal-call resolution results
-/// for `schemas`. Returns `true` if all checks passed (exit 0), `false` if any
-/// failed (exit 1).
+/// change-log contract/RLS/grant/capture reports, the internal-call resolution
+/// results for `schemas`, and the mutation→function contract drift report.
+/// Returns `true` if all checks passed (exit 0), `false` if any failed (exit 1).
 pub async fn run_with_db_checks(
     config: &Path,
     schema: &Path,
@@ -503,6 +508,7 @@ pub async fn run_with_db_checks(
         checks.extend(changelog_public_grants_checks(url).await);
         checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
+        checks.extend(mutation_contract_checks(url, schema).await);
     }
 
     if json {
@@ -559,6 +565,99 @@ async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorC
                 )
             })
             .collect(),
+    }
+}
+
+const MUTATION_CONTRACT_NAME: &str = "Mutation→function contract";
+
+/// Convert a mutation-contract [`ContractReport`] into doctor checks (#384).
+///
+/// A clean report (no violations) yields a single `Pass` summarising how many
+/// DB-backed mutations resolved. Otherwise each violation becomes its own
+/// `Fail`/`Warn` naming the mutation and its `sql_source`, so a declared
+/// mutation with a missing or mismatched backing function — the most common
+/// "failed to prepare" root cause — is surfaced at check time, not first call.
+///
+/// Pure (no I/O) so it is unit-tested without a database.
+pub(crate) fn mutation_contract_drift(report: &ContractReport) -> Vec<DoctorCheck> {
+    if report.mutations.is_empty() {
+        return vec![DoctorCheck::pass(
+            MUTATION_CONTRACT_NAME,
+            format!(
+                "all {} DB-backed mutation(s) resolve to a matching function ({} skipped)",
+                report.checked, report.skipped
+            ),
+        )];
+    }
+    report
+        .mutations
+        .iter()
+        .flat_map(|m| {
+            m.violations.iter().map(move |v| {
+                let detail = format!("{} (sql_source: {}): {v}", m.mutation, m.sql_source);
+                match v.severity() {
+                    Severity::Error => DoctorCheck::fail(
+                        MUTATION_CONTRACT_NAME,
+                        detail,
+                        "Declared mutation does not match its backing function — create or fix \
+                         the function, or correct the schema",
+                    ),
+                    Severity::Warn => DoctorCheck::warn(
+                        MUTATION_CONTRACT_NAME,
+                        detail,
+                        "The backing function differs from the declaration (non-fatal)",
+                    ),
+                }
+            })
+        })
+        .collect()
+}
+
+/// Run the mutation→function contract drift check against a live database (#384).
+///
+/// Loads the compiled schema, then for every DB-backed mutation verifies its
+/// `sql_source` resolves to exactly one function whose argument arity/shape and
+/// `mutation_response` return columns match what the runtime will send and
+/// decode — the same static check as `fraiseql validate --against-db`, surfaced
+/// in `doctor` so it is the single drift report.
+///
+/// Never panics: a schema-load, connection, or catalog failure becomes a single
+/// check rather than aborting the doctor run.
+async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+    let schema = match std::fs::read_to_string(schema_path)
+        .map_err(|e| format!("cannot read schema: {e}"))
+        .and_then(|c| {
+            serde_json::from_str::<CompiledSchema>(&c)
+                .map_err(|e| format!("schema parse error: {e}"))
+        }) {
+        Ok(s) => s,
+        Err(detail) => {
+            return vec![DoctorCheck::warn(
+                MUTATION_CONTRACT_NAME,
+                format!("skipped — {detail}"),
+                "Run `fraiseql compile` to produce a valid schema.compiled.json",
+            )];
+        },
+    };
+
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                MUTATION_CONTRACT_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match validate_mutation_contract(&schema, &catalog).await {
+        Ok(report) => mutation_contract_drift(&report),
+        Err(e) => vec![DoctorCheck::fail(
+            MUTATION_CONTRACT_NAME,
+            format!("contract check failed: {e}"),
+            "Ensure the connecting role can read pg_catalog for the function schema",
+        )],
     }
 }
 

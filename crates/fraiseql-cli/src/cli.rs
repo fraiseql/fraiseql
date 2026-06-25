@@ -646,9 +646,11 @@ EXAMPLES:
 
         /// Run the live-database passes against this PostgreSQL database: the
         /// change-log contract drift check (compares core.tb_entity_change_log
-        /// against the shipped contract — #380) and the PL/pgSQL
-        /// body-resolution pass (reports internal calls that no longer resolve
-        /// — #409).
+        /// against the shipped contract — #380), the PL/pgSQL body-resolution
+        /// pass (reports internal calls that no longer resolve — #409), and the
+        /// mutation→function contract drift check (every declared mutation has a
+        /// matching backing function with a mutation_response-shaped return —
+        /// #384).
         ///
         /// The body-resolution pass requires the `plpgsql_check` extension and
         /// skips with a hint when it is unavailable.

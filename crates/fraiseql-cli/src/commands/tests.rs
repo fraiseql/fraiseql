@@ -1505,6 +1505,45 @@ mod doctor_tests {
         assert_eq!(warn.status, CheckStatus::Warn);
         assert!(warn.detail.contains("non-contract"));
     }
+
+    // ── mutation→function contract drift check (#384) ────────────────────────
+    use crate::schema::mutation_contract::{ContractReport, ContractViolation, MutationReport};
+
+    #[test]
+    fn mutation_contract_clean_report_is_single_pass() {
+        let report = ContractReport {
+            checked:   3,
+            skipped:   1,
+            mutations: vec![],
+        };
+        let checks = mutation_contract_drift(&report);
+        assert_eq!(checks.len(), 1, "a clean report yields exactly one check");
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        assert!(checks[0].detail.contains("DB-backed mutation"));
+    }
+
+    #[test]
+    fn mutation_contract_missing_function_is_fatal() {
+        // The "literal root cause" of the migration in #384/#471: a declared
+        // mutation with no backing function. The drift check must flag it fatal.
+        let report = ContractReport {
+            checked:   1,
+            skipped:   0,
+            mutations: vec![MutationReport {
+                mutation:   "createWidget".to_string(),
+                sql_source: "fn_create_widget".to_string(),
+                violations: vec![ContractViolation::MissingFunction],
+            }],
+        };
+        let checks = mutation_contract_drift(&report);
+        let fail = checks
+            .iter()
+            .find(|c| c.status == CheckStatus::Fail)
+            .expect("a missing backing function is fatal");
+        assert!(fail.detail.contains("createWidget"));
+        assert!(fail.detail.contains("fn_create_widget"));
+        assert!(fail.hint.is_some());
+    }
 }
 
 mod explain_tests {
