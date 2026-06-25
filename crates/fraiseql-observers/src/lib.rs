@@ -112,7 +112,7 @@ pub use dedup::{DeduplicationStats, DeduplicationStore};
 pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
-pub use executor::{ExecutionSummary, ObserverExecutor};
+pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 #[cfg(feature = "queue")]
 pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
 #[cfg(feature = "queue")]

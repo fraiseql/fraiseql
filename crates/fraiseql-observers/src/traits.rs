@@ -51,10 +51,17 @@ pub struct ActionResult {
     pub message:     String,
     /// Execution time in milliseconds
     pub duration_ms: f64,
+    /// Transport status code for HTTP-backed actions (webhook/slack), if any.
+    ///
+    /// `Some(code)` for actions that complete an HTTP round-trip; `None` for
+    /// actions with no HTTP status (email/cache) or for results served from a
+    /// cache. Surfaced so embedders can record `response_status_code` in an
+    /// execution log (#468).
+    pub status_code: Option<u16>,
 }
 
 impl ActionResult {
-    /// Creates a new `ActionResult`.
+    /// Creates a new `ActionResult` with no transport status code.
     #[must_use]
     pub const fn new(
         action_type: String,
@@ -67,6 +74,7 @@ impl ActionResult {
             success,
             message,
             duration_ms,
+            status_code: None,
         }
     }
 }

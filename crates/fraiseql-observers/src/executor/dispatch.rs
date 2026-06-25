@@ -169,6 +169,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                             success:     true,
                             message:     format!("HTTP {}", response.status_code),
                             duration_ms: response.duration_ms,
+                            status_code: Some(response.status_code),
                         }),
                         Err(e) => Err(e),
                     }
@@ -194,6 +195,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                             success:     true,
                             message:     format!("HTTP {}", response.status_code),
                             duration_ms: response.duration_ms,
+                            status_code: Some(response.status_code),
                         }),
                         Err(e) => Err(e),
                     }
@@ -227,6 +229,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                                 .message_id
                                 .unwrap_or_else(|| "queued".to_string()),
                             duration_ms: response.duration_ms,
+                            status_code: None,
                         }),
                         Err(e) => Err(e),
                     }
@@ -294,6 +297,7 @@ impl DefaultActionDispatcher {
             success: true,
             message: format!("invalidated {removed} key(s)"),
             duration_ms,
+            status_code: None,
         })
     }
 

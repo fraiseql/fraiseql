@@ -298,6 +298,7 @@ mod redis_tests {
                 success:     true,
                 message:     "Email sent".to_string(),
                 duration_ms: 100.0,
+                status_code: None,
             },
             attempts:      1,
             duration_ms:   100.0,

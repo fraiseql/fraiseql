@@ -175,6 +175,9 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
                     success:     cached_result.success,
                     message:     cached_result.message,
                     duration_ms: cached_result.duration_ms,
+                    // A cache hit carries no fresh transport round-trip, so there
+                    // is no HTTP status to surface (#468).
+                    status_code: None,
                 });
             },
             Ok(None) => {

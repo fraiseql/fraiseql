@@ -20,7 +20,7 @@ use std::sync::{Arc, atomic::AtomicUsize};
 
 pub(crate) use dispatch::ActionDispatcher;
 use dispatch::DefaultActionDispatcher;
-pub use summary::ExecutionSummary;
+pub use summary::{ActionExecutionDetail, ExecutionSummary};
 use tracing::{debug, error};
 
 #[cfg(feature = "caching")]
@@ -333,14 +333,17 @@ impl ObserverExecutor {
                 }
             }
 
-            // Execute actions for this observer
-            for action in &observer.actions {
+            // Execute actions for this observer. The index identifies the
+            // action within this observer's list so the per-action detail can
+            // be attributed in a durable execution log (#468).
+            for (action_index, action) in observer.actions.iter().enumerate() {
                 self.execute_action_with_retry(
                     action,
                     event,
                     &observer.retry,
                     &observer.on_failure,
                     &mut summary,
+                    action_index,
                 )
                 .await;
             }

@@ -1579,6 +1579,7 @@ mod traits_tests {
             success:     true,
             message:     "Email sent".to_string(),
             duration_ms: 125.5,
+            status_code: None,
         };
 
         assert_eq!(result.action_type, "email");

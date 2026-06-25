@@ -255,3 +255,32 @@ mod nats_unrunnable_gate {
         );
     }
 }
+
+/// `truncate_log_payload` (#468): small payloads pass through, oversized ones
+/// become a bounded marker.
+mod log_payload_truncation {
+    use super::super::{MAX_LOG_PAYLOAD_BYTES, truncate_log_payload};
+
+    #[test]
+    fn small_payload_is_passed_through_unchanged() {
+        let data = serde_json::json!({"id": "abc", "status": "new"});
+        assert_eq!(truncate_log_payload(&data), data);
+    }
+
+    #[test]
+    fn oversized_payload_is_replaced_with_a_size_marker() {
+        // A string value comfortably larger than the cap.
+        let big = "x".repeat(MAX_LOG_PAYLOAD_BYTES + 1_024);
+        let data = serde_json::json!({ "blob": big });
+
+        let out = truncate_log_payload(&data);
+        assert_eq!(out["_truncated"], serde_json::Value::Bool(true));
+        let recorded = out["_original_size_bytes"].as_u64().unwrap();
+        assert!(
+            recorded > u64::try_from(MAX_LOG_PAYLOAD_BYTES).unwrap(),
+            "marker must record the original (oversized) byte length"
+        );
+        // The original (large) content must not be persisted verbatim.
+        assert!(out.get("blob").is_none());
+    }
+}

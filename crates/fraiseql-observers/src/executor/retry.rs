@@ -6,7 +6,7 @@ use rand::Rng;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
-use super::{ExecutionSummary, ObserverExecutor};
+use super::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 use crate::{
     config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig},
     error::{ObserverError, Result},
@@ -14,7 +14,12 @@ use crate::{
 };
 
 impl ObserverExecutor {
-    /// Execute a single action with retry logic
+    /// Execute a single action with retry logic.
+    ///
+    /// `action_index` is the action's position within its observer's action
+    /// list; it is recorded on the [`ActionExecutionDetail`] pushed onto
+    /// `summary.action_details` so embedders can attribute a durable execution
+    /// log entry to the right action (#468).
     #[allow(clippy::cognitive_complexity)] // Reason: retry loop with backoff, jitter, and per-attempt logging — inherently sequential
     pub(crate) async fn execute_action_with_retry(
         &self,
@@ -23,6 +28,7 @@ impl ObserverExecutor {
         retry_config: &RetryConfig,
         failure_policy: &FailurePolicy,
         summary: &mut ExecutionSummary,
+        action_index: usize,
     ) {
         let mut attempt = 0;
 
@@ -44,6 +50,15 @@ impl ObserverExecutor {
 
                     summary.successful_actions += 1;
                     summary.total_duration_ms += result.duration_ms;
+                    summary.action_details.push(ActionExecutionDetail {
+                        action_index,
+                        action_type: result.action_type,
+                        success: true,
+                        status_code: result.status_code,
+                        message: result.message,
+                        error_message: None,
+                        duration_ms: result.duration_ms,
+                    });
                     return;
                 },
                 Err(e) => {
@@ -54,6 +69,7 @@ impl ObserverExecutor {
                         warn!("Permanent error in action {}: {}", action.action_type(), e);
                         self.handle_action_failure(action, event, &e, failure_policy, summary)
                             .await;
+                        Self::record_failure_detail(summary, action, action_index, &e);
                         return;
                     }
 
@@ -62,6 +78,7 @@ impl ObserverExecutor {
                         error!("Action {} failed after {} attempts", action.action_type(), attempt);
                         self.handle_action_failure(action, event, &e, failure_policy, summary)
                             .await;
+                        Self::record_failure_detail(summary, action, action_index, &e);
                         return;
                     }
 
@@ -79,6 +96,29 @@ impl ObserverExecutor {
                 },
             }
         }
+    }
+
+    /// Record an [`ActionExecutionDetail`] for an action that failed after its
+    /// retries were exhausted or hit a permanent error (#468).
+    ///
+    /// Failures carry no transport status code (the error variants do not
+    /// surface one); the error string is preserved in both `message` and
+    /// `error_message` so the embedder can populate `error_message` in the log.
+    fn record_failure_detail(
+        summary: &mut ExecutionSummary,
+        action: &ActionConfig,
+        action_index: usize,
+        error: &ObserverError,
+    ) {
+        summary.action_details.push(ActionExecutionDetail {
+            action_index,
+            action_type: action.action_type().to_string(),
+            success: false,
+            status_code: None,
+            message: error.to_string(),
+            error_message: Some(error.to_string()),
+            duration_ms: 0.0,
+        });
     }
 
     /// Calculate backoff delay based on attempt number and strategy

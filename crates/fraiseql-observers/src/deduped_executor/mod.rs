@@ -322,6 +322,8 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
                 tenant_rejected:    false,
                 cache_hits:         0,
                 cache_misses:       0,
+                // A deduplicated event runs no actions (#468).
+                action_details:     Vec::new(),
             });
         }
 

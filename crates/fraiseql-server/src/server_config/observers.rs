@@ -183,6 +183,17 @@ pub struct ObserverRuntimeSettings {
     /// in `fraiseql.toml` to tune independently of the main pool.
     #[serde(default)]
     pub pool: ObserverPoolConfig,
+
+    /// Persist the triggering event payload into the
+    /// `tb_observer_log.request_payload` column (default: `false`).
+    ///
+    /// The non-sensitive audit columns (`action_type`, `action_index`,
+    /// `response_status_code`, and the `response_payload` outcome summary) are
+    /// always written. The request payload can carry PII from the entity row, so
+    /// it is only recorded when an operator opts in here; oversized payloads are
+    /// truncated to a marker regardless (#468).
+    #[serde(default)]
+    pub log_payloads: bool,
 }
 
 #[cfg(feature = "observers")]
@@ -198,6 +209,7 @@ impl Default for ObserverRuntimeSettings {
             transport:            TransportConfig::default(),
             email:                None,
             pool:                 ObserverPoolConfig::default(),
+            log_payloads:         false,
         }
     }
 }

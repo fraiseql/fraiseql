@@ -484,6 +484,66 @@ pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, 
     Ok(count.0)
 }
 
+/// Per-action audit columns of a `tb_observer_log` row (#468).
+#[derive(Debug, Clone)]
+pub struct ObserverLogAudit {
+    pub status:               String,
+    pub action_index:         Option<i32>,
+    pub action_type:          Option<String>,
+    pub response_status_code: Option<i32>,
+    pub response_payload:     Option<serde_json::Value>,
+    pub request_payload:      Option<serde_json::Value>,
+    pub duration_ms:          Option<i32>,
+}
+
+/// Fetch the per-action audit columns for the most recent log row of an entity (#468).
+pub async fn get_observer_log_audit(
+    pool: &PgPool,
+    entity_id: &str,
+) -> Result<Option<ObserverLogAudit>, sqlx::Error> {
+    let row: Option<(
+        String,
+        Option<i32>,
+        Option<String>,
+        Option<i32>,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+        Option<i32>,
+    )> = sqlx::query_as(
+        r"
+        SELECT status, action_index, action_type, response_status_code,
+               response_payload, request_payload, duration_ms
+        FROM tb_observer_log
+        WHERE entity_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT 1
+        ",
+    )
+    .bind(entity_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(
+        |(
+            status,
+            action_index,
+            action_type,
+            response_status_code,
+            response_payload,
+            request_payload,
+            duration_ms,
+        )| ObserverLogAudit {
+            status,
+            action_index,
+            action_type,
+            response_status_code,
+            response_payload,
+            request_payload,
+            duration_ms,
+        },
+    ))
+}
+
 /// Get all observer logs for an entity
 pub async fn get_observer_logs_for_entity(
     pool: &PgPool,
