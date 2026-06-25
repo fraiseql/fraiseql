@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`doctor`/`validate --against-db` no longer false-fail single-JSONB mutations (#484).**
+  The #384 mutation→function contract check derived the function's *expected* arity by
+  flattening the `input` type's fields whenever the operation was not `Update` — so every
+  `Insert`/`Delete`/`Custom` mutation on the single-JSONB convention (`fn(p_input jsonb)`,
+  authored with `input_style = jsonb`) reported a spurious
+  `expected N argument(s) but the function takes [1]`, making the gate unusable as a
+  green-means-green CI check. `expected_call` now mirrors the runtime's single-JSONB
+  predicate exactly (`mutation/mod.rs:499-500`): a structured single `input` arg is
+  expected as one `jsonb` payload when the op is `Update`, **or** `input_style == jsonb`,
+  **or** the input type is absent from the schema — and the arg-1-is-`jsonb` assertion now
+  applies to all of those. Genuinely-wrong functions (wrong arity, non-`jsonb` payload)
+  are still caught. The fix lands on both `doctor --against-db` and `validate --against-db`
+  from one change (shared `mutation_contract` module).
 - **Multi-word camelCase query filters no longer silently return `[]` (#486).** On the
   query path, an explicit filter argument (`orders(organizationId: "x")`) built its
   JSONB predicate from the raw camelCase name — `data->>'organizationId'` — which never
