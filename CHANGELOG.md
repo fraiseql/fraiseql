@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PostgreSQL `ENUM` columns no longer decode to null in `row_to_map` (#472).** An
+  enum-typed column (notably `app.mutation_response.error_class`, the
+  `app.mutation_error_class` enum) fell through the `row_to_map` decode ladder to
+  `Null` because `String`'s `FromSql` rejects a custom enum OID. On a *failed*
+  mutation this dropped `error_class` to absent, and the parser then rejected the
+  whole row with `succeeded=false requires error_class` — so the typed error arm was
+  never reached and the failure surfaced as an opaque validation error. `row_to_map`
+  now decodes any enum to its text label (a small `FromSql` wrapper keyed on
+  `Kind::Enum`), generalising to every enum-typed column. Same class of latent
+  null-drop as the earlier `SMALLINT`/`http_status` and `TEXT[]`/`updated_fields`
+  (#228) fixes.
 - **Failed mutations now resolve onto the declared error type, not the success arm
   (#465).** When a `mutation_response` reported failure (`succeeded = false`), the
   GraphQL projection resolved the result type *only* via `find_union(return_type)`.

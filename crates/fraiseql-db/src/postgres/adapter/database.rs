@@ -5,7 +5,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::BufMut as _;
 use fraiseql_error::{FraiseQLError, Result};
-use tokio_postgres::Row;
+use tokio_postgres::{
+    Row,
+    types::{FromSql, Kind, Type},
+};
 
 use super::{
     PostgresAdapter, build_projection_select_sql, build_where_select_sql,
@@ -137,6 +140,27 @@ fn enrich_undefined_column_error(
     }
 }
 
+/// Decodes any PostgreSQL `ENUM` value as its text label.
+///
+/// `String`'s `FromSql` accepts only the text family (TEXT/VARCHAR/BPCHAR/NAME), not
+/// a custom enum OID, so an enum column otherwise falls through [`row_to_map`]'s
+/// decode ladder to `Null`. An enum's binary wire representation *is* its label as
+/// UTF-8 text, so this reads it directly (#472).
+struct PgEnumLabel(String);
+
+impl<'a> FromSql<'a> for PgEnumLabel {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self(std::str::from_utf8(raw)?.to_owned()))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        matches!(ty.kind(), Kind::Enum(_))
+    }
+}
+
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
@@ -191,6 +215,16 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             // expecting a sequence fails. Must precede the jsonb branch (a jsonb
             // column never deserializes as Vec<String>, so ordering is safe).
             serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, PgEnumLabel>(idx) {
+            // ENUM columns (e.g. `app.mutation_response.error_class`, the
+            // `app.mutation_error_class` enum) render as their text label. Without
+            // this branch a non-null enum fell through to `Null` (`String: FromSql`
+            // rejects a custom enum OID), which dropped `error_class` to absent on a
+            // failed mutation — and the parser then rejected the row with
+            // "succeeded=false requires error_class", so the typed error arm was
+            // never reached (#472). `PgEnumLabel` accepts only `Kind::Enum`, so this
+            // never shadows another branch regardless of position.
+            serde_json::json!(v.0)
         } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
             v
         } else {

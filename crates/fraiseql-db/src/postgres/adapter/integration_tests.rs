@@ -869,6 +869,34 @@ async fn row_to_map_renders_smallint() {
     assert_eq!(row["http_status"], json!(404), "SMALLINT/int2 must not be null");
 }
 
+// A PostgreSQL `ENUM` column must decode to its text label, not null. The headline
+// symptom: `app.mutation_response.error_class` is the `app.mutation_error_class`
+// ENUM, so a failed mutation's `error_class` fell through `row_to_map`'s type ladder
+// (`String: FromSql` rejects a custom enum OID) to `Null`, and the parser then
+// rejected the whole row with "succeeded=false requires error_class" — the typed
+// error arm was never reached (#472).
+#[tokio::test]
+async fn row_to_map_renders_enum() {
+    let adapter = create_test_adapter().await;
+    adapter
+        .execute_raw_query(
+            "DO $$ BEGIN CREATE TYPE row_to_map_enum_t AS ENUM ('not_found', 'conflict'); \
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;",
+        )
+        .await
+        .expect("create enum type failed");
+    let rows = adapter
+        .execute_raw_query("SELECT 'not_found'::row_to_map_enum_t AS c_enum")
+        .await
+        .expect("query failed");
+
+    assert_eq!(
+        rows[0]["c_enum"],
+        json!("not_found"),
+        "ENUM column must decode to its text label, not null"
+    );
+}
+
 // Cross-type conformance: one table of (SQL expression → expected JSON), so the
 // next time a type drifts back to a silent null a shared test fails. Each column
 // is a literal cast, keeping the fixture seed-independent.
