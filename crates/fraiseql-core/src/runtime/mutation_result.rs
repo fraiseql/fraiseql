@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -93,8 +93,10 @@ pub struct MutationResponse {
     /// Full entity payload. Populated even for noops.
     #[serde(default)]
     pub entity:         JsonValue,
-    /// GraphQL field names that changed. Empty on noop.
-    #[serde(default)]
+    /// GraphQL field names that changed. Empty on noop. A SQL-`NULL` column
+    /// (rendered by `row_to_map` as JSON `null`) is read as the empty list — see
+    /// `null_as_empty_string_vec`.
+    #[serde(default, deserialize_with = "null_as_empty_string_vec")]
     pub updated_fields: Vec<String>,
     /// Cascade operations (see the graphql-cascade specification).
     #[serde(default)]
@@ -105,6 +107,21 @@ pub struct MutationResponse {
     /// Observability only (trace IDs, timings, audit extras).
     #[serde(default)]
     pub metadata:       JsonValue,
+}
+
+/// Deserialize a possibly-`null` `TEXT[]` column as an empty `Vec`.
+///
+/// A failed mutation's function commonly leaves `updated_fields` unset (SQL NULL),
+/// which `row_to_map` renders as JSON `null`. Serde's `#[serde(default)]` only fills
+/// an *absent* key, so an explicit null still reaches `Vec<String>`'s deserializer
+/// and fails with `invalid type: null, expected a sequence` — turning every such
+/// failure into an opaque parse error before the typed error arm is reached (#473).
+/// Treating null as the empty list matches the absent-key behaviour.
+fn null_as_empty_string_vec<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<Vec<String>>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 /// Parse a `mutation_response` row into a [`MutationOutcome`].
