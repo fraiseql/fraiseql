@@ -1449,3 +1449,76 @@ async fn test_listener_direct() {
         },
     }
 }
+
+/// Test: a successful admin CRUD write refreshes the in-process matcher (#466).
+///
+/// Before this fix the `/api/observers` create/update/delete/enable/disable
+/// handlers persisted to `tb_observer` but did NOT reload the runtime's
+/// `EventMatcher`, so an admin write silently had no effect until a separate
+/// `POST /api/observers/runtime/reload`. This drives the real `create_observer`
+/// handler with the runtime injected and asserts the matcher reflects the new
+/// observer with **no** manual reload.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_admin_create_reloads_matcher() {
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+    use fraiseql_server::{
+        extractors::OptionalSecurityContext,
+        observers::{
+            CreateObserverRequest, ObserverRepository, ObserverState, handlers::create_observer,
+        },
+    };
+    use tokio::sync::RwLock;
+
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Start from a clean table (order matters due to foreign keys).
+    sqlx::query("DELETE FROM tb_observer_log")
+        .execute(&pool)
+        .await
+        .expect("clean logs");
+    sqlx::query("DELETE FROM tb_observer").execute(&pool).await.expect("clean observers");
+
+    // Runtime carrying the in-process matcher. Not started: matcher reload is
+    // independent of the background poller, so this exercises only the reload
+    // path the handler now triggers.
+    let runtime = Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(
+        pool.clone(),
+    ))));
+
+    // Baseline matcher: zero observers in the (cleaned) table.
+    let baseline = runtime.read().await.reload_observers().await.expect("baseline reload");
+    assert_eq!(baseline, 0, "no observers should be live before the create");
+
+    let state = ObserverState {
+        repository: ObserverRepository::new(pool.clone()),
+        runtime: Some(Arc::clone(&runtime)),
+    };
+
+    let entity_type = format!("Order_{test_id}");
+    let request: CreateObserverRequest = serde_json::from_value(serde_json::json!({
+        "name": format!("reload-on-create-{test_id}"),
+        "entity_type": entity_type,
+        "event_type": "INSERT",
+        // URL is never dispatched in this test — only the matcher reload matters.
+        "actions": [{ "type": "webhook", "url": "http://127.0.0.1:9/never-called" }],
+    }))
+    .expect("valid create request");
+
+    let response = create_observer(State(state), OptionalSecurityContext(None), Json(request))
+        .await
+        .into_response();
+    assert_eq!(response.status(), StatusCode::CREATED, "create should succeed");
+
+    // The matcher must now reflect the new observer WITHOUT a manual reload.
+    let live = runtime.read().await.health().observer_count;
+    assert_eq!(live, 1, "create handler should have refreshed the in-process matcher (#466)");
+
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+}
