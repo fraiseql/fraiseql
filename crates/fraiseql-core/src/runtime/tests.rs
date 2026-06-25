@@ -2269,6 +2269,7 @@ mod mutation_result_tests {
                 message,
                 http_status,
                 metadata,
+                ..
             } => {
                 assert_eq!(error_class, MutationErrorClass::Conflict);
                 assert_eq!(message, "duplicate");

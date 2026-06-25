@@ -971,6 +971,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             error_class,
             message,
             http_status,
+            entity_type,
             metadata,
         } => {
             let status = error_class.as_str();
@@ -999,13 +1000,28 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 .or_insert_with(|| serde_json::Value::String(status.to_string()));
             let source = serde_json::Value::Object(source_map);
 
-            // Find the matching error type from the return union.
-            let error_type = ctx.schema.find_union(&mutation_return_type).and_then(|u| {
-                u.member_types.iter().find_map(|t| {
-                    let td = ctx.schema.find_type(t)?;
-                    if td.is_error { Some(td) } else { None }
-                })
-            });
+            // Resolve the concrete error type to project — symmetric with the
+            // success arm's typename resolution (#465). The function stamps the
+            // declared error type it produced onto `entity_type`, so prefer it when
+            // it names a known `is_error` type: this routes onto the *specific*
+            // error member (e.g. `DuplicateEmailError` vs `ValidationError`) and,
+            // crucially, surfaces the declared error type even when the mutation's
+            // return type is the bare success entity rather than a union (the
+            // `Entity`-return + declared-error-types pattern, where `find_union`
+            // finds nothing and the result previously leaked the success typename).
+            // Fall back to the return union's first `is_error` member otherwise.
+            let error_type = entity_type
+                .as_deref()
+                .and_then(|name| ctx.schema.find_type(name))
+                .filter(|td| td.is_error)
+                .or_else(|| {
+                    ctx.schema.find_union(&mutation_return_type).and_then(|u| {
+                        u.member_types.iter().find_map(|t| {
+                            let td = ctx.schema.find_type(t)?;
+                            if td.is_error { Some(td) } else { None }
+                        })
+                    })
+                });
 
             // Project the error source through the same canonical projector when the
             // schema declares a matching error type. Otherwise emit just __typename

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Failed mutations now resolve onto the declared error type, not the success arm
+  (#465).** When a `mutation_response` reported failure (`succeeded = false`), the
+  GraphQL projection resolved the result type *only* via `find_union(return_type)`.
+  If that found no `is_error` member — e.g. the mutation returns the bare success
+  entity with sibling error types declared (the shipped `04-error-type` pattern), or
+  any schema where the result union is not the mutation's compiled return type — the
+  error arm fell through to emitting `__typename = <success/return type>` and
+  projected no error fields. A client selecting `... on MutationError { … }` then
+  received nothing on that arm and `__typename` named the entity. The error arm now
+  mirrors the success arm: it resolves the concrete error type from the response's
+  `entity_type` column (the declared error type the function stamps, e.g.
+  `DuplicateEmailError`) when it names an `is_error` type, falling back to the return
+  union's `is_error` member otherwise. This both fixes the mis-routing and, for unions
+  with several error members, projects the *specific* error the function reported
+  rather than the first one in the union. Success-path projection is unchanged.
 - **Root `{ __typename }` resolves to the operation type name (#450).** A top-level
   `{ __typename }` — the canonical zero-cost GraphQL health probe — was rejected with
   `Query '__typename' not found in schema` because the query classifier only
