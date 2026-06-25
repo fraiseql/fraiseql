@@ -118,6 +118,7 @@ fn create_http_action(url: &str) -> ActionConfig {
         body_template:      Some(
             r#"{"event": "{{ event.kind }}", "entity": "{{ event.entity_type }}"}"#.to_string(),
         ),
+        signing_secret:     None,
         signing_secret_env: None,
     }
 }

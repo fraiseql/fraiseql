@@ -22,6 +22,26 @@ mod redaction_tests {
     }
 
     #[test]
+    fn webhook_signing_secret_literal_is_redacted_env_name_preserved() {
+        // #467: the per-subscription `signing_secret` literal is a secret at rest
+        // and must never travel in a response body; `signing_secret_env` is only
+        // an env-var NAME and stays visible.
+        let mut actions = serde_json::json!([
+            {
+                "type": "webhook",
+                "url": "https://hook.example/path",
+                "signing_secret": "whsec_per_subscription",
+                "signing_secret_env": "MY_WEBHOOK_SECRET"
+            }
+        ]);
+        redact_action_secrets(&mut actions);
+
+        assert_eq!(actions[0]["signing_secret"], "[REDACTED]");
+        assert_eq!(actions[0]["signing_secret_env"], "MY_WEBHOOK_SECRET");
+        assert_eq!(actions[0]["url"], "https://hook.example/path");
+    }
+
+    #[test]
     fn actions_without_headers_are_untouched() {
         let mut actions = serde_json::json!([
             { "type": "slack", "webhook_url": "https://slack/x", "message_template": "hi" },

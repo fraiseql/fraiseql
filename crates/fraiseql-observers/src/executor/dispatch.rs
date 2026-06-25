@@ -107,25 +107,52 @@ pub(super) fn resolve_url(
     Ok(url)
 }
 
-/// Resolve the webhook HMAC signing secret from its environment variable name.
+/// Resolve the webhook HMAC signing secret from either a per-subscription
+/// literal or the name of a process environment variable.
 ///
-/// Returns `Ok(None)` when signing is not configured (`env_var` is `None`).
-/// Returns `Err(ObserverError::InvalidActionConfig)` when an env var name is
-/// given but the variable is absent or empty — an operator who asked for signing
-/// must never get an unsigned delivery silently (#345, fail-loud house style).
-pub(super) fn resolve_signing_secret(env_var: Option<&str>) -> Result<Option<String>> {
-    let Some(var_name) = env_var else {
-        return Ok(None);
-    };
-    let secret = std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-        reason: format!("Webhook signing secret env var {var_name} not found"),
-    })?;
-    if secret.is_empty() {
-        return Err(ObserverError::InvalidActionConfig {
-            reason: format!("Webhook signing secret env var {var_name} is empty"),
-        });
+/// `literal` is the `signing_secret` field (used by DB-backed / admin-managed
+/// observers, #467); `env_var` is the `signing_secret_env` name (static/config
+/// model, #345). They are mutually exclusive:
+///
+/// - both set → `Err` (ambiguous config; fail loud, the house style);
+/// - only `literal` set → that literal (empty → `Err`);
+/// - only `env_var` set → the named env var's value (absent/empty → `Err`);
+/// - neither set → `Ok(None)` (signing not configured).
+///
+/// An operator who asked for signing must never get an unsigned delivery
+/// silently — every misconfiguration is an error, not a silent skip.
+pub(super) fn resolve_signing_secret(
+    env_var: Option<&str>,
+    literal: Option<&str>,
+) -> Result<Option<String>> {
+    match (literal, env_var) {
+        (Some(_), Some(_)) => Err(ObserverError::InvalidActionConfig {
+            reason: "Webhook action sets both `signing_secret` and `signing_secret_env`; \
+                     set exactly one"
+                .to_string(),
+        }),
+        (Some(literal), None) => {
+            if literal.is_empty() {
+                return Err(ObserverError::InvalidActionConfig {
+                    reason: "Webhook `signing_secret` is set but empty".to_string(),
+                });
+            }
+            Ok(Some(literal.to_string()))
+        },
+        (None, Some(var_name)) => {
+            let secret =
+                std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
+                    reason: format!("Webhook signing secret env var {var_name} not found"),
+                })?;
+            if secret.is_empty() {
+                return Err(ObserverError::InvalidActionConfig {
+                    reason: format!("Webhook signing secret env var {var_name} is empty"),
+                });
+            }
+            Ok(Some(secret))
+        },
+        (None, None) => Ok(None),
     }
-    Ok(Some(secret))
 }
 
 impl ActionDispatcher for DefaultActionDispatcher {
@@ -144,6 +171,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     url_env,
                     headers,
                     body_template,
+                    signing_secret,
                     signing_secret_env,
                 } => {
                     debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
@@ -151,7 +179,10 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     // DNS-rebinding guard: re-resolve at dispatch time and reject
                     // any host whose addresses fall in a private/reserved range.
                     crate::ssrf::dns_resolve_and_check(&webhook_url).await?;
-                    let signing_secret = resolve_signing_secret(signing_secret_env.as_deref())?;
+                    let resolved_secret = resolve_signing_secret(
+                        signing_secret_env.as_deref(),
+                        signing_secret.as_deref(),
+                    )?;
 
                     match self
                         .webhook_action
@@ -159,7 +190,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                             &webhook_url,
                             headers,
                             body_template.as_deref(),
-                            signing_secret.as_deref(),
+                            resolved_secret.as_deref(),
                             event,
                         )
                         .await

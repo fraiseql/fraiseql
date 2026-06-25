@@ -27,6 +27,7 @@ fn test_action() -> ActionConfig {
         url_env:            None,
         headers:            HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     }
 }

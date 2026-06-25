@@ -113,11 +113,15 @@ const REDACTED_PLACEHOLDER: &str = "[REDACTED]";
 
 /// Redact secret-bearing values from an observer `actions` JSON array in place.
 ///
-/// Each webhook action may carry custom `headers` (e.g. `Authorization: Bearer …`).
-/// This replaces every header **value** with [`REDACTED_PLACEHOLDER`] while preserving
-/// the header names and the rest of the action, so an operator can still see which
-/// headers are configured without the secret leaving the server (R8). Non-array
-/// `actions` and non-object entries are left untouched.
+/// Two classes of secret are masked with [`REDACTED_PLACEHOLDER`] while the rest
+/// of the action is preserved so an operator can still see how it is configured
+/// (R8):
+///
+/// - every webhook `headers` **value** (e.g. `Authorization: Bearer …`), keeping the header names;
+/// - the per-subscription webhook `signing_secret` **literal** (#467), a secret stored at rest.
+///   (`signing_secret_env` is only an env-var *name*, not a secret, and is left visible.)
+///
+/// Non-array `actions` and non-object entries are left untouched.
 fn redact_action_secrets(actions: &mut serde_json::Value) {
     let Some(entries) = actions.as_array_mut() else {
         return;
@@ -129,6 +133,11 @@ fn redact_action_secrets(actions: &mut serde_json::Value) {
         if let Some(headers) = obj.get_mut("headers").and_then(serde_json::Value::as_object_mut) {
             for value in headers.values_mut() {
                 *value = serde_json::Value::String(REDACTED_PLACEHOLDER.to_string());
+            }
+        }
+        if let Some(secret) = obj.get_mut("signing_secret") {
+            if !secret.is_null() {
+                *secret = serde_json::Value::String(REDACTED_PLACEHOLDER.to_string());
             }
         }
     }
@@ -257,6 +266,16 @@ pub enum ActionConfig {
         /// Optional Handlebars body template.
         #[serde(default)]
         body_template:      Option<String>,
+        /// Per-subscription HMAC signing secret *literal* (#467).
+        ///
+        /// Mutually exclusive with `signing_secret_env`. Lets a DB-backed /
+        /// admin-API-managed observer carry its own signing key when the static
+        /// env-var model cannot (one shared process secret per binary). Stored in
+        /// the observer's `actions` JSONB at rest and **redacted** in admin-API
+        /// responses (see `redact_action_secrets`); never logged. Consumed by the
+        /// runtime's `fraiseql_observers::ActionConfig::Webhook`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        signing_secret:     Option<String>,
         /// Name of the environment variable holding the HMAC signing secret (#345).
         ///
         /// When set, the observer runtime signs outbound payloads for this
