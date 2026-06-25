@@ -257,6 +257,21 @@ pub enum FailurePolicy {
 // Action Configuration
 // ============================================================================
 
+/// Deserialize a value, mapping an explicit JSON `null` to `T::default()`.
+///
+/// `#[serde(default)]` only fills in an *absent* field; a present `null` is still
+/// handed to the field's deserializer and fails for non-`Option` types. Pairing
+/// `default` with this `deserialize_with` makes both an absent key and an
+/// explicit `null` resolve to the default — needed for the `actions` JSONB
+/// round-trip where the writer emits `"headers": null` (#466).
+fn null_as_default<'de, D, T>(deserializer: D) -> std::result::Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// Action configuration (tagged union)
 ///
 /// Marked `#[non_exhaustive]` so that new action types (e.g., `Kafka`, `Pubsub`)
@@ -273,7 +288,15 @@ pub enum ActionConfig {
         /// Environment variable containing the URL
         url_env:            Option<String>,
         /// Optional HTTP headers
-        #[serde(default)]
+        ///
+        /// `deserialize_with` treats an explicit JSON `null` the same as an
+        /// absent key (an empty map). `#[serde(default)]` alone only covers an
+        /// absent key; the admin-API writer (`fraiseql-server`'s `ActionConfig`)
+        /// serializes `None` headers as `null`, and existing `tb_observer.actions`
+        /// rows may already hold `"headers": null`, so reload must accept it
+        /// rather than fail the whole observer with `invalid type: null, expected
+        /// a map` (#466 round-trip).
+        #[serde(default, deserialize_with = "null_as_default")]
         headers:            HashMap<String, String>,
         /// Template for request body
         #[serde(default)]

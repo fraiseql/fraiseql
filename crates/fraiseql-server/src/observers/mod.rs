@@ -261,7 +261,13 @@ pub enum ActionConfig {
         #[serde(default = "default_method")]
         method:             String,
         /// Optional custom request headers.
-        #[serde(default)]
+        ///
+        /// `skip_serializing_if` keeps a `None` out of the persisted `actions`
+        /// JSONB (matching `signing_secret` below) so it is stored as an absent
+        /// key rather than `"headers": null` — the runtime's `ActionConfig`
+        /// reads headers as a non-optional map and rejects an explicit `null`
+        /// (#466 round-trip).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         headers:            Option<std::collections::HashMap<String, String>>,
         /// Optional Handlebars body template.
         #[serde(default)]
