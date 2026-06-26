@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`[federation]`) workflow already carried through the merger and is unchanged. As a
   guardrail against a future silent regression, the legacy JSON path now fails the
   compile if a non-empty input `federation` block does not bind into the schema.
+- **TOML `[federation]` now carries the subgraph identity.** The `[federation]`
+  section gained `service_name`, `version` (Apollo spec string, e.g. `"v2"`), and
+  `schema_url`; the legacy integer `apollo_version` is still accepted (`2` ⇒ `"v2"`,
+  and `version` wins when both are set). The merger now lowers the TOML config into the
+  compiled shape explicitly, so `service_name`/`version` and per-entity circuit-breaker
+  overrides (`[[federation.circuit_breaker.per_database]]` ⇒ runtime `per_entity`) reach
+  the runtime instead of being silently dropped on a field-name mismatch.
 
 ## [2.10.0] - 2026-06-26
 

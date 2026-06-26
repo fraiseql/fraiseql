@@ -237,6 +237,46 @@ fn toml_federation_carries_through_merger_and_converter() {
     assert_eq!(fed.entities[0].key_fields, vec!["id".to_string()]);
 }
 
+#[test]
+fn toml_federation_service_name_and_version_reach_compiled_schema() {
+    // The `[federation]` section must be able to name the subgraph and pin the spec
+    // version — these used to be rejected by `deny_unknown_fields` and, even once
+    // accepted, were dropped on the way to the compiled schema.
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(
+        br#"
+        [schema]
+        name = "orders"
+
+        [types.Order]
+        sql_source = "v_orders"
+
+        [federation]
+        enabled = true
+        service_name = "orders"
+        version = "v2"
+
+        [[federation.entities]]
+        name = "Order"
+        key_fields = ["id"]
+    "#,
+    )
+    .unwrap();
+    f.flush().unwrap();
+
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let fed = compiled.federation.as_ref().expect("compiled schema must carry federation");
+    assert_eq!(fed.service_name.as_deref(), Some("orders"));
+    assert_eq!(fed.version.as_deref(), Some("v2"));
+
+    // Server-readable round-trip: the named subgraph serves an Apollo Fed v2 SDL.
+    let metadata = compiled.federation_metadata().expect("federation metadata");
+    let sdl = fraiseql_core::federation::generate_service_sdl(&compiled.raw_schema(), &metadata);
+    assert!(sdl.contains("https://specs.apollo.dev/federation/v2.0"), "got:\n{sdl}");
+    assert!(sdl.contains("@key(fields: \"id\")"), "got:\n{sdl}");
+}
+
 // ---- Real CLI pipeline: `compile_to_schema` (mutates CWD; keep it alone) ----
 
 #[tokio::test]

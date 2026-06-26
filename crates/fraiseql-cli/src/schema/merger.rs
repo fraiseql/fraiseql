@@ -618,10 +618,14 @@ impl SchemaMerger {
             });
         }
 
-        // Embed federation configuration if enabled
+        // Embed federation configuration if enabled. Lower the TOML config into the
+        // compiled (`fraiseql_core`) shape explicitly so the merged JSON matches what
+        // the converter/runtime deserialize — a raw passthrough silently dropped
+        // `service_name`/`version` and the `per_database` → `per_entity` overrides.
         if toml_schema.federation.enabled {
-            merged["federation_config"] = serde_json::to_value(&toml_schema.federation)
-                .context("Failed to serialize federation config")?;
+            merged["federation_config"] =
+                serde_json::to_value(toml_schema.federation.to_compiled())
+                    .context("Failed to serialize federation config")?;
         }
 
         // Embed subscriptions configuration (hooks, limits)
