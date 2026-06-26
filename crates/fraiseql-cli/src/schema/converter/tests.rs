@@ -2091,4 +2091,27 @@ mod changelog_validation_tests {
         );
         assert!(SchemaConverter::convert(intermediate).is_ok());
     }
+
+    #[test]
+    fn changelog_expose_on_federation_subgraph_warns_but_compiles() {
+        // #497: exposing the change-log on a federation subgraph is the single-owner
+        // pattern — allowed. The cross-subgraph collision can't be detected here (each
+        // subgraph compiles alone), so the guardrail is a compile warning, never an
+        // error; the owning subgraph legitimately sets both.
+        let intermediate = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            changelog_config:  Some(ChangelogConfig {
+                expose: true,
+                ..Default::default()
+            }),
+            observers_config:  Some(json!({ "enabled": true, "backend": "redis" })),
+            federation_config: Some(json!({ "enabled": true })),
+            ..IntermediateSchema::default()
+        };
+        let compiled =
+            SchemaConverter::convert(intermediate).expect("federated expose warns, never errors");
+        assert!(compiled.changelog.as_ref().unwrap().expose);
+        assert!(compiled.federation.as_ref().unwrap().enabled);
+        assert!(compiled.types.iter().any(|t| t.name == "EntityChangeLog"));
+    }
 }

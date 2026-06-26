@@ -73,6 +73,49 @@ On the next `fraiseql compile`, the changelog migration installs:
 Callers without the role see `"not found in schema"` (not `FORBIDDEN`) — the
 operations are hidden behind the role gate to prevent enumeration.
 
+### Naming convention
+
+The change-log identifiers follow the schema's `naming_convention`, exactly like
+every user-authored type and operation. The examples below use the default
+`preserve` (snake_case) form; under `naming_convention = "camelCase"` the same
+surface is `entityChangeLogs`, `pkEntityChangeLog`, `objectType`,
+`transportCheckpoint`, `upsertTransportCheckpoint`, and so on. The backing
+view/function names and the JSONB `data` keys stay snake_case regardless — only
+the GraphQL-facing identifiers change.
+
+## Federation: one owner per supergraph
+
+The change-log is a **per-database** stream: the same `pk_entity_change_log` in
+two subgraphs is not the same row. So the injected `EntityChangeLog` /
+`TransportCheckpoint` types and the `entity_change_logs` root query are **not**
+`@shareable` — a single subgraph owns them. If two subgraphs in one supergraph
+both set `expose = true`, they inject the identical type and root field, and
+`rover supergraph compose` rejects the supergraph with `INVALID_FIELD_SHARING`.
+
+Expose the change-log in **exactly one** subgraph. Every other subgraph keeps
+capturing to its own `tb_entity_change_log` — the observer trigger writes it
+regardless of `expose` — it simply doesn't surface it over GraphQL:
+
+```toml
+# the one subgraph that owns the change-log API
+[changelog]
+expose = true
+
+# every other subgraph: capture, but no GraphQL surface
+[changelog]
+expose        = false   # no EntityChangeLog type / entity_change_logs query
+write_enabled = true    # default — the capture trigger still writes the log
+```
+
+`expose` gates only the read/GraphQL surface; `write_enabled` (default `true`)
+gates the transactional outbox write. They are independent, so a non-exposing
+subgraph still records its own change-log for sidecars that read it directly. To
+consume more than one subgraph's stream, query each in its owning subgraph — they
+are genuinely different streams, not one federated entity.
+
+The compiler emits a warning when `[changelog] expose = true` on a federation
+subgraph, restating the single-owner rule (the owning subgraph can ignore it).
+
 ## Cursor pagination
 
 `entity_change_logs` is a standard FraiseQL list query: it uses the generic
