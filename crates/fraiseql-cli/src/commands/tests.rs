@@ -1544,6 +1544,73 @@ mod doctor_tests {
         assert!(fail.detail.contains("fn_create_widget"));
         assert!(fail.hint.is_some());
     }
+
+    // ── #488: connectivity prefers the explicit URL; TOML role detection ──────
+
+    /// Write `content` to a temp file with a specific extension (the TOML/JSON
+    /// role detection in #488 is path-based).
+    fn temp_file_ext(content: &str, ext: &str) -> NamedTempFile {
+        let mut f = tempfile::Builder::new()
+            .suffix(&format!(".{ext}"))
+            .tempfile()
+            .expect("temp file");
+        f.write_all(content.as_bytes()).unwrap();
+        f.flush().unwrap();
+        f
+    }
+
+    #[test]
+    fn effective_db_url_prefers_db_url_then_against_db() {
+        assert_eq!(effective_db_url(Some("a"), Some("b")), Some("a"), "--db-url wins");
+        assert_eq!(
+            effective_db_url(None, Some("b")),
+            Some("b"),
+            "--against-db used absent --db-url"
+        );
+        assert_eq!(effective_db_url(Some("a"), None), Some("a"));
+        assert_eq!(effective_db_url(None, None), None, "neither → env fallback in the checks");
+    }
+
+    #[test]
+    fn against_db_only_run_reports_database_url_set() {
+        // The bug: an --against-db-only run reported "DATABASE_URL not set".
+        let url = "postgres://u:p@localhost:5432/db";
+        let check = check_database_url_set(effective_db_url(None, Some(url)));
+        assert_eq!(check.status, CheckStatus::Pass, "got {check:?}");
+    }
+
+    #[test]
+    fn runtime_config_toml_with_compiled_json_schema_is_syntax_only() {
+        // A runtime config (no [[types]]) must NOT be schema-parsed when --schema
+        // is compiled JSON — that spuriously failed before #488.
+        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
+        let schema = temp_file_ext("{}", "json");
+        let check = check_config_toml(config.path(), schema.path());
+        assert_eq!(check.status, CheckStatus::Pass, "runtime config syntax should pass: {check:?}");
+    }
+
+    #[test]
+    fn malformed_config_toml_still_fails() {
+        // Don't mask real problems: malformed TOML is still a failure.
+        let config = temp_file_ext("this is = = not valid toml\n", "toml");
+        let schema = temp_file_ext("{}", "json");
+        let check = check_config_toml(config.path(), schema.path());
+        assert_eq!(check.status, CheckStatus::Fail, "malformed TOML must fail: {check:?}");
+    }
+
+    #[test]
+    fn schema_toml_as_schema_is_still_schema_parsed() {
+        // When --schema is a TOML, --config is parsed as a schema definition (the
+        // existing behaviour). A runtime config in that slot fails schema parsing.
+        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
+        let schema_toml = temp_file_ext("[[types]]\nname = \"User\"\n", "toml");
+        let check = check_config_toml(config.path(), schema_toml.path());
+        assert_eq!(
+            check.status,
+            CheckStatus::Fail,
+            "schema parse should run for a .toml schema: {check:?}"
+        );
+    }
 }
 
 mod explain_tests {
