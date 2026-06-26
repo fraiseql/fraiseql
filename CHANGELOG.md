@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-06-26
+
 ### Added
 
 - **Opt-in fail-fast `sql_source` validation (#487).** A declared-but-unbacked
