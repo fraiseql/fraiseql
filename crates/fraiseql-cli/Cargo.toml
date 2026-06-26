@@ -106,6 +106,10 @@ name = "cli_federation_validation"
 required-features = ["federation"]
 
 [[test]]
+name = "compile_federation_passthrough"
+required-features = ["federation"]
+
+[[test]]
 name = "federation_cli_advanced"
 required-features = ["federation"]
 

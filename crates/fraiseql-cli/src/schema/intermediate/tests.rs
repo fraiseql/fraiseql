@@ -5,6 +5,44 @@ mod intermediate_tests {
     use super::super::*;
 
     #[test]
+    fn test_federation_key_aliases_into_federation_config() {
+        // SDKs emit the federation block under the top-level `federation` key; it
+        // must bind into `federation_config` (the serde alias), not silently drop.
+        let json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": [],
+            "federation": {
+                "enabled": true,
+                "service_name": "orders",
+                "entities": [{"name": "Order", "key_fields": ["id"]}]
+            }
+        }"#;
+
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        let fed = schema
+            .federation_config
+            .expect("`federation` key must bind to federation_config");
+        assert_eq!(fed["enabled"], serde_json::json!(true));
+        assert_eq!(fed["service_name"], serde_json::json!("orders"));
+    }
+
+    #[test]
+    fn test_federation_config_key_still_binds() {
+        // The merger writes the canonical `federation_config` key; it must keep working
+        // alongside the `federation` alias.
+        let json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": [],
+            "federation_config": {"enabled": true}
+        }"#;
+
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        assert!(schema.federation_config.is_some());
+    }
+
+    #[test]
     fn test_parse_minimal_schema() {
         let json = r#"{
             "types": [],

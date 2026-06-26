@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`fraiseql compile` no longer drops the `federation` block.** Schemas authored
+  with federation enabled (e.g. the Python SDK's `export_schema(federation=...)`)
+  emit the configuration under the top-level `federation` key, but the compiler only
+  bound `federation_config` — so the legacy JSON workflow silently produced a
+  non-federated `schema.compiled.json` (`jq 'has("federation")'` ⇒ `false`), and the
+  server it loaded never advertised itself as a subgraph (`_service` / SDL absent).
+  `IntermediateSchema.federation_config` now also binds the `federation` key (serde
+  alias), so the block carries through to `CompiledSchema.federation` and the
+  compiled subgraph serves a proper Apollo Federation v2 `_service { sdl }`. The TOML
+  (`[federation]`) workflow already carried through the merger and is unchanged. As a
+  guardrail against a future silent regression, the legacy JSON path now fails the
+  compile if a non-empty input `federation` block does not bind into the schema.
+
 ## [2.10.0] - 2026-06-26
 
 ### Added
