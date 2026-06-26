@@ -159,6 +159,36 @@ fn test_query_field_introspection() {
 }
 
 #[test]
+fn test_auto_params_surface_as_query_arguments() {
+    // `auto_params` flags must appear as real introspected arguments so introspection
+    // agrees with the `_service` SDL and generated clients. Regression test for #499.
+    let mut schema = test_schema();
+    let mut logs = crate::schema::QueryDefinition::new("changeLogs", "User").returning_list();
+    logs.auto_params = AutoParams {
+        has_where:    true,
+        has_order_by: true,
+        has_limit:    true,
+        has_offset:   false,
+    };
+    schema.queries.push(logs);
+
+    let introspection = IntrospectionBuilder::build(&schema);
+    let query_type = introspection
+        .types
+        .iter()
+        .find(|t| t.name.as_ref() == Some(&"Query".to_string()))
+        .unwrap();
+    let fields = query_type.fields.as_ref().unwrap();
+    let logs_field = fields.iter().find(|f| f.name == "changeLogs").unwrap();
+
+    let arg_names: Vec<&str> = logs_field.args.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(arg_names, vec!["where", "orderBy", "limit"], "auto_params surfaced");
+    // `where`/`orderBy` are typed as the JSON scalar.
+    let where_arg = logs_field.args.iter().find(|a| a.name == "where").unwrap();
+    assert_eq!(where_arg.input_type.name.as_deref(), Some("JSON"));
+}
+
+#[test]
 fn test_field_type_non_null() {
     let schema = test_schema();
     let introspection = IntrospectionBuilder::build(&schema);

@@ -239,9 +239,11 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
         }
     };
 
-    // Build arguments
+    // Build arguments, including the auto-wired `where`/`orderBy`/`limit`/`offset`
+    // arguments derived from `auto_params` so introspection matches the `_service`
+    // SDL and generated clients.
     let args: Vec<IntrospectionInputValue> =
-        query.arguments.iter().map(build_arg_input_value).collect();
+        query.graphql_arguments().iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
         name: schema.display_name(&query.name),

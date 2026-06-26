@@ -562,6 +562,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   de-duplicated, matching the claim names already honoured by the observer-admin RBAC
   engine. The claims continue to be forwarded into `attributes` for RLS / session-var
   injection — the two surfaces are independent. (#503)
+- **`auto_params` queries now expose their `where`/`orderBy`/`limit`/`offset` as real
+  GraphQL arguments.** A list query configured with `auto_params` carried those
+  parameters only as compile-time flags — the runtime read them straight from the
+  argument map, but they were never materialised as field arguments. Every consumer
+  that renders from the argument list therefore emitted the query without them:
+  `generate-client typescript` produced a bare, argument-less query and function, and
+  the federation `_service { sdl }` (and `/schema` endpoint) advertised the field with
+  no arguments — so a generated client or a federated gateway could fetch the first
+  page of a collection but could not paginate or filter it (the built-in change-log
+  being the clearest case: its own description documents `where`/`orderBy`/`limit`).
+  `QueryDefinition::graphql_arguments()` now synthesizes those arguments from the
+  `auto_params` flags (`where`/`orderBy` typed as the `JSON` scalar, `limit`/`offset`
+  as `Int`), and the SDL renderer, the TypeScript client generator, and GraphQL
+  introspection all render through it — so the three stay consistent and a generated
+  client can paginate and filter. An explicit argument of the same name still wins
+  (no duplicates), and Relay connection queries are unchanged (their `first`/`after`/
+  `last`/`before` surface is owned by the Relay path).
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim

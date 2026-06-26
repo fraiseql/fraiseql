@@ -27,8 +27,8 @@ export async function getUser(
 }
 
 /** List users, optionally filtered. */
-const USERS = `query users($filter: UserFilter) {
-  users(filter: $filter) {
+const USERS = `query users($filter: UserFilter, $orderBy: JSON, $limit: Int, $offset: Int) {
+  users(filter: $filter, orderBy: $orderBy, limit: $limit, offset: $offset) {
     __typename
     id
     email
@@ -40,7 +40,7 @@ const USERS = `query users($filter: UserFilter) {
 
 export async function users(
   client: FraiseqlClient,
-  variables: { filter?: UserFilter | null } = {},
+  variables: { filter?: UserFilter | null; orderBy?: unknown | null; limit?: number | null; offset?: number | null } = {},
 ): Promise<User[]> {
   const data = await client.request<{ users: User[] }>(USERS, variables);
   return data.users;

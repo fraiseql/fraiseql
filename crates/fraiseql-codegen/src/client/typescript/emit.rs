@@ -214,7 +214,10 @@ pub(super) fn queries(ctx: &Ctx) -> String {
 }
 
 fn emit_query(out: &mut String, ctx: &Ctx, q: &QueryDefinition) {
-    let op = build_operation(&q.arguments, q.relay);
+    // Render the auto-wired `where`/`orderBy`/`limit`/`offset` arguments derived
+    // from `auto_params` so the generated query can paginate and filter.
+    let arguments = q.graphql_arguments();
+    let op = build_operation(&arguments, q.relay);
     let selection = selection_for_return(ctx, &q.return_type, q.relay);
     let document = render_document("query", &q.name, &op, &selection);
     let result = query_result_ts(ctx, q);
