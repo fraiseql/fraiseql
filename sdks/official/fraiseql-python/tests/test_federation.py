@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Annotated
 
 import pytest
 
@@ -218,3 +219,164 @@ def test_federation_json_matches_rust_format():
         assert isinstance(entity["name"], str)
         assert isinstance(entity["key_fields"], list)
         assert all(isinstance(k, str) for k in entity["key_fields"])
+
+
+# ---------------------------------------------------------------------------
+# #496: derive per-entity / type-level federation directives from decorators
+# ---------------------------------------------------------------------------
+
+
+def test_type_shareable_stored():
+    @fraiseql.type(shareable=True)
+    class Money:
+        amount: int
+        currency: str
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["types"][0]["shareable"] is True
+
+
+def test_type_not_shareable_by_default():
+    @fraiseql.type
+    class Money:
+        amount: int
+
+    schema = SchemaRegistry.get_schema()
+    assert "shareable" not in schema["types"][0]
+
+
+def test_type_shareable_with_key_fields_rejected():
+    # A type is either a keyless @shareable value type or a keyed entity — never
+    # both. (For a shareable field on an entity, use field(shareable=True).)
+    with pytest.raises(ValueError, match="shareable"):
+
+        @fraiseql.type(key_fields=["id"], shareable=True)
+        class Bad:
+            id: ID
+
+
+def test_error_accepts_shareable_kwarg():
+    @fraiseql.error(shareable=True)
+    class MutationError:
+        message: str
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["types"][0]["is_error"] is True
+    assert schema["types"][0]["shareable"] is True
+
+
+def test_error_without_parens_still_works():
+    @fraiseql.error
+    class NotFound:
+        message: str
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["types"][0]["is_error"] is True
+    assert "shareable" not in schema["types"][0]
+
+
+def test_federation_derives_extends():
+    @fraiseql.type(key_fields=["id"], extends=True)
+    class Product:
+        id: ID
+
+    fed = fraiseql.Federation(service_name="reviews")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    product = next(e for e in block["entities"] if e["name"] == "Product")
+    assert product["extends"] is True
+
+
+def test_federation_derives_external_fields():
+    @fraiseql.type(key_fields=["id"], extends=True)
+    class Product:
+        id: Annotated[ID, fraiseql.field(external=True)]
+        weight: Annotated[float, fraiseql.field(external=True)]
+        reviews: str
+
+    fed = fraiseql.Federation(service_name="reviews")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    product = next(e for e in block["entities"] if e["name"] == "Product")
+    assert set(product["external_fields"]) == {"id", "weight"}
+    assert "reviews" not in product["external_fields"]
+
+
+def test_federation_derives_shareable_fields():
+    @fraiseql.type(key_fields=["id"])
+    class Product:
+        id: ID
+        name: Annotated[str, fraiseql.field(shareable=True)]
+
+    fed = fraiseql.Federation(service_name="catalog")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    product = next(e for e in block["entities"] if e["name"] == "Product")
+    assert product["shareable_fields"] == ["name"]
+
+
+def test_federation_shareable_type_goes_to_shareable_types_not_entities():
+    @fraiseql.type
+    class User:
+        id: ID
+
+    @fraiseql.type(shareable=True)
+    class Money:
+        amount: int
+        currency: str
+
+    fed = fraiseql.Federation(service_name="catalog")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    entity_names = [e["name"] for e in block["entities"]]
+    assert "User" in entity_names
+    assert "Money" not in entity_names  # keyless value type, not an entity
+    assert block["shareable_types"] == ["Money"]
+
+
+def test_federation_shareable_error_type_is_shareable_value_type():
+    @fraiseql.type
+    class User:
+        id: ID
+
+    @fraiseql.error(shareable=True)
+    class MutationError:
+        message: str
+
+    fed = fraiseql.Federation(service_name="catalog")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    entity_names = [e["name"] for e in block["entities"]]
+    assert "MutationError" not in entity_names
+    assert block["shareable_types"] == ["MutationError"]
+
+
+def test_federation_plain_entity_has_no_directive_keys():
+    # Guards the byte-exact entity contract (see test_export_schema_federation_json):
+    # an entity with no directives stays exactly {name, key_fields}.
+    @fraiseql.type
+    class User:
+        id: ID
+        name: str
+
+    fed = fraiseql.Federation(service_name="users")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    user = next(e for e in block["entities"] if e["name"] == "User")
+    assert user == {"name": "User", "key_fields": ["id"]}
+
+
+def test_federation_no_shareable_types_key_when_none():
+    @fraiseql.type
+    class User:
+        id: ID
+
+    fed = fraiseql.Federation(service_name="users")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    assert "shareable_types" not in block
+
+
+def test_federation_emits_version_string():
+    # The Rust core FederationConfig reads `version` (the @link spec URL); the legacy
+    # int `apollo_version` is ignored there. Emit both.
+    @fraiseql.type
+    class User:
+        id: ID
+
+    fed = fraiseql.Federation(service_name="users")
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    assert block["version"] == "v2"

@@ -17,31 +17,87 @@ from typing import Any
 from fraiseql.registry import SchemaRegistry
 
 
+def _fields_with_directive(type_def: dict[str, Any], directive: str) -> list[str]:
+    """Names of the type's fields carrying the given field-level federation directive.
+
+    Field-level directives are recorded on each field's ``federation`` sub-dict by
+    ``field(external=...)`` / ``field(shareable=...)`` etc.
+    """
+    return [
+        field["name"]
+        for field in type_def.get("fields", [])
+        if field.get("federation", {}).get(directive)
+    ]
+
+
 def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> dict[str, Any]:
     """Build the ``federation`` block for schema output.
 
+    Derives the per-entity directive lists (#496) the Rust compiler/SDL renderer
+    consumes from the per-type/field decorators, so a project never has to
+    hand-author them:
+
+    - ``entities[].extends`` from ``@type(extends=True)``;
+    - ``entities[].external_fields`` from ``field(external=True)``;
+    - ``entities[].shareable_fields`` from ``field(shareable=True)``;
+    - top-level ``shareable_types`` from ``@type(shareable=True)`` /
+      ``@error(shareable=True)`` — keyless value types that are excluded from the
+      ``_Entity`` union and carry a type-level ``@shareable``.
+
+    A plain entity with no directives stays exactly ``{name, key_fields}`` so the
+    common case is byte-for-byte unchanged.
+
     Args:
         federation: Federation metadata from the caller.
-        schema: The full schema dict (used to iterate types).
+        schema: The full schema dict (used to iterate types and their fields).
 
     Returns:
         Dictionary suitable for inclusion as ``schema["federation"]``.
     """
     entities: list[dict[str, Any]] = []
+    shareable_types: list[str] = []
     for type_def in schema.get("types", []):
-        # Skip error types
+        name = type_def["name"]
+
+        # Type-level @shareable → a keyless shared value type, not an entity. (The
+        # Rust renderer gives it a type-level @shareable and keeps it out of the
+        # _Entity union.) Covers shareable error/value types too.
+        if type_def.get("shareable"):
+            shareable_types.append(name)
+            continue
+
+        # Non-shareable error types stay out of the federation graph entirely.
         if type_def.get("is_error"):
             continue
-        key_fields = type_def.get("key_fields", federation.default_key_fields)
-        entities.append({"name": type_def["name"], "key_fields": key_fields})
+
+        entity: dict[str, Any] = {
+            "name": name,
+            "key_fields": type_def.get("key_fields", federation.default_key_fields),
+        }
+        # Additive keys only when set, so the no-directive entity is unchanged.
+        if type_def.get("extends"):
+            entity["extends"] = True
+        external_fields = _fields_with_directive(type_def, "external")
+        if external_fields:
+            entity["external_fields"] = external_fields
+        shareable_fields = _fields_with_directive(type_def, "shareable")
+        if shareable_fields:
+            entity["shareable_fields"] = shareable_fields
+        entities.append(entity)
 
     apollo_version = 2 if federation.version == "v2" else 1
-    return {
+    block: dict[str, Any] = {
         "enabled": True,
         "service_name": federation.service_name,
+        # The Rust core FederationConfig reads `version` (the @link spec URL); the
+        # legacy int `apollo_version` is kept for back-compat but ignored there.
+        "version": federation.version,
         "apollo_version": apollo_version,
         "entities": entities,
     }
+    if shareable_types:
+        block["shareable_types"] = shareable_types
+    return block
 
 
 def _validate_schema_before_export(schema: dict[str, Any]) -> None:
