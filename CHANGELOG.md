@@ -25,6 +25,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Postgres-only; when on, an unbacked source fails boot with the precise list instead
     of a later per-request 500. Once `validate --against-db` is wired into CI this
     subsumes the existence half of the bespoke `check_management_drift.py` gate.
+- **`after:mutation` function triggers now dispatch after commit (#460).** An
+  `after:mutation:<entity>:<op>` function trigger was parsed, registered, and surfaced in
+  the `TriggerRegistry`, but the server had zero call sites for
+  `find_after_mutation_triggers` — a registered after-mutation function silently never ran,
+  while `before:mutation` already ran inline on the request path. The server now plans and
+  dispatches matching triggers after a mutation commits (new always-compiled
+  `routes::after_mutation` module with a pure, unit-tested `plan_after_mutation_dispatch`),
+  bringing `after:mutation` to parity with `before:mutation`. Invocation is gated on the
+  `runtime-wasm` feature via a new `FunctionObserver::invoke_with_context`, which runs the
+  function on a full I/O-capable host context rather than the sync-only snapshot.
+- **Per-subscription webhook `signing_secret` literal (#467).** The webhook action could
+  previously sign only with `signing_secret_env` — the *name* of a process environment
+  variable — so a DB-backed / admin-API-managed observer store (`tb_observer`) could not
+  carry a distinct HMAC secret per subscription, collapsing multi-tenant webhook signing to
+  one shared process secret. An optional `signing_secret` literal now sits alongside
+  `signing_secret_env` (mirroring the existing `url` / `url_env` pattern and rounding
+  through the `actions` JSONB), so each dynamically-managed subscription can sign with its
+  own key while the static/config case keeps using the env-var form.
+- **`doctor --against-db` now reports mutation→function contract drift (#384).** The "does
+  every declared mutation have a callable backing function with a `mutation_response`-shaped
+  return?" check previously lived only in `validate --against-db`; a declared mutation with
+  no (or a mismatched) backing function surfaced only as a runtime "failed to prepare",
+  never at check time. `doctor` now runs the same static check (reusing the
+  `validate_mutation_contract` engine), so the single live-DB pass reports change-log / RLS
+  / grant / capture drift, PL/pgSQL body resolution, **and** mutation→function contract
+  drift.
 
 ### Fixed
 
@@ -143,6 +169,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SQLSTATE 42883) that names the offending object — making server↔database contract
   drift undiagnosable from logs. The diagnostic is now extracted into the message (the
   SQL state was already populated); client-facing error sanitization is unchanged.
+- **Mutation input keys are now recased to snake_case across every transport (#456).** A
+  camelCase `input` payload reached the SQL function verbatim on several mutation paths, so
+  a function reading `p_input->>'snake_field'` silently saw `NULL` instead of erroring. Root
+  cause: the compiler emits an input-type argument as `FieldType::Object(name)` — never
+  `FieldType::Input`, which the compile pipeline never constructs — so the runtime's
+  single-JSONB / flatten detection, which keyed only on `FieldType::Input`, fell through to
+  the verbatim-forward path. The single-JSONB path now recognizes a single `input` arg of
+  `FieldType::Object(<registered input type>)` and recases its keys with the engine's
+  acronym-aware `to_snake_case` (`s3Key`→`s3_key`, `dns1Id`→`dns_1_id`), matching the read
+  path so writes round-trip exactly as reads. The gRPC mutation path
+  (`execute_grpc_mutation`), which bypassed `recase_input_payload`, now applies the same
+  recursive recasing, and the SQLite DirectSql `direct_columns` list is recased too.
+  TomlSchema's `naming_convention` now defaults to `CamelCase` (matching the JSON-schema
+  compile path; `preserve` still opts out explicitly), and a new compile-time warning flags
+  a `preserve` schema whose single-JSONB mutation takes a camelCase-looking declared input
+  type.
+- **Observer admin CRUD writes now refresh the in-process matcher (#466).** The
+  `/api/observers` admin API persisted create/update/delete/enable/disable writes to
+  `tb_observer` but never refreshed the in-process `EventMatcher`, so an edit was a silent
+  no-op until a separate `runtime/reload`, a listener restart, or a periodic poll. The
+  success arm of each write now invokes the existing atomic `ObserverRuntime::reload_observers()`
+  (`ArcSwap`) through a new optional runtime handle on `ObserverState`. The same change also
+  repairs a `reload_observers()` failure on `actions` JSONB that stored `"headers": null`
+  (the server API struct serialized `None` headers as explicit `null`, which the runtime
+  struct's deserializer rejected with `invalid type: null, expected a map`); the runtime
+  reader now maps an explicit `null` to an empty map, fixing existing rows too.
+- **Startup now warns when `[observers]` is configured but the feature is not built (#469).**
+  When `fraiseql-server` is built without the optional `observers` feature, a populated
+  `[observers]` config section was silently parsed-and-discarded by serde — the runtime
+  never started and `/api/observers` returned 404 with no signal as to why (the
+  `ServerConfig.observers` field is `#[cfg(feature)]`-gated, so the deserialized config
+  cannot reveal the discrepancy). The server now re-reads the raw TOML at startup and emits
+  a clear, actionable warning when a top-level `[observers]` table is present on a binary
+  built without the feature.
 
 ## [2.9.0] - 2026-06-22
 
