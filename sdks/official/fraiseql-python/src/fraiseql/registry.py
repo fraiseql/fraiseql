@@ -84,6 +84,7 @@ class SchemaRegistry:
         sql_source: str | None = None,
         key_fields: list[str] | None = None,
         extends: bool = False,
+        shareable: bool = False,
         subscribable_tables: list[str] | None = None,
         subscribable_pre_image: bool = False,
     ) -> None:
@@ -144,6 +145,12 @@ class SchemaRegistry:
 
         if extends:
             type_def["extends"] = True
+
+        # #496: type-level @shareable marks a keyless value type that every subgraph
+        # may define identically (e.g. a shared MutationError). The compiler lifts
+        # these into the federation block's `shareable_types`; emitted only when set.
+        if shareable:
+            type_def["shareable"] = True
 
         # #366: emit only when non-empty (snake_case, like requires_role); the
         # compiler reads it from the type JSON and aggregates the capture-trigger

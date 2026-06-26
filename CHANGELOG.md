@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
+  Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
+  declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim
+  (`datetime`), so the reference dangled (`Unknown type datetime`); declarations are now
+  collected from the exact rendered field names (covering `LTree`, `FloatRange`, lowercase
+  date/time scalars). (2) the generated rich-filter `*WhereInput` types declared `eq`
+  twice — the standard operator set was hardcoded and the type's operator set (which also
+  contains `eq`) was appended — producing an invalid input type (`Field eq already
+  exists`); the generated fields are now de-duplicated by name. A FraiseQL subgraph's SDL
+  now composes through a gateway with zero consumer-side workarounds.
+- **Federation `_service` SDL is now type-complete.** Building on the root-operations
+  fix, the generated SDL rendered only object types and the root `Query`/`Mutation` —
+  it omitted input objects, enums, non-built-in scalar declarations (`DateTime`,
+  `JSON`, `Decimal`, rich/custom scalars), and synthesized mutation result unions. A
+  gateway composing a subgraph whose operations referenced those types failed with
+  `Unknown type CreateQuoteInput` (and the like). `raw_schema()` now renders the full
+  type closure — `scalar`/`enum`/`interface`/`input`/`union` declarations alongside the
+  object types and root operations — so a FraiseQL subgraph composes without
+  consumer-side scalar stubs. The federation `@link` directive definition was also
+  corrected (`for: String` → `for: link__Purpose`, with the supporting `link__Purpose`
+  enum and `link__Import` scalar), which composers were rejecting.
+- **Federation `_service` SDL now advertises root operations.** A subgraph's
+  `_service { sdl }` (and the `/schema` SDL endpoint) is generated from
+  `CompiledSchema::raw_schema()`, which only rendered object types — FraiseQL keeps
+  root operations in `queries`/`mutations`, not as `Query`/`Mutation` object types, so
+  the emitted SDL exposed **no root fields**. A gateway composing that SDL (Apollo
+  Router, Hive Router — both read `_service.sdl`) failed with `NO_QUERIES`, making
+  FraiseQL subgraphs uncomposable despite advertising their entities and `@key`s. The
+  generated SDL now renders the root `type Query`/`type Mutation` from `queries`/
+  `mutations` with correct argument and list/nullable signatures, so subgraphs compose
+  into a working supergraph. (Router-independent; the fix is upstream of the gateway.)
+- **`fraiseql compile` no longer drops the `federation` block.** Schemas authored
+  with federation enabled (e.g. the Python SDK's `export_schema(federation=...)`)
+  emit the configuration under the top-level `federation` key, but the compiler only
+  bound `federation_config` — so the legacy JSON workflow silently produced a
+  non-federated `schema.compiled.json` (`jq 'has("federation")'` ⇒ `false`), and the
+  server it loaded never advertised itself as a subgraph (`_service` / SDL absent).
+  `IntermediateSchema.federation_config` now also binds the `federation` key (serde
+  alias), so the block carries through to `CompiledSchema.federation` and the
+  compiled subgraph serves a proper Apollo Federation v2 `_service { sdl }`. The TOML
+  (`[federation]`) workflow already carried through the merger and is unchanged. As a
+  guardrail against a future silent regression, the legacy JSON path now fails the
+  compile if a non-empty input `federation` block does not bind into the schema.
+- **TOML `[federation]` now carries the subgraph identity.** The `[federation]`
+  section gained `service_name`, `version` (Apollo spec string, e.g. `"v2"`), and
+  `schema_url`; the legacy integer `apollo_version` is still accepted (`2` ⇒ `"v2"`,
+  and `version` wins when both are set). The merger now lowers the TOML config into the
+  compiled shape explicitly, so `service_name`/`version` and per-entity circuit-breaker
+  overrides (`[[federation.circuit_breaker.per_database]]` ⇒ runtime `per_entity`) reach
+  the runtime instead of being silently dropped on a field-name mismatch.
+
 ## [2.10.0] - 2026-06-26
 
 ### Added

@@ -15,7 +15,14 @@ directive @provides(fields: String!) on FIELD_DEFINITION
 directive @shareable on FIELD_DEFINITION | OBJECT
 directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @override(from: String!) on FIELD_DEFINITION
-directive @link(url: String!, as: String, for: String, import: [String]) repeatable on SCHEMA
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+scalar link__Import
 
 type _Service {
   sdl: String!
@@ -303,8 +310,15 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
     sdl.push_str(FEDERATION_SCHEMA);
     sdl.push('\n');
 
-    // _Entity union
-    let entity_types: Vec<&str> = metadata.types.iter().map(|t| t.name.as_str()).collect();
+    // _Entity union — only true entities (those with a `@key`) are resolvable via
+    // `_entities`. `@shareable` value types carry no key and must NOT appear here, or
+    // composition rejects a union member with no key.
+    let entity_types: Vec<&str> = metadata
+        .types
+        .iter()
+        .filter(|t| !t.keys.is_empty())
+        .map(|t| t.name.as_str())
+        .collect();
     if entity_types.is_empty() {
         sdl.push_str("union _Entity\n");
     } else {

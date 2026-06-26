@@ -589,12 +589,14 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationServerStorage(ctx, source)
 	case "federation":
 		return m.integrationFederation(ctx, source)
+	case "federation-compose":
+		return m.integrationFederationCompose(ctx, source)
 	case "cross-db":
 		return m.integrationCrossDb(ctx, source)
 	case "saml":
 		return m.integrationSaml(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, cross-db, saml)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, federation-compose, cross-db, saml)", suite)
 	}
 }
 
@@ -666,6 +668,39 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationFederationCompose is the real-composer half of the golden two-subgraph
+// federation suite (the #495/#496/#497/#498 cluster). It composes the committed
+// FraiseQL-rendered subgraph SDLs with Apollo Federation v2 composition
+// (@apollo/composition — the engine `rover supergraph compose` wraps) and asserts the
+// positive case composes cleanly and the #497 two-change-log-owner case is rejected with
+// INVALID_FIELD_SHARING. Node-only — no Rust, no DB.
+//
+// This is the step the old federation leg never ran: it routed a *pre-composed, committed*
+// single-subgraph supergraph, so a broken subgraph SDL (missing scalar, dropped directive,
+// snake_case change-log) sailed through. The committed SDL fixtures here are kept in
+// lock-step with live FraiseQL rendering by the hermetic Rust test `federation_compose`,
+// which runs in the postgres integration leg's `--test '*'` sweep (federation feature).
+//
+// Built on shellBase (the ghcr-mirrored ubuntu image, not Docker Hub) + apt nodejs/npm, so
+// it adds no new base image. `run-compose-check.sh` restores deps via `npm ci` from the
+// committed lockfile.
+func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *dagger.Directory) (string, error) {
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### node: $(node --version) / npm: $(npm --version)\"",
+		"echo '### integration: federation-compose (Apollo Federation v2 composition of FraiseQL-rendered subgraph SDLs)'",
+		"bash tools/federation/run-compose-check.sh",
+		"echo 'test-integration OK: federation-compose suite passed'",
+	}, "\n")
+
+	return m.shellBase().
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "nodejs", "npm"}).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

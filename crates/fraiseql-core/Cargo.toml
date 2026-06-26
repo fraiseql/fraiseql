@@ -39,6 +39,10 @@ harness = true
 name = "memory_profile"
 required-features = ["dhat-heap"]
 
+[[example]]
+name = "fed_sdl"
+required-features = ["federation"]
+
 [dependencies]
 ahash = {workspace = true}
 # Arrow Flight integration (optional)

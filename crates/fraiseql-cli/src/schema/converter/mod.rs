@@ -242,6 +242,24 @@ impl SchemaConverter {
                      the observer system."
                 );
             }
+            // #497: the change-log surface is a per-database stream, not a federated
+            // value type — the injected `EntityChangeLog` type and `entity_change_logs`
+            // root query are not `@shareable`. Two subgraphs in one supergraph that both
+            // `expose` it inject the identical type/root field, which `rover supergraph
+            // compose` rejects with INVALID_FIELD_SHARING. We can't detect the collision
+            // here (each subgraph compiles alone), so warn on the federated+exposed combo
+            // and point at the single-owner pattern. This is a reminder, not an error —
+            // the owning subgraph legitimately sets both.
+            if cl.expose && compiled.federation.as_ref().is_some_and(|f| f.enabled) {
+                warn!(
+                    "[changelog] expose = true on a federation subgraph: EntityChangeLog / \
+                     entity_change_logs are not @shareable, so expose the change-log in exactly \
+                     one subgraph per supergraph (others keep capturing via [changelog] \
+                     write_enabled). Two exposing subgraphs fail `rover supergraph compose` with \
+                     INVALID_FIELD_SHARING. See the changelog-graphql guide for the single-owner \
+                     pattern."
+                );
+            }
         }
 
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).

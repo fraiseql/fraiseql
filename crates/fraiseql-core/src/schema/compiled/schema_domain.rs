@@ -120,23 +120,56 @@ impl CompiledSchema {
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
-            let types = fed
+            use crate::federation::types::{FederatedType, FieldFederationDirectives, KeyDirective};
+
+            // Entities carry an `@key` (and, for an extended entity, `extend type` +
+            // `@external` on the borrowed key/fields). Per-field directives are
+            // rebuilt from the entity's `external_fields` / `shareable_fields` so the
+            // SDL renderer can append `@external` / `@shareable` to each field line.
+            let mut types: Vec<FederatedType> = fed
                 .entities
                 .iter()
-                .map(|e| crate::federation::types::FederatedType {
-                    name:                e.name.clone(),
-                    keys:                vec![crate::federation::types::KeyDirective {
-                        fields:     e.key_fields.clone(),
-                        resolvable: true,
-                    }],
+                .map(|e| {
+                    let mut field_directives: HashMap<String, FieldFederationDirectives> =
+                        HashMap::new();
+                    for f in &e.external_fields {
+                        field_directives.entry(f.clone()).or_default().external = true;
+                    }
+                    for f in &e.shareable_fields {
+                        field_directives.entry(f.clone()).or_default().shareable = true;
+                    }
+                    FederatedType {
+                        name:                e.name.clone(),
+                        keys:                vec![KeyDirective {
+                            fields:     e.key_fields.clone(),
+                            resolvable: true,
+                        }],
+                        is_extends:          e.extends,
+                        external_fields:     e.external_fields.clone(),
+                        shareable_fields:    e.shareable_fields.clone(),
+                        inaccessible_fields: Vec::new(),
+                        field_directives,
+                        type_shareable:      false,
+                    }
+                })
+                .collect();
+
+            // Non-entity `@shareable` value types (e.g. a shared `MutationError`):
+            // no `@key`, never a member of the `_Entity` union — they only receive a
+            // type-level `@shareable` so both subgraphs can define the identical type
+            // without an `INVALID_FIELD_SHARING` composition error.
+            for name in &fed.shareable_types {
+                types.push(FederatedType {
+                    name:                name.clone(),
+                    keys:                Vec::new(),
                     is_extends:          false,
                     external_fields:     Vec::new(),
                     shareable_fields:    Vec::new(),
                     inaccessible_fields: Vec::new(),
-                    field_directives:    std::collections::HashMap::new(),
-                    type_shareable:      false,
-                })
-                .collect();
+                    field_directives:    HashMap::new(),
+                    type_shareable:      true,
+                });
+            }
 
             crate::federation::FederationMetadata {
                 enabled: fed.enabled,
@@ -273,14 +306,81 @@ impl CompiledSchema {
     ///
     /// # Returns
     ///
-    /// Raw schema string if available, otherwise generates from type definitions
+    /// Raw schema string if available, otherwise generates from type definitions,
+    /// including the root `Query`/`Mutation` types.
+    ///
+    /// Root operations are stored in [`self.queries`](Self::queries) /
+    /// [`self.mutations`](Self::mutations) rather than as `Query`/`Mutation` object
+    /// types in [`self.types`](Self::types), so they are rendered here explicitly.
+    /// Omitting them produces an SDL that advertises no root fields — which makes the
+    /// federation `_service` SDL (built from this output) fail gateway composition
+    /// with `NO_QUERIES`.
     #[must_use]
     pub fn raw_schema(&self) -> String {
         self.schema_sdl.clone().unwrap_or_else(|| {
             // Generate basic SDL from type definitions if not provided
             let mut sdl = String::new();
 
-            // Add types
+            // Non-built-in scalar declarations. The rendered operations and fields
+            // reference custom and standard-but-non-built-in scalars (`DateTime`,
+            // `JSON`, `Decimal`, rich scalars, …); a gateway composing the subgraph
+            // reports `Unknown type` for any it isn't declared.
+            for name in self.referenced_scalars() {
+                let _ = writeln!(sdl, "scalar {name}");
+            }
+            if !self.enums.is_empty()
+                || !self.interfaces.is_empty()
+                || !self.input_types.is_empty()
+                || !self.unions.is_empty()
+                || !self.types.is_empty()
+            {
+                sdl.push('\n');
+            }
+
+            // Enum types
+            for enum_def in &self.enums {
+                let _ = writeln!(sdl, "enum {} {{", enum_def.name);
+                for value in &enum_def.values {
+                    let _ = writeln!(sdl, "  {}", value.name);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Interface types
+            for iface in &self.interfaces {
+                let _ = writeln!(sdl, "interface {} {{", iface.name);
+                for field in &iface.fields {
+                    let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Input object types (`field_type` is a pre-rendered GraphQL string;
+            // normalise the trailing non-null marker against the `nullable` flag).
+            for input in &self.input_types {
+                let _ = writeln!(sdl, "input {} {{", input.name);
+                for field in &input.fields {
+                    let base = field.field_type.trim_end_matches('!');
+                    let non_null = if field.nullable { "" } else { "!" };
+                    let _ = writeln!(sdl, "  {}: {base}{non_null}", field.name);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Union types (covers synthesized mutation result unions)
+            for union_def in &self.unions {
+                let _ = writeln!(
+                    sdl,
+                    "union {} = {}",
+                    union_def.name,
+                    union_def.member_types.join(" | ")
+                );
+            }
+            if !self.unions.is_empty() {
+                sdl.push('\n');
+            }
+
+            // Add output/object types
             for type_def in &self.types {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
                 for field in &type_def.fields {
@@ -289,8 +389,127 @@ impl CompiledSchema {
                 sdl.push_str("}\n\n");
             }
 
+            // Root Query type (rendered from `self.queries`, never present in `types`)
+            if !self.queries.is_empty() {
+                sdl.push_str("type Query {\n");
+                for q in &self.queries {
+                    let _ = writeln!(
+                        sdl,
+                        "  {}",
+                        render_operation_field(
+                            &q.name,
+                            &q.arguments,
+                            &q.return_type,
+                            q.returns_list,
+                            q.nullable,
+                        )
+                    );
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Root Mutation type (rendered from `self.mutations`). Mutation payloads
+            // are single, non-null values, so they render as `Name(args): Return!`.
+            if !self.mutations.is_empty() {
+                sdl.push_str("type Mutation {\n");
+                for m in &self.mutations {
+                    let _ = writeln!(
+                        sdl,
+                        "  {}",
+                        render_operation_field(&m.name, &m.arguments, &m.return_type, false, false)
+                    );
+                }
+                sdl.push_str("}\n\n");
+            }
+
             sdl
         })
+    }
+
+    /// Collect the non-built-in scalar type names the schema references, so
+    /// [`raw_schema`](Self::raw_schema) can declare each one (`scalar Name`) and the
+    /// SDL is type-complete.
+    ///
+    /// A referenced type is treated as a scalar to declare when it is neither a
+    /// built-in GraphQL scalar nor a type the schema defines as an object, enum,
+    /// input, interface, or union. Names are collected **exactly as the fields render
+    /// them** (the verbatim leaf of each field/argument type and each operation return
+    /// type) so the declaration and the reference always agree — declaring a canonical
+    /// alias (`DateTime`) while a field renders `datetime` would leave the reference
+    /// dangling (`Unknown type datetime`). The custom-scalar registry is also included.
+    /// The federation `_Any`/`_Entity`/`_Service`/`_FieldSet` built-ins (supplied by the
+    /// federation layer) are excluded.
+    fn referenced_scalars(&self) -> Vec<String> {
+        use std::collections::{BTreeSet, HashSet};
+
+        const BUILTINS: [&str; 5] = ["String", "Int", "Float", "Boolean", "ID"];
+        const FED_BUILTINS: [&str; 4] = ["_Any", "_Entity", "_Service", "_FieldSet"];
+
+        // Names the schema defines as composite types — never re-declared as scalars.
+        let mut defined: HashSet<&str> = HashSet::new();
+        for t in &self.types {
+            defined.insert(t.name.as_str());
+        }
+        for e in &self.enums {
+            defined.insert(e.name.as_str());
+        }
+        for i in &self.input_types {
+            defined.insert(i.name.as_str());
+        }
+        for i in &self.interfaces {
+            defined.insert(i.name.as_str());
+        }
+        for u in &self.unions {
+            defined.insert(u.name.as_str());
+        }
+
+        // Every type reference, collected as the verbatim leaf name fields render.
+        let mut referenced: BTreeSet<String> = BTreeSet::new();
+        let add = |rendered: &str, set: &mut BTreeSet<String>| {
+            let leaf = leaf_type_name(rendered);
+            if !leaf.is_empty() {
+                set.insert(leaf);
+            }
+        };
+        for type_def in &self.types {
+            for field in &type_def.fields {
+                add(&field.field_type.to_string(), &mut referenced);
+            }
+        }
+        for iface in &self.interfaces {
+            for field in &iface.fields {
+                add(&field.field_type.to_string(), &mut referenced);
+            }
+        }
+        for query in &self.queries {
+            for arg in &query.arguments {
+                add(&arg.arg_type.to_string(), &mut referenced);
+            }
+            add(&query.return_type, &mut referenced);
+        }
+        for mutation in &self.mutations {
+            for arg in &mutation.arguments {
+                add(&arg.arg_type.to_string(), &mut referenced);
+            }
+            add(&mutation.return_type, &mut referenced);
+        }
+        for input in &self.input_types {
+            for field in &input.fields {
+                add(&field.field_type, &mut referenced);
+            }
+        }
+        for (name, _) in self.custom_scalars.list_all() {
+            referenced.insert(name);
+        }
+
+        referenced
+            .into_iter()
+            .filter(|name| {
+                !defined.contains(name.as_str())
+                    && !BUILTINS.contains(&name.as_str())
+                    && !FED_BUILTINS.contains(&name.as_str())
+            })
+            .collect()
     }
 
     /// Validate the schema for internal consistency.
@@ -360,6 +579,45 @@ impl CompiledSchema {
             Err(errors)
         }
     }
+}
+
+/// Render a root operation as a GraphQL SDL field: `name(arg: T!, …): Return`.
+///
+/// `return_type` is a bare type name; list-ness and nullability are applied here so
+/// the rendered signature matches GraphQL conventions (`[User!]!`, `User`, `User!`).
+fn render_operation_field(
+    name: &str,
+    arguments: &[crate::schema::ArgumentDefinition],
+    return_type: &str,
+    returns_list: bool,
+    nullable: bool,
+) -> String {
+    let non_null = if nullable { "" } else { "!" };
+    let ret = if returns_list {
+        format!("[{return_type}!]{non_null}")
+    } else {
+        format!("{return_type}{non_null}")
+    };
+    if arguments.is_empty() {
+        return format!("{name}: {ret}");
+    }
+    let args = arguments
+        .iter()
+        .map(|a| format!("{}: {}{}", a.name, a.arg_type, if a.nullable { "" } else { "!" }))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}({args}): {ret}")
+}
+
+/// Strip GraphQL list and non-null markers from a rendered type string, leaving the
+/// bare leaf type name: `[User!]!` → `User`, `datetime` → `datetime`.
+fn leaf_type_name(rendered: &str) -> String {
+    rendered
+        .chars()
+        .filter(|c| !matches!(c, '[' | ']' | '!'))
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 /// Check if a type name is a built-in scalar type.

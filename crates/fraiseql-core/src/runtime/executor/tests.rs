@@ -515,6 +515,7 @@ mod entities_authz {
             entities: vec![FederationEntity {
                 name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
+                ..Default::default()
             }],
             ..Default::default()
         });

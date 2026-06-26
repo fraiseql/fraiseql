@@ -169,9 +169,28 @@ pub async fn compile_to_schema(
         info!("Using legacy JSON workflow");
         let schema_json = fs::read_to_string(input_path).context("Failed to read schema.json")?;
 
-        // 2. Parse JSON into IntermediateSchema (language-agnostic format)
+        // 2. Parse JSON into IntermediateSchema (language-agnostic format). Parse via Value first
+        //    so we can detect a federation block that the SDK emitted but that failed to bind into
+        //    the schema (the silent-drop class this issue fixed): the block must carry through or
+        //    fail loudly, never vanish into a non-federated subgraph.
         info!("Parsing intermediate schema...");
-        serde_json::from_str(&schema_json).context("Failed to parse schema.json")?
+        let raw: serde_json::Value =
+            serde_json::from_str(&schema_json).context("Failed to parse schema.json")?;
+        let input_has_federation = ["federation", "federation_config"].iter().any(|key| {
+            raw.get(*key)
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|o| !o.is_empty())
+        });
+        let intermediate: IntermediateSchema =
+            serde_json::from_value(raw).context("Failed to parse schema.json")?;
+        if input_has_federation && intermediate.federation_config.is_none() {
+            anyhow::bail!(
+                "schema.json carries a `federation` block that did not bind into the compiled \
+                 schema — refusing to compile a silently non-federated subgraph. This is a \
+                 compiler bug; please report it."
+            );
+        }
+        intermediate
     };
 
     // 2a. Load and apply security configuration from fraiseql.toml if it exists.

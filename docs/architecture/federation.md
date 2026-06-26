@@ -169,13 +169,29 @@ fraiseql-server = { version = "2", features = ["federation"] }
 # fraiseql.toml
 [federation]
 enabled = true
+service_name = "users"   # subgraph name (Apollo Studio / subgraph listing)
+version = "v2"           # Apollo Federation spec version (defaults to "v2")
+# schema_url = "https://users.example.com/graphql"  # optional, for /__subgraph_schema
+
+# Entities this subgraph owns and their key fields.
+[[federation.entities]]
+name = "User"
+key_fields = ["id"]
 
 [federation.circuit_breaker]
 enabled = true
 failure_threshold = 5
 recovery_timeout_secs = 30
 success_threshold = 2
+
+# Optional per-entity overrides (entity name must match a federation entity).
+[[federation.circuit_breaker.per_database]]
+database = "User"
+failure_threshold = 10
 ```
+
+> The legacy integer form `apollo_version = 2` is still accepted (`2` ⇒ `"v2"`);
+> prefer the `version` string. When both are set, `version` wins.
 
 ## Related Docs
 

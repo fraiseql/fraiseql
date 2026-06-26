@@ -11,6 +11,36 @@
 use fraiseql_cli::schema::{converter::SchemaConverter, intermediate::IntermediateSchema};
 use fraiseql_core::schema::NamingConvention;
 
+/// Test: generated `*WhereInput` types must not declare a field twice.
+///
+/// The standard operators (`eq`, `neq`, …) are hardcoded and the type's operator set
+/// was also appended, so any overlap (notably `eq`) emitted the field twice — an
+/// invalid GraphQL input type (`Field eq already exists`) that breaks federation
+/// composition once inputs are rendered into the SDL.
+#[test]
+fn rich_filter_where_inputs_have_no_duplicate_fields() {
+    let compiled = SchemaConverter::convert(IntermediateSchema::default())
+        .expect("Compilation should succeed");
+
+    for input in &compiled.input_types {
+        let mut seen = std::collections::HashSet::new();
+        for field in &input.fields {
+            assert!(
+                seen.insert(field.name.as_str()),
+                "duplicate field `{}` on generated input type `{}`",
+                field.name,
+                input.name
+            );
+        }
+    }
+
+    // Sanity: the scalar-filter WhereInputs from the bug report were generated.
+    assert!(
+        compiled.input_types.iter().any(|t| t.name == "TimezoneWhereInput"),
+        "TimezoneWhereInput should be generated"
+    );
+}
+
 /// Test: Complete rich filter compilation pipeline
 #[test]
 fn test_rich_filter_compilation_pipeline() {

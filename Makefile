@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -650,6 +650,15 @@ test-federation: federation-up
 		EXIT=$$?; \
 		$(MAKE) federation-down; \
 		exit $$EXIT
+
+# Golden two-subgraph compose suite — no Docker. Verifies the committed subgraph SDL
+# fixtures still match live FraiseQL rendering (hermetic Rust test), then composes them
+# with real Apollo Federation v2 composition (positive + the #497 negative case). This
+# is the suite that would have caught the #495/#496/#497/#498 federation cluster.
+federation-compose-check:
+	@echo "=== Federation golden compose (SDL invariants + real composition) ==="
+	@cargo test -p fraiseql-core --test federation_compose --features federation
+	@bash tools/federation/run-compose-check.sh
 
 # ============================================================================
 # Legacy database commands (local PostgreSQL)

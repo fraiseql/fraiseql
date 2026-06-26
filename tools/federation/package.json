@@ -1,0 +1,14 @@
+{
+  "name": "fraiseql-federation-compose-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Composes FraiseQL-rendered subgraph SDLs with @apollo/composition (the Federation v2 engine `rover supergraph compose` wraps) to gate composition validity in CI.",
+  "scripts": {
+    "compose-check": "node compose-check.mjs"
+  },
+  "dependencies": {
+    "@apollo/composition": "^2.9.0",
+    "graphql": "^16.9.0"
+  }
+}
