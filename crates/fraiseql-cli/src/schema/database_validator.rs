@@ -17,7 +17,7 @@ use fraiseql_core::{
         DatabaseType,
         introspector::{DatabaseIntrospector, RelationInfo},
     },
-    schema::{CompiledSchema, FieldType},
+    schema::{CompiledSchema, FieldType, SourceKind, SourceProbe, sql_source_probes},
 };
 
 /// Report containing all database validation warnings and discovered metadata.
@@ -578,6 +578,54 @@ fn build_relation_maps(
     }
 
     (schema_qualified, unqualified)
+}
+
+/// Find every declared `sql_source` that is **not backed** by a live database
+/// object, over the shared [`sql_source_probes`] work-list (#487).
+///
+/// Resolution mirrors the runtime exactly: a query relation by `to_regclass`
+/// (qualified, verbatim) or the search_path-scoped relation map (bare); a mutation
+/// function via `pg_proc`. Returns the unbacked probes in declaration order — an
+/// empty vec means every source is backed. This is the existence gate the
+/// `validate --against-db` CLI and the opt-in server boot check share, so the two
+/// agree on "backed" by construction.
+///
+/// When the connector cannot probe a kind (non-Postgres), that source is treated
+/// as backed (skipped) rather than false-failed.
+///
+/// # Errors
+///
+/// Returns an error if database introspection fails.
+pub async fn find_unbacked_sources(
+    schema: &CompiledSchema,
+    introspector: &impl DatabaseIntrospector,
+) -> fraiseql_core::Result<Vec<SourceProbe>> {
+    let relations = introspector.list_relations().await?;
+    let (schema_qualified, unqualified) = build_relation_maps(&relations);
+
+    let mut unbacked = Vec::new();
+    for probe in sql_source_probes(schema) {
+        let exists = match probe.kind {
+            SourceKind::Function => introspector
+                .function_exists(probe.schema.as_deref(), &probe.name)
+                .await?
+                .unwrap_or(true),
+            SourceKind::Relation => {
+                if let Some(s) = &probe.schema {
+                    match introspector.qualified_relation_exists(s, &probe.name).await? {
+                        Some(exists) => exists,
+                        None => schema_qualified.contains_key(&(s.clone(), probe.name.clone())),
+                    }
+                } else {
+                    unqualified.contains_key(&probe.name)
+                }
+            },
+        };
+        if !exists {
+            unbacked.push(probe);
+        }
+    }
+    Ok(unbacked)
 }
 
 /// Validate JSON keys in sampled data for L3 checking.

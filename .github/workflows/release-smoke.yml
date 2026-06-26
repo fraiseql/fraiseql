@@ -136,6 +136,45 @@ jobs:
           fi
           echo "Root __typename probe smoke OK."
 
+      # #487: the default boot above runs with sql_source validation OFF (the
+      # production default). Boot a second time with it ON to prove the opt-in
+      # fail-fast check does not wedge boot on a fully-backed schema — the e2e
+      # fixture declares one source (`v_users`), created by init-postgres.sql.
+      - name: Stop server (flag-off run)
+        run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
+
+      - name: Boot with sql_source validation ON (#487)
+        run: |
+          ./target/release/fraiseql-server &
+          echo $! > /tmp/fraiseql-server.pid
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_BIND_ADDR: 127.0.0.1:8816
+          FRAISEQL_VALIDATE_SQL_SOURCES: "true"
+          FRAISEQL_INTROSPECTION_ENABLED: "true"
+          FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Wait for /health with sql_source validation ON
+        run: |
+          set -eu
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8816/health; then
+              echo
+              echo "Server booted healthy with FRAISEQL_VALIDATE_SQL_SOURCES=true after ~$((i * 1))s."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
+              echo "::error::server exited before /health with sql_source validation ON — the boot check rejected a backed fixture or wedged boot." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Timed out waiting for /health (sql_source validation ON) after 30s." >&2
+          exit 1
+
       - name: Stop server
         if: always()
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true

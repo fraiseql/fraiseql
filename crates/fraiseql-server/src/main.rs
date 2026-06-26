@@ -603,6 +603,25 @@ async fn run_postgres(
     cli: &Cli,
 ) -> anyhow::Result<()> {
     let adapter = build_postgres_adapter(&config).await?;
+
+    // #487: opt-in fail-fast existence check — every declared `sql_source` (query
+    // view / mutation function) must be backed by the database. Default OFF (the
+    // boot path is unchanged); when on, an unbacked source fails boot with a
+    // precise list instead of surfacing as an opaque per-request 500 later. Runs
+    // here, after the adapter exists, where schema + adapter coexist.
+    if config.validate_sql_sources {
+        let unbacked =
+            fraiseql_server::sql_source_check::find_unbacked_sources(&schema, adapter.as_ref())
+                .await?;
+        if !unbacked.is_empty() {
+            anyhow::bail!("{}", fraiseql_server::sql_source_check::format_unbacked(&unbacked));
+        }
+        tracing::info!(
+            sources = schema.queries.len() + schema.mutations.len(),
+            "sql_source validation passed: all declared sources are backed"
+        );
+    }
+
     let db_pool = build_observer_pool(&config).await?;
 
     // Wire `[storage.<name>]` into a mounted /storage/v1/* route group. Built
