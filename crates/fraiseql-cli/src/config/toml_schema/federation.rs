@@ -112,12 +112,14 @@ impl FederationConfig {
             version:         self.effective_version(),
             service_name:    self.service_name.clone(),
             schema_url:      self.schema_url.clone(),
+            shareable_types: Vec::new(),
             entities:        self
                 .entities
                 .iter()
                 .map(|e| core::FederationEntity {
                     name:       e.name.clone(),
                     key_fields: e.key_fields.clone(),
+                    ..Default::default()
                 })
                 .collect(),
             circuit_breaker: self.circuit_breaker.as_ref().map(|cb| core::CircuitBreakerConfig {

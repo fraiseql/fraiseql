@@ -1505,9 +1505,11 @@ fn test_roundtrip_serialization() {
         version:         Some("v2".to_string()),
         service_name:    Some("my-service".to_string()),
         schema_url:      None,
+        shareable_types: Vec::new(),
         entities:        vec![FederationEntity {
             name:       "User".to_string(),
             key_fields: vec!["id".to_string()],
+            ..Default::default()
         }],
         circuit_breaker: Some(CircuitBreakerConfig::default()),
     };

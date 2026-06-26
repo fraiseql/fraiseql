@@ -310,8 +310,15 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
     sdl.push_str(FEDERATION_SCHEMA);
     sdl.push('\n');
 
-    // _Entity union
-    let entity_types: Vec<&str> = metadata.types.iter().map(|t| t.name.as_str()).collect();
+    // _Entity union — only true entities (those with a `@key`) are resolvable via
+    // `_entities`. `@shareable` value types carry no key and must NOT appear here, or
+    // composition rejects a union member with no key.
+    let entity_types: Vec<&str> = metadata
+        .types
+        .iter()
+        .filter(|t| !t.keys.is_empty())
+        .map(|t| t.name.as_str())
+        .collect();
     if entity_types.is_empty() {
         sdl.push_str("union _Entity\n");
     } else {

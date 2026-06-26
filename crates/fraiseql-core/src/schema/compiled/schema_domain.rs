@@ -120,23 +120,56 @@ impl CompiledSchema {
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
-            let types = fed
+            use crate::federation::types::{FederatedType, FieldFederationDirectives, KeyDirective};
+
+            // Entities carry an `@key` (and, for an extended entity, `extend type` +
+            // `@external` on the borrowed key/fields). Per-field directives are
+            // rebuilt from the entity's `external_fields` / `shareable_fields` so the
+            // SDL renderer can append `@external` / `@shareable` to each field line.
+            let mut types: Vec<FederatedType> = fed
                 .entities
                 .iter()
-                .map(|e| crate::federation::types::FederatedType {
-                    name:                e.name.clone(),
-                    keys:                vec![crate::federation::types::KeyDirective {
-                        fields:     e.key_fields.clone(),
-                        resolvable: true,
-                    }],
+                .map(|e| {
+                    let mut field_directives: HashMap<String, FieldFederationDirectives> =
+                        HashMap::new();
+                    for f in &e.external_fields {
+                        field_directives.entry(f.clone()).or_default().external = true;
+                    }
+                    for f in &e.shareable_fields {
+                        field_directives.entry(f.clone()).or_default().shareable = true;
+                    }
+                    FederatedType {
+                        name:                e.name.clone(),
+                        keys:                vec![KeyDirective {
+                            fields:     e.key_fields.clone(),
+                            resolvable: true,
+                        }],
+                        is_extends:          e.extends,
+                        external_fields:     e.external_fields.clone(),
+                        shareable_fields:    e.shareable_fields.clone(),
+                        inaccessible_fields: Vec::new(),
+                        field_directives,
+                        type_shareable:      false,
+                    }
+                })
+                .collect();
+
+            // Non-entity `@shareable` value types (e.g. a shared `MutationError`):
+            // no `@key`, never a member of the `_Entity` union — they only receive a
+            // type-level `@shareable` so both subgraphs can define the identical type
+            // without an `INVALID_FIELD_SHARING` composition error.
+            for name in &fed.shareable_types {
+                types.push(FederatedType {
+                    name:                name.clone(),
+                    keys:                Vec::new(),
                     is_extends:          false,
                     external_fields:     Vec::new(),
                     shareable_fields:    Vec::new(),
                     inaccessible_fields: Vec::new(),
-                    field_directives:    std::collections::HashMap::new(),
-                    type_shareable:      false,
-                })
-                .collect();
+                    field_directives:    HashMap::new(),
+                    type_shareable:      true,
+                });
+            }
 
             crate::federation::FederationMetadata {
                 enabled: fed.enabled,

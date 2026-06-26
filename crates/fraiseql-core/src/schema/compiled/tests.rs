@@ -823,6 +823,7 @@ fn federation_metadata_some_when_enabled() {
         entities: vec![FederationEntity {
             name:       "User".to_string(),
             key_fields: vec!["id".to_string()],
+            ..Default::default()
         }],
         ..Default::default()
     });
@@ -1023,6 +1024,7 @@ fn service_sdl_advertises_root_query_fields() {
         entities: vec![FederationEntity {
             name:       "User".to_string(),
             key_fields: vec!["id".to_string()],
+            ..Default::default()
         }],
         ..Default::default()
     });

@@ -23,18 +23,36 @@ pub struct FederationConfig {
     /// Federated entities defined in this subgraph.
     #[serde(default)]
     pub entities:        Vec<FederationEntity>,
+    /// Non-entity object types that are `@shareable` across subgraphs (e.g. a shared
+    /// `MutationError` value type). Unlike `entities`, these carry no `@key` and are
+    /// not members of the `_Entity` union — they only receive a type-level
+    /// `@shareable` directive so two subgraphs can both define the identical type
+    /// without an Apollo Federation `INVALID_FIELD_SHARING` composition error.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shareable_types: Vec<String>,
     /// Circuit breaker configuration for federation fan-out requests.
     #[serde(default)]
     pub circuit_breaker: Option<CircuitBreakerConfig>,
 }
 
 /// Federated entity configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
     pub name:       String,
     /// Key fields that uniquely identify this entity.
     pub key_fields: Vec<String>,
+    /// This subgraph `extend`s an entity owned by another subgraph (renders
+    /// `extend type Name @key(...)` in the federation SDL).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub extends:         bool,
+    /// Fields that are `@external` — owned by another subgraph and only referenced
+    /// here (typically the `@key` field of an extended entity).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub external_fields: Vec<String>,
+    /// Fields that are `@shareable` — resolvable in more than one subgraph.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shareable_fields: Vec<String>,
 }
 
 /// Circuit breaker configuration for federation entity resolution.
