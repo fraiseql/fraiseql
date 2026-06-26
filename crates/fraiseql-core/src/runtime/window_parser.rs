@@ -487,7 +487,10 @@ impl WindowQueryParser {
                 let operator = WhereOperator::from_str(operator_str)?;
 
                 conditions.push(WhereClause::Field {
-                    path: vec![field.to_string()],
+                    // Recase the JSONB key so a camelCase window filter
+                    // (`organizationId_eq`) builds `data->>'organization_id'`
+                    // rather than a never-matching `organizationId` key (#486).
+                    path: vec![crate::utils::to_snake_case(field)],
                     operator,
                     value: value.clone(),
                 });

@@ -204,7 +204,12 @@ impl AggregateQueryParser {
                     }
                 } else {
                     WhereClause::Field {
-                        path: vec![field.to_string()],
+                        // Recase the JSONB key so a camelCase aggregate filter
+                        // (`organizationId_eq`) builds `data->>'organization_id'`
+                        // rather than a never-matching `organizationId` key (#486).
+                        // Only the non-native branch recases — the native lookup
+                        // above stays on the surface name (mirror `query_params`).
+                        path: vec![crate::utils::to_snake_case(field)],
                         operator,
                         value: value.clone(),
                     }
@@ -291,7 +296,13 @@ impl AggregateQueryParser {
                         // allowlist (which is skipped when `dimensions.paths` is empty).
                         validate_dimension_key(key)?;
                         selections.push(GroupBySelection::Dimension {
-                            path:  key.clone(),
+                            // The `path` is the JSONB extraction key → recase to
+                            // snake_case so a camelCase dimension (`machineStatus`)
+                            // groups by `data->>'machine_status'` (#486). The `alias`
+                            // is the result/response column name, consumed verbatim by
+                            // `AggregationProjector`, so it keeps the camel surface name
+                            // (the #418/#410 "output key is the alias" rule).
+                            path:  crate::utils::to_snake_case(key),
                             alias: key.clone(),
                         });
                     }
@@ -754,7 +765,7 @@ fn validate_dimension_key(key: &str) -> Result<()> {
 
 #[cfg(test)]
 mod alias_injection_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, clippy::panic)]
     use std::collections::HashMap;
 
     use super::*;
@@ -813,5 +824,26 @@ mod alias_injection_tests {
         let req = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())
             .expect("plain groupBy key must parse");
         assert_eq!(req.group_by.len(), 1);
+    }
+
+    #[test]
+    fn camel_group_by_dimension_recases_path_but_keeps_alias() {
+        // #486: a camelCase groupBy dimension must extract the snake_case JSONB key
+        // (`data->>'machine_status'`) so grouping actually buckets rows, while the
+        // alias stays the camel surface name because `AggregationProjector` uses it
+        // verbatim as the GraphQL response key (#418/#410 "output key is the alias").
+        let query = serde_json::json!({
+            "table": "tf_sales",
+            "groupBy": { "machineStatus": true }
+        });
+        let req = AggregateQueryParser::parse(&query, &empty_metadata(), &HashMap::new())
+            .expect("camel groupBy key must parse");
+        match req.group_by.as_slice() {
+            [GroupBySelection::Dimension { path, alias }] => {
+                assert_eq!(path, "machine_status", "path is the snake JSONB key");
+                assert_eq!(alias, "machineStatus", "alias is the camel response key");
+            },
+            other => panic!("expected a single Dimension, got {other:?}"),
+        }
     }
 }

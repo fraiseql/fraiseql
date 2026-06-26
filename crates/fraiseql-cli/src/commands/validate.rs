@@ -9,12 +9,16 @@
 use std::fs;
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{CompiledSchema, SchemaDependencyGraph};
+use fraiseql_core::schema::{CompiledSchema, SchemaDependencyGraph, SourceKind};
 use serde::Serialize;
 
 use crate::{
     output::CommandResult,
-    schema::{mutation_contract::validate_mutation_contract, pg_catalog::PgCatalog},
+    schema::{
+        database_validator::{create_introspector, find_unbacked_sources},
+        mutation_contract::validate_mutation_contract,
+        pg_catalog::PgCatalog,
+    },
 };
 
 /// Options for schema validation
@@ -212,8 +216,50 @@ pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()>
         report.print_text();
     }
 
-    if report.error_count() > 0 {
-        anyhow::bail!("mutation contract validation failed: {} error(s)", report.error_count());
+    // #487 existence gate: every declared `sql_source` (query relation / mutation
+    // function) must be backed by a live database object. Distinct, named output;
+    // turns "declared-but-unbacked → opaque per-request 500" into a loud CLI failure.
+    let introspector = create_introspector(db_url).await?;
+    let unbacked = find_unbacked_sources(&schema, &introspector).await?;
+    if !unbacked.is_empty() {
+        if json {
+            let list: Vec<_> = unbacked
+                .iter()
+                .map(|p| {
+                    serde_json::json!({
+                        "source": p.display_name(),
+                        "kind": match p.kind {
+                            SourceKind::Relation => "relation",
+                            SourceKind::Function => "function",
+                        },
+                    })
+                })
+                .collect();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "unbackedSources": list
+                }))?
+            );
+        } else {
+            eprintln!("\nUnbacked sql_source(s) — these will 500 at runtime:");
+            for probe in &unbacked {
+                let kind = match probe.kind {
+                    SourceKind::Relation => "relation",
+                    SourceKind::Function => "function",
+                };
+                eprintln!("  - {} ({kind}) does not exist", probe.display_name());
+            }
+        }
+    }
+
+    let mutation_errors = report.error_count();
+    if mutation_errors > 0 || !unbacked.is_empty() {
+        anyhow::bail!(
+            "validate --against-db failed: {mutation_errors} mutation-contract error(s), \
+             {} unbacked sql_source(s)",
+            unbacked.len()
+        );
     }
     Ok(())
 }

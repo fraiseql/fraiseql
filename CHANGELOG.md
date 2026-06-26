@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Opt-in fail-fast `sql_source` validation (#487).** A declared-but-unbacked
+  `sql_source` (a query view or mutation function that doesn't exist) used to surface
+  as an opaque per-request 500 while the server booted "healthy" — a bug an agent only
+  discovers by hitting it. Two new gates close that gap, both fed by the shared
+  `fraiseql_core::schema::sql_source_probes` work-list so they agree on "backed" by
+  construction:
+  - **CLI** — `validate --against-db` now runs an existence pass after the #397
+    mutation-contract check, printing a precise list of unbacked sources and **exiting
+    non-zero** when any are found (a CI/pre-push gate). Resolution mirrors the runtime
+    (qualified relations via `to_regclass` verbatim, functions via `pg_proc`).
+  - **Server** — an opt-in boot check (`validate_sql_sources` config key,
+    `--validate-sql-sources` flag, or `FRAISEQL_VALIDATE_SQL_SOURCES` env var; env/flag
+    win over the config key). **Default OFF** — boot is unchanged unless enabled.
+    Postgres-only; when on, an unbacked source fails boot with the precise list instead
+    of a later per-request 500. Once `validate --against-db` is wired into CI this
+    subsumes the existence half of the bespoke `check_management_drift.py` gate.
+
 ### Fixed
 
 - **`doctor --against-db` no longer emits two spurious reds on the Python-SDK flow (#488).**
@@ -18,6 +37,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is now syntax-only-parsed when `--schema` resolves to a compiled JSON, and only
   schema-parsed when `--schema` is itself a `.toml` source. Malformed TOML and unreachable
   databases still fail — the spurious reds are gone without masking real problems.
+- **`compile --database` no longer emits false "`sql_source … does not exist`" (#485).**
+  Two false-positives made the existence gate untrustworthy: (1) **every mutation** was
+  probed as a *relation* (`list_relations`, `search_path`-scoped) when a mutation's
+  `sql_source` is a *function* — so a perfectly-backed mutation reported `MissingRelation`;
+  and (2) a **schema-qualified view in an off-`search_path` schema** (or a mixed-case one)
+  was probed against the same `search_path`-scoped relation map and case-folded, so a view
+  the runtime serves was flagged missing. Mutations are now probed via `pg_proc`
+  (new `MissingFunction` diagnostic, distinct from `MissingRelation`); schema-qualified
+  relations are resolved **verbatim** with `to_regclass(quote_postgres_identifier(src))` —
+  exactly how the runtime resolves identifiers — so case-sensitive / off-path relations
+  resolve correctly while genuinely-absent ones are still reported. The L3 JSON-key check
+  now uses the canonical acronym/digit-aware caser (`dns1Id` → `dns_1_id`, not `dns1_id`),
+  so acronym/digit fields no longer false-flag `MissingJsonColumn`. A new
+  `fraiseql_core::schema::sql_source_probes` defines "what counts as a backed source" once,
+  shared by the CLI gate and (forthcoming) the server boot check so they cannot drift.
+- **`doctor`/`validate --against-db` no longer false-fail single-JSONB mutations (#484).**
+  The #384 mutation→function contract check derived the function's *expected* arity by
+  flattening the `input` type's fields whenever the operation was not `Update` — so every
+  `Insert`/`Delete`/`Custom` mutation on the single-JSONB convention (`fn(p_input jsonb)`,
+  authored with `input_style = jsonb`) reported a spurious
+  `expected N argument(s) but the function takes [1]`, making the gate unusable as a
+  green-means-green CI check. `expected_call` now mirrors the runtime's single-JSONB
+  predicate exactly (`mutation/mod.rs:499-500`): a structured single `input` arg is
+  expected as one `jsonb` payload when the op is `Update`, **or** `input_style == jsonb`,
+  **or** the input type is absent from the schema — and the arg-1-is-`jsonb` assertion now
+  applies to all of those. Genuinely-wrong functions (wrong arity, non-`jsonb` payload)
+  are still caught. The fix lands on both `doctor --against-db` and `validate --against-db`
+  from one change (shared `mutation_contract` module).
+- **Multi-word camelCase query filters no longer silently return `[]` (#486).** On the
+  query path, an explicit filter argument (`orders(organizationId: "x")`) built its
+  JSONB predicate from the raw camelCase name — `data->>'organizationId'` — which never
+  matches the stored `organization_id` key, so the filter silently dropped to an empty
+  result instead of erroring. The JSONB key is now `snake_case`d with the same
+  acronym-aware caser the WHERE-input and mutation-input paths use
+  (`crate::utils::to_snake_case`), so `organizationId` → `organization_id`,
+  `dns1Id` → `dns_1_id`. This closes the class across every arg-shaped filter surface:
+  explicit args + inject params (`query_params`), aggregate `where` and `groupBy`
+  fallback dimensions, window `where`, and the EXPLAIN diagnostics
+  (`build_where_from_variables` / display SQL). For `groupBy`, only the JSONB extraction
+  *path* is recased — the result *alias* keeps the camel surface name so the GraphQL
+  response key is unchanged (the #418/#410 rule). The query-side analog of the merged
+  #456 mutation-input fix; a six-surface parity test fences the class against future
+  filter surfaces that forget to recase.
 - **Observer execution log now populates its request/response audit columns (#468).**
   `tb_observer_log` declares `action_index`, `action_type`, `response_status_code`,
   `response_payload`, and `request_payload`, but the runtime log writer left them

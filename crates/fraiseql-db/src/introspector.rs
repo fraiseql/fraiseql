@@ -74,4 +74,36 @@ pub trait DatabaseIntrospector: Send + Sync {
     ) -> Result<Vec<serde_json::Value>> {
         Ok(Vec::new())
     }
+
+    /// Probe whether a callable SQL **function** named `name` exists — in `schema`
+    /// when given, else resolved against the connection `search_path`.
+    ///
+    /// Used to validate that a mutation's `sql_source` (a *function*, not a
+    /// relation) is backed. Resolved verbatim / case-sensitively, mirroring how the
+    /// runtime and `pg_catalog::resolve_functions` match function names.
+    ///
+    /// `None` ⇒ this connector cannot probe functions (e.g. a non-Postgres
+    /// dialect) and the caller should skip the function-existence check.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    async fn function_exists(&self, _schema: Option<&str>, _name: &str) -> Result<Option<bool>> {
+        Ok(None)
+    }
+
+    /// Probe whether a **schema-qualified** relation exists, resolved
+    /// case-sensitively / verbatim — the same way the runtime resolves a qualified
+    /// `sql_source` (`quote_postgres_identifier` + `to_regclass`), so a mixed-case
+    /// relation in an off-`search_path` schema is not falsely reported missing.
+    ///
+    /// `None` ⇒ this connector cannot probe qualified relations directly (e.g. a
+    /// non-Postgres dialect); the caller falls back to the relation-map lookup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    async fn qualified_relation_exists(&self, _schema: &str, _name: &str) -> Result<Option<bool>> {
+        Ok(None)
+    }
 }

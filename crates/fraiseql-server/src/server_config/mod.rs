@@ -45,6 +45,15 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_schema_path")]
     pub schema_path: PathBuf,
 
+    /// Fail boot if any declared `sql_source` (query view / mutation function) is
+    /// not backed by the database (#487).
+    ///
+    /// Default `false` — the boot path is unchanged. Postgres-only. The
+    /// `--validate-sql-sources` CLI flag and the `FRAISEQL_VALIDATE_SQL_SOURCES`
+    /// environment variable both override this (env/flag win over the config key).
+    #[serde(default)]
+    pub validate_sql_sources: bool,
+
     /// Database connection URL (PostgreSQL, MySQL, SQLite, SQL Server).
     #[serde(default = "defaults::default_database_url")]
     pub database_url: String,
@@ -722,6 +731,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             schema_path: default_schema_path(),
+            validate_sql_sources: false,
             database_url: default_database_url(),
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]
