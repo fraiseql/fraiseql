@@ -2,7 +2,8 @@
 //! without starting a server. Mirrors the server's path:
 //! `generate_service_sdl(raw_schema(), federation_metadata())`.
 //!
-//! Usage: cargo run --example fed_sdl --features federation -- <schema.compiled.json>
+//! Usage: `cargo run --example fed_sdl --features federation -- <schema.compiled.json>`
+#![allow(clippy::print_stdout)] // Printing the SDL to stdout is this tool's purpose.
 
 use std::fs;
 
