@@ -1,0 +1,81 @@
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends"])
+scalar DateTime
+scalar JSON
+
+type Money @shareable {
+  amount: Int
+  currency: String
+}
+
+type Review @key(fields: "id") {
+  id: ID
+  body: String
+  rating: Int
+}
+
+extend type Product @key(fields: "id") {
+  id: ID @external
+  reviews: [Review]
+}
+
+type EntityChangeLog {
+  id: ID
+  pkEntityChangeLog: Int
+  fkCustomerOrg: String
+  fkContact: String
+  objectType: String
+  objectId: String
+  modificationType: String
+  changeStatus: String
+  objectData: JSON
+  extraMetadata: JSON
+  createdAt: DateTime
+}
+
+type TransportCheckpoint {
+  transportName: String
+  lastPk: Int
+  updatedAt: DateTime
+}
+
+type Query {
+  reviews: [Review!]!
+  entityChangeLogs: [EntityChangeLog!]!
+  transportCheckpoint(transportName: String!): TransportCheckpoint
+}
+
+type Mutation {
+  upsertTransportCheckpoint(transportName: String!, lastPk: Int!): TransportCheckpoint!
+}
+
+
+
+directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT
+directive @extends on OBJECT
+directive @external on FIELD_DEFINITION
+directive @requires(fields: String!) on FIELD_DEFINITION
+directive @provides(fields: String!) on FIELD_DEFINITION
+directive @shareable on FIELD_DEFINITION | OBJECT
+directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+directive @override(from: String!) on FIELD_DEFINITION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+scalar link__Import
+
+type _Service {
+  sdl: String!
+}
+
+scalar _Any
+
+union _Entity = Review | Product
+
+extend type Query {
+  _service: _Service!
+  _entities(representations: [_Any!]!): [_Entity]!
+}
