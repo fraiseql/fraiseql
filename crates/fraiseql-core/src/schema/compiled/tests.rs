@@ -975,6 +975,69 @@ fn raw_schema_generates_from_types_when_sdl_absent() {
     assert!(sdl.contains("User"));
 }
 
+#[test]
+fn raw_schema_includes_root_query_and_mutation() {
+    // Root operations live in `queries`/`mutations`, NOT as `Query`/`Mutation`
+    // object types in `types`. The generated SDL must still render them — otherwise
+    // it advertises no root fields, and the federation `_service` SDL built from it
+    // fails gateway composition with NO_QUERIES.
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("User"));
+
+    let mut users = QueryDefinition::new("users", "User");
+    users.returns_list = true;
+    let mut user = QueryDefinition::new("user", "User");
+    user.nullable = true;
+    user.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+    schema.queries.push(users);
+    schema.queries.push(user);
+
+    let mut create = MutationDefinition::new("createUser", "User");
+    create.arguments = vec![ArgumentDefinition::new("name", FieldType::String)];
+    schema.mutations.push(create);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("type Query {"), "SDL must declare a root Query type:\n{sdl}");
+    assert!(sdl.contains("users: [User!]!"), "list query rendered as a list type:\n{sdl}");
+    assert!(sdl.contains("user(id: ID!): User"), "nullable single query with arg:\n{sdl}");
+    assert!(sdl.contains("type Mutation {"), "SDL must declare a root Mutation type:\n{sdl}");
+    assert!(sdl.contains("createUser(name: String!): User"), "mutation field:\n{sdl}");
+}
+
+#[cfg(feature = "federation")]
+#[test]
+fn service_sdl_advertises_root_query_fields() {
+    // End-to-end: the `_service { sdl }` a gateway composes must expose the root
+    // query fields, the entity `@key`, and the federation plumbing together.
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("User"));
+    let mut users = QueryDefinition::new("users", "User");
+    users.returns_list = true;
+    schema.queries.push(users);
+    schema.federation = Some(FederationConfig {
+        enabled: true,
+        version: Some("v2".to_string()),
+        entities: vec![FederationEntity {
+            name:       "User".to_string(),
+            key_fields: vec!["id".to_string()],
+        }],
+        ..Default::default()
+    });
+
+    let meta = schema.federation_metadata().expect("federation enabled");
+    let sdl = crate::federation::generate_service_sdl(&schema.raw_schema(), &meta);
+
+    assert!(
+        sdl.contains("users: [User!]!"),
+        "root query must be in the _service SDL:\n{sdl}"
+    );
+    assert!(sdl.contains("@key(fields: \"id\")"), "entity key must be present:\n{sdl}");
+    assert!(sdl.contains("_service"), "federation plumbing must be present:\n{sdl}");
+}
+
 // -------------------------------------------------------------------------
 // is_builtin_type (private fn — tested via validate())
 // -------------------------------------------------------------------------

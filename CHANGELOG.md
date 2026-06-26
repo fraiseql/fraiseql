@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_service` SDL now advertises root operations.** A subgraph's
+  `_service { sdl }` (and the `/schema` SDL endpoint) is generated from
+  `CompiledSchema::raw_schema()`, which only rendered object types — FraiseQL keeps
+  root operations in `queries`/`mutations`, not as `Query`/`Mutation` object types, so
+  the emitted SDL exposed **no root fields**. A gateway composing that SDL (Apollo
+  Router, Hive Router — both read `_service.sdl`) failed with `NO_QUERIES`, making
+  FraiseQL subgraphs uncomposable despite advertising their entities and `@key`s. The
+  generated SDL now renders the root `type Query`/`type Mutation` from `queries`/
+  `mutations` with correct argument and list/nullable signatures, so subgraphs compose
+  into a working supergraph. (Router-independent; the fix is upstream of the gateway.)
 - **`fraiseql compile` no longer drops the `federation` block.** Schemas authored
   with federation enabled (e.g. the Python SDK's `export_schema(federation=...)`)
   emit the configuration under the top-level `federation` key, but the compiler only

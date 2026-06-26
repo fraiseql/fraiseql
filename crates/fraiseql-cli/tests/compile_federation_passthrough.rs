@@ -151,6 +151,13 @@ fn legacy_json_federation_produces_apollo_v2_service_sdl() {
         sdl.contains("@key(fields: \"id\")"),
         "SDL must carry the Order entity's @key directive, got:\n{sdl}"
     );
+    // The subgraph SDL must expose its root operations, or a gateway composes a
+    // subgraph with no root fields and fails with NO_QUERIES.
+    assert!(sdl.contains("type Query {"), "SDL must declare a root Query type, got:\n{sdl}");
+    assert!(
+        sdl.contains("[Order"),
+        "SDL must expose the list-orders root query returning Order, got:\n{sdl}"
+    );
 }
 
 #[test]

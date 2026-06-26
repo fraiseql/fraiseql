@@ -273,18 +273,59 @@ impl CompiledSchema {
     ///
     /// # Returns
     ///
-    /// Raw schema string if available, otherwise generates from type definitions
+    /// Raw schema string if available, otherwise generates from type definitions,
+    /// including the root `Query`/`Mutation` types.
+    ///
+    /// Root operations are stored in [`self.queries`](Self::queries) /
+    /// [`self.mutations`](Self::mutations) rather than as `Query`/`Mutation` object
+    /// types in [`self.types`](Self::types), so they are rendered here explicitly.
+    /// Omitting them produces an SDL that advertises no root fields — which makes the
+    /// federation `_service` SDL (built from this output) fail gateway composition
+    /// with `NO_QUERIES`.
     #[must_use]
     pub fn raw_schema(&self) -> String {
         self.schema_sdl.clone().unwrap_or_else(|| {
             // Generate basic SDL from type definitions if not provided
             let mut sdl = String::new();
 
-            // Add types
+            // Add output/object types
             for type_def in &self.types {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
                 for field in &type_def.fields {
                     let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Root Query type (rendered from `self.queries`, never present in `types`)
+            if !self.queries.is_empty() {
+                sdl.push_str("type Query {\n");
+                for q in &self.queries {
+                    let _ = writeln!(
+                        sdl,
+                        "  {}",
+                        render_operation_field(
+                            &q.name,
+                            &q.arguments,
+                            &q.return_type,
+                            q.returns_list,
+                            q.nullable,
+                        )
+                    );
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Root Mutation type (rendered from `self.mutations`). Mutation payloads
+            // are single, non-null values, so they render as `Name(args): Return!`.
+            if !self.mutations.is_empty() {
+                sdl.push_str("type Mutation {\n");
+                for m in &self.mutations {
+                    let _ = writeln!(
+                        sdl,
+                        "  {}",
+                        render_operation_field(&m.name, &m.arguments, &m.return_type, false, false)
+                    );
                 }
                 sdl.push_str("}\n\n");
             }
@@ -360,6 +401,34 @@ impl CompiledSchema {
             Err(errors)
         }
     }
+}
+
+/// Render a root operation as a GraphQL SDL field: `name(arg: T!, …): Return`.
+///
+/// `return_type` is a bare type name; list-ness and nullability are applied here so
+/// the rendered signature matches GraphQL conventions (`[User!]!`, `User`, `User!`).
+fn render_operation_field(
+    name: &str,
+    arguments: &[crate::schema::ArgumentDefinition],
+    return_type: &str,
+    returns_list: bool,
+    nullable: bool,
+) -> String {
+    let non_null = if nullable { "" } else { "!" };
+    let ret = if returns_list {
+        format!("[{return_type}!]{non_null}")
+    } else {
+        format!("{return_type}{non_null}")
+    };
+    if arguments.is_empty() {
+        return format!("{name}: {ret}");
+    }
+    let args = arguments
+        .iter()
+        .map(|a| format!("{}: {}{}", a.name, a.arg_type, if a.nullable { "" } else { "!" }))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}({args}): {ret}")
 }
 
 /// Check if a type name is a built-in scalar type.
