@@ -114,7 +114,10 @@ fn build_where_from_variables(variables: Option<&serde_json::Value>) -> Option<W
     let mut conditions: Vec<WhereClause> = map
         .iter()
         .map(|(k, v)| WhereClause::Field {
-            path:     vec![k.clone()],
+            // Recase the variable name to the snake_case JSONB key so the EXPLAIN'd
+            // SQL filters the same column the real query path does (#486). Without
+            // this, EXPLAIN runs against a never-matching `data->>'camelKey'`.
+            path:     vec![crate::utils::to_snake_case(k)],
             operator: WhereOperator::Eq,
             value:    v.clone(),
         })
@@ -150,7 +153,10 @@ pub fn build_display_sql(
             let conditions: Vec<String> = map
                 .keys()
                 .enumerate()
-                .map(|(i, k)| format!("data->>'{}' = ${}", k, i + 1))
+                // Recase the key so the displayed SQL matches the snake_case column
+                // the executed EXPLAIN actually filters on (#486 — keep the human-
+                // readable echo consistent with `build_where_from_variables`).
+                .map(|(i, k)| format!("data->>'{}' = ${}", crate::utils::to_snake_case(k), i + 1))
                 .collect();
             sql.push_str(" WHERE ");
             sql.push_str(&conditions.join(" AND "));
@@ -171,3 +177,7 @@ pub fn build_display_sql(
 
     sql
 }
+
+#[cfg(test)]
+#[path = "explain_tests.rs"]
+mod explain_tests;
