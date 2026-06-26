@@ -56,6 +56,7 @@ pub mod introspection_types;
 mod observer_types;
 mod scalar_types;
 pub mod security_config;
+mod source_probe;
 mod subscribable_ddl;
 mod subscription_types;
 
@@ -94,6 +95,7 @@ pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
 pub use security_config::{
     InjectedParamSource, RoleDefinition, SecurityConfig, TenancyConfig, TenancyMode,
 };
+pub use source_probe::{SourceKind, SourceProbe, sql_source_probes};
 pub use subscribable_ddl::generate_capture_trigger_ddl;
 pub use subscription_types::{
     FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,

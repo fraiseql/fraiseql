@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`compile --database` no longer emits false "`sql_source … does not exist`" (#485).**
+  Two false-positives made the existence gate untrustworthy: (1) **every mutation** was
+  probed as a *relation* (`list_relations`, `search_path`-scoped) when a mutation's
+  `sql_source` is a *function* — so a perfectly-backed mutation reported `MissingRelation`;
+  and (2) a **schema-qualified view in an off-`search_path` schema** (or a mixed-case one)
+  was probed against the same `search_path`-scoped relation map and case-folded, so a view
+  the runtime serves was flagged missing. Mutations are now probed via `pg_proc`
+  (new `MissingFunction` diagnostic, distinct from `MissingRelation`); schema-qualified
+  relations are resolved **verbatim** with `to_regclass(quote_postgres_identifier(src))` —
+  exactly how the runtime resolves identifiers — so case-sensitive / off-path relations
+  resolve correctly while genuinely-absent ones are still reported. The L3 JSON-key check
+  now uses the canonical acronym/digit-aware caser (`dns1Id` → `dns_1_id`, not `dns1_id`),
+  so acronym/digit fields no longer false-flag `MissingJsonColumn`. A new
+  `fraiseql_core::schema::sql_source_probes` defines "what counts as a backed source" once,
+  shared by the CLI gate and (forthcoming) the server boot check so they cannot drift.
 - **`doctor`/`validate --against-db` no longer false-fail single-JSONB mutations (#484).**
   The #384 mutation→function contract check derived the function's *expected* arity by
   flattening the `input` type's fields whenever the operation was not `Update` — so every
