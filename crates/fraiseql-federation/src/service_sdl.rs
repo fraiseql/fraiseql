@@ -15,7 +15,14 @@ directive @provides(fields: String!) on FIELD_DEFINITION
 directive @shareable on FIELD_DEFINITION | OBJECT
 directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 directive @override(from: String!) on FIELD_DEFINITION
-directive @link(url: String!, as: String, for: String, import: [String]) repeatable on SCHEMA
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+scalar link__Import
 
 type _Service {
   sdl: String!

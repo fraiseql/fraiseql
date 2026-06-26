@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_service` SDL is now type-complete.** Building on the root-operations
+  fix, the generated SDL rendered only object types and the root `Query`/`Mutation` —
+  it omitted input objects, enums, non-built-in scalar declarations (`DateTime`,
+  `JSON`, `Decimal`, rich/custom scalars), and synthesized mutation result unions. A
+  gateway composing a subgraph whose operations referenced those types failed with
+  `Unknown type CreateQuoteInput` (and the like). `raw_schema()` now renders the full
+  type closure — `scalar`/`enum`/`interface`/`input`/`union` declarations alongside the
+  object types and root operations — so a FraiseQL subgraph composes without
+  consumer-side scalar stubs. The federation `@link` directive definition was also
+  corrected (`for: String` → `for: link__Purpose`, with the supporting `link__Purpose`
+  enum and `link__Import` scalar), which composers were rejecting.
 - **Federation `_service` SDL now advertises root operations.** A subgraph's
   `_service { sdl }` (and the `/schema` SDL endpoint) is generated from
   `CompiledSchema::raw_schema()`, which only rendered object types — FraiseQL keeps

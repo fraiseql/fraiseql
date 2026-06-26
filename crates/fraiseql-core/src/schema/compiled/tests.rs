@@ -1038,6 +1038,67 @@ fn service_sdl_advertises_root_query_fields() {
     assert!(sdl.contains("_service"), "federation plumbing must be present:\n{sdl}");
 }
 
+#[test]
+fn raw_schema_renders_full_type_closure() {
+    // The generated SDL must be type-complete: input objects, enums, unions, and
+    // non-built-in scalar declarations the root operations reference. Otherwise a
+    // gateway composing the subgraph hits `Unknown type CreateQuoteInput` (and the
+    // same for every custom scalar / enum / result union).
+    use crate::schema::{
+        ArgumentDefinition, EnumDefinition, EnumValueDefinition, FieldType, InputFieldDefinition,
+        InputObjectDefinition, UnionDefinition,
+    };
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("QuoteSuccess"));
+    schema.types.push(make_type_def("MutationError"));
+
+    let mut status = EnumDefinition::new("QuoteStatus");
+    status.values = vec![
+        EnumValueDefinition::new("DRAFT"),
+        EnumValueDefinition::new("SENT"),
+    ];
+    schema.enums.push(status);
+
+    let mut input = InputObjectDefinition::new("CreateQuoteInput");
+    input.fields = vec![
+        InputFieldDefinition::new("amount", "Decimal"), // non-built-in scalar
+        InputFieldDefinition::new("status", "QuoteStatus"), // enum
+    ];
+    schema.input_types.push(input);
+
+    schema.unions.push(UnionDefinition {
+        name:         "CreateQuoteResult".to_string(),
+        member_types: vec!["QuoteSuccess".to_string(), "MutationError".to_string()],
+        description:  None,
+    });
+
+    let mut create = MutationDefinition::new("createQuote", "CreateQuoteResult");
+    create.arguments = vec![ArgumentDefinition::new(
+        "input",
+        FieldType::Input("CreateQuoteInput".to_string()),
+    )];
+    schema.mutations.push(create);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("enum QuoteStatus {"), "enum must be declared:\n{sdl}");
+    assert!(sdl.contains("DRAFT"), "enum values must be rendered:\n{sdl}");
+    assert!(
+        sdl.contains("input CreateQuoteInput {"),
+        "input object must be declared:\n{sdl}"
+    );
+    assert!(
+        sdl.contains("union CreateQuoteResult = QuoteSuccess | MutationError"),
+        "result union must be declared:\n{sdl}"
+    );
+    assert!(sdl.contains("scalar Decimal"), "non-built-in scalar must be declared:\n{sdl}");
+    assert!(
+        sdl.contains("createQuote(input: CreateQuoteInput!): CreateQuoteResult"),
+        "mutation signature references the now-declared input + result:\n{sdl}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // is_builtin_type (private fn — tested via validate())
 // -------------------------------------------------------------------------

@@ -288,6 +288,65 @@ impl CompiledSchema {
             // Generate basic SDL from type definitions if not provided
             let mut sdl = String::new();
 
+            // Non-built-in scalar declarations. The rendered operations and fields
+            // reference custom and standard-but-non-built-in scalars (`DateTime`,
+            // `JSON`, `Decimal`, rich scalars, …); a gateway composing the subgraph
+            // reports `Unknown type` for any it isn't declared.
+            for name in self.referenced_scalars() {
+                let _ = writeln!(sdl, "scalar {name}");
+            }
+            if !self.enums.is_empty()
+                || !self.interfaces.is_empty()
+                || !self.input_types.is_empty()
+                || !self.unions.is_empty()
+                || !self.types.is_empty()
+            {
+                sdl.push('\n');
+            }
+
+            // Enum types
+            for enum_def in &self.enums {
+                let _ = writeln!(sdl, "enum {} {{", enum_def.name);
+                for value in &enum_def.values {
+                    let _ = writeln!(sdl, "  {}", value.name);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Interface types
+            for iface in &self.interfaces {
+                let _ = writeln!(sdl, "interface {} {{", iface.name);
+                for field in &iface.fields {
+                    let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Input object types (`field_type` is a pre-rendered GraphQL string;
+            // normalise the trailing non-null marker against the `nullable` flag).
+            for input in &self.input_types {
+                let _ = writeln!(sdl, "input {} {{", input.name);
+                for field in &input.fields {
+                    let base = field.field_type.trim_end_matches('!');
+                    let non_null = if field.nullable { "" } else { "!" };
+                    let _ = writeln!(sdl, "  {}: {base}{non_null}", field.name);
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            // Union types (covers synthesized mutation result unions)
+            for union_def in &self.unions {
+                let _ = writeln!(
+                    sdl,
+                    "union {} = {}",
+                    union_def.name,
+                    union_def.member_types.join(" | ")
+                );
+            }
+            if !self.unions.is_empty() {
+                sdl.push('\n');
+            }
+
             // Add output/object types
             for type_def in &self.types {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
@@ -332,6 +391,59 @@ impl CompiledSchema {
 
             sdl
         })
+    }
+
+    /// Collect the non-built-in scalar type names the schema references, so
+    /// [`raw_schema`](Self::raw_schema) can declare each one (`scalar Name`) and the
+    /// SDL is type-complete. Sources: the custom-scalar registry, every field /
+    /// argument [`FieldType`](crate::schema::FieldType), and the string-typed input
+    /// fields and operation return types. Built-in GraphQL scalars and the federation
+    /// `_Any` (supplied separately) are excluded.
+    fn referenced_scalars(&self) -> Vec<String> {
+        use std::collections::BTreeSet;
+
+        use crate::schema::FieldType;
+
+        let mut scalars: BTreeSet<String> = BTreeSet::new();
+
+        for (name, _) in self.custom_scalars.list_all() {
+            scalars.insert(name);
+        }
+        let collect = |ft: &FieldType, set: &mut BTreeSet<String>| {
+            if let Some(name) = scalar_leaf_name(ft) {
+                set.insert(name);
+            }
+        };
+        for type_def in &self.types {
+            for field in &type_def.fields {
+                collect(&field.field_type, &mut scalars);
+            }
+        }
+        for iface in &self.interfaces {
+            for field in &iface.fields {
+                collect(&field.field_type, &mut scalars);
+            }
+        }
+        for query in &self.queries {
+            for arg in &query.arguments {
+                collect(&arg.arg_type, &mut scalars);
+            }
+            collect(&FieldType::parse(&query.return_type), &mut scalars);
+        }
+        for mutation in &self.mutations {
+            for arg in &mutation.arguments {
+                collect(&arg.arg_type, &mut scalars);
+            }
+            collect(&FieldType::parse(&mutation.return_type), &mut scalars);
+        }
+        for input in &self.input_types {
+            for field in &input.fields {
+                collect(&FieldType::parse(&field.field_type), &mut scalars);
+            }
+        }
+
+        scalars.remove("_Any"); // federation built-in, declared by the federation layer
+        scalars.into_iter().collect()
     }
 
     /// Validate the schema for internal consistency.
@@ -429,6 +541,39 @@ fn render_operation_field(
         .collect::<Vec<_>>()
         .join(", ");
     format!("{name}({args}): {ret}")
+}
+
+/// Extract the leaf scalar type name from a [`FieldType`](crate::schema::FieldType),
+/// or `None` for built-in GraphQL scalars, vectors, and composite types.
+///
+/// Lists are unwrapped to their element type. Non-built-in standard scalars render
+/// under their GraphQL name (`DateTime`, `JSON`, `UUID`, …); rich/custom scalars under
+/// their registered name.
+fn scalar_leaf_name(field_type: &crate::schema::FieldType) -> Option<String> {
+    use crate::schema::FieldType as F;
+    match field_type {
+        F::List(inner) => scalar_leaf_name(inner),
+        F::DateTime => Some("DateTime".to_string()),
+        F::Date => Some("Date".to_string()),
+        F::Time => Some("Time".to_string()),
+        F::Json => Some("JSON".to_string()),
+        F::Uuid => Some("UUID".to_string()),
+        F::Decimal => Some("Decimal".to_string()),
+        F::Scalar(name) => Some(name.clone()),
+        // Built-in GraphQL scalars, vectors (`[Float!]!`), and composite types need
+        // no `scalar` declaration.
+        F::String
+        | F::Int
+        | F::Float
+        | F::Boolean
+        | F::Id
+        | F::Vector
+        | F::Object(_)
+        | F::Enum(_)
+        | F::Input(_)
+        | F::Interface(_)
+        | F::Union(_) => None,
+    }
 }
 
 /// Check if a type name is a built-in scalar type.

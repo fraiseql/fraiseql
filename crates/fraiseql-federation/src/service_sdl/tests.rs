@@ -677,3 +677,14 @@ fn test_resolve_federation_version() {
     assert_eq!(resolve_federation_version("v2.3"), "v2.3");
     assert_eq!(resolve_federation_version("v2.5"), "v2.5");
 }
+
+#[test]
+fn link_directive_definition_uses_link_purpose_enum() {
+    // The `@link` directive's `for` argument must be the `link__Purpose` enum, not
+    // `String` — federation composition rejects `for: String`. The supporting
+    // `link__Purpose` enum must be defined alongside it.
+    let sdl = generate_service_sdl("type Query { test: String }", &enabled_metadata());
+    assert!(sdl.contains("for: link__Purpose"), "@link `for` must be link__Purpose:\n{sdl}");
+    assert!(!sdl.contains("for: String"), "@link must not declare `for: String`:\n{sdl}");
+    assert!(sdl.contains("enum link__Purpose"), "link__Purpose enum must be defined:\n{sdl}");
+}
