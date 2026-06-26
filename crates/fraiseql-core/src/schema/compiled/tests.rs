@@ -1099,6 +1099,33 @@ fn raw_schema_renders_full_type_closure() {
     );
 }
 
+#[test]
+fn raw_schema_declares_scalars_under_the_name_fields_reference() {
+    // The `scalar` declaration and the field that references it must agree on one
+    // name. Fields render scalar type names verbatim (`datetime`, `FloatRange`); the
+    // declaration walk must declare those same names, or composition reports
+    // `Unknown type datetime`.
+    use crate::schema::{InputFieldDefinition, InputObjectDefinition};
+
+    let mut schema = CompiledSchema::new();
+    let mut input = InputObjectDefinition::new("EventFilter");
+    input.fields = vec![
+        InputFieldDefinition::new("at", "datetime"), // lowercase scalar name
+        InputFieldDefinition::new("span", "FloatRange"), // rich scalar not previously declared
+    ];
+    schema.input_types.push(input);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("at: datetime"), "field renders the verbatim scalar name:\n{sdl}");
+    assert!(
+        sdl.contains("scalar datetime"),
+        "the referenced scalar must be declared under the SAME name:\n{sdl}"
+    );
+    assert!(sdl.contains("span: FloatRange"), "field renders FloatRange:\n{sdl}");
+    assert!(sdl.contains("scalar FloatRange"), "FloatRange must be declared:\n{sdl}");
+}
+
 // -------------------------------------------------------------------------
 // is_builtin_type (private fn — tested via validate())
 // -------------------------------------------------------------------------

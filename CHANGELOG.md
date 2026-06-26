@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
+  Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
+  declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim
+  (`datetime`), so the reference dangled (`Unknown type datetime`); declarations are now
+  collected from the exact rendered field names (covering `LTree`, `FloatRange`, lowercase
+  date/time scalars). (2) the generated rich-filter `*WhereInput` types declared `eq`
+  twice — the standard operator set was hardcoded and the type's operator set (which also
+  contains `eq`) was appended — producing an invalid input type (`Field eq already
+  exists`); the generated fields are now de-duplicated by name. A FraiseQL subgraph's SDL
+  now composes through a gateway with zero consumer-side workarounds.
 - **Federation `_service` SDL is now type-complete.** Building on the root-operations
   fix, the generated SDL rendered only object types and the root `Query`/`Mutation` —
   it omitted input objects, enums, non-built-in scalar declarations (`DateTime`,

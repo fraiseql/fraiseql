@@ -222,6 +222,14 @@ fn generate_where_input_type(
         });
     }
 
+    // Deduplicate fields by name, keeping the first occurrence. A type's operator
+    // set may include an operator (notably `eq`) already emitted as a standard
+    // operator above; declaring it twice produces an invalid GraphQL input type
+    // (`Field eq already exists`). SQL-template metadata is built from
+    // `operator_names` below and is unaffected.
+    let mut seen_field_names = std::collections::HashSet::new();
+    fields.retain(|field| seen_field_names.insert(field.name.clone()));
+
     // Build SQL template metadata for this rich type
     let operator_refs: Vec<&str> = operator_names.iter().map(std::string::String::as_str).collect();
     let sql_metadata = sql_templates::build_sql_templates_metadata(&operator_refs);

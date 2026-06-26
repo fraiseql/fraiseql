@@ -395,55 +395,88 @@ impl CompiledSchema {
 
     /// Collect the non-built-in scalar type names the schema references, so
     /// [`raw_schema`](Self::raw_schema) can declare each one (`scalar Name`) and the
-    /// SDL is type-complete. Sources: the custom-scalar registry, every field /
-    /// argument [`FieldType`](crate::schema::FieldType), and the string-typed input
-    /// fields and operation return types. Built-in GraphQL scalars and the federation
-    /// `_Any` (supplied separately) are excluded.
+    /// SDL is type-complete.
+    ///
+    /// A referenced type is treated as a scalar to declare when it is neither a
+    /// built-in GraphQL scalar nor a type the schema defines as an object, enum,
+    /// input, interface, or union. Names are collected **exactly as the fields render
+    /// them** (the verbatim leaf of each field/argument type and each operation return
+    /// type) so the declaration and the reference always agree — declaring a canonical
+    /// alias (`DateTime`) while a field renders `datetime` would leave the reference
+    /// dangling (`Unknown type datetime`). The custom-scalar registry is also included.
+    /// The federation `_Any`/`_Entity`/`_Service`/`_FieldSet` built-ins (supplied by the
+    /// federation layer) are excluded.
     fn referenced_scalars(&self) -> Vec<String> {
-        use std::collections::BTreeSet;
+        use std::collections::{BTreeSet, HashSet};
 
-        use crate::schema::FieldType;
+        const BUILTINS: [&str; 5] = ["String", "Int", "Float", "Boolean", "ID"];
+        const FED_BUILTINS: [&str; 4] = ["_Any", "_Entity", "_Service", "_FieldSet"];
 
-        let mut scalars: BTreeSet<String> = BTreeSet::new();
-
-        for (name, _) in self.custom_scalars.list_all() {
-            scalars.insert(name);
+        // Names the schema defines as composite types — never re-declared as scalars.
+        let mut defined: HashSet<&str> = HashSet::new();
+        for t in &self.types {
+            defined.insert(t.name.as_str());
         }
-        let collect = |ft: &FieldType, set: &mut BTreeSet<String>| {
-            if let Some(name) = scalar_leaf_name(ft) {
-                set.insert(name);
+        for e in &self.enums {
+            defined.insert(e.name.as_str());
+        }
+        for i in &self.input_types {
+            defined.insert(i.name.as_str());
+        }
+        for i in &self.interfaces {
+            defined.insert(i.name.as_str());
+        }
+        for u in &self.unions {
+            defined.insert(u.name.as_str());
+        }
+
+        // Every type reference, collected as the verbatim leaf name fields render.
+        let mut referenced: BTreeSet<String> = BTreeSet::new();
+        let add = |rendered: &str, set: &mut BTreeSet<String>| {
+            let leaf = leaf_type_name(rendered);
+            if !leaf.is_empty() {
+                set.insert(leaf);
             }
         };
         for type_def in &self.types {
             for field in &type_def.fields {
-                collect(&field.field_type, &mut scalars);
+                add(&field.field_type.to_string(), &mut referenced);
             }
         }
         for iface in &self.interfaces {
             for field in &iface.fields {
-                collect(&field.field_type, &mut scalars);
+                add(&field.field_type.to_string(), &mut referenced);
             }
         }
         for query in &self.queries {
             for arg in &query.arguments {
-                collect(&arg.arg_type, &mut scalars);
+                add(&arg.arg_type.to_string(), &mut referenced);
             }
-            collect(&FieldType::parse(&query.return_type), &mut scalars);
+            add(&query.return_type, &mut referenced);
         }
         for mutation in &self.mutations {
             for arg in &mutation.arguments {
-                collect(&arg.arg_type, &mut scalars);
+                add(&arg.arg_type.to_string(), &mut referenced);
             }
-            collect(&FieldType::parse(&mutation.return_type), &mut scalars);
+            add(&mutation.return_type, &mut referenced);
         }
         for input in &self.input_types {
             for field in &input.fields {
-                collect(&FieldType::parse(&field.field_type), &mut scalars);
+                add(&field.field_type, &mut referenced);
             }
         }
+        for (name, _) in self.custom_scalars.list_all() {
+            referenced.insert(name);
+        }
 
-        scalars.remove("_Any"); // federation built-in, declared by the federation layer
-        scalars.into_iter().collect()
+        referenced
+            .into_iter()
+            .filter(|name| {
+                !defined.contains(name.as_str())
+                    && !BUILTINS.contains(&name.as_str())
+                    && !FED_BUILTINS.contains(&name.as_str())
+            })
+            .collect()
     }
 
     /// Validate the schema for internal consistency.
@@ -543,37 +576,15 @@ fn render_operation_field(
     format!("{name}({args}): {ret}")
 }
 
-/// Extract the leaf scalar type name from a [`FieldType`](crate::schema::FieldType),
-/// or `None` for built-in GraphQL scalars, vectors, and composite types.
-///
-/// Lists are unwrapped to their element type. Non-built-in standard scalars render
-/// under their GraphQL name (`DateTime`, `JSON`, `UUID`, …); rich/custom scalars under
-/// their registered name.
-fn scalar_leaf_name(field_type: &crate::schema::FieldType) -> Option<String> {
-    use crate::schema::FieldType as F;
-    match field_type {
-        F::List(inner) => scalar_leaf_name(inner),
-        F::DateTime => Some("DateTime".to_string()),
-        F::Date => Some("Date".to_string()),
-        F::Time => Some("Time".to_string()),
-        F::Json => Some("JSON".to_string()),
-        F::Uuid => Some("UUID".to_string()),
-        F::Decimal => Some("Decimal".to_string()),
-        F::Scalar(name) => Some(name.clone()),
-        // Built-in GraphQL scalars, vectors (`[Float!]!`), and composite types need
-        // no `scalar` declaration.
-        F::String
-        | F::Int
-        | F::Float
-        | F::Boolean
-        | F::Id
-        | F::Vector
-        | F::Object(_)
-        | F::Enum(_)
-        | F::Input(_)
-        | F::Interface(_)
-        | F::Union(_) => None,
-    }
+/// Strip GraphQL list and non-null markers from a rendered type string, leaving the
+/// bare leaf type name: `[User!]!` → `User`, `datetime` → `datetime`.
+fn leaf_type_name(rendered: &str) -> String {
+    rendered
+        .chars()
+        .filter(|c| !matches!(c, '[' | ']' | '!'))
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 /// Check if a type name is a built-in scalar type.
