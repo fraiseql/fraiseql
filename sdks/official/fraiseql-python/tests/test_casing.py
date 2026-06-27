@@ -7,6 +7,7 @@ collapses onto the previous word (`phone_1` → `phone1`). The Rust runtime's
 
 import pytest
 
+import fraiseql
 from fraiseql.registry import SchemaRegistry, _snake_to_camel
 
 
@@ -45,3 +46,22 @@ def test_repro_issue_field_surface() -> None:
         for n in ("phone_1", "phone_2", "user_id", "http_response")
     ]
     assert names == ["phone1", "phone2", "userId", "httpResponse"]
+
+
+def test_get_schema_advertises_camelcase_naming_convention() -> None:
+    """The registry declares the camelCase convention it unconditionally applies.
+
+    The SDK recases every emitted identifier to camelCase via ``_snake_to_camel``, so
+    the exported schema must say so. Otherwise the compiler's built-in change-log
+    injection (#149) falls back to ``Preserve`` → snake_case fields in an otherwise
+    camelCase schema (#500). The literal here pins the exact wire value that the
+    engine's ``NamingConvention::CamelCase`` deserializes from.
+    """
+    SchemaRegistry.clear()
+    assert SchemaRegistry.get_schema()["naming_convention"] == "camelCase"
+
+
+def test_get_schema_dict_carries_naming_convention() -> None:
+    """The public ``get_schema_dict()`` export carries the convention too (#500)."""
+    SchemaRegistry.clear()
+    assert fraiseql.get_schema_dict()["naming_convention"] == "camelCase"

@@ -13,6 +13,16 @@ _CAMEL_RE = re.compile(r"(?<!^)(?=[A-Z])")
 # so the round trip is bijective.
 _SNAKE_WORD_RE = re.compile(r"_([a-zA-Z0-9])")
 
+# The naming convention the SDK advertises in its exported schema. Every emitted
+# identifier (type fields, operation/argument names) is unconditionally recased to
+# camelCase via `_snake_to_camel`, so the schema must declare that convention — the
+# compiler then injects built-in surfaces (the #149 change-log's EntityChangeLog /
+# TransportCheckpoint) with matching casing instead of defaulting to `Preserve` →
+# snake_case in an otherwise camelCase schema (#500). The literal is the exact wire
+# value the engine's `NamingConvention::CamelCase` deserializes from
+# (`crates/fraiseql-core/src/schema/config_types.rs`).
+_NAMING_CONVENTION = "camelCase"
+
 
 def _pascal_to_snake(name: str) -> str:
     """Convert PascalCase to snake_case (e.g. OrderItem → order_item)."""
@@ -447,7 +457,8 @@ class SchemaRegistry:
 
         Returns:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
-            "queries", "mutations", "subscriptions", and "customScalars"
+            "queries", "mutations", "subscriptions", "naming_convention", and
+            "customScalars"
         """
         schema: dict[str, Any] = {
             "types": list(cls._types.values()),
@@ -458,6 +469,9 @@ class SchemaRegistry:
             "queries": list(cls._queries.values()),
             "mutations": list(cls._mutations.values()),
             "subscriptions": list(cls._subscriptions.values()),
+            # Declare the camelCase recasing the SDK always applies, so the compiler's
+            # change-log injection follows the same convention (#500).
+            "naming_convention": _NAMING_CONVENTION,
         }
 
         # Include inject_defaults if any are set

@@ -562,6 +562,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   de-duplicated, matching the claim names already honoured by the observer-admin RBAC
   engine. The claims continue to be forwarded into `attributes` for RLS / session-var
   injection — the two surfaces are independent. (#503)
+- **Built-in change-log fields now follow the SDK's camelCase convention by default
+  (#500).** The Python SDK recases every field, operation, and argument it emits to
+  camelCase, but it did not record that convention in the exported schema. The
+  compiler's change-log injection (the #149 audit log) renders its identifiers via the
+  schema's `naming_convention`, which defaulted to `Preserve` — so an exposed
+  `EntityChangeLog` / `TransportCheckpoint` came out in snake_case
+  (`pk_entity_change_log`, `object_type`, `created_at`), the only snake_case corner of
+  an otherwise camelCase API. The camelCase change-log support added in #498 was
+  therefore inert unless the caller hand-injected `naming_convention` into the schema
+  JSON. `get_schema_dict()` (and the registry's `get_schema()`) now emit
+  `naming_convention: "camelCase"`, so a change-log exposed from an SDK-authored schema
+  compiles to camelCase fields with no manual intervention. The SQL contract is
+  unchanged — the runtime still recovers the snake_case JSONB keys via `to_snake_case`.
 - **`auto_params` queries now expose their `where`/`orderBy`/`limit`/`offset` as real
   GraphQL arguments.** A list query configured with `auto_params` carried those
   parameters only as compile-time flags — the runtime read them straight from the
