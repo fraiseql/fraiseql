@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Short-lived runtime executor: `fraiseql query` + `doctor --runtime` (#501).** A
+  scriptable way to exercise a compiled schema against a database without standing up
+  the long-lived server, closing the gap between "static checks pass" and "the server
+  resolves it". `fraiseql query --schema schema.compiled.json --db "$DATABASE_URL"
+  '{ orders(limit: 1) { id } }'` boots the engine in-process (PostgreSQL; no HTTP
+  layer, no `run-server` feature), runs one operation, prints the GraphQL JSON to
+  stdout, and exits non-zero on a resolution error — a one-shot "does this resolve?"
+  for CI and the inner loop. `--variables '{...}'` passes GraphQL variables.
+  `fraiseql doctor --runtime --against-db "$DATABASE_URL"` probes every root query
+  field with a minimal selection (and dry-runs no-argument mutations), reporting each
+  as resolving or failing; operations that require arguments are skipped with a warning.
+  Mutations run by `query` COMMIT unless `--dry-run` is given, which executes the
+  mutation inside a transaction that is **rolled back** — the function binds and runs
+  (constraints, triggers, and the `mutation_response` shape are all validated) but no
+  writes persist. Dry-run is PostgreSQL-only; other adapters return a clear
+  "not supported" error rather than silently committing.
+
 ### Fixed
 
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**

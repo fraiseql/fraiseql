@@ -319,6 +319,7 @@ fn test_executor_runtime_config_with_field_filter() {
         query_validation:     None,
         audit_mutations:      false,
         changelog_enabled:    true,
+        dry_run_mutations:    false,
     };
 
     // WHEN: Config is created

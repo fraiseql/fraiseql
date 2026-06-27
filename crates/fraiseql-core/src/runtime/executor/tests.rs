@@ -76,6 +76,7 @@ mod query {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -513,7 +514,7 @@ mod entities_authz {
             enabled: true,
             version: Some("v2".to_string()),
             entities: vec![FederationEntity {
-                name:       "User".to_string(),
+                name: "User".to_string(),
                 key_fields: vec!["id".to_string()],
                 ..Default::default()
             }],
@@ -864,6 +865,7 @@ mod config {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -892,6 +894,7 @@ mod config {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);

@@ -701,6 +701,69 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
+    async fn execute_function_call_dry_run(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Validate-bind-without-commit: run the mutation function inside a
+        // transaction we ROLL BACK unconditionally. The function executes for
+        // real (constraints, triggers, and the app.mutation_response shape are all
+        // exercised), but no writes persist. Mirrors execute_function_call's
+        // statement build + FlexParam binding; the only difference is rollback
+        // instead of commit, and no change-log outbox write.
+        let quoted_fn = quote_postgres_identifier(function_name);
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
+        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
+
+        // See execute_function_call for why FlexParam is required here.
+        let flex_args: Vec<FlexParam> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => FlexParam::Null,
+                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                _ => FlexParam::Text(v.to_string()),
+            })
+            .collect();
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let mut client = self.acquire_connection_with_retry().await?;
+        // Parse/plan once per connection (statement cache), before the txn.
+        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to start dry-run transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        // Apply the same transaction-local context a real call would see, so the
+        // dry-run exercises RLS / the function body identically (no-op when empty).
+        apply_session_vars(&txn, session_vars).await?;
+        // Suppress the fallback-capture trigger (#366) for parity with the real
+        // mutation path; the marker rolls back with everything else.
+        mark_cdc_mediated(&txn).await?;
+
+        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
+            let detail = e.as_db_error().map_or("", |d| d.message());
+            FraiseQLError::Database {
+                message:   format!("Dry-run function call {function_name} failed: {e}: {detail}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        // The whole point of dry-run: discard every write.
+        txn.rollback().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to roll back dry-run transaction: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows.iter().map(row_to_map).collect())
+    }
+
     // PostgreSQL session variables are applied connection-affinely by the
     // `*_with_session` methods below: `set_config(..., true)` and the operation
     // share one transaction on one connection, so transaction-local GUCs are

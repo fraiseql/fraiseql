@@ -1084,6 +1084,41 @@ pub trait DatabaseAdapter: Send + Sync {
         self.execute_function_call_with_session(function_name, args, session_vars).await
     }
 
+    /// Validate-bind-without-commit variant of
+    /// [`execute_function_call`](Self::execute_function_call): run the mutation
+    /// function inside a transaction that is **rolled back** instead of committed.
+    ///
+    /// The function binds and executes — so constraints, triggers, and the
+    /// `app.mutation_response` shape are all exercised — but no writes persist and
+    /// no change-log outbox row is emitted. Powers `fraiseql query --dry-run` and
+    /// the `doctor --runtime` mutation probes (driven by the executor's
+    /// `RuntimeConfig::dry_run_mutations` flag).
+    ///
+    /// Only the PostgreSQL adapter overrides this today; every other adapter keeps
+    /// the default below, which returns `Unsupported` rather than silently
+    /// committing. (SQL Server already wraps mutations in `BEGIN TRANSACTION` and
+    /// could override this with a `ROLLBACK`; SQLite uses `MutationStrategy::DirectSql`
+    /// and would need its own variant.)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` on adapters that do not implement a
+    /// rollback path. PostgreSQL returns `FraiseQLError::Database` on execution
+    /// failure (mirroring [`execute_function_call`](Self::execute_function_call)).
+    async fn execute_function_call_dry_run(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Err(FraiseQLError::Unsupported {
+            message:
+                "--dry-run mutations (validate-bind-without-commit) are only supported by the \
+                      PostgreSQL adapter."
+                    .to_string(),
+        })
+    }
+
     /// Connection-affine variant of [`execute_where_query_arc`](Self::execute_where_query_arc).
     ///
     /// Applies `session_vars` transaction-locally on the same connection that

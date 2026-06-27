@@ -477,11 +477,24 @@ pub async fn run() {
             },
         },
 
+        Commands::Query {
+            query,
+            schema,
+            database,
+            variables,
+            dry_run,
+        } => {
+            // Box::pin: the in-process executor + adapter init future is large
+            // enough to trip clippy's `large_futures` stack threshold.
+            Box::pin(commands::query::run(&query, &schema, database, variables, dry_run)).await
+        },
+
         Commands::Doctor {
             config,
             schema,
             db_url,
             against_db,
+            runtime,
             schemas,
             json: json_flag,
         } => {
@@ -490,6 +503,7 @@ pub async fn run() {
                 &schema,
                 db_url.as_deref(),
                 against_db.as_deref(),
+                runtime,
                 &schemas,
                 json_flag,
             )
