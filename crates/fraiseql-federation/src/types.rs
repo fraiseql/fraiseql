@@ -376,6 +376,17 @@ pub struct FederationResolver {
 
     /// Cached resolution strategies
     pub strategy_cache: std::sync::Mutex<HashMap<String, ResolutionStrategy>>,
+
+    /// Backing relation (`sql_source`) per entity type name, e.g.
+    /// `{"Organization": "v_organization"}`.
+    ///
+    /// FraiseQL entities are view-backed, so the `_entities` resolver must read
+    /// from the type's configured `sql_source` — **not** `lower(typename)`, which
+    /// names a relation that does not exist (#504). Populated at the production
+    /// call site from the compiled schema's per-type `sql_source` via
+    /// [`with_entity_sources`](Self::with_entity_sources); empty in unit paths,
+    /// where the resolver falls back to `lower(typename)`.
+    pub entity_sources: HashMap<String, String>,
 }
 
 impl FederationResolver {
@@ -385,7 +396,17 @@ impl FederationResolver {
         Self {
             metadata,
             strategy_cache: std::sync::Mutex::new(HashMap::new()),
+            entity_sources: HashMap::new(),
         }
+    }
+
+    /// Attach the per-entity-type backing relation map (`typename` → `sql_source`),
+    /// so the `_entities` resolver reads from the real view instead of guessing
+    /// `lower(typename)` (#504).
+    #[must_use]
+    pub fn with_entity_sources(mut self, entity_sources: HashMap<String, String>) -> Self {
+        self.entity_sources = entity_sources;
+        self
     }
 
     /// Get or determine resolution strategy for type.

@@ -16,6 +16,24 @@ use crate::{
     types::{EntityRepresentation, FederationMetadata},
 };
 
+/// Render a key column for the `WHERE … IN` comparison, casting it to text on
+/// PostgreSQL.
+///
+/// `@key` values arrive as JSON and are bound as `text` parameters, but the key
+/// column is frequently `uuid` (or another non-text type). PostgreSQL is strictly
+/// typed, so `id IN ($1)` with a text-bound `$1` fails with `operator does not
+/// exist: uuid = text` — silently turning every cross-subgraph join null (#504).
+/// Casting the column to text (`id::text IN ($1)`) makes the comparison succeed
+/// uniformly for `uuid` / integer / text keys, since the bound value is the
+/// canonical text form the owning subgraph emitted. Other dialects coerce text
+/// operands implicitly, so their SQL is left byte-for-byte unchanged.
+fn key_match_column(field: &str, db_type: DatabaseType) -> String {
+    match db_type {
+        DatabaseType::PostgreSQL => format!("{field}::text"),
+        _ => field.to_string(),
+    }
+}
+
 /// Build a parameterized WHERE IN clause for batch entity resolution.
 ///
 /// Returns the SQL fragment (with dialect-native bind placeholders) and the
@@ -62,7 +80,7 @@ pub fn construct_where_in_clause(
             .join(", ");
         let params = key_values.into_iter().map(Value::String).collect();
 
-        Ok((format!("{key_field} IN ({placeholders})"), params))
+        Ok((format!("{} IN ({placeholders})", key_match_column(key_field, db_type)), params))
     } else {
         // For composite keys, build: (key1, key2) IN (($1, $2), ...)
         construct_composite_where_in(&key_directive.fields, representations, db_type)
@@ -128,7 +146,11 @@ fn construct_composite_where_in(
         value_tuples.push(format!("({})", placeholders.join(", ")));
     }
 
-    let fields_list = key_fields.join(", ");
+    let fields_list = key_fields
+        .iter()
+        .map(|f| key_match_column(f, db_type))
+        .collect::<Vec<_>>()
+        .join(", ");
     let tuples_str = value_tuples.join(", ");
 
     Ok((format!("({fields_list}) IN ({tuples_str})"), params))

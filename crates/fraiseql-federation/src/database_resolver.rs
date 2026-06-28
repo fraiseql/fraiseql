@@ -26,16 +26,38 @@ use crate::{
 /// Resolves federation entities from local databases.
 pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
     /// Database adapter for executing queries
-    adapter:  Arc<A>,
+    adapter:        Arc<A>,
     /// Federation metadata
-    metadata: FederationMetadata,
+    metadata:       FederationMetadata,
+    /// Backing relation (`sql_source`) per entity type name. Empty → the resolver
+    /// falls back to `lower(typename)` (#504).
+    entity_sources: std::collections::HashMap<String, String>,
 }
 
 impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
     /// Create a new database entity resolver.
+    ///
+    /// The `_entities` `FROM` relation falls back to `lower(typename)` unless a
+    /// per-type `sql_source` map is attached via
+    /// [`with_entity_sources`](Self::with_entity_sources).
     #[must_use]
-    pub const fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
-        Self { adapter, metadata }
+    pub fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
+        Self {
+            adapter,
+            metadata,
+            entity_sources: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Attach the per-entity-type backing relation map (`typename` → `sql_source`),
+    /// so the resolver reads from the real view instead of `lower(typename)` (#504).
+    #[must_use]
+    pub fn with_entity_sources(
+        mut self,
+        entity_sources: std::collections::HashMap<String, String>,
+    ) -> Self {
+        self.entity_sources = entity_sources;
+        self
     }
 
     /// Resolve entities from database.
@@ -151,12 +173,15 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Find type definition using metadata helpers (whitelist check)
         let fed_type = find_federation_type(typename, &self.metadata)?;
 
-        // Get table name from typename (already validated as a safe identifier
-        // above). The table identifier is quoted — its lowercased form has no
-        // embedded quotes after the `is_safe_sql_identifier` check — so reserved-word
-        // type names like `User` -> `user` still produce valid SQL.
-        let table_name = typename.to_lowercase();
-        let quoted_table = format!("\"{}\"", table_name.replace('"', "\"\""));
+        // Resolve the backing relation. FraiseQL entities are view-backed, so the
+        // FROM relation is the type's configured `sql_source` (e.g. `v_organization`),
+        // not `lower(typename)` — which names a relation that does not exist and made
+        // every view-backed cross-subgraph join return null (#504). Falls back to
+        // `lower(typename)` only when no source map is attached (unit paths).
+        let quoted_table = match self.entity_sources.get(typename) {
+            Some(source) => quote_relation(source)?,
+            None => quote_relation(&typename.to_lowercase())?,
+        };
 
         // Build the parameterized WHERE IN clause. Key-field values are bound (not
         // interpolated), so the dialect must match the executing adapter.
@@ -203,6 +228,32 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)
     }
+}
+
+/// Quote a (possibly schema-qualified) relation name for use as a `FROM` target.
+///
+/// Splits on `.` so a qualified `sql_source` like `app.v_organization` becomes
+/// `"app"."v_organization"` rather than a single mis-quoted identifier. Each
+/// segment is validated as a safe SQL identifier (defense-in-depth — `sql_source`
+/// is compiler-authored, not client input) and quoted, doubling any inner quote.
+/// Returns a [`FraiseQLError::Validation`] if a segment is empty or unsafe.
+fn quote_relation(relation: &str) -> Result<String> {
+    let segments: Vec<&str> = relation.split('.').collect();
+    if segments.iter().any(|s| s.is_empty()) || !segments.iter().all(|s| is_safe_sql_identifier(s))
+    {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Federation entity relation '{relation}' is not a valid (optionally \
+                 schema-qualified) SQL identifier"
+            ),
+            path:    None,
+        });
+    }
+    Ok(segments
+        .iter()
+        .map(|s| format!("\"{}\"", s.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join("."))
 }
 
 /// Render an already-composed per-row WHERE predicate to a dialect-native SQL

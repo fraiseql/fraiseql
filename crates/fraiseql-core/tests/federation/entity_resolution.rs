@@ -279,3 +279,58 @@ async fn test_resolve_entities_enforced_filters_cross_tenant() {
         entities[1]
     );
 }
+
+/// #504: a FraiseQL entity is backed by a view (`v_organization`), not a relation
+/// literally named `lower(typename)` (`organization`), and its `@key` is a `uuid`.
+/// Without the per-type `sql_source` map the resolver queries the non-existent
+/// `organization` and errors (the gateway swallowed this into a null); with it —
+/// and with the key column cast to text — the uuid-keyed row resolves.
+#[tokio::test]
+async fn test_resolve_view_backed_uuid_entity_uses_sql_source() {
+    let org_id = "550e8400-e29b-41d4-a716-446655440000";
+    let rows = vec![map(&[("id", json!(org_id)), ("name", json!("Acme"))])];
+    // Backing relation `v_organization` is deliberately *not* `lower("Organization")`,
+    // with a real `uuid` key column.
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("v_organization", &["id uuid", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_view_backed_uuid_entity_uses_sql_source: no postgres");
+        return;
+    };
+
+    let metadata = common::metadata_single_key("Organization", "id");
+    let selection = FieldSelection::new(vec!["id".to_string(), "name".to_string()]);
+
+    // Control: without the source map the resolver guesses `lower(typename)` =
+    // `organization`, which does not exist → hard error (the pre-#504 behaviour).
+    let blind = DatabaseEntityResolver::new(adapter.clone(), metadata.clone());
+    let blind_result = blind
+        .resolve_entities_from_db(
+            "Organization",
+            &[rep("Organization", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await;
+    assert!(
+        blind_result.is_err(),
+        "querying lower(typename) must fail: relation 'organization' does not exist, got: {blind_result:?}"
+    );
+
+    // Fix: thread the entity's `sql_source` so the resolver reads `v_organization`,
+    // and the uuid key matches via the `::text` cast.
+    let mut sources = HashMap::new();
+    sources.insert("Organization".to_string(), "v_organization".to_string());
+    let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);
+    let entities = resolver
+        .resolve_entities_from_db(
+            "Organization",
+            &[rep("Organization", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("view-backed uuid entity resolution failed: {e}"));
+
+    assert_eq!(entities.len(), 1);
+    let org = entities[0].as_ref().expect("uuid-keyed org must resolve from its view");
+    assert_eq!(org["name"], "Acme");
+}

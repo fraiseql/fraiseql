@@ -103,8 +103,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Validate representations
         crate::federation::validate_representations(&representations, &fed_metadata)?;
 
-        // Create federation resolver
-        let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
+        // Create federation resolver, carrying each entity type's backing relation
+        // (`sql_source`) so the `_entities` resolver reads from the real view
+        // (`v_organization`) instead of `lower(typename)` — the latter names a
+        // relation that does not exist, so view-backed cross-subgraph joins silently
+        // returned null (#504).
+        let entity_sources: std::collections::HashMap<String, String> = self
+            .ctx
+            .schema
+            .types
+            .iter()
+            .filter(|t| !t.sql_source.as_str().is_empty())
+            .map(|t| (t.name.as_str().to_string(), t.sql_source.as_str().to_string()))
+            .collect();
+        let fed_resolver = crate::federation::FederationResolver::new(fed_metadata)
+            .with_entity_sources(entity_sources);
 
         // Extract actual field selection from GraphQL query AST.
         // __typename is NOT added to the SQL field list — it is a GraphQL meta-field

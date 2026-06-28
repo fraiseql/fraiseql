@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` now resolves from the entity's `sql_source`, not
+  `lower(typename)`.** The runtime `_entities` resolver built its `FROM` relation
+  from the lowercased GraphQL type name, but FraiseQL entities are view-backed
+  (`v_organization` / `tv_organization`), so it queried a relation that does not
+  exist — the query errored and the gateway silently turned the field into `null`,
+  making cross-subgraph entity joins non-functional for standard view-backed
+  entities. Each entity type's `sql_source` is now threaded to the resolver (from
+  the compiled schema's per-type `sql_source`) and used as the `FROM` relation,
+  with schema-qualified names quoted segment-by-segment. Additionally, `@key`
+  values are bound as text while key columns are frequently `uuid`, so the key
+  column is now cast to text on PostgreSQL (`id::text IN ($1)`) — making the
+  comparison succeed uniformly for `uuid` / integer / text keys (other dialects
+  coerce implicitly and are unchanged). (#504)
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim

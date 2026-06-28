@@ -50,7 +50,9 @@ fn test_construct_simple_where_in_binds_values() {
         construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
 
     // Values are bound, not interpolated: the clause carries placeholders only.
-    assert_eq!(clause, "id IN ($1, $2)");
+    // The key column is cast to text on PostgreSQL so a text-bound key matches a
+    // non-text (e.g. uuid) key column (#504).
+    assert_eq!(clause, "id::text IN ($1, $2)");
     assert!(!clause.contains("123"));
     assert!(!clause.contains("456"));
     assert_eq!(params, vec![json!("123"), json!("456")]);
@@ -62,7 +64,8 @@ fn test_dialect_placeholders() {
     let reps = vec![rep("a")];
     let (pg, _) =
         construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
-    assert_eq!(pg, "id IN ($1)");
+    // PostgreSQL casts the key column to text (#504); other dialects coerce.
+    assert_eq!(pg, "id::text IN ($1)");
     let (my, _) = construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL).unwrap();
     assert_eq!(my, "id IN (?)");
     let (ms, _) =
@@ -153,7 +156,8 @@ fn test_construct_composite_where_in_binds_values() {
         construct_where_in_clause("OrderItem", &[rep], &metadata, DatabaseType::PostgreSQL)
             .unwrap();
 
-    assert_eq!(clause, "(order_id, product_id) IN (($1, $2))");
+    // Each composite key column is cast to text on PostgreSQL (#504).
+    assert_eq!(clause, "(order_id::text, product_id::text) IN (($1, $2))");
     // Values are bound as parameters, never interpolated into the SQL text.
     assert!(!clause.contains("O1") && !clause.contains("P1"));
     assert_eq!(params, vec![json!("O1"), json!("P1")]);

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use fraiseql_db::{DatabaseType, WhereClause, WhereOperator};
 use serde_json::json;
 
-use super::{build_select_fields, render_row_filter};
+use super::{build_select_fields, quote_relation, render_row_filter};
 use crate::{
     selection_parser::FieldSelection,
     types::{FederatedType, KeyDirective},
@@ -15,6 +15,28 @@ use crate::{
 fn test_database_resolver_creation() {
     // Test that resolver can be created (mock adapter would be used)
     // Actual DB tests are in integration tests
+}
+
+#[test]
+fn quote_relation_quotes_a_bare_view_name() {
+    assert_eq!(quote_relation("v_organization").unwrap(), "\"v_organization\"");
+}
+
+#[test]
+fn quote_relation_quotes_each_schema_qualified_segment() {
+    // A qualified sql_source becomes "schema"."relation", not a single mis-quoted
+    // identifier — the bug that made `schema.v_organization` unresolvable (#504).
+    assert_eq!(quote_relation("app.v_organization").unwrap(), "\"app\".\"v_organization\"");
+}
+
+#[test]
+fn quote_relation_rejects_unsafe_or_empty_segments() {
+    // sql_source is compiler-authored, but the FROM relation is interpolated, so the
+    // identifier guard is defense-in-depth.
+    assert!(quote_relation("v_org; DROP TABLE x").is_err());
+    assert!(quote_relation("app.").is_err());
+    assert!(quote_relation(".v_org").is_err());
+    assert!(quote_relation("").is_err());
 }
 
 fn user_type_with_inaccessible() -> FederatedType {

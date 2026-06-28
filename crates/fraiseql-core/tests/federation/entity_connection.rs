@@ -162,6 +162,7 @@ fn test_database_parameterized_queries() {
             .unwrap();
 
     // The value is bound as a parameter, not escaped into the SQL text.
-    assert_eq!(where_clause, "id IN ($1)");
+    // Key column cast to text on PostgreSQL (#504).
+    assert_eq!(where_clause, "id::text IN ($1)");
     assert_eq!(params, vec![json!("O'Brien")]);
 }
