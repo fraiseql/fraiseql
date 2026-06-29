@@ -210,8 +210,11 @@ pub async fn resolve_entities_from_db_enforced<A: DatabaseAdapter>(
         };
     }
 
-    // Create database entity resolver
-    let db_resolver = DatabaseEntityResolver::new(adapter, fed_resolver.metadata.clone());
+    // Create database entity resolver, carrying the per-type backing relations so
+    // the `_entities` FROM targets the real view (`sql_source`), not `lower(typename)`
+    // (#504). Empty in unit paths → resolver falls back to `lower(typename)`.
+    let db_resolver = DatabaseEntityResolver::new(adapter, fed_resolver.metadata.clone())
+        .with_entity_sources(fed_resolver.entity_sources.clone());
 
     // Resolve from database with tracing and the composed per-row enforcement
     match db_resolver

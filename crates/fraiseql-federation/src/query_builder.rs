@@ -6,7 +6,7 @@
 //! including MySQL's default backslash-escape mode, where the former
 //! single-quote-only escaping was unsafe (H3).
 
-use fraiseql_db::DatabaseType;
+use fraiseql_db::{DatabaseType, utils::to_snake_case};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
@@ -15,6 +15,34 @@ use crate::{
     sql_utils::{placeholder, validate_sql_identifier, value_to_string},
     types::{EntityRepresentation, FederationMetadata},
 };
+
+/// Render the left-hand side of a key `WHERE … IN` comparison, as text.
+///
+/// `@key` values arrive as JSON and are bound as `text` parameters, so the key
+/// expression must produce text too:
+///
+/// - **jsonb mode** (`jsonb_column = Some(col)`): the key lives in the entity's jsonb column, so it
+///   is read as `"col"->>'snake(field)'` (the `->>` operator yields text, with camelCase→snake
+///   recasing) — already text, no cast needed.
+/// - **flat mode** (`None`): the key is a real column. The column is frequently `uuid` (or
+///   integer), and PostgreSQL is strictly typed, so `id IN ($1)` with a text-bound `$1` fails with
+///   `operator does not exist: uuid = text` — silently turning every cross-subgraph join null
+///   (#504). Casting the column to text (`id::text`) makes the comparison succeed uniformly for
+///   `uuid` / integer / text keys. Other dialects coerce text operands implicitly, so their SQL is
+///   left byte-for-byte unchanged.
+fn key_match_expr(field: &str, db_type: DatabaseType, jsonb_column: Option<&str>) -> String {
+    match jsonb_column {
+        Some(col) => {
+            let column = col.replace('"', "\"\"");
+            let key = to_snake_case(field).replace('\'', "''");
+            format!("\"{column}\"->>'{key}'")
+        },
+        None => match db_type {
+            DatabaseType::PostgreSQL => format!("{field}::text"),
+            _ => field.to_string(),
+        },
+    }
+}
 
 /// Build a parameterized WHERE IN clause for batch entity resolution.
 ///
@@ -40,6 +68,7 @@ pub fn construct_where_in_clause(
     representations: &[EntityRepresentation],
     metadata: &FederationMetadata,
     db_type: DatabaseType,
+    jsonb_column: Option<&str>,
 ) -> Result<(String, Vec<Value>)> {
     // Find the entity type and its key directive
     let fed_type = find_federation_type(typename, metadata)?;
@@ -62,10 +91,13 @@ pub fn construct_where_in_clause(
             .join(", ");
         let params = key_values.into_iter().map(Value::String).collect();
 
-        Ok((format!("{key_field} IN ({placeholders})"), params))
+        Ok((
+            format!("{} IN ({placeholders})", key_match_expr(key_field, db_type, jsonb_column)),
+            params,
+        ))
     } else {
         // For composite keys, build: (key1, key2) IN (($1, $2), ...)
-        construct_composite_where_in(&key_directive.fields, representations, db_type)
+        construct_composite_where_in(&key_directive.fields, representations, db_type, jsonb_column)
     }
 }
 
@@ -99,6 +131,7 @@ fn construct_composite_where_in(
     key_fields: &[String],
     representations: &[EntityRepresentation],
     db_type: DatabaseType,
+    jsonb_column: Option<&str>,
 ) -> Result<(String, Vec<Value>)> {
     if representations.is_empty() {
         return Ok(("1 = 0".to_string(), Vec::new()));
@@ -128,7 +161,11 @@ fn construct_composite_where_in(
         value_tuples.push(format!("({})", placeholders.join(", ")));
     }
 
-    let fields_list = key_fields.join(", ");
+    let fields_list = key_fields
+        .iter()
+        .map(|f| key_match_expr(f, db_type, jsonb_column))
+        .collect::<Vec<_>>()
+        .join(", ");
     let tuples_str = value_tuples.join(", ");
 
     Ok((format!("({fields_list}) IN ({tuples_str})"), params))

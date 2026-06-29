@@ -8,7 +8,7 @@ use std::sync::Arc;
 use ::tracing::warn;
 use fraiseql_db::{
     DatabaseType, GenericWhereGenerator, MySqlDialect, PostgresDialect, SqlServerDialect,
-    SqliteDialect, WhereClause, traits::DatabaseAdapter,
+    SqliteDialect, WhereClause, traits::DatabaseAdapter, utils::to_snake_case,
 };
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
@@ -20,22 +20,45 @@ use crate::{
     selection_parser::FieldSelection,
     sql_utils::is_safe_sql_identifier,
     tracing::FederationTraceContext,
-    types::{EntityRepresentation, FederatedType, FederationMetadata},
+    types::{EntityRepresentation, EntitySource, FederatedType, FederationMetadata},
 };
 
 /// Resolves federation entities from local databases.
 pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
     /// Database adapter for executing queries
-    adapter:  Arc<A>,
+    adapter:        Arc<A>,
     /// Federation metadata
-    metadata: FederationMetadata,
+    metadata:       FederationMetadata,
+    /// Backing [`EntitySource`] per entity type name. Empty → the resolver falls
+    /// back to `lower(typename)` with flat columns (#504).
+    entity_sources: std::collections::HashMap<String, EntitySource>,
 }
 
 impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
     /// Create a new database entity resolver.
+    ///
+    /// The `_entities` `FROM` relation falls back to `lower(typename)` unless a
+    /// per-type `sql_source` map is attached via
+    /// [`with_entity_sources`](Self::with_entity_sources).
     #[must_use]
-    pub const fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
-        Self { adapter, metadata }
+    pub fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
+        Self {
+            adapter,
+            metadata,
+            entity_sources: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Attach the per-entity-type [`EntitySource`] map (`typename` → relation +
+    /// jsonb column), so the resolver reads from the real view and projects its
+    /// jsonb fields instead of `lower(typename)` with flat columns (#504).
+    #[must_use]
+    pub fn with_entity_sources(
+        mut self,
+        entity_sources: std::collections::HashMap<String, EntitySource>,
+    ) -> Self {
+        self.entity_sources = entity_sources;
+        self
     }
 
     /// Resolve entities from database.
@@ -151,18 +174,31 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Find type definition using metadata helpers (whitelist check)
         let fed_type = find_federation_type(typename, &self.metadata)?;
 
-        // Get table name from typename (already validated as a safe identifier
-        // above). The table identifier is quoted — its lowercased form has no
-        // embedded quotes after the `is_safe_sql_identifier` check — so reserved-word
-        // type names like `User` -> `user` still produce valid SQL.
-        let table_name = typename.to_lowercase();
-        let quoted_table = format!("\"{}\"", table_name.replace('"', "\"\""));
+        // Resolve the backing relation and (optional) jsonb projection column.
+        // FraiseQL entities are view-backed and normally expose their fields inside a
+        // `data` jsonb column, so the resolver reads from the entity's configured
+        // relation — not `lower(typename)`, which names a relation that does not exist
+        // and made every view-backed cross-subgraph join return null (#504) — and
+        // projects fields out of that column the way the normal query path does. Falls
+        // back to `lower(typename)` with flat columns only when no source is attached
+        // (unit paths / flat-column views).
+        let source = self.entity_sources.get(typename);
+        let relation = source.map_or_else(|| typename.to_lowercase(), |s| s.relation.clone());
+        let quoted_table = quote_relation(&relation)?;
+        let jsonb_column = source.and_then(|s| s.jsonb_column.as_deref());
 
         // Build the parameterized WHERE IN clause. Key-field values are bound (not
-        // interpolated), so the dialect must match the executing adapter.
+        // interpolated), so the dialect must match the executing adapter. In jsonb mode
+        // the key is matched as `<col>->>'<snake(key)>'` (text vs text); in flat mode the
+        // key column is cast to text on PostgreSQL.
         let db_type = self.adapter.database_type();
-        let (where_clause, mut params) =
-            construct_where_in_clause(typename, representations, &self.metadata, db_type)?;
+        let (where_clause, mut params) = construct_where_in_clause(
+            typename,
+            representations,
+            &self.metadata,
+            db_type,
+            jsonb_column,
+        )?;
 
         // Compose the per-row enforcement predicate (tenant/owner scoping) onto the
         // key lookup. Placeholders are offset past the IN-clause params, and the
@@ -180,18 +216,13 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Build the SELECT list. Each requested field must be a safe SQL identifier
         // AND exposed: `@inaccessible` / `@external` fields are never selected, so a
         // client naming them cannot exfiltrate them via `_entities` (M-fed-select-
-        // list). The selection comes from a text scanner, so any token that is not a
-        // plain identifier is dropped here too. Fields are interpolated unquoted (the
-        // entity views rely on PostgreSQL case-folding); the charset guard is what
-        // keeps that interpolation injection-safe.
-        let select_fields = build_select_fields(selection, fed_type);
+        // list). In jsonb mode each field is projected as
+        // `<col>->'<snake(field)>' AS "<field>"` (typed via the adapter's jsonb
+        // decoding, with camelCase→snake recasing); in flat mode fields are bare
+        // columns interpolated unquoted (relying on PostgreSQL case-folding).
+        let select_list = build_select_list(selection, fed_type, jsonb_column);
 
-        let sql = format!(
-            "SELECT {} FROM {} WHERE {}",
-            select_fields.join(", "),
-            quoted_table,
-            where_clause
-        );
+        let sql = format!("SELECT {select_list} FROM {quoted_table} WHERE {where_clause}");
 
         // Execute with bound parameters (no value interpolation), pinning session
         // variables to the read's connection so `current_setting()` RLS is effective.
@@ -203,6 +234,32 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // Project results maintaining order
         project_results(&rows, representations, fed_type, typename)
     }
+}
+
+/// Quote a (possibly schema-qualified) relation name for use as a `FROM` target.
+///
+/// Splits on `.` so a qualified `sql_source` like `app.v_organization` becomes
+/// `"app"."v_organization"` rather than a single mis-quoted identifier. Each
+/// segment is validated as a safe SQL identifier (defense-in-depth — `sql_source`
+/// is compiler-authored, not client input) and quoted, doubling any inner quote.
+/// Returns a [`FraiseQLError::Validation`] if a segment is empty or unsafe.
+fn quote_relation(relation: &str) -> Result<String> {
+    let segments: Vec<&str> = relation.split('.').collect();
+    if segments.iter().any(|s| s.is_empty()) || !segments.iter().all(|s| is_safe_sql_identifier(s))
+    {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Federation entity relation '{relation}' is not a valid (optionally \
+                 schema-qualified) SQL identifier"
+            ),
+            path:    None,
+        });
+    }
+    Ok(segments
+        .iter()
+        .map(|s| format!("\"{}\"", s.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join("."))
 }
 
 /// Render an already-composed per-row WHERE predicate to a dialect-native SQL
@@ -231,8 +288,7 @@ fn render_row_filter(
     }
 }
 
-/// Build the validated, exposure-filtered SELECT field list for an `_entities`
-/// query.
+/// Build the validated, exposure-filtered SELECT list for an `_entities` query.
 ///
 /// A requested field is kept only if it is a safe SQL identifier AND exposed:
 /// `@inaccessible` (via either `field_directives` or the `inaccessible_fields`
@@ -241,8 +297,18 @@ fn render_row_filter(
 /// non-identifier scanner token are dropped too. The type's key fields are
 /// always appended — they are schema-defined identifiers and `project_results`
 /// needs them to match rows to representations.
-fn build_select_fields(selection: &FieldSelection, fed_type: &FederatedType) -> Vec<String> {
-    let mut select_fields: Vec<String> = Vec::new();
+///
+/// In **jsonb mode** (`jsonb_column = Some(col)`) each field `F` is projected as
+/// `"col"->'snake(F)' AS "F"`, so a `data`-jsonb-backed view resolves with
+/// camelCase→snake recasing and type fidelity (the single-arrow `->` yields jsonb,
+/// which the adapter decodes back to a typed value). In **flat mode** (`None`)
+/// fields are emitted as bare column identifiers (the legacy flat-column shape).
+fn build_select_list(
+    selection: &FieldSelection,
+    fed_type: &FederatedType,
+    jsonb_column: Option<&str>,
+) -> String {
+    let mut fields: Vec<String> = Vec::new();
     for field in &selection.fields {
         if field == "__typename" {
             continue;
@@ -254,18 +320,39 @@ fn build_select_fields(selection: &FieldSelection, fed_type: &FederatedType) -> 
         {
             continue;
         }
-        if !select_fields.contains(field) {
-            select_fields.push(field.clone());
+        if !fields.contains(field) {
+            fields.push(field.clone());
         }
     }
     for key in &fed_type.keys {
         for field in &key.fields {
-            if is_safe_sql_identifier(field) && !select_fields.contains(field) {
-                select_fields.push(field.clone());
+            if is_safe_sql_identifier(field) && !fields.contains(field) {
+                fields.push(field.clone());
             }
         }
     }
-    select_fields
+    fields
+        .iter()
+        .map(|f| select_expr(f, jsonb_column))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Render one SELECT expression for `field`: a jsonb projection
+/// (`"col"->'snake(field)' AS "field"`) in jsonb mode, or a bare column in flat
+/// mode. `field` is an already-validated safe identifier; the jsonb key is its
+/// `snake_case` form (single-quoted, inner quotes doubled) and the alias preserves
+/// the GraphQL field name so `project_results` can read it back by name.
+fn select_expr(field: &str, jsonb_column: Option<&str>) -> String {
+    match jsonb_column {
+        Some(col) => {
+            let column = col.replace('"', "\"\"");
+            let key = to_snake_case(field).replace('\'', "''");
+            let alias = field.replace('"', "\"\"");
+            format!("\"{column}\"->'{key}' AS \"{alias}\"")
+        },
+        None => field.to_string(),
+    }
 }
 
 /// Project database results to federation format, maintaining order of representations.

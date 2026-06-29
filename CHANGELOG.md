@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` now resolves view-backed, jsonb-`data` entities.** The
+  runtime `_entities` resolver built its `FROM` relation from the lowercased GraphQL
+  type name and selected bare columns, but FraiseQL entities are view-backed and
+  expose their fields inside a `data` jsonb column — so it queried a relation that
+  does not exist and could not read jsonb fields. The query errored and the gateway
+  silently turned the field into `null`, making cross-subgraph entity joins
+  non-functional for standard entities. The resolver now sources each entity's
+  backing relation **and** jsonb column from the compiled schema's backing query
+  (keyed by `return_type`; the compiler leaves `types[].sql_source` empty), reads
+  from that relation (schema-qualified names quoted segment-by-segment), and
+  projects each requested field as `data->'<snake(field)>'` with camelCase→snake
+  recasing and type fidelity — mirroring the normal query path. The `@key` lookup
+  matches `data->>'<snake(key)>'` for jsonb views, and falls back to a text-cast
+  flat-column comparison (`id::text IN ($1)`) for flat-column views, so `uuid` /
+  integer / text keys all match. (#504)
+
+  Owner-split `extends` entities (resolved in a subgraph that does not own the type,
+  and so have neither a backing query nor a type-level `sql_source` in the compiled
+  schema) still require the authoring SDK to emit a type-level `sql_source` — tracked
+  in #507.
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim

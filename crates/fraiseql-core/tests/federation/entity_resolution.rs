@@ -13,8 +13,9 @@ use std::collections::HashMap;
 use fraiseql_core::{
     db::{WhereClause, WhereOperator},
     federation::{
-        database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
-        types::EntityRepresentation,
+        database_resolver::DatabaseEntityResolver,
+        selection_parser::FieldSelection,
+        types::{EntityRepresentation, EntitySource},
     },
 };
 use serde_json::{Value, json};
@@ -278,4 +279,146 @@ async fn test_resolve_entities_enforced_filters_cross_tenant() {
         "tenant B's user must be filtered out by the per-row tenant predicate, got: {:?}",
         entities[1]
     );
+}
+
+/// #504: a FraiseQL entity is backed by a view (`v_organization`), not a relation
+/// literally named `lower(typename)` (`organization`), and its `@key` is a `uuid`.
+/// Without the per-type `sql_source` map the resolver queries the non-existent
+/// `organization` and errors (the gateway swallowed this into a null); with it —
+/// and with the key column cast to text — the uuid-keyed row resolves.
+#[tokio::test]
+async fn test_resolve_view_backed_uuid_entity_uses_sql_source() {
+    let org_id = "550e8400-e29b-41d4-a716-446655440000";
+    let rows = vec![map(&[("id", json!(org_id)), ("name", json!("Acme"))])];
+    // Backing relation `v_organization` is deliberately *not* `lower("Organization")`,
+    // with a real `uuid` key column.
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("v_organization", &["id uuid", "name text"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_view_backed_uuid_entity_uses_sql_source: no postgres");
+        return;
+    };
+
+    let metadata = common::metadata_single_key("Organization", "id");
+    let selection = FieldSelection::new(vec!["id".to_string(), "name".to_string()]);
+
+    // Control: without the source map the resolver guesses `lower(typename)` =
+    // `organization`, which does not exist → hard error (the pre-#504 behaviour).
+    let blind = DatabaseEntityResolver::new(adapter.clone(), metadata.clone());
+    let blind_result = blind
+        .resolve_entities_from_db(
+            "Organization",
+            &[rep("Organization", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await;
+    assert!(
+        blind_result.is_err(),
+        "querying lower(typename) must fail: relation 'organization' does not exist, got: {blind_result:?}"
+    );
+
+    // Fix: thread the entity's relation so the resolver reads `v_organization`. This
+    // is the flat-column shape (no jsonb column), so the uuid key matches via the
+    // `::text` cast.
+    let mut sources = HashMap::new();
+    sources.insert(
+        "Organization".to_string(),
+        EntitySource {
+            relation:     "v_organization".to_string(),
+            jsonb_column: None,
+        },
+    );
+    let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);
+    let entities = resolver
+        .resolve_entities_from_db(
+            "Organization",
+            &[rep("Organization", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("view-backed uuid entity resolution failed: {e}"));
+
+    assert_eq!(entities.len(), 1);
+    let org = entities[0].as_ref().expect("uuid-keyed org must resolve from its view");
+    assert_eq!(org["name"], "Acme");
+}
+
+/// #504 (jsonb projection): a standard FraiseQL entity view exposes its fields in a
+/// `data` jsonb column, not flat columns. With `jsonb_column = Some("data")` the
+/// resolver projects each field as `data->'<snake(field)>'` (camelCase→snake
+/// recasing, type-preserving) and matches the key as `data->>'id'`, so a
+/// jsonb-backed entity with a camelCase, non-string field resolves. The flat-column
+/// control fails because there is no bare `id` column.
+#[tokio::test]
+async fn test_resolve_jsonb_data_backed_entity_projects_and_recases() {
+    let org_id = "550e8400-e29b-41d4-a716-446655440000";
+    let rows = vec![map(&[(
+        "data",
+        json!({ "id": org_id, "name": "Acme", "is_customer": true }),
+    )])];
+    // A real jsonb-`data` view: the only column is `data`.
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("v_customer", &["data jsonb"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_jsonb_data_backed_entity_projects_and_recases: no postgres");
+        return;
+    };
+
+    let metadata = common::metadata_single_key("Customer", "id");
+    // `isCustomer` is camelCase and jsonb-only (stored as `data->>'is_customer'`).
+    let selection = FieldSelection::new(vec![
+        "id".to_string(),
+        "name".to_string(),
+        "isCustomer".to_string(),
+    ]);
+
+    // Control: flat mode selects bare columns (`SELECT id, name, isCustomer`), which
+    // do not exist on a jsonb-`data` view → hard error.
+    let mut flat = HashMap::new();
+    flat.insert(
+        "Customer".to_string(),
+        EntitySource {
+            relation:     "v_customer".to_string(),
+            jsonb_column: None,
+        },
+    );
+    let flat_resolver =
+        DatabaseEntityResolver::new(adapter.clone(), metadata.clone()).with_entity_sources(flat);
+    let flat_result = flat_resolver
+        .resolve_entities_from_db(
+            "Customer",
+            &[rep("Customer", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await;
+    assert!(
+        flat_result.is_err(),
+        "flat column SELECT must fail on a jsonb view: {flat_result:?}"
+    );
+
+    // jsonb mode: project from `data` with recasing and type fidelity.
+    let mut sources = HashMap::new();
+    sources.insert(
+        "Customer".to_string(),
+        EntitySource {
+            relation:     "v_customer".to_string(),
+            jsonb_column: Some("data".to_string()),
+        },
+    );
+    let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);
+    let entities = resolver
+        .resolve_entities_from_db(
+            "Customer",
+            &[rep("Customer", &[("id", json!(org_id))])],
+            &selection,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("jsonb-data entity resolution failed: {e}"));
+
+    assert_eq!(entities.len(), 1);
+    let customer = entities[0].as_ref().expect("jsonb-backed customer must resolve");
+    assert_eq!(customer["name"], "Acme");
+    // camelCase field projected from `data->>'is_customer'`, with the boolean type
+    // preserved (not the text "true") via the single-arrow `->` jsonb projection.
+    assert_eq!(customer["isCustomer"], json!(true));
 }
