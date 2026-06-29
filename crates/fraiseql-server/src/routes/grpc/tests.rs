@@ -13,7 +13,7 @@ use prost_reflect::Value;
 use super::handler::{
     column_specs_from_type, column_value_to_proto, encode_response, encode_row,
     field_type_to_column_type, grpc_method_to_mutation_name, grpc_method_to_query_name,
-    proto_value_to_json,
+    proto_value_to_json, recase_keys_to_snake,
 };
 
 // ── field_type_to_column_type ────────────────────────────────────────
@@ -361,4 +361,53 @@ fn column_specs_from_type_filters_non_scalars() {
     let specs = column_specs_from_type(&type_def);
     let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
     assert_eq!(names, vec!["id", "name", "age"]);
+}
+
+// ── recase_keys_to_snake (#456: gRPC single-JSONB arg recasing) ──────────
+
+#[test]
+fn recase_keys_to_snake_recases_nested_object_keys() {
+    use serde_json::json;
+    // A nested `input` message serializes with camelCase JSON names; its keys
+    // must reach the SQL function as snake_case.
+    let input = json!({ "shippingAddress": "1 Main St", "customerNote": "gift" });
+    let recased = recase_keys_to_snake(input);
+    assert_eq!(recased, json!({ "shipping_address": "1 Main St", "customer_note": "gift" }));
+}
+
+#[test]
+fn recase_keys_to_snake_recurses_into_nested_objects_and_arrays() {
+    use serde_json::json;
+    let input = json!({
+        "billingAddress": { "postalCode": "75001", "lineItems": [ { "skuId": "x" } ] }
+    });
+    let recased = recase_keys_to_snake(input);
+    assert_eq!(
+        recased,
+        json!({
+            "billing_address": { "postal_code": "75001", "line_items": [ { "sku_id": "x" } ] }
+        })
+    );
+}
+
+#[test]
+fn recase_keys_to_snake_is_acronym_and_digit_aware() {
+    use serde_json::json;
+    // Same `to_snake_case` the read path uses → writes round-trip as reads.
+    let input = json!({ "s3Key": "k", "dns1Id": "d" });
+    let recased = recase_keys_to_snake(input);
+    assert_eq!(recased, json!({ "s3_key": "k", "dns_1_id": "d" }));
+}
+
+#[test]
+fn recase_keys_to_snake_leaves_scalars_and_snake_keys_untouched() {
+    use serde_json::json;
+    // Scalars carry no keys; already-snake keys are idempotent — so a flattened
+    // positional scalar arg or a Preserve-authored object is unchanged.
+    assert_eq!(recase_keys_to_snake(json!("u1")), json!("u1"));
+    assert_eq!(recase_keys_to_snake(json!(42)), json!(42));
+    assert_eq!(
+        recase_keys_to_snake(json!({ "already_snake": 1 })),
+        json!({ "already_snake": 1 })
+    );
 }

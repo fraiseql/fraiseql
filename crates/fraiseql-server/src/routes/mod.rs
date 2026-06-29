@@ -1,5 +1,10 @@
 //! HTTP routes.
 
+// After-mutation function-trigger dispatch (#460). The planner is always
+// compiled (and unit-tested); the I/O-capable spawn path is gated behind
+// `functions-runtime`, so the items are dead in a default build.
+#[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
+pub(crate) mod after_mutation;
 pub mod api;
 #[cfg(feature = "auth")]
 pub mod auth;

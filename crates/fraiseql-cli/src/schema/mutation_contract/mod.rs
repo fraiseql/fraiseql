@@ -25,7 +25,9 @@
 use std::fmt;
 
 use anyhow::Result;
-use fraiseql_core::schema::{CompiledSchema, FieldType, MutationDefinition, MutationOperation};
+use fraiseql_core::schema::{
+    CompiledSchema, FieldType, InputStyle, MutationDefinition, MutationOperation,
+};
 
 use crate::schema::pg_catalog::{PgCatalog, PgFunction};
 
@@ -207,10 +209,12 @@ impl fmt::Display for ContractViolation {
 /// skipped.
 ///
 /// This mirrors the runtime arg-building in
-/// `fraiseql-core/.../runners/mutation/mod.rs` exactly, including the precedence:
-/// an update with a single `input` of an Input type always takes the
-/// jsonb-payload path (even when the input type is not in the schema); other
-/// single-`input` mutations flatten only when the input type resolves.
+/// `fraiseql-core/.../runners/mutation/mod.rs` exactly. A single structured
+/// `input` arg is forwarded as ONE jsonb payload when the operation is `Update`,
+/// the mutation opts in via `input_style = jsonb`, **or** the input type is not
+/// in the schema (see `pass_as_single_jsonb`, pinned to `mutation/mod.rs:499-500`).
+/// Otherwise a known input type flattens to one positional arg per field;
+/// everything else is flat args.
 #[must_use]
 pub fn expected_call(
     mutation: &MutationDefinition,
@@ -218,27 +222,18 @@ pub fn expected_call(
 ) -> Option<ExpectedCall> {
     let sql_source = resolve_sql_source(mutation)?;
 
-    // Single `input` argument whose type is an Input object?
-    let input_type_name = if mutation.arguments.len() == 1 && mutation.arguments[0].name == "input"
-    {
-        match &mutation.arguments[0].arg_type {
-            FieldType::Input(name) => Some(name.as_str()),
-            _ => None,
-        }
-    } else {
-        None
-    };
-    let is_update = matches!(&mutation.operation, MutationOperation::Update { .. });
+    let input_type_name = single_input_type_name(mutation);
 
-    let (shape, base_arity, first_is_jsonb_payload) = if input_type_name.is_some() && is_update {
-        // Update + single input object → one jsonb payload arg (no schema lookup).
+    let (shape, base_arity, first_is_jsonb_payload) = if pass_as_single_jsonb(mutation, schema) {
+        // Single-JSONB path: Update, `input_style = jsonb`, or unknown input type
+        // → one jsonb payload arg. `first_is_jsonb_payload` enables the arg-1-is-
+        // jsonb assertion in `check_mutation` for every such case.
         (CallShape::JsonbPayload, 1, true)
     } else if let Some(input_type) = input_type_name.and_then(|n| schema.find_input_type(n)) {
         // Insert/Delete/Custom + single input object found in schema → flatten fields.
         (CallShape::FlattenedFields, input_type.fields.len(), false)
     } else {
-        // Flat args (includes single non-Input `input`, or an input type the
-        // schema doesn't define).
+        // Flat args (a single non-Input `input`, or multiple scalar args).
         (CallShape::FlatArgs, mutation.arguments.len(), false)
     };
 
@@ -249,6 +244,40 @@ pub fn expected_call(
         inject_names: mutation.inject_params.keys().cloned().collect(),
         first_is_jsonb_payload,
     })
+}
+
+/// The name of a single `input` argument typed as an Input object, else `None`.
+///
+/// This is the structured-input form the compiled `input` arg carries
+/// (`FieldType::Input`); it mirrors the runtime's `input_type_name`
+/// (`mutation/mod.rs:444-456`) scoped to that form.
+fn single_input_type_name(mutation: &MutationDefinition) -> Option<&str> {
+    if mutation.arguments.len() == 1 && mutation.arguments[0].name == "input" {
+        match &mutation.arguments[0].arg_type {
+            FieldType::Input(name) => Some(name.as_str()),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+/// Faithful mirror of the runtime single-JSONB predicate
+/// (`fraiseql-core/.../runners/mutation/mod.rs:499-500`):
+/// ```text
+/// pass_input_as_single_jsonb =
+///     input_arg_is_structured && (is_update || jsonb_input_style || !known_input_type)
+/// ```
+/// A structured single `input` arg is forwarded as ONE jsonb payload when the
+/// operation is `Update`, the mutation opts in via `input_style = jsonb`, or the
+/// input type is not in the compiled schema. Keep this in sync with that line.
+fn pass_as_single_jsonb(mutation: &MutationDefinition, schema: &CompiledSchema) -> bool {
+    let input_type_name = single_input_type_name(mutation);
+    let input_arg_is_structured = input_type_name.is_some();
+    let is_update = matches!(&mutation.operation, MutationOperation::Update { .. });
+    let jsonb_input_style = matches!(mutation.input_style, InputStyle::Jsonb);
+    let known_input_type = input_type_name.and_then(|n| schema.find_input_type(n)).is_some();
+    input_arg_is_structured && (is_update || jsonb_input_style || !known_input_type)
 }
 
 /// Resolve a mutation's SQL function name: `sql_source`, else the operation's

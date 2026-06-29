@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use fraiseql_db::{DatabaseType, WhereClause, WhereOperator};
 use serde_json::json;
 
-use super::{build_select_fields, render_row_filter};
+use super::{build_select_list, quote_relation, render_row_filter, select_expr};
 use crate::{
     selection_parser::FieldSelection,
     types::{FederatedType, KeyDirective},
@@ -15,6 +15,28 @@ use crate::{
 fn test_database_resolver_creation() {
     // Test that resolver can be created (mock adapter would be used)
     // Actual DB tests are in integration tests
+}
+
+#[test]
+fn quote_relation_quotes_a_bare_view_name() {
+    assert_eq!(quote_relation("v_organization").unwrap(), "\"v_organization\"");
+}
+
+#[test]
+fn quote_relation_quotes_each_schema_qualified_segment() {
+    // A qualified sql_source becomes "schema"."relation", not a single mis-quoted
+    // identifier — the bug that made `schema.v_organization` unresolvable (#504).
+    assert_eq!(quote_relation("app.v_organization").unwrap(), "\"app\".\"v_organization\"");
+}
+
+#[test]
+fn quote_relation_rejects_unsafe_or_empty_segments() {
+    // sql_source is compiler-authored, but the FROM relation is interpolated, so the
+    // identifier guard is defense-in-depth.
+    assert!(quote_relation("v_org; DROP TABLE x").is_err());
+    assert!(quote_relation("app.").is_err());
+    assert!(quote_relation(".v_org").is_err());
+    assert!(quote_relation("").is_err());
 }
 
 fn user_type_with_inaccessible() -> FederatedType {
@@ -36,7 +58,7 @@ fn user_type_with_inaccessible() -> FederatedType {
 /// M-fed-select-list: `@inaccessible` / `@external` fields and injection-shaped
 /// tokens are dropped from the SELECT list; key fields are always present.
 #[test]
-fn build_select_fields_drops_inaccessible_external_and_injection() {
+fn build_select_list_drops_inaccessible_external_and_injection() {
     let fed_type = user_type_with_inaccessible();
     let selection = FieldSelection::new(vec![
         "name".to_string(),
@@ -46,22 +68,40 @@ fn build_select_fields_drops_inaccessible_external_and_injection() {
         "id, (SELECT 1)".to_string(), // not a plain identifier -> dropped
     ]);
 
-    let fields = build_select_fields(&selection, &fed_type);
+    // Flat mode: bare columns.
+    let flat = build_select_list(&selection, &fed_type, None);
+    assert!(flat.contains("name"), "exposed field kept");
+    assert!(flat.contains("id"), "key field always present");
+    assert!(!flat.contains("password_hash"), "@inaccessible field must never be selected");
+    assert!(!flat.contains("externalOnly"), "@external field must never be selected");
+    assert!(!flat.contains("__typename"), "__typename is not a stored column");
+    assert!(!flat.contains("SELECT"), "injection-shaped token must be dropped");
+}
 
-    assert!(fields.contains(&"name".to_string()), "exposed field kept");
-    assert!(fields.contains(&"id".to_string()), "key field always present");
-    assert!(
-        !fields.contains(&"password_hash".to_string()),
-        "@inaccessible field must never be selected"
-    );
-    assert!(
-        !fields.contains(&"externalOnly".to_string()),
-        "@external field must never be selected"
-    );
-    assert!(!fields.iter().any(|f| f == "__typename"), "__typename is not a stored column");
-    assert!(
-        !fields.iter().any(|f| f.contains("SELECT")),
-        "injection-shaped token must be dropped"
+/// jsonb mode projects each kept field out of the jsonb column with camelCase→
+/// snake recasing and a response-key alias; exposure filtering is unchanged.
+#[test]
+fn build_select_list_projects_jsonb_fields_with_recasing() {
+    let mut fed_type = user_type_with_inaccessible();
+    fed_type.external_fields.clear();
+    let selection = FieldSelection::new(vec!["isCustomer".to_string(), "name".to_string()]);
+
+    let sql = build_select_list(&selection, &fed_type, Some("data"));
+
+    assert!(sql.contains(r#""data"->'is_customer' AS "isCustomer""#), "got: {sql}");
+    assert!(sql.contains(r#""data"->'name' AS "name""#), "got: {sql}");
+    // The key field is still projected (project_results matches rows by it).
+    assert!(sql.contains(r#""data"->'id' AS "id""#), "key field projected: {sql}");
+}
+
+/// `select_expr` renders a bare column in flat mode and a recased jsonb projection
+/// in jsonb mode.
+#[test]
+fn select_expr_flat_vs_jsonb() {
+    assert_eq!(select_expr("name", None), "name");
+    assert_eq!(
+        select_expr("isCustomer", Some("data")),
+        r#""data"->'is_customer' AS "isCustomer""#
     );
 }
 

@@ -99,6 +99,7 @@ async fn main() -> fraiseql_observers::Result<()> {
                 url_env:            None,
                 headers:            HashMap::default(),
                 body_template:      None,
+                signing_secret:     None,
                 signing_secret_env: None,
             }],
             retry:      RetryConfig {

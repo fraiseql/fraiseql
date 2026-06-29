@@ -20,6 +20,40 @@ use crate::extractors::OptionalSecurityContext;
 pub struct ObserverState {
     /// Repository used by all observer HTTP handlers.
     pub repository: ObserverRepository,
+    /// Optional handle to the in-process observer runtime.
+    ///
+    /// When present, a successful create/update/delete/enable/disable write
+    /// refreshes the runtime's `EventMatcher` so the admin API is
+    /// self-consistent without a manual `POST /api/observers/runtime/reload`
+    /// (#466). `None` when the admin API is mounted without a running
+    /// background runtime (e.g. a control-plane-only deployment, or tests).
+    pub runtime:    Option<std::sync::Arc<tokio::sync::RwLock<super::ObserverRuntime>>>,
+}
+
+/// Refresh the in-process matcher after a successful observer write so the admin
+/// API is self-consistent without a manual `…/runtime/reload` call (#466).
+///
+/// Best-effort: the write is already committed to `tb_observer`, so a reload
+/// failure is logged rather than failing the request (which would invite a
+/// duplicate write). The persisted change still goes live on the next
+/// reload/poll/restart, and the manual reload endpoint remains as a retry.
+async fn refresh_runtime_after_write(state: &ObserverState) {
+    let Some(runtime) = state.runtime.as_ref() else {
+        return;
+    };
+    match runtime.read().await.reload_observers().await {
+        Ok(count) => {
+            tracing::debug!(observer_count = count, "Observer matcher reloaded after admin write");
+        },
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Observer write persisted but the in-process matcher reload failed; the change \
+                 will go live on the next reload/poll/restart. Retry with \
+                 POST /api/observers/runtime/reload."
+            );
+        },
+    }
 }
 
 /// List observers with optional filters.
@@ -127,6 +161,7 @@ pub async fn create_observer(
 
     match state.repository.create(&request, customer_org, created_by).await {
         Ok(observer) => {
+            refresh_runtime_after_write(&state).await;
             (StatusCode::CREATED, Json(observer.with_redacted_secrets())).into_response()
         },
         Err(e) => {
@@ -170,6 +205,7 @@ pub async fn update_observer(
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => {
+            refresh_runtime_after_write(&state).await;
             (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
         },
         Ok(None) => (
@@ -199,7 +235,10 @@ pub async fn delete_observer(
     let customer_org: Option<i64> = None;
 
     match state.repository.delete(id, customer_org).await {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(true) => {
+            refresh_runtime_after_write(&state).await;
+            StatusCode::NO_CONTENT.into_response()
+        },
         Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Observer not found" })),
@@ -292,6 +331,7 @@ pub async fn enable_observer(
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => {
+            refresh_runtime_after_write(&state).await;
             (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
         },
         Ok(None) => (
@@ -328,6 +368,7 @@ pub async fn disable_observer(
 
     match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => {
+            refresh_runtime_after_write(&state).await;
             (StatusCode::OK, Json(observer.with_redacted_secrets())).into_response()
         },
         Ok(None) => (

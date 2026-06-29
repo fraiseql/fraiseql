@@ -257,6 +257,21 @@ pub enum FailurePolicy {
 // Action Configuration
 // ============================================================================
 
+/// Deserialize a value, mapping an explicit JSON `null` to `T::default()`.
+///
+/// `#[serde(default)]` only fills in an *absent* field; a present `null` is still
+/// handed to the field's deserializer and fails for non-`Option` types. Pairing
+/// `default` with this `deserialize_with` makes both an absent key and an
+/// explicit `null` resolve to the default — needed for the `actions` JSONB
+/// round-trip where the writer emits `"headers": null` (#466).
+fn null_as_default<'de, D, T>(deserializer: D) -> std::result::Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// Action configuration (tagged union)
 ///
 /// Marked `#[non_exhaustive]` so that new action types (e.g., `Kafka`, `Pubsub`)
@@ -273,11 +288,31 @@ pub enum ActionConfig {
         /// Environment variable containing the URL
         url_env:            Option<String>,
         /// Optional HTTP headers
-        #[serde(default)]
+        ///
+        /// `deserialize_with` treats an explicit JSON `null` the same as an
+        /// absent key (an empty map). `#[serde(default)]` alone only covers an
+        /// absent key; the admin-API writer (`fraiseql-server`'s `ActionConfig`)
+        /// serializes `None` headers as `null`, and existing `tb_observer.actions`
+        /// rows may already hold `"headers": null`, so reload must accept it
+        /// rather than fail the whole observer with `invalid type: null, expected
+        /// a map` (#466 round-trip).
+        #[serde(default, deserialize_with = "null_as_default")]
         headers:            HashMap<String, String>,
         /// Template for request body
         #[serde(default)]
         body_template:      Option<String>,
+        /// HMAC signing secret *literal* (per-subscription).
+        ///
+        /// Mutually exclusive with `signing_secret_env`. Use this for
+        /// DB-backed / admin-API-managed observers where each subscription needs
+        /// its own key and the static env-var model cannot carry per-row secrets
+        /// (#467). Stored in the observer's `actions` JSONB at rest and redacted
+        /// in admin-API responses and logs. If set but empty, dispatch fails
+        /// loud rather than sending an unsigned payload (mirrors
+        /// `signing_secret_env`). Setting both `signing_secret` and
+        /// `signing_secret_env` on the same action is rejected at dispatch.
+        #[serde(default)]
+        signing_secret:     Option<String>,
         /// Name of the environment variable holding the HMAC signing secret.
         ///
         /// When set, the outbound payload is signed with HMAC-SHA256 and the
@@ -387,6 +422,7 @@ impl ActionConfig {
                 url,
                 url_env,
                 body_template,
+                signing_secret,
                 signing_secret_env,
                 ..
             } => {
@@ -404,6 +440,20 @@ impl ActionConfig {
                     return Err(ObserverError::InvalidActionConfig {
                         reason: "Webhook signing_secret_env cannot be empty (it is the env var \
                                  NAME holding the secret, or omit it for unsigned delivery)"
+                            .to_string(),
+                    });
+                }
+                if signing_secret.as_ref().is_some_and(std::string::String::is_empty) {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: "Webhook signing_secret cannot be empty (set the per-subscription \
+                                 HMAC secret literal, or omit it for unsigned delivery)"
+                            .to_string(),
+                    });
+                }
+                if signing_secret.is_some() && signing_secret_env.is_some() {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: "Webhook action sets both 'signing_secret' and \
+                                 'signing_secret_env'; set exactly one (#467)"
                             .to_string(),
                     });
                 }

@@ -317,10 +317,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                 );
             },
             handler::RpcKind::Mutation { function_name } => {
+                // Under a camelCase GraphQL surface, reverse object-valued arg keys
+                // to canonical snake_case before the SQL call — same contract as the
+                // GraphQL/REST mutation paths (#456).
+                let recase_input_keys = self.schema.naming_convention
+                    == fraiseql_core::schema::NamingConvention::CamelCase;
                 let result = match handler::execute_grpc_mutation(
                     self.adapter.as_ref(),
                     function_name,
                     &request_msg,
+                    recase_input_keys,
                 )
                 .await
                 {

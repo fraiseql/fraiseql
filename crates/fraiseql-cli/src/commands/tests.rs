@@ -81,7 +81,9 @@ mod compile_tests {
     use fraiseql_core::{
         schema::{
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
-            FieldDenyPolicy, FieldType, MutationDefinition, QueryDefinition, TypeDefinition,
+            FieldDenyPolicy, FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
+            MutationDefinition, MutationOperation, NamingConvention, QueryDefinition,
+            TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -89,7 +91,8 @@ mod compile_tests {
 
     use super::super::compile::{
         WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg,
-        infer_native_columns_from_arg_types, to_snake_case, wide_cascade_mutations,
+        infer_native_columns_from_arg_types, jsonb_preserve_mismatches, to_snake_case,
+        wide_cascade_mutations,
     };
 
     fn mutation_with_fanout(
@@ -162,6 +165,139 @@ mod compile_tests {
     fn test_wide_cascade_no_mutations_no_warnings() {
         let schema = CompiledSchema::default();
         assert!(wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD).is_empty());
+    }
+
+    // ── jsonb_preserve_mismatches (#456 compile-time warning) ────────────
+
+    /// Build a schema with one single-`input` mutation over a declared Input type.
+    fn schema_with_input_mutation(
+        naming: NamingConvention,
+        input_style: InputStyle,
+        operation: MutationOperation,
+        input_field_names: &[&str],
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema {
+            naming_convention: naming,
+            ..Default::default()
+        };
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      input_field_names
+                .iter()
+                .map(|n| InputFieldDefinition::new(*n, "String"))
+                .collect(),
+            description: None,
+            metadata:    None,
+        });
+        let mut m = MutationDefinition::new("createOrder", "Order");
+        m.input_style = input_style;
+        m.operation = operation;
+        m.arguments = vec![ArgumentDefinition {
+            name:          "input".to_string(),
+            arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+            nullable:      false,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        }];
+        schema.mutations.push(m);
+        schema
+    }
+
+    /// Same as [`schema_with_input_mutation`] but the input arg uses the real
+    /// compiled shape — `FieldType::Object(name)` naming a registered input type,
+    /// which is what the converter actually emits (never `FieldType::Input`).
+    fn schema_with_object_input_mutation(
+        naming: NamingConvention,
+        input_style: InputStyle,
+        operation: MutationOperation,
+        input_field_names: &[&str],
+    ) -> CompiledSchema {
+        let mut schema =
+            schema_with_input_mutation(naming, input_style, operation, input_field_names);
+        schema.mutations[0].arguments[0].arg_type =
+            FieldType::Object("CreateOrderInput".to_string());
+        schema
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_object_typed_input_arg() {
+        // The real compiled shape (Object naming an input type) must be detected —
+        // not just the synthetic FieldType::Input form (#456).
+        let schema = schema_with_object_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1, "Object-typed input arg must be detected");
+        assert_eq!(hits[0].1, vec!["shippingAddress"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_camelcase_fields_under_preserve() {
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress", "customerNote"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, "createOrder");
+        assert_eq!(hits[0].1, vec!["shippingAddress", "customerNote"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_flags_update_operation_too() {
+        // An Update always uses the single-JSONB path even without input_style=jsonb.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Flatten,
+            MutationOperation::Update { table: "t".into() },
+            &["fullName"],
+        );
+        let hits = jsonb_preserve_mismatches(&schema);
+        assert_eq!(hits.len(), 1, "Update is single-JSONB and must be flagged");
+        assert_eq!(hits[0].1, vec!["fullName"]);
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_when_naming_is_camel_case() {
+        // Under camelCase the runtime recases input keys, so no mismatch.
+        let schema = schema_with_input_mutation(
+            NamingConvention::CamelCase,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_for_snake_case_fields() {
+        // Snake_case fields under preserve reach the function correctly — no warning.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Jsonb,
+            MutationOperation::Insert { table: "t".into() },
+            &["shipping_address", "customer_note"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+    }
+
+    #[test]
+    fn jsonb_preserve_silent_for_flatten_insert() {
+        // A flatten Insert maps fields to positional args (casing implicit), so the
+        // single-JSONB hazard does not apply.
+        let schema = schema_with_input_mutation(
+            NamingConvention::Preserve,
+            InputStyle::Flatten,
+            MutationOperation::Insert { table: "t".into() },
+            &["shippingAddress"],
+        );
+        assert!(jsonb_preserve_mismatches(&schema).is_empty());
     }
 
     #[test]
@@ -1368,6 +1504,112 @@ mod doctor_tests {
             .expect("extra column is reported");
         assert_eq!(warn.status, CheckStatus::Warn);
         assert!(warn.detail.contains("non-contract"));
+    }
+
+    // ── mutation→function contract drift check (#384) ────────────────────────
+    use crate::schema::mutation_contract::{ContractReport, ContractViolation, MutationReport};
+
+    #[test]
+    fn mutation_contract_clean_report_is_single_pass() {
+        let report = ContractReport {
+            checked:   3,
+            skipped:   1,
+            mutations: vec![],
+        };
+        let checks = mutation_contract_drift(&report);
+        assert_eq!(checks.len(), 1, "a clean report yields exactly one check");
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        assert!(checks[0].detail.contains("DB-backed mutation"));
+    }
+
+    #[test]
+    fn mutation_contract_missing_function_is_fatal() {
+        // The "literal root cause" of the migration in #384/#471: a declared
+        // mutation with no backing function. The drift check must flag it fatal.
+        let report = ContractReport {
+            checked:   1,
+            skipped:   0,
+            mutations: vec![MutationReport {
+                mutation:   "createWidget".to_string(),
+                sql_source: "fn_create_widget".to_string(),
+                violations: vec![ContractViolation::MissingFunction],
+            }],
+        };
+        let checks = mutation_contract_drift(&report);
+        let fail = checks
+            .iter()
+            .find(|c| c.status == CheckStatus::Fail)
+            .expect("a missing backing function is fatal");
+        assert!(fail.detail.contains("createWidget"));
+        assert!(fail.detail.contains("fn_create_widget"));
+        assert!(fail.hint.is_some());
+    }
+
+    // ── #488: connectivity prefers the explicit URL; TOML role detection ──────
+
+    /// Write `content` to a temp file with a specific extension (the TOML/JSON
+    /// role detection in #488 is path-based).
+    fn temp_file_ext(content: &str, ext: &str) -> NamedTempFile {
+        let mut f = tempfile::Builder::new()
+            .suffix(&format!(".{ext}"))
+            .tempfile()
+            .expect("temp file");
+        f.write_all(content.as_bytes()).unwrap();
+        f.flush().unwrap();
+        f
+    }
+
+    #[test]
+    fn effective_db_url_prefers_db_url_then_against_db() {
+        assert_eq!(effective_db_url(Some("a"), Some("b")), Some("a"), "--db-url wins");
+        assert_eq!(
+            effective_db_url(None, Some("b")),
+            Some("b"),
+            "--against-db used absent --db-url"
+        );
+        assert_eq!(effective_db_url(Some("a"), None), Some("a"));
+        assert_eq!(effective_db_url(None, None), None, "neither → env fallback in the checks");
+    }
+
+    #[test]
+    fn against_db_only_run_reports_database_url_set() {
+        // The bug: an --against-db-only run reported "DATABASE_URL not set".
+        let url = "postgres://u:p@localhost:5432/db";
+        let check = check_database_url_set(effective_db_url(None, Some(url)));
+        assert_eq!(check.status, CheckStatus::Pass, "got {check:?}");
+    }
+
+    #[test]
+    fn runtime_config_toml_with_compiled_json_schema_is_syntax_only() {
+        // A runtime config (no [[types]]) must NOT be schema-parsed when --schema
+        // is compiled JSON — that spuriously failed before #488.
+        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
+        let schema = temp_file_ext("{}", "json");
+        let check = check_config_toml(config.path(), schema.path());
+        assert_eq!(check.status, CheckStatus::Pass, "runtime config syntax should pass: {check:?}");
+    }
+
+    #[test]
+    fn malformed_config_toml_still_fails() {
+        // Don't mask real problems: malformed TOML is still a failure.
+        let config = temp_file_ext("this is = = not valid toml\n", "toml");
+        let schema = temp_file_ext("{}", "json");
+        let check = check_config_toml(config.path(), schema.path());
+        assert_eq!(check.status, CheckStatus::Fail, "malformed TOML must fail: {check:?}");
+    }
+
+    #[test]
+    fn schema_toml_as_schema_is_still_schema_parsed() {
+        // When --schema is a TOML, --config is parsed as a schema definition (the
+        // existing behaviour). A runtime config in that slot fails schema parsing.
+        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
+        let schema_toml = temp_file_ext("[[types]]\nname = \"User\"\n", "toml");
+        let check = check_config_toml(config.path(), schema_toml.path());
+        assert_eq!(
+            check.status,
+            CheckStatus::Fail,
+            "schema parse should run for a .toml schema: {check:?}"
+        );
     }
 }
 

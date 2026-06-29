@@ -65,6 +65,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let observer_state = ObserverState {
             repository: ObserverRepository::new(db_pool.clone()),
+            // Inject the runtime so admin CRUD writes refresh the in-process
+            // matcher without a manual `…/runtime/reload` (#466). `None` when no
+            // background runtime is mounted (control-plane-only deployments).
+            runtime:    self.observer_runtime.clone(),
         };
 
         let changelog_state = ChangelogState { pool: db_pool };

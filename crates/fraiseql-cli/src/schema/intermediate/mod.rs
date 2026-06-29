@@ -119,11 +119,16 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers_config: Option<serde_json::Value>,
 
-    /// Federation configuration (from fraiseql.toml).
+    /// Federation configuration.
     ///
-    /// Contains Apollo Federation settings and circuit breaker configuration compiled
-    /// from the `[federation]` TOML section. Embedded verbatim into the compiled schema.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Two authoring workflows feed this field:
+    /// - The TOML merger embeds the `[federation]` section under `federation_config`.
+    /// - Language SDKs (e.g. the Python SDK's `export_schema(federation=...)`) emit the block
+    ///   under the top-level `federation` key in `schema.json`; the `alias` binds it here so the
+    ///   legacy JSON workflow does not silently drop it.
+    ///
+    /// Carried verbatim by the converter into `CompiledSchema.federation`.
+    #[serde(default, alias = "federation", skip_serializing_if = "Option::is_none")]
     pub federation_config: Option<serde_json::Value>,
 
     /// WebSocket subscription configuration (hooks, limits).

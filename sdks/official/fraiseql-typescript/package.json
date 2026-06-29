@@ -1,6 +1,6 @@
 {
   "name": "fraiseql",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring + HTTP client)",
   "repository": {
     "type": "git",
@@ -51,6 +51,9 @@
   "license": "MIT",
   "dependencies": {
     "zod": "^3.22.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.2.0"
   },
   "peerDependencies": {
     "@langchain/core": "^1.1.47",

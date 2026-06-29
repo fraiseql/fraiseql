@@ -120,12 +120,14 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
                         success: false,
                         message: format!("Execution error: {err}"),
                         duration_ms,
+                        status_code: None,
                     },
                     Err(_) => ActionResult {
                         action_type: format!("{action:?}"),
                         success: false,
                         message: "Action timeout".to_string(),
                         duration_ms,
+                        status_code: None,
                     },
                 }
             });

@@ -43,6 +43,7 @@ pub mod routes;
 pub mod schema;
 pub mod server;
 pub mod server_config;
+pub mod sql_source_check;
 pub mod subscriptions;
 pub mod url_guard;
 pub mod validation;

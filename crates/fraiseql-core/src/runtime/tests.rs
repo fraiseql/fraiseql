@@ -2215,6 +2215,44 @@ mod mutation_result_tests {
         assert!(parsed.entity_id.is_none());
     }
 
+    /// A `mutation_response` row whose `updated_fields` column is SQL NULL — the
+    /// natural state for a failure branch that never assigns it, rendered by
+    /// `row_to_map` as JSON `null` — must parse as an empty list, not fail with
+    /// "invalid type: null, expected a sequence". `#[serde(default)]` only covers an
+    /// *absent* key; an explicit null still routes to `Vec<String>`'s deserializer,
+    /// which rejects it — so a real failed mutation surfaced as an opaque parse error
+    /// instead of the typed error arm (#473).
+    #[test]
+    fn null_updated_fields_parses_as_empty() {
+        // Failure path: a function that doesn't assign updated_fields leaves it NULL.
+        let outcome = Row::new(false, false)
+            .with("error_class", json!("not_found"))
+            .with("message", json!("absent"))
+            .with("updated_fields", JsonValue::Null)
+            .parse()
+            .expect("null updated_fields must not fail to deserialize on the error path");
+        assert!(
+            matches!(outcome, MutationOutcome::Error { .. }),
+            "a failed row with null updated_fields must still route to the error outcome"
+        );
+
+        // Success path: an explicit-null updated_fields surfaces as an empty list.
+        let outcome = Row::new(true, true)
+            .with("entity", json!({"id": "x"}))
+            .with("updated_fields", JsonValue::Null)
+            .parse()
+            .expect("null updated_fields must not fail to deserialize on the success path");
+        match outcome {
+            MutationOutcome::Success { updated_fields, .. } => {
+                assert!(
+                    updated_fields.is_empty(),
+                    "null updated_fields must surface as an empty list"
+                );
+            },
+            MutationOutcome::Error { .. } => panic!("expected Success"),
+        }
+    }
+
     // ── Semantics table ────────────────────────────────────────────────────
 
     #[test]
@@ -2269,6 +2307,7 @@ mod mutation_result_tests {
                 message,
                 http_status,
                 metadata,
+                ..
             } => {
                 assert_eq!(error_class, MutationErrorClass::Conflict);
                 assert_eq!(message, "duplicate");

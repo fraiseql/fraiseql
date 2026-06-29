@@ -173,6 +173,113 @@ success_threshold = 1
     }
 
     #[test]
+    fn test_federation_service_name_and_version_parse_and_compile() {
+        // The TOML `[federation]` section must accept (and carry through) the
+        // subgraph identity fields the compiled schema needs — previously absent,
+        // so `deny_unknown_fields` rejected them and the subgraph had no name.
+        let toml = r#"
+[schema]
+name = "orders"
+
+[types.Order]
+sql_source = "v_orders"
+
+[federation]
+enabled = true
+service_name = "orders"
+version = "v2"
+schema_url = "https://orders.example.com/graphql"
+
+[[federation.entities]]
+name = "Order"
+key_fields = ["id"]
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        schema.validate().expect("Failed to validate");
+        assert_eq!(schema.federation.service_name.as_deref(), Some("orders"));
+        assert_eq!(schema.federation.version.as_deref(), Some("v2"));
+
+        let compiled = schema.federation.to_compiled();
+        assert!(compiled.enabled);
+        assert_eq!(compiled.service_name.as_deref(), Some("orders"));
+        assert_eq!(compiled.version.as_deref(), Some("v2"));
+        assert_eq!(compiled.schema_url.as_deref(), Some("https://orders.example.com/graphql"));
+        assert_eq!(compiled.entities.len(), 1);
+        assert_eq!(compiled.entities[0].name, "Order");
+        assert_eq!(compiled.entities[0].key_fields, vec!["id".to_string()]);
+    }
+
+    #[test]
+    fn test_federation_apollo_version_back_compat_maps_to_version() {
+        // The legacy integer `apollo_version` keeps working: `2` ⇒ "v2".
+        let toml = r#"
+[schema]
+name = "orders"
+
+[federation]
+enabled = true
+apollo_version = 2
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.federation.to_compiled().version.as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn test_federation_explicit_version_wins_over_apollo_version() {
+        let toml = r#"
+[schema]
+name = "orders"
+
+[federation]
+enabled = true
+apollo_version = 1
+version = "v2"
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.federation.to_compiled().version.as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn test_federation_per_database_override_maps_to_per_entity() {
+        // Per-entity circuit-breaker overrides authored as `per_database` must reach
+        // the runtime (`circuit_breaker.per_entity`); the raw serde passthrough used
+        // to drop them on the `per_database` ⇒ `per_entity` key rename.
+        let toml = r#"
+[schema]
+name = "orders"
+
+[types.Order]
+sql_source = "v_orders"
+
+[federation]
+enabled = true
+
+[[federation.entities]]
+name = "Order"
+key_fields = ["id"]
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 5
+recovery_timeout_secs = 30
+success_threshold = 2
+
+[[federation.circuit_breaker.per_database]]
+database = "Order"
+failure_threshold = 10
+recovery_timeout_secs = 60
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        schema.validate().expect("Failed to validate");
+        let cb = schema.federation.to_compiled().circuit_breaker.expect("circuit_breaker");
+        assert_eq!(cb.per_entity.len(), 1);
+        assert_eq!(cb.per_entity[0].entity, "Order");
+        assert_eq!(cb.per_entity[0].failure_threshold, Some(10));
+        assert_eq!(cb.per_entity[0].recovery_timeout, Some(60));
+        assert_eq!(cb.per_entity[0].success_threshold, None);
+    }
+
+    #[test]
     fn test_federation_circuit_breaker_zero_failure_threshold_rejected() {
         let toml = r#"
 [schema]

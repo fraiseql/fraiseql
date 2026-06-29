@@ -248,6 +248,70 @@ impl DatabaseIntrospector for PostgresIntrospector {
             Ok(None)
         }
     }
+
+    async fn function_exists(&self, schema: Option<&str>, name: &str) -> Result<Option<bool>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // Mirror `pg_catalog::resolve_functions` name/schema matching (verbatim,
+        // schema-qualified or `current_schemas(false)`-scoped). Restrict to kinds a
+        // mutation can actually call — regular function `f` or procedure `p` —
+        // excluding aggregate `a` / window `w`, which `resolve_functions` does not
+        // filter (a minor over-match there).
+        let row = if let Some(schema) = schema {
+            client
+                .query_one(
+                    "SELECT EXISTS(SELECT 1 FROM pg_proc p \
+                       JOIN pg_namespace n ON n.oid = p.pronamespace \
+                       WHERE n.nspname = $1 AND p.proname = $2 AND p.prokind IN ('f','p'))",
+                    &[&schema, &name],
+                )
+                .await
+        } else {
+            client
+                .query_one(
+                    "SELECT EXISTS(SELECT 1 FROM pg_proc p \
+                       JOIN pg_namespace n ON n.oid = p.pronamespace \
+                       WHERE p.proname = $1 AND n.nspname = ANY(current_schemas(false)) \
+                       AND p.prokind IN ('f','p'))",
+                    &[&name],
+                )
+                .await
+        }
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to probe function existence: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(Some(row.get(0)))
+    }
+
+    async fn qualified_relation_exists(&self, schema: &str, name: &str) -> Result<Option<bool>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // Resolve exactly as the runtime does (`postgres/adapter/mod.rs` quotes each
+        // component case-sensitively), so a mixed-case relation in an off-search_path
+        // schema the runtime *can* serve is not falsely reported missing. `to_regclass`
+        // takes the quoted identifier as a string and ignores `search_path` for a
+        // schema-qualified name, returning NULL when the relation is genuinely absent.
+        let quoted = format!(
+            "{}.{}",
+            crate::identifier::quote_postgres_identifier(schema),
+            crate::identifier::quote_postgres_identifier(name),
+        );
+        let row = client
+            .query_one("SELECT to_regclass($1) IS NOT NULL", &[&quoted])
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to probe relation existence: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        Ok(Some(row.get(0)))
+    }
 }
 
 impl PostgresIntrospector {

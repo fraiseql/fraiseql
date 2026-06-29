@@ -36,6 +36,7 @@ fn make_observer(event_type: &str, entity: &str, condition: Option<&str>) -> Obs
             url_env:            None,
             headers:            HashMap::default(),
             body_template:      Some("{}".to_string()),
+            signing_secret:     None,
             signing_secret_env: None,
         }],
         retry:      RetryConfig::default(),

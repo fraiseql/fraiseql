@@ -409,6 +409,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     plural_name: str | None = None,
     key_fields: list[str] | None = None,
     extends: bool = False,
+    shareable: bool = False,
     subscribable_tables: list[str] | None = None,
     subscribable_pre_image: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
@@ -431,6 +432,15 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
         plural_name: Override the auto-pluralized name for the CRUD list query.
             Only used when ``crud`` includes ``"read"``. When ``None``, the name
             is derived by pluralizing the snake_case class name.
+        extends: This subgraph extends an entity owned by another subgraph
+            (renders ``extend type Name @key(...)`` in the federation SDL). Mark the
+            borrowed ``@key`` field(s) ``field(external=True)``.
+        shareable: Mark this type a federation ``@shareable`` value type — a keyless
+            type that every subgraph may define identically (e.g. a shared
+            ``MutationError`` returned by mutation result unions). Mutually exclusive
+            with ``key_fields``: a type is either a keyless shareable value type or a
+            keyed entity. For a single shareable field on an *entity*, use
+            ``field(shareable=True)`` instead.
         subscribable_tables: Physical base table(s) backing this type whose
             *external* writes (a raw ``INSERT``/``UPDATE``/``DELETE`` from psql, a
             migration, or a third-party tool) should reach GraphQL subscribers
@@ -487,6 +497,16 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 )
                 raise ValueError(msg)
 
+        # A type is either a keyless @shareable value type or a keyed entity, never
+        # both (a type-level @shareable type is excluded from the _Entity union).
+        if shareable and key_fields is not None:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: shareable=True is for a keyless value "
+                "type and cannot be combined with key_fields. For a shareable field on an "
+                "entity, use field(shareable=True)."
+            )
+            raise ValueError(msg)
+
         # Validate the @subscribable opt-in + its pre-image flag (#366).
         _validate_subscribable(
             subscribable_tables, subscribable_pre_image, f"@fraiseql.type on {c.__name__!r}"
@@ -529,6 +549,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             sql_source=sql_source,
             key_fields=key_fields,
             extends=extends,
+            shareable=shareable,
             subscribable_tables=subscribable_tables,
             subscribable_pre_image=subscribable_pre_image,
         )
@@ -896,7 +917,11 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
     return decorator(func)
 
 
-def error(cls: type[T]) -> type[T]:
+def error(
+    cls: type[T] | None = None,
+    *,
+    shareable: bool = False,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL error type.
 
     Like @type, but sets is_error=True in the schema output. Error types are
@@ -905,6 +930,11 @@ def error(cls: type[T]) -> type[T]:
 
     Args:
         cls: Python class with type annotations
+        shareable: Mark this error a federation ``@shareable`` value type, so two
+            subgraphs can both define the identical error (e.g. a shared
+            ``MutationError`` returned by every mutation result union) without an
+            Apollo ``INVALID_FIELD_SHARING`` composition error. See
+            ``@fraiseql.type(shareable=...)``.
 
     Returns:
         The original class (unmodified)
@@ -915,16 +945,29 @@ def error(cls: type[T]) -> type[T]:
         ...     '''Error when user lookup fails.'''
         ...     message: str
         ...     code: str
+
+        >>> @fraiseql.error(shareable=True)
+        ... class MutationError:
+        ...     '''Shared across subgraphs.'''
+        ...     message: str
     """
-    cls.__fraiseql_type__ = True
-    fields = extract_field_info(cls)
-    SchemaRegistry.register_type(
-        name=cls.__name__,
-        fields=fields,
-        description=cls.__doc__,
-        is_error=True,
-    )
-    return cls
+
+    def decorator(c: type[T]) -> type[T]:
+        c.__fraiseql_type__ = True
+        fields = extract_field_info(c)
+        SchemaRegistry.register_type(
+            name=c.__name__,
+            fields=fields,
+            description=c.__doc__,
+            is_error=True,
+            shareable=shareable,
+        )
+        return c
+
+    # Support both @error and @error(shareable=True).
+    if cls is None:
+        return decorator
+    return decorator(cls)
 
 
 def enum(cls: type[E]) -> type[E]:

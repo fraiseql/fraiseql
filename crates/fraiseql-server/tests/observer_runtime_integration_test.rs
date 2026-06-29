@@ -195,6 +195,125 @@ async fn test_runtime_start_stop_lifecycle() {
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
+/// Test (#468): the observer execution log populates the per-action audit
+/// columns after a delivery.
+///
+/// Before #468 the runtime wrote only status/duration and left `action_index`,
+/// `action_type`, `response_status_code`, `response_payload`, and
+/// `request_payload` NULL — so a delivery-log / audit UI could not show the
+/// response code or body. This asserts they are populated after a successful
+/// webhook dispatch. `log_payloads` is enabled so the (privacy-gated) request
+/// payload is persisted too.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_observer_log_populates_audit_columns() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observer logs");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+
+    // Mock webhook returns 200 with a JSON body.
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+
+    let entity_type = format!("AuditOrder_{}", test_id);
+    let _observer_id = create_test_observer(
+        &pool,
+        &format!("test-audit-{}", test_id),
+        Some(&entity_type),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    // Enable log_payloads so request_payload is persisted (default is off).
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50)
+        .with_log_payloads(true);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
+
+    let order_id = Uuid::new_v4();
+    let _ = insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &order_id.to_string(),
+        serde_json::json!({"id": order_id.to_string(), "status": "new"}),
+        None,
+    )
+    .await
+    .expect("Failed to insert change log entry");
+
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
+
+    // The audit row is written after dispatch; poll until it appears.
+    let mut audit = None;
+    for _ in 0..50 {
+        if let Some(a) = get_observer_log_audit(&pool, &order_id.to_string())
+            .await
+            .expect("Failed to query observer log audit columns")
+        {
+            audit = Some(a);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let audit = audit.expect("Expected an observer_log row for the processed event");
+
+    assert_eq!(audit.status, "success", "delivery should be logged as success");
+    assert_eq!(
+        audit.action_type.as_deref(),
+        Some("webhook"),
+        "action_type must be populated (#468)"
+    );
+    assert_eq!(audit.action_index, Some(0), "action_index must be populated (#468)");
+    assert_eq!(
+        audit.response_status_code,
+        Some(200),
+        "response_status_code must record the HTTP status (#468)"
+    );
+    assert!(
+        audit.response_payload.is_some(),
+        "response_payload summary must be populated (#468)"
+    );
+    assert!(
+        audit.duration_ms.is_some_and(|d| d >= 0),
+        "duration_ms must be recorded from the action detail"
+    );
+
+    // request_payload is gated on log_payloads (enabled here) and is the
+    // triggering event's after-image.
+    let request_payload = audit
+        .request_payload
+        .expect("request_payload must be stored when log_payloads=true");
+    assert_eq!(
+        request_payload["id"].as_str(),
+        Some(order_id.to_string().as_str()),
+        "request_payload must contain the triggering event data"
+    );
+
+    runtime.stop().await.expect("Failed to stop runtime");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+}
+
 /// Test 2: Checkpoint Recovery After Runtime Restart
 ///
 /// Verifies that the observer runtime:
@@ -1329,4 +1448,79 @@ async fn test_listener_direct() {
             panic!("Listener failed: {}", e);
         },
     }
+}
+
+/// Test: a successful admin CRUD write refreshes the in-process matcher (#466).
+///
+/// Before this fix the `/api/observers` create/update/delete/enable/disable
+/// handlers persisted to `tb_observer` but did NOT reload the runtime's
+/// `EventMatcher`, so an admin write silently had no effect until a separate
+/// `POST /api/observers/runtime/reload`. This drives the real `create_observer`
+/// handler with the runtime injected and asserts the matcher reflects the new
+/// observer with **no** manual reload.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_admin_create_reloads_matcher() {
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+    use fraiseql_server::{
+        extractors::OptionalSecurityContext,
+        observers::{
+            CreateObserverRequest, ObserverRepository, ObserverState, handlers::create_observer,
+        },
+    };
+    use tokio::sync::RwLock;
+
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Start from a clean table (order matters due to foreign keys).
+    sqlx::query("DELETE FROM tb_observer_log")
+        .execute(&pool)
+        .await
+        .expect("clean logs");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("clean observers");
+
+    // Runtime carrying the in-process matcher. Not started: matcher reload is
+    // independent of the background poller, so this exercises only the reload
+    // path the handler now triggers.
+    let runtime =
+        Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()))));
+
+    // Baseline matcher: zero observers in the (cleaned) table.
+    let baseline = runtime.read().await.reload_observers().await.expect("baseline reload");
+    assert_eq!(baseline, 0, "no observers should be live before the create");
+
+    let state = ObserverState {
+        repository: ObserverRepository::new(pool.clone()),
+        runtime:    Some(Arc::clone(&runtime)),
+    };
+
+    let entity_type = format!("Order_{test_id}");
+    let request: CreateObserverRequest = serde_json::from_value(serde_json::json!({
+        "name": format!("reload-on-create-{test_id}"),
+        "entity_type": entity_type,
+        "event_type": "INSERT",
+        // URL is never dispatched in this test — only the matcher reload matters.
+        "actions": [{ "type": "webhook", "url": "http://127.0.0.1:9/never-called" }],
+    }))
+    .expect("valid create request");
+
+    let response = create_observer(State(state), OptionalSecurityContext(None), Json(request))
+        .await
+        .into_response();
+    assert_eq!(response.status(), StatusCode::CREATED, "create should succeed");
+
+    // The matcher must now reflect the new observer WITHOUT a manual reload.
+    let live = runtime.read().await.health().observer_count;
+    assert_eq!(live, 1, "create handler should have refreshed the in-process matcher (#466)");
+
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }

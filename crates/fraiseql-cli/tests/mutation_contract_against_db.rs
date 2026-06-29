@@ -16,7 +16,10 @@ use fraiseql_cli::schema::{
     },
     pg_catalog::PgCatalog,
 };
-use fraiseql_core::schema::{ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition};
+use fraiseql_core::schema::{
+    ArgumentDefinition, CompiledSchema, FieldType, InputFieldDefinition, InputObjectDefinition,
+    InputStyle, MutationDefinition, MutationOperation,
+};
 use tokio_postgres::NoTls;
 
 const SCHEMA: &str = "fql_397_test";
@@ -37,6 +40,11 @@ CREATE FUNCTION fql_397_test.fn_update_user(input jsonb, tenant_id uuid)
 CREATE FUNCTION fql_397_test.fn_create_user(p_input jsonb)
   RETURNS TABLE(succeeded boolean, state_changed boolean, entity jsonb)
   LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;
+-- Correct single-JSONB convention: an Insert that takes the whole input as one
+-- jsonb arg (input_style = jsonb), backed by a single-`jsonb` function (#484).
+CREATE FUNCTION fql_397_test.fn_create_order(p_input jsonb)
+  RETURNS SETOF fql_397_test.mutation_response LANGUAGE sql AS
+  $$ SELECT NULL::fql_397_test.mutation_response $$;
 -- Broken: first param is text, not jsonb (update payload).
 CREATE FUNCTION fql_397_test.fn_bad_payload(input text, tenant_id uuid)
   RETURNS SETOF fql_397_test.mutation_response LANGUAGE sql AS
@@ -242,6 +250,44 @@ async fn validate_mutation_contract_walks_schema_and_surfaces_violations() {
         broken.violations
     );
     assert!(report.error_count() >= 2);
+
+    teardown().await;
+}
+
+/// A single-JSONB Insert (`input_style = jsonb`) with a known multi-field input
+/// type, backed by `fn_create_order(p_input jsonb)`. Before #484 this false-failed
+/// with `ArityMismatch{expected: N}` because the gate flattened the input fields.
+#[tokio::test]
+async fn single_jsonb_insert_has_no_false_arity_mismatch() {
+    let Some(catalog) = setup().await else { return };
+
+    let mut create_order = MutationDefinition::new("createOrder", "CreateOrderResult");
+    create_order.sql_source = Some(qualified("fn_create_order"));
+    create_order.operation = MutationOperation::Insert {
+        table: "tb_order".to_string(),
+    };
+    create_order.input_style = InputStyle::Jsonb;
+    create_order.arguments = vec![ArgumentDefinition::new(
+        "input",
+        FieldType::Input("CreateOrderInput".to_string()),
+    )];
+
+    let input_fields =
+        (0..6).map(|i| InputFieldDefinition::new(format!("f{i}"), "String")).collect();
+    let schema = CompiledSchema {
+        mutations: vec![create_order],
+        input_types: vec![InputObjectDefinition::new("CreateOrderInput").with_fields(input_fields)],
+        ..Default::default()
+    };
+
+    let report = validate_mutation_contract(&schema, &catalog).await.unwrap();
+    assert_eq!(report.checked, 1, "the single-jsonb mutation is DB-backed");
+    assert_eq!(
+        report.mutations.len(),
+        0,
+        "single-jsonb insert must report no violations, got {:?}",
+        report.mutations
+    );
 
     teardown().await;
 }

@@ -143,3 +143,5 @@ composer-setup.php
 .phpunit.result.cache
 # Studio frontend dependencies (rebuilt by build.rs)
 crates/fraiseql-server/studio/node_modules/
+# Federation compose-check deps (restored via `npm ci` from the committed lockfile)
+tools/federation/node_modules/

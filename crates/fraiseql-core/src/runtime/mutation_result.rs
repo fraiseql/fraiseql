@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -50,6 +50,12 @@ pub enum MutationOutcome {
         message:     String,
         /// Suggested HTTP status code, when the composite supplied one.
         http_status: Option<i16>,
+        /// Concrete GraphQL type name for the failure (from the `entity_type`
+        /// column). On the error path a function stamps the declared error type it
+        /// produced (e.g. `"DuplicateEmailError"`), letting the executor route the
+        /// result onto the right `is_error` union member — symmetric with the
+        /// success arm's use of `entity_type` (#465).
+        entity_type: Option<String>,
         /// Structured metadata JSONB containing error-type field values.
         metadata:    JsonValue,
     },
@@ -87,8 +93,10 @@ pub struct MutationResponse {
     /// Full entity payload. Populated even for noops.
     #[serde(default)]
     pub entity:         JsonValue,
-    /// GraphQL field names that changed. Empty on noop.
-    #[serde(default)]
+    /// GraphQL field names that changed. Empty on noop. A SQL-`NULL` column
+    /// (rendered by `row_to_map` as JSON `null`) is read as the empty list — see
+    /// `null_as_empty_string_vec`.
+    #[serde(default, deserialize_with = "null_as_empty_string_vec")]
     pub updated_fields: Vec<String>,
     /// Cascade operations (see the graphql-cascade specification).
     #[serde(default)]
@@ -99,6 +107,21 @@ pub struct MutationResponse {
     /// Observability only (trace IDs, timings, audit extras).
     #[serde(default)]
     pub metadata:       JsonValue,
+}
+
+/// Deserialize a possibly-`null` `TEXT[]` column as an empty `Vec`.
+///
+/// A failed mutation's function commonly leaves `updated_fields` unset (SQL NULL),
+/// which `row_to_map` renders as JSON `null`. Serde's `#[serde(default)]` only fills
+/// an *absent* key, so an explicit null still reaches `Vec<String>`'s deserializer
+/// and fails with `invalid type: null, expected a sequence` — turning every such
+/// failure into an opaque parse error before the typed error arm is reached (#473).
+/// Treating null as the empty list matches the absent-key behaviour.
+fn null_as_empty_string_vec<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<Vec<String>>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 /// Parse a `mutation_response` row into a [`MutationOutcome`].
@@ -179,6 +202,7 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
             error_class: class,
             message:     row.message.unwrap_or_default(),
             http_status: row.http_status,
+            entity_type: row.entity_type,
             metadata:    row.error_detail,
         })
     }

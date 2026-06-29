@@ -171,6 +171,7 @@ mod job_queue_tests {
                 url_env:            None,
                 headers:            std::collections::HashMap::default(),
                 body_template:      None,
+                signing_secret:     None,
                 signing_secret_env: None,
             },
             3,

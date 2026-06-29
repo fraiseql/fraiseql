@@ -479,8 +479,19 @@ mod mutation {
 
     /// Mock adapter that returns a failed `mutation_response` row (an error
     /// outcome with no entity), driving the executor down the mutation-error
-    /// fallback path.
-    struct MutationErrorMockAdapter;
+    /// path. `entity_type` is the optional concrete error type a real failure
+    /// branch stamps on the response (e.g. `"DuplicateEmailError"`); `None`
+    /// leaves the column absent, exercising the union-fallback resolution (#465).
+    struct MutationErrorMockAdapter {
+        entity_type: Option<&'static str>,
+    }
+
+    impl MutationErrorMockAdapter {
+        /// A failure row with no `entity_type` stamped (the union-fallback case).
+        const fn bare() -> Self {
+            Self { entity_type: None }
+        }
+    }
 
     #[async_trait]
     impl DatabaseAdapter for MutationErrorMockAdapter {
@@ -496,6 +507,9 @@ mod mutation {
             row.insert("error_class".to_string(), json!("conflict"));
             row.insert("message".to_string(), json!("already exists"));
             row.insert("http_status".to_string(), json!(409));
+            if let Some(et) = self.entity_type {
+                row.insert("entity_type".to_string(), json!(et));
+            }
             Ok(vec![row])
         }
 
@@ -572,7 +586,7 @@ mod mutation {
             ..MutationDefinition::new("createUser", "User")
         });
 
-        let adapter = Arc::new(MutationErrorMockAdapter);
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
         let executor = Executor::new(schema, adapter);
 
         // `__typename` is selected ONLY inside an inline fragment, never at the
@@ -621,7 +635,7 @@ mod mutation {
             ..MutationDefinition::new("createUser", "CreateUserResult")
         });
 
-        let adapter = Arc::new(MutationErrorMockAdapter);
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
         let executor = Executor::new(schema, adapter);
 
         let result = executor
@@ -650,6 +664,174 @@ mod mutation {
             Some("conflict"),
             "error_class must be surfaced as errorClass"
         );
+    }
+
+    /// #465: when the mutation's return type is the bare success entity (no result
+    /// union) and the schema declares an `is_error` type, a genuine failure must
+    /// project that declared error type — driven by the response's `entity_type` —
+    /// not leak the success entity's typename onto the result. Before the fix the
+    /// error arm consulted only `find_union(return_type)`, found nothing, and fell
+    /// back to emitting `__typename = <success entity>` with no error fields.
+    #[tokio::test]
+    async fn test_mutation_failure_projects_declared_error_type_from_entity_type() {
+        use crate::schema::{FieldDefinition, FieldType, MutationDefinition, TypeDefinition};
+
+        let mut schema = CompiledSchema::new();
+        // The success entity carries its own legacy `status` field (e.g. an order
+        // status) — the field the bug surfaced in place of the error.
+        let mut user = TypeDefinition::new("CreateUserSuccess", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::new("status", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("message", FieldType::String),
+                FieldDefinition::new("errorClass", FieldType::String),
+            ],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            // Bare success entity as the return type — no synthesized result union.
+            ..MutationDefinition::new("createUser", "CreateUserSuccess")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+        });
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on CreateUserSuccess { id } \
+                 ... on DuplicateEmailError { errorClass message } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("DuplicateEmailError"),
+            "a failed mutation must resolve to the declared error type, not the success entity"
+        );
+        assert_eq!(
+            data.get("errorClass").and_then(|v| v.as_str()),
+            Some("conflict"),
+            "the error arm must project the declared error type's fields"
+        );
+        assert_eq!(data.get("message").and_then(|v| v.as_str()), Some("already exists"),);
+        // The success entity arm must contribute nothing on a failure.
+        assert!(data.get("id").is_none(), "success-arm field 'id' must be absent on failure");
+    }
+
+    /// #465 (specificity): with a result union carrying *several* `is_error`
+    /// members, the response's `entity_type` selects the exact one the function
+    /// reported — not merely the first error member in the union. This both fixes
+    /// the mis-routing and sharpens multi-error unions.
+    #[tokio::test]
+    async fn test_mutation_failure_selects_specific_union_error_member() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("User", "v_user"));
+        // First error member — the one the OLD `find_union` resolution would pick.
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        // Second error member — the one the function actually produced.
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.unions.push(UnionDefinition::new("CreateUserResult").with_members(vec![
+            "User".to_string(),
+            "ValidationError".to_string(),
+            "DuplicateEmailError".to_string(),
+        ]));
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+
+        let adapter = Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+        });
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on ValidationError { message } \
+                 ... on DuplicateEmailError { message } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("DuplicateEmailError"),
+            "entity_type must select the specific error member, not the first is_error member"
+        );
+    }
+
+    /// #465 (fallback): when the function does *not* stamp `entity_type`, the error
+    /// arm still resolves the union's `is_error` member, preserving the original
+    /// auto-error-union behaviour.
+    #[tokio::test]
+    async fn test_mutation_failure_falls_back_to_union_error_member_without_entity_type() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("User", "v_user"));
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("status", FieldType::String),
+                FieldDefinition::new("errorClass", FieldType::String),
+            ],
+            ..TypeDefinition::new("MutationError", "")
+        });
+        schema.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "MutationError".to_string()]),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+
+        // MutationErrorMockAdapter returns a failure row WITHOUT entity_type.
+        let adapter = Arc::new(MutationErrorMockAdapter::bare());
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor
+            .execute(
+                "mutation { createUser { __typename ... on MutationError { errorClass } } }",
+                None,
+            )
+            .await
+            .unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        assert_eq!(
+            data.get("__typename").and_then(|v| v.as_str()),
+            Some("MutationError"),
+            "without entity_type the union's is_error member must still be resolved"
+        );
+        assert_eq!(data.get("errorClass").and_then(|v| v.as_str()), Some("conflict"));
     }
 
     // ── Three-state field semantics (issue #221) ───────────────────────────
@@ -1361,6 +1543,371 @@ mod mutation {
         assert_eq!(captured[0], "u1");
         assert_eq!(captured[1], "Alice");
         assert_eq!(adapter_ref.modification_type().as_deref(), Some("INSERT"));
+    }
+
+    /// #456 regression: a declared Input type whose field names are stored
+    /// **already camelCased** — exactly what the Python SDK emits (it
+    /// pre-camelCases field names, `registry.py:233`) — must still reach the SQL
+    /// function as `snake_case` on the single-JSONB path. Before the fix the
+    /// field-driven recase mapped the surface key back to the *stored* camelCase
+    /// name (a no-op), so a function reading `p_input->>'shipping_address'` saw
+    /// NULL. The recase now normalises every canonical key with the engine's
+    /// acronym-aware `to_snake_case`, matching the raw-`JSON` fallback path.
+    #[tokio::test]
+    async fn jsonb_input_style_camelcase_input_fields_recased_to_snake() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        // Field names stored already-camelCased, mirroring real SDK output.
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "create_order".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_order", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
+        });
+        executor.execute_mutation("create_order", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "camelCase-stored input field must reach the function as snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "gift");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive to the SQL function: {:?}",
+            captured[0]
+        );
+    }
+
+    /// #456 ROOT CAUSE: the compiler emits an input-type mutation argument as
+    /// `FieldType::Object(name)` — never `FieldType::Input` — so a *real compiled*
+    /// schema's `input` arg is `Object("CreateOrderInput")`. The runtime must
+    /// recognise an `Object` naming a registered input type as a structured input
+    /// (via `find_input_type`), or it skips both the single-JSONB and flatten
+    /// branches and forwards the payload verbatim — camelCase keys to the SQL
+    /// function, no recasing, regardless of `naming_convention`. This mirrors the
+    /// beta-tester's `createEmailTemplate` (Object arg + `input_style=jsonb` +
+    /// camelCase surface); before the fix it forwarded camelCase verbatim.
+    #[tokio::test]
+    async fn jsonb_object_typed_input_arg_recased_to_snake() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                // The real compiled shape: Object naming a registered input type
+                // (NOT FieldType::Input, which the compiler never emits).
+                arg_type:      FieldType::Object("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
+        });
+        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "Object-typed input arg must be recognised and recased to snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "gift");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive: {:?}",
+            captured[0]
+        );
+    }
+
+    /// The flatten path (Insert without `input_style=jsonb`) must likewise
+    /// recognise an `Object`-typed input arg and flatten its camelCase fields to
+    /// positional args with `snake_case` column names — not fall through to verbatim
+    /// forwarding (#456).
+    #[tokio::test]
+    async fn flatten_object_typed_input_arg_recognised_and_flattened() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("fullName", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Flatten,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Object("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            2,
+            "Object-typed input arg must flatten to positional args, got {captured:?}"
+        );
+        assert_eq!(captured[0], "u1");
+        assert_eq!(captured[1], "Alice");
+    }
+
+    /// End-to-end guard for the #456 follow-up: a camelCase schema serialized to
+    /// JSON and re-loaded via `CompiledSchema::from_json` (the server's real load
+    /// path) must keep `naming_convention = CamelCase`, and an **inline-literal**
+    /// `input_style="jsonb"` mutation driven through `Executor::execute` (the real
+    /// GraphQL request path, not the typed API) must reach the SQL function as
+    /// `snake_case`. The follow-up report suspected the convention was dropped to
+    /// `Preserve` somewhere between load and the runner; this reproduces that whole
+    /// pipeline in one test so any such regression fails here.
+    #[tokio::test]
+    async fn jsonb_inline_literal_recases_after_from_json_roundtrip() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+            MutationOperation, NamingConvention,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("shippingAddress", "String!"),
+                InputFieldDefinition::new("customerNote", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+
+        // Round-trip through the real load path: serialize **with a
+        // `_content_hash`** so `from_json` takes the same canonicalize → reserialize
+        // → deserialize branch the CLI-produced server file does (not the
+        // hash-absent shortcut), then re-parse exactly as `CompiledSchemaLoader`
+        // does on the server.
+        let mut value: serde_json::Value =
+            serde_json::from_str(&schema.to_json().unwrap()).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("_content_hash".to_string(), serde_json::Value::String(schema.content_hash()));
+        let json = serde_json::to_string(&value).unwrap();
+        let loaded = CompiledSchema::from_json(&json, false).unwrap();
+        assert_eq!(
+            loaded.naming_convention,
+            NamingConvention::CamelCase,
+            "naming_convention must survive the serialize/from_json round-trip"
+        );
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(loaded, adapter);
+
+        // Inline-literal argument (no `$variable`) — the report's exact repro and
+        // the standard GraphQL surface.
+        let doc = r#"mutation { createOrder(input: { shippingAddress: "1 Main St", customerNote: "x" }) { id } }"#;
+        executor.execute(doc, None).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "inline-literal camelCase input must reach the function as snake_case: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["customer_note"], "x");
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive to the SQL function: {:?}",
+            captured[0]
+        );
+    }
+
+    /// Server-path guard for the #456 follow-up: the GraphQL handler calls
+    /// `execute_with_security` for authenticated requests (handler.rs:649) — a
+    /// different dispatch entry than `execute`. A jsonb mutation driven through it
+    /// must recase `camelCase` input to `snake_case` identically, so the
+    /// authenticated path cannot silently diverge from the anonymous one.
+    #[tokio::test]
+    async fn jsonb_mutation_recases_through_execute_with_security() {
+        use chrono::Utc;
+
+        use crate::{
+            schema::{
+                FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
+                MutationDefinition, MutationOperation, NamingConvention,
+            },
+            security::SecurityContext,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateOrderInput".to_string(),
+            fields:      vec![InputFieldDefinition::new("shippingAddress", "String!")],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createOrder".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("app.create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "app.create_order".to_string(),
+            },
+            input_style: InputStyle::Jsonb,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+        schema.build_indexes();
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let sec_ctx = SecurityContext {
+            user_id:          "u".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+
+        let doc = r#"mutation { createOrder(input: { shippingAddress: "1 Main St" }) { id } }"#;
+        executor.execute_with_security(doc, None, &sec_ctx).await.unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
+        assert_eq!(
+            captured[0]["shipping_address"], "1 Main St",
+            "authenticated dispatch must recase camelCase input to snake_case: {:?}",
+            captured[0]
+        );
+        assert!(
+            captured[0].get("shippingAddress").is_none(),
+            "verbatim camelCase key must not survive: {:?}",
+            captured[0]
+        );
     }
 
     // ── changelog_pre_image threading (opt-in pre-image) ──────────────────

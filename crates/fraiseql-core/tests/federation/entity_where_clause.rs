@@ -43,9 +43,11 @@ fn test_where_clause_single_key_field() {
     };
 
     let (where_clause, params) =
-        construct_where_in_clause("User", &[rep1, rep2], &metadata, DatabaseType::PostgreSQL)
+        construct_where_in_clause("User", &[rep1, rep2], &metadata, DatabaseType::PostgreSQL, None)
             .unwrap();
-    assert_eq!(where_clause, "id IN ($1, $2)");
+    // Key column cast to text on PostgreSQL so a text-bound key matches a non-text
+    // (e.g. uuid) column (#504).
+    assert_eq!(where_clause, "id::text IN ($1, $2)");
     assert_eq!(params, vec![json!("123"), json!("456")]);
 }
 
@@ -66,8 +68,9 @@ fn test_where_clause_composite_keys() {
     };
 
     let (where_clause, params) =
-        construct_where_in_clause("Order", &[rep1], &metadata, DatabaseType::PostgreSQL).unwrap();
-    assert_eq!(where_clause, "(user_id, order_id) IN (($1, $2))");
+        construct_where_in_clause("Order", &[rep1], &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
+    assert_eq!(where_clause, "(user_id::text, order_id::text) IN (($1, $2))");
     assert_eq!(params, vec![json!("user1"), json!("order1")]);
 }
 
@@ -86,9 +89,10 @@ fn test_where_clause_value_with_quote_is_bound_not_escaped() {
     };
 
     let (where_clause, params) =
-        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
     // The value is bound verbatim — no inline escaping in the SQL text.
-    assert_eq!(where_clause, "name IN ($1)");
+    assert_eq!(where_clause, "name::text IN ($1)");
     assert_eq!(params, vec![json!("O'Brien")]);
 }
 
@@ -108,9 +112,10 @@ fn test_where_clause_sql_injection_prevention() {
     };
 
     let (where_clause, params) =
-        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("User", &[rep], &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
     // The injection payload is carried as a bound parameter, never spliced into SQL.
-    assert_eq!(where_clause, "id IN ($1)");
+    assert_eq!(where_clause, "id::text IN ($1)");
     assert!(!where_clause.contains("DROP"));
     assert_eq!(params, vec![json!(payload)]);
 }
@@ -130,9 +135,10 @@ fn test_where_clause_type_coercion() {
     };
 
     let (where_clause, params) =
-        construct_where_in_clause("Order", &[rep], &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("Order", &[rep], &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
     // Numeric keys are stringified (matching the prior literal-comparison semantics)
     // and bound as text parameters.
-    assert_eq!(where_clause, "order_id IN ($1)");
+    assert_eq!(where_clause, "order_id::text IN ($1)");
     assert_eq!(params, vec![json!("789")]);
 }

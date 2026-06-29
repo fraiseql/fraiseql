@@ -821,8 +821,9 @@ fn federation_metadata_some_when_enabled() {
         enabled: true,
         version: Some("v2".to_string()),
         entities: vec![FederationEntity {
-            name:       "User".to_string(),
+            name: "User".to_string(),
             key_fields: vec!["id".to_string()],
+            ..Default::default()
         }],
         ..Default::default()
     });
@@ -832,6 +833,61 @@ fn federation_metadata_some_when_enabled() {
     assert!(meta.enabled);
     assert_eq!(meta.types.len(), 1);
     assert_eq!(meta.types[0].name, "User");
+}
+
+// -------------------------------------------------------------------------
+// entity_sources (federation _entities backing-relation map)
+// -------------------------------------------------------------------------
+
+#[test]
+#[cfg(feature = "federation")]
+fn entity_sources_query_wins_then_type_level_fallback() {
+    let mut schema = CompiledSchema::new();
+
+    // Owned entity "User": its relation rides on the root query. The compiled
+    // type carries an EMPTY type-level sql_source (what the converter emits for
+    // an owned type).
+    schema
+        .queries
+        .push(QueryDefinition::new("user", "User").with_sql_source("v_user"));
+    schema.types.push(TypeDefinition::new("User", ""));
+
+    // Owner-split `extend type` entity "Organization": no local query, so its
+    // relation rides on the type-level sql_source (#507).
+    schema.types.push(TypeDefinition::new("Organization", "v_organization"));
+
+    // "Account" has BOTH a backing query and a type-level sql_source → the
+    // query-sourced relation wins.
+    schema
+        .queries
+        .push(QueryDefinition::new("account", "Account").with_sql_source("v_account_query"));
+    schema.types.push(TypeDefinition::new("Account", "v_account_type"));
+
+    let sources = schema.entity_sources();
+
+    let user = sources.get("User").expect("owned entity sourced from its query");
+    assert_eq!(user.relation, "v_user");
+    assert_eq!(
+        user.jsonb_column.as_deref(),
+        Some("data"),
+        "the query's jsonb_column defaults to data"
+    );
+
+    let org = sources
+        .get("Organization")
+        .expect("extends entity sourced from type-level sql_source");
+    assert_eq!(org.relation, "v_organization");
+    assert_eq!(
+        org.jsonb_column.as_deref(),
+        Some("data"),
+        "an extends entity defaults to the standard jsonb `data` column"
+    );
+
+    let account = sources.get("Account").expect("Account is present");
+    assert_eq!(
+        account.relation, "v_account_query",
+        "a query-sourced relation wins over the type-level fallback"
+    );
 }
 
 // -------------------------------------------------------------------------
@@ -973,6 +1029,158 @@ fn raw_schema_generates_from_types_when_sdl_absent() {
     schema.types.push(make_type_def("User"));
     let sdl = schema.raw_schema();
     assert!(sdl.contains("User"));
+}
+
+#[test]
+fn raw_schema_includes_root_query_and_mutation() {
+    // Root operations live in `queries`/`mutations`, NOT as `Query`/`Mutation`
+    // object types in `types`. The generated SDL must still render them — otherwise
+    // it advertises no root fields, and the federation `_service` SDL built from it
+    // fails gateway composition with NO_QUERIES.
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("User"));
+
+    let mut users = QueryDefinition::new("users", "User");
+    users.returns_list = true;
+    let mut user = QueryDefinition::new("user", "User");
+    user.nullable = true;
+    user.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+    schema.queries.push(users);
+    schema.queries.push(user);
+
+    let mut create = MutationDefinition::new("createUser", "User");
+    create.arguments = vec![ArgumentDefinition::new("name", FieldType::String)];
+    schema.mutations.push(create);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("type Query {"), "SDL must declare a root Query type:\n{sdl}");
+    assert!(sdl.contains("users: [User!]!"), "list query rendered as a list type:\n{sdl}");
+    assert!(sdl.contains("user(id: ID!): User"), "nullable single query with arg:\n{sdl}");
+    assert!(sdl.contains("type Mutation {"), "SDL must declare a root Mutation type:\n{sdl}");
+    assert!(sdl.contains("createUser(name: String!): User"), "mutation field:\n{sdl}");
+}
+
+#[cfg(feature = "federation")]
+#[test]
+fn service_sdl_advertises_root_query_fields() {
+    // End-to-end: the `_service { sdl }` a gateway composes must expose the root
+    // query fields, the entity `@key`, and the federation plumbing together.
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("User"));
+    let mut users = QueryDefinition::new("users", "User");
+    users.returns_list = true;
+    schema.queries.push(users);
+    schema.federation = Some(FederationConfig {
+        enabled: true,
+        version: Some("v2".to_string()),
+        entities: vec![FederationEntity {
+            name: "User".to_string(),
+            key_fields: vec!["id".to_string()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+
+    let meta = schema.federation_metadata().expect("federation enabled");
+    let sdl = crate::federation::generate_service_sdl(&schema.raw_schema(), &meta);
+
+    assert!(
+        sdl.contains("users: [User!]!"),
+        "root query must be in the _service SDL:\n{sdl}"
+    );
+    assert!(sdl.contains("@key(fields: \"id\")"), "entity key must be present:\n{sdl}");
+    assert!(sdl.contains("_service"), "federation plumbing must be present:\n{sdl}");
+}
+
+#[test]
+fn raw_schema_renders_full_type_closure() {
+    // The generated SDL must be type-complete: input objects, enums, unions, and
+    // non-built-in scalar declarations the root operations reference. Otherwise a
+    // gateway composing the subgraph hits `Unknown type CreateQuoteInput` (and the
+    // same for every custom scalar / enum / result union).
+    use crate::schema::{
+        ArgumentDefinition, EnumDefinition, EnumValueDefinition, FieldType, InputFieldDefinition,
+        InputObjectDefinition, UnionDefinition,
+    };
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("QuoteSuccess"));
+    schema.types.push(make_type_def("MutationError"));
+
+    let mut status = EnumDefinition::new("QuoteStatus");
+    status.values = vec![
+        EnumValueDefinition::new("DRAFT"),
+        EnumValueDefinition::new("SENT"),
+    ];
+    schema.enums.push(status);
+
+    let mut input = InputObjectDefinition::new("CreateQuoteInput");
+    input.fields = vec![
+        InputFieldDefinition::new("amount", "Decimal"), // non-built-in scalar
+        InputFieldDefinition::new("status", "QuoteStatus"), // enum
+    ];
+    schema.input_types.push(input);
+
+    schema.unions.push(UnionDefinition {
+        name:         "CreateQuoteResult".to_string(),
+        member_types: vec!["QuoteSuccess".to_string(), "MutationError".to_string()],
+        description:  None,
+    });
+
+    let mut create = MutationDefinition::new("createQuote", "CreateQuoteResult");
+    create.arguments = vec![ArgumentDefinition::new(
+        "input",
+        FieldType::Input("CreateQuoteInput".to_string()),
+    )];
+    schema.mutations.push(create);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("enum QuoteStatus {"), "enum must be declared:\n{sdl}");
+    assert!(sdl.contains("DRAFT"), "enum values must be rendered:\n{sdl}");
+    assert!(
+        sdl.contains("input CreateQuoteInput {"),
+        "input object must be declared:\n{sdl}"
+    );
+    assert!(
+        sdl.contains("union CreateQuoteResult = QuoteSuccess | MutationError"),
+        "result union must be declared:\n{sdl}"
+    );
+    assert!(sdl.contains("scalar Decimal"), "non-built-in scalar must be declared:\n{sdl}");
+    assert!(
+        sdl.contains("createQuote(input: CreateQuoteInput!): CreateQuoteResult"),
+        "mutation signature references the now-declared input + result:\n{sdl}"
+    );
+}
+
+#[test]
+fn raw_schema_declares_scalars_under_the_name_fields_reference() {
+    // The `scalar` declaration and the field that references it must agree on one
+    // name. Fields render scalar type names verbatim (`datetime`, `FloatRange`); the
+    // declaration walk must declare those same names, or composition reports
+    // `Unknown type datetime`.
+    use crate::schema::{InputFieldDefinition, InputObjectDefinition};
+
+    let mut schema = CompiledSchema::new();
+    let mut input = InputObjectDefinition::new("EventFilter");
+    input.fields = vec![
+        InputFieldDefinition::new("at", "datetime"), // lowercase scalar name
+        InputFieldDefinition::new("span", "FloatRange"), // rich scalar not previously declared
+    ];
+    schema.input_types.push(input);
+
+    let sdl = schema.raw_schema();
+
+    assert!(sdl.contains("at: datetime"), "field renders the verbatim scalar name:\n{sdl}");
+    assert!(
+        sdl.contains("scalar datetime"),
+        "the referenced scalar must be declared under the SAME name:\n{sdl}"
+    );
+    assert!(sdl.contains("span: FloatRange"), "field renders FloatRange:\n{sdl}");
+    assert!(sdl.contains("scalar FloatRange"), "FloatRange must be declared:\n{sdl}");
 }
 
 // -------------------------------------------------------------------------

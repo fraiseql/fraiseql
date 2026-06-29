@@ -7,14 +7,18 @@
 
 use std::{net::TcpStream, path::Path, time::Duration};
 
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     config::toml_schema::TomlSchema,
-    schema::pg_catalog::{
-        CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
-        PublicGrant,
+    schema::{
+        mutation_contract::{ContractReport, Severity, validate_mutation_contract},
+        pg_catalog::{
+            CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
+            PublicGrant,
+        },
     },
 };
 
@@ -170,6 +174,62 @@ pub fn check_toml_exists(path: &Path) -> DoctorCheck {
             format!("not found: {} (using defaults)", path.display()),
             "Create fraiseql.toml with `fraiseql init` or provide --config",
         )
+    }
+}
+
+/// The effective database URL for connectivity checks: `--db-url`, else
+/// `--against-db`, else (inside the checks) the `DATABASE_URL` env var.
+///
+/// `--against-db` is the URL the live passes already connect with, so a run that
+/// passes only `--against-db` must not report "DATABASE_URL not set" (#488).
+#[must_use]
+pub fn effective_db_url<'a>(
+    db_url: Option<&'a str>,
+    against_db: Option<&'a str>,
+) -> Option<&'a str> {
+    db_url.or(against_db)
+}
+
+/// Validate the `--config` file as TOML, choosing the right parse for its role.
+///
+/// When `--schema` is a compiled JSON, `--config` is a **runtime** config (server
+/// settings), so only its *syntax* is validated — parsing it as a schema-definition
+/// TOML would spuriously fail on the common Python-SDK + `--against-db` flow (#488).
+/// When `--schema` is itself a TOML (or no compiled JSON is given), `--config` may
+/// be the schema source, so the existing schema parse runs.
+#[must_use]
+pub fn check_config_toml(config_path: &Path, schema_path: &Path) -> DoctorCheck {
+    if schema_is_compiled_json(schema_path) {
+        check_toml_syntax(config_path)
+    } else {
+        check_toml_parses(config_path)
+    }
+}
+
+/// Whether `--schema` points at a compiled-JSON schema (vs a `.toml` schema
+/// source). Path-based by necessity: `run_checks` sees only paths, never schema
+/// *content*, so there is no richer "schema came from TOML" signal to prefer. The
+/// default `--schema schema.compiled.json` is covered by the `.json` extension.
+fn schema_is_compiled_json(schema_path: &Path) -> bool {
+    schema_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("json"))
+}
+
+/// Syntax-only TOML parse — catches malformed TOML without requiring
+/// schema-definition structure. Used for runtime-config `--config` files (#488).
+fn check_toml_syntax(path: &Path) -> DoctorCheck {
+    const NAME: &str = "config TOML syntax valid";
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            return DoctorCheck::fail(NAME, format!("cannot read: {e}"), "Check file permissions");
+        },
+    };
+    match toml::from_str::<toml::Value>(&content) {
+        Ok(_) => DoctorCheck::pass(NAME, ""),
+        Err(e) => {
+            let short = e.to_string().lines().next().unwrap_or("parse error").to_string();
+            DoctorCheck::fail(NAME, format!("parse error: {short}"), "Fix TOML syntax and retry")
+        },
     }
 }
 
@@ -457,10 +517,12 @@ pub fn run_checks(
         checks.push(check_schema_version(schema_path));
     }
 
-    // TOML config checks
+    // TOML config checks. When `--schema` is a compiled JSON, `--config` is a
+    // *runtime* config (not a schema definition), so only its syntax is checked —
+    // schema-parsing it would spuriously fail (#488).
     checks.push(check_toml_exists(config_path));
     if config_path.exists() {
-        checks.push(check_toml_parses(config_path));
+        checks.push(check_config_toml(config_path, schema_path));
     }
 
     // Environment / connectivity checks
@@ -481,13 +543,14 @@ pub fn run_checks(
 /// Returns `true` if all checks passed (exit 0), `false` if any check failed
 /// (exit 1). Warnings do not trigger an exit-1.
 /// Execute the doctor command including the optional `--against-db` live-DB
-/// passes: the change-log contract drift check (#380) and the PL/pgSQL
-/// body-resolution pass (#409).
+/// passes: the change-log contract drift check (#380), the PL/pgSQL
+/// body-resolution pass (#409), and the mutation→function contract drift check
+/// (#384).
 ///
 /// Runs the standard checks, then — when `against_db` is set — appends the
-/// change-log contract drift report and the internal-call resolution results
-/// for `schemas`. Returns `true` if all checks passed (exit 0), `false` if any
-/// failed (exit 1).
+/// change-log contract/RLS/grant/capture reports, the internal-call resolution
+/// results for `schemas`, and the mutation→function contract drift report.
+/// Returns `true` if all checks passed (exit 0), `false` if any failed (exit 1).
 pub async fn run_with_db_checks(
     config: &Path,
     schema: &Path,
@@ -496,13 +559,18 @@ pub async fn run_with_db_checks(
     schemas: &[String],
     json: bool,
 ) -> bool {
-    let mut checks = run_checks(config, schema, db_url);
+    // Connectivity prefers the explicit URL the run already connected with, so a
+    // `--against-db`-only run no longer reports "DATABASE_URL not set" (#488).
+    // Precedence: --db-url > --against-db > env (the env fallback lives in the
+    // checks themselves, for the no-flag case).
+    let mut checks = run_checks(config, schema, effective_db_url(db_url, against_db));
     if let Some(url) = against_db {
         checks.extend(changelog_contract_checks(url).await);
         checks.extend(changelog_rls_checks(url).await);
         checks.extend(changelog_public_grants_checks(url).await);
         checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
+        checks.extend(mutation_contract_checks(url, schema).await);
     }
 
     if json {
@@ -559,6 +627,99 @@ async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorC
                 )
             })
             .collect(),
+    }
+}
+
+const MUTATION_CONTRACT_NAME: &str = "Mutation→function contract";
+
+/// Convert a mutation-contract [`ContractReport`] into doctor checks (#384).
+///
+/// A clean report (no violations) yields a single `Pass` summarising how many
+/// DB-backed mutations resolved. Otherwise each violation becomes its own
+/// `Fail`/`Warn` naming the mutation and its `sql_source`, so a declared
+/// mutation with a missing or mismatched backing function — the most common
+/// "failed to prepare" root cause — is surfaced at check time, not first call.
+///
+/// Pure (no I/O) so it is unit-tested without a database.
+pub(crate) fn mutation_contract_drift(report: &ContractReport) -> Vec<DoctorCheck> {
+    if report.mutations.is_empty() {
+        return vec![DoctorCheck::pass(
+            MUTATION_CONTRACT_NAME,
+            format!(
+                "all {} DB-backed mutation(s) resolve to a matching function ({} skipped)",
+                report.checked, report.skipped
+            ),
+        )];
+    }
+    report
+        .mutations
+        .iter()
+        .flat_map(|m| {
+            m.violations.iter().map(move |v| {
+                let detail = format!("{} (sql_source: {}): {v}", m.mutation, m.sql_source);
+                match v.severity() {
+                    Severity::Error => DoctorCheck::fail(
+                        MUTATION_CONTRACT_NAME,
+                        detail,
+                        "Declared mutation does not match its backing function — create or fix \
+                         the function, or correct the schema",
+                    ),
+                    Severity::Warn => DoctorCheck::warn(
+                        MUTATION_CONTRACT_NAME,
+                        detail,
+                        "The backing function differs from the declaration (non-fatal)",
+                    ),
+                }
+            })
+        })
+        .collect()
+}
+
+/// Run the mutation→function contract drift check against a live database (#384).
+///
+/// Loads the compiled schema, then for every DB-backed mutation verifies its
+/// `sql_source` resolves to exactly one function whose argument arity/shape and
+/// `mutation_response` return columns match what the runtime will send and
+/// decode — the same static check as `fraiseql validate --against-db`, surfaced
+/// in `doctor` so it is the single drift report.
+///
+/// Never panics: a schema-load, connection, or catalog failure becomes a single
+/// check rather than aborting the doctor run.
+async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+    let schema = match std::fs::read_to_string(schema_path)
+        .map_err(|e| format!("cannot read schema: {e}"))
+        .and_then(|c| {
+            serde_json::from_str::<CompiledSchema>(&c)
+                .map_err(|e| format!("schema parse error: {e}"))
+        }) {
+        Ok(s) => s,
+        Err(detail) => {
+            return vec![DoctorCheck::warn(
+                MUTATION_CONTRACT_NAME,
+                format!("skipped — {detail}"),
+                "Run `fraiseql compile` to produce a valid schema.compiled.json",
+            )];
+        },
+    };
+
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                MUTATION_CONTRACT_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match validate_mutation_contract(&schema, &catalog).await {
+        Ok(report) => mutation_contract_drift(&report),
+        Err(e) => vec![DoctorCheck::fail(
+            MUTATION_CONTRACT_NAME,
+            format!("contract check failed: {e}"),
+            "Ensure the connecting role can read pg_catalog for the function schema",
+        )],
     }
 }
 

@@ -1230,6 +1230,7 @@ mod matcher_tests {
                 url_env:            None,
                 headers:            HashMap::default(),
                 body_template:      Some("{}".to_string()),
+                signing_secret:     None,
                 signing_secret_env: None,
             }],
             retry:      RetryConfig::default(),
@@ -1579,6 +1580,7 @@ mod traits_tests {
             success:     true,
             message:     "Email sent".to_string(),
             duration_ms: 125.5,
+            status_code: None,
         };
 
         assert_eq!(result.action_type, "email");

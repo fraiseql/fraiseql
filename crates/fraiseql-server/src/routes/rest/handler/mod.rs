@@ -46,6 +46,10 @@ pub struct RestHandler<'a, A: DatabaseAdapter> {
     pub(super) config:            &'a RestConfig,
     pub(super) route_table:       &'a RestRouteTable,
     pub(super) idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
+    /// After-mutation function-trigger hooks (#460). Read only by the gated
+    /// after:mutation dispatch; unused in a build without `functions-runtime`.
+    #[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
+    pub(super) function_hooks:    Option<&'a Arc<crate::subsystems::BeforeMutationHooks>>,
 }
 
 impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
@@ -63,7 +67,21 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
             config,
             route_table,
             idempotency_store: None,
+            function_hooks: None,
         }
+    }
+
+    /// Attach after-mutation function-trigger hooks for `after:mutation` dispatch.
+    ///
+    /// When set (and built with `functions-runtime`), a committed mutation
+    /// fire-and-forget-dispatches any matching `after:mutation` functions.
+    #[must_use]
+    pub const fn with_function_hooks(
+        mut self,
+        hooks: Option<&'a Arc<crate::subsystems::BeforeMutationHooks>>,
+    ) -> Self {
+        self.function_hooks = hooks;
+        self
     }
 
     /// Access the underlying executor.

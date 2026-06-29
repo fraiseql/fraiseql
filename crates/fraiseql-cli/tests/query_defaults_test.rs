@@ -25,6 +25,7 @@ fn base_schema_with_query(
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
             name:                   query.return_type.clone(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -458,10 +459,30 @@ database_target = "postgresql"
 }
 
 #[test]
-fn test_parse_naming_convention_default_is_preserve() {
+fn test_parse_naming_convention_default_is_camel_case() {
+    use fraiseql_cli::config::TomlSchema;
+
+    // #456: the TomlSchema compile path defaults to camelCase (matching the
+    // JSON-schema path), so a schema that omits `naming_convention` gets the
+    // standard GraphQL surface with input-key recasing — not the old `preserve`
+    // default that silently forwarded camelCase keys to snake_case SQL functions.
+    let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+"#;
+    let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+    assert_eq!(schema.naming_convention, NamingConvention::CamelCase);
+}
+
+#[test]
+fn test_parse_naming_convention_explicit_preserve_honored() {
     use fraiseql_cli::config::TomlSchema;
 
     let toml = r#"
+naming_convention = "preserve"
+
 [schema]
 name = "myapp"
 version = "1.0.0"

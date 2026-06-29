@@ -12,9 +12,15 @@
 //! Self-skips when no `DATABASE_URL` is set.
 
 #![cfg(feature = "test-postgres")]
-#![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic)] // Reason: test code — panics and skip diagnostics are acceptable
 
-use fraiseql_cli::schema::pg_catalog::{PgCatalog, PlpgsqlCheckOutcome};
+use std::io::Write;
+
+use fraiseql_cli::{
+    commands::doctor::{CheckStatus, effective_db_url, run_checks},
+    schema::pg_catalog::{PgCatalog, PlpgsqlCheckOutcome},
+};
+use tempfile::Builder;
 
 /// The three change-log relations the PUBLIC-grants check inspects.
 const CHANGE_LOG_RELATIONS: [&str; 3] = [
@@ -32,6 +38,58 @@ async fn catalog() -> Option<PgCatalog> {
             None
         },
     }
+}
+
+/// #488 end-to-end: the common Python-SDK flow — `doctor --against-db <url>
+/// --schema <compiled.json>` with a runtime-config `fraiseql.toml` — must produce
+/// no spurious connectivity or TOML-schema reds. Drives `run_checks` with the
+/// effective URL (no `--db-url`), a compiled-JSON schema, and a runtime config.
+#[tokio::test]
+async fn doctor_against_db_has_no_spurious_connectivity_or_toml_reds() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #488 doctor against-db test: no DATABASE_URL");
+        return;
+    };
+
+    let mut config = Builder::new().suffix(".toml").tempfile().unwrap();
+    config.write_all(b"[server]\nbind = \"0.0.0.0:8000\"\n").unwrap();
+    config.flush().unwrap();
+    let mut schema = Builder::new().suffix(".json").tempfile().unwrap();
+    schema
+        .write_all(br#"{"version":1,"types":[],"queries":[],"mutations":[]}"#)
+        .unwrap();
+    schema.flush().unwrap();
+
+    // Connectivity uses the effective URL (`--against-db` when no `--db-url`).
+    let checks = run_checks(config.path(), schema.path(), effective_db_url(None, Some(&url)));
+
+    let check = |name: &str| {
+        checks
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("missing check `{name}`"))
+    };
+
+    // The `--against-db` URL is threaded: the "set" check passes (not "not set").
+    assert_eq!(
+        check("DATABASE_URL set").status,
+        CheckStatus::Pass,
+        "connectivity must honour --against-db: {checks:?}"
+    );
+    // The reachability check now attempts a connect against the threaded URL
+    // rather than reporting "not set" (the #488 bug). Whether the TCP connect
+    // itself succeeds depends on the URL host being IP-parseable, which is an
+    // orthogonal pre-existing limitation — so assert it stopped saying "not set".
+    assert!(
+        !check("DATABASE_URL reachable").detail.contains("not set"),
+        "reachable check must use the --against-db URL, not env: {checks:?}"
+    );
+    // A runtime-config TOML must be syntax-checked, not schema-parsed.
+    assert_ne!(
+        check("config TOML syntax valid").status,
+        CheckStatus::Fail,
+        "a runtime-config TOML must not be schema-parsed: {checks:?}"
+    );
 }
 
 #[tokio::test]

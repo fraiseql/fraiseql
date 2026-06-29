@@ -242,6 +242,24 @@ impl SchemaConverter {
                      the observer system."
                 );
             }
+            // #497: the change-log surface is a per-database stream, not a federated
+            // value type — the injected `EntityChangeLog` type and `entity_change_logs`
+            // root query are not `@shareable`. Two subgraphs in one supergraph that both
+            // `expose` it inject the identical type/root field, which `rover supergraph
+            // compose` rejects with INVALID_FIELD_SHARING. We can't detect the collision
+            // here (each subgraph compiles alone), so warn on the federated+exposed combo
+            // and point at the single-owner pattern. This is a reminder, not an error —
+            // the owning subgraph legitimately sets both.
+            if cl.expose && compiled.federation.as_ref().is_some_and(|f| f.enabled) {
+                warn!(
+                    "[changelog] expose = true on a federation subgraph: EntityChangeLog / \
+                     entity_change_logs are not @shareable, so expose the change-log in exactly \
+                     one subgraph per supergraph (others keep capturing via [changelog] \
+                     write_enabled). Two exposing subgraphs fail `rover supergraph compose` with \
+                     INVALID_FIELD_SHARING. See the changelog-graphql guide for the single-owner \
+                     pattern."
+                );
+            }
         }
 
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
@@ -263,11 +281,55 @@ impl SchemaConverter {
             mutation_error_union::synthesize_mutation_error_unions(&mut compiled);
         }
 
+        // IR honesty (#456): `parse_field_type` has no `Input` variant, so an
+        // argument referencing a declared input type was resolved to
+        // `FieldType::Object`. Rewrite those argument types to `FieldType::Input`
+        // now that every input type is registered (after relay / rich-filter /
+        // changelog / error-union injection) so the IR honestly represents the
+        // GraphQL input position — which also makes introspection report the correct
+        // `INPUT_OBJECT` kind for those args. The runtime already accepts both
+        // shapes, so this is purely representational.
+        Self::promote_input_type_args(&mut compiled);
+
         // Validate the compiled schema
         Self::validate(&compiled)?;
 
         info!("Schema conversion successful");
         Ok(compiled)
+    }
+
+    /// Rewrite mutation/query argument types of the form `Object(name)` (and lists
+    /// thereof) to `Input(name)` when `name` is a registered input type, so the IR
+    /// honestly represents input-position references (#456). Input type names are
+    /// disjoint from output type names per the GraphQL spec, so the lookup is exact
+    /// — an output-object argument is never misclassified.
+    fn promote_input_type_args(schema: &mut CompiledSchema) {
+        fn promote(ft: &mut FieldType, input_names: &HashSet<String>) {
+            match ft {
+                FieldType::Object(name) if input_names.contains(name) => {
+                    *ft = FieldType::Input(name.clone());
+                },
+                FieldType::List(inner) => promote(inner, input_names),
+                _ => {},
+            }
+        }
+
+        let input_names: HashSet<String> =
+            schema.input_types.iter().map(|i| i.name.clone()).collect();
+        if input_names.is_empty() {
+            return;
+        }
+
+        for mutation in &mut schema.mutations {
+            for arg in &mut mutation.arguments {
+                promote(&mut arg.arg_type, &input_names);
+            }
+        }
+        for query in &mut schema.queries {
+            for arg in &mut query.arguments {
+                promote(&mut arg.arg_type, &input_names);
+            }
+        }
     }
 
     #[allow(clippy::cognitive_complexity)] // Reason: comprehensive schema validation with many field-level checks

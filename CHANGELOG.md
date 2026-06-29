@@ -9,6 +9,253 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` no longer drops the first field of each entity on minified
+  gateway queries.** Federation gateways (Hive Router, Apollo Router) routinely send
+  subgraph `_entities` queries minified — no spaces around the type condition or the
+  selection braces (`...on User{name email}`). The hand-rolled selection scanner did
+  not flush the pending token when a `{` opened the inline-fragment body, so the type
+  condition fused onto the first field (`User` + `name` → `Username`), and it failed to
+  skip the type name after the minifier-merged `...on` token. The first requested field
+  of every federated entity was projected under a mangled response key — a non-existent
+  column — and silently returned as `null`. The scanner now flushes on `{` and skips the
+  type condition for both `... on Type` and `...on Type`; pretty-printed queries are
+  unaffected. The `_entities` projection logic added in #504/#507 was already correct —
+  only the parser feeding it was wrong. (#512)
+- **Federation `_entities` resolves owner-split `extends` entities from a type-level
+  `sql_source`.** An `extend type … @key` entity resolved in a subgraph that does not
+  own it exposes no root query, so the `_entities` resolver had no backing query to
+  source its relation from and fell back to the non-existent `lower(typename)`
+  relation — silently resolving the entity to `null`. When the authoring SDK emits a
+  type-level `sql_source` on such an entity, the compiler now carries it through to
+  `types[].sql_source` (instead of always leaving it empty — chosen over the federation
+  config block because `types[]` survives the TOML federation merge), and the resolver's
+  backing-source builder (`CompiledSchema::entity_sources`) falls back to it when no
+  query supplies the relation. The fallback honours the same jsonb/flat convention as
+  the query path — a non-empty `jsonb_column` projects `<col>->'<field>'`, an empty one
+  reads bare columns — and the compiler defaults an extends entity's `jsonb_column` to
+  the standard `data` view shape (so flat-column extends entities are authored with an
+  explicit empty `jsonb_column`). Owned, query-backed entities are unaffected: a
+  query-sourced relation always wins. Completes the runtime/compiler half of the #504
+  fix; the authoring SDKs must emit the type-level `sql_source` for owner-split
+  `extends` entities. (#507)
+- **Federation `_entities` now resolves view-backed, jsonb-`data` entities.** The
+  runtime `_entities` resolver built its `FROM` relation from the lowercased GraphQL
+  type name and selected bare columns, but FraiseQL entities are view-backed and
+  expose their fields inside a `data` jsonb column — so it queried a relation that
+  does not exist and could not read jsonb fields. The query errored and the gateway
+  silently turned the field into `null`, making cross-subgraph entity joins
+  non-functional for standard entities. The resolver now sources each entity's
+  backing relation **and** jsonb column from the compiled schema's backing query
+  (keyed by `return_type`; the compiler leaves `types[].sql_source` empty), reads
+  from that relation (schema-qualified names quoted segment-by-segment), and
+  projects each requested field as `data->'<snake(field)>'` with camelCase→snake
+  recasing and type fidelity — mirroring the normal query path. The `@key` lookup
+  matches `data->>'<snake(key)>'` for jsonb views, and falls back to a text-cast
+  flat-column comparison (`id::text IN ($1)`) for flat-column views, so `uuid` /
+  integer / text keys all match. (#504)
+
+  Owner-split `extends` entities (resolved in a subgraph that does not own the type,
+  and so have no backing query) are now resolved from a type-level `sql_source` the
+  compiler carries through to the entity's `TypeDefinition` — see the #507 entry above.
+- **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
+  Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
+  declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim
+  (`datetime`), so the reference dangled (`Unknown type datetime`); declarations are now
+  collected from the exact rendered field names (covering `LTree`, `FloatRange`, lowercase
+  date/time scalars). (2) the generated rich-filter `*WhereInput` types declared `eq`
+  twice — the standard operator set was hardcoded and the type's operator set (which also
+  contains `eq`) was appended — producing an invalid input type (`Field eq already
+  exists`); the generated fields are now de-duplicated by name. A FraiseQL subgraph's SDL
+  now composes through a gateway with zero consumer-side workarounds.
+- **Federation `_service` SDL is now type-complete.** Building on the root-operations
+  fix, the generated SDL rendered only object types and the root `Query`/`Mutation` —
+  it omitted input objects, enums, non-built-in scalar declarations (`DateTime`,
+  `JSON`, `Decimal`, rich/custom scalars), and synthesized mutation result unions. A
+  gateway composing a subgraph whose operations referenced those types failed with
+  `Unknown type CreateQuoteInput` (and the like). `raw_schema()` now renders the full
+  type closure — `scalar`/`enum`/`interface`/`input`/`union` declarations alongside the
+  object types and root operations — so a FraiseQL subgraph composes without
+  consumer-side scalar stubs. The federation `@link` directive definition was also
+  corrected (`for: String` → `for: link__Purpose`, with the supporting `link__Purpose`
+  enum and `link__Import` scalar), which composers were rejecting.
+- **Federation `_service` SDL now advertises root operations.** A subgraph's
+  `_service { sdl }` (and the `/schema` SDL endpoint) is generated from
+  `CompiledSchema::raw_schema()`, which only rendered object types — FraiseQL keeps
+  root operations in `queries`/`mutations`, not as `Query`/`Mutation` object types, so
+  the emitted SDL exposed **no root fields**. A gateway composing that SDL (Apollo
+  Router, Hive Router — both read `_service.sdl`) failed with `NO_QUERIES`, making
+  FraiseQL subgraphs uncomposable despite advertising their entities and `@key`s. The
+  generated SDL now renders the root `type Query`/`type Mutation` from `queries`/
+  `mutations` with correct argument and list/nullable signatures, so subgraphs compose
+  into a working supergraph. (Router-independent; the fix is upstream of the gateway.)
+- **`fraiseql compile` no longer drops the `federation` block.** Schemas authored
+  with federation enabled (e.g. the Python SDK's `export_schema(federation=...)`)
+  emit the configuration under the top-level `federation` key, but the compiler only
+  bound `federation_config` — so the legacy JSON workflow silently produced a
+  non-federated `schema.compiled.json` (`jq 'has("federation")'` ⇒ `false`), and the
+  server it loaded never advertised itself as a subgraph (`_service` / SDL absent).
+  `IntermediateSchema.federation_config` now also binds the `federation` key (serde
+  alias), so the block carries through to `CompiledSchema.federation` and the
+  compiled subgraph serves a proper Apollo Federation v2 `_service { sdl }`. The TOML
+  (`[federation]`) workflow already carried through the merger and is unchanged. As a
+  guardrail against a future silent regression, the legacy JSON path now fails the
+  compile if a non-empty input `federation` block does not bind into the schema.
+- **TOML `[federation]` now carries the subgraph identity.** The `[federation]`
+  section gained `service_name`, `version` (Apollo spec string, e.g. `"v2"`), and
+  `schema_url`; the legacy integer `apollo_version` is still accepted (`2` ⇒ `"v2"`,
+  and `version` wins when both are set). The merger now lowers the TOML config into the
+  compiled shape explicitly, so `service_name`/`version` and per-entity circuit-breaker
+  overrides (`[[federation.circuit_breaker.per_database]]` ⇒ runtime `per_entity`) reach
+  the runtime instead of being silently dropped on a field-name mismatch.
+
+## [2.10.0] - 2026-06-26
+
+### Added
+
+- **Opt-in fail-fast `sql_source` validation (#487).** A declared-but-unbacked
+  `sql_source` (a query view or mutation function that doesn't exist) used to surface
+  as an opaque per-request 500 while the server booted "healthy" — a bug an agent only
+  discovers by hitting it. Two new gates close that gap, both fed by the shared
+  `fraiseql_core::schema::sql_source_probes` work-list so they agree on "backed" by
+  construction:
+  - **CLI** — `validate --against-db` now runs an existence pass after the #397
+    mutation-contract check, printing a precise list of unbacked sources and **exiting
+    non-zero** when any are found (a CI/pre-push gate). Resolution mirrors the runtime
+    (qualified relations via `to_regclass` verbatim, functions via `pg_proc`).
+  - **Server** — an opt-in boot check (`validate_sql_sources` config key,
+    `--validate-sql-sources` flag, or `FRAISEQL_VALIDATE_SQL_SOURCES` env var; env/flag
+    win over the config key). **Default OFF** — boot is unchanged unless enabled.
+    Postgres-only; when on, an unbacked source fails boot with the precise list instead
+    of a later per-request 500. Once `validate --against-db` is wired into CI this
+    subsumes the existence half of the bespoke `check_management_drift.py` gate.
+- **`after:mutation` function triggers now dispatch after commit (#460).** An
+  `after:mutation:<entity>:<op>` function trigger was parsed, registered, and surfaced in
+  the `TriggerRegistry`, but the server had zero call sites for
+  `find_after_mutation_triggers` — a registered after-mutation function silently never ran,
+  while `before:mutation` already ran inline on the request path. The server now plans and
+  dispatches matching triggers after a mutation commits (new always-compiled
+  `routes::after_mutation` module with a pure, unit-tested `plan_after_mutation_dispatch`),
+  bringing `after:mutation` to parity with `before:mutation`. Invocation is gated on the
+  `runtime-wasm` feature via a new `FunctionObserver::invoke_with_context`, which runs the
+  function on a full I/O-capable host context rather than the sync-only snapshot.
+- **Per-subscription webhook `signing_secret` literal (#467).** The webhook action could
+  previously sign only with `signing_secret_env` — the *name* of a process environment
+  variable — so a DB-backed / admin-API-managed observer store (`tb_observer`) could not
+  carry a distinct HMAC secret per subscription, collapsing multi-tenant webhook signing to
+  one shared process secret. An optional `signing_secret` literal now sits alongside
+  `signing_secret_env` (mirroring the existing `url` / `url_env` pattern and rounding
+  through the `actions` JSONB), so each dynamically-managed subscription can sign with its
+  own key while the static/config case keeps using the env-var form.
+- **`doctor --against-db` now reports mutation→function contract drift (#384).** The "does
+  every declared mutation have a callable backing function with a `mutation_response`-shaped
+  return?" check previously lived only in `validate --against-db`; a declared mutation with
+  no (or a mismatched) backing function surfaced only as a runtime "failed to prepare",
+  never at check time. `doctor` now runs the same static check (reusing the
+  `validate_mutation_contract` engine), so the single live-DB pass reports change-log / RLS
+  / grant / capture drift, PL/pgSQL body resolution, **and** mutation→function contract
+  drift.
+
+### Fixed
+
+- **`doctor --against-db` no longer emits two spurious reds on the Python-SDK flow (#488).**
+  (a) Connectivity reported "DATABASE_URL not set" even when `--against-db` connected fine,
+  because `run_with_db_checks` dropped `against_db` before the connectivity checks. The
+  effective URL (`--db-url` > `--against-db` > env) is now threaded through, so an
+  `--against-db`-only run reports the URL as set/reachable. (b) "TOML syntax valid" failed
+  because `--config` (a *runtime* config) was always parsed as a *schema-definition* TOML;
+  it is now syntax-only-parsed when `--schema` resolves to a compiled JSON, and only
+  schema-parsed when `--schema` is itself a `.toml` source. Malformed TOML and unreachable
+  databases still fail — the spurious reds are gone without masking real problems.
+- **`compile --database` no longer emits false "`sql_source … does not exist`" (#485).**
+  Two false-positives made the existence gate untrustworthy: (1) **every mutation** was
+  probed as a *relation* (`list_relations`, `search_path`-scoped) when a mutation's
+  `sql_source` is a *function* — so a perfectly-backed mutation reported `MissingRelation`;
+  and (2) a **schema-qualified view in an off-`search_path` schema** (or a mixed-case one)
+  was probed against the same `search_path`-scoped relation map and case-folded, so a view
+  the runtime serves was flagged missing. Mutations are now probed via `pg_proc`
+  (new `MissingFunction` diagnostic, distinct from `MissingRelation`); schema-qualified
+  relations are resolved **verbatim** with `to_regclass(quote_postgres_identifier(src))` —
+  exactly how the runtime resolves identifiers — so case-sensitive / off-path relations
+  resolve correctly while genuinely-absent ones are still reported. The L3 JSON-key check
+  now uses the canonical acronym/digit-aware caser (`dns1Id` → `dns_1_id`, not `dns1_id`),
+  so acronym/digit fields no longer false-flag `MissingJsonColumn`. A new
+  `fraiseql_core::schema::sql_source_probes` defines "what counts as a backed source" once,
+  shared by the CLI gate and (forthcoming) the server boot check so they cannot drift.
+- **`doctor`/`validate --against-db` no longer false-fail single-JSONB mutations (#484).**
+  The #384 mutation→function contract check derived the function's *expected* arity by
+  flattening the `input` type's fields whenever the operation was not `Update` — so every
+  `Insert`/`Delete`/`Custom` mutation on the single-JSONB convention (`fn(p_input jsonb)`,
+  authored with `input_style = jsonb`) reported a spurious
+  `expected N argument(s) but the function takes [1]`, making the gate unusable as a
+  green-means-green CI check. `expected_call` now mirrors the runtime's single-JSONB
+  predicate exactly (`mutation/mod.rs:499-500`): a structured single `input` arg is
+  expected as one `jsonb` payload when the op is `Update`, **or** `input_style == jsonb`,
+  **or** the input type is absent from the schema — and the arg-1-is-`jsonb` assertion now
+  applies to all of those. Genuinely-wrong functions (wrong arity, non-`jsonb` payload)
+  are still caught. The fix lands on both `doctor --against-db` and `validate --against-db`
+  from one change (shared `mutation_contract` module).
+- **Multi-word camelCase query filters no longer silently return `[]` (#486).** On the
+  query path, an explicit filter argument (`orders(organizationId: "x")`) built its
+  JSONB predicate from the raw camelCase name — `data->>'organizationId'` — which never
+  matches the stored `organization_id` key, so the filter silently dropped to an empty
+  result instead of erroring. The JSONB key is now `snake_case`d with the same
+  acronym-aware caser the WHERE-input and mutation-input paths use
+  (`crate::utils::to_snake_case`), so `organizationId` → `organization_id`,
+  `dns1Id` → `dns_1_id`. This closes the class across every arg-shaped filter surface:
+  explicit args + inject params (`query_params`), aggregate `where` and `groupBy`
+  fallback dimensions, window `where`, and the EXPLAIN diagnostics
+  (`build_where_from_variables` / display SQL). For `groupBy`, only the JSONB extraction
+  *path* is recased — the result *alias* keeps the camel surface name so the GraphQL
+  response key is unchanged (the #418/#410 rule). The query-side analog of the merged
+  #456 mutation-input fix; a six-surface parity test fences the class against future
+  filter surfaces that forget to recase.
+- **Observer execution log now populates its request/response audit columns (#468).**
+  `tb_observer_log` declares `action_index`, `action_type`, `response_status_code`,
+  `response_payload`, and `request_payload`, but the runtime log writer left them
+  `NULL` — it recorded only status/duration — so a webhook delivery-log / audit UI
+  built on the schema could not show response codes or bodies. The per-action result
+  (HTTP status, action type/index, outcome) is now threaded from the
+  `fraiseql-observers` executor back to the writer via a new
+  `ExecutionSummary.action_details` / `ActionExecutionDetail` contract and written to
+  the log. `action_type`, `action_index`, `response_status_code`, and the
+  `response_payload` outcome summary are non-sensitive and always populated;
+  `request_payload` (the triggering event data, which can carry PII) is gated behind
+  the new `[observers.runtime].log_payloads` flag (default off) and truncated to a
+  marker past 64 KiB. Part of the #471 "declared but unwired" cluster.
+- **PostgreSQL `ENUM` columns no longer decode to null in `row_to_map` (#472).** An
+  enum-typed column (notably `app.mutation_response.error_class`, the
+  `app.mutation_error_class` enum) fell through the `row_to_map` decode ladder to
+  `Null` because `String`'s `FromSql` rejects a custom enum OID. On a *failed*
+  mutation this dropped `error_class` to absent, and the parser then rejected the
+  whole row with `succeeded=false requires error_class` — so the typed error arm was
+  never reached and the failure surfaced as an opaque validation error. `row_to_map`
+  now decodes any enum to its text label (a small `FromSql` wrapper keyed on
+  `Kind::Enum`), generalising to every enum-typed column. Same class of latent
+  null-drop as the earlier `SMALLINT`/`http_status` and `TEXT[]`/`updated_fields`
+  (#228) fixes.
+- **Failed mutations now resolve onto the declared error type, not the success arm
+  (#465).** When a `mutation_response` reported failure (`succeeded = false`), the
+  GraphQL projection resolved the result type *only* via `find_union(return_type)`.
+  If that found no `is_error` member — e.g. the mutation returns the bare success
+  entity with sibling error types declared (the shipped `04-error-type` pattern), or
+  any schema where the result union is not the mutation's compiled return type — the
+  error arm fell through to emitting `__typename = <success/return type>` and
+  projected no error fields. A client selecting `... on MutationError { … }` then
+  received nothing on that arm and `__typename` named the entity. The error arm now
+  mirrors the success arm: it resolves the concrete error type from the response's
+  `entity_type` column (the declared error type the function stamps, e.g.
+  `DuplicateEmailError`) when it names an `is_error` type, falling back to the return
+  union's `is_error` member otherwise. This both fixes the mis-routing and, for unions
+  with several error members, projects the *specific* error the function reported
+  rather than the first one in the union. Success-path projection is unchanged.
+- **A SQL-`NULL` `updated_fields` no longer breaks mutation parsing (#473).** A failed
+  mutation's function commonly leaves `mutation_response.updated_fields` (a `TEXT[]`)
+  unset, which `row_to_map` renders as JSON `null`. The parser's `#[serde(default)]`
+  only fills an *absent* key, so an explicit null reached `Vec<String>`'s deserializer
+  and failed with `invalid type: null, expected a sequence` — turning the failed
+  mutation into an opaque parse error before the typed error arm was reached. A null
+  `updated_fields` column is now read as the empty list, matching the absent-key
+  behaviour. No function-side `updated_fields := ARRAY[]::text[]` boilerplate required.
 - **Root `{ __typename }` resolves to the operation type name (#450).** A top-level
   `{ __typename }` — the canonical zero-cost GraphQL health probe — was rejected with
   `Query '__typename' not found in schema` because the query classifier only
@@ -25,6 +272,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SQLSTATE 42883) that names the offending object — making server↔database contract
   drift undiagnosable from logs. The diagnostic is now extracted into the message (the
   SQL state was already populated); client-facing error sanitization is unchanged.
+- **Mutation input keys are now recased to snake_case across every transport (#456).** A
+  camelCase `input` payload reached the SQL function verbatim on several mutation paths, so
+  a function reading `p_input->>'snake_field'` silently saw `NULL` instead of erroring. Root
+  cause: the compiler emits an input-type argument as `FieldType::Object(name)` — never
+  `FieldType::Input`, which the compile pipeline never constructs — so the runtime's
+  single-JSONB / flatten detection, which keyed only on `FieldType::Input`, fell through to
+  the verbatim-forward path. The single-JSONB path now recognizes a single `input` arg of
+  `FieldType::Object(<registered input type>)` and recases its keys with the engine's
+  acronym-aware `to_snake_case` (`s3Key`→`s3_key`, `dns1Id`→`dns_1_id`), matching the read
+  path so writes round-trip exactly as reads. The gRPC mutation path
+  (`execute_grpc_mutation`), which bypassed `recase_input_payload`, now applies the same
+  recursive recasing, and the SQLite DirectSql `direct_columns` list is recased too.
+  TomlSchema's `naming_convention` now defaults to `CamelCase` (matching the JSON-schema
+  compile path; `preserve` still opts out explicitly), and a new compile-time warning flags
+  a `preserve` schema whose single-JSONB mutation takes a camelCase-looking declared input
+  type.
+- **Observer admin CRUD writes now refresh the in-process matcher (#466).** The
+  `/api/observers` admin API persisted create/update/delete/enable/disable writes to
+  `tb_observer` but never refreshed the in-process `EventMatcher`, so an edit was a silent
+  no-op until a separate `runtime/reload`, a listener restart, or a periodic poll. The
+  success arm of each write now invokes the existing atomic `ObserverRuntime::reload_observers()`
+  (`ArcSwap`) through a new optional runtime handle on `ObserverState`. The same change also
+  repairs a `reload_observers()` failure on `actions` JSONB that stored `"headers": null`
+  (the server API struct serialized `None` headers as explicit `null`, which the runtime
+  struct's deserializer rejected with `invalid type: null, expected a map`); the runtime
+  reader now maps an explicit `null` to an empty map, fixing existing rows too.
+- **Startup now warns when `[observers]` is configured but the feature is not built (#469).**
+  When `fraiseql-server` is built without the optional `observers` feature, a populated
+  `[observers]` config section was silently parsed-and-discarded by serde — the runtime
+  never started and `/api/observers` returned 404 with no signal as to why (the
+  `ServerConfig.observers` field is `#[cfg(feature)]`-gated, so the deserialized config
+  cannot reveal the discrepancy). The server now re-reads the raw TOML at startup and emits
+  a clear, actionable warning when a top-level `[observers]` table is present on a binary
+  built without the feature.
 
 ## [2.9.0] - 2026-06-22
 

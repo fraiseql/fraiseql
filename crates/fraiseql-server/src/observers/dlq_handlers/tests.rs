@@ -94,6 +94,7 @@ async fn concurrent_retry_dispatches_at_most_once() {
         url_env:            None,
         headers:            HashMap::new(),
         body_template:      None,
+        signing_secret:     None,
         signing_secret_env: None,
     };
     let id = runtime.dlq().push(event, action, "boom".to_string()).await.expect("push");
@@ -153,6 +154,7 @@ mod dlq_endpoints {
             url_env:            None,
             headers:            HashMap::new(),
             body_template:      None,
+            signing_secret:     None,
             signing_secret_env: None,
         }
     }
