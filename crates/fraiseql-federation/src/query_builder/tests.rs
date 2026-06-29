@@ -47,7 +47,8 @@ fn test_construct_simple_where_in_binds_values() {
     let reps = vec![rep("123"), rep("456")];
 
     let (clause, params) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
 
     // Values are bound, not interpolated: the clause carries placeholders only.
     // The key column is cast to text on PostgreSQL so a text-bound key matches a
@@ -63,13 +64,15 @@ fn test_dialect_placeholders() {
     let metadata = make_test_metadata();
     let reps = vec![rep("a")];
     let (pg, _) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
     // PostgreSQL casts the key column to text (#504); other dialects coerce.
     assert_eq!(pg, "id::text IN ($1)");
-    let (my, _) = construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL).unwrap();
+    let (my, _) =
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL, None).unwrap();
     assert_eq!(my, "id IN (?)");
     let (ms, _) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::SQLServer).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::SQLServer, None).unwrap();
     assert_eq!(ms, "id IN (@P1)");
 }
 
@@ -82,7 +85,7 @@ fn test_sql_injection_value_is_bound_not_interpolated() {
     let reps = vec![rep(payload)];
 
     let (clause, params) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL, None).unwrap();
 
     assert_eq!(clause, "id IN (?)");
     assert!(!clause.contains("DROP"), "payload must not appear in SQL text");
@@ -96,7 +99,8 @@ fn test_empty_representations() {
     let reps = vec![];
 
     let (clause, params) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
     assert_eq!(clause, "1 = 0"); // No rows to resolve
     assert!(params.is_empty());
 }
@@ -106,7 +110,8 @@ fn test_missing_type_error() {
     let metadata = make_test_metadata();
     let reps = vec![];
 
-    let result = construct_where_in_clause("NotFound", &reps, &metadata, DatabaseType::PostgreSQL);
+    let result =
+        construct_where_in_clause("NotFound", &reps, &metadata, DatabaseType::PostgreSQL, None);
     assert!(
         matches!(result, Err(FraiseQLError::Validation { .. })),
         "expected Validation error for unknown type, got: {result:?}"
@@ -153,7 +158,7 @@ fn test_construct_composite_where_in_binds_values() {
     };
 
     let (clause, params) =
-        construct_where_in_clause("OrderItem", &[rep], &metadata, DatabaseType::PostgreSQL)
+        construct_where_in_clause("OrderItem", &[rep], &metadata, DatabaseType::PostgreSQL, None)
             .unwrap();
 
     // Each composite key column is cast to text on PostgreSQL (#504).
@@ -161,4 +166,19 @@ fn test_construct_composite_where_in_binds_values() {
     // Values are bound as parameters, never interpolated into the SQL text.
     assert!(!clause.contains("O1") && !clause.contains("P1"));
     assert_eq!(params, vec![json!("O1"), json!("P1")]);
+}
+
+/// jsonb mode (`#504`): the key is matched as `"data"->>'<snake(key)>'` (already
+/// text — no `::text` cast), so a `data`-jsonb-backed entity view resolves.
+#[test]
+fn test_construct_where_in_jsonb_mode_matches_key_from_data_column() {
+    let metadata = make_test_metadata();
+    let reps = vec![rep("123"), rep("456")];
+
+    let (clause, params) =
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, Some("data"))
+            .unwrap();
+
+    assert_eq!(clause, "\"data\"->>'id' IN ($1, $2)");
+    assert_eq!(params, vec![json!("123"), json!("456")]);
 }

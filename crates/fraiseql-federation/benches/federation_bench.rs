@@ -88,6 +88,7 @@ fn where_in_clause(c: &mut Criterion) {
                     black_box(reps),
                     black_box(&metadata),
                     black_box(DatabaseType::PostgreSQL),
+                    black_box(None),
                 )
                 .unwrap()
             });

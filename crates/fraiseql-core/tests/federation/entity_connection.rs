@@ -157,9 +157,14 @@ fn test_database_parameterized_queries() {
         all_fields: common::row(&[("id", json!("O'Brien"))]),
     };
 
-    let (where_clause, params) =
-        construct_where_in_clause("User", &[representation], &metadata, DatabaseType::PostgreSQL)
-            .unwrap();
+    let (where_clause, params) = construct_where_in_clause(
+        "User",
+        &[representation],
+        &metadata,
+        DatabaseType::PostgreSQL,
+        None,
+    )
+    .unwrap();
 
     // The value is bound as a parameter, not escaped into the SQL text.
     // Key column cast to text on PostgreSQL (#504).
