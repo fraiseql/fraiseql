@@ -369,6 +369,25 @@ impl std::fmt::Display for ResolutionStrategy {
     }
 }
 
+/// Backing relation (and optional jsonb projection column) for a federation
+/// entity type, derived from the compiled schema's backing query (#504).
+///
+/// FraiseQL entities are view-backed and normally expose their fields inside a
+/// `data` jsonb column, so the `_entities` resolver needs both the relation to
+/// read from and the column to project fields out of — which `lower(typename)`
+/// (the pre-#504 guess) and the federation metadata alone cannot supply.
+#[derive(Debug, Clone)]
+pub struct EntitySource {
+    /// The relation to read, e.g. `v_organization` (possibly schema-qualified).
+    pub relation: String,
+
+    /// The jsonb column the entity's fields are projected from (e.g. `data`).
+    /// `Some` → fields are read as `<col>->'<snake(field)>'` and the key as
+    /// `<col>->>'<snake(key)>'`, mirroring the normal query path. `None` → a
+    /// flat-column view; fields are read as bare columns (the legacy shape).
+    pub jsonb_column: Option<String>,
+}
+
 /// Federation resolver - orchestrates entity resolution
 pub struct FederationResolver {
     /// Federation metadata for the schema
@@ -376,6 +395,18 @@ pub struct FederationResolver {
 
     /// Cached resolution strategies
     pub strategy_cache: std::sync::Mutex<HashMap<String, ResolutionStrategy>>,
+
+    /// Backing [`EntitySource`] per entity type name, e.g.
+    /// `{"Organization": EntitySource { relation: "v_organization", jsonb_column: Some("data")
+    /// }}`.
+    ///
+    /// The `_entities` resolver reads from the entity's real relation — **not**
+    /// `lower(typename)`, which names a relation that does not exist (#504) — and
+    /// projects fields from its jsonb column. Populated at the production call site
+    /// from the compiled schema's backing queries via
+    /// [`with_entity_sources`](Self::with_entity_sources); empty in unit paths,
+    /// where the resolver falls back to `lower(typename)` with flat columns.
+    pub entity_sources: HashMap<String, EntitySource>,
 }
 
 impl FederationResolver {
@@ -385,7 +416,17 @@ impl FederationResolver {
         Self {
             metadata,
             strategy_cache: std::sync::Mutex::new(HashMap::new()),
+            entity_sources: HashMap::new(),
         }
+    }
+
+    /// Attach the per-entity-type [`EntitySource`] map (`typename` → relation +
+    /// jsonb column), so the `_entities` resolver reads from the real view and
+    /// projects its jsonb fields instead of guessing `lower(typename)` (#504).
+    #[must_use]
+    pub fn with_entity_sources(mut self, entity_sources: HashMap<String, EntitySource>) -> Self {
+        self.entity_sources = entity_sources;
+        self
     }
 
     /// Get or determine resolution strategy for type.

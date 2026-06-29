@@ -117,7 +117,7 @@ impl FederationConfig {
                 .entities
                 .iter()
                 .map(|e| core::FederationEntity {
-                    name:       e.name.clone(),
+                    name: e.name.clone(),
                     key_fields: e.key_fields.clone(),
                     ..Default::default()
                 })

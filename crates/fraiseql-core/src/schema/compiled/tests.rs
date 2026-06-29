@@ -821,7 +821,7 @@ fn federation_metadata_some_when_enabled() {
         enabled: true,
         version: Some("v2".to_string()),
         entities: vec![FederationEntity {
-            name:       "User".to_string(),
+            name: "User".to_string(),
             key_fields: vec!["id".to_string()],
             ..Default::default()
         }],
@@ -833,6 +833,61 @@ fn federation_metadata_some_when_enabled() {
     assert!(meta.enabled);
     assert_eq!(meta.types.len(), 1);
     assert_eq!(meta.types[0].name, "User");
+}
+
+// -------------------------------------------------------------------------
+// entity_sources (federation _entities backing-relation map)
+// -------------------------------------------------------------------------
+
+#[test]
+#[cfg(feature = "federation")]
+fn entity_sources_query_wins_then_type_level_fallback() {
+    let mut schema = CompiledSchema::new();
+
+    // Owned entity "User": its relation rides on the root query. The compiled
+    // type carries an EMPTY type-level sql_source (what the converter emits for
+    // an owned type).
+    schema
+        .queries
+        .push(QueryDefinition::new("user", "User").with_sql_source("v_user"));
+    schema.types.push(TypeDefinition::new("User", ""));
+
+    // Owner-split `extend type` entity "Organization": no local query, so its
+    // relation rides on the type-level sql_source (#507).
+    schema.types.push(TypeDefinition::new("Organization", "v_organization"));
+
+    // "Account" has BOTH a backing query and a type-level sql_source → the
+    // query-sourced relation wins.
+    schema
+        .queries
+        .push(QueryDefinition::new("account", "Account").with_sql_source("v_account_query"));
+    schema.types.push(TypeDefinition::new("Account", "v_account_type"));
+
+    let sources = schema.entity_sources();
+
+    let user = sources.get("User").expect("owned entity sourced from its query");
+    assert_eq!(user.relation, "v_user");
+    assert_eq!(
+        user.jsonb_column.as_deref(),
+        Some("data"),
+        "the query's jsonb_column defaults to data"
+    );
+
+    let org = sources
+        .get("Organization")
+        .expect("extends entity sourced from type-level sql_source");
+    assert_eq!(org.relation, "v_organization");
+    assert_eq!(
+        org.jsonb_column.as_deref(),
+        Some("data"),
+        "an extends entity defaults to the standard jsonb `data` column"
+    );
+
+    let account = sources.get("Account").expect("Account is present");
+    assert_eq!(
+        account.relation, "v_account_query",
+        "a query-sourced relation wins over the type-level fallback"
+    );
 }
 
 // -------------------------------------------------------------------------
@@ -1022,7 +1077,7 @@ fn service_sdl_advertises_root_query_fields() {
         enabled: true,
         version: Some("v2".to_string()),
         entities: vec![FederationEntity {
-            name:       "User".to_string(),
+            name: "User".to_string(),
             key_fields: vec!["id".to_string()],
             ..Default::default()
         }],

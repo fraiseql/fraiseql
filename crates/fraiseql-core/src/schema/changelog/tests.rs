@@ -196,8 +196,7 @@ fn camel_case_convention_renders_camelcase_identifiers() {
     assert_eq!(lookup.arguments.len(), 1);
     assert_eq!(lookup.arguments[0].name, "transportName");
 
-    let upsert =
-        schema.mutations.iter().find(|m| m.name == "upsertTransportCheckpoint").unwrap();
+    let upsert = schema.mutations.iter().find(|m| m.name == "upsertTransportCheckpoint").unwrap();
     let arg_names: Vec<&str> = upsert.arguments.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(arg_names, vec!["transportName", "lastPk"]);
 }

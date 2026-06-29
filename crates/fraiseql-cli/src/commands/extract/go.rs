@@ -38,6 +38,7 @@ impl SchemaExtractor for GoExtractor {
 
             let description = params.get("description").cloned();
             types.push(IntermediateType {
+                sql_source: None,
                 name,
                 fields,
                 description,

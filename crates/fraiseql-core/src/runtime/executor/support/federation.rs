@@ -103,8 +103,19 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Validate representations
         crate::federation::validate_representations(&representations, &fed_metadata)?;
 
-        // Create federation resolver
-        let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
+        // Create federation resolver, carrying each entity type's backing relation
+        // and jsonb projection column so the `_entities` resolver reads from the real
+        // view (`v_organization`) and projects its `data`-jsonb fields — instead of
+        // `lower(typename)` selecting bare columns, which named a relation that does
+        // not exist and could not read jsonb-backed fields, so view-backed
+        // cross-subgraph joins silently returned null (#504).
+        //
+        // The backing relation is sourced from the *query* that returns the type
+        // (owned entities), with a fallback to the type-level `sql_source` for an
+        // owner-split `extend type` entity that has no local query (#507). See
+        // [`CompiledSchema::entity_sources`].
+        let fed_resolver = crate::federation::FederationResolver::new(fed_metadata)
+            .with_entity_sources(self.ctx.schema.entity_sources());
 
         // Extract actual field selection from GraphQL query AST.
         // __typename is NOT added to the SQL field list — it is a GraphQL meta-field

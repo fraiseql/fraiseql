@@ -74,6 +74,15 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
     for ch in query.chars() {
         match ch {
             '{' => {
+                // A `{` opens a (possibly nested) selection set — e.g. the body of an
+                // inline fragment. Flush any pending token first, exactly as whitespace
+                // does, so a type condition butted directly against the body brace
+                // (minified `...on User{name email}`) does not fuse with the first field
+                // and yield `Username`. A space before `{` previously masked this. (#512)
+                if in_selection && !current_field.is_empty() {
+                    fields.push(current_field.trim().to_string());
+                    current_field.clear();
+                }
                 depth += 1;
                 if depth == 2 {
                     // Entering selection set for _entities
@@ -112,20 +121,25 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
     let mut skip_type_after_on = false;
     for field in fields {
         let field = field.trim();
+        if skip_type_after_on {
+            // The previous token introduced an inline-fragment type condition
+            // (`on` or the minified `...on`); this token is the bare type name. Skip it.
+            skip_type_after_on = false;
+            continue;
+        }
         if field.is_empty() || field.contains('(') || field.contains(':') {
             continue;
         }
-        if field.starts_with("...") {
-            // Inline-fragment spread or named-fragment spread — not a field.
-            continue;
-        }
-        if field == "on" {
-            // The `on` keyword introduces a type condition; skip the type name next.
+        if field == "on" || field == "...on" {
+            // Inline-fragment type condition. Pretty-printed input emits `on` as its own
+            // token (`... on User`); a minifier fuses the spread and keyword into a single
+            // `...on` token (`...on User`). Either way the *type name* follows next, so
+            // skip it. `on` is a reserved word, so `...on` is never a named-fragment spread. (#512)
             skip_type_after_on = true;
             continue;
         }
-        if skip_type_after_on {
-            skip_type_after_on = false;
+        if field.starts_with("...") {
+            // Bare spread (`...`) or named-fragment spread (`...Fragment`) — not a field.
             continue;
         }
         result.push(field.to_string());

@@ -120,7 +120,9 @@ impl CompiledSchema {
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
-            use crate::federation::types::{FederatedType, FieldFederationDirectives, KeyDirective};
+            use crate::federation::types::{
+                FederatedType, FieldFederationDirectives, KeyDirective,
+            };
 
             // Entities carry an `@key` (and, for an extended entity, `extend type` +
             // `@external` on the borrowed key/fields). Per-field directives are
@@ -139,17 +141,17 @@ impl CompiledSchema {
                         field_directives.entry(f.clone()).or_default().shareable = true;
                     }
                     FederatedType {
-                        name:                e.name.clone(),
-                        keys:                vec![KeyDirective {
+                        name: e.name.clone(),
+                        keys: vec![KeyDirective {
                             fields:     e.key_fields.clone(),
                             resolvable: true,
                         }],
-                        is_extends:          e.extends,
-                        external_fields:     e.external_fields.clone(),
-                        shareable_fields:    e.shareable_fields.clone(),
+                        is_extends: e.extends,
+                        external_fields: e.external_fields.clone(),
+                        shareable_fields: e.shareable_fields.clone(),
                         inaccessible_fields: Vec::new(),
                         field_directives,
-                        type_shareable:      false,
+                        type_shareable: false,
                     }
                 })
                 .collect();
@@ -178,6 +180,62 @@ impl CompiledSchema {
                 remote_subscription_fields: HashMap::new(),
             }
         })
+    }
+
+    /// Build the per-entity-type backing source map (`typename` →
+    /// [`EntitySource`](crate::federation::EntitySource)) the federation
+    /// `_entities` resolver reads from instead of guessing `lower(typename)`
+    /// (#504/#507).
+    ///
+    /// Two sources, query-wins:
+    ///
+    /// 1. **Query-sourced** (owned entities): the backing relation rides on the root query that
+    ///    returns the type, keyed by `return_type`, first-wins — the same query→type binding the
+    ///    Relay `node` path uses. The query's `jsonb_column` (which the compiler defaults to
+    ///    `"data"`) drives jsonb projection.
+    /// 2. **Type-sourced fallback** (#507): an owner-split `extend type … @key` entity resolved in
+    ///    a subgraph that does not own it exposes no root query, so there is nothing in (1) to
+    ///    source its relation from. Its relation instead rides on the type-level `sql_source` the
+    ///    compiler carries from the authoring SDK. This only fills gaps — a query-sourced entry
+    ///    always wins.
+    ///
+    /// Both sources read the entity's `jsonb_column` the same way: a non-empty column selects
+    /// jsonb-projection mode (`<col>->'<field>'`), an empty one selects flat-column mode (bare
+    /// columns). The compiler defaults both a query's and an extends type's `jsonb_column` to the
+    /// standard `"data"` view shape, so a flat-column entity must be authored with an explicit
+    /// empty `jsonb_column`.
+    #[cfg(feature = "federation")]
+    #[must_use]
+    pub fn entity_sources(&self) -> HashMap<String, crate::federation::EntitySource> {
+        use crate::federation::EntitySource;
+
+        let mut sources: HashMap<String, EntitySource> = HashMap::new();
+
+        // (1) Query-sourced — owned entities. First-wins per return_type.
+        for q in &self.queries {
+            if let Some(relation) = &q.sql_source {
+                sources.entry(q.return_type.clone()).or_insert_with(|| EntitySource {
+                    relation:     relation.clone(),
+                    jsonb_column: (!q.jsonb_column.is_empty()).then(|| q.jsonb_column.clone()),
+                });
+            }
+        }
+
+        // (2) Type-sourced fallback — owner-split `extend type` entities (#507).
+        // Skipped for owned types (their type-level sql_source is empty) and never
+        // overrides a query-sourced entry. The empty-jsonb-column → flat-mode rule
+        // mirrors the query path above, so flat-column extends entities resolve too.
+        for t in &self.types {
+            if t.sql_source.as_str().is_empty() {
+                continue;
+            }
+            sources.entry(t.name.to_string()).or_insert_with(|| EntitySource {
+                relation:     t.sql_source.to_string(),
+                jsonb_column: (!t.jsonb_column.is_empty()).then(|| t.jsonb_column.clone()),
+            });
+        }
+
+        sources
     }
 
     /// Stub federation metadata when federation feature is disabled.

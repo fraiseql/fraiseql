@@ -58,6 +58,7 @@ impl SchemaExtractor for RustExtractor {
 
             let description = params.get("description").cloned();
             types.push(IntermediateType {
+                sql_source: None,
                 name,
                 fields,
                 description,

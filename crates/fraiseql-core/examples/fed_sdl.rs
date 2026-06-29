@@ -10,14 +10,10 @@ use std::fs;
 use fraiseql_core::CompiledSchema;
 
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .expect("usage: fed_sdl <schema.compiled.json>");
+    let path = std::env::args().nth(1).expect("usage: fed_sdl <schema.compiled.json>");
     let json = fs::read_to_string(&path).expect("read compiled schema");
     let schema = CompiledSchema::from_json(&json, false).expect("parse compiled schema");
-    let meta = schema
-        .federation_metadata()
-        .expect("schema has no enabled federation block");
+    let meta = schema.federation_metadata().expect("schema has no enabled federation block");
     let raw = schema.raw_schema();
     let sdl = fraiseql_core::federation::generate_service_sdl(&raw, &meta);
     println!("{sdl}");

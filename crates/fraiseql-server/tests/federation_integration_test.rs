@@ -55,6 +55,41 @@ fn user_schema_with_federation() -> CompiledSchema {
     CompiledSchema::from_json(json, false).expect("test schema must be valid")
 }
 
+// ─── #507 fast guards: _entities backing-source derivation ───────────────────
+// These need neither Postgres nor HTTP (no env gate), so the fast `test` leg
+// catches a mis-derived federation backing source — the regression class that
+// otherwise surfaces only in the slow, service-backed integration leg below.
+
+/// Subgraph A *owns* User: its relation rides on the `user(id)` query reading the
+/// `v_user` jsonb-`data` view, so the `_entities` resolver is query-sourced.
+#[test]
+fn users_subgraph_sources_owned_entity_from_query() {
+    let schema = user_schema_with_federation();
+    let sources = schema.entity_sources();
+    let user = sources.get("User").expect("owned User sourced from its backing query");
+    assert_eq!(user.relation, "v_user");
+    assert_eq!(user.jsonb_column.as_deref(), Some("data"));
+}
+
+/// Subgraph B *extends* User with no backing query, so the `_entities` resolver
+/// sources its relation from the type-level `sql_source` (#507). The `user` table
+/// is flat-column (no `data`), so the explicit empty `jsonb_column` selects flat
+/// mode: the resolver SELECTs bare columns and `quote_relation` quotes the bare
+/// identifier (a pre-quoted `sql_source` would be rejected as unsafe).
+#[test]
+fn reviews_subgraph_sources_extends_entity_from_type_level_sql_source() {
+    let json = include_str!("fixtures/federation/schema_reviews.json");
+    let schema = CompiledSchema::from_json(json, false).expect("reviews schema must be valid");
+    let sources = schema.entity_sources();
+    let user = sources.get("User").expect("extends User sourced from type-level sql_source");
+    assert_eq!(user.relation, "user", "unquoted identifier; quote_relation adds the quotes");
+    assert!(
+        user.jsonb_column.is_none(),
+        "flat-column extends entity: empty jsonb_column → flat projection, got {:?}",
+        user.jsonb_column
+    );
+}
+
 // ─── PostgreSQL helpers ──────────────────────────────────────────────────────
 
 async fn setup_users_table(db_url: &str) -> tokio_postgres::Client {

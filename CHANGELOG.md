@@ -28,6 +28,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` no longer drops the first field of each entity on minified
+  gateway queries.** Federation gateways (Hive Router, Apollo Router) routinely send
+  subgraph `_entities` queries minified — no spaces around the type condition or the
+  selection braces (`...on User{name email}`). The hand-rolled selection scanner did
+  not flush the pending token when a `{` opened the inline-fragment body, so the type
+  condition fused onto the first field (`User` + `name` → `Username`), and it failed to
+  skip the type name after the minifier-merged `...on` token. The first requested field
+  of every federated entity was projected under a mangled response key — a non-existent
+  column — and silently returned as `null`. The scanner now flushes on `{` and skips the
+  type condition for both `... on Type` and `...on Type`; pretty-printed queries are
+  unaffected. The `_entities` projection logic added in #504/#507 was already correct —
+  only the parser feeding it was wrong. (#512)
+- **Federation `_entities` resolves owner-split `extends` entities from a type-level
+  `sql_source`.** An `extend type … @key` entity resolved in a subgraph that does not
+  own it exposes no root query, so the `_entities` resolver had no backing query to
+  source its relation from and fell back to the non-existent `lower(typename)`
+  relation — silently resolving the entity to `null`. When the authoring SDK emits a
+  type-level `sql_source` on such an entity, the compiler now carries it through to
+  `types[].sql_source` (instead of always leaving it empty — chosen over the federation
+  config block because `types[]` survives the TOML federation merge), and the resolver's
+  backing-source builder (`CompiledSchema::entity_sources`) falls back to it when no
+  query supplies the relation. The fallback honours the same jsonb/flat convention as
+  the query path — a non-empty `jsonb_column` projects `<col>->'<field>'`, an empty one
+  reads bare columns — and the compiler defaults an extends entity's `jsonb_column` to
+  the standard `data` view shape (so flat-column extends entities are authored with an
+  explicit empty `jsonb_column`). Owned, query-backed entities are unaffected: a
+  query-sourced relation always wins. Completes the runtime/compiler half of the #504
+  fix; the authoring SDKs must emit the type-level `sql_source` for owner-split
+  `extends` entities. (#507)
+- **Federation `_entities` now resolves view-backed, jsonb-`data` entities.** The
+  runtime `_entities` resolver built its `FROM` relation from the lowercased GraphQL
+  type name and selected bare columns, but FraiseQL entities are view-backed and
+  expose their fields inside a `data` jsonb column — so it queried a relation that
+  does not exist and could not read jsonb fields. The query errored and the gateway
+  silently turned the field into `null`, making cross-subgraph entity joins
+  non-functional for standard entities. The resolver now sources each entity's
+  backing relation **and** jsonb column from the compiled schema's backing query
+  (keyed by `return_type`; the compiler leaves `types[].sql_source` empty), reads
+  from that relation (schema-qualified names quoted segment-by-segment), and
+  projects each requested field as `data->'<snake(field)>'` with camelCase→snake
+  recasing and type fidelity — mirroring the normal query path. The `@key` lookup
+  matches `data->>'<snake(key)>'` for jsonb views, and falls back to a text-cast
+  flat-column comparison (`id::text IN ($1)`) for flat-column views, so `uuid` /
+  integer / text keys all match. (#504)
+
+  Owner-split `extends` entities (resolved in a subgraph that does not own the type,
+  and so have no backing query) are now resolved from a type-level `sql_source` the
+  compiler carries through to the entity's `TypeDefinition` — see the #507 entry above.
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim

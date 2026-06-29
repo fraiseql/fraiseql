@@ -2,8 +2,8 @@
     "types": [
         {
             "name": "User",
-            "table": "\"user\"",
-            "sql_source": "\"user\"",
+            "sql_source": "user",
+            "jsonb_column": "",
             "fields": [
                 {"name": "id",          "field_type": "ID",  "nullable": false},
                 {"name": "reviewcount", "field_type": "Int", "nullable": false}

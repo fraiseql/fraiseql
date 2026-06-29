@@ -88,6 +88,75 @@ fn convert_threads_subscribable_pre_image_into_compiled() {
     assert!(compiled.subscribable[0].pre_image, "subscribable_pre_image threads through");
 }
 
+// ── #507 type-level sql_source threading (federation extends entities) ────────
+
+#[test]
+fn intermediate_type_reads_type_level_sql_source() {
+    // The authoring SDK emits a type-level `sql_source` for an owner-split
+    // `extend type … @key` federation entity that has no local backing query.
+    let json = r#"{ "name": "Organization", "fields": [], "sql_source": "v_organization" }"#;
+    let t: IntermediateType = serde_json::from_str(json).unwrap();
+    assert_eq!(t.sql_source.as_deref(), Some("v_organization"));
+}
+
+#[test]
+fn intermediate_type_sql_source_defaults_none() {
+    // The common case: an owned type binds its relation on the query that returns
+    // it, so the type-level key is absent.
+    let json = r#"{ "name": "User", "fields": [] }"#;
+    let t: IntermediateType = serde_json::from_str(json).unwrap();
+    assert!(t.sql_source.is_none(), "absent sql_source defaults to None");
+}
+
+#[test]
+fn convert_threads_type_level_sql_source_into_compiled() {
+    // An extends entity's type-level sql_source flows to TypeDefinition.sql_source
+    // so the federation `_entities` resolver can source its backing relation when
+    // no root query returns the type (#507). An owned type without one keeps the
+    // historical empty type-level sql_source.
+    let intermediate = IntermediateSchema {
+        types: vec![
+            IntermediateType {
+                name: "Organization".to_string(),
+                sql_source: Some("v_organization".to_string()),
+                ..Default::default()
+            },
+            IntermediateType {
+                name: "User".to_string(),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    let org = compiled
+        .types
+        .iter()
+        .find(|t| t.name == "Organization")
+        .expect("Organization type");
+    assert_eq!(
+        org.sql_source.as_str(),
+        "v_organization",
+        "type-level sql_source threads through to the compiled type"
+    );
+    assert_eq!(
+        org.jsonb_column, "data",
+        "an extends entity's fields default to the standard jsonb `data` column, symmetric \
+         with the query path"
+    );
+    let user = compiled.types.iter().find(|t| t.name == "User").expect("User type");
+    assert!(
+        user.sql_source.as_str().is_empty(),
+        "an owned type keeps the historical empty type-level sql_source"
+    );
+    assert!(
+        user.jsonb_column.is_empty(),
+        "an owned type keeps the historical empty type-level jsonb_column (optimizer heuristic \
+         stays off, compiled output byte-identical)"
+    );
+}
+
 #[test]
 fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
@@ -246,6 +315,7 @@ fn test_convert_type_with_fields() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
@@ -375,6 +445,7 @@ fn test_convert_query_with_arguments() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -453,6 +524,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Item".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -521,6 +593,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Item".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -591,6 +664,7 @@ fn test_convert_field_with_deprecated_directive() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "oldId".to_string(),
@@ -1145,6 +1219,7 @@ fn test_convert_type_implements_interface() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
@@ -1238,6 +1313,7 @@ fn test_validate_unknown_interface() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![IntermediateField {
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
@@ -1298,6 +1374,7 @@ fn test_validate_missing_interface_field() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
@@ -1376,6 +1453,7 @@ fn test_convert_union() {
         types:                vec![
             IntermediateType {
                 name:                   "User".to_string(),
+                sql_source:             None,
                 fields:                 vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1397,6 +1475,7 @@ fn test_convert_union() {
             },
             IntermediateType {
                 name:                   "Post".to_string(),
+                sql_source:             None,
                 fields:                 vec![IntermediateField {
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
@@ -1467,6 +1546,7 @@ fn test_convert_field_requires_scope() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Employee".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
@@ -1644,6 +1724,7 @@ mod tenancy_tests {
     fn make_type(name: &str, fields: Vec<IntermediateField>) -> IntermediateType {
         IntermediateType {
             name: name.to_string(),
+            sql_source: None,
             fields,
             description: None,
             implements: vec![],
@@ -2099,12 +2180,12 @@ mod changelog_validation_tests {
         // subgraph compiles alone), so the guardrail is a compile warning, never an
         // error; the owning subgraph legitimately sets both.
         let intermediate = IntermediateSchema {
-            version:           "2.0.0".to_string(),
-            changelog_config:  Some(ChangelogConfig {
+            version: "2.0.0".to_string(),
+            changelog_config: Some(ChangelogConfig {
                 expose: true,
                 ..Default::default()
             }),
-            observers_config:  Some(json!({ "enabled": true, "backend": "redis" })),
+            observers_config: Some(json!({ "enabled": true, "backend": "redis" })),
             federation_config: Some(json!({ "enabled": true })),
             ..IntermediateSchema::default()
         };
