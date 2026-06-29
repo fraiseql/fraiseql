@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `_entities` no longer drops the first field of each entity on minified
+  gateway queries.** Federation gateways (Hive Router, Apollo Router) routinely send
+  subgraph `_entities` queries minified — no spaces around the type condition or the
+  selection braces (`...on User{name email}`). The hand-rolled selection scanner did
+  not flush the pending token when a `{` opened the inline-fragment body, so the type
+  condition fused onto the first field (`User` + `name` → `Username`), and it failed to
+  skip the type name after the minifier-merged `...on` token. The first requested field
+  of every federated entity was projected under a mangled response key — a non-existent
+  column — and silently returned as `null`. The scanner now flushes on `{` and skips the
+  type condition for both `... on Type` and `...on Type`; pretty-printed queries are
+  unaffected. The `_entities` projection logic added in #504/#507 was already correct —
+  only the parser feeding it was wrong. (#512)
 - **Federation `_entities` now resolves view-backed, jsonb-`data` entities.** The
   runtime `_entities` resolver built its `FROM` relation from the lowercased GraphQL
   type name and selected bare columns, but FraiseQL entities are view-backed and
