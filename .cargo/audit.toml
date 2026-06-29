@@ -18,7 +18,11 @@ ignore = [
   "RUSTSEC-2026-0098",
   "RUSTSEC-2026-0099",
   # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099. Deadline 2026-06-15.
-  "RUSTSEC-2026-0104"
+  "RUSTSEC-2026-0104",
+  # wasmtime-wasi FilePerms bypass (hard-link/rename); transitive via fraiseql-functions'
+  # opt-in runtime-wasm feature only (wasmtime pinned to 44, NOT in default build). Patched in
+  # 45.0.3/46.0.1 — needs a wasmtime 44->45+ major bump tracked separately. Deadline 2026-10-01.
+  "RUSTSEC-2026-0188"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.
