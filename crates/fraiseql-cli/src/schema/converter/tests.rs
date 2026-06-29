@@ -2099,12 +2099,12 @@ mod changelog_validation_tests {
         // subgraph compiles alone), so the guardrail is a compile warning, never an
         // error; the owning subgraph legitimately sets both.
         let intermediate = IntermediateSchema {
-            version:           "2.0.0".to_string(),
-            changelog_config:  Some(ChangelogConfig {
+            version: "2.0.0".to_string(),
+            changelog_config: Some(ChangelogConfig {
                 expose: true,
                 ..Default::default()
             }),
-            observers_config:  Some(json!({ "enabled": true, "backend": "redis" })),
+            observers_config: Some(json!({ "enabled": true, "backend": "redis" })),
             federation_config: Some(json!({ "enabled": true })),
             ..IntermediateSchema::default()
         };

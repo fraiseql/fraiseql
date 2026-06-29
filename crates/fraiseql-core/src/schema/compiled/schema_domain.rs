@@ -120,7 +120,9 @@ impl CompiledSchema {
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
-            use crate::federation::types::{FederatedType, FieldFederationDirectives, KeyDirective};
+            use crate::federation::types::{
+                FederatedType, FieldFederationDirectives, KeyDirective,
+            };
 
             // Entities carry an `@key` (and, for an extended entity, `extend type` +
             // `@external` on the borrowed key/fields). Per-field directives are
@@ -139,17 +141,17 @@ impl CompiledSchema {
                         field_directives.entry(f.clone()).or_default().shareable = true;
                     }
                     FederatedType {
-                        name:                e.name.clone(),
-                        keys:                vec![KeyDirective {
+                        name: e.name.clone(),
+                        keys: vec![KeyDirective {
                             fields:     e.key_fields.clone(),
                             resolvable: true,
                         }],
-                        is_extends:          e.extends,
-                        external_fields:     e.external_fields.clone(),
-                        shareable_fields:    e.shareable_fields.clone(),
+                        is_extends: e.extends,
+                        external_fields: e.external_fields.clone(),
+                        shareable_fields: e.shareable_fields.clone(),
                         inaccessible_fields: Vec::new(),
                         field_directives,
-                        type_shareable:      false,
+                        type_shareable: false,
                     }
                 })
                 .collect();

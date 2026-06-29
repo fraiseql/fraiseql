@@ -513,7 +513,7 @@ mod entities_authz {
             enabled: true,
             version: Some("v2".to_string()),
             entities: vec![FederationEntity {
-                name:       "User".to_string(),
+                name: "User".to_string(),
                 key_fields: vec!["id".to_string()],
                 ..Default::default()
             }],

@@ -39,17 +39,17 @@ pub struct FederationConfig {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
-    pub name:       String,
+    pub name:             String,
     /// Key fields that uniquely identify this entity.
-    pub key_fields: Vec<String>,
+    pub key_fields:       Vec<String>,
     /// This subgraph `extend`s an entity owned by another subgraph (renders
     /// `extend type Name @key(...)` in the federation SDL).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub extends:         bool,
+    pub extends:          bool,
     /// Fields that are `@external` — owned by another subgraph and only referenced
     /// here (typically the `@key` field of an extended entity).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub external_fields: Vec<String>,
+    pub external_fields:  Vec<String>,
     /// Fields that are `@shareable` — resolvable in more than one subgraph.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shareable_fields: Vec<String>,
