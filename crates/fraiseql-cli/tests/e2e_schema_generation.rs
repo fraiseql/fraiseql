@@ -413,6 +413,7 @@ fn test_e2e_full_field_assertion() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),

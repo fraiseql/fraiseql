@@ -32,6 +32,7 @@ impl SchemaExtractor for CSharpExtractor {
             let description = params.get("description").cloned();
 
             types.push(IntermediateType {
+                sql_source: None,
                 name,
                 fields,
                 description,

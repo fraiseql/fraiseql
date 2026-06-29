@@ -25,6 +25,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![
                 IntermediateField {
                     name:           "id".to_string(),
