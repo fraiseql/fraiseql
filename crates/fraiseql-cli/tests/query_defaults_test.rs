@@ -25,6 +25,7 @@ fn base_schema_with_query(
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
             name:                   query.return_type.clone(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],

@@ -107,6 +107,7 @@ fn test_detect_duplicate_query_names() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -192,6 +193,7 @@ fn test_warning_for_query_without_sql_source() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -262,6 +264,7 @@ fn test_valid_observer() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Order".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -383,6 +386,7 @@ fn test_observer_with_invalid_event() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Order".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -447,6 +451,7 @@ fn test_observer_with_invalid_action_type() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Order".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -511,6 +516,7 @@ fn test_observer_with_invalid_retry_config() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "Order".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -571,6 +577,7 @@ fn test_query_injection_in_sql_source_rejected() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],
@@ -636,6 +643,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
             name:                   "User".to_string(),
+            sql_source:             None,
             fields:                 vec![],
             description:            None,
             implements:             vec![],

@@ -19,6 +19,19 @@ pub struct IntermediateType {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
+    /// Type-level SQL source (backing table/view), e.g. `v_organization`.
+    ///
+    /// Owned types bind their relation on the *query* that returns them, so this
+    /// is normally absent. It is emitted by the authoring SDK only for an
+    /// owner-split `extend type … @key` federation entity: a subgraph that does
+    /// not own the entity exposes no root query returning it, so the federation
+    /// `_entities` resolver has no query to source the backing relation from and
+    /// would otherwise guess `lower(typename)` and resolve to null (#507). When
+    /// present it flows through to `TypeDefinition.sql_source` and is used as the
+    /// `_entities` fallback relation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_source: Option<String>,
+
     /// Interfaces this type implements (GraphQL spec §3.6)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
