@@ -13,10 +13,10 @@
 //!
 //! The two subgraphs deliberately share everything a real supergraph shares:
 //! - `Money` — a keyless `@shareable` value type defined in *both* subgraphs.
-//! - `Product` — an entity *owned* by `catalog` and *extended* by `reviews`
-//!   (`extend type Product @key` with an `@external` key field).
-//! - a camelCase `catalog` subgraph that also exposes the #149 change-log, so the
-//!   SDL pins the naming-convention fix too.
+//! - `Product` — an entity *owned* by `catalog` and *extended* by `reviews` (`extend type Product
+//!   @key` with an `@external` key field).
+//! - a camelCase `catalog` subgraph that also exposes the #149 change-log, so the SDL pins the
+//!   naming-convention fix too.
 
 #![cfg(feature = "federation")]
 #![allow(clippy::expect_used, clippy::unwrap_used)] // Reason: test code, panics are acceptable.
@@ -186,7 +186,10 @@ fn catalog_sdl_holds_every_federation_invariant() {
         sdl.contains("type Product @key(fields: \"id\")"),
         "entity @key not rendered on Product (#496)"
     );
-    assert!(sdl.contains("type Money @shareable"), "shareable value type missing @shareable (#496)");
+    assert!(
+        sdl.contains("type Money @shareable"),
+        "shareable value type missing @shareable (#496)"
+    );
 
     // #496 — a keyless @shareable value type must NOT join the _Entity union (an
     // unkeyed union member is an invalid composition).
@@ -198,7 +201,10 @@ fn catalog_sdl_holds_every_federation_invariant() {
     assert!(sdl.contains("entityChangeLogs"), "change-log query not camelCased (#498)");
     assert!(sdl.contains("pkEntityChangeLog"), "change-log field not camelCased (#498)");
     assert!(!sdl.contains("entity_change_logs"), "snake_case change-log query leaked (#498)");
-    assert!(!sdl.contains("pk_entity_change_log"), "snake_case change-log field leaked (#498)");
+    assert!(
+        !sdl.contains("pk_entity_change_log"),
+        "snake_case change-log field leaked (#498)"
+    );
 }
 
 #[test]
@@ -224,7 +230,9 @@ fn reviews_sdl_extends_the_borrowed_entity() {
 
 /// Path to a committed subgraph SDL fixture.
 fn fixture_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/federation_compose").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/federation_compose")
+        .join(name)
 }
 
 /// The committed subgraph SDL fixtures are what the real-`composeServices` CI leg
