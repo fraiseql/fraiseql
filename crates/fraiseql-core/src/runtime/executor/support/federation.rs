@@ -110,23 +110,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         // not exist and could not read jsonb-backed fields, so view-backed
         // cross-subgraph joins silently returned null (#504).
         //
-        // The backing relation is carried on the *query* that returns the type (the
-        // compiler leaves every `types[].sql_source` empty), keyed by `return_type`
-        // with first-wins — the same query→type binding the Relay `node` path uses.
-        let mut entity_sources: std::collections::HashMap<String, crate::federation::EntitySource> =
-            std::collections::HashMap::new();
-        for q in &self.ctx.schema.queries {
-            if let Some(relation) = &q.sql_source {
-                entity_sources.entry(q.return_type.clone()).or_insert_with(|| {
-                    crate::federation::EntitySource {
-                        relation:     relation.clone(),
-                        jsonb_column: (!q.jsonb_column.is_empty()).then(|| q.jsonb_column.clone()),
-                    }
-                });
-            }
-        }
+        // The backing relation is sourced from the *query* that returns the type
+        // (owned entities), with a fallback to the type-level `sql_source` for an
+        // owner-split `extend type` entity that has no local query (#507). See
+        // [`CompiledSchema::entity_sources`].
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata)
-            .with_entity_sources(entity_sources);
+            .with_entity_sources(self.ctx.schema.entity_sources());
 
         // Extract actual field selection from GraphQL query AST.
         // __typename is NOT added to the SQL field list — it is a GraphQL meta-field

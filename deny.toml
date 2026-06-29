@@ -40,7 +40,16 @@ ignore = [
   # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects optional aws-s3 feature only; same root cause as RUSTSEC-2026-0098/0099.
   # deadline: 2026-09-01 — resolved when aws-sdk migrates to rustls 0.23.
-  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."}
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-09-01."},
+  # wasmtime-wasi: WASI hard-link/rename bypasses FilePerms on the destination path.
+  # Transitive via fraiseql-functions' opt-in `runtime-wasm` feature only (wasmtime/wasmtime-wasi
+  # are pinned to major "44"); NOT in the default build, no exposure for a standard FraiseQL server.
+  # Patched in 45.0.3 / 46.0.1 — there is no fix within the 44.x line, so resolution requires a
+  # wasmtime 44 -> 45+ MAJOR bump that also moves the `wasmtime::component::bindgen!` glue, tracked
+  # as standalone work (out of scope for an advisory-hygiene pass; the env can't build/verify the
+  # wasmtime stack safely here).
+  # deadline: 2026-10-01 — re-evaluate when the standalone wasmtime 45+ bump lands.
+  {id = "RUSTSEC-2026-0188", reason = "wasmtime-wasi FilePerms bypass; transitive via opt-in runtime-wasm feature only (wasmtime pinned to 44); patched in 45.0.3/46.0.1 needs a major bump tracked separately. Deadline 2026-10-01."}
 ]
 unmaintained = "workspace"
 

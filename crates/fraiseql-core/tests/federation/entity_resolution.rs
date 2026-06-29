@@ -11,12 +11,14 @@
 use std::collections::HashMap;
 
 use fraiseql_core::{
+    CompiledSchema,
     db::{WhereClause, WhereOperator},
     federation::{
         database_resolver::DatabaseEntityResolver,
         selection_parser::FieldSelection,
         types::{EntityRepresentation, EntitySource},
     },
+    schema::TypeDefinition,
 };
 use serde_json::{Value, json};
 
@@ -421,4 +423,78 @@ async fn test_resolve_jsonb_data_backed_entity_projects_and_recases() {
     // camelCase field projected from `data->>'is_customer'`, with the boolean type
     // preserved (not the text "true") via the single-arrow `->` jsonb projection.
     assert_eq!(customer["isCustomer"], json!(true));
+}
+
+/// #507: an owner-split `extend type … @key` entity resolved in a subgraph that
+/// does not own it exposes no root query, so there is no backing query to source
+/// its relation from. The compiler instead carries the relation on the entity's
+/// `TypeDefinition.sql_source`, and [`CompiledSchema::entity_sources`] falls back
+/// to it. This drives the whole chain end-to-end against real PostgreSQL: a
+/// `Division` entity backed by the jsonb-`data` view `v_division_507`
+/// (≠ `lower("Division")`) resolves and projects its `data`-jsonb fields, whereas
+/// without the type-level source the resolver guesses the non-existent `division`
+/// relation and errors. The `EntitySource` map is produced by the **real**
+/// production builder (not hand-injected), so this also pins that the builder
+/// derives the relation from the type level.
+#[tokio::test]
+async fn test_resolve_extends_entity_from_type_level_sql_source() {
+    let div_id = "550e8400-e29b-41d4-a716-446655440507";
+    let rows = vec![map(&[(
+        "data",
+        json!({ "id": div_id, "name": "Engineering", "is_active": true }),
+    )])];
+    // A jsonb-`data` view whose name is deliberately NOT `lower("Division")`; the
+    // `_507` suffix keeps it unique so federation tests don't race on CREATE TABLE.
+    let Some((_pg, adapter)) =
+        common::pg_entity_fixture("v_division_507", &["data jsonb"], &rows).await
+    else {
+        eprintln!("SKIP test_resolve_extends_entity_from_type_level_sql_source: no postgres");
+        return;
+    };
+
+    // The entity is an `extend type` (is_extends = true) — the #507 scenario.
+    let metadata = common::metadata_extended_type("Division", "id", &[], &[]);
+    let selection =
+        FieldSelection::new(vec!["id".to_string(), "name".to_string(), "isActive".to_string()]);
+    let representation = rep("Division", &[("id", json!(div_id))]);
+
+    // Control: a compiled type with an EMPTY type-level sql_source (and no backing
+    // query) yields no source for Division, so the resolver guesses
+    // `lower("Division")` = `division`, which does not exist → hard error.
+    let mut blind_schema = CompiledSchema::new();
+    blind_schema.types.push(TypeDefinition::new("Division", ""));
+    assert!(
+        !blind_schema.entity_sources().contains_key("Division"),
+        "without a type-level sql_source the builder has no source for Division"
+    );
+    let blind = DatabaseEntityResolver::new(adapter.clone(), metadata.clone());
+    let blind_result = blind
+        .resolve_entities_from_db("Division", std::slice::from_ref(&representation), &selection)
+        .await;
+    assert!(
+        blind_result.is_err(),
+        "querying lower(typename) must fail: relation 'division' does not exist, got: {blind_result:?}"
+    );
+
+    // Fix: the compiled schema carries the entity's relation on its TYPE (no query
+    // returns `Division` in this subgraph). The real `entity_sources` builder
+    // sources it from there, defaulting to the standard jsonb `data` column (#507).
+    let mut schema = CompiledSchema::new();
+    schema.types.push(TypeDefinition::new("Division", "v_division_507"));
+    let sources = schema.entity_sources();
+    let src = sources.get("Division").expect("Division sourced from type-level sql_source");
+    assert_eq!(src.relation, "v_division_507");
+    assert_eq!(src.jsonb_column.as_deref(), Some("data"));
+
+    let resolver = DatabaseEntityResolver::new(adapter, metadata).with_entity_sources(sources);
+    let entities = resolver
+        .resolve_entities_from_db("Division", std::slice::from_ref(&representation), &selection)
+        .await
+        .unwrap_or_else(|e| panic!("type-sourced extends entity resolution failed: {e}"));
+
+    assert_eq!(entities.len(), 1);
+    let division = entities[0].as_ref().expect("extends entity must resolve from its view");
+    assert_eq!(division["name"], "Engineering");
+    // camelCase jsonb-only field projected from `data->>'is_active'`, type preserved.
+    assert_eq!(division["isActive"], json!(true));
 }

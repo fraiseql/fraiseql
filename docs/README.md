@@ -7,7 +7,7 @@
 | Understand the system at a glance | [`architecture.md`](../architecture.md) — framework map (crates, modules, data flow) |
 | Read the conceptual architecture | [`docs/architecture/overview.md`](architecture/overview.md) |
 | Understand the SQL compiler | [`docs/architecture/compiler.md`](architecture/compiler.md) |
-| Read why design decisions were made | [`docs/adr/`](adr/) — 12 Architecture Decision Records |
+| Read why design decisions were made | [`docs/adr/`](adr/) — 14 Architecture Decision Records |
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
@@ -25,7 +25,7 @@
 ```
 docs/
 ├── README.md                    ← this file
-├── adr/                         ← Architecture Decision Records (12 ADRs)
+├── adr/                         ← Architecture Decision Records (14 ADRs)
 │   ├── 0001-three-layer-architecture.md
 │   ├── 0002-database-driver-choices.md
 │   ├── 0003-feature-flag-strategy.md
@@ -37,7 +37,8 @@ docs/
 │   ├── 0009-database-feature-parity.md
 │   ├── 0010-async-mutation-handlers.md
 │   ├── 0012-async-trait-retention.md
-│   └── 0013-mutation-response-v2-schema.md
+│   ├── 0013-mutation-response-v2-schema.md
+│   └── 0014-federation-entity-backing-source.md
 ├── architecture/                ← Conceptual architecture docs
 │   ├── README.md                ← Navigation guide
 │   ├── overview.md              ← 3-layer model, security, error handling

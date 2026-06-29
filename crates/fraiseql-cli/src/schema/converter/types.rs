@@ -29,13 +29,28 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert type '{}'", intermediate.name))?;
 
+        // Owned types bind their relation on the query that returns them, so the
+        // type-level source is normally empty. An owner-split `extend type`
+        // federation entity carries a type-level `sql_source` (it has no local
+        // backing query) which the `_entities` resolver uses as its fallback
+        // relation (#507); its fields project from the standard `data` jsonb
+        // column — symmetric with the query path, whose `jsonb_column` also
+        // defaults to `data`. Regular types keep both empty (byte-identical
+        // compiled output, and the optimizer's projection-hint heuristic stays off).
+        let type_sql_source = intermediate.sql_source.unwrap_or_default();
+        let type_jsonb_column = if type_sql_source.is_empty() {
+            String::new()
+        } else {
+            "data".to_string()
+        };
+
         Ok(TypeDefinition {
             name: intermediate.name.into(),
             fields,
             description: intermediate.description,
-            sql_source: String::new().into(), // Not used for regular types (empty string)
-            jsonb_column: String::new(),      // Not used for regular types (empty string)
-            sql_projection_hint: None,        // Will be populated by optimizer in
+            sql_source: type_sql_source.into(),
+            jsonb_column: type_jsonb_column,
+            sql_projection_hint: None, // Will be populated by optimizer in
             implements: intermediate.implements,
             requires_role: intermediate.requires_role,
             is_error: intermediate.is_error,
