@@ -200,6 +200,7 @@ would be wrong in the multi-view case and is a large, risky refactor of the quer
 ## Consequences
 
 **Positive**
+
 - Extends entities resolve correctly (flat and jsonb), completing #504/#506.
 - Robust against the TOML federation-merge overwrite (the decisive property).
 - Reuses the existing query-path jsonb/flat convention — one mental model.
@@ -207,6 +208,7 @@ would be wrong in the multi-view case and is a large, risky refactor of the quer
   is byte-identical (type `sql_source`/`jsonb_column` stay empty).
 
 **Negative / trade-offs**
+
 - Reactivates two previously-dead reads of `TypeDefinition`:
   - the CLI optimizer's projection-hint heuristic keys on a non-empty `jsonb_column`
     (extends types now have `"data"`). Mitigated: extends stubs have few fields, the
