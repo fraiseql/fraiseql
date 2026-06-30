@@ -277,6 +277,11 @@ reason = "transitive via newer dependency chain pulling rand 0.10"
 version = "=0.10.1"
 
 [[bans.skip]]
+name = "reqwest"
+reason = "transitive via opentelemetry-otlp 0.32 → opentelemetry-http (reqwest 0.13); workspace direct on reqwest 0.12"
+version = "=0.13.4"
+
+[[bans.skip]]
 name = "rustc_version"
 reason = "transitive via older build dependencies"
 version = "=0.2.3"
