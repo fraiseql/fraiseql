@@ -2980,3 +2980,152 @@ mod validate_facts_tests {
         assert!(errors[0].message.contains("profit"));
     }
 }
+
+mod query_tests {
+    use serde_json::json;
+
+    use super::super::query::{ensure_postgres_url, has_errors, parse_variables};
+
+    #[test]
+    fn ensure_postgres_url_accepts_postgres_schemes() {
+        assert!(ensure_postgres_url("postgres://localhost/db").is_ok());
+        assert!(ensure_postgres_url("postgresql://u:p@h:5432/db").is_ok());
+    }
+
+    #[test]
+    fn ensure_postgres_url_rejects_other_schemes() {
+        assert!(ensure_postgres_url("mysql://localhost/db").is_err());
+        assert!(ensure_postgres_url("sqlite://./x.db").is_err());
+        assert!(ensure_postgres_url("not-a-url").is_err());
+    }
+
+    #[test]
+    fn parse_variables_none_is_none() {
+        assert!(parse_variables(None).unwrap().is_none());
+    }
+
+    #[test]
+    fn parse_variables_valid_object() {
+        let v = parse_variables(Some(r#"{"id": 42}"#)).unwrap().unwrap();
+        assert_eq!(v, json!({"id": 42}));
+    }
+
+    #[test]
+    fn parse_variables_rejects_non_object() {
+        assert!(parse_variables(Some("42")).is_err());
+        assert!(parse_variables(Some("[1, 2]")).is_err());
+    }
+
+    #[test]
+    fn parse_variables_rejects_invalid_json() {
+        assert!(parse_variables(Some("{not json")).is_err());
+    }
+
+    #[test]
+    fn has_errors_detects_non_empty_errors_array() {
+        assert!(has_errors(&json!({"data": null, "errors": [{"message": "boom"}]})));
+    }
+
+    #[test]
+    fn has_errors_false_for_clean_response() {
+        assert!(!has_errors(&json!({"data": {"users": []}})));
+        assert!(!has_errors(&json!({"data": {}, "errors": []})));
+    }
+}
+
+mod doctor_runtime_tests {
+    use fraiseql_core::schema::{
+        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
+        QueryDefinition, TypeDefinition,
+    };
+
+    use super::super::doctor::{
+        minimal_mutation_probe, minimal_query_probe, minimal_selection_for_type,
+        probe_requires_arguments,
+    };
+
+    fn user_type() -> TypeDefinition {
+        let mut t = TypeDefinition::new("User", "v_user");
+        t.fields.push(FieldDefinition::new("id", FieldType::Id));
+        t.fields.push(FieldDefinition::new("name", FieldType::String));
+        t
+    }
+
+    #[test]
+    fn requires_arguments_true_for_required_arg() {
+        let args = vec![ArgumentDefinition::new("id", FieldType::Id)];
+        assert!(probe_requires_arguments(&args));
+    }
+
+    #[test]
+    fn requires_arguments_false_for_optional_or_empty() {
+        assert!(!probe_requires_arguments(&[]));
+        let args = vec![ArgumentDefinition::optional("limit", FieldType::Int)];
+        assert!(!probe_requires_arguments(&args));
+    }
+
+    #[test]
+    fn minimal_selection_picks_first_scalar_field() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(user_type());
+        assert_eq!(minimal_selection_for_type("User", &schema).as_deref(), Some("id"));
+    }
+
+    #[test]
+    fn minimal_selection_falls_back_to_typename() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new("Empty", "v_empty"));
+        assert_eq!(minimal_selection_for_type("Empty", &schema).as_deref(), Some("__typename"));
+    }
+
+    #[test]
+    fn minimal_selection_none_for_leaf_type() {
+        let schema = CompiledSchema::new(); // "Int" is not an object type
+        assert!(minimal_selection_for_type("Int", &schema).is_none());
+    }
+
+    #[test]
+    fn query_probe_for_object_return() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(user_type());
+        schema.queries.push(QueryDefinition::new("users", "User"));
+        let op = minimal_query_probe(&schema.queries[0], &schema).unwrap();
+        assert_eq!(op, "{ users { id } }");
+    }
+
+    #[test]
+    fn query_probe_for_scalar_return_has_no_subselection() {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition::new("count", "Int"));
+        let op = minimal_query_probe(&schema.queries[0], &schema).unwrap();
+        assert_eq!(op, "{ count }");
+    }
+
+    #[test]
+    fn query_probe_skipped_when_required_arg() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(user_type());
+        let mut q = QueryDefinition::new("user", "User");
+        q.arguments.push(ArgumentDefinition::new("id", FieldType::Id));
+        schema.queries.push(q);
+        assert!(minimal_query_probe(&schema.queries[0], &schema).is_none());
+    }
+
+    #[test]
+    fn mutation_probe_dry_run_shape() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(user_type());
+        schema.mutations.push(MutationDefinition::new("ping", "User"));
+        let op = minimal_mutation_probe(&schema.mutations[0], &schema).unwrap();
+        assert_eq!(op, "mutation { ping { id } }");
+    }
+
+    #[test]
+    fn mutation_probe_skipped_when_required_arg() {
+        let mut schema = CompiledSchema::new();
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.arguments.push(ArgumentDefinition::new("name", FieldType::String));
+        schema.mutations.push(m);
+        assert!(minimal_mutation_probe(&schema.mutations[0], &schema).is_none());
+    }
+}

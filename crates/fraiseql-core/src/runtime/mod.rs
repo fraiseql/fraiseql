@@ -246,6 +246,20 @@ pub struct RuntimeConfig {
     /// Sourced from `[changelog] enabled` in `fraiseql.toml`, overridable at
     /// runtime by `FRAISEQL_CHANGELOG_ENABLED`.
     pub changelog_enabled: bool,
+
+    /// Validate-bind-without-commit mode for mutations (default `false`).
+    ///
+    /// When `true`, every state-changing mutation is executed inside a database
+    /// transaction that is **rolled back** instead of committed: the function
+    /// binds and runs (so constraints, triggers, and the `mutation_response`
+    /// shape are all validated) but no writes persist and no change-log row is
+    /// emitted. Powers the `fraiseql query --dry-run` CLI smoke check and the
+    /// `doctor --runtime` mutation probes.
+    ///
+    /// Currently honoured only by the PostgreSQL adapter; other adapters return
+    /// a `Validation` error from `execute_function_call_dry_run` rather than
+    /// silently committing. Queries are unaffected (they never commit).
+    pub dry_run_mutations: bool,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -265,6 +279,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("query_validation", &self.query_validation)
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
+            .field("dry_run_mutations", &self.dry_run_mutations)
             .finish()
     }
 }
@@ -286,6 +301,7 @@ impl Default for RuntimeConfig {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         }
     }
 }

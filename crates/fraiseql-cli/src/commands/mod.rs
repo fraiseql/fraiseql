@@ -17,6 +17,7 @@ pub mod introspect_facts;
 pub mod lint;
 pub mod migrate;
 pub mod perf;
+pub mod query;
 #[cfg(feature = "run-server")]
 pub mod run;
 pub mod sbom;

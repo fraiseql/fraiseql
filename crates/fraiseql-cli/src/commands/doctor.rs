@@ -5,9 +5,13 @@
 //!   fraiseql doctor --config fraiseql.toml --schema schema.compiled.json
 //!   fraiseql doctor --json
 
-use std::{net::TcpStream, path::Path, time::Duration};
+use std::{net::TcpStream, path::Path, sync::Arc, time::Duration};
 
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::{
+    db::postgres::PostgresAdapter,
+    runtime::{Executor, RuntimeConfig},
+    schema::{ArgumentDefinition, CompiledSchema, MutationDefinition, QueryDefinition},
+};
 use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
 use serde::{Deserialize, Serialize};
 
@@ -556,6 +560,7 @@ pub async fn run_with_db_checks(
     schema: &Path,
     db_url: Option<&str>,
     against_db: Option<&str>,
+    runtime: bool,
     schemas: &[String],
     json: bool,
 ) -> bool {
@@ -573,6 +578,12 @@ pub async fn run_with_db_checks(
         checks.extend(mutation_contract_checks(url, schema).await);
     }
 
+    // Runtime smoke (#501): actually execute each probeable root operation. Prefers
+    // the live `--against-db` URL, falling back to `--db-url`.
+    if runtime {
+        checks.extend(runtime_probe_checks(against_db.or(db_url), schema).await);
+    }
+
     if json {
         print_json_report(&checks);
     } else {
@@ -580,6 +591,199 @@ pub async fn run_with_db_checks(
     }
 
     checks.iter().all(|c| c.status != CheckStatus::Fail)
+}
+
+// ─── Runtime smoke (#501) ───────────────────────────────────────────────────────
+
+const RUNTIME_NAME: &str = "Runtime smoke";
+const RUNTIME_QUERY_LABEL: &str = "Runtime query probe";
+const RUNTIME_MUTATION_LABEL: &str = "Runtime mutation probe (dry-run)";
+
+/// Boot the compiled schema in-process and probe each root operation end-to-end.
+///
+/// For every root query (and every mutation, dry-run / rolled back) that takes no
+/// required arguments, a minimal operation is executed against the database; a
+/// success becomes a `Pass`, a resolution error a `Fail`. Operations that require
+/// arguments cannot be probed automatically (input would have to be fabricated)
+/// and are reported as `Warn` (skipped) — `Warn` never fails the overall run.
+///
+/// Never panics: a missing URL, an unreadable schema, or a connection failure all
+/// become a single `Fail` check.
+pub async fn runtime_probe_checks(db_url: Option<&str>, schema_path: &Path) -> Vec<DoctorCheck> {
+    let Some(url) = db_url else {
+        return vec![DoctorCheck::fail(
+            RUNTIME_NAME,
+            "no database URL provided for --runtime",
+            "Pass --against-db <postgres-url> (or --db-url) together with --runtime.",
+        )];
+    };
+    if !(url.starts_with("postgres://") || url.starts_with("postgresql://")) {
+        return vec![DoctorCheck::fail(
+            RUNTIME_NAME,
+            "runtime smoke supports PostgreSQL only",
+            "Pass a postgres:// URL to --against-db.",
+        )];
+    }
+
+    let schema = match load_compiled_schema(schema_path) {
+        Ok(schema) => schema,
+        Err(detail) => {
+            return vec![DoctorCheck::fail(
+                RUNTIME_NAME,
+                detail,
+                "Run `fraiseql compile` to (re)generate the compiled schema.",
+            )];
+        },
+    };
+
+    let adapter = match PostgresAdapter::new(url).await {
+        Ok(adapter) => Arc::new(adapter),
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                RUNTIME_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db.",
+            )];
+        },
+    };
+
+    // dry_run_mutations: mutation probes run inside a rolled-back transaction so a
+    // smoke check never commits side effects.
+    let config = RuntimeConfig {
+        dry_run_mutations: true,
+        ..RuntimeConfig::default()
+    };
+    // Clone for iteration so the borrow is independent of the executor that owns
+    // the schema (one-shot CLI; the clone cost is negligible).
+    let probe_schema = schema.clone();
+    let executor = Executor::with_config(schema, adapter, config);
+
+    let mut checks = Vec::new();
+    for query in &probe_schema.queries {
+        if let Some(op) = minimal_query_probe(query, &probe_schema) {
+            let result = executor.execute(&op, None).await;
+            checks.push(probe_outcome(RUNTIME_QUERY_LABEL, &query.name, &result));
+        } else {
+            checks.push(DoctorCheck::warn(
+                RUNTIME_QUERY_LABEL,
+                format!("{} skipped — requires arguments", query.name),
+                format!("Probe manually: fraiseql query '{{ {}(…) {{ … }} }}'", query.name),
+            ));
+        }
+    }
+    for mutation in &probe_schema.mutations {
+        if let Some(op) = minimal_mutation_probe(mutation, &probe_schema) {
+            let result = executor.execute(&op, None).await;
+            checks.push(probe_outcome(RUNTIME_MUTATION_LABEL, &mutation.name, &result));
+        } else {
+            checks.push(DoctorCheck::warn(
+                RUNTIME_MUTATION_LABEL,
+                format!("{} skipped — requires arguments", mutation.name),
+                format!(
+                    "Dry-run manually: fraiseql query --dry-run 'mutation {{ {}(…) {{ … }} }}'",
+                    mutation.name
+                ),
+            ));
+        }
+    }
+
+    if checks.is_empty() {
+        checks.push(DoctorCheck::warn(
+            RUNTIME_NAME,
+            "no root queries or mutations to probe",
+            "Compile a schema that declares queries or mutations.",
+        ));
+    }
+    checks
+}
+
+/// Read and parse a compiled schema, mapping any failure to a display string.
+fn load_compiled_schema(path: &Path) -> Result<CompiledSchema, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    CompiledSchema::from_json(&text, false)
+        .map_err(|e| format!("cannot parse {}: {e}", path.display()))
+}
+
+/// Map a single probe execution result to a doctor check.
+fn probe_outcome(
+    label: &'static str,
+    op_name: &str,
+    result: &fraiseql_core::error::Result<serde_json::Value>,
+) -> DoctorCheck {
+    match result {
+        Ok(value) if !crate::commands::query::has_errors(value) => {
+            DoctorCheck::pass(label, format!("{op_name} resolves"))
+        },
+        Ok(value) => DoctorCheck::fail(
+            label,
+            format!(
+                "{op_name}: {}",
+                first_error_message(value).unwrap_or_else(|| "resolution error".to_string())
+            ),
+            "Inspect with `fraiseql query`.",
+        ),
+        Err(e) => {
+            DoctorCheck::fail(label, format!("{op_name}: {e}"), "Inspect with `fraiseql query`.")
+        },
+    }
+}
+
+/// Extract the first GraphQL error message from a response envelope, if any.
+fn first_error_message(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("errors")?
+        .as_array()?
+        .first()?
+        .get("message")?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+/// Whether any declared argument is required (non-null and has no default), in
+/// which case the operation cannot be probed without fabricating input.
+pub(crate) fn probe_requires_arguments(args: &[ArgumentDefinition]) -> bool {
+    args.iter().any(|a| !a.nullable && a.default_value.is_none())
+}
+
+/// Build a minimal sub-selection for an object return type: the first scalar
+/// field, falling back to `__typename`. Returns `None` when `type_name` is a leaf
+/// (scalar / enum) that needs no sub-selection.
+pub(crate) fn minimal_selection_for_type(
+    type_name: &str,
+    schema: &CompiledSchema,
+) -> Option<String> {
+    let type_def = schema.types.iter().find(|t| t.name.as_str() == type_name)?;
+    let field = type_def.fields.iter().find(|f| f.field_type.is_scalar());
+    Some(field.map_or_else(|| "__typename".to_string(), |f| f.name.as_str().to_string()))
+}
+
+/// Build a minimal probe document for a root query, or `None` if it requires args.
+pub(crate) fn minimal_query_probe(
+    query: &QueryDefinition,
+    schema: &CompiledSchema,
+) -> Option<String> {
+    if probe_requires_arguments(&query.arguments) {
+        return None;
+    }
+    Some(match minimal_selection_for_type(&query.return_type, schema) {
+        Some(sel) => format!("{{ {} {{ {sel} }} }}", query.name),
+        None => format!("{{ {} }}", query.name),
+    })
+}
+
+/// Build a minimal probe document for a root mutation, or `None` if it requires args.
+pub(crate) fn minimal_mutation_probe(
+    mutation: &MutationDefinition,
+    schema: &CompiledSchema,
+) -> Option<String> {
+    if probe_requires_arguments(&mutation.arguments) {
+        return None;
+    }
+    Some(match minimal_selection_for_type(&mutation.return_type, schema) {
+        Some(sel) => format!("mutation {{ {} {{ {sel} }} }}", mutation.name),
+        None => format!("mutation {{ {} }}", mutation.name),
+    })
 }
 
 /// Run the PL/pgSQL body-resolution pass and map its outcome to doctor checks.

@@ -344,7 +344,10 @@ func (m *FraiseqlCi) Test(
 	// Per-toolchain target cache: stable and 1.92 produce incompatible artifacts,
 	// so they must not share a target dir (kept separate from the Phase-02 gates'
 	// `fraiseql-rust-target`, which holds clippy/rustdoc check artifacts).
-	targetVol := "fraiseql-rust-target-test-" + strings.ReplaceAll(toolchain, ".", "-")
+	// `test2-` bump (2026-06-30): the `test-` volume held stale fraiseql-cli/-db
+	// artifacts that cargo reused across branches, hiding newly-added public items
+	// (#501's `commands::query` / `runtime_probe_checks`) → false E0432 on msrv only.
+	targetVol := "fraiseql-rust-target-test2-" + strings.ReplaceAll(toolchain, ".", "-")
 
 	// Skip patterns for the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so we run only its lib unit tests.
@@ -1410,7 +1413,7 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 // test container can reach it. Dagger starts the Postgres dependency (and waits for
 // its port) before the server starts, and the caller waits for :8815 before testing.
 func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service {
-	const targetVol = "fraiseql-rust-target-integ2-1-92"
+	const targetVol = "fraiseql-rust-target-integ3-1-92"
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
@@ -1612,7 +1615,10 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 // feature/artifact sets) and sets RUST_LOG=debug like the legacy integration jobs.
 func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dagger.Container {
 	toolchain := resolveToolchain(rust)
-	targetVol := "fraiseql-rust-target-integ2-" + strings.ReplaceAll(toolchain, ".", "-")
+	// `integ3-` bump (2026-06-30): bust the stale integ2 target cache that reused
+	// pre-#501 fraiseql-db artifacts, hiding `execute_function_call_dry_run` → false
+	// E0599 in the integration postgres leg. Mirrors the `test2-` bump above.
+	targetVol := "fraiseql-rust-target-integ3-" + strings.ReplaceAll(toolchain, ".", "-")
 	return m.rustBaseFor(toolchain).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").

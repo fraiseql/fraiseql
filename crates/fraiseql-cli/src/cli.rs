@@ -620,6 +620,45 @@ EXAMPLES:
         command: SchemaCommands,
     },
 
+    /// Execute one GraphQL operation against a database and print the JSON result
+    ///
+    /// Boots the compiled schema in-process (no long-lived server, no HTTP layer)
+    /// against PostgreSQL, runs a single query or mutation, prints the GraphQL JSON
+    /// response to stdout, and exits. Exits non-zero on a resolution error — a
+    /// scriptable "does this actually resolve?" check for CI and the inner loop.
+    ///
+    /// Mutations COMMIT unless `--dry-run` is given, which runs the mutation inside
+    /// a transaction that is rolled back (validate-bind-without-commit).
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql query '{ orders(limit: 1) { id } }'
+    fraiseql query --schema schema.compiled.json --database postgres://localhost/db '{ users { id } }'
+    fraiseql query --variables '{\"id\": 42}' 'query($id: Int!) { user(id: $id) { id } }'
+    fraiseql query --dry-run 'mutation { createUser(name: \"x\") { id } }'")]
+    Query {
+        /// GraphQL operation to execute (a single query or mutation document).
+        #[arg(value_name = "QUERY")]
+        query: String,
+
+        /// Path to schema.compiled.json.
+        #[arg(short = 's', long, default_value = "schema.compiled.json")]
+        schema: std::path::PathBuf,
+
+        /// Database URL (PostgreSQL only). Falls back to the DATABASE_URL env var.
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// GraphQL variables as a JSON object string (e.g. '{"id": 42}').
+        #[arg(long, value_name = "JSON")]
+        variables: Option<String>,
+
+        /// Run mutations inside a rolled-back transaction: the function binds and
+        /// executes (constraints, triggers, and response shape are validated) but
+        /// nothing is committed. No effect on queries. PostgreSQL only.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Run diagnostic checks for common FraiseQL setup problems
     ///
     /// Checks schema file, TOML config, DATABASE_URL, JWT secret, Redis, TLS,
@@ -630,6 +669,7 @@ EXAMPLES:
     fraiseql doctor
     fraiseql doctor --schema schema.compiled.json --config fraiseql.toml
     fraiseql doctor --db-url postgres://user:pass@host:5432/db
+    fraiseql doctor --runtime --against-db postgres://user:pass@host:5432/db
     fraiseql doctor --json")]
     Doctor {
         /// Path to fraiseql.toml configuration file.
@@ -656,6 +696,15 @@ EXAMPLES:
         /// skips with a hint when it is unavailable.
         #[arg(long, value_name = "DATABASE_URL")]
         against_db: Option<String>,
+
+        /// Runtime smoke mode (#501): boot the compiled schema in-process and
+        /// probe each root query field with a minimal selection, dry-running each
+        /// no-argument mutation (rolled back). Confirms operations actually
+        /// *resolve* end-to-end, complementing the static `--against-db` drift
+        /// checks. Requires a PostgreSQL URL via `--against-db` (or `--db-url`).
+        /// Queries / mutations that require arguments are skipped with a warning.
+        #[arg(long)]
+        runtime: bool,
 
         /// Schemas to scan in the body-resolution pass (comma-separated).
         #[arg(

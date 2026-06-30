@@ -76,6 +76,7 @@ mod query {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -864,6 +865,7 @@ mod config {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -892,6 +894,7 @@ mod config {
             query_validation:     None,
             audit_mutations:      false,
             changelog_enabled:    true,
+            dry_run_mutations:    false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);

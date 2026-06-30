@@ -772,15 +772,25 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 // default → no extra column, byte-for-byte today's behavior.
                 .with_pre_image(mutation_def.changelog_pre_image)
         });
-        let rows = ctx
-            .adapter
-            .execute_function_call_with_changelog(
-                sql_source,
-                &args,
-                &session_pairs,
-                changelog.as_ref(),
-            )
-            .await?;
+        let rows = if ctx.config.dry_run_mutations {
+            // Validate-bind-without-commit (#501): run the function inside a
+            // transaction the adapter rolls back, so nothing persists and no
+            // outbox row is written. The `changelog` descriptor above is unused
+            // on this path. PostgreSQL implements the rollback; other adapters
+            // return `Unsupported` rather than silently committing.
+            ctx.adapter
+                .execute_function_call_dry_run(sql_source, &args, &session_pairs)
+                .await?
+        } else {
+            ctx.adapter
+                .execute_function_call_with_changelog(
+                    sql_source,
+                    &args,
+                    &session_pairs,
+                    changelog.as_ref(),
+                )
+                .await?
+        };
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
