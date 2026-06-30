@@ -37,6 +37,35 @@ use crate::{
     types::{TenantId, UserId},
 };
 
+/// Extract the user's roles from the (signature-verified) JWT custom claims.
+///
+/// Reads, in order, the scalar `role` claim, the `roles` array, and the
+/// `fraiseql_roles` array, then sorts and de-duplicates. This mirrors the
+/// claim names honoured by `fraiseql_auth::operation_rbac` so the GraphQL
+/// `requires_role` gate and the observer-admin RBAC engine agree on what a
+/// token grants. Without this, `SecurityContext.roles` was always empty and
+/// every `requires_role` operation was unreachable over HTTP (#503).
+fn roles_from_claims(extra_claims: &HashMap<String, serde_json::Value>) -> Vec<String> {
+    let mut roles = Vec::new();
+
+    if let Some(serde_json::Value::String(role)) = extra_claims.get("role") {
+        roles.push(role.clone());
+    }
+
+    for key in ["roles", "fraiseql_roles"] {
+        if let Some(serde_json::Value::Array(values)) = extra_claims.get(key) {
+            roles.extend(values.iter().filter_map(|v| match v {
+                serde_json::Value::String(role) => Some(role.clone()),
+                _ => None,
+            }));
+        }
+    }
+
+    roles.sort();
+    roles.dedup();
+    roles
+}
+
 /// Security context for authorization evaluation.
 ///
 /// Carries information about the authenticated user and their permissions
@@ -172,7 +201,7 @@ impl SecurityContext {
             derive_actor(user.user_id.as_str(), &user.scopes, &user.extra_claims);
         SecurityContext {
             user_id: user.user_id.clone(),
-            roles: vec![], // Will be populated from JWT claims
+            roles: roles_from_claims(&user.extra_claims),
             tenant_id: None,
             scopes: user.scopes.clone(),
             attributes: HashMap::new(),

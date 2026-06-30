@@ -3785,4 +3785,59 @@ mod actor_context_tests {
         let ctx = SecurityContext::from_user(&user("u", &[], HashMap::new()), "r".to_string());
         assert_eq!(ctx.actor_type(), ActorType::HumanUser);
     }
+
+    /// A scalar `role` claim populates `roles` so `requires_role` gates are
+    /// reachable over every transport that builds a context via `from_user` (#503).
+    #[test]
+    fn from_user_populates_roles_from_scalar_role_claim() {
+        let mut extra = HashMap::new();
+        extra.insert("role".to_string(), json!("report_reader"));
+
+        let ctx = SecurityContext::from_user(&user("u", &[], extra), "r".to_string());
+
+        assert_eq!(ctx.roles, vec!["report_reader".to_string()]);
+        assert!(ctx.has_role("report_reader"));
+    }
+
+    /// A `roles` array claim populates `roles` (sorted, deduplicated).
+    #[test]
+    fn from_user_populates_roles_from_roles_array_claim() {
+        let mut extra = HashMap::new();
+        extra.insert("roles".to_string(), json!(["moderator", "admin", "moderator"]));
+
+        let ctx = SecurityContext::from_user(&user("u", &[], extra), "r".to_string());
+
+        assert_eq!(ctx.roles, vec!["admin".to_string(), "moderator".to_string()]);
+    }
+
+    /// The `fraiseql_roles` array claim is also honoured.
+    #[test]
+    fn from_user_populates_roles_from_fraiseql_roles_claim() {
+        let mut extra = HashMap::new();
+        extra.insert("fraiseql_roles".to_string(), json!(["report_reader"]));
+
+        let ctx = SecurityContext::from_user(&user("u", &[], extra), "r".to_string());
+
+        assert_eq!(ctx.roles, vec!["report_reader".to_string()]);
+    }
+
+    /// `role` and `roles` claims are merged and de-duplicated across sources.
+    #[test]
+    fn from_user_merges_and_dedups_role_sources() {
+        let mut extra = HashMap::new();
+        extra.insert("role".to_string(), json!("admin"));
+        extra.insert("roles".to_string(), json!(["admin", "editor"]));
+
+        let ctx = SecurityContext::from_user(&user("u", &[], extra), "r".to_string());
+
+        assert_eq!(ctx.roles, vec!["admin".to_string(), "editor".to_string()]);
+    }
+
+    /// No role claims → empty `roles` (gated operations stay denied, as before).
+    #[test]
+    fn from_user_roles_empty_without_role_claims() {
+        let ctx =
+            SecurityContext::from_user(&user("u", &["read:user"], HashMap::new()), "r".to_string());
+        assert!(ctx.roles.is_empty());
+    }
 }

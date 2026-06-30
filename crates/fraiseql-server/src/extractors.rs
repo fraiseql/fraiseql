@@ -2,6 +2,9 @@
 //!
 //! Provides extractors for `SecurityContext` and other request-level data.
 
+#[cfg(test)]
+mod tests;
+
 use std::{convert::Infallible, future::Future, net::SocketAddr};
 
 use axum::{

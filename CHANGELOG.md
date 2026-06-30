@@ -85,6 +85,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Owner-split `extends` entities (resolved in a subgraph that does not own the type,
   and so have no backing query) are now resolved from a type-level `sql_source` the
   compiler carries through to the entity's `TypeDefinition` — see the #507 entry above.
+- **HTTP GraphQL now populates `SecurityContext.roles` from the JWT `role`/`roles`
+  claim, so `requires_role` operations are reachable over HTTP.** `SecurityContext::from_user`
+  hard-coded `roles: vec![]` (`// Will be populated from JWT claims`) and nothing ever
+  filled it, so every `requires_role` / `read_role` / `write_role`-gated operation was
+  unreachable over the HTTP path regardless of the bearer token — the enumeration-safe
+  `Query '<name>' not found in schema` response made the cause non-obvious. `from_user`
+  (the common chokepoint for every auth transport — OIDC, HS256, gRPC, MCP — alongside
+  the existing actor classification) now derives `roles` from the signature-verified
+  `role` (scalar), `roles` (array) and `fraiseql_roles` (array) claims, sorted and
+  de-duplicated, matching the claim names already honoured by the observer-admin RBAC
+  engine. The claims continue to be forwarded into `attributes` for RLS / session-var
+  injection — the two surfaces are independent. (#503)
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim
