@@ -30,6 +30,7 @@ help:
 	@echo "  make clippy             - Run Clippy linter"
 	@echo "  make fmt                - Format code with rustfmt"
 	@echo "  make check              - Run all checks (fmt + clippy + test)"
+	@echo "  make preflight          - Run the Dagger preflight gate locally before pushing (fmt+clippy+rustdoc + policy lint gates)"
 	@echo "  make helm-lint          - Lint and template-test the Helm chart"
 	@echo "  make changelog          - Preview unreleased changelog entries (git-cliff)"
 	@echo "  make changelog-full     - Generate full changelog (overwrites CHANGELOG.md)"
@@ -456,6 +457,28 @@ lint-routes:
 .PHONY: lint-deploy-security
 lint-deploy-security:
 	@bash tools/check-deploy-security.sh
+
+# Run the cheap-but-frequent CI gates locally before `git push`, to catch the
+# failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
+# `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
+# for free instead of paying for a CI rerun. Mirrors the `.dagger` Preflight +
+# ShellGates leg (UNWRAP_ALLOW_LIMIT pinned to 3 to match CI). Does NOT run the
+# test suite or service-backed integration tests — those are `make test` and the
+# separate Dagger test/integration legs.
+.PHONY: preflight
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes test-release-tooling
+	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
+	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
+	@echo "=== preflight: check-test-imports ==="
+	@bash tools/check-test-imports.sh
+	@echo "=== preflight: check-audit-lockstep ==="
+	@bash tools/check-audit-lockstep.sh
+	@echo "=== preflight: rustdoc (-D warnings, --all-features) ==="
+	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
+	@echo "=== preflight: clippy (--all-targets --all-features -D warnings) ==="
+	@$(MAKE) --no-print-directory clippy
+	@echo ""
+	@echo "✅ preflight passed — mirrors the Dagger preflight leg. Safe to push."
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
