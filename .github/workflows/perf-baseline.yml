@@ -123,7 +123,7 @@ jobs:
 
       - name: Download baseline
         if: github.event_name == 'pull_request'
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11  # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151  # v21
         with:
           name: perf-baseline-${{ github.base_ref }}
           path: /tmp/baseline
