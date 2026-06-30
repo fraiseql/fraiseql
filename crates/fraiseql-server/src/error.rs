@@ -60,6 +60,11 @@ pub enum ErrorCode {
     DocumentNotFound,
     /// Operation not allowed for the HTTP method (e.g. a mutation sent over GET).
     MethodNotAllowed,
+    /// Introspection query rejected by the configured introspection policy
+    /// (`{ __schema }` / `{ __type }` blocked, or permitted only for
+    /// authenticated users). A well-formed GraphQL request, so it returns
+    /// 200 + `errors[]`.
+    IntrospectionDisabled,
 }
 
 impl ErrorCode {
@@ -79,9 +84,10 @@ impl ErrorCode {
             // Spec §7.1.2: well-formed requests that fail GraphQL validation, parsing,
             // or APQ "not found" (signal for client to re-send with query body)
             // MUST return 2xx.
-            Self::ValidationError | Self::ParseError | Self::PersistedQueryNotFound => {
-                StatusCode::OK
-            },
+            Self::ValidationError
+            | Self::ParseError
+            | Self::PersistedQueryNotFound
+            | Self::IntrospectionDisabled => StatusCode::OK,
             // Truly malformed HTTP request (missing `query` field, unparseable JSON body),
             // APQ hash mismatch, forbidden queries, or missing trusted documents.
             Self::RequestError
@@ -384,6 +390,15 @@ impl GraphQLError {
     /// Document not found — the provided documentId is not in the trusted manifest.
     pub fn document_not_found(doc_id: impl Into<String>) -> Self {
         Self::new(format!("Unknown document: {}", doc_id.into()), ErrorCode::DocumentNotFound)
+    }
+
+    /// Introspection query rejected by the configured introspection policy (#453).
+    ///
+    /// Surfaced as a GraphQL error in `errors[]` with HTTP 200 — a well-formed
+    /// query that the active policy does not permit, not a transport fault.
+    #[must_use]
+    pub fn introspection_disabled(detail: impl Into<String>) -> Self {
+        Self::new(detail, ErrorCode::IntrospectionDisabled)
     }
 
     /// Circuit breaker open — federation entity temporarily unavailable.

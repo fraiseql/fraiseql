@@ -1898,10 +1898,6 @@ mod introspection_enforcer_tests {
         "{ __type(name: \"User\") { name fields { name } } }"
     }
 
-    fn introspection_typename_query() -> &'static str {
-        "{ user { __typename } }"
-    }
-
     fn normal_query() -> &'static str {
         "{ user { id name email } }"
     }
@@ -1925,13 +1921,6 @@ mod introspection_enforcer_tests {
     }
 
     #[test]
-    fn test_detect_typename_introspection() {
-        let enforcer = IntrospectionEnforcer::allowed();
-        let is_introspection = enforcer.is_introspection_query(introspection_typename_query());
-        assert!(is_introspection);
-    }
-
-    #[test]
     fn test_normal_query_not_introspection() {
         let enforcer = IntrospectionEnforcer::allowed();
         let is_introspection = enforcer.is_introspection_query(normal_query());
@@ -1939,11 +1928,13 @@ mod introspection_enforcer_tests {
     }
 
     #[test]
-    fn test_detect_introspection_case_insensitive() {
+    fn test_detection_is_case_sensitive() {
+        // GraphQL is case-sensitive: `__SCHEMA` is an ordinary (invalid) field
+        // name, not the `__schema` meta-field, so it is not introspection.
         let enforcer = IntrospectionEnforcer::allowed();
         let uppercase_query = "{ __SCHEMA { types { name } } }";
         let is_introspection = enforcer.is_introspection_query(uppercase_query);
-        assert!(is_introspection);
+        assert!(!is_introspection);
     }
 
     // ============================================================================
@@ -2016,17 +2007,15 @@ mod introspection_enforcer_tests {
         let config = IntrospectionConfig::all();
         assert!(config.detect_schema);
         assert!(config.detect_type);
-        assert!(config.detect_typename);
-        assert!(config.detect_directive);
     }
 
     #[test]
-    fn test_introspection_config_strict() {
+    fn test_introspection_config_strict_coincides_with_all() {
+        // Post-#454 (`__typename` / `__directive` knobs removed) the two
+        // configs detect the same meta-fields.
         let config = IntrospectionConfig::strict();
         assert!(config.detect_schema);
         assert!(config.detect_type);
-        assert!(!config.detect_typename);
-        assert!(config.detect_directive);
     }
 
     #[test]
@@ -2034,6 +2023,16 @@ mod introspection_enforcer_tests {
         assert_eq!(IntrospectionPolicy::Allowed.to_string(), "Allowed");
         assert_eq!(IntrospectionPolicy::Disabled.to_string(), "Disabled");
         assert_eq!(IntrospectionPolicy::InternalOnly.to_string(), "InternalOnly");
+    }
+
+    #[test]
+    fn test_policy_from_config_truth_table() {
+        // The single source of truth shared by the GraphQL gate and the REST
+        // `/introspection` mount decision (#453).
+        assert_eq!(IntrospectionPolicy::from_config(false, true), IntrospectionPolicy::Disabled);
+        assert_eq!(IntrospectionPolicy::from_config(false, false), IntrospectionPolicy::Disabled);
+        assert_eq!(IntrospectionPolicy::from_config(true, true), IntrospectionPolicy::InternalOnly);
+        assert_eq!(IntrospectionPolicy::from_config(true, false), IntrospectionPolicy::Allowed);
     }
 
     #[test]
@@ -2055,10 +2054,8 @@ mod introspection_enforcer_tests {
     #[test]
     fn test_custom_config_with_selective_detection() {
         let config = IntrospectionConfig {
-            detect_schema:    true,
-            detect_type:      false,
-            detect_typename:  false,
-            detect_directive: false,
+            detect_schema: true,
+            detect_type:   false,
         };
 
         let enforcer = IntrospectionEnforcer::with_config(IntrospectionPolicy::Disabled, config);
@@ -2084,14 +2081,11 @@ mod introspection_enforcer_tests {
     #[test]
     fn test_introspection_in_string_literal_not_detected() {
         let enforcer = IntrospectionEnforcer::disabled();
-        // This query has __schema as a string, not as a field
-        // Note: Real implementation would need proper parsing to avoid this false positive
-        // For now, we document this limitation
+        // `__schema` here is a string argument value, not a root field. AST-based
+        // detection (#454) keys on the root field name, so this is not flagged.
         let query = r#"{ user(filter: "__schema") { name } }"#;
-        // This will be detected as introspection due to simple string matching
         let is_introspection = enforcer.is_introspection_query(query);
-        // Our simplified detection will match this - in production, use proper parsing
-        assert!(is_introspection);
+        assert!(!is_introspection);
     }
 
     #[test]
@@ -2116,6 +2110,84 @@ mod introspection_enforcer_tests {
         let query = "{ __schema { types { name } } __type(name: \"Query\") { name } }";
         let is_introspection = enforcer.is_introspection_query(query);
         assert!(is_introspection);
+    }
+
+    // ========================================================================
+    // #454: AST-accurate detection truth table
+    //
+    // `__typename` is never introspection (GraphQL spec §"Type Name
+    // Introspection" — it is queryable on every type regardless of policy);
+    // aliases, string-argument values, and comments must not false-positive;
+    // `__schema` / `__type` are matched as real root fields by *name* (not
+    // response alias), including in multi-root documents.
+    // ========================================================================
+
+    #[test]
+    fn test_root_typename_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query("{ __typename }"));
+        // ...and is allowed through even under the strictest policy.
+        enforcer
+            .validate_query("{ __typename }", None)
+            .unwrap_or_else(|e| panic!("__typename must never be blocked: {e}"));
+    }
+
+    #[test]
+    fn test_nested_typename_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query("{ user { __typename } }"));
+    }
+
+    #[test]
+    fn test_aliased_typename_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query("{ x: __typename }"));
+    }
+
+    #[test]
+    fn test_schema_in_string_argument_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query(r#"{ search(q: "__schema") }"#));
+    }
+
+    #[test]
+    fn test_type_in_comment_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        let query = "query Foo { a: user { name } }  # mentions __type in a comment";
+        assert!(!enforcer.is_introspection_query(query));
+    }
+
+    #[test]
+    fn test_aliased_normal_field_is_not_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query("{ alias: users { id } }"));
+    }
+
+    #[test]
+    fn test_aliased_schema_is_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(enforcer.is_introspection_query("{ foo: __schema { queryType { name } } }"));
+    }
+
+    #[test]
+    fn test_multi_root_schema_is_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        let query = "{ users { id } __schema { types { name } } }";
+        assert!(enforcer.is_introspection_query(query));
+    }
+
+    #[test]
+    fn test_type_field_query_is_introspection() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(enforcer.is_introspection_query(r#"{ __type(name: "X") { name } }"#));
+    }
+
+    #[test]
+    fn test_malformed_query_is_not_introspection() {
+        // Parse errors must not fail-open into a 500 nor double-error: the
+        // executor/handler rejects malformed queries on the normal parse path.
+        let enforcer = IntrospectionEnforcer::disabled();
+        assert!(!enforcer.is_introspection_query("{ this is not valid graphql"));
     }
 }
 

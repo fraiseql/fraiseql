@@ -133,6 +133,9 @@ zeroize = "1.8"
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
+# Test-only: construct an AuthenticatedUser (expires_at) for the introspection
+# gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
+chrono = {workspace = true}
 # `metrics` facade, test-only: lets the recorder-scrape test emit a facade metric
 # and assert it renders (the production server does not emit facade metrics — H45).
 metrics = "0.24"

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Introspection policy is now enforced on the GraphQL execution path.** The
+  `IntrospectionEnforcer` existed but was never wired in, so a `disabled`/role-gated
+  introspection policy had no effect over GraphQL (#453). It is now applied in
+  `execute_graphql_request` from a single `IntrospectionPolicy::from_config` source of
+  truth; a rejected introspection query returns HTTP 200 with a GraphQL error in
+  `errors[]` (new `ErrorCode::IntrospectionDisabled`), never a 5xx. The detector was also
+  switched from substring matching to AST inspection so legitimate queries — in
+  particular the `__typename` meta-field — are never misclassified as introspection and
+  blocked (#454). (#453, #454)
 - **Federation `_entities` no longer drops the first field of each entity on minified
   gateway queries.** Federation gateways (Hive Router, Apollo Router) routinely send
   subgraph `_entities` queries minified — no spaces around the type condition or the
