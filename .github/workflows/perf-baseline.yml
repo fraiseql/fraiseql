@@ -109,7 +109,7 @@ jobs:
           exit 1
 
       - name: Set up k6
-        uses: grafana/setup-k6-action@c00053c996b4061198c9c24a00474b748abdf8b7  # v1
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065  # v1
 
       - name: Run basic load test
         # On pushes to main/dev, threshold failures block the build to prevent regressions.
