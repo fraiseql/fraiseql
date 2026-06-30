@@ -92,16 +92,6 @@ reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on
 version = "=0.10.6"
 
 [[bans.skip]]
-name = "aws-smithy-http"
-reason = "aws-sdk-s3 transitively depends on two smithy-http versions"
-version = "=0.62.6"
-
-[[bans.skip]]
-name = "aws-smithy-json"
-reason = "aws-sdk-s3 transitively depends on two smithy-json versions"
-version = "=0.61.9"
-
-[[bans.skip]]
 name = "hyper-rustls"
 reason = "aws-sdk-s3 via rustls 0.21 chain; upgrade tracked"
 version = "=0.24.2"
@@ -248,8 +238,18 @@ version = "=0.12.1"
 
 [[bans.skip]]
 name = "lru"
-reason = "transitive via aws-sdk-s3 (pinned to lru 0.12.x); workspace direct on lru 0.18"
-version = "=0.12.5"
+reason = "transitive via aws-sdk-s3 1.137 (lru 0.16.x); workspace direct on lru 0.18"
+version = "=0.16.4"
+
+[[bans.skip]]
+name = "hmac"
+reason = "transitive via sqlx-postgres / jsonwebtoken / hkdf (hmac 0.12.x); workspace direct on hmac 0.13"
+version = "=0.12.1"
+
+[[bans.skip]]
+name = "spin"
+reason = "transitive via aws-sdk-s3 1.137 → crc-fast (spin 0.10.x); lazy_static pins spin 0.9"
+version = "=0.10.0"
 
 [[bans.skip]]
 name = "outref"
