@@ -15,7 +15,8 @@
 //! | Subgraph mode — `HttpEntityResolver` (`_entities` HTTP resolution) | ✅ Production | SSRF-protected, retry, tracing |
 //! | Composition validation — `CompositionValidator` | ✅ Production | compile-time only |
 //! | Saga forward execution — `SagaExecutor::{execute_step_local, execute_saga_local, execution_state}` | 🚧 Unstable | requires `unstable-saga` feature; dispatches real local mutations and persists real step/saga state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote (HTTP) dispatch and `@requires` pre-fetch are not yet wired. |
-//! | Saga forward placeholders — `SagaExecutor::{execute_step, execute_saga, get_execution_state}` + compensation / recovery / coordination | 🚧 Not implemented | return `SagaStoreError::NotImplemented` in every build (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `PostgresSagaStore` persistence is real. |
+//! | Saga compensation — `SagaCompensator::{compensate_step_local, compensate_saga_local}` | 🚧 Unstable | requires `unstable-saga` feature; rolls back completed steps in reverse execution order via the local SQL adapter and persists real `Compensated` state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote (HTTP) compensation is not yet wired. |
+//! | Saga placeholders — `SagaExecutor::{execute_step, execute_saga, get_execution_state}` + `SagaCompensator::{compensate_step, compensate_saga}` + recovery / coordination | 🚧 Not implemented | return `SagaStoreError::NotImplemented` in every build (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `PostgresSagaStore` persistence is real. |
 //! | HTTP mutation propagation — `HttpMutationClient` | ✅ Production | SSRF-protected |
 //! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
 //! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |

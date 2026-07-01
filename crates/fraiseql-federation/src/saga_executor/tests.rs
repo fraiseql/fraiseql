@@ -161,6 +161,8 @@ mod wired {
             result: None,
             started_at: None,
             completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
         }
     }
 

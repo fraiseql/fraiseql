@@ -105,3 +105,92 @@ async fn get_compensation_status_without_store_is_none() {
 
     assert!(status.is_none(), "no store should yield no status");
 }
+
+/// Wired compensation (`unstable-saga`). The store-backed rollback paths are proven
+/// end-to-end against real PostgreSQL in `tests/saga_integration.rs`; here we pin
+/// the store-absent contract without any external service — a compensator with no
+/// store fails loud (never a silent no-op) before touching the executor. The
+/// executor is an in-memory SQLite one purely to satisfy the type; it is never
+/// reached.
+#[cfg(feature = "unstable-saga")]
+mod wired {
+    use std::sync::Arc;
+
+    use fraiseql_db::sqlite::SqliteAdapter;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use crate::{
+        mutation_executor::FederationMutationExecutor,
+        saga_compensator::SagaCompensator,
+        saga_store::{MutationType, SagaStep, SagaStoreError, StepState},
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
+
+    fn order_metadata() -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                "Order".to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    async fn order_executor() -> FederationMutationExecutor<SqliteAdapter> {
+        let adapter =
+            Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+        FederationMutationExecutor::new(adapter, order_metadata(), false)
+    }
+
+    fn completed_step() -> SagaStep {
+        SagaStep {
+            id:                     Uuid::new_v4(),
+            saga_id:                Uuid::new_v4(),
+            order:                  0,
+            subgraph:               "orders".to_string(),
+            mutation_type:          MutationType::Create,
+            typename:               "Order".to_string(),
+            variables:              json!({"id": "o1"}),
+            state:                  StepState::Completed,
+            result:                 None,
+            started_at:             None,
+            completed_at:           None,
+            compensation_mutation:  Some("deleteOrder".to_string()),
+            compensation_variables: Some(json!({"id": "o1"})),
+        }
+    }
+
+    #[tokio::test]
+    async fn compensate_step_local_without_store_fails_loud() {
+        let compensator = SagaCompensator::new();
+        let executor = order_executor().await;
+        let result = compensator.compensate_step_local(&executor, &completed_step()).await;
+        assert!(
+            matches!(result, Err(SagaStoreError::Database(_))),
+            "compensate_step_local without a store must fail loud, never no-op: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn compensate_saga_local_without_store_fails_loud() {
+        let compensator = SagaCompensator::new();
+        let executor = order_executor().await;
+        let result = compensator.compensate_saga_local(Uuid::new_v4(), &executor).await;
+        assert!(
+            matches!(result, Err(SagaStoreError::Database(_))),
+            "compensate_saga_local without a store must fail loud, never no-op: {result:?}"
+        );
+    }
+}
