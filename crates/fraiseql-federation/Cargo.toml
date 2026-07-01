@@ -59,13 +59,16 @@ test-utils = []
 # #
 # # These APIs may change without semver guarantees.
 unstable = []
-# # Enable real distributed saga *forward* execution (#429).
+# # Enable real distributed saga execution (#429).
 # #
-# # Without this feature the saga forward phase fails loud with
-# # `SagaStoreError::NotImplemented` (the audit H32 honesty contract). With it,
-# # `SagaExecutor::{execute_step, execute_saga, get_execution_state}` dispatch the
-# # real local mutation, persist real step/saga state, and never fabricate
-# # success. Compensation, recovery, and the coordinator facade remain unwired.
+# # Without this feature every saga entry point fails loud with
+# # `SagaStoreError::NotImplemented` (the audit H32/H33 honesty contract). With it,
+# # the wired `*_local` methods dispatch real mutations, persist real state, and
+# # never fabricate success: forward execution (`SagaExecutor`), compensation
+# # (`SagaCompensator`), crash recovery (`SagaRecoveryManager`), and the
+# # `WiredSagaCoordinator` facade — including remote step dispatch over HTTPS to a
+# # registered peer subgraph via `HttpMutationClient`. The published fail-loud
+# # placeholder methods are unchanged in every build.
 # #
 # # Unproven in production — the API may change without semver guarantees.
 unstable-saga = []

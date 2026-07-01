@@ -283,7 +283,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
 
@@ -355,7 +355,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
 
@@ -495,7 +495,7 @@ mod wired_pg {
 
         // Forward: step0 Completed, step1 Failed, step2 Pending, saga Failed.
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
 
@@ -556,7 +556,7 @@ mod wired_pg {
         store.save_saga_step(&step).await.unwrap();
 
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
 
@@ -1251,6 +1251,224 @@ mod coordinator_pg {
             matches!(second, Err(SagaStoreError::InvalidStateTransition { .. })),
             "a second cancel on a terminal saga is rejected: {second:?}"
         );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Phase 04 (Cycle 2): `with_subgraph` validates the peer URL at registration —
+    /// an `https` peer is accepted, a plain-`http` peer is rejected (SSRF
+    /// fail-loud-at-setup), before any saga runs.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn with_subgraph_validates_peer_url_at_registration() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // An https peer is accepted.
+        let accepted =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_subgraph(
+                    "peer",
+                    reqwest::Url::parse("https://peer.example.com/graphql").unwrap(),
+                );
+        assert!(accepted.is_ok(), "an https peer URL must be accepted: {:?}", accepted.err());
+
+        // A plain-http peer is rejected at registration, not at dispatch.
+        let rejected =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_subgraph(
+                    "peer",
+                    reqwest::Url::parse("http://peer.example.com/graphql").unwrap(),
+                )
+                .err();
+        assert!(rejected.is_some(), "a plain-http peer URL must be rejected: {rejected:?}");
+    }
+}
+
+// ── Wired remote step dispatch end-to-end (unstable-saga + test-utils) ─────────
+//
+// Ignored by default — these require a live PostgreSQL (`DATABASE_URL`) plus a
+// loopback `wiremock` subgraph. They need the `test-utils` feature: the SSRF
+// guard blocks a loopback/http peer, so the coordinator's `*_for_test` /
+// `_unchecked` builders (which bypass it) are only compiled under `test-utils`.
+// The CI integration leg runs them with `--features unstable-saga,test-utils
+// --include-ignored`.
+
+#[cfg(all(feature = "unstable-saga", feature = "test-utils"))]
+mod remote_dispatch_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
+        HttpMutationConfig, KeyDirective, PostgresSagaStore, SagaCoordinatorStep, SagaState,
+        StepState, WiredSagaCoordinator,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    fn unique_typename() -> String {
+        format!("sagaremote{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// Cycle 4: a saga with one local step and one remote step completes — the
+    /// remote step is dispatched over HTTP to the registered peer (exactly once),
+    /// the local step runs against the SQL adapter, and each step persists its own
+    /// transport's response.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn execute_saga_routes_local_and_remote_steps() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // A mock peer subgraph returning a create response; must be hit exactly once
+        // (only the remote step, never the local one).
+        let server = MockServer::start().await;
+        let remote_id = format!("remote-{}", Uuid::new_v4());
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "create": { "__typename": typename, "id": remote_id } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_http_client_for_test(HttpMutationConfig::default())
+                .unwrap()
+                .with_subgraph_unchecked("remote-subgraph", peer_url);
+
+        // Step 1: local (subgraph "orders" is not registered → SQL path).
+        // Step 2: remote (subgraph "remote-subgraph" resolves to the mock).
+        let local_id = format!("local-{}", Uuid::new_v4());
+        let step_local = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": local_id, "total": "10"}),
+            String::new(),
+            json!({}),
+        );
+        let step_remote = SagaCoordinatorStep::new(
+            2,
+            "remote-subgraph",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": remote_id, "total": "20"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator.create_saga(vec![step_local, step_remote]).await.unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Completed, "both steps complete: {result:?}");
+        assert_eq!(result.completed_steps, 2, "two steps completed: {result:?}");
+        assert!(!result.compensated, "no compensation on success: {result:?}");
+
+        // The mock received exactly one POST — only the remote step went over HTTP.
+        let requests = server.received_requests().await.unwrap();
+        let posts = requests.iter().filter(|r| r.url.path() == "/graphql").count();
+        assert_eq!(posts, 1, "only the remote step hits the peer subgraph: {posts}");
+
+        // Each step persisted its own transport's response: the local step's stored
+        // result carries the read-back row (`total`), the remote step's carries the
+        // mock entity (`id` = remote_id).
+        let mut steps = store.load_saga_steps(saga_id).await.unwrap();
+        steps.sort_by_key(|s| s.order);
+        assert!(
+            steps.iter().all(|s| s.state == StepState::Completed),
+            "both Completed: {steps:?}"
+        );
+        let local_result = steps[0].result.as_ref().expect("local step result persisted");
+        assert_eq!(
+            local_result["total"], "10",
+            "local step carries the DB read-back: {local_result}"
+        );
+        let remote_result = steps[1].result.as_ref().expect("remote step result persisted");
+        assert_eq!(
+            remote_result["id"], remote_id,
+            "remote step carries the mock response entity: {remote_result}"
+        );
+
+        // The local row landed in the table; the remote id never touched it.
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let local_rows = adapter
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{local_id}'"))
+            .await
+            .unwrap();
+        assert_eq!(local_rows.len(), 1, "the local step wrote its row to the DB");
+        let remote_rows = adapter
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{remote_id}'"))
+            .await
+            .unwrap();
+        assert!(remote_rows.is_empty(), "the remote step never wrote to the local DB");
 
         store.delete_saga(saga_id).await.unwrap();
     }

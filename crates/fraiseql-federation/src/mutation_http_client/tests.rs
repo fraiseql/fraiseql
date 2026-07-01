@@ -107,8 +107,30 @@ fn test_variable_definition_with_numbers() {
     });
 
     let var_defs = client.build_variable_definitions(&variables).unwrap();
+    // An integer JSON number is typed `Int!`; a fractional one is `Float!`.
+    // Previously every `Value::Number` was typed `Int!`, so a Float input
+    // (`9.99`) silently produced `$price: Int!` and the remote subgraph
+    // rejected the variable (#429 Phase 04).
     assert!(var_defs.contains("$count: Int!"));
-    assert!(var_defs.contains("$price: Int!"));
+    assert!(var_defs.contains("$price: Float!"));
+}
+
+#[test]
+fn test_variable_definition_float_vs_int_inference() {
+    let config = HttpMutationConfig::default();
+    let client = HttpMutationClient::new(config).unwrap();
+
+    // A whole number stays `Int!`; a fractional number is `Float!`; a large
+    // integer that does not fit `i64`/`u64` is stored as an f64 by serde_json
+    // and is therefore typed `Float!`.
+    let int_defs = client.build_variable_definitions(&json!({ "id": 5 })).unwrap();
+    assert!(int_defs.contains("$id: Int!"), "an integer is Int!: {int_defs}");
+
+    let float_defs = client.build_variable_definitions(&json!({ "amount": -0.5 })).unwrap();
+    assert!(
+        float_defs.contains("$amount: Float!"),
+        "a fractional number is Float!: {float_defs}"
+    );
 }
 
 // ── S22-H2: Federation mutation response size cap ─────────────────────────

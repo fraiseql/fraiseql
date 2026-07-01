@@ -61,34 +61,62 @@ impl SagaExecutor {
 #[cfg(feature = "unstable-saga")]
 mod wired {
     use fraiseql_db::traits::DatabaseAdapter;
+    use reqwest::Url;
 
     use super::super::{SagaExecutor, StepExecutionResult, forward};
     use crate::{
         mutation_executor::FederationMutationExecutor,
+        mutation_http_client::HttpMutationClient,
         saga_store::{SagaStep, StepState},
     };
 
     impl SagaExecutor {
-        /// Dispatch a single step's local mutation and map the outcome to a
+        /// Dispatch a single step's mutation and map the outcome to a
         /// [`StepExecutionResult`] plus the [`StepState`] to persist.
         ///
         /// Pure dispatch with no persistence — [`Self::execute_saga_local`] owns
-        /// step/saga state writes. The persisted [`crate::saga_store::MutationType`]
-        /// is rendered to a canonical verb (`create`/`update`/`delete`) for
-        /// `execute_local_mutation`, so no extra column is needed.
+        /// step/saga state writes. Routing:
+        /// - `remote = None` → the step runs against the local SQL adapter via
+        ///   [`FederationMutationExecutor::execute_local_mutation`].
+        /// - `remote = Some((client, url))` → the step is propagated over HTTPS to the peer
+        ///   subgraph via [`HttpMutationClient::execute_mutation`].
+        ///
+        /// Either way the persisted [`crate::saga_store::MutationType`] is rendered
+        /// to its canonical verb (`create`/`update`/`delete`) as the operation
+        /// name — the store carries only the mutation *kind*, not the full remote
+        /// mutation name (the local path already dispatches by verb; carrying the
+        /// full remote name is a future store-schema extension). A mutation `Err`
+        /// (local or remote) becomes a real `success: false` step, never fabricated
+        /// success (audit H32).
         pub(crate) async fn dispatch_step<A: DatabaseAdapter>(
             mutation_executor: &FederationMutationExecutor<A>,
             step: &SagaStep,
+            remote: Option<(&HttpMutationClient, &Url)>,
         ) -> (StepExecutionResult, StepState) {
             let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
             let started = std::time::Instant::now();
-            let outcome = mutation_executor
-                .execute_local_mutation(
-                    &step.typename,
-                    step.mutation_type.as_str(),
-                    &step.variables,
-                )
-                .await;
+            let outcome = match remote {
+                None => {
+                    mutation_executor
+                        .execute_local_mutation(
+                            &step.typename,
+                            step.mutation_type.as_str(),
+                            &step.variables,
+                        )
+                        .await
+                },
+                Some((client, url)) => {
+                    client
+                        .execute_mutation(
+                            url.as_str(),
+                            &step.typename,
+                            step.mutation_type.as_str(),
+                            &step.variables,
+                            mutation_executor.metadata(),
+                        )
+                        .await
+                },
+            };
             let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
             forward::step_result_from(step_number, &outcome, duration_ms)
         }
@@ -111,7 +139,9 @@ mod wired {
             mutation_executor: &FederationMutationExecutor<A>,
             step: &SagaStep,
         ) -> StepExecutionResult {
-            Self::dispatch_step(mutation_executor, step).await.0
+            // Direct single-step dispatch is always local; the remote-routing
+            // registry lives on the coordinator's `execute_saga_local` path.
+            Self::dispatch_step(mutation_executor, step, None).await.0
         }
     }
 }

@@ -417,7 +417,12 @@ mod wired {
                 u32::try_from(self.store.get_recovery_attempts(saga.id).await?).unwrap_or(0);
             info!("{}", recovery::recovery_log_line(saga.id, attempt));
 
-            saga_executor.execute_saga_local(saga.id, executor).await?;
+            // Recovery replays through the local dispatch path only: crash recovery
+            // re-drives steps against the local SQL adapter (remote saga recovery is
+            // future work), so no subgraph registry / HTTP client is passed.
+            saga_executor
+                .execute_saga_local(saga.id, executor, &std::collections::HashMap::new(), None)
+                .await?;
             Ok(())
         }
 
