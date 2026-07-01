@@ -189,6 +189,12 @@ pub enum StepState {
     Completed,
     /// Step encountered an error.
     Failed,
+    /// Step was rolled back by a successful compensation mutation.
+    ///
+    /// Distinct from `Completed`: the forward mutation ran, then its inverse was
+    /// executed during the compensation phase (#429). A step only reaches this
+    /// state from `Completed`.
+    Compensated,
 }
 
 impl StepState {
@@ -200,6 +206,7 @@ impl StepState {
             StepState::Executing => "executing",
             StepState::Completed => "completed",
             StepState::Failed => "failed",
+            StepState::Compensated => "compensated",
         }
     }
 
@@ -214,6 +221,7 @@ impl StepState {
             "executing" => Some(StepState::Executing),
             "completed" => Some(StepState::Completed),
             "failed" => Some(StepState::Failed),
+            "compensated" => Some(StepState::Compensated),
             _ => None,
         }
     }
@@ -274,27 +282,36 @@ pub struct Saga {
 #[derive(Debug, Clone)]
 pub struct SagaStep {
     /// Unique identifier for this step.
-    pub id:            Uuid,
+    pub id:                     Uuid,
     /// Parent saga this step belongs to.
-    pub saga_id:       Uuid,
+    pub saga_id:                Uuid,
     /// Zero-based execution order within the saga.
-    pub order:         usize,
+    pub order:                  usize,
     /// Subgraph service name that owns this step.
-    pub subgraph:      String,
+    pub subgraph:               String,
     /// Kind of mutation this step performs.
-    pub mutation_type: MutationType,
+    pub mutation_type:          MutationType,
     /// GraphQL type name the mutation targets.
-    pub typename:      String,
+    pub typename:               String,
     /// Input variables for the mutation.
-    pub variables:     Value,
+    pub variables:              Value,
     /// Current lifecycle state of this step.
-    pub state:         StepState,
+    pub state:                  StepState,
     /// Mutation result payload, if the step has completed.
-    pub result:        Option<Value>,
+    pub result:                 Option<Value>,
     /// Timestamp when execution began, if started.
-    pub started_at:    Option<chrono::DateTime<chrono::Utc>>,
+    pub started_at:             Option<chrono::DateTime<chrono::Utc>>,
     /// Timestamp when execution finished, if finished.
-    pub completed_at:  Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at:           Option<chrono::DateTime<chrono::Utc>>,
+    /// Name of the compensation (inverse) mutation for this step, if one is
+    /// registered. `None`/empty means the step has no rollback and cannot be
+    /// compensated. Distinct from [`crate::saga_coordinator::SagaStep`], whose
+    /// non-optional field carries the same intent at the coordinator layer.
+    pub compensation_mutation:  Option<String>,
+    /// Input variables for the compensation mutation, if registered. When absent
+    /// the compensator falls back to the step's forward `variables` (they carry
+    /// the entity key needed by an inverse delete/update).
+    pub compensation_variables: Option<Value>,
 }
 
 /// A crash-recovery record for a saga that could not complete normally.
@@ -435,6 +452,20 @@ impl PostgresSagaStore {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
+            ",
+            &[],
+        )
+        .await?;
+
+        // Compensation metadata (nullable): pre-existing step rows predate
+        // compensation, so both columns are added idempotently and may be NULL.
+        // A step with a NULL/empty compensation_mutation has no registered
+        // rollback and is skipped by the compensator (best-effort, #429).
+        conn.execute(
+            "
+            ALTER TABLE tb_federation_saga_steps
+                ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
+                ADD COLUMN IF NOT EXISTS compensation_variables JSONB
             ",
             &[],
         )
@@ -589,6 +620,8 @@ impl PostgresSagaStore {
             result: row.get(8),
             started_at: row.get(9),
             completed_at: row.get(10),
+            compensation_mutation: row.get(11),
+            compensation_variables: row.get(12),
         })
     }
 
@@ -716,7 +749,7 @@ impl PostgresSagaStore {
 
         let row = conn
             .query_opt(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fss.id = $1",
@@ -737,7 +770,7 @@ impl PostgresSagaStore {
 
         let rows = conn
             .query(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fs.id = $1
@@ -751,7 +784,8 @@ impl PostgresSagaStore {
 
     /// Update saga step state and automatically set completion time for terminal states
     ///
-    /// Terminal states (Completed, Failed) automatically receive `completed_at` timestamp.
+    /// Terminal states (Completed, Failed, Compensated) automatically receive
+    /// `completed_at` timestamp.
     ///
     /// # Errors
     ///
@@ -763,11 +797,12 @@ impl PostgresSagaStore {
         let state_str = state.as_str();
         let now = chrono::Utc::now();
 
-        let completed_at = if matches!(state, StepState::Completed | StepState::Failed) {
-            Some(now)
-        } else {
-            None
-        };
+        let completed_at =
+            if matches!(state, StepState::Completed | StepState::Failed | StepState::Compensated) {
+                Some(now)
+            } else {
+                None
+            };
 
         let affected = conn
             .execute(
@@ -808,10 +843,14 @@ impl PostgresSagaStore {
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
+        // compensation_mutation / compensation_variables are part of the immutable
+        // step definition, so — like variables/subgraph — they are written on
+        // INSERT but not touched by the ON CONFLICT update path (which only
+        // advances runtime state/result/completed_at).
         let affected = conn
             .execute(
-                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at)
-             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables)
+             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
              FROM tb_federation_sagas fs
              WHERE fs.id = $2
              ON CONFLICT (id) DO UPDATE SET state = $8, result = $9, completed_at = $11, updated_at = $13",
@@ -829,6 +868,8 @@ impl PostgresSagaStore {
                     &step.completed_at,
                     &chrono::Utc::now(),
                     &now,
+                    &step.compensation_mutation,
+                    &step.compensation_variables,
                 ],
             )
             .await?;

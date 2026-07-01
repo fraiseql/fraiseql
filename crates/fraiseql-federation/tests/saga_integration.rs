@@ -81,8 +81,9 @@ mod wired_pg {
 
     use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
     use fraiseql_federation::{
-        FederatedType, FederationMetadata, FederationMutationExecutor, KeyDirective, MutationType,
-        PostgresSagaStore, Saga, SagaExecutor, SagaState, SagaStep, StepState,
+        CompensationStatus, FederatedType, FederationMetadata, FederationMutationExecutor,
+        KeyDirective, MutationType, PostgresSagaStore, Saga, SagaCompensator, SagaExecutor,
+        SagaState, SagaStep, StepState,
     };
     use serde_json::json;
     use uuid::Uuid;
@@ -174,7 +175,72 @@ mod wired_pg {
             result: None,
             started_at: None,
             completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
         }
+    }
+
+    /// Compensation metadata round-trips through the store: a step saved with a
+    /// compensation mutation + variables reloads with both fields intact, and a
+    /// step saved without them reloads as `None` (backwards-compatible with rows
+    /// that predate the compensation columns).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn saga_step_compensation_metadata_round_trips() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&new_saga(saga_id)).await.unwrap();
+
+        // Step WITH compensation metadata.
+        let mut step_with = new_step(
+            saga_id,
+            0,
+            MutationType::Create,
+            &typename,
+            json!({"id": "c1", "total": "10"}),
+        );
+        step_with.compensation_mutation = Some("undo_create_order".to_string());
+        step_with.compensation_variables = Some(json!({"id": "c1"}));
+        store.save_saga_step(&step_with).await.unwrap();
+
+        // Step WITHOUT compensation metadata (backwards-compatible None round-trip).
+        let step_without = new_step(
+            saga_id,
+            1,
+            MutationType::Create,
+            &typename,
+            json!({"id": "c2", "total": "20"}),
+        );
+        store.save_saga_step(&step_without).await.unwrap();
+
+        let reloaded_with = store.load_saga_step(step_with.id).await.unwrap().unwrap();
+        assert_eq!(
+            reloaded_with.compensation_mutation.as_deref(),
+            Some("undo_create_order"),
+            "compensation_mutation must round-trip"
+        );
+        assert_eq!(
+            reloaded_with.compensation_variables,
+            Some(json!({"id": "c1"})),
+            "compensation_variables must round-trip"
+        );
+
+        let reloaded_without = store.load_saga_step(step_without.id).await.unwrap().unwrap();
+        assert!(reloaded_without.compensation_mutation.is_none(), "absent compensation → None");
+        assert!(reloaded_without.compensation_variables.is_none(), "absent compensation → None");
+
+        // The list path (load_saga_steps) must carry the metadata too.
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        let listed = steps.iter().find(|s| s.id == step_with.id).unwrap();
+        assert_eq!(listed.compensation_mutation.as_deref(), Some("undo_create_order"));
+
+        store.delete_saga(saga_id).await.unwrap();
     }
 
     /// Happy path: every step's real mutation runs, the saga is persisted
@@ -316,5 +382,202 @@ mod wired_pg {
         assert!(state.failed, "execution state reports failure");
         assert_eq!(state.completed_steps, 1, "exactly one step completed");
         assert_eq!(state.total_steps, 3);
+    }
+
+    /// A completed CREATE step is really rolled back by its registered inverse
+    /// (`delete…`) compensation: the row is deleted, the step transitions
+    /// `Compensated`, and the reported result is a real success (never fabricated).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn compensate_step_local_rolls_back_a_completed_step() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&new_saga(saga_id)).await.unwrap();
+
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let mut step = new_step(
+            saga_id,
+            0,
+            MutationType::Create,
+            &typename,
+            json!({"id": id_a, "total": "10"}),
+        );
+        // Inverse of a create is a delete; the name drives the mutation kind.
+        step.compensation_mutation = Some(format!("delete{typename}"));
+        step.compensation_variables = Some(json!({"id": id_a}));
+        store.save_saga_step(&step).await.unwrap();
+
+        // Run the forward create so the row actually exists, then mark Completed.
+        let forward = SagaExecutor::with_store(Arc::clone(&store));
+        let fwd = forward.execute_step_local(&executor, &step).await;
+        assert!(fwd.success, "forward create must succeed: {fwd:?}");
+        store.update_saga_step_state(step.id, &StepState::Completed).await.unwrap();
+
+        // Compensate the single step.
+        let compensator = SagaCompensator::with_store(Arc::clone(&store));
+        let result = compensator.compensate_step_local(&executor, &step).await.unwrap();
+        assert!(result.success, "compensation must succeed: {result:?}");
+        assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
+
+        // The step is persisted Compensated and the row is really gone.
+        let reloaded = store.load_saga_step(step.id).await.unwrap().unwrap();
+        assert_eq!(
+            reloaded.state,
+            StepState::Compensated,
+            "a compensated step persists Compensated"
+        );
+        let table = typename.to_lowercase();
+        let rows = PostgresAdapter::new(&url)
+            .await
+            .unwrap()
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{id_a}'"))
+            .await
+            .unwrap();
+        assert!(rows.is_empty(), "the inverse delete really removed the row (not fabricated)");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Reverse-order rollback: after a saga fails partway, only the *completed*
+    /// step is compensated; the failed step and the never-run step are skipped, and
+    /// the saga ends `Compensated`.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn compensate_saga_local_rolls_back_completed_steps_in_reverse() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&new_saga(saga_id)).await.unwrap();
+
+        // Step 0 creates a row (completes); step 1 updates a missing row (fails);
+        // step 2 never runs. Every step carries a delete compensation.
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let id_c = format!("never-{}", Uuid::new_v4());
+        let mut step0 = new_step(
+            saga_id,
+            0,
+            MutationType::Create,
+            &typename,
+            json!({"id": id_a, "total": "1"}),
+        );
+        step0.compensation_mutation = Some(format!("delete{typename}"));
+        step0.compensation_variables = Some(json!({"id": id_a}));
+        let step1 = new_step(
+            saga_id,
+            1,
+            MutationType::Update,
+            &typename,
+            json!({"id": "missing", "total": "9"}),
+        );
+        let step2 = new_step(
+            saga_id,
+            2,
+            MutationType::Create,
+            &typename,
+            json!({"id": id_c, "total": "3"}),
+        );
+        store.save_saga_step(&step0).await.unwrap();
+        store.save_saga_step(&step1).await.unwrap();
+        store.save_saga_step(&step2).await.unwrap();
+
+        // Forward: step0 Completed, step1 Failed, step2 Pending, saga Failed.
+        SagaExecutor::with_store(Arc::clone(&store))
+            .execute_saga_local(saga_id, &executor)
+            .await
+            .unwrap();
+
+        // Compensate: only the completed step0 rolls back.
+        let comp = SagaCompensator::with_store(Arc::clone(&store))
+            .compensate_saga_local(saga_id, &executor)
+            .await
+            .unwrap();
+        assert_eq!(comp.status, CompensationStatus::Compensated, "all completed steps rolled back");
+        assert_eq!(
+            comp.step_results.len(),
+            1,
+            "only the one completed step is compensated: {comp:?}"
+        );
+        assert!(comp.step_results[0].success, "the completed step compensated: {comp:?}");
+        assert!(comp.failed_steps.is_empty(), "no compensation failures: {comp:?}");
+
+        let mut steps = store.load_saga_steps(saga_id).await.unwrap();
+        steps.sort_by_key(|s| s.order);
+        assert_eq!(steps[0].state, StepState::Compensated, "completed step compensated");
+        assert_eq!(steps[1].state, StepState::Failed, "failed step untouched");
+        assert_eq!(steps[2].state, StepState::Pending, "never-run step untouched");
+        assert_eq!(
+            store.load_saga(saga_id).await.unwrap().unwrap().state,
+            SagaState::Compensated,
+            "saga reaches Compensated"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Best-effort: a completed step with *no* registered compensation cannot be
+    /// rolled back — the saga is reported `PartiallyCompensated` and stays `Failed`,
+    /// never marked `Compensated` having undone nothing (audit H33).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn compensate_saga_local_partial_when_compensation_unregistered() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&new_saga(saga_id)).await.unwrap();
+
+        // A single step that completes but has no compensation registered.
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let step = new_step(
+            saga_id,
+            0,
+            MutationType::Create,
+            &typename,
+            json!({"id": id_a, "total": "5"}),
+        );
+        store.save_saga_step(&step).await.unwrap();
+
+        SagaExecutor::with_store(Arc::clone(&store))
+            .execute_saga_local(saga_id, &executor)
+            .await
+            .unwrap();
+
+        let comp = SagaCompensator::with_store(Arc::clone(&store))
+            .compensate_saga_local(saga_id, &executor)
+            .await
+            .unwrap();
+        assert_eq!(
+            comp.status,
+            CompensationStatus::PartiallyCompensated,
+            "an uncompensatable completed step yields a partial result: {comp:?}"
+        );
+        assert_eq!(comp.failed_steps, vec![1], "step 1 could not be compensated");
+        assert!(comp.error.is_some(), "a partial compensation carries an error summary");
+
+        // The saga stays Failed (never fabricated Compensated) and the completed
+        // step stays Completed (its forward work was not undone).
+        assert_eq!(store.load_saga(saga_id).await.unwrap().unwrap().state, SagaState::Failed);
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert_eq!(steps[0].state, StepState::Completed, "an uncompensated step stays Completed");
+
+        store.delete_saga(saga_id).await.unwrap();
     }
 }

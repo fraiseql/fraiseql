@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga compensation (rollback) is now wired under `unstable-saga` (#429).** When a
+  distributed saga fails partway, `SagaCompensator::compensate_saga_local` rolls back the
+  already-completed steps in strict reverse execution order by executing each step's
+  registered compensation (inverse) mutation through the local SQL adapter, then persists
+  a real `Compensated` step state — never a fabricated rollback (audit H33). Compensation
+  is best-effort: a step whose inverse fails, or that has no compensation registered,
+  leaves the saga `Failed` and is reported `PartiallyCompensated` rather than marking the
+  saga `Compensated` having undone only part of its work. The saga step schema gained
+  nullable `compensation_mutation` / `compensation_variables` columns (added idempotently
+  by `migrate_schema`; rows that predate them read back as `None`). The published fail-loud
+  placeholders `SagaCompensator::{compensate_saga, compensate_step}` are unchanged and
+  still return `SagaStoreError::NotImplemented`; remote (HTTP) compensation, recovery, and
+  the coordinator facade remain unwired. Requires the `unstable-saga` Cargo feature; the
+  API may change without semver guarantees.
 - **Short-lived runtime executor: `fraiseql query` + `doctor --runtime` (#501).** A
   scriptable way to exercise a compiled schema against a database without standing up
   the long-lived server, closing the gap between "static checks pass" and "the server
