@@ -927,3 +927,331 @@ mod recovery_pg {
         assert!(!manager.is_running());
     }
 }
+
+// ── Wired coordinator end-to-end against real PostgreSQL (unstable-saga) ──────
+//
+// Ignored by default — these require a live PostgreSQL reachable via
+// `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
+// them with `--features unstable-saga --include-ignored` against the bound
+// service. They exercise the additive `WiredSagaCoordinator`, which ties forward
+// execution + compensation into one handle; the loud-fail `SagaCoordinator`
+// entry points are unchanged and covered by its own unit tests.
+
+#[cfg(feature = "unstable-saga")]
+mod coordinator_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
+        KeyDirective, PostgresSagaStore, SagaCoordinatorStep, SagaState, SagaStoreError, StepState,
+        WiredSagaCoordinator,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    /// A unique, all-lowercase, identifier-safe entity type name per test run.
+    /// `execute_local_mutation` targets `lowercase(typename)` as the table, so a
+    /// unique name isolates each test from other tests sharing the database.
+    fn unique_typename() -> String {
+        format!("sagacoord{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Build a saga store + a mutation executor over a freshly-created entity
+    /// table named after `typename`.
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// A create step whose forward `create…` mutation writes a row and whose
+    /// `delete…` compensation undoes it.
+    fn create_step(number: u32, typename: &str, id: &str, total: &str) -> SagaCoordinatorStep {
+        SagaCoordinatorStep::new(
+            number,
+            "orders",
+            typename,
+            format!("create{typename}"),
+            json!({"id": id, "total": total}),
+            format!("delete{typename}"),
+            json!({"id": id}),
+        )
+    }
+
+    /// Cycle 1: `create_saga` persists the saga (`Pending`) and every step, carrying
+    /// the compensation metadata through to the store.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn create_saga_persists_saga_and_steps() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let id_b = format!("b-{}", Uuid::new_v4());
+        let id_c = format!("c-{}", Uuid::new_v4());
+        let steps = vec![
+            create_step(1, &typename, &id_a, "1"),
+            create_step(2, &typename, &id_b, "2"),
+            create_step(3, &typename, &id_c, "3"),
+        ];
+
+        let saga_id = coordinator.create_saga(steps).await.unwrap();
+
+        // The saga is persisted Pending.
+        assert_eq!(
+            store.load_saga(saga_id).await.unwrap().unwrap().state,
+            SagaState::Pending,
+            "a created saga starts Pending"
+        );
+
+        // All three steps are loadable (ordered) with compensation metadata intact.
+        let loaded = store.load_saga_steps(saga_id).await.unwrap();
+        assert_eq!(loaded.len(), 3, "every step persisted: {loaded:?}");
+        let expected_comp = format!("delete{typename}");
+        assert_eq!(
+            loaded[0].compensation_mutation.as_deref(),
+            Some(expected_comp.as_str()),
+            "compensation_mutation round-trips through create_saga"
+        );
+        assert!(
+            loaded.iter().all(|s| s.state == StepState::Pending),
+            "created steps start Pending: {loaded:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Cycle 1 (validation): `create_saga` rejects empty and out-of-order steps
+    /// before touching the store.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn create_saga_rejects_invalid_steps() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        let empty = coordinator.create_saga(vec![]).await;
+        assert!(
+            matches!(empty, Err(SagaStoreError::Database(_))),
+            "empty steps rejected before persistence: {empty:?}"
+        );
+
+        // A single step numbered 2 is out of sequence (must start at 1).
+        let out_of_order = coordinator.create_saga(vec![create_step(2, &typename, "x", "1")]).await;
+        assert!(
+            matches!(out_of_order, Err(SagaStoreError::Database(_))),
+            "non-sequential steps rejected: {out_of_order:?}"
+        );
+    }
+
+    /// Cycle 2: `execute_saga` happy path — every step's real mutation runs, the
+    /// saga completes with no compensation, and status/result reflect completion.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn execute_saga_completes_all_steps() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let id_b = format!("b-{}", Uuid::new_v4());
+        let saga_id = coordinator
+            .create_saga(vec![
+                create_step(1, &typename, &id_a, "10"),
+                create_step(2, &typename, &id_b, "20"),
+            ])
+            .await
+            .unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Completed, "all steps succeed: {result:?}");
+        assert!(!result.compensated, "no compensation on success: {result:?}");
+        assert_eq!(result.completed_steps, 2, "both steps completed: {result:?}");
+
+        let status = coordinator.get_saga_status(saga_id).await.unwrap();
+        assert!(
+            (status.progress_percentage - 100.0).abs() < 1e-9,
+            "a fully-executed saga is 100% complete: {status:?}"
+        );
+
+        let final_result = coordinator.get_saga_result(saga_id).await.unwrap();
+        assert_eq!(final_result.completed_steps, 2, "result reports two completed steps");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Cycle 3: `execute_saga` failure path — a failing step fails the saga and, under
+    /// `Automatic`, the completed steps are really rolled back.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn execute_saga_failure_triggers_compensation() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let id_b = format!("b-{}", Uuid::new_v4());
+        // Steps 1–2 create rows (each with a delete compensation); step 3 updates a
+        // row that does not exist → fails at execution, triggering rollback. Step 3
+        // has no compensation (it never completes, so nothing to undo).
+        let step3 = SagaCoordinatorStep::new(
+            3,
+            "orders",
+            typename.as_str(),
+            format!("update{typename}"),
+            json!({"id": "missing", "total": "9"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator
+            .create_saga(vec![
+                create_step(1, &typename, &id_a, "1"),
+                create_step(2, &typename, &id_b, "2"),
+                step3,
+            ])
+            .await
+            .unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Failed, "a failed step fails the saga: {result:?}");
+        assert!(result.compensated, "Automatic strategy rolls back on failure: {result:?}");
+
+        let mut steps = store.load_saga_steps(saga_id).await.unwrap();
+        steps.sort_by_key(|s| s.order);
+        assert_eq!(steps[0].state, StepState::Compensated, "step 1 rolled back");
+        assert_eq!(steps[1].state, StepState::Compensated, "step 2 rolled back");
+        assert_eq!(
+            steps[2].state,
+            StepState::Failed,
+            "the failed step never completed → not compensated"
+        );
+
+        // The compensations really removed the created rows (not fabricated).
+        let table = typename.to_lowercase();
+        let rows = PostgresAdapter::new(&url)
+            .await
+            .unwrap()
+            .execute_raw_query(&format!(
+                "SELECT id FROM \"{table}\" WHERE id IN ('{id_a}', '{id_b}')"
+            ))
+            .await
+            .unwrap();
+        assert!(rows.is_empty(), "both created rows were rolled back: {rows:?}");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Cycle 4: `cancel_saga` on a `Pending` saga + `list_in_flight_sagas` membership.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn cancel_pending_saga_and_list_in_flight() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let id_b = format!("b-{}", Uuid::new_v4());
+        let saga_id = coordinator
+            .create_saga(vec![
+                create_step(1, &typename, &id_a, "1"),
+                create_step(2, &typename, &id_b, "2"),
+            ])
+            .await
+            .unwrap();
+
+        // A never-executed saga is in-flight (Pending).
+        let in_flight = coordinator.list_in_flight_sagas().await.unwrap();
+        assert!(in_flight.contains(&saga_id), "a Pending saga is in-flight: {in_flight:?}");
+
+        // Cancel it: nothing completed → nothing to compensate.
+        let result = coordinator.cancel_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Cancelled, "cancel yields Cancelled: {result:?}");
+
+        // No longer in-flight.
+        let after = coordinator.list_in_flight_sagas().await.unwrap();
+        assert!(!after.contains(&saga_id), "a cancelled saga is not in-flight: {after:?}");
+
+        // Cancelling an already-terminal saga fails loud.
+        let second = coordinator.cancel_saga(saga_id, &executor).await;
+        assert!(
+            matches!(second, Err(SagaStoreError::InvalidStateTransition { .. })),
+            "a second cancel on a terminal saga is rejected: {second:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+}

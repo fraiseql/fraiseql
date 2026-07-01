@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga coordinator facade is now wired under `unstable-saga` (#429).** A new
+  `WiredSagaCoordinator` ties forward execution and compensation into a single handle over
+  a `PostgresSagaStore`: `create_saga` validates and persists a saga (`Pending`) with each
+  step's compensation metadata; `execute_saga` runs the forward phase and, on a step failure
+  under the default `Automatic` strategy, rolls back the completed steps via
+  `SagaCompensator::compensate_saga_local` (returning `Failed` + `compensated: true`), while
+  the `Manual` strategy leaves the saga `Failed` for an operator; `cancel_saga` refuses a
+  terminal saga, compensates any completed steps, then marks the saga `Cancelled` (a new
+  terminal `SagaState`); and `get_saga_status` / `get_saga_result` / `list_in_flight_sagas`
+  report real persisted state. The wiring is additive — the published fail-loud
+  `SagaCoordinator::{create_saga, execute_saga, get_saga_status, cancel_saga, get_saga_result,
+  list_in_flight_sagas}` placeholders are unchanged and still return
+  `SagaStoreError::NotImplemented` in every build. Remote (HTTP) step dispatch remains
+  unwired. Requires the `unstable-saga` Cargo feature; the API may change without semver
+  guarantees.
 - **Saga crash recovery is now wired under `unstable-saga` (#429).** A
   `SagaRecoveryManager` background loop re-drives sagas that a crash or restart left
   in-flight: each tick finds stuck (`Executing`) and pending (never-started) sagas, records

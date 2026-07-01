@@ -143,6 +143,9 @@ pub enum SagaState {
     Compensating,
     /// All compensation steps have finished.
     Compensated,
+    /// The saga was cancelled by an operator; any completed steps were rolled
+    /// back before it reached this terminal state (#429).
+    Cancelled,
 }
 
 impl SagaState {
@@ -156,6 +159,7 @@ impl SagaState {
             SagaState::Failed => "failed",
             SagaState::Compensating => "compensating",
             SagaState::Compensated => "compensated",
+            SagaState::Cancelled => "cancelled",
         }
     }
 
@@ -172,6 +176,7 @@ impl SagaState {
             "failed" => Some(SagaState::Failed),
             "compensating" => Some(SagaState::Compensating),
             "compensated" => Some(SagaState::Compensated),
+            "cancelled" => Some(SagaState::Cancelled),
             _ => None,
         }
     }
@@ -707,7 +712,8 @@ impl PostgresSagaStore {
 
     /// Update saga state and automatically set completion time for terminal states
     ///
-    /// Terminal states (Completed, Compensated) automatically receive `completed_at` timestamp.
+    /// Terminal states (Completed, Compensated, Cancelled) automatically receive a
+    /// `completed_at` timestamp.
     ///
     /// # Errors
     ///
@@ -719,7 +725,10 @@ impl PostgresSagaStore {
         let state_str = state.as_str();
         let now = chrono::Utc::now();
 
-        let completed_at = if matches!(state, SagaState::Completed | SagaState::Compensated) {
+        let completed_at = if matches!(
+            state,
+            SagaState::Completed | SagaState::Compensated | SagaState::Cancelled
+        ) {
             Some(now)
         } else {
             None

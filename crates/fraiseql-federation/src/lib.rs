@@ -17,7 +17,8 @@
 //! | Saga forward execution — `SagaExecutor::{execute_step_local, execute_saga_local, execution_state}` | 🚧 Unstable | requires `unstable-saga` feature; dispatches real local mutations and persists real step/saga state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote (HTTP) dispatch and `@requires` pre-fetch are not yet wired. |
 //! | Saga compensation — `SagaCompensator::{compensate_step_local, compensate_saga_local}` | 🚧 Unstable | requires `unstable-saga` feature; rolls back completed steps in reverse execution order via the local SQL adapter and persists real `Compensated` state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote (HTTP) compensation is not yet wired. |
 //! | Saga recovery — `SagaRecoveryManager::{run_iteration_local, start_background_loop_local}` | 🚧 Unstable | requires `unstable-saga` feature; re-drives crash-interrupted (`Pending`/`Executing`) sagas to a terminal state by replaying `execute_saga_local`, records recovery attempts, and cleans up stale sagas (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote saga recovery rides on Phase 04's remote dispatch. |
-//! | Saga placeholders — `SagaExecutor::{execute_step, execute_saga, get_execution_state}` + `SagaCompensator::{compensate_step, compensate_saga}` + `SagaRecoveryManager::{run_iteration, start_background_loop}` + coordination | 🚧 Not implemented | return `SagaStoreError::NotImplemented` in every build (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `PostgresSagaStore` persistence is real. |
+//! | Saga coordination — `WiredSagaCoordinator::{create_saga, execute_saga, get_saga_status, cancel_saga, get_saga_result, list_in_flight_sagas}` | 🚧 Unstable | requires `unstable-saga` feature; ties forward execution + compensation into one handle — persists a saga with compensation metadata, runs the forward phase, and on failure (under `Automatic`) rolls back the completed steps via the local SQL adapter; `cancel_saga` compensates then marks the saga `Cancelled` (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Remote (HTTP) dispatch is not yet wired. |
+//! | Saga placeholders — `SagaExecutor::{execute_step, execute_saga, get_execution_state}` + `SagaCompensator::{compensate_step, compensate_saga}` + `SagaRecoveryManager::{run_iteration, start_background_loop}` + `SagaCoordinator::{create_saga, execute_saga, get_saga_status, cancel_saga, get_saga_result, list_in_flight_sagas}` | 🚧 Not implemented | return `SagaStoreError::NotImplemented` in every build (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `PostgresSagaStore` persistence is real. |
 //! | HTTP mutation propagation — `HttpMutationClient` | ✅ Production | SSRF-protected |
 //! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
 //! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |
@@ -107,6 +108,8 @@ pub use requires_provides_validator::{
 pub use saga_compensator::{
     CompensationResult, CompensationStatus, CompensationStepResult, SagaCompensator,
 };
+#[cfg(feature = "unstable-saga")]
+pub use saga_coordinator::WiredSagaCoordinator;
 pub use saga_coordinator::{
     CompensationStrategy, SagaCoordinator, SagaResult, SagaStatus, SagaStep as SagaCoordinatorStep,
 };
