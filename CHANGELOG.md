@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga crash recovery is now wired under `unstable-saga` (#429).** A
+  `SagaRecoveryManager` background loop re-drives sagas that a crash or restart left
+  in-flight: each tick finds stuck (`Executing`) and pending (never-started) sagas, records
+  a recovery attempt, and replays each one's forward execution through
+  `SagaExecutor::execute_saga_local` until it reaches a terminal `Completed`/`Failed`
+  state, then cleans up stale terminal sagas. Recovery is resilient — a single saga's
+  failing replay is logged and counted, never aborting the iteration — and idempotent to
+  start: `start_background_loop_local` compare-and-swaps a running flag and rejects a
+  second concurrent loop. The published fail-loud placeholders
+  `SagaRecoveryManager::{run_iteration, start_background_loop}` are unchanged and still
+  return `SagaStoreError::NotImplemented`; remote saga recovery rides on the (still
+  unwired) remote-dispatch path and the coordinator facade remains unwired. Requires the
+  `unstable-saga` Cargo feature; the API may change without semver guarantees.
 - **Saga compensation (rollback) is now wired under `unstable-saga` (#429).** When a
   distributed saga fails partway, `SagaCompensator::compensate_saga_local` rolls back the
   already-completed steps in strict reverse execution order by executing each step's
