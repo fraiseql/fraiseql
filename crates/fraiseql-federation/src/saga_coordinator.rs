@@ -81,6 +81,18 @@ use uuid::Uuid;
 
 use crate::saga_store::{Result as SagaStoreResult, SagaState};
 
+/// Pure coordinator decision helpers (always compiled; see the module docs for why
+/// the logic lives outside the feature gate).
+mod coordination;
+
+/// Wired coordinator that ties forward execution, compensation, and recovery into
+/// a single handle (the `unstable-saga` feature). Additive: the loud-fail
+/// [`SagaCoordinator`] below keeps its signatures and behaviour in every build.
+#[cfg(feature = "unstable-saga")]
+mod wired;
+#[cfg(feature = "unstable-saga")]
+pub use wired::WiredSagaCoordinator;
+
 /// Represents a saga step mutation to execute
 ///
 /// Each step defines:
@@ -192,6 +204,43 @@ pub struct SagaResult {
     pub compensated:     bool,
 }
 
+/// Validate that a saga's steps are present and sequentially ordered (1..N).
+///
+/// Shared by the loud-fail [`SagaCoordinator::create_saga`] and the wired
+/// [`WiredSagaCoordinator`](crate::saga_coordinator::WiredSagaCoordinator)::`create_saga`:
+/// a saga must have at least one step and its steps must be numbered 1, 2, 3, … in
+/// order before any persistence is attempted.
+///
+/// # Errors
+///
+/// Returns [`SagaStoreError::Database`](crate::saga_store::SagaStoreError::Database)
+/// if the steps are empty or not in sequential order.
+fn validate_step_sequence(steps: &[SagaStep]) -> SagaStoreResult<()> {
+    // Validate at least one step
+    if steps.is_empty() {
+        warn!("Saga creation failed: saga must have at least one step");
+        return Err(crate::saga_store::SagaStoreError::Database(
+            "saga must have at least one step".to_string(),
+        ));
+    }
+
+    // Validate step order
+    for (i, step) in steps.iter().enumerate() {
+        if step.number as usize != i + 1 {
+            warn!(
+                expected = i + 1,
+                actual = step.number,
+                "Saga creation failed: steps must be in sequential order"
+            );
+            return Err(crate::saga_store::SagaStoreError::Database(
+                "steps must be in sequential order".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 /// Saga coordinator for distributed transaction orchestration.
 ///
 /// **Not implemented.** Every operational method fails loud with
@@ -251,27 +300,7 @@ impl SagaCoordinator {
     /// let saga_id = coordinator.create_saga(steps).await?;
     /// ```
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
-        // Validate at least one step
-        if steps.is_empty() {
-            warn!("Saga creation failed: saga must have at least one step");
-            return Err(crate::saga_store::SagaStoreError::Database(
-                "saga must have at least one step".to_string(),
-            ));
-        }
-
-        // Validate step order
-        for (i, step) in steps.iter().enumerate() {
-            if step.number as usize != i + 1 {
-                warn!(
-                    expected = i + 1,
-                    actual = step.number,
-                    "Saga creation failed: steps must be in sequential order"
-                );
-                return Err(crate::saga_store::SagaStoreError::Database(
-                    "steps must be in sequential order".to_string(),
-                ));
-            }
-        }
+        validate_step_sequence(&steps)?;
 
         // Input validation above is real; persistence is not. The previous body
         // generated a UUID and returned it WITHOUT writing anything to the store
