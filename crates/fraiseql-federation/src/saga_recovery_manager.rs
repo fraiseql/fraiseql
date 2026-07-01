@@ -309,6 +309,7 @@ mod wired {
 
     use ::tracing::{info, warn};
     use fraiseql_db::traits::DatabaseAdapter;
+    use uuid::Uuid;
 
     use super::{SagaRecoveryManager, recovery};
     use crate::{
@@ -336,7 +337,7 @@ mod wired {
         /// # Errors
         ///
         /// Returns [`SagaStoreError`] only if the initial store scans
-        /// (`find_stuck_sagas` / `find_pending_sagas`) fail; per-saga replay and
+        /// (`claim_stuck_sagas` / `find_pending_sagas`) fail; per-saga replay and
         /// cleanup failures are counted in `stats` rather than propagated.
         ///
         /// # Panics
@@ -349,11 +350,19 @@ mod wired {
         ) -> SagaStoreResult<()> {
             let saga_executor = SagaExecutor::with_store(Arc::clone(&self.store));
 
-            // Stuck = sagas a crash left Executing. `find_stuck_sagas` returns them
-            // all; bound the batch to keep each tick's work predictable.
-            let mut stuck = self.store.find_stuck_sagas().await?;
-            let max = usize::try_from(self.config.max_sagas_per_iteration).unwrap_or(usize::MAX);
-            stuck.truncate(max);
+            // Stuck = sagas a crash left Executing. Claim up to
+            // `max_sagas_per_iteration` of them under a fresh per-iteration worker id
+            // and a lease, so two recovery workers ticking at once claim disjoint
+            // sets and never double-drive a saga (FOR UPDATE SKIP LOCKED). The lease
+            // outlives one iteration (10× the poll interval, floored at 60s) so this
+            // worker keeps its claims while re-driving; a crashed worker's claims
+            // lapse and become reclaimable.
+            let worker_id = Uuid::new_v4();
+            let lease_secs =
+                i64::try_from(self.config.check_interval.as_secs().saturating_mul(10).max(60))
+                    .unwrap_or(i64::MAX);
+            let limit = i64::from(self.config.max_sagas_per_iteration);
+            let stuck = self.store.claim_stuck_sagas(worker_id, lease_secs, limit).await?;
             let executing_found = u64::try_from(stuck.len()).unwrap_or(u64::MAX);
 
             // Pending = sagas that were persisted but never started executing.
