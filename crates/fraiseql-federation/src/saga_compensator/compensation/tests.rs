@@ -14,6 +14,7 @@ fn step(order: usize, state: StepState, compensation_mutation: Option<&str>) -> 
         order,
         subgraph: "orders".to_string(),
         mutation_type: MutationType::Create,
+        mutation_name: None,
         typename: "Order".to_string(),
         variables: json!({"id": "o1"}),
         state,

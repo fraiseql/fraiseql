@@ -161,6 +161,7 @@ mod wired {
             order:                  0,
             subgraph:               "orders".to_string(),
             mutation_type:          MutationType::Create,
+            mutation_name:          Some("createOrder".to_string()),
             typename:               "Order".to_string(),
             variables:              json!({"id": "o1"}),
             state:                  StepState::Completed,

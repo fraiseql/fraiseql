@@ -296,6 +296,11 @@ pub struct SagaStep {
     pub subgraph:               String,
     /// Kind of mutation this step performs.
     pub mutation_type:          MutationType,
+    /// Full GraphQL mutation operation name (e.g. `createOrder`), if known. The
+    /// store also records the coarse [`MutationType`] *kind*; this carries the
+    /// exact name a remote subgraph expects. `None`/empty (pre-migration rows or
+    /// steps created without a name) falls back to the kind's canonical verb.
+    pub mutation_name:          Option<String>,
     /// GraphQL type name the mutation targets.
     pub typename:               String,
     /// Input variables for the mutation.
@@ -466,11 +471,14 @@ impl PostgresSagaStore {
         // compensation, so both columns are added idempotently and may be NULL.
         // A step with a NULL/empty compensation_mutation has no registered
         // rollback and is skipped by the compensator (best-effort, #429).
+        // `mutation_name` (also nullable, added idempotently) carries the full
+        // remote operation name; NULL rows fall back to the mutation-kind verb.
         conn.execute(
             "
             ALTER TABLE tb_federation_saga_steps
                 ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
-                ADD COLUMN IF NOT EXISTS compensation_variables JSONB
+                ADD COLUMN IF NOT EXISTS compensation_variables JSONB,
+                ADD COLUMN IF NOT EXISTS mutation_name TEXT
             ",
             &[],
         )
@@ -619,6 +627,7 @@ impl PostgresSagaStore {
             order: row.get::<_, i32>(2) as usize,
             subgraph: row.get(3),
             mutation_type,
+            mutation_name: row.get(13),
             typename: row.get(5),
             variables: row.get(6),
             state,
@@ -758,7 +767,7 @@ impl PostgresSagaStore {
 
         let row = conn
             .query_opt(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fss.id = $1",
@@ -779,7 +788,7 @@ impl PostgresSagaStore {
 
         let rows = conn
             .query(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fs.id = $1
@@ -852,14 +861,14 @@ impl PostgresSagaStore {
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
-        // compensation_mutation / compensation_variables are part of the immutable
-        // step definition, so — like variables/subgraph — they are written on
-        // INSERT but not touched by the ON CONFLICT update path (which only
-        // advances runtime state/result/completed_at).
+        // compensation_mutation / compensation_variables / mutation_name are part
+        // of the immutable step definition, so — like variables/subgraph — they are
+        // written on INSERT but not touched by the ON CONFLICT update path (which
+        // only advances runtime state/result/completed_at).
         let affected = conn
             .execute(
-                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables)
-             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables, mutation_name)
+             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
              FROM tb_federation_sagas fs
              WHERE fs.id = $2
              ON CONFLICT (id) DO UPDATE SET state = $8, result = $9, completed_at = $11, updated_at = $13",
@@ -879,6 +888,7 @@ impl PostgresSagaStore {
                     &now,
                     &step.compensation_mutation,
                     &step.compensation_variables,
+                    &step.mutation_name,
                 ],
             )
             .await?;
