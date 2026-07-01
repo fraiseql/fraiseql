@@ -219,6 +219,9 @@ impl WiredSagaCoordinator {
                 order: (step.number as usize).saturating_sub(1),
                 subgraph: step.subgraph.clone(),
                 mutation_type,
+                // Persist the full operation name (e.g. `createOrder`) alongside the
+                // coarse kind so remote dispatch sends the real name, not the verb.
+                mutation_name: Some(step.mutation_name.clone()),
                 typename: step.typename.clone(),
                 variables: step.variables.clone(),
                 state: StepState::Pending,

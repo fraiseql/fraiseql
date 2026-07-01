@@ -94,15 +94,17 @@ mod wired {
             remote: Option<(&HttpMutationClient, &Url)>,
         ) -> (StepExecutionResult, StepState) {
             let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
+            // Prefer the full persisted operation name (e.g. `createOrder`) so a
+            // remote subgraph receives the real mutation; pre-migration rows with
+            // no name fall back to the mutation-kind verb (`create`), which the
+            // name-driven `determine_mutation_type` also resolves for the local path.
+            let op_name =
+                step.mutation_name.as_deref().unwrap_or_else(|| step.mutation_type.as_str());
             let started = std::time::Instant::now();
             let outcome = match remote {
                 None => {
                     mutation_executor
-                        .execute_local_mutation(
-                            &step.typename,
-                            step.mutation_type.as_str(),
-                            &step.variables,
-                        )
+                        .execute_local_mutation(&step.typename, op_name, &step.variables)
                         .await
                 },
                 Some((client, url)) => {
@@ -110,7 +112,7 @@ mod wired {
                         .execute_mutation(
                             url.as_str(),
                             &step.typename,
-                            step.mutation_type.as_str(),
+                            op_name,
                             &step.variables,
                             mutation_executor.metadata(),
                         )

@@ -169,6 +169,7 @@ mod wired_pg {
             order,
             subgraph: "orders".to_string(),
             mutation_type: mt,
+            mutation_name: None,
             typename: typename.to_string(),
             variables,
             state: StepState::Pending,
@@ -239,6 +240,51 @@ mod wired_pg {
         let steps = store.load_saga_steps(saga_id).await.unwrap();
         let listed = steps.iter().find(|s| s.id == step_with.id).unwrap();
         assert_eq!(listed.compensation_mutation.as_deref(), Some("undo_create_order"));
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// The full mutation name round-trips through the store: a step saved with a
+    /// `mutation_name` reloads with it intact (both the single-load and list
+    /// paths), and a step saved without one reloads as `None` — backwards
+    /// compatible with rows that predate the `mutation_name` column (#429
+    /// hardening: full remote mutation-name persistence). `setup` runs
+    /// `migrate_schema`, so this also exercises the idempotent ALTER.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn saga_step_mutation_name_round_trips() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&new_saga(saga_id)).await.unwrap();
+
+        // Step WITH a full mutation name.
+        let mut named = new_step(saga_id, 0, MutationType::Create, &typename, json!({"id": "n1"}));
+        named.mutation_name = Some("createOrder".to_string());
+        store.save_saga_step(&named).await.unwrap();
+
+        // Step WITHOUT a mutation name (backwards-compatible None round-trip).
+        let unnamed = new_step(saga_id, 1, MutationType::Create, &typename, json!({"id": "n2"}));
+        store.save_saga_step(&unnamed).await.unwrap();
+
+        let reloaded_named = store.load_saga_step(named.id).await.unwrap().unwrap();
+        assert_eq!(
+            reloaded_named.mutation_name.as_deref(),
+            Some("createOrder"),
+            "mutation_name must round-trip through load_saga_step"
+        );
+        let reloaded_unnamed = store.load_saga_step(unnamed.id).await.unwrap().unwrap();
+        assert!(reloaded_unnamed.mutation_name.is_none(), "absent mutation_name → None");
+
+        // The list path (load_saga_steps) must carry the name too.
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        let listed = steps.iter().find(|s| s.id == named.id).unwrap();
+        assert_eq!(listed.mutation_name.as_deref(), Some("createOrder"));
 
         store.delete_saga(saga_id).await.unwrap();
     }
@@ -686,6 +732,7 @@ mod recovery_pg {
             order,
             subgraph: "orders".to_string(),
             mutation_type: mt,
+            mutation_name: None,
             typename: typename.to_string(),
             variables,
             state: StepState::Pending,
@@ -1063,6 +1110,12 @@ mod coordinator_pg {
             Some(expected_comp.as_str()),
             "compensation_mutation round-trips through create_saga"
         );
+        let expected_name = format!("create{typename}");
+        assert_eq!(
+            loaded[0].mutation_name.as_deref(),
+            Some(expected_name.as_str()),
+            "the full mutation_name round-trips through create_saga (not just the verb)"
+        );
         assert!(
             loaded.iter().all(|s| s.state == StepState::Pending),
             "created steps start Pending: {loaded:?}"
@@ -1384,14 +1437,23 @@ mod remote_dispatch_pg {
         let store = Arc::new(store);
 
         // A mock peer subgraph returning a create response; must be hit exactly once
-        // (only the remote step, never the local one).
+        // (only the remote step, never the local one). The response is keyed by the
+        // full mutation name the step now sends (`create{typename}`) — the store
+        // persists the real operation name, not the coarse verb.
         let server = MockServer::start().await;
         let remote_id = format!("remote-{}", Uuid::new_v4());
+        let remote_op = format!("create{typename}");
+        let mut entity = serde_json::Map::new();
+        entity.insert("__typename".to_string(), json!(typename));
+        entity.insert("id".to_string(), json!(remote_id));
+        let mut data = serde_json::Map::new();
+        data.insert(remote_op, serde_json::Value::Object(entity));
         Mock::given(method("POST"))
             .and(path("/graphql"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "data": { "create": { "__typename": typename, "id": remote_id } }
-            })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "data": serde_json::Value::Object(data) })),
+            )
             .expect(1)
             .mount(&server)
             .await;

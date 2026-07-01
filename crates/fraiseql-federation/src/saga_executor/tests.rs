@@ -155,6 +155,7 @@ mod wired {
             order: 0,
             subgraph: "orders".to_string(),
             mutation_type,
+            mutation_name: None,
             typename: "Order".to_string(),
             variables,
             state: StepState::Pending,
@@ -237,7 +238,7 @@ mod wired {
     use reqwest::Url;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
+        matchers::{body_string_contains, method, path},
     };
 
     use crate::mutation_http_client::{HttpMutationClient, HttpMutationConfig};
@@ -310,5 +311,69 @@ mod wired {
         assert_eq!(state, StepState::Failed);
         assert!(result.data.is_none(), "a failed remote step fabricates no result data");
         assert!(result.error.is_some(), "a failed remote step carries the error: {result:?}");
+    }
+
+    /// When a step carries a full `mutation_name`, remote dispatch sends THAT as
+    /// the GraphQL operation name — not the coarse mutation-kind verb (#429
+    /// hardening: full remote mutation-name persistence). The mock only matches a
+    /// request body containing `createOrder`, so a request that sent the verb
+    /// `create` would not match and the step would fail.
+    #[tokio::test]
+    async fn dispatch_step_remote_uses_full_mutation_name_when_present() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .and(body_string_contains("createOrder"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "createOrder": { "__typename": "Order", "id": "o-named" } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let mut step = order_step(MutationType::Create, json!({"id": "o-named", "total": "9"}));
+        step.mutation_name = Some("createOrder".to_string());
+
+        let (result, state) =
+            SagaExecutor::dispatch_step(&mutation_executor, &step, Some((&client, &url))).await;
+
+        assert!(result.success, "the named remote mutation must succeed: {result:?}");
+        assert_eq!(state, StepState::Completed);
+        let data = result.data.expect("a successful remote step carries the mock entity");
+        assert_eq!(data["id"], "o-named", "the createOrder response is returned");
+        // `.expect(1)` on the `createOrder`-body matcher asserts the op name on drop.
+    }
+
+    /// With no `mutation_name` set, remote dispatch falls back to the mutation-kind
+    /// verb (`create`) — backwards-compatible with pre-migration step rows.
+    #[tokio::test]
+    async fn dispatch_step_remote_falls_back_to_verb_when_name_absent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .and(body_string_contains("{ create("))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "create": { "__typename": "Order", "id": "o-verb" } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        // mutation_name left None → fall back to the verb.
+        let step = order_step(MutationType::Create, json!({"id": "o-verb", "total": "3"}));
+
+        let (result, state) =
+            SagaExecutor::dispatch_step(&mutation_executor, &step, Some((&client, &url))).await;
+
+        assert!(result.success, "the verb-named remote mutation must succeed: {result:?}");
+        assert_eq!(state, StepState::Completed);
+        let data = result.data.expect("a successful remote step carries the mock entity");
+        assert_eq!(data["id"], "o-verb", "the create response is returned");
     }
 }

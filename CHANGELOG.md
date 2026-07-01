@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga steps now persist their full mutation name for remote dispatch (#429).**
+  `tb_federation_saga_steps` gained a nullable `mutation_name` column (added
+  idempotently by `migrate_schema`) carrying the exact GraphQL operation name
+  (e.g. `createOrder`) alongside the coarse mutation *kind*.
+  `WiredSagaCoordinator::create_saga` persists it, and both local and remote step
+  dispatch now send the full name instead of the reconstructed verb (`create`), so
+  a remote subgraph receives the operation it actually defines. Rows that predate
+  the column (`mutation_name` `NULL`) fall back to the verb, so existing sagas are
+  unaffected. This is the store-schema groundwork for remote saga compensation.
+  Requires the `unstable-saga` Cargo feature; the API may change without semver
+  guarantees.
 - **Saga steps can now be dispatched to remote subgraphs over HTTPS under
   `unstable-saga` (#429).** `WiredSagaCoordinator` gained a subgraph registry:
   `with_http_client(config)` configures an SSRF-protected `HttpMutationClient`, and
