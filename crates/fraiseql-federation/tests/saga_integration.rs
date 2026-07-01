@@ -581,3 +581,349 @@ mod wired_pg {
         store.delete_saga(saga_id).await.unwrap();
     }
 }
+
+// ── Wired recovery loop end-to-end against real PostgreSQL (unstable-saga) ─────
+//
+// Ignored by default — these require a live PostgreSQL reachable via
+// `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
+// them with `--features unstable-saga --include-ignored` against the bound
+// service. They exercise the additive `run_iteration_local` /
+// `start_background_loop_local` wired methods; the fail-loud `run_iteration` /
+// `start_background_loop` entry points are unchanged.
+
+#[cfg(feature = "unstable-saga")]
+mod recovery_pg {
+    use std::{sync::Arc, time::Duration};
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        FederatedType, FederationMetadata, FederationMutationExecutor, KeyDirective, MutationType,
+        PostgresSagaStore, RecoveryConfig, Saga, SagaRecoveryManager, SagaState, SagaStep,
+        StepState,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    /// A unique, all-lowercase, identifier-safe entity type name per test run, so
+    /// the replayed Create mutations target a table isolated from other tests.
+    fn unique_typename() -> String {
+        format!("sagarec{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Build a saga store + a mutation executor over a freshly-created entity
+    /// table named after `typename`.
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// A saga persisted directly in `Executing` state — the fingerprint of a crash
+    /// mid-execution: the process died after marking the saga running but before
+    /// driving its steps to a terminal state.
+    fn stuck_saga(id: Uuid) -> Saga {
+        Saga {
+            id,
+            state: SagaState::Executing,
+            created_at: chrono::Utc::now(),
+            completed_at: None,
+            metadata: None,
+        }
+    }
+
+    fn pending_step(
+        saga_id: Uuid,
+        order: usize,
+        mt: MutationType,
+        typename: &str,
+        variables: serde_json::Value,
+    ) -> SagaStep {
+        SagaStep {
+            id: Uuid::new_v4(),
+            saga_id,
+            order,
+            subgraph: "orders".to_string(),
+            mutation_type: mt,
+            typename: typename.to_string(),
+            variables,
+            state: StepState::Pending,
+            result: None,
+            started_at: None,
+            completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
+        }
+    }
+
+    /// A single recovery tick re-drives a crash-interrupted (`Executing`) saga to a
+    /// terminal state, records a recovery attempt, and counts the work in `stats`.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn run_iteration_local_drives_stuck_saga_to_terminal_state() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // A saga left Executing with a single un-run step whose Create will succeed.
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&stuck_saga(saga_id)).await.unwrap();
+        let entity_id = format!("r-{}", Uuid::new_v4());
+        store
+            .save_saga_step(&pending_step(
+                saga_id,
+                0,
+                MutationType::Create,
+                &typename,
+                json!({"id": entity_id, "total": "10"}),
+            ))
+            .await
+            .unwrap();
+
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+
+        // `find_stuck_sagas` scans globally, so a recovery record may already exist
+        // from unrelated rows — measure the delta this tick creates.
+        let recovery_before = store.recovery_count().await.unwrap();
+        manager.run_iteration_local(&executor).await.unwrap();
+
+        // The saga is no longer stuck: its steps were replayed to completion.
+        assert_eq!(
+            store.load_saga(saga_id).await.unwrap().unwrap().state,
+            SagaState::Completed,
+            "recovery must drive the stuck saga to a terminal state, never leave it Executing"
+        );
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert!(
+            steps.iter().all(|s| s.state == StepState::Completed),
+            "the replayed step is persisted Completed: {steps:?}"
+        );
+
+        // A recovery record was written for the audit trail.
+        assert!(
+            store.recovery_count().await.unwrap() > recovery_before,
+            "a recovery attempt must be recorded for the stuck saga"
+        );
+
+        // Stats reflect exactly one iteration and at least our saga processed.
+        let stats = manager.get_stats();
+        assert_eq!(stats.iterations, 1, "one run_iteration_local call is one iteration");
+        assert!(stats.sagas_processed >= 1, "the stuck saga was processed: {stats:?}");
+        assert!(
+            stats.executing_sagas_found >= 1,
+            "the stuck (Executing) saga was found: {stats:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Resilience: one saga's failing replay must not abort the iteration — a second
+    /// stuck saga in the same tick is still driven to a terminal state.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn run_iteration_local_continues_past_a_failing_saga() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // Saga 1: its only step Updates a row that does not exist → replay fails, the
+        // saga ends Failed (a bad per-saga outcome, but not an infrastructure error).
+        let failing_id = Uuid::new_v4();
+        store.save_saga(&stuck_saga(failing_id)).await.unwrap();
+        store
+            .save_saga_step(&pending_step(
+                failing_id,
+                0,
+                MutationType::Update,
+                &typename,
+                json!({"id": "missing", "total": "9"}),
+            ))
+            .await
+            .unwrap();
+
+        // Saga 2: a clean Create that will complete on replay.
+        let ok_id = Uuid::new_v4();
+        store.save_saga(&stuck_saga(ok_id)).await.unwrap();
+        let entity_id = format!("ok-{}", Uuid::new_v4());
+        store
+            .save_saga_step(&pending_step(
+                ok_id,
+                0,
+                MutationType::Create,
+                &typename,
+                json!({"id": entity_id, "total": "5"}),
+            ))
+            .await
+            .unwrap();
+
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager.run_iteration_local(&executor).await.unwrap();
+
+        // Both sagas were driven out of Executing; the failing one did not stop the
+        // second from being processed.
+        assert_eq!(
+            store.load_saga(failing_id).await.unwrap().unwrap().state,
+            SagaState::Failed,
+            "the failing saga reaches a terminal Failed state"
+        );
+        assert_eq!(
+            store.load_saga(ok_id).await.unwrap().unwrap().state,
+            SagaState::Completed,
+            "the second saga is still processed despite the first one's failure"
+        );
+        assert!(
+            manager.get_stats().sagas_processed >= 2,
+            "both stuck sagas were processed in one iteration: {:?}",
+            manager.get_stats()
+        );
+
+        store.delete_saga(failing_id).await.unwrap();
+        store.delete_saga(ok_id).await.unwrap();
+    }
+
+    /// The background loop starts, recovers a stuck saga across a couple of ticks,
+    /// and stops cleanly when asked.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn start_background_loop_local_recovers_then_stops() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // Seed the stuck saga before starting so the first tick can pick it up.
+        let saga_id = Uuid::new_v4();
+        store.save_saga(&stuck_saga(saga_id)).await.unwrap();
+        let entity_id = format!("bg-{}", Uuid::new_v4());
+        store
+            .save_saga_step(&pending_step(
+                saga_id,
+                0,
+                MutationType::Create,
+                &typename,
+                json!({"id": entity_id, "total": "7"}),
+            ))
+            .await
+            .unwrap();
+
+        // A short interval keeps the test fast (default is 5s).
+        let config = RecoveryConfig {
+            check_interval:          Duration::from_millis(150),
+            max_sagas_per_iteration: 50,
+            stale_age_hours:         24,
+        };
+        let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
+
+        Arc::clone(&manager)
+            .start_background_loop_local(Arc::new(executor))
+            .await
+            .unwrap();
+        assert!(manager.is_running(), "the loop reports running after start");
+
+        // Wait a couple of ticks for at least one iteration to fire.
+        tokio::time::sleep(config.check_interval * 3).await;
+
+        manager.stop_background_loop().await.unwrap();
+        assert!(!manager.is_running(), "the loop reports stopped after stop");
+
+        assert!(
+            manager.get_stats().iterations >= 1,
+            "the background loop ran at least one iteration: {:?}",
+            manager.get_stats()
+        );
+        assert_eq!(
+            store.load_saga(saga_id).await.unwrap().unwrap().state,
+            SagaState::Completed,
+            "the background loop drove the stuck saga to a terminal state"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// The CAS guard refuses a second concurrent loop: a start while already running
+    /// fails loud rather than spawning a duplicate.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn start_background_loop_local_rejects_double_start() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let config = RecoveryConfig {
+            check_interval:          Duration::from_millis(150),
+            max_sagas_per_iteration: 50,
+            stale_age_hours:         24,
+        };
+        let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
+        let executor = Arc::new(executor);
+
+        Arc::clone(&manager)
+            .start_background_loop_local(Arc::clone(&executor))
+            .await
+            .unwrap();
+
+        // A second start while running must fail loud, not spawn a duplicate loop.
+        let second = Arc::clone(&manager).start_background_loop_local(Arc::clone(&executor)).await;
+        assert!(second.is_err(), "a double start must be rejected: {second:?}");
+
+        // Clean up: stop the single running loop.
+        manager.stop_background_loop().await.unwrap();
+        assert!(!manager.is_running());
+    }
+}
