@@ -13,10 +13,12 @@
 //! real thing — no stub shares their names. Remote (HTTP) step dispatch is Phase 04;
 //! every mutation here runs against the local SQL adapter.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use ::tracing::{info, warn};
 use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_error::Result;
+use reqwest::Url;
 use uuid::Uuid;
 
 use super::{
@@ -24,6 +26,7 @@ use super::{
 };
 use crate::{
     mutation_executor::FederationMutationExecutor,
+    mutation_http_client::{HttpMutationClient, HttpMutationConfig},
     saga_compensator::SagaCompensator,
     saga_executor::SagaExecutor,
     saga_store::{
@@ -40,13 +43,21 @@ use crate::{
 /// and persists real state.
 pub struct WiredSagaCoordinator {
     /// How a failed saga is rolled back.
-    strategy:    CompensationStrategy,
+    strategy:      CompensationStrategy,
     /// Persistent saga store (shared with `executor`/`compensator`).
-    store:       Arc<PostgresSagaStore>,
+    store:         Arc<PostgresSagaStore>,
     /// Forward-phase executor over `store`.
-    executor:    SagaExecutor,
+    executor:      SagaExecutor,
     /// Compensation-phase executor over `store`.
-    compensator: SagaCompensator,
+    compensator:   SagaCompensator,
+    /// Registered remote peers: subgraph name → validated base URL. A step whose
+    /// `subgraph` matches an entry is dispatched over HTTPS (via `http_client`)
+    /// instead of the local SQL adapter. Empty by default (local-only).
+    subgraph_urls: HashMap<String, Url>,
+    /// HTTP client for remote step dispatch. `None` = local-only; a step whose
+    /// subgraph resolves to a registered URL is only dispatched remotely when a
+    /// client is configured, otherwise it falls through to the local path.
+    http_client:   Option<HttpMutationClient>,
 }
 
 impl WiredSagaCoordinator {
@@ -63,6 +74,8 @@ impl WiredSagaCoordinator {
             store,
             executor,
             compensator,
+            subgraph_urls: HashMap::new(),
+            http_client: None,
         }
     }
 
@@ -70,6 +83,83 @@ impl WiredSagaCoordinator {
     #[must_use]
     pub const fn strategy(&self) -> CompensationStrategy {
         self.strategy
+    }
+
+    /// Configure the HTTP client used to dispatch saga steps to remote subgraphs.
+    ///
+    /// Without a client the coordinator is local-only: every step runs against the
+    /// local SQL adapter regardless of any registered subgraph URL. The client is
+    /// built with the production SSRF posture (`https_only`, redirect-none, DNS
+    /// rebinding guard).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal)
+    /// if the HTTP client cannot be initialised.
+    pub fn with_http_client(mut self, config: HttpMutationConfig) -> Result<Self> {
+        self.http_client = Some(HttpMutationClient::new(config)?);
+        Ok(self)
+    }
+
+    /// Register a remote subgraph `name` at `url`, validating the URL immediately.
+    ///
+    /// A saga step whose `subgraph` field equals `name` is dispatched over HTTPS to
+    /// `url` (when an HTTP client is also configured) instead of the local SQL
+    /// adapter. The SSRF guard ([`crate::http_resolver::validate_subgraph_url`]) is
+    /// applied here — at registration, fail-loud-at-setup — so a misconfigured peer
+    /// is rejected before any saga runs; the DNS-rebinding check still runs per
+    /// dispatch inside the HTTP client. Registering the same `name` twice
+    /// overwrites the previous URL (last-write-wins).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal)
+    /// if `url` fails SSRF validation (non-`https`, loopback, or private/reserved
+    /// address).
+    pub fn with_subgraph(mut self, name: impl Into<String>, url: Url) -> Result<Self> {
+        crate::http_resolver::validate_subgraph_url(url.as_str())?;
+        self.subgraph_urls.insert(name.into(), url);
+        Ok(self)
+    }
+
+    /// Register a remote subgraph without SSRF validation (loopback mock testing).
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// Lets an integration test point a subgraph at a loopback mock server, which
+    /// [`Self::with_subgraph`] would reject. Pair with
+    /// [`Self::with_http_client_for_test`].
+    ///
+    /// **Never use in production** — this bypasses the SSRF registration guard.
+    #[cfg(any(test, feature = "test-utils"))]
+    #[must_use]
+    pub fn with_subgraph_unchecked(mut self, name: impl Into<String>, url: Url) -> Self {
+        self.subgraph_urls.insert(name.into(), url);
+        self
+    }
+
+    /// Configure an SSRF-bypassing HTTP client for loopback mock testing.
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// Builds the client via [`HttpMutationClient::new_for_test`] so remote
+    /// dispatch can reach a loopback mock subgraph over plain HTTP.
+    ///
+    /// **Never use in production** — this bypasses all SSRF protections.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal)
+    /// if the HTTP client cannot be initialised.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn with_http_client_for_test(mut self, config: HttpMutationConfig) -> Result<Self> {
+        self.http_client = Some(HttpMutationClient::new_for_test(config)?);
+        Ok(self)
+    }
+
+    /// The URL registered for subgraph `name`, if any (test-only inspection).
+    #[cfg(any(test, feature = "test-utils"))]
+    #[must_use]
+    pub fn subgraph_url(&self, name: &str) -> Option<&Url> {
+        self.subgraph_urls.get(name)
     }
 
     /// Create and persist a new saga from ordered `steps`, in state `Pending`.
@@ -164,7 +254,15 @@ impl WiredSagaCoordinator {
         saga_id: Uuid,
         mutation_executor: &FederationMutationExecutor<A>,
     ) -> SagaStoreResult<SagaResult> {
-        let results = self.executor.execute_saga_local(saga_id, mutation_executor).await?;
+        let results = self
+            .executor
+            .execute_saga_local(
+                saga_id,
+                mutation_executor,
+                &self.subgraph_urls,
+                self.http_client.as_ref(),
+            )
+            .await?;
 
         let total_steps =
             u32::try_from(self.store.load_saga_steps(saga_id).await?.len()).unwrap_or(u32::MAX);

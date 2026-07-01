@@ -629,11 +629,15 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
 		// #431 inbound webhook pipeline (atomic idempotency claim + transactional handoff + RLS vs real PG).
 		"cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1",
-		// #429 wired saga forward execution (unstable-saga): execute_saga orchestration +
-		// get_execution_state against the real Postgres saga store + entity mutations.
-		// --include-ignored runs the #[ignore]d PG tests (the SQLite execute_step proof
-		// in the same binary also runs here).
-		"cargo test -p fraiseql-federation --features unstable-saga --test saga_integration -- --include-ignored --test-threads=1",
+		// #429 wired saga forward execution + compensation + recovery + coordinator
+		// + remote dispatch (unstable-saga): orchestration, rollback, and crash
+		// recovery against the real Postgres saga store + entity mutations, plus the
+		// mixed local/remote coordinator path. --include-ignored runs the #[ignore]d
+		// PG tests (the SQLite execute_step proof in the same binary also runs here).
+		// test-utils is required by the remote_dispatch_pg module: the SSRF guard
+		// blocks a loopback mock peer, so the coordinator's *_for_test / _unchecked
+		// builders (compiled only under test-utils) drive the HTTP dispatch path.
+		"cargo test -p fraiseql-federation --features unstable-saga,test-utils --test saga_integration -- --include-ignored --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

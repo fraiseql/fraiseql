@@ -225,4 +225,90 @@ mod wired {
         assert!(result.data.is_none(), "a failed step must not fabricate result data");
         assert!(result.error.is_some(), "a failed step must carry the error: {result:?}");
     }
+
+    // ── Remote step dispatch via HttpMutationClient (#429 Phase 04) ────────────
+    //
+    // `dispatch_step(_, _, Some((client, url)))` routes the step over HTTP to a
+    // peer subgraph instead of the local SQL adapter. A `new_for_test` client
+    // skips the SSRF guard so the mock can be a loopback http server; the SQLite
+    // executor here only supplies federation metadata (its adapter is untouched on
+    // the remote path).
+
+    use reqwest::Url;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    use crate::mutation_http_client::{HttpMutationClient, HttpMutationConfig};
+
+    /// A remote mock subgraph returning `data.create` maps to a `success: true`
+    /// step carrying the mock's response entity — proving the step ran over HTTP,
+    /// not against the local adapter.
+    #[tokio::test]
+    async fn dispatch_step_remote_success_returns_mock_response() {
+        use fraiseql_db::traits::DatabaseAdapter;
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "create": { "__typename": "Order", "id": "remote-1" } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, adapter) = order_table_executor().await;
+        let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        // Create step; the store persists only the verb, so `create` is the op name.
+        let step = order_step(MutationType::Create, json!({"id": "remote-1", "total": "42"}));
+
+        let (result, state) =
+            SagaExecutor::dispatch_step(&mutation_executor, &step, Some((&client, &url))).await;
+
+        assert!(result.success, "a 200 mock response must succeed: {result:?}");
+        assert_eq!(state, StepState::Completed);
+        let data = result.data.expect("a successful remote step carries the mock entity");
+        assert_eq!(data["id"], "remote-1", "the remote response is returned, not a local row");
+
+        // The row must NOT exist locally — the step went over HTTP, not to SQLite.
+        let rows = adapter
+            .execute_raw_query("SELECT id FROM \"order\" WHERE id = 'remote-1'")
+            .await
+            .unwrap();
+        assert!(rows.is_empty(), "a remote step must not touch the local table");
+    }
+
+    /// A remote mock returning HTTP 500 maps to a real `success: false` step
+    /// (never fabricated success), with the error captured.
+    #[tokio::test]
+    async fn dispatch_step_remote_failure_reports_failure() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        // Single attempt with a tiny delay keeps the failure test fast.
+        let config = HttpMutationConfig {
+            timeout_ms:     2000,
+            max_retries:    1,
+            retry_delay_ms: 1,
+        };
+        let client = HttpMutationClient::new_for_test(config).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let step = order_step(MutationType::Create, json!({"id": "remote-x", "total": "1"}));
+
+        let (result, state) =
+            SagaExecutor::dispatch_step(&mutation_executor, &step, Some((&client, &url))).await;
+
+        assert!(!result.success, "a 500 mock response must fail the step: {result:?}");
+        assert_eq!(state, StepState::Failed);
+        assert!(result.data.is_none(), "a failed remote step fabricates no result data");
+        assert!(result.error.is_some(), "a failed remote step carries the error: {result:?}");
+    }
 }

@@ -63,9 +63,17 @@ pub use fraiseql_error::GraphQLError;
 /// HTTP client for executing mutations on remote subgraphs
 pub struct HttpMutationClient {
     /// HTTP client
-    client: Option<reqwest::Client>,
+    client:    Option<reqwest::Client>,
     /// Configuration
-    config: HttpMutationConfig,
+    config:    HttpMutationConfig,
+    /// Skip the SSRF URL validation before a mutation request.
+    ///
+    /// Only ever `true` in a `new_for_test` client (unit-test builds or the
+    /// `test-utils` feature) so integration tests can drive a loopback mock
+    /// subgraph over plain HTTP. `new` always sets it `false`, so the production
+    /// SSRF posture is unchanged. Mirrors `HttpEntityResolver::skip_ssrf`.
+    #[cfg(any(test, feature = "test-utils"))]
+    skip_ssrf: bool,
 }
 
 impl HttpMutationClient {
@@ -93,6 +101,41 @@ impl HttpMutationClient {
         Ok(Self {
             client: Some(client),
             config,
+            #[cfg(any(test, feature = "test-utils"))]
+            skip_ssrf: false,
+        })
+    }
+
+    /// Create a mutation client that skips SSRF URL validation.
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// The client is built *without* `https_only`, and `execute_mutation` skips
+    /// `validate_subgraph_url` / `dns_resolve_and_check`, so integration tests can
+    /// drive a loopback mock subgraph over plain HTTP without setting
+    /// process-global environment variables. Mirrors
+    /// [`crate::http_resolver::HttpEntityResolver::new_for_test`].
+    ///
+    /// **Never use in production** — this bypasses all SSRF protections.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_test(config: HttpMutationConfig) -> Result<Self> {
+        // No https_only in test mode so a loopback mock over http:// is reachable.
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_millis(config.timeout_ms))
+            .build()
+            .map_err(|e| FraiseQLError::Internal {
+                message: format!("HTTP client initialisation failed for mutation client: {e}"),
+                source:  None,
+            })?;
+
+        Ok(Self {
+            client: Some(client),
+            config,
+            skip_ssrf: true,
         })
     }
 
@@ -112,9 +155,19 @@ impl HttpMutationClient {
     ) -> Result<Value> {
         // SECURITY: Validate URL before any network contact to prevent SSRF.
         // Static scheme/host/literal-IP check, then the DNS-rebinding guard —
-        // parity with the entity resolver via the shared crate helpers.
-        crate::http_resolver::validate_subgraph_url(subgraph_url)?;
-        crate::http_resolver::dns_resolve_and_check(subgraph_url).await?;
+        // parity with the entity resolver via the shared crate helpers. In
+        // test/test-utils builds a `new_for_test` client may skip the guard to
+        // reach a loopback mock subgraph.
+        #[cfg(not(any(test, feature = "test-utils")))]
+        {
+            crate::http_resolver::validate_subgraph_url(subgraph_url)?;
+            crate::http_resolver::dns_resolve_and_check(subgraph_url).await?;
+        }
+        #[cfg(any(test, feature = "test-utils"))]
+        if !self.skip_ssrf {
+            crate::http_resolver::validate_subgraph_url(subgraph_url)?;
+            crate::http_resolver::dns_resolve_and_check(subgraph_url).await?;
+        }
 
         let client = self.client.as_ref().ok_or_else(|| FraiseQLError::Internal {
             message: "HTTP client not initialized".to_string(),
@@ -192,10 +245,19 @@ impl HttpMutationClient {
 
         if let Some(obj) = variables.as_object() {
             for key in obj.keys() {
-                // Infer type from value (simplified)
+                // Infer type from value (simplified). A fractional JSON number
+                // must be typed `Float!`, not `Int!` — a saga step carrying a
+                // Float input (e.g. a price) otherwise produces a variable
+                // definition the remote subgraph rejects (#429).
                 let var_type = match &obj[key] {
                     Value::String(_) => "String!",
-                    Value::Number(_) => "Int!",
+                    Value::Number(n) => {
+                        if n.is_f64() {
+                            "Float!"
+                        } else {
+                            "Int!"
+                        }
+                    },
                     Value::Bool(_) => "Boolean!",
                     Value::Null => "String",
                     _ => "JSON", // Use generic JSON type for complex types

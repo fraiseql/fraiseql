@@ -135,6 +135,18 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
         }
     }
 
+    /// The federation metadata this executor resolves entity types against.
+    ///
+    /// Used by the saga remote-dispatch path
+    /// ([`SagaExecutor::dispatch_step`](crate::saga_executor::SagaExecutor)) to
+    /// build the outgoing GraphQL mutation and project its response — the same
+    /// metadata the local path uses to locate the entity table.
+    #[cfg(feature = "unstable-saga")]
+    #[must_use]
+    pub(crate) const fn metadata(&self) -> &FederationMetadata {
+        &self.metadata
+    }
+
     /// Execute a mutation on a locally-owned entity.
     ///
     /// # Arguments

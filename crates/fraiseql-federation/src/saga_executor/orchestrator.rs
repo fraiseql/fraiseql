@@ -70,12 +70,16 @@ impl SagaExecutor {
 /// methods, gated behind `unstable-saga` until proven.
 #[cfg(feature = "unstable-saga")]
 mod wired {
+    use std::collections::HashMap;
+
     use fraiseql_db::traits::DatabaseAdapter;
+    use reqwest::Url;
     use uuid::Uuid;
 
     use super::super::{ExecutionState, SagaExecutor, StepExecutionResult, forward};
     use crate::{
         mutation_executor::FederationMutationExecutor,
+        mutation_http_client::HttpMutationClient,
         saga_store::{Result as SagaStoreResult, SagaState, SagaStoreError, StepState},
     };
 
@@ -96,6 +100,14 @@ mod wired {
         ///
         /// * `saga_id` - ID of saga to execute
         /// * `mutation_executor` - Local mutation transport for the steps' subgraph
+        /// * `subgraph_urls` - Registered remote peers (subgraph name → base URL); a step whose
+        ///   `subgraph` matches an entry is dispatched over HTTPS
+        /// * `http_client` - HTTP client for remote dispatch; `None` = local-only
+        ///
+        /// A step is dispatched remotely only when **both** an `http_client` is
+        /// present **and** its `subgraph` resolves to a registered URL; otherwise
+        /// it falls through to the local SQL adapter, so mixed local/remote sagas
+        /// exercise both paths in one run.
         ///
         /// # Errors
         ///
@@ -106,6 +118,8 @@ mod wired {
             &self,
             saga_id: Uuid,
             mutation_executor: &FederationMutationExecutor<A>,
+            subgraph_urls: &HashMap<String, Url>,
+            http_client: Option<&HttpMutationClient>,
         ) -> SagaStoreResult<Vec<StepExecutionResult>> {
             let store = self.store.as_ref().ok_or_else(|| {
                 SagaStoreError::Database(
@@ -125,7 +139,11 @@ mod wired {
             for step in &steps {
                 store.update_saga_step_state(step.id, &StepState::Executing).await?;
 
-                let (result, state) = Self::dispatch_step(mutation_executor, step).await;
+                // Route to the remote HTTP client only when a client is configured
+                // and the step's subgraph names a registered peer; otherwise local.
+                let remote = http_client
+                    .and_then(|client| subgraph_urls.get(&step.subgraph).map(|url| (client, url)));
+                let (result, state) = Self::dispatch_step(mutation_executor, step, remote).await;
 
                 // Persist the real post-mutation entity only on success; a failed
                 // step is marked Failed and carries no fabricated result payload.

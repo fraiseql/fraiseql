@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga steps can now be dispatched to remote subgraphs over HTTPS under
+  `unstable-saga` (#429).** `WiredSagaCoordinator` gained a subgraph registry:
+  `with_http_client(config)` configures an SSRF-protected `HttpMutationClient`, and
+  `with_subgraph(name, url)` registers a peer (validating the URL at registration —
+  fail-loud-at-setup). During `execute_saga`, a step whose `subgraph` field names a
+  registered peer is dispatched over HTTPS via `HttpMutationClient::execute_mutation`
+  instead of the local SQL adapter; steps with no matching peer (or when no HTTP client
+  is configured) fall through to the local path, so a single saga can mix local and
+  remote steps. The dispatch honours the "never fabricate" contract — a remote mutation
+  error (HTTP failure or GraphQL error) becomes a real failed step, never a fabricated
+  success. Remote *compensation* still runs via the local executor (a remote rollback
+  path is future work). Requires the `unstable-saga` Cargo feature; the API may change
+  without semver guarantees.
 - **Saga coordinator facade is now wired under `unstable-saga` (#429).** A new
   `WiredSagaCoordinator` ties forward execution and compensation into a single handle over
   a `PostgresSagaStore`: `create_saga` validates and persists a saga (`Pending`) with each
@@ -70,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Federation `HttpMutationClient` now infers `Float!` for fractional variables
+  (#429).** `build_variable_definitions` typed every JSON number `Int!`, so a mutation
+  variable carrying a fractional value (e.g. a price `9.99`) produced `$price: Int!` and
+  the remote subgraph rejected the variable. Fractional numbers are now typed `Float!`;
+  whole numbers stay `Int!`.
 - **Introspection policy is now enforced on the GraphQL execution path.** The
   `IntrospectionEnforcer` existed but was never wired in, so a `disabled`/role-gated
   introspection policy had no effect over GraphQL (#453). It is now applied in
