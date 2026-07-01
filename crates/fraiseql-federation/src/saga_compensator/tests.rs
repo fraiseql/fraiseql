@@ -114,14 +114,20 @@ async fn get_compensation_status_without_store_is_none() {
 /// reached.
 #[cfg(feature = "unstable-saga")]
 mod wired {
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     use fraiseql_db::sqlite::SqliteAdapter;
+    use reqwest::Url;
     use serde_json::json;
     use uuid::Uuid;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{body_string_contains, method, path},
+    };
 
     use crate::{
         mutation_executor::FederationMutationExecutor,
+        mutation_http_client::{HttpMutationClient, HttpMutationConfig},
         saga_compensator::SagaCompensator,
         saga_store::{MutationType, SagaStep, SagaStoreError, StepState},
         types::{FederatedType, FederationMetadata, KeyDirective},
@@ -177,7 +183,7 @@ mod wired {
     async fn compensate_step_local_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
         let executor = order_executor().await;
-        let result = compensator.compensate_step_local(&executor, &completed_step()).await;
+        let result = compensator.compensate_step_local(&executor, &completed_step(), None).await;
         assert!(
             matches!(result, Err(SagaStoreError::Database(_))),
             "compensate_step_local without a store must fail loud, never no-op: {result:?}"
@@ -188,10 +194,91 @@ mod wired {
     async fn compensate_saga_local_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
         let executor = order_executor().await;
-        let result = compensator.compensate_saga_local(Uuid::new_v4(), &executor).await;
+        let result = compensator
+            .compensate_saga_local(Uuid::new_v4(), &executor, &HashMap::new(), None)
+            .await;
         assert!(
             matches!(result, Err(SagaStoreError::Database(_))),
             "compensate_saga_local without a store must fail loud, never no-op: {result:?}"
+        );
+    }
+
+    // ── Remote (HTTP) compensation dispatch (#429 hardening Phase 02) ───────────
+    //
+    // `dispatch_compensation(_, step, Some((client, url)))` rolls a step back over
+    // HTTP to the peer subgraph instead of the local SQL adapter — the compensation
+    // analog of the forward `dispatch_step` remote path. It is store-free (the
+    // persisting `compensate_step_local` / `compensate_saga_local` are proven on
+    // live PostgreSQL in `tests/saga_integration.rs`), so these run in the fast leg.
+    // A `new_for_test` client skips the SSRF guard to reach a loopback mock.
+
+    /// A remote mock returning `data.deleteOrder` maps to a `success: true`
+    /// compensation carrying the mock entity — proving the inverse ran over HTTP,
+    /// and that the full `compensation_mutation` name (`deleteOrder`) is sent.
+    #[tokio::test]
+    async fn dispatch_compensation_remote_success_rolls_back_over_http() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .and(body_string_contains("deleteOrder"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "deleteOrder": { "__typename": "Order", "id": "o1" } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let executor = order_executor().await;
+        let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+
+        let result = SagaCompensator::dispatch_compensation(
+            &executor,
+            &completed_step(),
+            Some((&client, &url)),
+        )
+        .await;
+
+        assert!(result.success, "a 200 remote compensation must succeed: {result:?}");
+        let data = result.data.expect("a successful remote compensation carries the mock entity");
+        assert_eq!(data["id"], "o1", "the remote inverse response is returned");
+        // `.expect(1)` on the `deleteOrder`-body matcher asserts the op went over HTTP.
+    }
+
+    /// A remote mock returning HTTP 500 maps to a real `success: false` compensation
+    /// (never a fabricated rollback, audit H33), with the error captured — the saga
+    /// driver reports this step as an un-compensated miss.
+    #[tokio::test]
+    async fn dispatch_compensation_remote_failure_is_not_fabricated() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let executor = order_executor().await;
+        // Single attempt with a tiny delay keeps the failure test fast.
+        let config = HttpMutationConfig {
+            timeout_ms:     2000,
+            max_retries:    1,
+            retry_delay_ms: 1,
+        };
+        let client = HttpMutationClient::new_for_test(config).unwrap();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+
+        let result = SagaCompensator::dispatch_compensation(
+            &executor,
+            &completed_step(),
+            Some((&client, &url)),
+        )
+        .await;
+
+        assert!(!result.success, "a 500 remote compensation must fail: {result:?}");
+        assert!(result.data.is_none(), "a failed remote compensation fabricates no data");
+        assert!(
+            result.error.is_some(),
+            "a failed remote compensation carries the error: {result:?}"
         );
     }
 }
