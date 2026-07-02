@@ -1,4 +1,4 @@
-//! Wired saga coordinator (the `unstable-saga` feature).
+//! Wired saga coordinator (the `saga` feature).
 //!
 //! Ties the three already-wired subsystems — forward execution
 //! ([`SagaExecutor::execute_saga_local`]), compensation
@@ -10,8 +10,10 @@
 //! Additive by design: the loud-fail [`SagaCoordinator`](super::SagaCoordinator)
 //! and its contract tests are untouched. This type carries the `store`, `executor`,
 //! and `compensator` the loud-fail coordinator never had, so its methods are the
-//! real thing — no stub shares their names. Remote (HTTP) step dispatch is Phase 04;
-//! every mutation here runs against the local SQL adapter.
+//! real thing — no stub shares their names. A step runs against the local SQL adapter,
+//! or over HTTPS to a registered peer subgraph (`with_http_client` / `with_subgraph`,
+//! optionally mTLS) for both forward dispatch and compensation; `with_entity_resolver`
+//! enables cross-subgraph `@requires` pre-fetch.
 
 use std::{collections::HashMap, sync::Arc};
 

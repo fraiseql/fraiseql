@@ -239,6 +239,9 @@ impl SagaRecoveryManager {
     /// # Errors
     ///
     /// Always returns [`SagaStoreError::NotImplemented`].
+    #[deprecated(note = "saga crash recovery is wired under the `saga` feature: use \
+                SagaRecoveryManager::start_background_loop_local. This placeholder only ever \
+                returned NotImplemented and will be removed in a future major.")]
     pub async fn start_background_loop(&self) -> SagaStoreResult<()> {
         info!("Saga recovery loop requested but distributed saga recovery is unwired");
         Err(SagaStoreError::NotImplemented {
@@ -286,6 +289,9 @@ impl SagaRecoveryManager {
     /// # Errors
     ///
     /// Always returns [`SagaStoreError::NotImplemented`].
+    #[deprecated(note = "saga crash recovery is wired under the `saga` feature: use \
+                SagaRecoveryManager::run_iteration_local. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major.")]
     pub async fn run_iteration(&self) -> SagaStoreResult<()> {
         info!("Saga recovery iteration requested but distributed saga recovery is unwired");
         Err(SagaStoreError::NotImplemented {
@@ -294,16 +300,17 @@ impl SagaRecoveryManager {
     }
 }
 
-/// Wired recovery loop (the `unstable-saga` feature).
+/// Wired recovery loop (the `saga` feature).
 ///
 /// Additive: the fail-loud [`SagaRecoveryManager::run_iteration`] /
 /// [`SagaRecoveryManager::start_background_loop`] above keep their signatures and
 /// behaviour in every build (the audit `M-saga-recovery` contract exercises them).
-/// The real crash-recovery driver is exposed as the `*_local` methods — they replay
-/// crash-interrupted sagas through the local [`SagaExecutor::execute_saga_local`]
-/// forward path — gated behind `unstable-saga` until proven. Remote saga recovery
-/// rides on Phase 04's remote dispatch.
-#[cfg(feature = "unstable-saga")]
+/// The real crash-recovery driver is exposed as the `*_local` methods (gated behind
+/// the `saga` feature): they claim stuck sagas under a lease via `SELECT … FOR UPDATE
+/// SKIP LOCKED` and replay them through [`SagaExecutor::execute_saga_local`]. Recovery
+/// replay is local-only — it passes no subgraph registry / HTTP client — so re-driving a
+/// crash-interrupted *remote* step is deferred (documented on `recover_one`).
+#[cfg(feature = "saga")]
 mod wired {
     use std::sync::{Arc, atomic::Ordering};
 

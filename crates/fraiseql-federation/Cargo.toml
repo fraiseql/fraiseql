@@ -38,7 +38,7 @@ zeroize = "1.8"
 [dev-dependencies]
 # SQLite proves wired saga forward execution (#429) against a real
 # `DatabaseAdapter` with no external service; Postgres backs the saga store +
-# entity-mutation orchestration integration tests (`unstable-saga`, ignored).
+# entity-mutation orchestration integration tests (`saga`, ignored).
 fraiseql-db = {workspace = true, default-features = false, features = ["sqlite", "postgres"]}
 chrono = {workspace = true}
 criterion = {version = "0.5", features = ["html_reports"]}
@@ -59,21 +59,24 @@ test-utils = []
 # #
 # # These APIs may change without semver guarantees.
 unstable = []
-# # Enable real distributed saga execution (#429).
+# # Enable distributed saga execution (#429).
 # #
-# # Without this feature every saga entry point fails loud with
-# # `SagaStoreError::NotImplemented` (the audit H32/H33 honesty contract). With it,
-# # the wired `*_local` methods dispatch real mutations, persist real state, and
+# # Opt-in but **stable**: the API exposed by this feature is covered by semver
+# # (it will not change without a major version bump). It is opt-in so that builds
+# # that do not orchestrate cross-subgraph transactions are not forced to compile
+# # the Postgres saga store and its dependencies.
+# #
+# # With it, the wired methods dispatch real mutations, persist real state, and
 # # never fabricate success: forward execution (`SagaExecutor`), compensation
 # # (`SagaCompensator`), crash recovery (`SagaRecoveryManager`), and the
 # # `WiredSagaCoordinator` facade — including remote step dispatch over HTTPS to a
-# # registered peer subgraph via `HttpMutationClient`, and cross-subgraph
-# # `@requires` pre-fetch (a step's required fields are fetched from their owning
-# # subgraph and merged into its mutation variables before dispatch). The published
-# # fail-loud placeholder methods are unchanged in every build.
-# #
-# # Unproven in production — the API may change without semver guarantees.
-unstable-saga = []
+# # registered peer subgraph via `HttpMutationClient` (with optional mutual TLS),
+# # and cross-subgraph `@requires` pre-fetch (a step's required fields are fetched
+# # from their owning subgraph and merged into its mutation variables before
+# # dispatch). The legacy fail-loud placeholder methods (`SagaCoordinator` and the
+# # `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` stubs) are `#[deprecated]`
+# # and always return `SagaStoreError::NotImplemented`.
+saga = []
 
 [lints]
 workspace = true

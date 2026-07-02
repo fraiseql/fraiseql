@@ -5,12 +5,12 @@
 //! deriving the terminal [`SagaState`] from the per-step results. Keeping them
 //! pure lets their unit tests run in the fast `test` leg on every push, so the
 //! "never fabricate success" contract is covered independently of a live
-//! database and of the `unstable-saga` feature.
+//! database and of the `saga` feature.
 //!
 //! They are consumed only by the feature-gated wired executor, so without
-//! `unstable-saga` they are dead in a non-test build — hence the module-level
+//! `saga` they are dead in a non-test build — hence the module-level
 //! `allow(dead_code)` for that configuration (the established `#428` pattern).
-#![cfg_attr(not(feature = "unstable-saga"), allow(dead_code))]
+#![cfg_attr(not(feature = "saga"), allow(dead_code))]
 
 use fraiseql_error::Result;
 use serde_json::Value;

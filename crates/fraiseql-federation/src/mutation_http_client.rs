@@ -406,7 +406,7 @@ impl HttpMutationClient {
 /// HTTP client is configured **and** the step's `subgraph` names a registered
 /// peer URL; `None` (dispatch locally) otherwise. Shared by saga forward
 /// execution and compensation so both route a step to the same peer identically.
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 pub(crate) fn resolve_remote<'a>(
     subgraph: &str,
     http_client: Option<&'a HttpMutationClient>,

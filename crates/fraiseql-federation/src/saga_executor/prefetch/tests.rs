@@ -3,7 +3,7 @@
 //! These cover the I/O-free logic — building the representation, extracting the
 //! field, merging the value, and shaping the pre-dispatch failure — so the
 //! "never dispatch with missing inputs" contract is exercised on every push,
-//! independent of a live database, a mock subgraph, or the `unstable-saga` feature.
+//! independent of a live database, a mock subgraph, or the `saga` feature.
 #![allow(clippy::unwrap_used, clippy::float_cmp)] // Reason: test code
 
 use serde_json::json;

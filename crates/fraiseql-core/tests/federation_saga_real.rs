@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(deprecated)] // Reason: saga contract tests pin the deprecated loud-fail placeholder behaviour
 //! Real integration tests for the [`SagaCoordinator`], [`SagaExecutor`], and [`SagaCompensator`].
 //!
 //! All tests operate against the production API from [`fraiseql_core::federation`].

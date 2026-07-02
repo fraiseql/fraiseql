@@ -86,11 +86,11 @@ use crate::saga_store::{RequiredField, Result as SagaStoreResult, SagaState};
 mod coordination;
 
 /// Wired coordinator that ties forward execution, compensation, and recovery into
-/// a single handle (the `unstable-saga` feature). Additive: the loud-fail
+/// a single handle (the `saga` feature). Additive: the loud-fail
 /// [`SagaCoordinator`] below keeps its signatures and behaviour in every build.
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod wired;
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 pub use wired::WiredSagaCoordinator;
 
 /// Represents a saga step mutation to execute
@@ -318,6 +318,11 @@ impl SagaCoordinator {
     /// ];
     /// let saga_id = coordinator.create_saga(steps).await?;
     /// ```
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         validate_step_sequence(&steps)?;
 
@@ -348,6 +353,11 @@ impl SagaCoordinator {
     ///
     /// Always returns
     /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(
             saga_id = %saga_id,
@@ -376,6 +386,11 @@ impl SagaCoordinator {
     ///
     /// Always returns
     /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
         info!(
             saga_id = %saga_id,
@@ -396,6 +411,11 @@ impl SagaCoordinator {
     /// # Errors
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable or cancellation fails.
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga cancellation requested but coordination is unwired");
 
@@ -416,6 +436,11 @@ impl SagaCoordinator {
     /// # Errors
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable.
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         debug!(saga_id = %saga_id, "Saga result queried but coordination is unwired");
 
@@ -431,6 +456,11 @@ impl SagaCoordinator {
     /// # Errors
     ///
     /// Returns `SagaStoreError` if the saga store is unreachable.
+    #[deprecated(
+        note = "saga coordination is wired under the `saga` feature: use WiredSagaCoordinator. \
+                This placeholder only ever returned NotImplemented and will be removed in a \
+                future major."
+    )]
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
         // Previously returned an empty list without ever querying the store, so a
         // caller could not distinguish "no sagas" from "never checked"

@@ -20,7 +20,7 @@ Started via `make db-up` (uses `docker/docker-compose.test.yml`):
 
 | Service | Image | Port | Used By |
 |---------|-------|------|---------|
-| PostgreSQL | postgres:16-alpine | 5433 | Core DB tests, server, observers, federation (incl. `unstable-saga` integration tests) |
+| PostgreSQL | postgres:16-alpine | 5433 | Core DB tests, server, observers, federation (incl. `saga` integration tests) |
 | MySQL | mysql:8.0 | 3307 | Core DB tests, cross-DB parity |
 | SQL Server | mssql/server:2022 | 1434 | Core DB tests |
 | Redis | redis:7-alpine | 6379 | APQ, caching, queue, rate limiting, PKCE |

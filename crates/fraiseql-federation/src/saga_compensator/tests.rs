@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
 use super::*;
 use crate::saga_store::SagaStoreError;
 
@@ -106,13 +107,13 @@ async fn get_compensation_status_without_store_is_none() {
     assert!(status.is_none(), "no store should yield no status");
 }
 
-/// Wired compensation (`unstable-saga`). The store-backed rollback paths are proven
+/// Wired compensation (`saga`). The store-backed rollback paths are proven
 /// end-to-end against real PostgreSQL in `tests/saga_integration.rs`; here we pin
 /// the store-absent contract without any external service — a compensator with no
 /// store fails loud (never a silent no-op) before touching the executor. The
 /// executor is an in-memory SQLite one purely to satisfy the type; it is never
 /// reached.
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod wired {
     use std::{collections::HashMap, sync::Arc};
 

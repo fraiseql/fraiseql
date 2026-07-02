@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::print_stderr)] // Reason: DB-gated tests print a skip notice to stderr
+#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
 use super::*;
 
 #[test]

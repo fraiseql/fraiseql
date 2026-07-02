@@ -23,6 +23,11 @@ impl SagaExecutor {
     /// # Errors
     ///
     /// Always returns [`SagaStoreError::NotImplemented`].
+    #[deprecated(
+        note = "saga forward execution is wired under the `saga` feature: use \
+                SagaExecutor::execute_saga_local. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major."
+    )]
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
         info!(
             saga_id = %saga_id,
@@ -50,6 +55,11 @@ impl SagaExecutor {
     /// # Errors
     ///
     /// Always returns [`SagaStoreError::NotImplemented`].
+    #[deprecated(
+        note = "saga execution-state queries are wired under the `saga` feature: use \
+                SagaExecutor::execution_state. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major."
+    )]
     pub async fn get_execution_state(&self, saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
         info!(
             saga_id = %saga_id,
@@ -62,13 +72,13 @@ impl SagaExecutor {
     }
 }
 
-/// Wired forward-phase orchestration (the `unstable-saga` feature).
+/// Wired forward-phase orchestration (the `saga` feature).
 ///
 /// Additive: the fail-loud `execute_saga` / `get_execution_state` above keep their
 /// signatures and behaviour in every build (the `#429` acceptance spec exercises
 /// them). The real orchestration + state query are the `*_local` / `execution_state`
-/// methods, gated behind `unstable-saga` until proven.
-#[cfg(feature = "unstable-saga")]
+/// methods, gated behind `saga` until proven.
+#[cfg(feature = "saga")]
 mod wired {
     use std::collections::HashMap;
 
