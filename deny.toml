@@ -23,8 +23,12 @@ ignore = [
   # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status; escalate if still blocked.
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path; deadline 2026-10-01"},
   # rustls-pemfile: blocked on upstream bollard migration from pem 0.x to rustls-pem.
-  # deadline: 2026-07-01 — check bollard release cadence; drop bollard if unmaintained.
-  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem; deadline 2026-07-01"},
+  # Re-evaluated 2026-07-02: rustls-pemfile 2.2.0 is a DEV-dependency only (fraiseql-wire
+  # test deps / bollard test infra) — no production runtime exposure; low-severity
+  # deprecated/unmaintained-crate advisory. bollard 0.20 still pins pem 0.x upstream.
+  # deadline: 2026-10-01 — re-check bollard release cadence at the next dep sweep; drop
+  # bollard or migrate off rustls-pemfile if still blocked.
+  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile deprecated-crate advisory; DEV-dependency only (fraiseql-wire test deps / bollard), no production exposure; deadline 2026-10-01"},
   # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects optional aws-s3 feature only; no exploit path in default configuration.
   # 2026-06-11 spike: aws-config's HTTP-client features (default-https-client / client-hyper /

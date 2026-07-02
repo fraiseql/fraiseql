@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga compensation can now roll back remote steps over HTTPS under
+  `unstable-saga` (#429).** A step that executed against a registered peer subgraph
+  is now compensated on that same transport: `SagaCompensator::compensate_saga_local`
+  (and `compensate_step_local`) take the coordinator's subgraph registry + HTTP client
+  and dispatch each completed step's inverse mutation over HTTPS via
+  `HttpMutationClient` when its `subgraph` names a registered peer, otherwise against
+  the local SQL adapter — so a saga that mixed local and remote forward steps rolls
+  each one back on its own transport. `WiredSagaCoordinator`'s automatic-compensation
+  and `cancel_saga` paths thread the registry through. The "never fabricate a rollback"
+  contract still holds (audit H33): a remote inverse that errors leaves the step
+  un-compensated and the saga `PartiallyCompensated`, never a fabricated `Compensated`.
+  Forward execution and compensation now share one `resolve_remote` routing helper.
+  Requires the `unstable-saga` Cargo feature; the API may change without semver
+  guarantees.
 - **Saga steps now persist their full mutation name for remote dispatch (#429).**
   `tb_federation_saga_steps` gained a nullable `mutation_name` column (added
   idempotently by `migrate_schema`) carrying the exact GraphQL operation name

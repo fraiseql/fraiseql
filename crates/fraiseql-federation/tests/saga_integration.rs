@@ -468,7 +468,7 @@ mod wired_pg {
 
         // Compensate the single step.
         let compensator = SagaCompensator::with_store(Arc::clone(&store));
-        let result = compensator.compensate_step_local(&executor, &step).await.unwrap();
+        let result = compensator.compensate_step_local(&executor, &step, None).await.unwrap();
         assert!(result.success, "compensation must succeed: {result:?}");
         assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
 
@@ -547,7 +547,7 @@ mod wired_pg {
 
         // Compensate: only the completed step0 rolls back.
         let comp = SagaCompensator::with_store(Arc::clone(&store))
-            .compensate_saga_local(saga_id, &executor)
+            .compensate_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
         assert_eq!(comp.status, CompensationStatus::Compensated, "all completed steps rolled back");
@@ -607,7 +607,7 @@ mod wired_pg {
             .unwrap();
 
         let comp = SagaCompensator::with_store(Arc::clone(&store))
-            .compensate_saga_local(saga_id, &executor)
+            .compensate_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
         assert_eq!(
@@ -1366,7 +1366,7 @@ mod remote_dispatch_pg {
     use uuid::Uuid;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
+        matchers::{body_string_contains, method, path},
     };
 
     fn database_url() -> Option<String> {
@@ -1375,6 +1375,18 @@ mod remote_dispatch_pg {
 
     fn unique_typename() -> String {
         format!("sagaremote{}", Uuid::new_v4().simple())
+    }
+
+    /// A GraphQL response `{"data": {"<op>": {"__typename": <typename>, "id": <id>}}}`
+    /// with a runtime `op` key (`json!` treats a bare identifier as a literal key, so
+    /// the dynamic key is inserted via `serde_json::Map`).
+    fn op_response(op: &str, typename: &str, id: &str) -> serde_json::Value {
+        let mut entity = serde_json::Map::new();
+        entity.insert("__typename".to_string(), json!(typename));
+        entity.insert("id".to_string(), json!(id));
+        let mut data = serde_json::Map::new();
+        data.insert(op.to_string(), serde_json::Value::Object(entity));
+        json!({ "data": serde_json::Value::Object(data) })
     }
 
     fn entity_metadata(typename: &str) -> FederationMetadata {
@@ -1531,6 +1543,133 @@ mod remote_dispatch_pg {
             .await
             .unwrap();
         assert!(remote_rows.is_empty(), "the remote step never wrote to the local DB");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Phase 02: compensation routes over the same transport the forward step used.
+    /// A saga runs a local step and a remote step, then fails at a third step;
+    /// Automatic compensation rolls the remote step back over HTTPS (a
+    /// `delete{typename}` POST to the peer) and the local step back against the SQL
+    /// adapter. The saga reaches `Compensated` and the peer sees exactly one delete.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn compensation_rolls_remote_step_back_over_http() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let create_op = format!("create{typename}");
+        let delete_op = format!("delete{typename}");
+        let remote_id = format!("remote-{}", Uuid::new_v4());
+
+        // The peer answers both the forward create and the compensation delete, each
+        // keyed by the full op name the step sends and hit exactly once.
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .and(body_string_contains(create_op.clone()))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(op_response(&create_op, &typename, &remote_id)),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .and(body_string_contains(delete_op.clone()))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(op_response(&delete_op, &typename, &remote_id)),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_http_client_for_test(HttpMutationConfig::default())
+                .unwrap()
+                .with_subgraph_unchecked("remote-subgraph", peer_url);
+
+        // Step 1 local (creates a row), step 2 remote (create via peer), step 3 local
+        // update on a missing row → forward fails after two completed steps, so
+        // Automatic compensation rolls both back (remote step over HTTP, local via SQL).
+        let local_id = format!("local-{}", Uuid::new_v4());
+        let step1 = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            create_op.clone(),
+            json!({"id": local_id, "total": "1"}),
+            delete_op.clone(),
+            json!({"id": local_id}),
+        );
+        let step2 = SagaCoordinatorStep::new(
+            2,
+            "remote-subgraph",
+            typename.as_str(),
+            create_op.clone(),
+            json!({"id": remote_id, "total": "2"}),
+            delete_op.clone(),
+            json!({"id": remote_id}),
+        );
+        let step3 = SagaCoordinatorStep::new(
+            3,
+            "orders",
+            typename.as_str(),
+            format!("update{typename}"),
+            json!({"id": "missing", "total": "9"}),
+            delete_op.clone(),
+            json!({"id": "missing"}),
+        );
+        let saga_id = coordinator.create_saga(vec![step1, step2, step3]).await.unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(
+            result.state,
+            SagaState::Failed,
+            "a failed step leaves the result Failed: {result:?}"
+        );
+        assert!(
+            result.compensated,
+            "Automatic strategy compensated the completed steps: {result:?}"
+        );
+
+        // Both completed steps rolled back → saga persisted Compensated.
+        assert_eq!(
+            store.load_saga(saga_id).await.unwrap().unwrap().state,
+            SagaState::Compensated,
+            "all completed steps rolled back → Compensated"
+        );
+        let mut steps = store.load_saga_steps(saga_id).await.unwrap();
+        steps.sort_by_key(|s| s.order);
+        assert_eq!(steps[0].state, StepState::Compensated, "local step rolled back: {steps:?}");
+        assert_eq!(steps[1].state, StepState::Compensated, "remote step rolled back: {steps:?}");
+        assert_eq!(steps[2].state, StepState::Failed, "the failing step is untouched: {steps:?}");
+
+        // The peer was rolled back exactly once, over HTTP (a delete POST).
+        let requests = server.received_requests().await.unwrap();
+        let deletes = requests
+            .iter()
+            .filter(|r| String::from_utf8_lossy(&r.body).contains(delete_op.as_str()))
+            .count();
+        assert_eq!(deletes, 1, "the remote step was rolled back over HTTP exactly once");
+
+        // The local step's compensation deleted its row from the DB.
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let rows = adapter
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{local_id}'"))
+            .await
+            .unwrap();
+        assert!(rows.is_empty(), "the local step's compensation deleted its row");
 
         store.delete_saga(saga_id).await.unwrap();
     }

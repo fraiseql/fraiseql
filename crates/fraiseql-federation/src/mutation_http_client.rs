@@ -368,5 +368,18 @@ impl HttpMutationClient {
     }
 }
 
+/// Resolve the remote transport for a saga step: `Some((client, url))` when an
+/// HTTP client is configured **and** the step's `subgraph` names a registered
+/// peer URL; `None` (dispatch locally) otherwise. Shared by saga forward
+/// execution and compensation so both route a step to the same peer identically.
+#[cfg(feature = "unstable-saga")]
+pub(crate) fn resolve_remote<'a>(
+    subgraph: &str,
+    http_client: Option<&'a HttpMutationClient>,
+    subgraph_urls: &'a std::collections::HashMap<String, reqwest::Url>,
+) -> Option<(&'a HttpMutationClient, &'a reqwest::Url)> {
+    http_client.and_then(|client| subgraph_urls.get(subgraph).map(|url| (client, url)))
+}
+
 #[cfg(test)]
 mod tests;

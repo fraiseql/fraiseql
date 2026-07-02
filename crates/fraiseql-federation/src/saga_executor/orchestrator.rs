@@ -141,8 +141,11 @@ mod wired {
 
                 // Route to the remote HTTP client only when a client is configured
                 // and the step's subgraph names a registered peer; otherwise local.
-                let remote = http_client
-                    .and_then(|client| subgraph_urls.get(&step.subgraph).map(|url| (client, url)));
+                let remote = crate::mutation_http_client::resolve_remote(
+                    &step.subgraph,
+                    http_client,
+                    subgraph_urls,
+                );
                 let (result, state) = Self::dispatch_step(mutation_executor, step, remote).await;
 
                 // Persist the real post-mutation entity only on success; a failed

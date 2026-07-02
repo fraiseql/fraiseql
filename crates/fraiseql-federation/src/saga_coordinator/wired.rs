@@ -292,7 +292,14 @@ impl WiredSagaCoordinator {
         let compensated = match self.strategy {
             CompensationStrategy::Automatic => {
                 warn!(saga_id = %saga_id, "Saga failed; compensating completed steps");
-                self.compensator.compensate_saga_local(saga_id, mutation_executor).await?;
+                self.compensator
+                    .compensate_saga_local(
+                        saga_id,
+                        mutation_executor,
+                        &self.subgraph_urls,
+                        self.http_client.as_ref(),
+                    )
+                    .await?;
                 true
             },
             CompensationStrategy::Manual => {
@@ -398,7 +405,14 @@ impl WiredSagaCoordinator {
         // Roll back completed work before the Cancelled transition: the compensator
         // drives the saga through Compensating, so Cancelled must be written last.
         let compensated = if completed_steps > 0 {
-            self.compensator.compensate_saga_local(saga_id, mutation_executor).await?;
+            self.compensator
+                .compensate_saga_local(
+                    saga_id,
+                    mutation_executor,
+                    &self.subgraph_urls,
+                    self.http_client.as_ref(),
+                )
+                .await?;
             true
         } else {
             false
