@@ -114,6 +114,29 @@ impl WiredSagaCoordinator {
         Ok(self)
     }
 
+    /// Configure the remote-dispatch HTTP client with mutual-TLS (client-certificate)
+    /// authentication.
+    ///
+    /// Like [`Self::with_http_client`] but the client presents a client certificate
+    /// and trusts the configured root CA (see [`crate::tls::MtlsConfig`]), so saga
+    /// steps dispatched to a peer subgraph are mutually authenticated. When
+    /// `mtls.enabled` is false this is equivalent to `with_http_client`. Fails loud at
+    /// setup if mTLS is enabled but its certificate material is missing or malformed —
+    /// the client is never silently downgraded to one-way TLS.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal) if
+    /// the client cannot be initialised or the mTLS material cannot be loaded.
+    pub fn with_http_client_mtls(
+        mut self,
+        config: HttpMutationConfig,
+        mtls: &crate::tls::MtlsConfig,
+    ) -> Result<Self> {
+        self.http_client = Some(HttpMutationClient::new_with_mtls(config, mtls)?);
+        Ok(self)
+    }
+
     /// Register a remote subgraph `name` at `url`, validating the URL immediately.
     ///
     /// A saga step whose `subgraph` field equals `name` is dispatched over HTTPS to

@@ -83,26 +83,68 @@ impl HttpMutationClient {
     ///
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised.
     pub fn new(config: HttpMutationConfig) -> Result<Self> {
-        // Mutations are the state-changing (more dangerous) direction, so the
-        // client matches the entity resolver's SSRF posture:
-        // - `redirect(Policy::none())` so a 3xx from a compromised subgraph cannot bounce the
-        //   request to an un-validated internal target.
-        // - `https_only(true)` so plain http:// can never leave the client.
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .https_only(true)
-            .timeout(Duration::from_millis(config.timeout_ms))
-            .build()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("HTTP client initialisation failed for mutation client: {e}"),
-                source:  None,
-            })?;
-
+        let client = Self::build_client(&config, true, None)?;
         Ok(Self {
             client: Some(client),
             config,
             #[cfg(any(test, feature = "test-utils"))]
             skip_ssrf: false,
+        })
+    }
+
+    /// Create a mutation client with mutual-TLS (client-certificate) authentication.
+    ///
+    /// Builds the production client (SSRF posture: redirect-none, `https_only`) and
+    /// attaches the client identity + trusted root CA from `mtls` (see
+    /// [`crate::tls::MtlsMaterial`]). When `mtls.enabled` is false this is a no-op —
+    /// an ordinary [`Self::new`] client. Fails loud if mTLS is enabled but its
+    /// certificate material is missing or malformed: the client is never silently
+    /// downgraded to one-way TLS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the client cannot be initialised or the
+    /// mTLS material cannot be loaded/applied.
+    pub fn new_with_mtls(
+        config: HttpMutationConfig,
+        mtls: &crate::tls::MtlsConfig,
+    ) -> Result<Self> {
+        let client = Self::build_client(&config, true, Some(mtls))?;
+        Ok(Self {
+            client: Some(client),
+            config,
+            #[cfg(any(test, feature = "test-utils"))]
+            skip_ssrf: false,
+        })
+    }
+
+    /// Build the underlying reqwest client with the mutation-client SSRF posture and,
+    /// optionally, mutual-TLS material.
+    ///
+    /// Mutations are the state-changing (more dangerous) direction, so the client
+    /// matches the entity resolver's SSRF posture: `redirect(Policy::none())` so a 3xx
+    /// from a compromised subgraph cannot bounce the request to an un-validated
+    /// internal target, and (for production) `https_only(true)` so plain http:// can
+    /// never leave the client. `https_only` is false only for `new_for_test` (to reach
+    /// a loopback mock over http). `mtls = Some(cfg)` loads and applies the client
+    /// identity + root CA, failing loud on bad material.
+    fn build_client(
+        config: &HttpMutationConfig,
+        https_only: bool,
+        mtls: Option<&crate::tls::MtlsConfig>,
+    ) -> Result<reqwest::Client> {
+        let mut builder = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_millis(config.timeout_ms));
+        if https_only {
+            builder = builder.https_only(true);
+        }
+        if let Some(mtls_cfg) = mtls {
+            builder = crate::tls::MtlsMaterial::load(mtls_cfg)?.apply(builder)?;
+        }
+        builder.build().map_err(|e| FraiseQLError::Internal {
+            message: format!("HTTP client initialisation failed for mutation client: {e}"),
+            source:  None,
         })
     }
 
@@ -123,15 +165,7 @@ impl HttpMutationClient {
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(config: HttpMutationConfig) -> Result<Self> {
         // No https_only in test mode so a loopback mock over http:// is reachable.
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_millis(config.timeout_ms))
-            .build()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("HTTP client initialisation failed for mutation client: {e}"),
-                source:  None,
-            })?;
-
+        let client = Self::build_client(&config, false, None)?;
         Ok(Self {
             client: Some(client),
             config,
