@@ -76,8 +76,9 @@ mod wired {
     use reqwest::Url;
     use uuid::Uuid;
 
-    use super::super::{ExecutionState, SagaExecutor, StepExecutionResult, forward};
+    use super::super::{ExecutionState, SagaExecutor, StepExecutionResult, forward, prefetch};
     use crate::{
+        http_resolver::HttpEntityResolver,
         mutation_executor::FederationMutationExecutor,
         mutation_http_client::HttpMutationClient,
         saga_store::{Result as SagaStoreResult, SagaState, SagaStoreError, StepState},
@@ -101,13 +102,20 @@ mod wired {
         /// * `saga_id` - ID of saga to execute
         /// * `mutation_executor` - Local mutation transport for the steps' subgraph
         /// * `subgraph_urls` - Registered remote peers (subgraph name → base URL); a step whose
-        ///   `subgraph` matches an entry is dispatched over HTTPS
+        ///   `subgraph` matches an entry is dispatched over HTTPS, and a step's `@requires` fields
+        ///   are pre-fetched from their owning subgraph's URL here
         /// * `http_client` - HTTP client for remote dispatch; `None` = local-only
+        /// * `entity_resolver` - HTTP entity resolver for `@requires` pre-fetch; `None` disables
+        ///   pre-fetch, so a step that declares `@requires` fields fails loud before dispatch
         ///
         /// A step is dispatched remotely only when **both** an `http_client` is
         /// present **and** its `subgraph` resolves to a registered URL; otherwise
         /// it falls through to the local SQL adapter, so mixed local/remote sagas
-        /// exercise both paths in one run.
+        /// exercise both paths in one run. Before each step's mutation runs, any
+        /// `@requires` field it declares is resolved from its owning subgraph and
+        /// merged into the mutation variables; an unresolved field fails the step
+        /// **before** dispatch (a real `Failed` step that stops the saga and
+        /// triggers compensation, never a mutation with missing inputs — #429).
         ///
         /// # Errors
         ///
@@ -120,6 +128,7 @@ mod wired {
             mutation_executor: &FederationMutationExecutor<A>,
             subgraph_urls: &HashMap<String, Url>,
             http_client: Option<&HttpMutationClient>,
+            entity_resolver: Option<&HttpEntityResolver>,
         ) -> SagaStoreResult<Vec<StepExecutionResult>> {
             let store = self.store.as_ref().ok_or_else(|| {
                 SagaStoreError::Database(
@@ -146,10 +155,36 @@ mod wired {
                     http_client,
                     subgraph_urls,
                 );
-                // Retry/timeout policy (default: one attempt) wraps the dispatch so a
-                // transient step failure is retried before the saga gives up on it.
-                let (result, state) =
-                    self.dispatch_step_with_retry(mutation_executor, step, remote).await;
+
+                // Pre-fetch @requires fields (if any) and dispatch with the merged
+                // variables. An unresolved required field fails the step BEFORE its
+                // mutation runs — a real Failed step (never a mutation with missing
+                // inputs, #429) that stops the saga and triggers compensation like
+                // any other failure. Retry/timeout policy (default: one attempt)
+                // wraps the dispatch so a transient step failure is retried first.
+                let (result, state) = if step.required_fields.is_empty() {
+                    self.dispatch_step_with_retry(mutation_executor, step, remote).await
+                } else {
+                    match prefetch::resolve_required_fields(
+                        &step.required_fields,
+                        &step.variables,
+                        entity_resolver,
+                        subgraph_urls,
+                    )
+                    .await
+                    {
+                        Ok(merged_variables) => {
+                            let mut merged = step.clone();
+                            merged.variables = merged_variables;
+                            self.dispatch_step_with_retry(mutation_executor, &merged, remote).await
+                        },
+                        Err(error) => {
+                            let step_number =
+                                u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
+                            prefetch::prefetch_failure(step_number, &error)
+                        },
+                    }
+                };
 
                 // Persist the real post-mutation entity only on success; a failed
                 // step is marked Failed and carries no fabricated result payload.

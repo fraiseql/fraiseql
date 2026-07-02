@@ -23,6 +23,7 @@ fn step(order: usize, state: StepState, compensation_mutation: Option<&str>) -> 
         completed_at: None,
         compensation_mutation: compensation_mutation.map(ToString::to_string),
         compensation_variables: None,
+        required_fields: Vec::new(),
     }
 }
 

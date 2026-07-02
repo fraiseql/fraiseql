@@ -283,6 +283,42 @@ pub struct Saga {
     pub metadata:     Option<Value>,
 }
 
+/// A cross-subgraph field a saga step depends on (Apollo-Federation `@requires`).
+///
+/// Before the step's mutation runs, the coordinator fetches this field from the
+/// owning subgraph's `_entities` endpoint and merges it into the step's mutation
+/// variables. This lets a step whose input depends on data owned by another
+/// subgraph (e.g. a `chargeCard` step that `@requires product.price` from the
+/// catalog subgraph) run correctly in a distributed saga.
+///
+/// Sagas are *runtime-constructed* (via [`crate::saga_coordinator::SagaStep`]),
+/// not schema-authored, so the application building the saga supplies these specs
+/// directly. Each is persisted as JSONB alongside the step and resolved before
+/// dispatch — a field that cannot be resolved fails the step *before* its mutation
+/// runs, so a mutation never executes with missing inputs (#429).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+// Reason: `key` is a serde_json::Value (not `Eq` — a JSON number may be a float),
+// so `Eq` cannot be derived; `PartialEq` is enough for round-trip assertions.
+pub struct RequiredField {
+    /// Subgraph that owns the entity carrying this field. Must be a registered
+    /// peer of the coordinator; an unregistered subgraph is rejected at
+    /// `create_saga` time (fail-loud-at-setup).
+    pub subgraph:   String,
+    /// GraphQL type name of the entity to resolve (e.g. `Product`).
+    pub typename:   String,
+    /// Key fields identifying the entity — the federation representation, a JSON
+    /// object such as `{"id": "product-1"}`. Combined with `typename` to build the
+    /// `_entities` representation sent to the owning subgraph.
+    pub key:        Value,
+    /// Field to read from the resolved entity. A dotted path (e.g. `price` or
+    /// `dimensions.weight`) is traversed into the entity JSON; the first segment is
+    /// what the `_entities` selection requests.
+    pub field_path: String,
+    /// Mutation variable to populate with the fetched value (e.g. `price`).
+    pub target_var: String,
+}
+
 /// A single step within a distributed saga.
 #[derive(Debug, Clone)]
 pub struct SagaStep {
@@ -322,6 +358,11 @@ pub struct SagaStep {
     /// the compensator falls back to the step's forward `variables` (they carry
     /// the entity key needed by an inverse delete/update).
     pub compensation_variables: Option<Value>,
+    /// Cross-subgraph `@requires` fields to pre-fetch and merge into `variables`
+    /// before this step's mutation runs (empty = none). Persisted as JSONB; a
+    /// NULL column (pre-migration rows or steps created without any) loads as an
+    /// empty vector. See [`RequiredField`].
+    pub required_fields:        Vec<RequiredField>,
 }
 
 /// A crash-recovery record for a saga that could not complete normally.
@@ -487,12 +528,15 @@ impl PostgresSagaStore {
         // rollback and is skipped by the compensator (best-effort, #429).
         // `mutation_name` (also nullable, added idempotently) carries the full
         // remote operation name; NULL rows fall back to the mutation-kind verb.
+        // `required_fields` (nullable JSONB) carries the step's cross-subgraph
+        // `@requires` specs; NULL rows have none and skip pre-fetch.
         conn.execute(
             "
             ALTER TABLE tb_federation_saga_steps
                 ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
                 ADD COLUMN IF NOT EXISTS compensation_variables JSONB,
-                ADD COLUMN IF NOT EXISTS mutation_name TEXT
+                ADD COLUMN IF NOT EXISTS mutation_name TEXT,
+                ADD COLUMN IF NOT EXISTS required_fields JSONB
             ",
             &[],
         )
@@ -634,6 +678,19 @@ impl PostgresSagaStore {
             }
         })?;
 
+        // A NULL column (pre-migration rows, or steps with no @requires) loads as
+        // an empty vector; a stored-but-unparseable value fails loud rather than
+        // silently dropping the step's inputs (M-saga-store-defaults).
+        let required_fields = row
+            .get::<_, Option<Value>>(14)
+            .map(serde_json::from_value::<Vec<RequiredField>>)
+            .transpose()
+            .map_err(|e| SagaStoreError::CorruptStoredValue {
+                column: "required_fields".into(),
+                value:  e.to_string(),
+            })?
+            .unwrap_or_default();
+
         Ok(SagaStep {
             id: row.get(0),
             saga_id: row.get(1),
@@ -650,6 +707,7 @@ impl PostgresSagaStore {
             completed_at: row.get(10),
             compensation_mutation: row.get(11),
             compensation_variables: row.get(12),
+            required_fields,
         })
     }
 
@@ -781,7 +839,7 @@ impl PostgresSagaStore {
 
         let row = conn
             .query_opt(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fss.id = $1",
@@ -802,7 +860,7 @@ impl PostgresSagaStore {
 
         let rows = conn
             .query(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fs.id = $1
@@ -874,15 +932,25 @@ impl PostgresSagaStore {
         // Reason: step count bounded well below i32::MAX
         let step_number = step.order as i32;
 
+        // Serialize the @requires specs to JSONB; an empty list is stored NULL so
+        // it round-trips to an empty vector and matches pre-migration rows.
+        let required_fields: Option<Value> = if step.required_fields.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_value(&step.required_fields).map_err(|e| {
+                SagaStoreError::Database(format!("failed to serialize required_fields: {e}"))
+            })?)
+        };
+
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key
-        // compensation_mutation / compensation_variables / mutation_name are part
-        // of the immutable step definition, so — like variables/subgraph — they are
-        // written on INSERT but not touched by the ON CONFLICT update path (which
-        // only advances runtime state/result/completed_at).
+        // compensation_mutation / compensation_variables / mutation_name /
+        // required_fields are part of the immutable step definition, so — like
+        // variables/subgraph — they are written on INSERT but not touched by the
+        // ON CONFLICT update path (which only advances runtime state/result/completed_at).
         let affected = conn
             .execute(
-                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables, mutation_name)
-             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables, mutation_name, required_fields)
+             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
              FROM tb_federation_sagas fs
              WHERE fs.id = $2
              ON CONFLICT (id) DO UPDATE SET state = $8, result = $9, completed_at = $11, updated_at = $13",
@@ -903,6 +971,7 @@ impl PostgresSagaStore {
                     &step.compensation_mutation,
                     &step.compensation_variables,
                     &step.mutation_name,
+                    &required_fields,
                 ],
             )
             .await?;

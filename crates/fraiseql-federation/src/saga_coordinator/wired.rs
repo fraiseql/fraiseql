@@ -25,6 +25,7 @@ use super::{
     CompensationStrategy, SagaResult, SagaStatus, SagaStep, coordination, validate_step_sequence,
 };
 use crate::{
+    http_resolver::{HttpClientConfig, HttpEntityResolver},
     mutation_executor::FederationMutationExecutor,
     mutation_http_client::{HttpMutationClient, HttpMutationConfig},
     saga_compensator::SagaCompensator,
@@ -43,21 +44,26 @@ use crate::{
 /// and persists real state.
 pub struct WiredSagaCoordinator {
     /// How a failed saga is rolled back.
-    strategy:      CompensationStrategy,
+    strategy:        CompensationStrategy,
     /// Persistent saga store (shared with `executor`/`compensator`).
-    store:         Arc<PostgresSagaStore>,
+    store:           Arc<PostgresSagaStore>,
     /// Forward-phase executor over `store`.
-    executor:      SagaExecutor,
+    executor:        SagaExecutor,
     /// Compensation-phase executor over `store`.
-    compensator:   SagaCompensator,
+    compensator:     SagaCompensator,
     /// Registered remote peers: subgraph name → validated base URL. A step whose
     /// `subgraph` matches an entry is dispatched over HTTPS (via `http_client`)
     /// instead of the local SQL adapter. Empty by default (local-only).
-    subgraph_urls: HashMap<String, Url>,
+    subgraph_urls:   HashMap<String, Url>,
     /// HTTP client for remote step dispatch. `None` = local-only; a step whose
     /// subgraph resolves to a registered URL is only dispatched remotely when a
     /// client is configured, otherwise it falls through to the local path.
-    http_client:   Option<HttpMutationClient>,
+    http_client:     Option<HttpMutationClient>,
+    /// HTTP entity resolver used to pre-fetch a step's `@requires` fields from the
+    /// owning subgraph's `_entities` endpoint before dispatch. `None` = pre-fetch
+    /// disabled; a step that declares `@requires` fields then fails loud at
+    /// execution rather than dispatching with missing inputs.
+    entity_resolver: Option<HttpEntityResolver>,
 }
 
 impl WiredSagaCoordinator {
@@ -76,6 +82,7 @@ impl WiredSagaCoordinator {
             compensator,
             subgraph_urls: HashMap::new(),
             http_client: None,
+            entity_resolver: None,
         }
     }
 
@@ -134,6 +141,46 @@ impl WiredSagaCoordinator {
         mtls: &crate::tls::MtlsConfig,
     ) -> Result<Self> {
         self.http_client = Some(HttpMutationClient::new_with_mtls(config, mtls)?);
+        Ok(self)
+    }
+
+    /// Configure the HTTP entity resolver used to pre-fetch each step's `@requires`
+    /// fields before dispatch, optionally with mutual TLS.
+    ///
+    /// Without a resolver the coordinator does no pre-fetch: a step that declares
+    /// `@requires` fields fails loud at execution rather than dispatching a mutation
+    /// with missing inputs. The resolver is built with the production SSRF posture
+    /// (`https_only`, redirect-none, DNS rebinding guard); pass an [`crate::tls::MtlsConfig`]
+    /// to present a client certificate to the owning subgraph.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal)
+    /// if the HTTP client cannot be initialised or the mTLS material cannot be loaded.
+    pub fn with_entity_resolver(
+        mut self,
+        config: HttpClientConfig,
+        mtls: Option<&crate::tls::MtlsConfig>,
+    ) -> Result<Self> {
+        self.entity_resolver = Some(HttpEntityResolver::new(config, mtls)?);
+        Ok(self)
+    }
+
+    /// Configure an SSRF-bypassing entity resolver for loopback mock testing.
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// Builds the resolver via [`HttpEntityResolver::new_for_test`] so `@requires`
+    /// pre-fetch can reach a loopback mock subgraph over plain HTTP.
+    ///
+    /// **Never use in production** — this bypasses all SSRF protections.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Internal`](fraiseql_error::FraiseQLError::Internal)
+    /// if the HTTP client cannot be initialised.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn with_entity_resolver_for_test(mut self, config: HttpClientConfig) -> Result<Self> {
+        self.entity_resolver = Some(HttpEntityResolver::new_for_test(config)?);
         Ok(self)
     }
 
@@ -216,6 +263,21 @@ impl WiredSagaCoordinator {
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         validate_step_sequence(&steps)?;
 
+        // Fail loud at setup: a step that `@requires` a field from a subgraph that
+        // is not registered can never be pre-fetched, so reject the saga before any
+        // persistence rather than let it fail mid-execution (#429).
+        for step in &steps {
+            for required in &step.required_fields {
+                if !self.subgraph_urls.contains_key(&required.subgraph) {
+                    return Err(SagaStoreError::Database(format!(
+                        "step {} @requires field '{}' from unregistered subgraph '{}'; register \
+                         it with with_subgraph() before creating the saga",
+                        step.number, required.field_path, required.subgraph
+                    )));
+                }
+            }
+        }
+
         let saga_id = Uuid::new_v4();
         let saga = Saga {
             id:           saga_id,
@@ -266,6 +328,9 @@ impl WiredSagaCoordinator {
                 completed_at: None,
                 compensation_mutation,
                 compensation_variables,
+                // Persist the step's @requires specs so the forward phase can
+                // pre-fetch and merge them into the mutation variables.
+                required_fields: step.required_fields.clone(),
             };
             self.store.save_saga_step(&store_step).await?;
         }
@@ -300,6 +365,7 @@ impl WiredSagaCoordinator {
                 mutation_executor,
                 &self.subgraph_urls,
                 self.http_client.as_ref(),
+                self.entity_resolver.as_ref(),
             )
             .await?;
 

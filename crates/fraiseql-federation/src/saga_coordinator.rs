@@ -79,7 +79,7 @@
 use ::tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::saga_store::{Result as SagaStoreResult, SagaState};
+use crate::saga_store::{RequiredField, Result as SagaStoreResult, SagaState};
 
 /// Pure coordinator decision helpers (always compiled; see the module docs for why
 /// the logic lives outside the feature gate).
@@ -124,6 +124,11 @@ pub struct SagaStep {
     /// Variables for compensation mutation
     /// Must be able to identify and reverse the forward mutation
     pub compensation_variables: serde_json::Value,
+    /// Cross-subgraph `@requires` fields to pre-fetch before this step's mutation
+    /// runs (empty = none). Set with [`SagaStep::with_required_fields`]. Each is
+    /// resolved from its owning subgraph and merged into `variables` before
+    /// dispatch; an unresolved field fails the step before its mutation runs.
+    pub required_fields:        Vec<RequiredField>,
 }
 
 impl SagaStep {
@@ -172,7 +177,21 @@ impl SagaStep {
             variables,
             compensation_mutation: compensation_mutation.into(),
             compensation_variables,
+            required_fields: Vec::new(),
         }
+    }
+
+    /// Declare the cross-subgraph `@requires` fields this step depends on (builder).
+    ///
+    /// Each [`RequiredField`] is fetched from its owning subgraph's `_entities`
+    /// endpoint and merged into this step's mutation `variables` before dispatch.
+    /// The owning subgraphs must be registered on the coordinator
+    /// ([`WiredSagaCoordinator::with_subgraph`](crate::saga_coordinator::WiredSagaCoordinator::with_subgraph))
+    /// or `create_saga` rejects the saga at setup.
+    #[must_use]
+    pub fn with_required_fields(mut self, required_fields: Vec<RequiredField>) -> Self {
+        self.required_fields = required_fields;
+        self
     }
 }
 

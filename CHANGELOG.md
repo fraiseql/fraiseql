@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga steps can pre-fetch cross-subgraph `@requires` fields under
+  `unstable-saga` (#429).** A saga step may declare `RequiredField` specs
+  (`SagaCoordinatorStep::with_required_fields`): before the step's mutation runs,
+  each field is fetched from its owning subgraph's `_entities` endpoint (via the
+  resolver configured with `WiredSagaCoordinator::with_entity_resolver`) and merged
+  into the step's mutation variables — so a step whose input depends on data owned
+  by another subgraph (e.g. a step that `@requires product.price` from the catalog
+  subgraph) runs correctly in a distributed saga. Sagas are runtime-constructed, so
+  the application supplies these specs directly; they are persisted in a new nullable
+  `required_fields` JSONB column on `tb_federation_saga_steps` (added idempotently by
+  `migrate_schema`). A step that `@requires` a field from an unregistered subgraph is
+  rejected at `create_saga` (fail-loud-at-setup); a field that cannot be resolved at
+  execution fails the step **before** its mutation runs — a real `Failed` step that
+  triggers compensation, never a mutation dispatched with missing inputs (audit H32).
+  Requires the `unstable-saga` Cargo feature; the API may change without semver
+  guarantees.
+
 - **Saga remote dispatch supports mutual TLS under `unstable-saga` (#429).**
   `WiredSagaCoordinator::with_http_client_mtls` (backed by
   `HttpMutationClient::new_with_mtls`) configures the remote-dispatch HTTP client to

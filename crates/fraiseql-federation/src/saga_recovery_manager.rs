@@ -428,9 +428,16 @@ mod wired {
 
             // Recovery replays through the local dispatch path only: crash recovery
             // re-drives steps against the local SQL adapter (remote saga recovery is
-            // future work), so no subgraph registry / HTTP client is passed.
+            // future work), so no subgraph registry / HTTP client / @requires entity
+            // resolver is passed.
             saga_executor
-                .execute_saga_local(saga.id, executor, &std::collections::HashMap::new(), None)
+                .execute_saga_local(
+                    saga.id,
+                    executor,
+                    &std::collections::HashMap::new(),
+                    None,
+                    None,
+                )
                 .await?;
             Ok(())
         }
