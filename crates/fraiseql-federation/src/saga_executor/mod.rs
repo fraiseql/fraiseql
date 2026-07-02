@@ -83,6 +83,7 @@ use crate::saga_store::PostgresSagaStore;
 
 mod forward;
 mod orchestrator;
+mod prefetch;
 mod step;
 
 #[cfg(test)]

@@ -176,6 +176,7 @@ mod wired {
             completed_at:           None,
             compensation_mutation:  Some("deleteOrder".to_string()),
             compensation_variables: Some(json!({"id": "o1"})),
+            required_fields:        Vec::new(),
         }
     }
 

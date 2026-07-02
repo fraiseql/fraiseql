@@ -178,6 +178,7 @@ mod wired_pg {
             completed_at: None,
             compensation_mutation: None,
             compensation_variables: None,
+            required_fields: Vec::new(),
         }
     }
 
@@ -329,7 +330,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -401,7 +402,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -541,7 +542,7 @@ mod wired_pg {
 
         // Forward: step0 Completed, step1 Failed, step2 Pending, saga Failed.
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -602,7 +603,7 @@ mod wired_pg {
         store.save_saga_step(&step).await.unwrap();
 
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -741,6 +742,7 @@ mod recovery_pg {
             completed_at: None,
             compensation_mutation: None,
             compensation_variables: None,
+            required_fields: Vec::new(),
         }
     }
 
@@ -1813,6 +1815,334 @@ mod remote_dispatch_pg {
             .await
             .unwrap();
         assert!(rows.is_empty(), "the local step's compensation deleted its row");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+}
+
+// ── @requires cross-subgraph pre-fetch end-to-end (unstable-saga + test-utils) ─
+//
+// Ignored by default — these require a live PostgreSQL (`DATABASE_URL`) plus a
+// loopback `wiremock` `_entities` subgraph. They need the `test-utils` feature so
+// the coordinator's `*_for_test` / `_unchecked` builders (which bypass the SSRF
+// guard) are compiled. The CI integration leg runs them with
+// `--features unstable-saga,test-utils --include-ignored`.
+
+#[cfg(all(feature = "unstable-saga", feature = "test-utils"))]
+mod prefetch_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
+        HttpClientConfig, KeyDirective, PostgresSagaStore, RequiredField, SagaCoordinatorStep,
+        SagaState, SagaStoreError, StepState, WiredSagaCoordinator,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    fn unique_typename() -> String {
+        format!("sagareq{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// A `_entities` mock subgraph returning `entities` (the value of the
+    /// `_entities` array). Registered under `catalog`.
+    async fn catalog_server(entities: serde_json::Value) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "_entities": entities }
+            })))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// Cycle 1: `create_saga` rejects a step that `@requires` a field from an
+    /// unregistered subgraph — fail-loud-at-setup, nothing is persisted.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn create_saga_rejects_requires_from_unregistered_subgraph() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // No subgraph registered → the @requires spec cannot be resolved.
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let before = store.saga_count().await.unwrap();
+
+        let step = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": "x", "total": "1"}),
+            String::new(),
+            json!({}),
+        )
+        .with_required_fields(vec![RequiredField {
+            subgraph:   "catalog".to_string(),
+            typename:   "Catalog".to_string(),
+            key:        json!({"id": "c1"}),
+            field_path: "price".to_string(),
+            target_var: "total".to_string(),
+        }]);
+
+        let err = coordinator
+            .create_saga(vec![step])
+            .await
+            .expect_err("a @requires from an unregistered subgraph must be rejected");
+        assert!(
+            matches!(err, SagaStoreError::Database(ref m) if m.contains("unregistered subgraph")),
+            "the error names the unregistered subgraph: {err:?}"
+        );
+        assert_eq!(store.saga_count().await.unwrap(), before, "a rejected saga persists nothing");
+    }
+
+    /// A step's `@requires` specs round-trip through the store: `create_saga`
+    /// persists them and `load_saga_steps` reads them back intact.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn required_fields_round_trip_through_store() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // Register catalog (a bare URL; no server needed — nothing is executed here).
+        let catalog_url = reqwest::Url::parse("http://127.0.0.1:1/graphql").unwrap();
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_subgraph_unchecked("catalog", catalog_url);
+
+        let required = RequiredField {
+            subgraph:   "catalog".to_string(),
+            typename:   "Catalog".to_string(),
+            key:        json!({"id": "c1"}),
+            field_path: "price".to_string(),
+            target_var: "total".to_string(),
+        };
+        let step = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": "x"}),
+            String::new(),
+            json!({}),
+        )
+        .with_required_fields(vec![required.clone()]);
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert_eq!(steps.len(), 1);
+        assert_eq!(
+            steps[0].required_fields,
+            vec![required],
+            "the @requires specs round-trip through the store: {:?}",
+            steps[0].required_fields
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Cycle 3: a required field the owning subgraph cannot provide fails the step
+    /// **before** dispatch — the mutation never runs (zero rows written).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn missing_required_field_fails_step_before_dispatch() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // The catalog resolves the entity but WITHOUT the required `price` field.
+        let server = catalog_server(json!([{"__typename": "Catalog"}])).await;
+        let catalog_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_entity_resolver_for_test(HttpClientConfig::default())
+                .unwrap()
+                .with_subgraph_unchecked("catalog", catalog_url);
+
+        // The step carries a full `total` in its base variables, so a dispatch WOULD
+        // write a row — proving zero-dispatch means the row's absence, not a no-op.
+        let local_id = format!("nodispatch-{}", Uuid::new_v4());
+        let step = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": local_id, "total": "5"}),
+            String::new(),
+            json!({}),
+        )
+        .with_required_fields(vec![RequiredField {
+            subgraph:   "catalog".to_string(),
+            typename:   "Catalog".to_string(),
+            key:        json!({"id": "c1"}),
+            field_path: "price".to_string(),
+            target_var: "total".to_string(),
+        }]);
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Failed, "an unresolved @requires fails the saga");
+        assert_eq!(result.completed_steps, 0, "no step completed: {result:?}");
+
+        // The step is persisted Failed and its error names the missing field.
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert_eq!(steps[0].state, StepState::Failed, "the step is Failed: {steps:?}");
+
+        // Zero dispatch: the mutation never ran, so no row exists in the table.
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let rows = adapter
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{local_id}'"))
+            .await
+            .unwrap();
+        assert!(rows.is_empty(), "the mutation must never run when @requires is unresolved");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// Cycle 4: a step `@requires` a field owned by a registered subgraph; the
+    /// wiremock `_entities` endpoint returns it, and the step's mutation runs with
+    /// the fetched value merged into its variables (read back from the DB row).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn cross_subgraph_prefetch_merges_value_into_mutation() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // The catalog subgraph owns the `price` field (returned as "99").
+        let server = catalog_server(json!([{"__typename": "Catalog", "price": "99"}])).await;
+        let catalog_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator =
+            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+                .with_entity_resolver_for_test(HttpClientConfig::default())
+                .unwrap()
+                .with_subgraph_unchecked("catalog", catalog_url);
+
+        // The step runs locally (subgraph "orders") and supplies only `id`; the
+        // `total` column is filled by the pre-fetched catalog `price`.
+        let local_id = format!("req-{}", Uuid::new_v4());
+        let step = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": local_id}),
+            String::new(),
+            json!({}),
+        )
+        .with_required_fields(vec![RequiredField {
+            subgraph:   "catalog".to_string(),
+            typename:   "Catalog".to_string(),
+            key:        json!({"id": "c1"}),
+            field_path: "price".to_string(),
+            target_var: "total".to_string(),
+        }]);
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Completed, "the step ran with the fetched value");
+        assert_eq!(result.completed_steps, 1, "one step completed: {result:?}");
+
+        // The pre-fetch endpoint was hit exactly once.
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 1, "the @requires field was fetched exactly once: {posts}");
+
+        // The mutation ran with the merged value: the DB row's `total` is the fetched
+        // catalog price, not anything the caller supplied (the caller supplied none).
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let rows = adapter
+            .execute_raw_query(&format!("SELECT total FROM \"{table}\" WHERE id = '{local_id}'"))
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1, "the local mutation wrote its row");
+        assert_eq!(
+            rows[0].get("total").and_then(|v| v.as_str()),
+            Some("99"),
+            "the fetched @requires value was merged into the mutation: {:?}",
+            rows[0]
+        );
 
         store.delete_saga(saga_id).await.unwrap();
     }

@@ -164,6 +164,7 @@ mod wired {
             completed_at: None,
             compensation_mutation: None,
             compensation_variables: None,
+            required_fields: Vec::new(),
         }
     }
 
@@ -557,5 +558,133 @@ mod wired {
             result.error.as_deref().unwrap_or("").contains("timed out"),
             "the failure must name the timeout: {result:?}"
         );
+    }
+
+    // ── @requires cross-subgraph pre-fetch (#429 hardening P03) ─────────────────
+    //
+    // `prefetch::resolve_required_fields` fetches each `@requires` field from its
+    // owning subgraph's `_entities` endpoint and merges it into the step's mutation
+    // variables. These are store-free (a mock `_entities` server via `wiremock`, a
+    // `new_for_test` resolver that skips SSRF), so they run fast in the lib leg.
+
+    use std::collections::HashMap;
+
+    use crate::{
+        http_resolver::{HttpClientConfig, HttpEntityResolver},
+        saga_executor::prefetch::resolve_required_fields,
+        saga_store::RequiredField,
+    };
+
+    /// Point subgraph `name` at a mock `_entities` server returning `entities` (the
+    /// value of the `_entities` array). Returns the resolver + registry ready for
+    /// `resolve_required_fields`.
+    async fn prefetch_fixture(
+        name: &str,
+        entities: serde_json::Value,
+    ) -> (MockServer, HttpEntityResolver, HashMap<String, Url>) {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "_entities": entities }
+            })))
+            .mount(&server)
+            .await;
+        let resolver = HttpEntityResolver::new_for_test(HttpClientConfig::default()).unwrap();
+        let mut urls = HashMap::new();
+        urls.insert(name.to_string(), Url::parse(&format!("{}/graphql", server.uri())).unwrap());
+        (server, resolver, urls)
+    }
+
+    fn price_requirement() -> RequiredField {
+        RequiredField {
+            subgraph:   "catalog".to_string(),
+            typename:   "Product".to_string(),
+            key:        json!({"id": "p1"}),
+            field_path: "price".to_string(),
+            target_var: "price".to_string(),
+        }
+    }
+
+    /// A resolved required field is merged into the step's variables before dispatch;
+    /// existing variables are preserved.
+    #[tokio::test]
+    async fn resolve_required_fields_merges_fetched_field() {
+        let (_server, resolver, urls) =
+            prefetch_fixture("catalog", json!([{"__typename": "Product", "price": 9.99}])).await;
+
+        let merged = resolve_required_fields(
+            &[price_requirement()],
+            &json!({"orderId": "o1"}),
+            Some(&resolver),
+            &urls,
+        )
+        .await
+        .expect("pre-fetch merges the required field");
+
+        assert_eq!(merged["price"], json!(9.99), "the fetched price is merged: {merged}");
+        assert_eq!(merged["orderId"], "o1", "existing variables are preserved: {merged}");
+    }
+
+    /// A field the owning subgraph does not return fails the pre-fetch (so the caller
+    /// fails the step before dispatch).
+    #[tokio::test]
+    async fn resolve_required_fields_missing_field_errors() {
+        let (_server, resolver, urls) =
+            prefetch_fixture("catalog", json!([{"__typename": "Product"}])).await;
+
+        let err = resolve_required_fields(
+            &[price_requirement()],
+            &json!({"orderId": "o1"}),
+            Some(&resolver),
+            &urls,
+        )
+        .await
+        .expect_err("a missing required field must fail the pre-fetch");
+
+        assert!(err.contains("price"), "the error names the missing field: {err}");
+    }
+
+    /// A subgraph that resolves the entity to `null` fails the pre-fetch — the entity
+    /// was not found, so the step cannot run with the missing input.
+    #[tokio::test]
+    async fn resolve_required_fields_entity_not_found_errors() {
+        let (_server, resolver, urls) = prefetch_fixture("catalog", json!([null])).await;
+
+        let err =
+            resolve_required_fields(&[price_requirement()], &json!({}), Some(&resolver), &urls)
+                .await
+                .expect_err("an unresolved entity must fail the pre-fetch");
+
+        assert!(err.contains("not found"), "the error explains the missing entity: {err}");
+    }
+
+    /// With no entity resolver configured, a step that declares `@requires` fields
+    /// fails loud rather than dispatching with missing inputs.
+    #[tokio::test]
+    async fn resolve_required_fields_without_resolver_errors() {
+        let err =
+            resolve_required_fields(&[price_requirement()], &json!({}), None, &HashMap::new())
+                .await
+                .expect_err("no resolver must fail loud");
+
+        assert!(err.contains("no entity resolver"), "the error explains the cause: {err}");
+    }
+
+    /// A required field whose owning subgraph is not registered fails the pre-fetch.
+    #[tokio::test]
+    async fn resolve_required_fields_unregistered_subgraph_errors() {
+        let resolver = HttpEntityResolver::new_for_test(HttpClientConfig::default()).unwrap();
+
+        let err = resolve_required_fields(
+            &[price_requirement()],
+            &json!({}),
+            Some(&resolver),
+            &HashMap::new(),
+        )
+        .await
+        .expect_err("an unregistered subgraph must fail the pre-fetch");
+
+        assert!(err.contains("unregistered subgraph"), "the error names the cause: {err}");
     }
 }
