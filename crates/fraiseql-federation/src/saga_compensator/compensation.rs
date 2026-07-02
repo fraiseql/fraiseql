@@ -5,13 +5,13 @@
 //! a [`CompensationStepResult`], and ordering the completed steps for reverse
 //! rollback. Keeping them pure lets their unit tests run in the fast `test` leg
 //! on every push, so the "never fabricate a rollback" contract is covered
-//! independently of a live database and of the `unstable-saga` feature — the same
+//! independently of a live database and of the `saga` feature — the same
 //! arrangement the forward phase uses in [`crate::saga_executor::forward`].
 //!
 //! They are consumed only by the feature-gated wired compensator, so without
-//! `unstable-saga` they are dead in a non-test build — hence the module-level
+//! `saga` they are dead in a non-test build — hence the module-level
 //! `allow(dead_code)` for that configuration (the established `#428` pattern).
-#![cfg_attr(not(feature = "unstable-saga"), allow(dead_code))]
+#![cfg_attr(not(feature = "saga"), allow(dead_code))]
 
 use fraiseql_error::Result;
 use serde_json::Value;

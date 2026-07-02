@@ -262,6 +262,9 @@ impl SagaCompensator {
     ///
     /// Always returns
     /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
+    #[deprecated(note = "saga compensation is wired under the `saga` feature: use \
+                SagaCompensator::compensate_saga_local. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major.")]
     pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
         info!(
             saga_id = %saga_id,
@@ -296,6 +299,11 @@ impl SagaCompensator {
     /// Always returns
     /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented);
     /// it must never persist a compensation result.
+    #[deprecated(
+        note = "saga step compensation is wired under the `saga` feature: use \
+                SagaCompensator::compensate_step_local. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major."
+    )]
     pub async fn compensate_step(
         &self,
         saga_id: Uuid,
@@ -435,14 +443,15 @@ impl Default for SagaCompensator {
     }
 }
 
-/// Wired compensation phase (the `unstable-saga` feature).
+/// Wired compensation phase (the `saga` feature).
 ///
 /// Additive: the fail-loud [`SagaCompensator::compensate_saga`] /
 /// [`SagaCompensator::compensate_step`] above keep their signatures and behaviour
 /// in every build (the `#429` H33 acceptance spec exercises them). The real
-/// local-SQL rollback is exposed as the `*_local` methods, gated behind
-/// `unstable-saga` until proven. Remote (HTTP) compensation is Phase 04.
-#[cfg(feature = "unstable-saga")]
+/// rollback is exposed as the `*_local` methods (gated behind the `saga` feature):
+/// each completed step is compensated on the same transport its forward step used —
+/// the local SQL adapter, or over HTTPS to a registered peer subgraph.
+#[cfg(feature = "saga")]
 mod wired {
     use std::collections::HashMap;
 

@@ -226,7 +226,7 @@ a specific ignored suite manually, export the vars below first:
 | `MYSQL_URL` | `mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql` | MySQL for cross-DB parity |
 | `REDIS_URL` | `redis://localhost:6379` | Redis for APQ and rate-limiting |
 | `TEST_DATABASE_URL` | same as `DATABASE_URL` | Observer PostgreSQL transport |
-| `SAGA_STORE_TEST_URL` | same as `DATABASE_URL` | Saga store integration (`unstable-saga`, experimental) |
+| `SAGA_STORE_TEST_URL` | same as `DATABASE_URL` | Saga store integration (`saga` feature) |
 | `VAULT_ADDR` | `http://localhost:8200` | HashiCorp Vault secrets tests |
 | `VAULT_TOKEN` | `fraiseql-test-token` | Vault auth token |
 

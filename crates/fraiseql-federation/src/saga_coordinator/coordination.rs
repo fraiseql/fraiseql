@@ -4,14 +4,14 @@
 //! persisted [`MutationType`] a forward mutation name implies, deciding whether a
 //! saga state is terminal (so a cancel is refused), and computing progress as a
 //! percentage. Keeping them pure lets their unit tests run in the fast `test` leg
-//! on every push, independently of a live database and of the `unstable-saga`
+//! on every push, independently of a live database and of the `saga`
 //! feature — the same arrangement the forward and compensation phases use in
 //! [`crate::saga_executor::forward`] and [`crate::saga_compensator::compensation`].
 //!
 //! They are consumed only by the feature-gated wired coordinator, so without
-//! `unstable-saga` they are dead in a non-test build — hence the module-level
+//! `saga` they are dead in a non-test build — hence the module-level
 //! `allow(dead_code)` for that configuration (the established `#428` pattern).
-#![cfg_attr(not(feature = "unstable-saga"), allow(dead_code))]
+#![cfg_attr(not(feature = "saga"), allow(dead_code))]
 
 use crate::saga_store::{MutationType, SagaState};
 

@@ -406,8 +406,8 @@ func (m *FraiseqlCi) Test(
 		// run above, so run its Docker-free lib tests explicitly — the pure decision
 		// helpers and the real in-memory-SQLite `execute_step` dispatch/honest-failure
 		// proof. The Postgres orchestration tests are #[ignore]d → integration leg.
-		"echo '### cargo test -p fraiseql-federation --lib --features unstable-saga (#429 wired forward exec; SQLite dispatch, no DB)'",
-		"cargo test -p fraiseql-federation --lib --features unstable-saga",
+		"echo '### cargo test -p fraiseql-federation --lib --features saga (#429 wired forward exec; SQLite dispatch, no DB)'",
+		"cargo test -p fraiseql-federation --lib --features saga",
 		"echo '### cargo test --doc --all-features'",
 		"cargo test --doc --all-features",
 		"echo \"test OK: workspace suite passed (toolchain " + toolchain + ", testcontainers tests skipped)\"",
@@ -630,14 +630,14 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// #431 inbound webhook pipeline (atomic idempotency claim + transactional handoff + RLS vs real PG).
 		"cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
-		// + remote dispatch (unstable-saga): orchestration, rollback, and crash
+		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the
 		// mixed local/remote coordinator path. --include-ignored runs the #[ignore]d
 		// PG tests (the SQLite execute_step proof in the same binary also runs here).
 		// test-utils is required by the remote_dispatch_pg module: the SSRF guard
 		// blocks a loopback mock peer, so the coordinator's *_for_test / _unchecked
 		// builders (compiled only under test-utils) drive the HTTP dispatch path.
-		"cargo test -p fraiseql-federation --features unstable-saga,test-utils --test saga_integration -- --include-ignored --test-threads=1",
+		"cargo test -p fraiseql-federation --features saga,test-utils --test saga_integration -- --include-ignored --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

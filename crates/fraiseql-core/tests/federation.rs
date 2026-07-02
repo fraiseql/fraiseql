@@ -1,4 +1,5 @@
 //! Federation test suite — split by concern into focused modules.
+#![allow(deprecated)] // Reason: saga contract tests pin the deprecated loud-fail placeholder behaviour
 
 mod federation {
     pub mod common;

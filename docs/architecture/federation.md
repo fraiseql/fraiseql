@@ -17,10 +17,10 @@ crates/fraiseql-federation/src/
 ├── dependency_graph.rs       # Cross-entity dependency ordering
 ├── mutation_executor.rs      # Cross-subgraph mutation dispatch
 ├── mutation_http_client.rs   # HTTP client for subgraph mutations (SSRF-protected)
-├── saga_coordinator.rs       # Distributed saga state machine — NOT YET IMPLEMENTED (fails loud)
-├── saga_compensator.rs       # Compensation action executor — NOT YET IMPLEMENTED (fails loud)
-├── saga_executor/            # Forward phase: step execution (experimental, `unstable-saga`)
-├── saga_recovery_manager.rs  # On-restart recovery — NOT YET IMPLEMENTED (fails loud)
+├── saga_coordinator.rs       # WiredSagaCoordinator facade (`saga` feature)
+├── saga_compensator.rs       # Compensation (rollback) executor (`saga` feature)
+├── saga_executor/            # Forward phase: step execution + @requires pre-fetch (`saga` feature)
+├── saga_recovery_manager.rs  # On-restart recovery w/ SKIP LOCKED leasing (`saga` feature)
 ├── saga_store.rs             # PostgreSQL persistence for saga state
 └── circuit_breaker (server)  # In fraiseql-server/src/federation/circuit_breaker.rs
 ```
@@ -66,17 +66,19 @@ _entities(representations: [...])
 
 ### Layer 3 — Cross-Subgraph Mutations (saga pattern)
 
-> **Experimental.** Only the **forward** phase is implemented today, behind the
-> `unstable-saga` Cargo feature on `fraiseql-federation`, and it dispatches over **local
-> SQL** (`execute_step_local` / `execute_saga_local`). The distributed coordinator,
-> compensation, on-restart recovery, and remote/HTTP subgraph dispatch are **not yet
-> implemented** — `SagaCoordinator`, `SagaCompensator`, and `SagaRecoveryManager` return
-> `SagaStoreError::NotImplemented`. The forward/compensation design described below is the
-> target shape, not current behavior.
+> **Stable, behind the opt-in `saga` Cargo feature** on `fraiseql-federation`. The full
+> round-trip is wired: forward execution over **local SQL** or **remote HTTPS**
+> (`WiredSagaCoordinator` / `execute_saga_local`, with optional mTLS), automatic
+> **compensation** in reverse order (local or remote), concurrency-safe on-restart
+> **recovery** (`SELECT … FOR UPDATE SKIP LOCKED` leasing), per-step **retry with
+> backoff + timeout**, and cross-subgraph **`@requires` pre-fetch**. Use
+> `WiredSagaCoordinator` and the `*_local` methods. The original loud-fail placeholders
+> (`SagaCoordinator` and the `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` stub
+> methods) are `#[deprecated]` and still return `SagaStoreError::NotImplemented`.
 
-Cross-subgraph mutations are designed to use a saga orchestrator. Each saga step has a
-forward action and a compensation action; on failure, compensation runs in reverse order
-(N→1) for best-effort rollback.
+Cross-subgraph mutations use a saga orchestrator. Each saga step has a forward action and
+a compensation action; on failure, compensation runs in reverse order (N→1) for
+best-effort rollback.
 
 See [federation-saga.md](../guides/federation-saga.md) for the developer guide.
 
@@ -111,18 +113,19 @@ Client → POST /graphql
            └── OPEN → 503 Service Unavailable + Retry-After header
 ```
 
-## Data Flow: Cross-Subgraph Mutation (Saga — planned design)
+## Data Flow: Cross-Subgraph Mutation (Saga)
 
-> The flow below is the **planned** saga design. Today only forward steps over local SQL
-> run behind `unstable-saga`; the coordinator and compensation phase are not implemented.
+> Wired behind the opt-in `saga` feature via `WiredSagaCoordinator`: forward steps run
+> over local SQL or remote HTTPS, and on failure the completed steps are compensated in
+> reverse order.
 
 ```
 Client → mutation { createOrder(...) }
     │
-    ▼ SagaCoordinator.execute()
+    ▼ WiredSagaCoordinator.execute_saga()
     │
     ├── Step 1: inventory-service.reserveInventory  ← forward
-    │     └── OK → persist step result to tb_saga_log
+    │     └── OK → persist step result to tb_federation_saga_steps
     │
     ├── Step 2: billing-service.chargePayment        ← forward
     │     └── FAIL → trigger compensation phase
@@ -139,9 +142,11 @@ Client → mutation { createOrder(...) }
   `IpAddr::parse()` to prevent bypass via `[::1]` notation.
 - **Batch size cap**: `MAX_ENTITIES_BATCH_SIZE = 1000` in `representation.rs`
   prevents memory exhaustion from oversized `_entities` queries.
-- **State isolation** (planned): saga state is intended to persist to `tb_saga_log` before
-  each step to enable recovery on restart. On-restart recovery is **not yet implemented**
-  (`SagaRecoveryManager` returns `NotImplemented`).
+- **State isolation**: saga state persists to the `tb_federation_saga*` tables before each
+  step, enabling on-restart recovery. `SagaRecoveryManager::run_iteration_local` /
+  `start_background_loop_local` (the `saga` feature) re-drive crash-interrupted sagas,
+  claiming stuck sagas under a lease via `SELECT … FOR UPDATE SKIP LOCKED` so concurrent
+  recovery workers never double-drive one.
 
 ## Observability
 
@@ -152,9 +157,9 @@ Prometheus metrics emitted by the federation layer:
 | `fraiseql_federation_circuit_breaker_state{entity}` | 0=closed, 1=open, 2=half-open |
 | `fraiseql_federation_circuit_breaker_opens_total{entity}` | How often the breaker trips |
 | `fraiseql_federation_circuit_breaker_rejections_total{entity}` | Requests rejected while open |
-| `fraiseql_saga_steps_total{subgraph, status}` | Saga step outcomes (experimental, `unstable-saga`) |
-| `fraiseql_saga_duration_seconds` | End-to-end saga duration histogram (experimental) |
-| `fraiseql_saga_compensations_total` | Compensation phases triggered (compensation not yet implemented) |
+| `fraiseql_saga_steps_total{subgraph, status}` | Saga step outcomes (planned — saga metrics not yet emitted) |
+| `fraiseql_saga_duration_seconds` | End-to-end saga duration histogram (planned) |
+| `fraiseql_saga_compensations_total` | Compensation phases triggered (planned) |
 | `fraiseql_entity_resolution_duration_seconds{entity, strategy}` | Resolution latency |
 
 ## Enabling Federation

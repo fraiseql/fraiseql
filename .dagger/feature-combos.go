@@ -133,7 +133,7 @@ var featureCombos = []featureCombo{
 	// clippy `--all-targets` compiles the wired execute_step/execute_saga + their
 	// SQLite/Postgres tests under -D warnings; the default-feature (fail-loud) path
 	// is covered by preflight `--all-features` and the workspace test leg.
-	{name: "fed-unstable-saga", crate: "fraiseql-federation", clippy: true, features: []string{"unstable-saga"}},
+	{name: "fed-saga", crate: "fraiseql-federation", clippy: true, features: []string{"saga"}},
 	// ── cdc: the gated #382 NATS JetStream outbound sink ──────────────────────
 	// clippy `--all-targets` compiles the NatsJetStreamSink + its real-PG/NATS
 	// e2e test under -D warnings on MSRV; the default (broker-free) drain path is

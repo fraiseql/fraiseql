@@ -30,6 +30,9 @@ impl SagaExecutor {
     ///
     /// Always returns [`SagaStoreError::NotImplemented`]; it must never
     /// transition step state or persist a result.
+    #[deprecated(note = "saga step execution is wired under the `saga` feature: use \
+                SagaExecutor::execute_step_local. This placeholder only ever returned \
+                NotImplemented and will be removed in a future major.")]
     pub async fn execute_step(
         &self,
         saga_id: Uuid,
@@ -52,13 +55,13 @@ impl SagaExecutor {
     }
 }
 
-/// Wired forward-phase execution (the `unstable-saga` feature).
+/// Wired forward-phase execution (the `saga` feature).
 ///
 /// These are additive: the fail-loud `execute_step` above keeps its signature and
 /// behaviour in every build (it is the published placeholder contract and the
 /// `#429` acceptance spec exercises it). The real local-mutation transport is
-/// exposed as the `*_local` methods, gated behind `unstable-saga` until proven.
-#[cfg(feature = "unstable-saga")]
+/// exposed as the `*_local` methods, gated behind `saga` until proven.
+#[cfg(feature = "saga")]
 mod wired {
     use ::tracing::warn;
     use fraiseql_db::traits::DatabaseAdapter;
@@ -82,13 +85,13 @@ mod wired {
         /// - `remote = Some((client, url))` → the step is propagated over HTTPS to the peer
         ///   subgraph via [`HttpMutationClient::execute_mutation`].
         ///
-        /// Either way the persisted [`crate::saga_store::MutationType`] is rendered
-        /// to its canonical verb (`create`/`update`/`delete`) as the operation
-        /// name — the store carries only the mutation *kind*, not the full remote
-        /// mutation name (the local path already dispatches by verb; carrying the
-        /// full remote name is a future store-schema extension). A mutation `Err`
-        /// (local or remote) becomes a real `success: false` step, never fabricated
-        /// success (audit H32).
+        /// The operation name sent is the step's full persisted `mutation_name`
+        /// (e.g. `createOrder`), so a remote subgraph receives the real mutation;
+        /// a pre-migration row with no name falls back to the mutation-kind verb
+        /// (`create`/`update`/`delete`), which the name-driven
+        /// `determine_mutation_type` also resolves for the local path. A mutation
+        /// `Err` (local or remote) becomes a real `success: false` step, never
+        /// fabricated success (audit H32).
         pub(crate) async fn dispatch_step<A: DatabaseAdapter>(
             mutation_executor: &FederationMutationExecutor<A>,
             step: &SagaStep,

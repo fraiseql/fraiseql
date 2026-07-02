@@ -7,6 +7,7 @@
 //! <https://github.com/fraiseql/fraiseql/issues/429>.
 
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+#![allow(deprecated)] // Reason: the loud-fail contract tests below pin the deprecated placeholder behaviour
 
 use fraiseql_federation::{SagaCompensator, SagaExecutor, saga_store::SagaStoreError};
 use serde_json::json;
@@ -67,15 +68,15 @@ async fn test_compensation_status_query_no_store_is_none() {
     assert!(status.is_none(), "no-store compensation status must return None");
 }
 
-// ── Wired forward phase end-to-end against real PostgreSQL (unstable-saga) ────
+// ── Wired forward phase end-to-end against real PostgreSQL (saga) ────
 //
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
-// them with `--features unstable-saga --include-ignored` against the bound
+// them with `--features saga --include-ignored` against the bound
 // service. They exercise the additive `execute_saga_local` / `execution_state`
 // wired methods; the fail-loud entry points above are unchanged.
 
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod wired_pg {
     use std::sync::Arc;
 
@@ -629,16 +630,16 @@ mod wired_pg {
     }
 }
 
-// ── Wired recovery loop end-to-end against real PostgreSQL (unstable-saga) ─────
+// ── Wired recovery loop end-to-end against real PostgreSQL (saga) ─────
 //
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
-// them with `--features unstable-saga --include-ignored` against the bound
+// them with `--features saga --include-ignored` against the bound
 // service. They exercise the additive `run_iteration_local` /
 // `start_background_loop_local` wired methods; the fail-loud `run_iteration` /
 // `start_background_loop` entry points are unchanged.
 
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod recovery_pg {
     use std::{sync::Arc, time::Duration};
 
@@ -1120,16 +1121,16 @@ mod recovery_pg {
     }
 }
 
-// ── Wired coordinator end-to-end against real PostgreSQL (unstable-saga) ──────
+// ── Wired coordinator end-to-end against real PostgreSQL (saga) ──────
 //
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
-// them with `--features unstable-saga --include-ignored` against the bound
+// them with `--features saga --include-ignored` against the bound
 // service. They exercise the additive `WiredSagaCoordinator`, which ties forward
 // execution + compensation into one handle; the loud-fail `SagaCoordinator`
 // entry points are unchanged and covered by its own unit tests.
 
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod coordinator_pg {
     use std::sync::Arc;
 
@@ -1488,16 +1489,16 @@ mod coordinator_pg {
     }
 }
 
-// ── Wired remote step dispatch end-to-end (unstable-saga + test-utils) ─────────
+// ── Wired remote step dispatch end-to-end (saga + test-utils) ─────────
 //
 // Ignored by default — these require a live PostgreSQL (`DATABASE_URL`) plus a
 // loopback `wiremock` subgraph. They need the `test-utils` feature: the SSRF
 // guard blocks a loopback/http peer, so the coordinator's `*_for_test` /
 // `_unchecked` builders (which bypass it) are only compiled under `test-utils`.
-// The CI integration leg runs them with `--features unstable-saga,test-utils
+// The CI integration leg runs them with `--features saga,test-utils
 // --include-ignored`.
 
-#[cfg(all(feature = "unstable-saga", feature = "test-utils"))]
+#[cfg(all(feature = "saga", feature = "test-utils"))]
 mod remote_dispatch_pg {
     use std::sync::Arc;
 
@@ -1820,15 +1821,15 @@ mod remote_dispatch_pg {
     }
 }
 
-// ── @requires cross-subgraph pre-fetch end-to-end (unstable-saga + test-utils) ─
+// ── @requires cross-subgraph pre-fetch end-to-end (saga + test-utils) ─
 //
 // Ignored by default — these require a live PostgreSQL (`DATABASE_URL`) plus a
 // loopback `wiremock` `_entities` subgraph. They need the `test-utils` feature so
 // the coordinator's `*_for_test` / `_unchecked` builders (which bypass the SSRF
 // guard) are compiled. The CI integration leg runs them with
-// `--features unstable-saga,test-utils --include-ignored`.
+// `--features saga,test-utils --include-ignored`.
 
-#[cfg(all(feature = "unstable-saga", feature = "test-utils"))]
+#[cfg(all(feature = "saga", feature = "test-utils"))]
 mod prefetch_pg {
     use std::sync::Arc;
 

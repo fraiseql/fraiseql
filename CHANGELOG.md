@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Saga steps can pre-fetch cross-subgraph `@requires` fields under
-  `unstable-saga` (#429).** A saga step may declare `RequiredField` specs
+  `saga` (#429).** A saga step may declare `RequiredField` specs
   (`SagaCoordinatorStep::with_required_fields`): before the step's mutation runs,
   each field is fetched from its owning subgraph's `_entities` endpoint (via the
   resolver configured with `WiredSagaCoordinator::with_entity_resolver`) and merged
@@ -23,20 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected at `create_saga` (fail-loud-at-setup); a field that cannot be resolved at
   execution fails the step **before** its mutation runs — a real `Failed` step that
   triggers compensation, never a mutation dispatched with missing inputs (audit H32).
-  Requires the `unstable-saga` Cargo feature; the API may change without semver
-  guarantees.
+  Requires the `saga` Cargo feature (opt-in, but stable and semver-covered).
 
-- **Saga remote dispatch supports mutual TLS under `unstable-saga` (#429).**
+- **Saga remote dispatch supports mutual TLS under `saga` (#429).**
   `WiredSagaCoordinator::with_http_client_mtls` (backed by
   `HttpMutationClient::new_with_mtls`) configures the remote-dispatch HTTP client to
   present a client certificate and trust a configured root CA (from `MtlsConfig` /
   `MtlsMaterial`), so saga steps dispatched to a peer subgraph are mutually
   authenticated. mTLS is opt-in — `enabled: false` yields an ordinary one-way-TLS
   client — and fails loud at setup if enabled with missing or malformed certificate
-  material, so the client is never silently downgraded. Requires the `unstable-saga`
-  Cargo feature; the API may change without semver guarantees.
+  material, so the client is never silently downgraded. Requires the `saga` Cargo feature (opt-in, but stable and semver-covered).
 
-- **Saga steps can now retry with backoff and time out under `unstable-saga`
+- **Saga steps can now retry with backoff and time out under `saga`
   (#429).** `SagaExecutor` / `WiredSagaCoordinator` gained a `RetryPolicy`
   (`with_retry_policy`): a transient step failure is retried up to `max_retries`
   times with exponential backoff — and, when `step_timeout_ms` is set, each attempt
@@ -45,9 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   needlessly compensates a whole saga. The default `RetryPolicy::none()` preserves
   the original one-attempt behaviour. A retried or timed-out attempt is always a real
   failed attempt (a captured error, never a fabricated success — audit H32). Requires
-  the `unstable-saga` Cargo feature; the API may change without semver guarantees.
+  the `saga` Cargo feature (opt-in, but stable and semver-covered).
 
-- **Saga crash recovery is now concurrency-safe under `unstable-saga` (#429).**
+- **Saga crash recovery is now concurrency-safe under `saga` (#429).**
   `SagaRecoveryManager` now claims stuck (`Executing`) sagas via a single atomic
   `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)` statement, leasing each
   to the recovering worker, so two recovery workers (or a worker racing a live
@@ -56,9 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are automatically reclaimable. `tb_federation_sagas` gained nullable
   `recovery_worker_id` / `recovery_lease_expires_at` columns (added idempotently by
   `migrate_schema`; rows that predate them are always claimable). Requires the
-  `unstable-saga` Cargo feature; the API may change without semver guarantees.
+  `saga` Cargo feature (opt-in, but stable and semver-covered).
 - **Saga compensation can now roll back remote steps over HTTPS under
-  `unstable-saga` (#429).** A step that executed against a registered peer subgraph
+  `saga` (#429).** A step that executed against a registered peer subgraph
   is now compensated on that same transport: `SagaCompensator::compensate_saga_local`
   (and `compensate_step_local`) take the coordinator's subgraph registry + HTTP client
   and dispatch each completed step's inverse mutation over HTTPS via
@@ -69,8 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contract still holds (audit H33): a remote inverse that errors leaves the step
   un-compensated and the saga `PartiallyCompensated`, never a fabricated `Compensated`.
   Forward execution and compensation now share one `resolve_remote` routing helper.
-  Requires the `unstable-saga` Cargo feature; the API may change without semver
-  guarantees.
+  Requires the `saga` Cargo feature (opt-in, but stable and semver-covered).
 - **Saga steps now persist their full mutation name for remote dispatch (#429).**
   `tb_federation_saga_steps` gained a nullable `mutation_name` column (added
   idempotently by `migrate_schema`) carrying the exact GraphQL operation name
@@ -80,10 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a remote subgraph receives the operation it actually defines. Rows that predate
   the column (`mutation_name` `NULL`) fall back to the verb, so existing sagas are
   unaffected. This is the store-schema groundwork for remote saga compensation.
-  Requires the `unstable-saga` Cargo feature; the API may change without semver
-  guarantees.
+  Requires the `saga` Cargo feature (opt-in, but stable and semver-covered).
 - **Saga steps can now be dispatched to remote subgraphs over HTTPS under
-  `unstable-saga` (#429).** `WiredSagaCoordinator` gained a subgraph registry:
+  `saga` (#429).** `WiredSagaCoordinator` gained a subgraph registry:
   `with_http_client(config)` configures an SSRF-protected `HttpMutationClient`, and
   `with_subgraph(name, url)` registers a peer (validating the URL at registration —
   fail-loud-at-setup). During `execute_saga`, a step whose `subgraph` field names a
@@ -93,9 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remote steps. The dispatch honours the "never fabricate" contract — a remote mutation
   error (HTTP failure or GraphQL error) becomes a real failed step, never a fabricated
   success. Remote *compensation* still runs via the local executor (a remote rollback
-  path is future work). Requires the `unstable-saga` Cargo feature; the API may change
+  path is future work). Requires the `saga` Cargo feature; the API may change
   without semver guarantees.
-- **Saga coordinator facade is now wired under `unstable-saga` (#429).** A new
+- **Saga coordinator facade is now wired under `saga` (#429).** A new
   `WiredSagaCoordinator` ties forward execution and compensation into a single handle over
   a `PostgresSagaStore`: `create_saga` validates and persists a saga (`Pending`) with each
   step's compensation metadata; `execute_saga` runs the forward phase and, on a step failure
@@ -108,9 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SagaCoordinator::{create_saga, execute_saga, get_saga_status, cancel_saga, get_saga_result,
   list_in_flight_sagas}` placeholders are unchanged and still return
   `SagaStoreError::NotImplemented` in every build. Remote (HTTP) step dispatch remains
-  unwired. Requires the `unstable-saga` Cargo feature; the API may change without semver
-  guarantees.
-- **Saga crash recovery is now wired under `unstable-saga` (#429).** A
+  unwired. Requires the `saga` Cargo feature (opt-in, but stable and semver-covered).
+- **Saga crash recovery is now wired under `saga` (#429).** A
   `SagaRecoveryManager` background loop re-drives sagas that a crash or restart left
   in-flight: each tick finds stuck (`Executing`) and pending (never-started) sagas, records
   a recovery attempt, and replays each one's forward execution through
@@ -122,8 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SagaRecoveryManager::{run_iteration, start_background_loop}` are unchanged and still
   return `SagaStoreError::NotImplemented`; remote saga recovery rides on the (still
   unwired) remote-dispatch path and the coordinator facade remains unwired. Requires the
-  `unstable-saga` Cargo feature; the API may change without semver guarantees.
-- **Saga compensation (rollback) is now wired under `unstable-saga` (#429).** When a
+  `saga` Cargo feature (opt-in, but stable and semver-covered).
+- **Saga compensation (rollback) is now wired under `saga` (#429).** When a
   distributed saga fails partway, `SagaCompensator::compensate_saga_local` rolls back the
   already-completed steps in strict reverse execution order by executing each step's
   registered compensation (inverse) mutation through the local SQL adapter, then persists
@@ -135,8 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by `migrate_schema`; rows that predate them read back as `None`). The published fail-loud
   placeholders `SagaCompensator::{compensate_saga, compensate_step}` are unchanged and
   still return `SagaStoreError::NotImplemented`; remote (HTTP) compensation, recovery, and
-  the coordinator facade remain unwired. Requires the `unstable-saga` Cargo feature; the
-  API may change without semver guarantees.
+  the coordinator facade remain unwired. Requires the `saga` Cargo feature (opt-in, but
+  stable and semver-covered).
 - **Short-lived runtime executor: `fraiseql query` + `doctor --runtime` (#501).** A
   scriptable way to exercise a compiled schema against a database without standing up
   the long-lived server, closing the gap between "static checks pass" and "the server
@@ -153,6 +148,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (constraints, triggers, and the `mutation_response` shape are all validated) but no
   writes persist. Dry-run is PostgreSQL-only; other adapters return a clear
   "not supported" error rather than silently committing.
+
+### Changed
+
+- **The distributed saga subsystem is now stable (#429).** The `unstable-saga`
+  Cargo feature has been renamed to **`saga`** and its API is now covered by semver
+  (it will not change without a major version bump). It remains an opt-in feature so
+  that builds which do not orchestrate cross-subgraph transactions are not forced to
+  compile the Postgres saga store and its dependencies. This closes the #429 saga
+  journey: forward execution (v2.9.0), the gated round-trip — compensation, recovery,
+  coordinator, remote dispatch (v2.11.0) — and the hardening train (full remote
+  mutation names, remote HTTPS compensation, concurrency-safe `SKIP LOCKED` recovery,
+  mTLS, retry/backoff + per-step timeout, and `@requires` cross-subgraph pre-fetch).
+  **Migration:** replace `features = ["unstable-saga"]` with `features = ["saga"]`;
+  no code changes are required (the wired `*_local` / `WiredSagaCoordinator` API is
+  unchanged).
+
+### Deprecated
+
+- **The legacy fail-loud saga placeholders are deprecated (#429).** `SagaCoordinator`
+  and the `SagaExecutor::{execute_step, execute_saga, get_execution_state}`,
+  `SagaCompensator::{compensate_step, compensate_saga}`, and
+  `SagaRecoveryManager::{run_iteration, start_background_loop}` stub methods only ever
+  returned `SagaStoreError::NotImplemented`. They are now `#[deprecated]` in favour of
+  the wired `saga`-feature API (`WiredSagaCoordinator`, the `*_local` methods, and
+  `SagaExecutor::execution_state`) and will be removed in a future major version.
 
 ### Fixed
 

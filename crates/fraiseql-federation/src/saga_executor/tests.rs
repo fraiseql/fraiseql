@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
 use uuid::Uuid;
 
 use super::SagaExecutor;
@@ -108,11 +109,11 @@ async fn execute_step_operation_is_descriptive() {
     }
 }
 
-/// Wired forward-phase execution (`unstable-saga`). `execute_step_local` dispatches
+/// Wired forward-phase execution (`saga`). `execute_step_local` dispatches
 /// the step's real local mutation through a `DatabaseAdapter` and reports the
 /// outcome without fabricating success. Proven here against an in-memory SQLite
 /// adapter (single connection so the schema is shared) — no external service.
-#[cfg(feature = "unstable-saga")]
+#[cfg(feature = "saga")]
 mod wired {
     use std::sync::Arc;
 

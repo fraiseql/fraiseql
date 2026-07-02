@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
 use super::*;
 use crate::saga_store::SagaStoreError;
 

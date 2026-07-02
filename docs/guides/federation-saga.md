@@ -1,14 +1,20 @@
 # Cross-Subgraph Mutations: Saga Pattern
 
-> ⚠️ **Experimental — partially implemented.** Today FraiseQL implements only the **forward
-> phase** of a saga, behind the `unstable-saga` Cargo feature on `fraiseql-federation`, and it
-> dispatches over **local SQL** (`execute_step_local` / `execute_saga_local`). The distributed
-> **coordinator, compensation, on-restart recovery, and remote/HTTP subgraph dispatch are not
-> yet implemented** — `SagaCoordinator`, `SagaCompensator`, and `SagaRecoveryManager` return
-> `SagaStoreError::NotImplemented` (tracking issue #429).
+> **Stable, behind the opt-in `saga` Cargo feature** on `fraiseql-federation` (#429).
+> The full round-trip is wired and driven by the **runtime Rust API**
+> `WiredSagaCoordinator` + `SagaCoordinatorStep`: forward execution over local SQL or
+> remote HTTPS (with optional mTLS), automatic compensation in reverse order (local or
+> remote), concurrency-safe on-restart recovery (`SELECT … FOR UPDATE SKIP LOCKED`
+> leasing), per-step retry-with-backoff + timeout, and cross-subgraph `@requires`
+> pre-fetch. The original loud-fail placeholders (`SagaCoordinator` and the
+> `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` stub methods) are `#[deprecated]`
+> — use `WiredSagaCoordinator` and the `*_local` methods instead.
 >
-> The rest of this guide describes the **target design**. The sections on compensation,
-> recovery, and cross-subgraph (remote) dispatch are aspirational until those phases land.
+> **Authoring:** sagas are constructed **programmatically at runtime** (build
+> `SagaCoordinatorStep`s and pass them to `WiredSagaCoordinator::create_saga`). The
+> Python-decorator authoring and the `[federation.saga]` TOML shown below are a **planned
+> convenience layer that is not yet wired** — they describe the target authoring
+> ergonomics, not current behaviour.
 
 The saga pattern coordinates mutations that must write to multiple subgraphs. Each step
 has a forward action and a compensation action. If any step fails, compensation runs in
@@ -56,20 +62,21 @@ def create_order(self, *, order_input: OrderInput) -> OrderResult:
     ...
 ```
 
-The compiled schema embeds the saga plan. The FraiseQL runtime orchestrates the **forward**
-phase without additional application code (experimental, `unstable-saga`); compensation-phase
-orchestration is not yet implemented.
+The `WiredSagaCoordinator` orchestrates the full saga: the **forward** phase (local or
+remote steps) and, on failure, automatic **compensation** in reverse order. (The Python
+decorator above is the planned authoring layer; today you build the equivalent
+`SagaCoordinatorStep`s in Rust and call `create_saga`.)
 
 ## Execution Flow
 
 ```
 mutation createOrder($input: OrderInput!) { ... }
     │
-    ▼ SagaCoordinator (fraiseql-federation)
+    ▼ WiredSagaCoordinator (fraiseql-federation)
     │
     │ Forward phase (sequential):
     ├── Step 1: inventory-service.reserveInventory($input)
-    │     └── OK → write to tb_saga_log; advance to step 2
+    │     └── OK → persist to tb_federation_saga_steps; advance to step 2
     ├── Step 2: billing-service.chargePayment($input)
     │     └── FAIL → trigger compensation
     │
@@ -89,15 +96,17 @@ Pending ──► Executing ──► Completed
                 │
                 ▼
              Failed ──► Compensating ──► Compensated
-                                │
-                                ▼
-                          CompensationFailed  ← all compensations ran, some failed
+                                              │
+                                              ▼
+                          (partial rollback) → Failed + PartiallyCompensated
 ```
 
-In the target design, states persist to `tb_saga_log` before each transition, enabling
-recovery on server restart without replaying completed steps. The states beyond `Completed`
-(`Failed`/`Compensating`/`Compensated`/`CompensationFailed`) belong to the compensation
-phase, which is not yet implemented.
+`SagaState` is `Pending`/`Executing`/`Completed`/`Failed`/`Compensating`/`Compensated`,
+plus `Cancelled` (an operator cancels via `cancel_saga`, which rolls back completed steps
+first). A rollback that only partly succeeds leaves the saga `Failed` and reports
+`CompensationStatus::PartiallyCompensated` rather than fabricating a full `Compensated`.
+State persists to the `tb_federation_saga*` tables before each transition, enabling
+on-restart recovery.
 
 ## Compensation Contract
 
@@ -139,35 +148,46 @@ $$ LANGUAGE plpgsql;
 
 ## Recovery on Restart
 
-> **Not yet implemented.** `SagaRecoveryManager` returns `SagaStoreError::NotImplemented`.
-> The behavior below is the target design.
+Saga state is durable. `SagaRecoveryManager::run_iteration_local` /
+`start_background_loop_local` (the `saga` feature) re-drive sagas that a crash or restart
+left in-flight:
 
-In the target design, saga state is durable. If FraiseQL restarts mid-saga:
+1. Each tick **claims** stuck (`Executing`) and pending sagas atomically via
+   `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)`, leasing each to the
+   recovering worker — so two recovery workers (or a worker racing a live coordinator)
+   claim **disjoint** sets and never double-drive the same saga.
+2. Claimed sagas are replayed through `execute_saga_local` to a terminal
+   `Completed`/`Failed` state; a crashed worker's lease lapses and its claims become
+   reclaimable.
+3. Terminal, stale sagas are cleaned up.
 
-1. `SagaRecoveryManager` scans `tb_saga_log` for sagas in `Executing` or `Compensating`
-2. In-flight sagas are resumed from the last committed step
-3. Steps marked `Completed` in the log are skipped (not re-executed)
-4. The recovery scan runs at server startup, before accepting traffic
-
-No manual intervention would be required for crash recovery.
+No manual intervention is required for crash recovery.
 
 ## Observability
 
 ```bash
 # Check active saga states
-SELECT state, COUNT(*) FROM tb_saga_log GROUP BY state;
+SELECT state, COUNT(*) FROM tb_federation_sagas GROUP BY state;
 
-# Prometheus metrics
-fraiseql_saga_steps_total{subgraph="billing-service", status="success"}
-fraiseql_saga_steps_total{subgraph="billing-service", status="failed"}
-fraiseql_saga_compensations_total          # how often rollback is triggered
-fraiseql_saga_duration_seconds{quantile}   # end-to-end saga latency
+# Per-step progress for one saga
+SELECT step_number, subgraph, mutation_type, state
+FROM tb_federation_saga_steps fss
+JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
+WHERE fs.id = '<saga-id>' ORDER BY step_number;
 ```
+
+> Prometheus saga metrics (`fraiseql_saga_steps_total`, `_compensations_total`,
+> `_duration_seconds`) are **planned** — not yet emitted. Use the tables above and the
+> structured `tracing` spans/logs the coordinator emits for now.
 
 ## Configuration
 
-> Target design — the `[federation.saga]` keys below are not yet wired; the forward-phase
-> implementation is gated by the `unstable-saga` Cargo feature.
+> **Planned — not yet wired.** The `[federation.saga]` TOML keys below are the target
+> config surface. Today the equivalent knobs are set programmatically: per-step retry and
+> timeout via `RetryPolicy` (`WiredSagaCoordinator::with_retry_policy`), the compensation
+> strategy via `CompensationStrategy`, remote dispatch via `with_http_client` /
+> `with_http_client_mtls` / `with_subgraph`, and `@requires` pre-fetch via
+> `with_entity_resolver`.
 
 ```toml
 # fraiseql.toml
@@ -186,8 +206,9 @@ step_max_retries = 2
 - Sagas are **eventually consistent**, not strongly consistent. Between steps,
   partial state is visible to other queries (e.g., inventory decremented but payment
   not yet charged).
-- Compensation is **best-effort**: if a compensation fails, `CompensationFailed` state
-  is recorded and an alert is raised — manual intervention may be required.
-- Maximum saga size: 50 steps (configurable via `federation.saga.max_steps`).
-- The `tb_saga_log` table grows over time; prune completed sagas with:
-  `DELETE FROM tb_saga_log WHERE state IN ('Completed','Compensated') AND updated_at < NOW() - INTERVAL '30 days'`
+- Compensation is **best-effort**: if a step's inverse fails (or it has no registered
+  compensation), the saga is left `Failed` and reported `PartiallyCompensated` rather than
+  a fabricated full `Compensated` — manual intervention may be required.
+- The `tb_federation_saga*` tables grow over time; prune terminal sagas with the store's
+  `cleanup_stale_sagas(hours)` / `delete_completed_sagas()` (the recovery loop also cleans
+  up stale terminal sagas each tick).
