@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga steps can now retry with backoff and time out under `unstable-saga`
+  (#429).** `SagaExecutor` / `WiredSagaCoordinator` gained a `RetryPolicy`
+  (`with_retry_policy`): a transient step failure is retried up to `max_retries`
+  times with exponential backoff — and, when `step_timeout_ms` is set, each attempt
+  is bounded by a per-step timeout — before the saga gives up and its
+  `CompensationStrategy` decides whether to roll back. So a flaky mutation no longer
+  needlessly compensates a whole saga. The default `RetryPolicy::none()` preserves
+  the original one-attempt behaviour. A retried or timed-out attempt is always a real
+  failed attempt (a captured error, never a fabricated success — audit H32). Requires
+  the `unstable-saga` Cargo feature; the API may change without semver guarantees.
+
 - **Saga crash recovery is now concurrency-safe under `unstable-saga` (#429).**
   `SagaRecoveryManager` now claims stuck (`Executing`) sagas via a single atomic
   `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)` statement, leasing each
