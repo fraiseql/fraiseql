@@ -1,5 +1,4 @@
 //! Federation test suite — split by concern into focused modules.
-#![allow(deprecated)] // Reason: saga contract tests pin the deprecated loud-fail placeholder behaviour
 
 mod federation {
     pub mod common;
@@ -24,23 +23,6 @@ mod federation {
     mod entity_projection;
     mod entity_resolution;
     mod entity_where_clause;
-
-    // Saga execution and basic scenarios
-    mod saga_basic_execution;
-    mod saga_compensation;
-    mod saga_failure;
-
-    // Saga recovery and complex failures
-    mod saga_complex_failures;
-    mod saga_crash_recovery;
-    mod saga_recovery_manager;
-
-    // Saga E2E scenarios
-    mod saga_e2e_failure;
-    mod saga_e2e_harness;
-    mod saga_e2e_lifecycle;
-    mod saga_e2e_recovery;
-    mod saga_e2e_state;
 
     // Docker Compose integration — health and queries
     mod docker_health;

@@ -2,16 +2,14 @@
 
 > **Stable, behind the opt-in `saga` Cargo feature** on `fraiseql-federation` (#429).
 > The full round-trip is wired and driven by the **runtime Rust API**
-> `WiredSagaCoordinator` + `SagaCoordinatorStep`: forward execution over local SQL or
+> `SagaCoordinator` + `SagaCoordinatorStep`: forward execution over local SQL or
 > remote HTTPS (with optional mTLS), automatic compensation in reverse order (local or
 > remote), concurrency-safe on-restart recovery (`SELECT … FOR UPDATE SKIP LOCKED`
 > leasing), per-step retry-with-backoff + timeout, and cross-subgraph `@requires`
-> pre-fetch. The original loud-fail placeholders (`SagaCoordinator` and the
-> `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` stub methods) are `#[deprecated]`
-> — use `WiredSagaCoordinator` and the `*_local` methods instead.
+> pre-fetch.
 >
 > **Authoring:** sagas are constructed **programmatically at runtime** (build
-> `SagaCoordinatorStep`s and pass them to `WiredSagaCoordinator::create_saga`). The
+> `SagaCoordinatorStep`s and pass them to `SagaCoordinator::create_saga`). The
 > Python-decorator authoring and the `[federation.saga]` TOML shown below are a **planned
 > convenience layer that is not yet wired** — they describe the target authoring
 > ergonomics, not current behaviour.
@@ -62,7 +60,7 @@ def create_order(self, *, order_input: OrderInput) -> OrderResult:
     ...
 ```
 
-The `WiredSagaCoordinator` orchestrates the full saga: the **forward** phase (local or
+The `SagaCoordinator` orchestrates the full saga: the **forward** phase (local or
 remote steps) and, on failure, automatic **compensation** in reverse order. (The Python
 decorator above is the planned authoring layer; today you build the equivalent
 `SagaCoordinatorStep`s in Rust and call `create_saga`.)
@@ -72,7 +70,7 @@ decorator above is the planned authoring layer; today you build the equivalent
 ```
 mutation createOrder($input: OrderInput!) { ... }
     │
-    ▼ WiredSagaCoordinator (fraiseql-federation)
+    ▼ SagaCoordinator (fraiseql-federation)
     │
     │ Forward phase (sequential):
     ├── Step 1: inventory-service.reserveInventory($input)
@@ -148,15 +146,15 @@ $$ LANGUAGE plpgsql;
 
 ## Recovery on Restart
 
-Saga state is durable. `SagaRecoveryManager::run_iteration_local` /
-`start_background_loop_local` (the `saga` feature) re-drive sagas that a crash or restart
+Saga state is durable. `SagaRecoveryManager::run_iteration` /
+`start_background_loop` (the `saga` feature) re-drive sagas that a crash or restart
 left in-flight:
 
 1. Each tick **claims** stuck (`Executing`) and pending sagas atomically via
    `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)`, leasing each to the
    recovering worker — so two recovery workers (or a worker racing a live coordinator)
    claim **disjoint** sets and never double-drive the same saga.
-2. Claimed sagas are replayed through `execute_saga_local` to a terminal
+2. Claimed sagas are replayed through `execute_saga` to a terminal
    `Completed`/`Failed` state; a crashed worker's lease lapses and its claims become
    reclaimable.
 3. Terminal, stale sagas are cleaned up.
@@ -184,7 +182,7 @@ WHERE fs.id = '<saga-id>' ORDER BY step_number;
 
 > **Planned — not yet wired.** The `[federation.saga]` TOML keys below are the target
 > config surface. Today the equivalent knobs are set programmatically: per-step retry and
-> timeout via `RetryPolicy` (`WiredSagaCoordinator::with_retry_policy`), the compensation
+> timeout via `RetryPolicy` (`SagaCoordinator::with_retry_policy`), the compensation
 > strategy via `CompensationStrategy`, remote dispatch via `with_http_client` /
 > `with_http_client_mtls` / `with_subgraph`, and `@requires` pre-fetch via
 > `with_entity_resolver`.

@@ -28,9 +28,7 @@ transactions aren't forced to compile the Postgres saga store:
 fraiseql-federation = { version = "2.3", features = ["saga"] }
 ```
 
-Use `WiredSagaCoordinator` with `SagaCoordinatorStep`s. (The legacy `SagaCoordinator` and
-the `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` fail-loud placeholders are
-deprecated.)
+Use `SagaCoordinator` with `SagaCoordinatorStep`s.
 
 ## Documentation
 

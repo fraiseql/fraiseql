@@ -1,7 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
 use super::*;
-use crate::saga_store::SagaStoreError;
 
 #[test]
 fn test_saga_compensator_creation() {
@@ -29,70 +27,6 @@ fn test_saga_compensator_has_store_method() {
     assert!(!compensator.has_store());
 }
 
-/// H33: `compensate_step` must fail loud — it previously simulated a successful
-/// compensation and persisted a fabricated `{"deleted": true}` document.
-#[tokio::test]
-async fn compensate_step_fails_loud() {
-    let compensator = SagaCompensator::new();
-    let saga_id = Uuid::new_v4();
-    let result = compensator
-        .compensate_step(saga_id, 1, "testCompensation", &serde_json::json!({}), "test-service")
-        .await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "compensate_step must fail loud, got: {result:?}"
-    );
-}
-
-/// H33: the compensation driver must fail loud rather than reporting a
-/// fabricated `Compensated` status.
-#[tokio::test]
-async fn compensate_saga_fails_loud() {
-    let compensator = SagaCompensator::new();
-    let saga_id = Uuid::new_v4();
-    let result = compensator.compensate_saga(saga_id).await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "compensate_saga must fail loud, got: {result:?}"
-    );
-}
-
-/// H33: every reverse-order compensation must fail loud (no fabricated success).
-#[tokio::test]
-async fn compensate_step_reverse_order_all_fail_loud() {
-    let compensator = SagaCompensator::new();
-    let saga_id = Uuid::new_v4();
-
-    for step_num in (1..=3).rev() {
-        let result = compensator
-            .compensate_step(saga_id, step_num, "deleteEntity", &serde_json::json!({}), "svc")
-            .await;
-        assert!(
-            matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-            "compensate_step {step_num} must fail loud, got: {result:?}"
-        );
-    }
-}
-
-/// H33: the `operation` string must identify the failing entry point.
-#[tokio::test]
-async fn compensate_step_operation_is_descriptive() {
-    let compensator = SagaCompensator::new();
-    let saga_id = Uuid::new_v4();
-    let result = compensator
-        .compensate_step(saga_id, 1, "deleteEntity", &serde_json::json!({}), "svc")
-        .await;
-
-    match result {
-        Err(SagaStoreError::NotImplemented { operation }) => {
-            assert_eq!(operation, "SagaCompensator::compensate_step");
-        },
-        other => panic!("expected NotImplemented, got: {other:?}"),
-    }
-}
-
 /// `get_compensation_status` is a read-only status query that never persists
 /// state; without a store it honestly reports `None`.
 #[tokio::test]
@@ -107,13 +41,11 @@ async fn get_compensation_status_without_store_is_none() {
     assert!(status.is_none(), "no store should yield no status");
 }
 
-/// Wired compensation (`saga`). The store-backed rollback paths are proven
-/// end-to-end against real PostgreSQL in `tests/saga_integration.rs`; here we pin
-/// the store-absent contract without any external service — a compensator with no
-/// store fails loud (never a silent no-op) before touching the executor. The
-/// executor is an in-memory SQLite one purely to satisfy the type; it is never
-/// reached.
-#[cfg(feature = "saga")]
+/// Compensation behaviour. The store-backed rollback paths are proven end-to-end
+/// against real PostgreSQL in `tests/saga_integration.rs`; here we pin the
+/// store-absent contract without any external service — a compensator with no store
+/// fails loud (never a silent no-op) before touching the executor. The executor is an
+/// in-memory SQLite one purely to satisfy the type; it is never reached.
 mod wired {
     use std::{collections::HashMap, sync::Arc};
 
@@ -182,26 +114,26 @@ mod wired {
     }
 
     #[tokio::test]
-    async fn compensate_step_local_without_store_fails_loud() {
+    async fn compensate_step_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
         let executor = order_executor().await;
-        let result = compensator.compensate_step_local(&executor, &completed_step(), None).await;
+        let result = compensator.compensate_step(&executor, &completed_step(), None).await;
         assert!(
             matches!(result, Err(SagaStoreError::Database(_))),
-            "compensate_step_local without a store must fail loud, never no-op: {result:?}"
+            "compensate_step without a store must fail loud, never no-op: {result:?}"
         );
     }
 
     #[tokio::test]
-    async fn compensate_saga_local_without_store_fails_loud() {
+    async fn compensate_saga_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
         let executor = order_executor().await;
         let result = compensator
-            .compensate_saga_local(Uuid::new_v4(), &executor, &HashMap::new(), None)
+            .compensate_saga(Uuid::new_v4(), &executor, &HashMap::new(), None)
             .await;
         assert!(
             matches!(result, Err(SagaStoreError::Database(_))),
-            "compensate_saga_local without a store must fail loud, never no-op: {result:?}"
+            "compensate_saga without a store must fail loud, never no-op: {result:?}"
         );
     }
 
@@ -210,7 +142,7 @@ mod wired {
     // `dispatch_compensation(_, step, Some((client, url)))` rolls a step back over
     // HTTP to the peer subgraph instead of the local SQL adapter — the compensation
     // analog of the forward `dispatch_step` remote path. It is store-free (the
-    // persisting `compensate_step_local` / `compensate_saga_local` are proven on
+    // persisting `compensate_step` / `compensate_saga` are proven on
     // live PostgreSQL in `tests/saga_integration.rs`), so these run in the fast leg.
     // A `new_for_test` client skips the SSRF guard to reach a loopback mock.
 

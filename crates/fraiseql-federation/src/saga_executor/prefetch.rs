@@ -8,11 +8,7 @@
 //!
 //! The pure helpers (building the representation, extracting the field, merging the
 //! value, shaping the failure) have no I/O and are unit-tested on every push. The
-//! async [`resolve_required_fields`] drives the HTTP entity resolver over them. All
-//! are consumed only by the feature-gated wired executor, so without `saga`
-//! they are dead in a non-test build — hence the module-level `allow(dead_code)` for
-//! that configuration (the established `#428` pattern shared with `forward.rs`).
-#![cfg_attr(not(feature = "saga"), allow(dead_code))]
+//! async [`resolve_required_fields`] drives the HTTP entity resolver over them.
 
 use std::collections::HashMap;
 

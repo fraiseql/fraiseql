@@ -1,9 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-#![allow(deprecated)] // Reason: contract tests pin the deprecated loud-fail placeholder behaviour
-use uuid::Uuid;
 
 use super::SagaExecutor;
-use crate::saga_store::SagaStoreError;
 
 #[test]
 fn test_saga_executor_creation() {
@@ -31,89 +28,10 @@ fn test_saga_executor_has_store_method() {
     assert!(!executor.has_store());
 }
 
-/// H32: `execute_step` must fail loud — distributed saga execution is unwired,
-/// so it must never fabricate a result or persist a step transition.
-#[tokio::test]
-async fn execute_step_fails_loud() {
-    let executor = SagaExecutor::new();
-    let saga_id = Uuid::new_v4();
-    let result = executor
-        .execute_step(saga_id, 1, "testMutation", &serde_json::json!({}), "test-service")
-        .await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "execute_step must fail loud, got: {result:?}"
-    );
-}
-
-/// H32: the no-store path must also fail loud (it previously returned a
-/// fabricated placeholder success).
-#[tokio::test]
-async fn execute_step_without_store_fails_loud() {
-    let executor = SagaExecutor::new();
-    let saga_id = Uuid::new_v4();
-    let result = executor
-        .execute_step(saga_id, 1, "createOrder", &serde_json::json!({}), "orders-service")
-        .await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "execute_step without store must fail loud, got: {result:?}"
-    );
-}
-
-/// H32: the forward-phase driver must fail loud rather than reporting empty or
-/// fabricated step results.
-#[tokio::test]
-async fn execute_saga_fails_loud() {
-    let executor = SagaExecutor::new();
-    let saga_id = Uuid::new_v4();
-    let result = executor.execute_saga(saga_id).await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "execute_saga must fail loud, got: {result:?}"
-    );
-}
-
-/// H32: `get_execution_state` derived its values from fabricated step states; it
-/// must now fail loud.
-#[tokio::test]
-async fn get_execution_state_fails_loud() {
-    let executor = SagaExecutor::new();
-    let saga_id = Uuid::new_v4();
-    let result = executor.get_execution_state(saga_id).await;
-
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "get_execution_state must fail loud, got: {result:?}"
-    );
-}
-
-/// H32: the `operation` string must identify the failing entry point so callers
-/// and logs can tell the unwired paths apart.
-#[tokio::test]
-async fn execute_step_operation_is_descriptive() {
-    let executor = SagaExecutor::new();
-    let saga_id = Uuid::new_v4();
-    let result = executor
-        .execute_step(saga_id, 1, "mutation", &serde_json::json!({}), "service")
-        .await;
-
-    match result {
-        Err(SagaStoreError::NotImplemented { operation }) => {
-            assert_eq!(operation, "SagaExecutor::execute_step");
-        },
-        other => panic!("expected NotImplemented, got: {other:?}"),
-    }
-}
-
-/// Wired forward-phase execution (`saga`). `execute_step_local` dispatches
-/// the step's real local mutation through a `DatabaseAdapter` and reports the
-/// outcome without fabricating success. Proven here against an in-memory SQLite
-/// adapter (single connection so the schema is shared) — no external service.
-#[cfg(feature = "saga")]
+/// Forward-phase execution: `execute_step` dispatches the step's real local
+/// mutation through a `DatabaseAdapter` and reports the outcome without fabricating
+/// success. Proven here against an in-memory SQLite adapter (single connection so
+/// the schema is shared) — no external service.
 mod wired {
     use std::sync::Arc;
 
@@ -191,14 +109,14 @@ mod wired {
     }
 
     #[tokio::test]
-    async fn execute_step_local_dispatches_real_create() {
+    async fn execute_step_dispatches_real_create() {
         use fraiseql_db::traits::DatabaseAdapter;
 
         let executor = SagaExecutor::new();
         let (mutation_executor, adapter) = order_table_executor().await;
         let step = order_step(MutationType::Create, json!({"id": "o1", "total": "100"}));
 
-        let result = executor.execute_step_local(&mutation_executor, &step).await;
+        let result = executor.execute_step(&mutation_executor, &step).await;
 
         assert!(result.success, "a successful create must report success: {result:?}");
         assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
@@ -215,14 +133,14 @@ mod wired {
     }
 
     #[tokio::test]
-    async fn execute_step_local_failed_mutation_reports_failure_not_fabricated_success() {
+    async fn execute_step_failed_mutation_reports_failure_not_fabricated_success() {
         let executor = SagaExecutor::new();
         let (mutation_executor, _adapter) = order_table_executor().await;
         // UPDATE targeting an id that does not exist → 0 rows → NotFound. The
         // step must report failure, never a fabricated Completed (audit H32).
         let step = order_step(MutationType::Update, json!({"id": "missing", "total": "5"}));
 
-        let result = executor.execute_step_local(&mutation_executor, &step).await;
+        let result = executor.execute_step(&mutation_executor, &step).await;
 
         assert!(!result.success, "a 0-row update must report failure: {result:?}");
         assert!(result.data.is_none(), "a failed step must not fabricate result data");

@@ -210,14 +210,6 @@ name = "federation_requires_provides_enforcement"
 required-features = ["federation"]
 
 [[test]]
-name = "federation_saga_observability"
-required-features = ["federation"]
-
-[[test]]
-name = "federation_saga_real"
-required-features = ["federation"]
-
-[[test]]
 name = "federation_scenarios"
 required-features = ["federation"]
 

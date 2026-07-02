@@ -1,79 +1,19 @@
-//! Integration tests for `SagaExecutor` and `SagaCompensator`.
+//! Integration tests for the saga subsystem against real PostgreSQL.
 //!
-//! Distributed saga execution/compensation is unwired (audit H32/H33): the
-//! previous bodies fabricated success and persisted it. Every execution entry
-//! point now fails loud with `SagaStoreError::NotImplemented`. These tests pin
-//! that contract from outside the crate. Real execution is tracked in
-//! <https://github.com/fraiseql/fraiseql/issues/429>.
+//! These exercise `SagaCoordinator`, `SagaExecutor`, `SagaCompensator`, and
+//! `SagaRecoveryManager` end-to-end under the `saga` feature. They are `#[ignore]`d
+//! by default — they require a live PostgreSQL reachable via `DATABASE_URL` (the
+//! saga store is Postgres-only). The CI integration leg runs them with
+//! `--features saga,test-utils --include-ignored`.
 
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
-#![allow(deprecated)] // Reason: the loud-fail contract tests below pin the deprecated placeholder behaviour
 
-use fraiseql_federation::{SagaCompensator, SagaExecutor, saga_store::SagaStoreError};
-use serde_json::json;
-use uuid::Uuid;
-
-// ── Forward phase fails loud ─────────────────────────────────────────────────
-
-#[tokio::test]
-async fn test_execute_step_fails_loud() {
-    let executor = SagaExecutor::new();
-    let result = executor
-        .execute_step(Uuid::new_v4(), 1, "createOrder", &json!({"id": "o1"}), "orders")
-        .await;
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "execute_step must fail loud, never fabricate a Completed step: {result:?}"
-    );
-}
-
-#[tokio::test]
-async fn test_execute_saga_fails_loud() {
-    let executor = SagaExecutor::new();
-    let result = executor.execute_saga(Uuid::new_v4()).await;
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "execute_saga must fail loud, never return fabricated results: {result:?}"
-    );
-}
-
-#[tokio::test]
-async fn test_get_execution_state_fails_loud() {
-    let executor = SagaExecutor::new();
-    let result = executor.get_execution_state(Uuid::new_v4()).await;
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "get_execution_state must fail loud: {result:?}"
-    );
-}
-
-// ── Compensation phase fails loud ────────────────────────────────────────────
-
-#[tokio::test]
-async fn test_compensate_saga_fails_loud() {
-    let compensator = SagaCompensator::new();
-    let result = compensator.compensate_saga(Uuid::new_v4()).await;
-    assert!(
-        matches!(result, Err(SagaStoreError::NotImplemented { .. })),
-        "compensate_saga must fail loud, never mark a saga Compensated having undone nothing: {result:?}"
-    );
-}
-
-#[tokio::test]
-async fn test_compensation_status_query_no_store_is_none() {
-    // The status *query* is read-only and never persists: with no store and no
-    // compensation ever written it honestly reports "unknown" (None).
-    let compensator = SagaCompensator::new();
-    let status = compensator.get_compensation_status(Uuid::new_v4()).await.unwrap();
-    assert!(status.is_none(), "no-store compensation status must return None");
-}
-
-// ── Wired forward phase end-to-end against real PostgreSQL (saga) ────
+// ── Forward phase end-to-end against real PostgreSQL (saga) ────
 //
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
 // them with `--features saga --include-ignored` against the bound
-// service. They exercise the additive `execute_saga_local` / `execution_state`
+// service. They exercise the additive `execute_saga` / `execution_state`
 // wired methods; the fail-loud entry points above are unchanged.
 
 #[cfg(feature = "saga")]
@@ -296,7 +236,7 @@ mod wired_pg {
     /// result.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn execute_saga_local_completes_all_steps_and_persists_state() {
+    async fn execute_saga_completes_all_steps_and_persists_state() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -331,7 +271,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
+            .execute_saga(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -356,7 +296,7 @@ mod wired_pg {
     /// unexecuted.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn execute_saga_local_stops_and_fails_on_step_error() {
+    async fn execute_saga_stops_and_fails_on_step_error() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -403,7 +343,7 @@ mod wired_pg {
             .unwrap();
 
         let results = SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
+            .execute_saga(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
@@ -437,7 +377,7 @@ mod wired_pg {
     /// `Compensated`, and the reported result is a real success (never fabricated).
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn compensate_step_local_rolls_back_a_completed_step() {
+    async fn compensate_step_rolls_back_a_completed_step() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -464,13 +404,13 @@ mod wired_pg {
 
         // Run the forward create so the row actually exists, then mark Completed.
         let forward = SagaExecutor::with_store(Arc::clone(&store));
-        let fwd = forward.execute_step_local(&executor, &step).await;
+        let fwd = forward.execute_step(&executor, &step).await;
         assert!(fwd.success, "forward create must succeed: {fwd:?}");
         store.update_saga_step_state(step.id, &StepState::Completed).await.unwrap();
 
         // Compensate the single step.
         let compensator = SagaCompensator::with_store(Arc::clone(&store));
-        let result = compensator.compensate_step_local(&executor, &step, None).await.unwrap();
+        let result = compensator.compensate_step(&executor, &step, None).await.unwrap();
         assert!(result.success, "compensation must succeed: {result:?}");
         assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
 
@@ -498,7 +438,7 @@ mod wired_pg {
     /// the saga ends `Compensated`.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn compensate_saga_local_rolls_back_completed_steps_in_reverse() {
+    async fn compensate_saga_rolls_back_completed_steps_in_reverse() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -543,13 +483,13 @@ mod wired_pg {
 
         // Forward: step0 Completed, step1 Failed, step2 Pending, saga Failed.
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
+            .execute_saga(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
         // Compensate: only the completed step0 rolls back.
         let comp = SagaCompensator::with_store(Arc::clone(&store))
-            .compensate_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .compensate_saga(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
         assert_eq!(comp.status, CompensationStatus::Compensated, "all completed steps rolled back");
@@ -580,7 +520,7 @@ mod wired_pg {
     /// never marked `Compensated` having undone nothing (audit H33).
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn compensate_saga_local_partial_when_compensation_unregistered() {
+    async fn compensate_saga_partial_when_compensation_unregistered() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -604,12 +544,12 @@ mod wired_pg {
         store.save_saga_step(&step).await.unwrap();
 
         SagaExecutor::with_store(Arc::clone(&store))
-            .execute_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None, None)
+            .execute_saga(saga_id, &executor, &std::collections::HashMap::new(), None, None)
             .await
             .unwrap();
 
         let comp = SagaCompensator::with_store(Arc::clone(&store))
-            .compensate_saga_local(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .compensate_saga(saga_id, &executor, &std::collections::HashMap::new(), None)
             .await
             .unwrap();
         assert_eq!(
@@ -635,8 +575,8 @@ mod wired_pg {
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
 // them with `--features saga --include-ignored` against the bound
-// service. They exercise the additive `run_iteration_local` /
-// `start_background_loop_local` wired methods; the fail-loud `run_iteration` /
+// service. They exercise the additive `run_iteration` /
+// `start_background_loop` wired methods; the fail-loud `run_iteration` /
 // `start_background_loop` entry points are unchanged.
 
 #[cfg(feature = "saga")]
@@ -751,7 +691,7 @@ mod recovery_pg {
     /// terminal state, records a recovery attempt, and counts the work in `stats`.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn run_iteration_local_drives_stuck_saga_to_terminal_state() {
+    async fn run_iteration_drives_stuck_saga_to_terminal_state() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -780,7 +720,7 @@ mod recovery_pg {
         // `find_stuck_sagas` scans globally, so a recovery record may already exist
         // from unrelated rows — measure the delta this tick creates.
         let recovery_before = store.recovery_count().await.unwrap();
-        manager.run_iteration_local(&executor).await.unwrap();
+        manager.run_iteration(&executor).await.unwrap();
 
         // The saga is no longer stuck: its steps were replayed to completion.
         assert_eq!(
@@ -802,7 +742,7 @@ mod recovery_pg {
 
         // Stats reflect exactly one iteration and at least our saga processed.
         let stats = manager.get_stats();
-        assert_eq!(stats.iterations, 1, "one run_iteration_local call is one iteration");
+        assert_eq!(stats.iterations, 1, "one run_iteration call is one iteration");
         assert!(stats.sagas_processed >= 1, "the stuck saga was processed: {stats:?}");
         assert!(
             stats.executing_sagas_found >= 1,
@@ -816,7 +756,7 @@ mod recovery_pg {
     /// stuck saga in the same tick is still driven to a terminal state.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn run_iteration_local_continues_past_a_failing_saga() {
+    async fn run_iteration_continues_past_a_failing_saga() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -856,7 +796,7 @@ mod recovery_pg {
             .unwrap();
 
         let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
-        manager.run_iteration_local(&executor).await.unwrap();
+        manager.run_iteration(&executor).await.unwrap();
 
         // Both sagas were driven out of Executing; the failing one did not stop the
         // second from being processed.
@@ -884,7 +824,7 @@ mod recovery_pg {
     /// and stops cleanly when asked.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn start_background_loop_local_recovers_then_stops() {
+    async fn start_background_loop_recovers_then_stops() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -916,10 +856,7 @@ mod recovery_pg {
         };
         let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
 
-        Arc::clone(&manager)
-            .start_background_loop_local(Arc::new(executor))
-            .await
-            .unwrap();
+        Arc::clone(&manager).start_background_loop(Arc::new(executor)).await.unwrap();
         assert!(manager.is_running(), "the loop reports running after start");
 
         // Wait a couple of ticks for at least one iteration to fire.
@@ -946,7 +883,7 @@ mod recovery_pg {
     /// fails loud rather than spawning a duplicate.
     #[tokio::test]
     #[ignore = "requires DATABASE_URL (Postgres saga store)"]
-    async fn start_background_loop_local_rejects_double_start() {
+    async fn start_background_loop_rejects_double_start() {
         let Some(url) = database_url() else {
             eprintln!("DATABASE_URL not set; skipping");
             return;
@@ -963,13 +900,10 @@ mod recovery_pg {
         let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
         let executor = Arc::new(executor);
 
-        Arc::clone(&manager)
-            .start_background_loop_local(Arc::clone(&executor))
-            .await
-            .unwrap();
+        Arc::clone(&manager).start_background_loop(Arc::clone(&executor)).await.unwrap();
 
         // A second start while running must fail loud, not spawn a duplicate loop.
-        let second = Arc::clone(&manager).start_background_loop_local(Arc::clone(&executor)).await;
+        let second = Arc::clone(&manager).start_background_loop(Arc::clone(&executor)).await;
         assert!(second.is_err(), "a double start must be rejected: {second:?}");
 
         // Clean up: stop the single running loop.
@@ -1101,8 +1035,7 @@ mod recovery_pg {
         };
         let m1 = SagaRecoveryManager::new(Arc::clone(&store), cfg);
         let m2 = SagaRecoveryManager::new(Arc::clone(&store), cfg);
-        let (r1, r2) =
-            tokio::join!(m1.run_iteration_local(&executor), m2.run_iteration_local(&executor));
+        let (r1, r2) = tokio::join!(m1.run_iteration(&executor), m2.run_iteration(&executor));
         r1.unwrap();
         r2.unwrap();
 
@@ -1126,7 +1059,7 @@ mod recovery_pg {
 // Ignored by default — these require a live PostgreSQL reachable via
 // `DATABASE_URL` (the saga store is Postgres-only). The CI integration leg runs
 // them with `--features saga --include-ignored` against the bound
-// service. They exercise the additive `WiredSagaCoordinator`, which ties forward
+// service. They exercise the additive `SagaCoordinator`, which ties forward
 // execution + compensation into one handle; the loud-fail `SagaCoordinator`
 // entry points are unchanged and covered by its own unit tests.
 
@@ -1137,8 +1070,8 @@ mod coordinator_pg {
     use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
     use fraiseql_federation::{
         CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
-        KeyDirective, PostgresSagaStore, SagaCoordinatorStep, SagaState, SagaStoreError, StepState,
-        WiredSagaCoordinator,
+        KeyDirective, PostgresSagaStore, SagaCoordinator, SagaCoordinatorStep, SagaState,
+        SagaStoreError, StepState,
     };
     use serde_json::json;
     use uuid::Uuid;
@@ -1226,8 +1159,7 @@ mod coordinator_pg {
         let typename = unique_typename();
         let (store, _executor) = setup(&url, &typename).await;
         let store = Arc::new(store);
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
 
         let id_a = format!("a-{}", Uuid::new_v4());
         let id_b = format!("b-{}", Uuid::new_v4());
@@ -1282,8 +1214,7 @@ mod coordinator_pg {
         let typename = unique_typename();
         let (store, _executor) = setup(&url, &typename).await;
         let store = Arc::new(store);
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
 
         let empty = coordinator.create_saga(vec![]).await;
         assert!(
@@ -1311,8 +1242,7 @@ mod coordinator_pg {
         let typename = unique_typename();
         let (store, executor) = setup(&url, &typename).await;
         let store = Arc::new(store);
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
 
         let id_a = format!("a-{}", Uuid::new_v4());
         let id_b = format!("b-{}", Uuid::new_v4());
@@ -1353,8 +1283,7 @@ mod coordinator_pg {
         let typename = unique_typename();
         let (store, executor) = setup(&url, &typename).await;
         let store = Arc::new(store);
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
 
         let id_a = format!("a-{}", Uuid::new_v4());
         let id_b = format!("b-{}", Uuid::new_v4());
@@ -1419,8 +1348,7 @@ mod coordinator_pg {
         let typename = unique_typename();
         let (store, executor) = setup(&url, &typename).await;
         let store = Arc::new(store);
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
 
         let id_a = format!("a-{}", Uuid::new_v4());
         let id_b = format!("b-{}", Uuid::new_v4());
@@ -1469,22 +1397,17 @@ mod coordinator_pg {
         let store = Arc::new(store);
 
         // An https peer is accepted.
-        let accepted =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_subgraph(
-                    "peer",
-                    reqwest::Url::parse("https://peer.example.com/graphql").unwrap(),
-                );
+        let accepted = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_subgraph(
+                "peer",
+                reqwest::Url::parse("https://peer.example.com/graphql").unwrap(),
+            );
         assert!(accepted.is_ok(), "an https peer URL must be accepted: {:?}", accepted.err());
 
         // A plain-http peer is rejected at registration, not at dispatch.
-        let rejected =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_subgraph(
-                    "peer",
-                    reqwest::Url::parse("http://peer.example.com/graphql").unwrap(),
-                )
-                .err();
+        let rejected = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_subgraph("peer", reqwest::Url::parse("http://peer.example.com/graphql").unwrap())
+            .err();
         assert!(rejected.is_some(), "a plain-http peer URL must be rejected: {rejected:?}");
     }
 }
@@ -1505,8 +1428,8 @@ mod remote_dispatch_pg {
     use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
     use fraiseql_federation::{
         CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
-        HttpMutationConfig, KeyDirective, PostgresSagaStore, SagaCoordinatorStep, SagaState,
-        StepState, WiredSagaCoordinator,
+        HttpMutationConfig, KeyDirective, PostgresSagaStore, SagaCoordinator, SagaCoordinatorStep,
+        SagaState, StepState,
     };
     use serde_json::json;
     use uuid::Uuid;
@@ -1617,11 +1540,10 @@ mod remote_dispatch_pg {
             .await;
 
         let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_http_client_for_test(HttpMutationConfig::default())
-                .unwrap()
-                .with_subgraph_unchecked("remote-subgraph", peer_url);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_http_client_for_test(HttpMutationConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("remote-subgraph", peer_url);
 
         // Step 1: local (subgraph "orders" is not registered → SQL path).
         // Step 2: remote (subgraph "remote-subgraph" resolves to the mock).
@@ -1738,11 +1660,10 @@ mod remote_dispatch_pg {
             .await;
 
         let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_http_client_for_test(HttpMutationConfig::default())
-                .unwrap()
-                .with_subgraph_unchecked("remote-subgraph", peer_url);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_http_client_for_test(HttpMutationConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("remote-subgraph", peer_url);
 
         // Step 1 local (creates a row), step 2 remote (create via peer), step 3 local
         // update on a missing row → forward fails after two completed steps, so
@@ -1836,8 +1757,8 @@ mod prefetch_pg {
     use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
     use fraiseql_federation::{
         CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
-        HttpClientConfig, KeyDirective, PostgresSagaStore, RequiredField, SagaCoordinatorStep,
-        SagaState, SagaStoreError, StepState, WiredSagaCoordinator,
+        HttpClientConfig, KeyDirective, PostgresSagaStore, RequiredField, SagaCoordinator,
+        SagaCoordinatorStep, SagaState, SagaStoreError, StepState,
     };
     use serde_json::json;
     use uuid::Uuid;
@@ -1926,8 +1847,7 @@ mod prefetch_pg {
         let store = Arc::new(store);
 
         // No subgraph registered → the @requires spec cannot be resolved.
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
         let before = store.saga_count().await.unwrap();
 
         let step = SagaCoordinatorStep::new(
@@ -1973,9 +1893,8 @@ mod prefetch_pg {
 
         // Register catalog (a bare URL; no server needed — nothing is executed here).
         let catalog_url = reqwest::Url::parse("http://127.0.0.1:1/graphql").unwrap();
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_subgraph_unchecked("catalog", catalog_url);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_subgraph_unchecked("catalog", catalog_url);
 
         let required = RequiredField {
             subgraph:   "catalog".to_string(),
@@ -2024,11 +1943,10 @@ mod prefetch_pg {
         // The catalog resolves the entity but WITHOUT the required `price` field.
         let server = catalog_server(json!([{"__typename": "Catalog"}])).await;
         let catalog_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_entity_resolver_for_test(HttpClientConfig::default())
-                .unwrap()
-                .with_subgraph_unchecked("catalog", catalog_url);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_entity_resolver_for_test(HttpClientConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("catalog", catalog_url);
 
         // The step carries a full `total` in its base variables, so a dispatch WOULD
         // write a row — proving zero-dispatch means the row's absence, not a no-op.
@@ -2088,11 +2006,10 @@ mod prefetch_pg {
         // The catalog subgraph owns the `price` field (returned as "99").
         let server = catalog_server(json!([{"__typename": "Catalog", "price": "99"}])).await;
         let catalog_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
-        let coordinator =
-            WiredSagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
-                .with_entity_resolver_for_test(HttpClientConfig::default())
-                .unwrap()
-                .with_subgraph_unchecked("catalog", catalog_url);
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic)
+            .with_entity_resolver_for_test(HttpClientConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("catalog", catalog_url);
 
         // The step runs locally (subgraph "orders") and supplies only `id`; the
         // `total` column is filled by the pre-fetched catalog `price`.
