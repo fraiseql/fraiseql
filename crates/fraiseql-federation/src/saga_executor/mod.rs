@@ -143,14 +143,53 @@ pub struct ExecutionState {
     pub failure_reason:  Option<String>,
 }
 
-/// Saga forward phase executor
+/// Retry + timeout policy for a saga step's forward dispatch.
 ///
+/// A transient step failure (a flaky network call, a momentary lock) should not
+/// immediately roll back an entire saga. With a non-default policy each step is
+/// retried up to `max_retries` times with exponential backoff before it is treated
+/// as failed; only then does the saga's [`crate::saga_coordinator::CompensationStrategy`]
+/// decide whether to compensate. The default [`RetryPolicy::none`] preserves the
+/// original behaviour (one attempt, no timeout).
+#[derive(Debug, Clone, Copy)]
+pub struct RetryPolicy {
+    /// Retries attempted *after* the first try (0 = no retry — one attempt only).
+    pub max_retries:     u32,
+    /// Base backoff in milliseconds; attempt `n` (1-indexed retries) waits
+    /// `base_delay_ms * 2^(n-1)` before retrying.
+    pub base_delay_ms:   u64,
+    /// Optional per-attempt dispatch timeout in milliseconds. An attempt that
+    /// exceeds it is a real failed attempt (a timeout error, never a fabricated
+    /// success) and is retried like any other failure. `None` = no timeout.
+    pub step_timeout_ms: Option<u64>,
+}
+
+impl RetryPolicy {
+    /// No retries and no timeout — one attempt per step (the historical behaviour).
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            max_retries:     0,
+            base_delay_ms:   0,
+            step_timeout_ms: None,
+        }
+    }
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
 /// Executes saga steps sequentially during the forward phase.
 /// Coordinates with saga store to persist state and handle failures.
 pub struct SagaExecutor {
     /// Saga store for loading/saving saga state
     /// Optional to support testing without database
     pub(super) store: Option<Arc<PostgresSagaStore>>,
+    /// Retry/timeout policy applied to each step's forward dispatch.
+    pub(super) retry: RetryPolicy,
 }
 
 impl SagaExecutor {
@@ -159,7 +198,10 @@ impl SagaExecutor {
     /// This is suitable for testing. For production, use `with_store()`.
     #[must_use]
     pub const fn new() -> Self {
-        Self { store: None }
+        Self {
+            store: None,
+            retry: RetryPolicy::none(),
+        }
     }
 
     /// Create a new saga executor with a saga store
@@ -167,7 +209,17 @@ impl SagaExecutor {
     /// This enables persistence of saga state and recovery from failures.
     #[must_use]
     pub const fn with_store(store: Arc<PostgresSagaStore>) -> Self {
-        Self { store: Some(store) }
+        Self {
+            store: Some(store),
+            retry: RetryPolicy::none(),
+        }
+    }
+
+    /// Set the per-step retry/timeout policy (builder).
+    #[must_use]
+    pub const fn with_retry_policy(mut self, retry: RetryPolicy) -> Self {
+        self.retry = retry;
+        self
     }
 
     /// Check if executor has a saga store configured

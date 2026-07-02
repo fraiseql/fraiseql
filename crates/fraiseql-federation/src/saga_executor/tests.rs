@@ -122,7 +122,7 @@ mod wired {
 
     use crate::{
         mutation_executor::FederationMutationExecutor,
-        saga_executor::SagaExecutor,
+        saga_executor::{RetryPolicy, SagaExecutor},
         saga_store::{MutationType, SagaStep, StepState},
         types::{FederatedType, FederationMetadata, KeyDirective},
     };
@@ -375,5 +375,187 @@ mod wired {
         assert_eq!(state, StepState::Completed);
         let data = result.data.expect("a successful remote step carries the mock entity");
         assert_eq!(data["id"], "o-verb", "the create response is returned");
+    }
+
+    // ── Retry-with-backoff + per-step timeout (#429 hardening P06) ──────────────
+    //
+    // `dispatch_step_with_retry` retries a failed dispatch under the executor's
+    // `RetryPolicy` before giving up, so a transient step failure does not needlessly
+    // roll back the saga. Store-free (mirrors `dispatch_step`), so these run fast.
+    // The `HttpMutationClient` is built with `max_retries: 1` (no internal retry) so
+    // one dispatch attempt = exactly one HTTP request and the counts are unambiguous.
+
+    fn single_attempt_client() -> HttpMutationClient {
+        HttpMutationClient::new_for_test(HttpMutationConfig {
+            timeout_ms:     5000,
+            max_retries:    1,
+            retry_delay_ms: 1,
+        })
+        .unwrap()
+    }
+
+    /// A step that succeeds on the first try is dispatched exactly once — the retry
+    /// budget is never spent on success.
+    #[tokio::test]
+    async fn dispatch_step_with_retry_succeeds_first_try_no_retry() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "create": { "__typename": "Order", "id": "o-ok" } }
+            })))
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = single_attempt_client();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let step = order_step(MutationType::Create, json!({"id": "o-ok", "total": "1"}));
+        let executor = SagaExecutor::new().with_retry_policy(RetryPolicy {
+            max_retries:     3,
+            base_delay_ms:   1,
+            step_timeout_ms: None,
+        });
+
+        let (result, state) = executor
+            .dispatch_step_with_retry(&mutation_executor, &step, Some((&client, &url)))
+            .await;
+
+        assert!(result.success, "first-try success must not fail: {result:?}");
+        assert_eq!(state, StepState::Completed);
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 1, "a successful step is dispatched exactly once: {posts}");
+    }
+
+    /// A transient failure is recovered by a retry: the peer returns 500 once, then
+    /// 200; the step ultimately succeeds after exactly two attempts.
+    #[tokio::test]
+    async fn dispatch_step_with_retry_recovers_after_transient_failure() {
+        let server = MockServer::start().await;
+        // Higher-priority 500 fires once, then is exhausted; the default-priority 200
+        // answers the retry.
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(500))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": { "create": { "__typename": "Order", "id": "o-retry" } }
+            })))
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = single_attempt_client();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let step = order_step(MutationType::Create, json!({"id": "o-retry", "total": "1"}));
+        let executor = SagaExecutor::new().with_retry_policy(RetryPolicy {
+            max_retries:     2,
+            base_delay_ms:   1,
+            step_timeout_ms: None,
+        });
+
+        let (result, state) = executor
+            .dispatch_step_with_retry(&mutation_executor, &step, Some((&client, &url)))
+            .await;
+
+        assert!(result.success, "a retry must recover the transient failure: {result:?}");
+        assert_eq!(state, StepState::Completed);
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 2, "one failed attempt + one successful retry: {posts}");
+    }
+
+    /// A step that keeps failing exhausts its retry budget and is reported failed —
+    /// never a fabricated success. Attempts = `max_retries + 1`.
+    #[tokio::test]
+    async fn dispatch_step_with_retry_exhausts_budget_then_fails() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = single_attempt_client();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let step = order_step(MutationType::Create, json!({"id": "o-fail", "total": "1"}));
+        let executor = SagaExecutor::new().with_retry_policy(RetryPolicy {
+            max_retries:     2,
+            base_delay_ms:   1,
+            step_timeout_ms: None,
+        });
+
+        let (result, state) = executor
+            .dispatch_step_with_retry(&mutation_executor, &step, Some((&client, &url)))
+            .await;
+
+        assert!(!result.success, "an exhausted retry budget must report failure: {result:?}");
+        assert_eq!(state, StepState::Failed);
+        assert!(result.data.is_none(), "a failed step fabricates no data");
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 3, "max_retries=2 → 1 initial + 2 retries = 3 attempts: {posts}");
+    }
+
+    /// A step whose dispatch exceeds the per-step timeout is a real failed attempt
+    /// (a timeout error), never a fabricated success.
+    #[tokio::test]
+    async fn dispatch_step_with_retry_times_out() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_millis(400))
+                    .set_body_json(
+                        json!({ "data": { "create": { "__typename": "Order", "id": "x" } } }),
+                    ),
+            )
+            .mount(&server)
+            .await;
+
+        let (mutation_executor, _adapter) = order_table_executor().await;
+        let client = single_attempt_client();
+        let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let step = order_step(MutationType::Create, json!({"id": "o-slow", "total": "1"}));
+        // 50ms step timeout vs a 400ms server delay → the attempt times out.
+        let executor = SagaExecutor::new().with_retry_policy(RetryPolicy {
+            max_retries:     0,
+            base_delay_ms:   0,
+            step_timeout_ms: Some(50),
+        });
+
+        let (result, state) = executor
+            .dispatch_step_with_retry(&mutation_executor, &step, Some((&client, &url)))
+            .await;
+
+        assert!(!result.success, "a timed-out step must report failure: {result:?}");
+        assert_eq!(state, StepState::Failed);
+        assert!(
+            result.error.as_deref().unwrap_or("").contains("timed out"),
+            "the failure must name the timeout: {result:?}"
+        );
     }
 }

@@ -146,7 +146,10 @@ mod wired {
                     http_client,
                     subgraph_urls,
                 );
-                let (result, state) = Self::dispatch_step(mutation_executor, step, remote).await;
+                // Retry/timeout policy (default: one attempt) wraps the dispatch so a
+                // transient step failure is retried before the saga gives up on it.
+                let (result, state) =
+                    self.dispatch_step_with_retry(mutation_executor, step, remote).await;
 
                 // Persist the real post-mutation entity only on success; a failed
                 // step is marked Failed and carries no fabricated result payload.

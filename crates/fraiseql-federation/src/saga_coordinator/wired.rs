@@ -28,7 +28,7 @@ use crate::{
     mutation_executor::FederationMutationExecutor,
     mutation_http_client::{HttpMutationClient, HttpMutationConfig},
     saga_compensator::SagaCompensator,
-    saga_executor::SagaExecutor,
+    saga_executor::{RetryPolicy, SagaExecutor},
     saga_store::{
         PostgresSagaStore, Result as SagaStoreResult, Saga, SagaState, SagaStep as StoreSagaStep,
         SagaStoreError, StepState,
@@ -83,6 +83,19 @@ impl WiredSagaCoordinator {
     #[must_use]
     pub const fn strategy(&self) -> CompensationStrategy {
         self.strategy
+    }
+
+    /// Set the per-step retry/timeout policy for the forward phase (builder).
+    ///
+    /// With a non-default policy a transient step failure is retried (with
+    /// exponential backoff, honouring the optional per-step timeout) before the saga
+    /// gives up and the compensation strategy takes over — so a flaky mutation does
+    /// not needlessly roll back the whole saga. Defaults to
+    /// [`RetryPolicy::none`](crate::saga_executor::RetryPolicy::none) (one attempt).
+    #[must_use]
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.executor = self.executor.with_retry_policy(policy);
+        self
     }
 
     /// Configure the HTTP client used to dispatch saga steps to remote subgraphs.
