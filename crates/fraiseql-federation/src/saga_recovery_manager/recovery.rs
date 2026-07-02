@@ -4,14 +4,9 @@
 //! saga's persisted state warrants re-execution, and rendering the audit line
 //! logged before a replay. Keeping them pure lets their unit tests run in the fast
 //! `test` leg on every push — so the "only re-drive genuinely in-flight sagas"
-//! contract is covered independently of a live database and of the `saga`
-//! feature, the same arrangement the forward and compensation phases use in
-//! [`crate::saga_executor::forward`] and [`crate::saga_compensator::compensation`].
-//!
-//! They are consumed only by the feature-gated wired recovery loop, so without
-//! `saga` they are dead in a non-test build — hence the module-level
-//! `allow(dead_code)` for that configuration (the established `#428` pattern).
-#![cfg_attr(not(feature = "saga"), allow(dead_code))]
+//! contract is covered independently of a live database, the same arrangement the
+//! forward and compensation phases use in [`crate::saga_executor::forward`] and
+//! [`crate::saga_compensator::compensation`].
 
 use uuid::Uuid;
 

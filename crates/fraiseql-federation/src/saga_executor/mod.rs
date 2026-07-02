@@ -55,18 +55,12 @@
 //! # Example
 //!
 //! ```text
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-//! // See: tests/integration/ for runnable examples.
-//! let executor = SagaExecutor::new();
+//! // Requires: a live PostgreSQL saga store + a FederationMutationExecutor.
+//! // See: tests/saga_integration.rs for runnable examples.
+//! let executor = SagaExecutor::with_store(store);
 //!
-//! // Execute a single step
-//! let result = executor.execute_step(
-//!     saga_id,
-//!     1,
-//!     "createOrder",
-//!     &json!({"customerId": "c123", "total": 100.0}),
-//!     "orders-service"
-//! ).await?;
+//! // Dispatch a single (already-persisted) step's real mutation.
+//! let result = executor.execute_step(&mutation_executor, &step).await;
 //!
 //! if result.success {
 //!     println!("Step 1 created order: {:?}", result.data);

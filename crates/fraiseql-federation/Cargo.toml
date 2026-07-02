@@ -66,16 +66,14 @@ unstable = []
 # # that do not orchestrate cross-subgraph transactions are not forced to compile
 # # the Postgres saga store and its dependencies.
 # #
-# # With it, the wired methods dispatch real mutations, persist real state, and
-# # never fabricate success: forward execution (`SagaExecutor`), compensation
+# # With it, the methods dispatch real mutations, persist real state, and never
+# # fabricate success: forward execution (`SagaExecutor`), compensation
 # # (`SagaCompensator`), crash recovery (`SagaRecoveryManager`), and the
-# # `WiredSagaCoordinator` facade — including remote step dispatch over HTTPS to a
+# # `SagaCoordinator` handle — including remote step dispatch over HTTPS to a
 # # registered peer subgraph via `HttpMutationClient` (with optional mutual TLS),
 # # and cross-subgraph `@requires` pre-fetch (a step's required fields are fetched
 # # from their owning subgraph and merged into its mutation variables before
-# # dispatch). The legacy fail-loud placeholder methods (`SagaCoordinator` and the
-# # `SagaExecutor`/`SagaCompensator`/`SagaRecoveryManager` stubs) are `#[deprecated]`
-# # and always return `SagaStoreError::NotImplemented`.
+# # dispatch). Without the feature, the saga types are not compiled at all.
 saga = []
 
 [lints]

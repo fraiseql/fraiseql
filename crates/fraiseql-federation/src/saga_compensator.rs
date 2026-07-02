@@ -103,15 +103,22 @@
 //! }
 //! ```
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use ::tracing::{debug, info};
+use ::tracing::debug;
+use fraiseql_db::traits::DatabaseAdapter;
+use reqwest::Url;
 use uuid::Uuid;
 
-use crate::saga_store::{PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState};
+use crate::{
+    mutation_executor::FederationMutationExecutor,
+    mutation_http_client::{HttpMutationClient, resolve_remote},
+    saga_store::{
+        PostgresSagaStore, Result as SagaStoreResult, SagaState, SagaStoreError, StepState,
+    },
+};
 
-/// Pure compensation-phase decision helpers (always compiled; see the module docs
-/// for why the logic lives outside the feature gate).
+/// Pure compensation-phase decision helpers.
 mod compensation;
 
 /// Represents the result of a compensation step execution
@@ -244,87 +251,6 @@ impl SagaCompensator {
         self.store.is_some()
     }
 
-    /// Execute compensation for a failed saga.
-    ///
-    /// # Status
-    ///
-    /// **Not implemented.** The compensation driver previously transitioned the
-    /// saga to `Compensating`, invoked the fabricating [`Self::compensate_step`]
-    /// for each completed step, and persisted a `Compensated` state without
-    /// performing any real rollback mutation (audit H33 / M-saga-coordinator).
-    /// It now fails loud instead of persisting fabricated compensation progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `saga_id` - ID of the saga to compensate
-    ///
-    /// # Errors
-    ///
-    /// Always returns
-    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented).
-    #[deprecated(note = "saga compensation is wired under the `saga` feature: use \
-                SagaCompensator::compensate_saga_local. This placeholder only ever returned \
-                NotImplemented and will be removed in a future major.")]
-    pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
-        info!(
-            saga_id = %saga_id,
-            "Saga compensation requested but distributed saga compensation is unwired"
-        );
-
-        Err(crate::saga_store::SagaStoreError::NotImplemented {
-            operation: "SagaCompensator::compensate_saga".to_string(),
-        })
-    }
-
-    /// Compensate a single step.
-    ///
-    /// # Status
-    ///
-    /// **Not implemented.** This path previously simulated a successful
-    /// compensation: it built a fake `{"deleted": true, ...}` confirmation
-    /// document, persisted it over the forward result, and returned
-    /// `success: true` without dispatching any compensation mutation (audit
-    /// H33). It now fails loud and persists nothing.
-    ///
-    /// # Arguments
-    ///
-    /// * `saga_id` - ID of saga being compensated
-    /// * `step_number` - Step number to compensate (1-indexed)
-    /// * `compensation_mutation` - Name of compensation mutation
-    /// * `original_result_data` - Result data from original forward step
-    /// * `subgraph` - Target subgraph for compensation mutation
-    ///
-    /// # Errors
-    ///
-    /// Always returns
-    /// [`SagaStoreError::NotImplemented`](crate::saga_store::SagaStoreError::NotImplemented);
-    /// it must never persist a compensation result.
-    #[deprecated(
-        note = "saga step compensation is wired under the `saga` feature: use \
-                SagaCompensator::compensate_step_local. This placeholder only ever returned \
-                NotImplemented and will be removed in a future major."
-    )]
-    pub async fn compensate_step(
-        &self,
-        saga_id: Uuid,
-        step_number: u32,
-        compensation_mutation: &str,
-        _original_result_data: &serde_json::Value,
-        subgraph: &str,
-    ) -> SagaStoreResult<CompensationStepResult> {
-        info!(
-            saga_id = %saga_id,
-            step = step_number,
-            compensation_mutation = compensation_mutation,
-            subgraph = subgraph,
-            "Step compensation requested but distributed saga compensation is unwired"
-        );
-
-        Err(crate::saga_store::SagaStoreError::NotImplemented {
-            operation: "SagaCompensator::compensate_step".to_string(),
-        })
-    }
-
     /// Get compensation status for a saga
     ///
     /// Retrieves the current compensation state without triggering new compensation.
@@ -443,233 +369,208 @@ impl Default for SagaCompensator {
     }
 }
 
-/// Wired compensation phase (the `saga` feature).
-///
-/// Additive: the fail-loud [`SagaCompensator::compensate_saga`] /
-/// [`SagaCompensator::compensate_step`] above keep their signatures and behaviour
-/// in every build (the `#429` H33 acceptance spec exercises them). The real
-/// rollback is exposed as the `*_local` methods (gated behind the `saga` feature):
-/// each completed step is compensated on the same transport its forward step used —
-/// the local SQL adapter, or over HTTPS to a registered peer subgraph.
-#[cfg(feature = "saga")]
-mod wired {
-    use std::collections::HashMap;
+/// Rollback (compensation) execution: each completed step is compensated on the same
+/// transport its forward step used — the local SQL adapter, or over HTTPS to a
+/// registered peer subgraph.
+impl SagaCompensator {
+    /// Dispatch a single step's compensation (inverse) mutation and map the
+    /// outcome to a [`CompensationStepResult`] — the compensation analog of
+    /// `SagaExecutor::dispatch_step`. Pure dispatch with **no persistence**:
+    /// [`Self::compensate_step`] / [`Self::compensate_saga`] own the
+    /// step-state write. Routing mirrors forward execution:
+    /// - `remote = None` → the inverse runs against the local SQL adapter via
+    ///   [`FederationMutationExecutor::execute_local_mutation`].
+    /// - `remote = Some((client, url))` → the inverse is propagated over HTTPS to the peer subgraph
+    ///   via [`HttpMutationClient::execute_mutation`], so a step that executed remotely is rolled
+    ///   back on the same transport.
+    ///
+    /// A step with no registered compensation, or whose inverse mutation `Err`s
+    /// (local or remote), is reported `success: false` — never a fabricated
+    /// rollback (audit H33).
+    pub(crate) async fn dispatch_compensation<A: DatabaseAdapter>(
+        mutation_executor: &FederationMutationExecutor<A>,
+        step: &crate::saga_store::SagaStep,
+        remote: Option<(&HttpMutationClient, &Url)>,
+    ) -> CompensationStepResult {
+        let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
 
-    use fraiseql_db::traits::DatabaseAdapter;
-    use reqwest::Url;
-    use uuid::Uuid;
-
-    use super::{
-        CompensationResult, CompensationStatus, CompensationStepResult, SagaCompensator,
-        compensation,
-    };
-    use crate::{
-        mutation_executor::FederationMutationExecutor,
-        mutation_http_client::{HttpMutationClient, resolve_remote},
-        saga_store::{Result as SagaStoreResult, SagaState, SagaStoreError, StepState},
-    };
-
-    impl SagaCompensator {
-        /// Dispatch a single step's compensation (inverse) mutation and map the
-        /// outcome to a [`CompensationStepResult`] — the compensation analog of
-        /// `SagaExecutor::dispatch_step`. Pure dispatch with **no persistence**:
-        /// [`Self::compensate_step_local`] / [`Self::compensate_saga_local`] own the
-        /// step-state write. Routing mirrors forward execution:
-        /// - `remote = None` → the inverse runs against the local SQL adapter via
-        ///   [`FederationMutationExecutor::execute_local_mutation`].
-        /// - `remote = Some((client, url))` → the inverse is propagated over HTTPS to the peer
-        ///   subgraph via [`HttpMutationClient::execute_mutation`], so a step that executed
-        ///   remotely is rolled back on the same transport.
-        ///
-        /// A step with no registered compensation, or whose inverse mutation `Err`s
-        /// (local or remote), is reported `success: false` — never a fabricated
-        /// rollback (audit H33).
-        pub(crate) async fn dispatch_compensation<A: DatabaseAdapter>(
-            mutation_executor: &FederationMutationExecutor<A>,
-            step: &crate::saga_store::SagaStep,
-            remote: Option<(&HttpMutationClient, &Url)>,
-        ) -> CompensationStepResult {
-            let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
-
-            // A step with no registered compensation cannot be rolled back — report
-            // a best-effort miss rather than fabricating a rollback (H33).
-            if !compensation::step_is_compensatable(step) {
-                return CompensationStepResult {
-                    step_number,
-                    success: false,
-                    data: None,
-                    error: Some("no compensation mutation registered".to_string()),
-                    duration_ms: 0,
-                };
-            }
-            // `step_is_compensatable` guaranteed a present, non-empty name.
-            let mutation = step.compensation_mutation.as_deref().unwrap_or_default();
-
-            // Compensation variables carry the entity key for the inverse mutation;
-            // fall back to the forward variables when none were registered.
-            let variables = step.compensation_variables.as_ref().unwrap_or(&step.variables);
-
-            let started = std::time::Instant::now();
-            let outcome = match remote {
-                None => {
-                    mutation_executor
-                        .execute_local_mutation(&step.typename, mutation, variables)
-                        .await
-                },
-                Some((client, url)) => {
-                    client
-                        .execute_mutation(
-                            url.as_str(),
-                            &step.typename,
-                            mutation,
-                            variables,
-                            mutation_executor.metadata(),
-                        )
-                        .await
-                },
+        // A step with no registered compensation cannot be rolled back — report
+        // a best-effort miss rather than fabricating a rollback (H33).
+        if !compensation::step_is_compensatable(step) {
+            return CompensationStepResult {
+                step_number,
+                success: false,
+                data: None,
+                error: Some("no compensation mutation registered".to_string()),
+                duration_ms: 0,
             };
-            let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        }
+        // `step_is_compensatable` guaranteed a present, non-empty name.
+        let mutation = step.compensation_mutation.as_deref().unwrap_or_default();
 
-            compensation::compensation_result_from(step_number, &outcome, duration_ms)
+        // Compensation variables carry the entity key for the inverse mutation;
+        // fall back to the forward variables when none were registered.
+        let variables = step.compensation_variables.as_ref().unwrap_or(&step.variables);
+
+        let started = std::time::Instant::now();
+        let outcome = match remote {
+            None => {
+                mutation_executor
+                    .execute_local_mutation(&step.typename, mutation, variables)
+                    .await
+            },
+            Some((client, url)) => {
+                client
+                    .execute_mutation(
+                        url.as_str(),
+                        &step.typename,
+                        mutation,
+                        variables,
+                        mutation_executor.metadata(),
+                    )
+                    .await
+            },
+        };
+        let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+
+        compensation::compensation_result_from(step_number, &outcome, duration_ms)
+    }
+
+    /// Compensate a single completed step by executing its registered
+    /// compensation (inverse) mutation, then persisting the rollback.
+    ///
+    /// The stored `compensation_mutation` name drives the mutation kind
+    /// (`determine_mutation_type`), so a create is undone by a `delete…`
+    /// compensation, etc.; the `compensation_variables` (falling back to the
+    /// forward `variables`) carry the entity key. `remote = Some((client, url))`
+    /// rolls the step back over HTTPS to a peer subgraph; `None` uses the local
+    /// SQL adapter. On a successful inverse the step is persisted
+    /// [`StepState::Compensated`]; a failed inverse or a step with no registered
+    /// compensation leaves the step untouched and is reported `success: false` —
+    /// a rollback that did not happen is never fabricated (audit H33).
+    ///
+    /// # Arguments
+    ///
+    /// * `mutation_executor` - Local mutation transport for the step's subgraph
+    /// * `step` - The persisted (completed) step to roll back
+    /// * `remote` - `Some((client, url))` to roll back over HTTPS, else local
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::Database`] if no saga store is configured, or
+    /// any store error encountered while persisting the compensated state.
+    pub async fn compensate_step<A: DatabaseAdapter>(
+        &self,
+        mutation_executor: &FederationMutationExecutor<A>,
+        step: &crate::saga_store::SagaStep,
+        remote: Option<(&HttpMutationClient, &Url)>,
+    ) -> SagaStoreResult<CompensationStepResult> {
+        let store = self.store.as_ref().ok_or_else(|| {
+            SagaStoreError::Database(
+                "saga compensation requires a configured saga store".to_string(),
+            )
+        })?;
+
+        let result = Self::dispatch_compensation(mutation_executor, step, remote).await;
+
+        // Persist the rollback only when the inverse mutation actually ran: a
+        // successful compensation transitions the step Compensated; a failed one
+        // leaves it Completed for a later best-effort retry.
+        if result.success {
+            store.update_saga_step_state(step.id, &StepState::Compensated).await?;
         }
 
-        /// Compensate a single completed step by executing its registered
-        /// compensation (inverse) mutation, then persisting the rollback.
-        ///
-        /// The stored `compensation_mutation` name drives the mutation kind
-        /// (`determine_mutation_type`), so a create is undone by a `delete…`
-        /// compensation, etc.; the `compensation_variables` (falling back to the
-        /// forward `variables`) carry the entity key. `remote = Some((client, url))`
-        /// rolls the step back over HTTPS to a peer subgraph; `None` uses the local
-        /// SQL adapter. On a successful inverse the step is persisted
-        /// [`StepState::Compensated`]; a failed inverse or a step with no registered
-        /// compensation leaves the step untouched and is reported `success: false` —
-        /// a rollback that did not happen is never fabricated (audit H33).
-        ///
-        /// # Arguments
-        ///
-        /// * `mutation_executor` - Local mutation transport for the step's subgraph
-        /// * `step` - The persisted (completed) step to roll back
-        /// * `remote` - `Some((client, url))` to roll back over HTTPS, else local
-        ///
-        /// # Errors
-        ///
-        /// Returns [`SagaStoreError::Database`] if no saga store is configured, or
-        /// any store error encountered while persisting the compensated state.
-        pub async fn compensate_step_local<A: DatabaseAdapter>(
-            &self,
-            mutation_executor: &FederationMutationExecutor<A>,
-            step: &crate::saga_store::SagaStep,
-            remote: Option<(&HttpMutationClient, &Url)>,
-        ) -> SagaStoreResult<CompensationStepResult> {
-            let store = self.store.as_ref().ok_or_else(|| {
-                SagaStoreError::Database(
-                    "saga compensation requires a configured saga store".to_string(),
-                )
-            })?;
+        Ok(result)
+    }
 
-            let result = Self::dispatch_compensation(mutation_executor, step, remote).await;
+    /// Execute the compensation phase for a saga: roll back every completed
+    /// step in strict reverse execution order.
+    ///
+    /// Marks the saga `Compensating`, then for each completed step (most-recent
+    /// first) dispatches [`Self::compensate_step`], continuing past
+    /// individual failures (best-effort resilience). If every completed step
+    /// rolled back the saga is marked [`SagaState::Compensated`]; if any step
+    /// could not be compensated the saga stays [`SagaState::Failed`] and the
+    /// result reports [`CompensationStatus::PartiallyCompensated`] — a saga is
+    /// never marked `Compensated` having undone only part of its work (H33).
+    ///
+    /// # Arguments
+    ///
+    /// * `saga_id` - ID of the saga to compensate
+    /// * `mutation_executor` - Local mutation transport for the steps' subgraph
+    /// * `subgraph_urls` - Registered remote peers (subgraph name → base URL); a completed step
+    ///   whose `subgraph` matches one is rolled back over HTTPS
+    /// * `http_client` - HTTP client for remote rollback; `None` = local-only. A step is
+    ///   compensated remotely only when **both** a client is present **and** its `subgraph`
+    ///   resolves to a registered URL, so a mixed local/remote saga rolls back each step on its own
+    ///   transport.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::Database`] if no saga store is configured,
+    /// [`SagaStoreError::SagaNotFound`] if the saga does not exist, or any store
+    /// error encountered while loading steps or persisting state.
+    pub async fn compensate_saga<A: DatabaseAdapter>(
+        &self,
+        saga_id: Uuid,
+        mutation_executor: &FederationMutationExecutor<A>,
+        subgraph_urls: &HashMap<String, Url>,
+        http_client: Option<&HttpMutationClient>,
+    ) -> SagaStoreResult<CompensationResult> {
+        let store = self.store.as_ref().ok_or_else(|| {
+            SagaStoreError::Database(
+                "saga compensation requires a configured saga store".to_string(),
+            )
+        })?;
 
-            // Persist the rollback only when the inverse mutation actually ran: a
-            // successful compensation transitions the step Compensated; a failed one
-            // leaves it Completed for a later best-effort retry.
-            if result.success {
-                store.update_saga_step_state(step.id, &StepState::Compensated).await?;
+        // Enter the compensation phase first: a missing saga surfaces as
+        // SagaNotFound from the store's row-count check rather than silently
+        // compensating nothing.
+        store.update_saga_state(saga_id, &SagaState::Compensating).await?;
+
+        let steps = store.load_saga_steps(saga_id).await?;
+        let order = compensation::compensation_order(&steps);
+
+        let overall = std::time::Instant::now();
+        let mut step_results = Vec::with_capacity(order.len());
+        let mut failed_steps = Vec::new();
+
+        for step in order {
+            // Roll back on the same transport the forward step used: remote when
+            // the step's subgraph names a registered peer, otherwise local.
+            let remote = resolve_remote(&step.subgraph, http_client, subgraph_urls);
+            let result = self.compensate_step(mutation_executor, step, remote).await?;
+            if !result.success {
+                failed_steps.push(result.step_number);
             }
-
-            Ok(result)
+            step_results.push(result);
         }
 
-        /// Execute the compensation phase for a saga: roll back every completed
-        /// step in strict reverse execution order.
-        ///
-        /// Marks the saga `Compensating`, then for each completed step (most-recent
-        /// first) dispatches [`Self::compensate_step_local`], continuing past
-        /// individual failures (best-effort resilience). If every completed step
-        /// rolled back the saga is marked [`SagaState::Compensated`]; if any step
-        /// could not be compensated the saga stays [`SagaState::Failed`] and the
-        /// result reports [`CompensationStatus::PartiallyCompensated`] — a saga is
-        /// never marked `Compensated` having undone only part of its work (H33).
-        ///
-        /// # Arguments
-        ///
-        /// * `saga_id` - ID of the saga to compensate
-        /// * `mutation_executor` - Local mutation transport for the steps' subgraph
-        /// * `subgraph_urls` - Registered remote peers (subgraph name → base URL); a completed step
-        ///   whose `subgraph` matches one is rolled back over HTTPS
-        /// * `http_client` - HTTP client for remote rollback; `None` = local-only. A step is
-        ///   compensated remotely only when **both** a client is present **and** its `subgraph`
-        ///   resolves to a registered URL, so a mixed local/remote saga rolls back each step on its
-        ///   own transport.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`SagaStoreError::Database`] if no saga store is configured,
-        /// [`SagaStoreError::SagaNotFound`] if the saga does not exist, or any store
-        /// error encountered while loading steps or persisting state.
-        pub async fn compensate_saga_local<A: DatabaseAdapter>(
-            &self,
-            saga_id: Uuid,
-            mutation_executor: &FederationMutationExecutor<A>,
-            subgraph_urls: &HashMap<String, Url>,
-            http_client: Option<&HttpMutationClient>,
-        ) -> SagaStoreResult<CompensationResult> {
-            let store = self.store.as_ref().ok_or_else(|| {
-                SagaStoreError::Database(
-                    "saga compensation requires a configured saga store".to_string(),
-                )
-            })?;
+        let total_duration_ms = u64::try_from(overall.elapsed().as_millis()).unwrap_or(u64::MAX);
 
-            // Enter the compensation phase first: a missing saga surfaces as
-            // SagaNotFound from the store's row-count check rather than silently
-            // compensating nothing.
-            store.update_saga_state(saga_id, &SagaState::Compensating).await?;
+        // All completed steps rolled back → Compensated. Any miss (a failed
+        // inverse or an unregistered compensation) → the saga stays Failed and is
+        // reported PartiallyCompensated; never Compensated having undone part.
+        let (status, saga_state, error) = if failed_steps.is_empty() {
+            (CompensationStatus::Compensated, SagaState::Compensated, None)
+        } else {
+            (
+                CompensationStatus::PartiallyCompensated,
+                SagaState::Failed,
+                Some(format!("{} step(s) could not be compensated", failed_steps.len())),
+            )
+        };
 
-            let steps = store.load_saga_steps(saga_id).await?;
-            let order = compensation::compensation_order(&steps);
+        store.update_saga_state(saga_id, &saga_state).await?;
 
-            let overall = std::time::Instant::now();
-            let mut step_results = Vec::with_capacity(order.len());
-            let mut failed_steps = Vec::new();
-
-            for step in order {
-                // Roll back on the same transport the forward step used: remote when
-                // the step's subgraph names a registered peer, otherwise local.
-                let remote = resolve_remote(&step.subgraph, http_client, subgraph_urls);
-                let result = self.compensate_step_local(mutation_executor, step, remote).await?;
-                if !result.success {
-                    failed_steps.push(result.step_number);
-                }
-                step_results.push(result);
-            }
-
-            let total_duration_ms =
-                u64::try_from(overall.elapsed().as_millis()).unwrap_or(u64::MAX);
-
-            // All completed steps rolled back → Compensated. Any miss (a failed
-            // inverse or an unregistered compensation) → the saga stays Failed and is
-            // reported PartiallyCompensated; never Compensated having undone part.
-            let (status, saga_state, error) = if failed_steps.is_empty() {
-                (CompensationStatus::Compensated, SagaState::Compensated, None)
-            } else {
-                (
-                    CompensationStatus::PartiallyCompensated,
-                    SagaState::Failed,
-                    Some(format!("{} step(s) could not be compensated", failed_steps.len())),
-                )
-            };
-
-            store.update_saga_state(saga_id, &saga_state).await?;
-
-            Ok(CompensationResult {
-                saga_id,
-                status,
-                step_results,
-                failed_steps,
-                total_duration_ms,
-                error,
-            })
-        }
+        Ok(CompensationResult {
+            saga_id,
+            status,
+            step_results,
+            failed_steps,
+            total_duration_ms,
+            error,
+        })
     }
 }
 

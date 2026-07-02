@@ -1,17 +1,11 @@
-//! Wired saga coordinator (the `saga` feature).
+//! The [`SagaCoordinator`] handle.
 //!
-//! Ties the three already-wired subsystems — forward execution
-//! ([`SagaExecutor::execute_saga_local`]), compensation
-//! ([`SagaCompensator::compensate_saga_local`]), and the store — into a single
-//! public handle. A caller can create a saga with compensation metadata, execute
-//! it end-to-end (forward + automatic rollback on failure), cancel it, and query
-//! its status through one type.
-//!
-//! Additive by design: the loud-fail [`SagaCoordinator`](super::SagaCoordinator)
-//! and its contract tests are untouched. This type carries the `store`, `executor`,
-//! and `compensator` the loud-fail coordinator never had, so its methods are the
-//! real thing — no stub shares their names. A step runs against the local SQL adapter,
-//! or over HTTPS to a registered peer subgraph (`with_http_client` / `with_subgraph`,
+//! Ties forward execution ([`SagaExecutor::execute_saga`]), compensation
+//! ([`SagaCompensator::compensate_saga`]), and the store into a single public
+//! handle: a caller creates a saga with compensation metadata, executes it
+//! end-to-end (forward + automatic rollback on failure), cancels it, and queries
+//! its status through one type. A step runs against the local SQL adapter, or over
+//! HTTPS to a registered peer subgraph (`with_http_client` / `with_subgraph`,
 //! optionally mTLS) for both forward dispatch and compensation; `with_entity_resolver`
 //! enables cross-subgraph `@requires` pre-fetch.
 
@@ -38,13 +32,11 @@ use crate::{
     },
 };
 
-/// A fully-wired saga coordinator over a Postgres saga store.
+/// A saga coordinator over a Postgres saga store.
 ///
 /// Owns the store plus a [`SagaExecutor`] and [`SagaCompensator`] built over the
-/// same store, and delegates each lifecycle operation to them. Unlike the loud-fail
-/// [`SagaCoordinator`](super::SagaCoordinator), every method here performs real work
-/// and persists real state.
-pub struct WiredSagaCoordinator {
+/// same store, and delegates each lifecycle operation to them.
+pub struct SagaCoordinator {
     /// How a failed saga is rolled back.
     strategy:        CompensationStrategy,
     /// Persistent saga store (shared with `executor`/`compensator`).
@@ -68,7 +60,7 @@ pub struct WiredSagaCoordinator {
     entity_resolver: Option<HttpEntityResolver>,
 }
 
-impl WiredSagaCoordinator {
+impl SagaCoordinator {
     /// Create a coordinator over `store` with the given compensation `strategy`.
     ///
     /// The forward executor and compensator are constructed over clones of the same
@@ -362,7 +354,7 @@ impl WiredSagaCoordinator {
     ) -> SagaStoreResult<SagaResult> {
         let results = self
             .executor
-            .execute_saga_local(
+            .execute_saga(
                 saga_id,
                 mutation_executor,
                 &self.subgraph_urls,
@@ -397,7 +389,7 @@ impl WiredSagaCoordinator {
             CompensationStrategy::Automatic => {
                 warn!(saga_id = %saga_id, "Saga failed; compensating completed steps");
                 self.compensator
-                    .compensate_saga_local(
+                    .compensate_saga(
                         saga_id,
                         mutation_executor,
                         &self.subgraph_urls,
@@ -510,7 +502,7 @@ impl WiredSagaCoordinator {
         // drives the saga through Compensating, so Cancelled must be written last.
         let compensated = if completed_steps > 0 {
             self.compensator
-                .compensate_saga_local(
+                .compensate_saga(
                     saga_id,
                     mutation_executor,
                     &self.subgraph_urls,
