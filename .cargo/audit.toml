@@ -22,7 +22,11 @@ ignore = [
   # wasmtime-wasi FilePerms bypass (hard-link/rename); transitive via fraiseql-functions'
   # opt-in runtime-wasm feature only (wasmtime pinned to 44, NOT in default build). Patched in
   # 45.0.3/46.0.1 — needs a wasmtime 44->45+ major bump tracked separately. Deadline 2026-10-01.
-  "RUSTSEC-2026-0188"
+  "RUSTSEC-2026-0188",
+  # quick-xml DoS pair (published 2026-07-02); transitive via samael 0.0.21 (auth-saml opt-in
+  # only, NOT default build); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

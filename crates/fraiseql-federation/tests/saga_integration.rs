@@ -973,6 +973,149 @@ mod recovery_pg {
         manager.stop_background_loop().await.unwrap();
         assert!(!manager.is_running());
     }
+
+    // ── Concurrency-safe recovery: SKIP LOCKED claim + lease (#429 hardening P04) ─
+
+    /// Two recovery workers claiming stuck sagas at the same time get **disjoint**
+    /// sets — the `FOR UPDATE SKIP LOCKED` guarantee — so no saga is ever
+    /// double-driven. Each seeded saga is claimed by exactly one worker (a live
+    /// lease blocks the other, whether the claims run truly concurrently or serialise
+    /// on the pool).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn claim_stuck_sagas_two_workers_get_disjoint_sets() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // Seed 6 stuck (Executing) sagas with known ids.
+        let ids: Vec<Uuid> = (0..6).map(|_| Uuid::new_v4()).collect();
+        for id in &ids {
+            store.save_saga(&stuck_saga(*id)).await.unwrap();
+        }
+
+        // Two workers claim concurrently with a generous limit + lease.
+        let (a, b) = tokio::join!(
+            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000),
+            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000),
+        );
+        let set_a: std::collections::HashSet<Uuid> = a.unwrap().into_iter().map(|s| s.id).collect();
+        let set_b: std::collections::HashSet<Uuid> = b.unwrap().into_iter().map(|s| s.id).collect();
+
+        assert!(set_a.is_disjoint(&set_b), "two workers must claim disjoint sets");
+        for id in &ids {
+            let in_a = set_a.contains(id);
+            let in_b = set_b.contains(id);
+            assert!(
+                in_a ^ in_b,
+                "seeded saga {id} must be claimed by exactly one worker (a={in_a}, b={in_b})"
+            );
+        }
+
+        for id in &ids {
+            store.delete_saga(*id).await.unwrap();
+        }
+    }
+
+    /// A live lease blocks re-claim; an expired lease makes the saga claimable again
+    /// (so a crashed recovery worker's claims are automatically reclaimable).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn claim_respects_live_lease_and_reclaims_expired() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let id = Uuid::new_v4();
+        store.save_saga(&stuck_saga(id)).await.unwrap();
+
+        // Worker A claims it under a long lease.
+        let claimed_a = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        assert!(claimed_a.iter().any(|s| s.id == id), "worker A claims the stuck saga");
+
+        // Worker B cannot re-claim it while A's lease is live.
+        let claimed_b = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        assert!(!claimed_b.iter().any(|s| s.id == id), "a live lease blocks re-claim");
+
+        // Expire the lease directly; worker B can then reclaim it.
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "UPDATE tb_federation_sagas SET recovery_lease_expires_at = NOW() - INTERVAL '1 hour' WHERE id = '{id}'"
+            ))
+            .await
+            .unwrap();
+        let claimed_c = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        assert!(claimed_c.iter().any(|s| s.id == id), "an expired lease is reclaimable");
+
+        store.delete_saga(id).await.unwrap();
+    }
+
+    /// Two recovery managers each running one iteration concurrently drive every
+    /// stuck saga to a terminal state **exactly once**. Each saga's step is a
+    /// unique-id `Create`, so a saga driven twice would re-run its `Create` →
+    /// duplicate-PK failure → `Failed`; asserting all reach `Completed` therefore
+    /// proves the `SKIP LOCKED` claim prevented any double-processing.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn two_recovery_managers_drive_stuck_sagas_without_double_processing() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        // Seed 4 stuck sagas, each with a single Create step keyed by a unique id.
+        let ids: Vec<Uuid> = (0..4).map(|_| Uuid::new_v4()).collect();
+        for (i, id) in ids.iter().enumerate() {
+            store.save_saga(&stuck_saga(*id)).await.unwrap();
+            store
+                .save_saga_step(&pending_step(
+                    *id,
+                    0,
+                    MutationType::Create,
+                    &typename,
+                    json!({"id": format!("rec-{i}-{id}"), "total": "1"}),
+                ))
+                .await
+                .unwrap();
+        }
+
+        // RecoveryConfig is Copy, so one value seeds both managers. A generous
+        // per-iteration cap lets each manager claim all seeded stuck sagas in one tick.
+        let cfg = RecoveryConfig {
+            max_sagas_per_iteration: 100,
+            ..RecoveryConfig::default()
+        };
+        let m1 = SagaRecoveryManager::new(Arc::clone(&store), cfg);
+        let m2 = SagaRecoveryManager::new(Arc::clone(&store), cfg);
+        let (r1, r2) =
+            tokio::join!(m1.run_iteration_local(&executor), m2.run_iteration_local(&executor));
+        r1.unwrap();
+        r2.unwrap();
+
+        for id in &ids {
+            let saga = store.load_saga(*id).await.unwrap().unwrap();
+            assert_eq!(
+                saga.state,
+                SagaState::Completed,
+                "saga {id} must be driven exactly once → Completed (double-drive would Fail it)"
+            );
+        }
+
+        for id in &ids {
+            store.delete_saga(*id).await.unwrap();
+        }
+    }
 }
 
 // ── Wired coordinator end-to-end against real PostgreSQL (unstable-saga) ──────

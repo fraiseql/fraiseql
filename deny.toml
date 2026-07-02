@@ -53,7 +53,18 @@ ignore = [
   # as standalone work (out of scope for an advisory-hygiene pass; the env can't build/verify the
   # wasmtime stack safely here).
   # deadline: 2026-10-01 — re-evaluate when the standalone wasmtime 45+ bump lands.
-  {id = "RUSTSEC-2026-0188", reason = "wasmtime-wasi FilePerms bypass; transitive via opt-in runtime-wasm feature only (wasmtime pinned to 44); patched in 45.0.3/46.0.1 needs a major bump tracked separately. Deadline 2026-10-01."}
+  {id = "RUSTSEC-2026-0188", reason = "wasmtime-wasi FilePerms bypass; transitive via opt-in runtime-wasm feature only (wasmtime pinned to 44); patched in 45.0.3/46.0.1 needs a major bump tracked separately. Deadline 2026-10-01."},
+  # quick-xml DoS pair (published 2026-07-02): RUSTSEC-2026-0194 (quadratic run time when checking
+  # a start tag for duplicate attribute names) + RUSTSEC-2026-0195 (unbounded namespace-declaration
+  # allocation in NsReader → memory-exhaustion DoS). Transitive ONLY via samael 0.0.21 (SAML SP,
+  # #381), which is behind the opt-in `auth-saml` feature — NOT in the default build. samael pins
+  # quick-xml 0.37.5 and `cargo update` cannot move it (the fix is in a later quick-xml outside
+  # samael's range); a clean bump would need a samael update (0.0.21 is latest) or a risky [patch]
+  # override. DoS is reachable only via malicious SAML XML at a SAML-enabled ACS endpoint.
+  # deadline: 2026-10-01 — re-check samael release cadence; consider a [patch] to a patched
+  # quick-xml (validating SAML parsing) or dropping samael.
+  {id = "RUSTSEC-2026-0194", reason = "quick-xml quadratic duplicate-attribute-name check (DoS); transitive via samael (auth-saml opt-in only); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01."},
+  {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-01."}
 ]
 unmaintained = "workspace"
 

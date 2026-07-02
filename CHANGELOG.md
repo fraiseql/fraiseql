@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga crash recovery is now concurrency-safe under `unstable-saga` (#429).**
+  `SagaRecoveryManager` now claims stuck (`Executing`) sagas via a single atomic
+  `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)` statement, leasing each
+  to the recovering worker, so two recovery workers (or a worker racing a live
+  coordinator) claim **disjoint** sets and never double-drive the same saga. A
+  claimed saga's lease outlives one iteration; a crashed worker's claims lapse and
+  are automatically reclaimable. `tb_federation_sagas` gained nullable
+  `recovery_worker_id` / `recovery_lease_expires_at` columns (added idempotently by
+  `migrate_schema`; rows that predate them are always claimable). Requires the
+  `unstable-saga` Cargo feature; the API may change without semver guarantees.
 - **Saga compensation can now roll back remote steps over HTTPS under
   `unstable-saga` (#429).** A step that executed against a registered peer subgraph
   is now compensated on that same transport: `SagaCompensator::compensate_saga_local`

@@ -436,6 +436,20 @@ impl PostgresSagaStore {
         )
         .await?;
 
+        // Recovery lease (nullable, added idempotently): `claim_stuck_sagas` marks a
+        // claimed saga with the recovering worker's id and a lease expiry so
+        // concurrent recovery workers never double-drive the same saga (FOR UPDATE
+        // SKIP LOCKED). A NULL/expired lease means the saga is claimable.
+        conn.execute(
+            "
+            ALTER TABLE tb_federation_sagas
+                ADD COLUMN IF NOT EXISTS recovery_worker_id UUID,
+                ADD COLUMN IF NOT EXISTS recovery_lease_expires_at TIMESTAMPTZ
+            ",
+            &[],
+        )
+        .await?;
+
         // Create sequence for steps
         conn.execute(
             "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_steps START 1 INCREMENT 1",
@@ -1177,6 +1191,52 @@ impl PostgresSagaStore {
     /// Returns `SagaStoreError::Database` if the query fails.
     pub async fn find_stuck_sagas(&self) -> Result<Vec<Saga>> {
         self.load_sagas_by_state(&SagaState::Executing).await
+    }
+
+    /// Atomically claim up to `limit` stuck (`Executing`) sagas for recovery,
+    /// leasing each to `worker_id` for `lease_secs` seconds.
+    ///
+    /// Concurrency-safe by design: the claim is a single `UPDATE … WHERE pk_ IN
+    /// (SELECT … FOR UPDATE SKIP LOCKED)` statement, so two recovery workers running
+    /// this at the same time claim **disjoint** sets of sagas and never
+    /// double-drive one (the #429 recovery requirement). Only sagas whose lease is
+    /// `NULL` or already expired are claimable, so a crashed worker's claim is
+    /// automatically reclaimable once its lease lapses. The claimed rows are
+    /// returned (marked with `worker_id` + a fresh lease) for this worker to
+    /// re-drive.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn claim_stuck_sagas(
+        &self,
+        worker_id: Uuid,
+        lease_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<Saga>> {
+        let conn = self.pool.get().await?;
+        let now = chrono::Utc::now();
+        let lease_expiry = now + chrono::Duration::seconds(lease_secs);
+        let state_str = SagaState::Executing.as_str();
+
+        let rows = conn
+            .query(
+                "UPDATE tb_federation_sagas
+                 SET recovery_worker_id = $1, recovery_lease_expires_at = $2, updated_at = $3
+                 WHERE pk_ IN (
+                     SELECT pk_ FROM tb_federation_sagas
+                     WHERE state = $4
+                       AND (recovery_lease_expires_at IS NULL OR recovery_lease_expires_at < $3)
+                     ORDER BY created_at
+                     LIMIT $5
+                     FOR UPDATE SKIP LOCKED
+                 )
+                 RETURNING id, state, created_at, completed_at, metadata",
+                &[&worker_id, &lease_expiry, &now, &state_str, &limit],
+            )
+            .await?;
+
+        rows.iter().map(Self::map_saga_row).collect()
     }
 }
 
