@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saga remote dispatch supports mutual TLS under `unstable-saga` (#429).**
+  `WiredSagaCoordinator::with_http_client_mtls` (backed by
+  `HttpMutationClient::new_with_mtls`) configures the remote-dispatch HTTP client to
+  present a client certificate and trust a configured root CA (from `MtlsConfig` /
+  `MtlsMaterial`), so saga steps dispatched to a peer subgraph are mutually
+  authenticated. mTLS is opt-in — `enabled: false` yields an ordinary one-way-TLS
+  client — and fails loud at setup if enabled with missing or malformed certificate
+  material, so the client is never silently downgraded. Requires the `unstable-saga`
+  Cargo feature; the API may change without semver guarantees.
+
 - **Saga steps can now retry with backoff and time out under `unstable-saga`
   (#429).** `SagaExecutor` / `WiredSagaCoordinator` gained a `RetryPolicy`
   (`with_retry_policy`): a transient step failure is retried up to `max_retries`

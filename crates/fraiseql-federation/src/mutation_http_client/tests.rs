@@ -10,6 +10,40 @@ fn test_http_mutation_client_creation() {
     let _client = HttpMutationClient::new(config).unwrap();
 }
 
+/// mTLS wiring (#429 hardening P05): a disabled mTLS config loads no certificate
+/// material, so `new_with_mtls` builds an ordinary production client.
+#[test]
+fn new_with_mtls_disabled_is_noop_and_builds() {
+    let mtls = crate::tls::MtlsConfig {
+        enabled:         false,
+        client_cert_pem: None,
+        root_ca_pem:     None,
+    };
+    let client = HttpMutationClient::new_with_mtls(HttpMutationConfig::default(), &mtls);
+    assert!(
+        client.is_ok(),
+        "disabled mTLS must build an ordinary client: {:?}",
+        client.err()
+    );
+}
+
+/// mTLS enabled but with no client certificate configured must fail loud at
+/// construction — the client is never silently downgraded to one-way TLS.
+#[test]
+fn new_with_mtls_enabled_without_cert_fails_loud() {
+    let mtls = crate::tls::MtlsConfig {
+        enabled:         true,
+        client_cert_pem: None,
+        root_ca_pem:     None,
+    };
+    let result = HttpMutationClient::new_with_mtls(HttpMutationConfig::default(), &mtls);
+    // HttpMutationClient is not Debug, so assert on the error rather than the Result.
+    assert!(
+        matches!(result, Err(fraiseql_error::FraiseQLError::Internal { .. })),
+        "enabled mTLS with missing certificate material must fail loud"
+    );
+}
+
 #[test]
 fn test_mutation_config_defaults() {
     let config = HttpMutationConfig::default();
