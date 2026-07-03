@@ -819,6 +819,48 @@ async fn test_host_auth_context_redacts_sensitive() {
     assert!(value.get("token").is_none());
 }
 
+/// The connected user's verified sending identity surfaces in the auth context —
+/// the per-user `from` any paired outbound email must use
+/// (`crate::outbound::resolve_sender_identity`).
+#[tokio::test]
+async fn test_host_auth_context_exposes_verified_sending_identity() {
+    use fraiseql_core::security::SecurityContext;
+
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity:       "Deal".to_string(),
+        event_kind:   "updated".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
+    };
+
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.security_context = SecurityContext {
+        user_id:          fraiseql_core::types::UserId("user123".to_string()),
+        roles:            vec![],
+        scopes:           vec![],
+        tenant_id:        None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: chrono::Utc::now(),
+        request_id:       "req-123".to_string(),
+        ip_address:       None,
+        attributes:       std::collections::HashMap::new(),
+        issuer:           None,
+        audience:         None,
+        email:            Some("rep@outreach.example".to_string()),
+        display_name:     Some("Sales Rep".to_string()),
+    };
+
+    let value = ctx.auth_context().expect("auth context");
+    assert_eq!(value["email"], "rep@outreach.example");
+    assert_eq!(value["display_name"], "Sales Rep");
+
+    let identity =
+        crate::outbound::resolve_sender_identity(&value).expect("per-user sender resolves");
+    assert_eq!(identity.address, "rep@outreach.example");
+    assert_eq!(identity.display_name, Some("Sales Rep".to_string()));
+}
+
 #[tokio::test]
 async fn test_host_env_var_returns_allowed() {
     let payload = EventPayload {

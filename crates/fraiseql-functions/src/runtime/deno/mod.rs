@@ -22,6 +22,12 @@ pub mod ops;
 pub mod tests;
 
 #[cfg(test)]
+mod follow_up_tests;
+#[cfg(test)]
+mod qonto_tests;
+#[cfg(test)]
+mod reply_awareness_tests;
+#[cfg(test)]
 mod scoring_tests;
 
 use std::sync::Arc;

@@ -1,23 +1,33 @@
-// Native LLM deal-scorer — an `after:mutation:Deal:update` function.
+// Native LLM deal-scorer + next-action — an `after:mutation:Deal:update` function.
 //
 // This is the first workload migrated off the Python/FastAPI sidecar onto the
 // in-process TypeScript runtime (native-runtime-migration, Phase 01/05). It runs
 // on the fire-and-forget path: scoring is re-runnable and must never block or
 // alter the mutation response.
 //
+// It does two things the sidecar used to: score the deal, and recommend the
+// rep's next action (the value the follow-up-email.ts function acts on). Both are
+// written back in one mutation.
+//
 // Host surface used (all via `Deno.core.ops.fraiseql_*`, typed by the runtime):
 //   - env_var       — read the LLM API key (a secret, allowlisted by the host)
 //   - http_request  — call the LLM (outbound HTTP, SSRF-allowlisted by the host)
-//   - query         — write the score back with a GraphQL mutation
+//   - query         — write the score + next-action back with a GraphQL mutation
 //
 // The function receives the mutated Deal row as its argument.
 //
 // NOTE: the runtime executes JavaScript. This file is written in the
 // type-annotation-free subset of TypeScript (valid JS *and* valid TS); full TS
 // type-stripping transpilation is a tracked follow-up.
+
+// The next-action vocabulary the model may return. An unrecognised action is
+// coerced to "wait" so a downstream actor (follow-up-email.ts) never dispatches
+// on a value it does not understand.
+const NEXT_ACTIONS = ["send_follow_up", "wait", "escalate", "mark_lost"];
+
 export default async (deal) => {
-  // Idempotency: never overwrite a score a human set by hand. Re-running this
-  // function (retry, replay, backfill) on a human-edited deal is a no-op.
+  // Idempotency: never overwrite a score/action a human set by hand. Re-running
+  // this function (retry, replay, backfill) on a human-edited deal is a no-op.
   if (deal.score_source === "human") {
     return { skipped: "human-edited", deal_id: deal.id };
   }
@@ -27,8 +37,10 @@ export default async (deal) => {
     throw new Error("LLM_API_KEY is not configured");
   }
 
-  // 1. Score the deal with an LLM.
-  const prompt = `Rate this sales deal 0-100 and explain briefly:\n${JSON.stringify(deal)}`;
+  // 1. Score the deal and ask for the recommended next action.
+  const prompt =
+    `Rate this sales deal 0-100, recommend one next action ` +
+    `(${NEXT_ACTIONS.join(", ")}), and explain briefly:\n${JSON.stringify(deal)}`;
   const reqBody = Deno.core.encode(JSON.stringify({
     model: "claude-opus-4-8",
     input: prompt,
@@ -47,20 +59,28 @@ export default async (deal) => {
   }
   const completion = JSON.parse(Deno.core.decode(resp.body));
   const score = completion.score;
+  const nextAction = NEXT_ACTIONS.indexOf(completion.next_action) === -1
+    ? "wait"
+    : completion.next_action;
 
-  // 2. Write the score back onto the deal (marked ai-sourced, so a later human
-  //    edit wins over any re-score).
+  // 2. Write the score + next action back onto the deal (marked ai-sourced, so a
+  //    later human edit wins over any re-score).
   const writeBack = await Deno.core.ops.fraiseql_query(
-    `mutation($id: ID!, $score: Int!) {
-      updateDealScore(id: $id, score: $score, source: "ai") { id score }
+    `mutation($id: ID!, $score: Int!, $nextAction: String!) {
+      updateDealScore(id: $id, score: $score, nextAction: $nextAction, source: "ai") {
+        id
+        score
+        nextAction
+      }
     }`,
-    JSON.stringify({ id: deal.id, score }),
+    JSON.stringify({ id: deal.id, score, nextAction }),
   );
   const written = JSON.parse(writeBack);
 
   return {
     deal_id: deal.id,
     score,
+    next_action: nextAction,
     rationale: completion.rationale,
     write_back_ok: written.data !== undefined && written.data !== null,
   };

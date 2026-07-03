@@ -1,9 +1,10 @@
-//! Phase 01, Cycle 5 — the LLM deal-scoring demonstrator (the Phase 05 seed).
+//! The LLM deal-scoring + next-action demonstrator (native-runtime P01/P05).
 //!
 //! Drives the real `examples/native-functions/deal-scoring.ts` through
 //! `invoke_with_context` against a recording mock host, proving the full host
 //! surface an `after:mutation` scorer needs: `env_var` (secret) + `http_request`
-//! (LLM) + `query` (write-back), plus idempotency against a human edit.
+//! (LLM) + `query` (write-back of score *and* recommended next action), plus
+//! idempotency against a human edit.
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code
 
@@ -31,9 +32,10 @@ struct Recorded {
 
 /// A mock host that fakes an LLM scoring endpoint and a write-back mutation.
 struct ScoringHost {
-    event:     EventPayload,
-    recorded:  Arc<Mutex<Recorded>>,
-    llm_score: i64,
+    event:      EventPayload,
+    recorded:   Arc<Mutex<Recorded>>,
+    llm_score:  i64,
+    llm_action: String,
 }
 
 impl crate::HostContext for ScoringHost {
@@ -43,9 +45,15 @@ impl crate::HostContext for ScoringHost {
         _variables: serde_json::Value,
     ) -> fraiseql_error::Result<serde_json::Value> {
         self.recorded.lock().unwrap().queries.push(graphql.to_string());
-        Ok(
-            serde_json::json!({ "data": { "updateDealScore": { "id": "deal-1", "score": self.llm_score } } }),
-        )
+        Ok(serde_json::json!({
+            "data": {
+                "updateDealScore": {
+                    "id":         "deal-1",
+                    "score":      self.llm_score,
+                    "nextAction": "send_follow_up",
+                }
+            }
+        }))
     }
 
     async fn sql_query(
@@ -68,7 +76,11 @@ impl crate::HostContext for ScoringHost {
             .unwrap()
             .http_calls
             .push((method.to_string(), url.to_string()));
-        let body = serde_json::json!({ "score": self.llm_score, "rationale": "strong fit" });
+        let body = serde_json::json!({
+            "score":       self.llm_score,
+            "rationale":   "strong fit",
+            "next_action": self.llm_action,
+        });
         Ok(HttpResponse {
             status:  200,
             headers: vec![("content-type".to_string(), "application/json".to_string())],
@@ -122,9 +134,10 @@ fn deal_event(deal: serde_json::Value) -> EventPayload {
 async fn run_scorer(deal: serde_json::Value, recorded: &Arc<Mutex<Recorded>>) -> serde_json::Value {
     let event = deal_event(deal);
     let host: Arc<dyn DynHostContext> = Arc::new(ScoringHost {
-        event:     event.clone(),
-        recorded:  Arc::clone(recorded),
-        llm_score: 87,
+        event:      event.clone(),
+        recorded:   Arc::clone(recorded),
+        llm_score:  87,
+        llm_action: "send_follow_up".to_string(),
     });
     let module = FunctionModule::from_source(
         "deal-scoring".to_string(),
@@ -151,6 +164,7 @@ async fn test_deal_scoring_e2e() {
 
     assert_eq!(value["deal_id"], "deal-1");
     assert_eq!(value["score"], 87);
+    assert_eq!(value["next_action"], "send_follow_up");
     assert_eq!(value["rationale"], "strong fit");
     assert_eq!(value["write_back_ok"], true);
 
@@ -164,6 +178,39 @@ async fn test_deal_scoring_e2e() {
         "write-back should call updateDealScore, got: {}",
         rec.queries[0]
     );
+    assert!(
+        rec.queries[0].contains("nextAction"),
+        "write-back should persist the recommended next action, got: {}",
+        rec.queries[0]
+    );
+}
+
+/// An unrecognised model action is coerced to the safe default (`wait`), so a
+/// downstream actor never dispatches on a value it does not understand.
+#[tokio::test]
+async fn test_deal_scoring_coerces_unknown_next_action() {
+    let recorded = Arc::new(Mutex::new(Recorded::default()));
+    let event = deal_event(serde_json::json!({ "id": "deal-1", "amount": 50000 }));
+    let host: Arc<dyn DynHostContext> = Arc::new(ScoringHost {
+        event:      event.clone(),
+        recorded:   Arc::clone(&recorded),
+        llm_score:  87,
+        llm_action: "teleport_to_close".to_string(),
+    });
+    let module = FunctionModule::from_source(
+        "deal-scoring".to_string(),
+        DEAL_SCORING_TS.to_string(),
+        RuntimeType::Deno,
+    );
+    let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
+    let value = runtime
+        .invoke_with_context(&module, event, host, ResourceLimits::default())
+        .await
+        .expect("scorer should run")
+        .value
+        .expect("scorer returns a value");
+
+    assert_eq!(value["next_action"], "wait", "unknown action coerces to the safe default");
 }
 
 #[tokio::test]

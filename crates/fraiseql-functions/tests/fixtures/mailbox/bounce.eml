@@ -1,0 +1,25 @@
+From: MAILER-DAEMON@mail.acme.example
+To: rep@outreach.example
+Subject: Undelivered Mail Returned to Sender
+Message-ID: <bounce-001@mail.acme.example>
+Date: Fri, 03 Jul 2026 10:17:00 +0000
+Content-Type: multipart/report; report-type=delivery-status; boundary="dsn-boundary"
+
+--dsn-boundary
+Content-Type: text/plain; charset=utf-8
+
+This is the mail system at host mail.acme.example.
+
+Your message could not be delivered to the following recipient:
+
+  <jane@acme.example>: mailbox unavailable (550 5.1.1 user unknown)
+
+--dsn-boundary
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mail.acme.example
+Final-Recipient: rfc822; jane@acme.example
+Action: failed
+Status: 5.1.1
+
+--dsn-boundary--

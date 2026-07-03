@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Beta workload migrated to the native runtime (native-runtime-migration Phase
+  05).** The adjacent Python/FastAPI sidecar's compute is now native TypeScript,
+  proving the host surface against a real workload. Four `examples/native-functions`
+  are the migrated workload, each driven end-to-end through the Deno runtime
+  against a recording host: `deal-scoring.ts` (LLM scoring **+ next-action** on the
+  fire-and-forget re-runnable path); `qonto-sync.ts` (money path on the **durable**
+  dispatcher, with a deterministic invoice-derived idempotency key so at-least-once
+  dispatch never double-charges, and fail-loud on any non-2xx); `follow-up-email.ts`
+  (**per-user** send — the `from` comes only from the connected user's verified
+  address in `auth_context`, never a shared mailbox, and a missing address fails
+  loud); and `reply-awareness.ts` (`after:ingest:email`) **proven end-to-end
+  against a fixture mailbox** — real `.eml` fixtures run through the real
+  normalization + classification + dispatch-payload builder, where only a *human*
+  reply stops the sequence and out-of-office / bounce / auto-generated mail is
+  ignored (the live e2e deferred from Phase 04). The per-user send rule is a pure,
+  fail-loud policy `fraiseql_functions::outbound::resolve_sender_identity`, and the
+  live host's `auth_context` now surfaces the connected user's verified `email` /
+  `display_name`. A first-class `send_email` host op (host-owned `from`) over a
+  concrete SMTP/provider transport, and real TypeScript type-stripping, are the
+  named Phase 06 follow-ups — see `docs/architecture/native-runtime-ergonomics.md`.
 - **Poll-IMAP email adapter + normalization (native-runtime-migration Phase 04).**
   The first *pull* inbound source, riding the Phase 03 primitive. Behind the
   opt-in `inbound-email` feature, each configured `[imap.<name>]` mailbox runs a

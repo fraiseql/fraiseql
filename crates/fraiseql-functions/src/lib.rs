@@ -13,6 +13,7 @@
 pub mod host;
 pub mod migrations;
 pub mod observer;
+pub mod outbound;
 pub mod runtime;
 pub mod store;
 pub mod triggers;
@@ -20,6 +21,7 @@ pub mod types;
 
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
+pub use outbound::{SendPolicyError, SenderIdentity, resolve_sender_identity};
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
 pub use triggers::{
