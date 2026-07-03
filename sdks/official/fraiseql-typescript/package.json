@@ -50,7 +50,7 @@
   "author": "FraiseQL Team",
   "license": "MIT",
   "dependencies": {
-    "zod": "^3.22.0"
+    "zod": "^4.4.3"
   },
   "overrides": {
     "js-yaml": "^4.2.0"
