@@ -124,6 +124,48 @@ pub trait DeadLetterQueue: Send + Sync {
         );
         Ok(())
     }
+
+    /// Dead-letter a function-trigger dispatch that exhausted its retries or
+    /// failed permanently.
+    ///
+    /// The function-dispatch analogue of [`push`](Self::push): where `push`
+    /// carries an observer [`EntityEvent`] + [`ActionConfig`], this carries a
+    /// [`FunctionDispatchRecord`](crate::dispatch::FunctionDispatchRecord)
+    /// (module name, trigger type, event payload, error). Reusing this trait lets
+    /// function dispatch and observer actions land in the same store,
+    /// discriminated by [`DispatchSource`](crate::dispatch::DispatchSource).
+    ///
+    /// The default implementation logs a warning and drops the record — the same
+    /// loud-but-lossy contract as [`push_raw`](Self::push_raw); override it to
+    /// persist the record for inspection and replay.
+    ///
+    /// Returns the record's [`id`](crate::dispatch::FunctionDispatchRecord::id).
+    async fn push_function(&self, record: crate::dispatch::FunctionDispatchRecord) -> Result<Uuid> {
+        tracing::warn!(
+            function = %record.function_name,
+            source = ?record.source,
+            trigger = %record.trigger_type,
+            "Function dispatch failure dropped (this DLQ implementation does not store function records)"
+        );
+        Ok(record.id)
+    }
+
+    /// Get pending function-dispatch dead-letter records.
+    ///
+    /// The function-dispatch counterpart to [`get_pending`](Self::get_pending).
+    /// The default returns an empty list; override alongside
+    /// [`push_function`](Self::push_function) to expose stored records for
+    /// inspection and replay.
+    ///
+    /// # Arguments
+    /// * `limit` — maximum number of records to return
+    async fn get_pending_functions(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<crate::dispatch::FunctionDispatchRecord>> {
+        let _ = limit;
+        Ok(Vec::new())
+    }
 }
 
 /// Item in the dead letter queue
