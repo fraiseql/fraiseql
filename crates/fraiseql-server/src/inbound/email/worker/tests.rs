@@ -86,7 +86,7 @@ fn storage_prefix_and_sanitize_are_key_safe() {
     assert_eq!(sanitize(""), "unnamed");
 }
 
-/// Cycle 1 core: a poll ingests the new messages, advances the cursor to the
+/// Core guarantee: a poll ingests the new messages, advances the cursor to the
 /// highest UID, and a second poll finds nothing new (no re-ingest).
 #[tokio::test]
 async fn poll_ingests_new_mail_and_advances_the_cursor() {

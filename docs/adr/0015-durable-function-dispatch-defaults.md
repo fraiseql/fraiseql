@@ -9,7 +9,7 @@ policy + dead-letter queue reused from the observer subsystem) and the error
 classification used to decide what is retried.
 
 Related: ADR-0010 (async mutation handlers), ADR-0012 (async-trait retention),
-`docs/architecture/functions.md`, the native-runtime-migration train (Phase 02).
+`docs/architecture/functions.md`, the native-runtime migration.
 
 ---
 
@@ -27,9 +27,9 @@ network blip silently drops the invocation with no retry and no record.
 
 The observer subsystem already solved the equivalent problem for its actions
 (webhooks, Slack, email): a retry loop with backoff + jitter, a transient/permanent
-error split, and a dead-letter queue (DLQ) with a size cap. Phase 02 of the
-native-runtime migration gives function dispatch the same durability by **reusing that
-machinery** rather than building a parallel one.
+error split, and a dead-letter queue (DLQ) with a size cap. The durable-dispatch work
+in the native-runtime migration gives function dispatch the same durability by
+**reusing that machinery** rather than building a parallel one.
 
 ## The decision
 
@@ -58,7 +58,7 @@ The two candidates were:
   out. The failure mode is a **retry** (bounded, transient-only) or a **DLQ row** — both
   loud and recoverable.
 
-We chose **on by default**. The whole reason Phase 02 exists is that silent loss on the
+We chose **on by default**. The whole reason durable dispatch exists is that silent loss on the
 money/send path is the worst outcome; a bounded retry or an inspectable DLQ row is
 strictly better than a dropped invocation. The author opts a function *out* only when a
 dropped invocation is genuinely acceptable because the work can simply be re-run later —

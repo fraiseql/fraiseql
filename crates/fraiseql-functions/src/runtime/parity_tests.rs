@@ -1,4 +1,4 @@
-//! Cross-runtime host-surface parity (Phase 01, Cycle 4).
+//! Cross-runtime host-surface parity.
 //!
 //! The whole point of the shared [`DynHostContext`](crate::host::dyn_context::DynHostContext)
 //! bridge is that a function sees the *same* host semantics whether it runs on the

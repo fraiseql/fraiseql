@@ -1,7 +1,7 @@
 // Native LLM deal-scorer + next-action — an `after:mutation:Deal:update` function.
 //
 // This is the first workload migrated off the Python/FastAPI sidecar onto the
-// in-process TypeScript runtime (native-runtime-migration, Phase 01/05). It runs
+// in-process TypeScript runtime. It runs
 // on the fire-and-forget path: scoring is re-runnable and must never block or
 // alter the mutation response.
 //

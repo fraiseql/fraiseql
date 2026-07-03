@@ -36,7 +36,7 @@ async fn push(dlq: &InMemoryDlq) -> Uuid {
     dlq.push(test_event(), test_action(), "boom".to_string()).await.unwrap()
 }
 
-// ── Cycle 1: cap (drop-newest) ──────────────────────────────────────────────
+// ── cap (drop-newest) ───────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn unbounded_dlq_grows_without_limit() {
@@ -67,7 +67,7 @@ async fn capped_dlq_drops_newest_at_capacity() {
     );
 }
 
-// ── Cycle 2: mark_retry_failed keeps the item ───────────────────────────────
+// ── mark_retry_failed keeps the item ────────────────────────────────────────
 
 #[tokio::test]
 async fn mark_retry_failed_keeps_item_and_records_failure() {

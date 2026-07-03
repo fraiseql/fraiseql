@@ -145,7 +145,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let (app, app_state) = self.build_router();
 
-        // Start the poll-IMAP email workers (native-runtime-migration Phase 04).
+        // Start the poll-IMAP email workers.
         // Each configured `[imap.<name>]` mailbox runs a background poll loop on
         // the server's JoinSet, so graceful shutdown aborts them. The workers
         // reuse the durable inbound spine and the `after:ingest` dispatch path;

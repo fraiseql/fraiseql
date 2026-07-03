@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Beta workload migrated to the native runtime (native-runtime-migration Phase
-  05).** The adjacent Python/FastAPI sidecar's compute is now native TypeScript,
+- **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
+  sidecar's compute is now native TypeScript,
   proving the host surface against a real workload. Four `examples/native-functions`
   are the migrated workload, each driven end-to-end through the Deno runtime
   against a recording host: `deal-scoring.ts` (LLM scoring **+ next-action** on the
@@ -23,14 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against a fixture mailbox** — real `.eml` fixtures run through the real
   normalization + classification + dispatch-payload builder, where only a *human*
   reply stops the sequence and out-of-office / bounce / auto-generated mail is
-  ignored (the live e2e deferred from Phase 04). The per-user send rule is a pure,
+  ignored (the live end-to-end proof of the inbound-email path). The per-user send rule is a pure,
   fail-loud policy `fraiseql_functions::outbound::resolve_sender_identity`, and the
   live host's `auth_context` now surfaces the connected user's verified `email` /
   `display_name`. A first-class `send_email` host op (host-owned `from`) over a
-  concrete SMTP/provider transport, and real TypeScript type-stripping, are the
-  named Phase 06 follow-ups — see `docs/architecture/native-runtime-ergonomics.md`.
-- **Poll-IMAP email adapter + normalization (native-runtime-migration Phase 04).**
-  The first *pull* inbound source, riding the Phase 03 primitive. Behind the
+  concrete SMTP/provider transport, and real TypeScript type-stripping, are
+  documented follow-ups for a planned hardening train — see
+  `docs/architecture/native-runtime-ergonomics.md`.
+- **Poll-IMAP email adapter + normalization.**
+  The first *pull* inbound source, riding the inbound-source primitive. Behind the
   opt-in `inbound-email` feature, each configured `[imap.<name>]` mailbox runs a
   background poll worker (no IMAP-IDLE — *stateless with a cursor*) that fetches
   messages above a per-mailbox `UIDVALIDITY`/`UID` watermark
@@ -46,10 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keys on — with loop protection via `Auto-Submitted` / `Precedence` / list
   headers. The cursor advances only past committed messages, so a transient
   failure or a `UIDVALIDITY` reset re-fetches and the spine's `Message-ID` dedup
-  makes it idempotent (at-least-once). Sending stays per-user (Phase 05). Attachment
+  makes it idempotent (at-least-once). Sending stays per-user. Attachment
   size/type limits, virus scanning, and `StorageState` wiring remain follow-ups.
-- **Inbound ingestion as a source (native-runtime-migration Phase 03, continues
-  #431).** The symmetric mirror of the outbound observer→signed-webhook path: an
+- **Inbound ingestion as a source (continues #431).** The symmetric mirror of the
+  outbound observer→signed-webhook path: an
   external message becomes a normalized `InboundMessage` on a durable spine that
   `after:ingest[:<source>]` functions consume. A `Source` trait models both push
   (ack-based, e.g. a provider webhook) and pull (cursor-based, e.g. poll-IMAP)
@@ -89,8 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after:mutation functions (`functions-runtime`) therefore now compiles the
   `observers` subsystem. See ADR 0015 for the durable-by-default rationale.
 
-- **TypeScript/JavaScript functions reach the full I/O-capable host surface
-  (native-runtime-migration Phase 01).** `FunctionObserver::invoke_with_context`
+- **TypeScript/JavaScript functions reach the full I/O-capable host surface.**
+  `FunctionObserver::invoke_with_context`
   now dispatches by the module's runtime (WASM **or** Deno) instead of a hardwired
   WASM lookup, and the Deno runtime gained `invoke_with_context` plus the async
   host ops (`fraiseql_query`, `fraiseql_sql_query`, `fraiseql_http_request`,

@@ -4,8 +4,8 @@ Custom compute that runs on a database event and does async I/O — authored in
 TypeScript, executed **in-process** by the FraiseQL server's Deno runtime. No
 Python sidecar, no separate deployment.
 
-These are the workloads being migrated off an adjacent Python/FastAPI sidecar as
-part of the native-runtime-migration. Each function is a single `export default`
+These are the workloads migrated off an adjacent Python/FastAPI sidecar onto the
+native runtime. Each function is a single `export default`
 handler that receives the event payload and reaches the host through
 `Deno.core.ops.fraiseql_*` (typed by the runtime's `FRAISEQL_HOST_TYPES`).
 
@@ -53,7 +53,7 @@ next action by sending a **per-user** follow-up. The banked constraint is that a
 paired outbound email is sent *from the connected user's verified address, never a
 shared mailbox*: the `from` is taken only from `auth_context` and a missing
 verified address fails loud (no default-sender fall-back). It mirrors the Rust
-policy `fraiseql_functions::outbound::resolve_sender_identity`, which the Phase 06
+policy `fraiseql_functions::outbound::resolve_sender_identity`, which a planned
 `send_email` host op will enforce structurally. See
 `docs/architecture/native-runtime-ergonomics.md`.
 

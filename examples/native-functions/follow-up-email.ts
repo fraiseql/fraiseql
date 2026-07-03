@@ -1,12 +1,12 @@
 // Native per-user follow-up sender — an `after:mutation:Deal:update` function
-// that acts on the scorer's recommended next action (native-runtime Phase 05).
+// that acts on the scorer's recommended next action.
 //
 // This is the reference implementation of the banked per-user send constraint:
 // a paired outbound email goes FROM the connected user's verified address, taken
 // only from the host auth context, NEVER a shared or default mailbox. There is no
 // path here to send from anything else, and a missing verified address fails loud
 // rather than falling back to a default sender. It mirrors the Rust policy
-// `fraiseql_functions::outbound::resolve_sender_identity`, which the Phase 06
+// `fraiseql_functions::outbound::resolve_sender_identity`, which a planned
 // `send_email` host op will enforce structurally (host-owned `from`).
 //
 // Host surface used (all via `Deno.core.ops.fraiseql_*`, typed by the runtime):

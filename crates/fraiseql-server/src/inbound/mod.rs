@@ -1,4 +1,4 @@
-//! Inbound ingestion as a source (native-runtime-migration Phase 03, continues #431).
+//! Inbound ingestion as a source (continues #431).
 //!
 //! The symmetric mirror of the outbound observer→signed-webhook path. Where the
 //! outbound path turns a database change into a durable change-log event that an

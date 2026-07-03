@@ -3,8 +3,7 @@
 This note captures what migrating a real beta workload off the Python/FastAPI
 sidecar onto the in-process TypeScript runtime taught us about the host surface —
 what fit, what chafed, and what the follow-up phase should close. It is the
-design-in-the-open output of the beta migration (native-runtime-migration Phase
-05, Cycle 4). The workloads migrated:
+design-in-the-open output of the beta migration. The workloads migrated:
 
 | Workload | Trigger | Path | Example |
 |----------|---------|------|---------|
@@ -27,23 +26,28 @@ design-in-the-open output of the beta migration (native-runtime-migration Phase
   authorization and validation surface as any other client. Idempotent mutations
   (`source: "ai"` losing to a human edit; `recordQontoReference` being a no-op the
   second time) make at-least-once dispatch safe.
-- **The durable path (Phase 02).** For the money workload, marking the function
+- **The durable path.** For the money workload, marking the function
   `re_runnable = false` and letting the dispatcher own retry/backoff/DLQ meant the
   function itself is just "call the API, fail loud on non-2xx" — no bespoke retry
   loop. The guest signals *transient vs permanent* purely by whether it throws,
   and the `!is_client_error` classifier does the rest.
-- **The classification gate (Phase 04).** Reply-awareness collapsed to a single
+- **The classification gate.** Reply-awareness collapsed to a single
   `classification === "human"` check because the shared normalization layer
   already did the hard part (MIME, threading, bounce/OOO/challenge detection).
   That gate is simultaneously the reply signal and the mail-loop guard.
 
-## Friction and gaps → Phase 06 backlog
+## Friction and gaps → hardening backlog
+
+These are **known limitations of the opt-in native runtime, not blockers.** Every
+workload above runs today; each item below is an ergonomics or reach improvement
+slated for a follow-up hardening train, at the end of which the features are
+promoted from opt-in to stable.
 
 1. **TypeScript is transpiled-in-name-only (the biggest papercut).** The runtime
    executes JavaScript; a `.ts` file with type annotations is a `SyntaxError`. All
    four examples are written in the type-annotation-free subset of TypeScript
    (valid JS *and* valid TS). This is liveable but surprising, and it blocks
-   sharing types with the rest of a TS codebase. **Phase 06: wire real
+   sharing types with the rest of a TS codebase. **Planned: wire real
    type-stripping** (`deno_ast` / swc) so authors write ordinary TypeScript.
 
 2. **Per-user send is a policy + reference pattern, not yet a host op.** The
@@ -52,7 +56,7 @@ design-in-the-open output of the beta migration (native-runtime-migration Phase
    `fraiseql_functions::outbound::resolve_sender_identity` (a pure, fail-loud
    policy) plus surfacing the verified `email` in `auth_context`, and the
    `follow-up-email.ts` reference mirrors it in TypeScript. That makes the rule
-   real and tested, but the `from` still lives in guest code. **Phase 06: a
+   real and tested, but the `from` still lives in guest code. **Planned: a
    first-class `send_email` host op that injects the bound `from` (structural,
    guest cannot override) over a concrete SMTP / provider transport**, reusing the
    `resolve_sender_identity` policy. The transport is the missing piece — mirror
@@ -61,7 +65,7 @@ design-in-the-open output of the beta migration (native-runtime-migration Phase
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's
    *sending* mailbox (the connected IMAP/SMTP account, cf. `[imap.<name>]`) can
-   differ from the JWT subject's email. **Phase 06: a distinct, verified
+   differ from the JWT subject's email. **Planned: a distinct, verified
    `sending_address` on the security/auth context**, resolved from the connected
    mailbox rather than assumed equal to the login email.
 
@@ -71,7 +75,7 @@ design-in-the-open output of the beta migration (native-runtime-migration Phase
    on retry. This is also what keeps the per-user follow-up send on the
    *fire-and-forget* path for now: without a stable send-idempotency token, a
    durable retry could double-send, and a fire-and-forget failure is simply lost —
-   neither is right for user-facing mail. **Phase 06: a host-provided,
+   neither is right for user-facing mail. **Planned: a host-provided,
    per-dispatch-stable idempotency token** (stable across retries of the same
    dispatch, distinct per logical operation) the guest passes straight through to
    a downstream money or mail API, so paired sends can move to the durable path
@@ -80,7 +84,7 @@ design-in-the-open output of the beta migration (native-runtime-migration Phase
 5. **Error model is throw-or-return.** Transient vs permanent is inferred from the
    resulting `FraiseQLError` classification, which is the right default, but a
    function cannot yet *say* "this is permanent, do not retry" (e.g. a validation
-   failure that happens to surface as a 5xx). **Phase 06: let a function tag a
+   failure that happens to surface as a 5xx). **Planned: let a function tag a
    thrown error as permanent** so it dead-letters immediately instead of
    exhausting retries.
 
@@ -98,4 +102,4 @@ The host surface — **secrets, HTTP, write-back, auth context, durable dispatch
 into native TypeScript, with reply-awareness proven end-to-end against a fixture
 mailbox. The two changes that would most improve the authoring experience are real
 TypeScript transpilation (1) and a first-class per-user `send_email` op with a
-concrete transport (2). Both are Phase 06.
+concrete transport (2). Both lead the hardening backlog.

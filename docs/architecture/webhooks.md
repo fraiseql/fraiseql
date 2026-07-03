@@ -32,13 +32,30 @@ Use it when **your own data changes** and you want downstream consumers to know:
 
 ## Inbound Webhook Receiver (`fraiseql-webhooks`)
 
-> **Status: library-core only.** `fraiseql-webhooks` currently ships the receiver
-> **pipeline** — signature verification, an atomic idempotency claim inside the handler
-> transaction, and transactional handoff. It is **not yet mounted as an HTTP route**: there
-> is no `POST /webhooks/{provider}` endpoint in the server and the `endpoint_path` config
-> below is not wired. The HTTP route, server mount, and provider/event-routing config are
-> planned. The security and transaction semantics described here are real and exercised by
-> the crate's tests.
+> **Status: mounted (opt-in).** Behind the opt-in `inbound` Cargo feature, the receiver
+> is mounted as an HTTP route — `POST /webhooks/{provider}` — as the first **push adapter**
+> of the inbound-source model (see below). The route verifies the signature via this
+> pipeline, normalizes the delivery to an `InboundMessage`, and persists it onto the durable
+> inbound spine *inside the receiver transaction*, so persistence is atomic with the
+> idempotency claim. Without the feature the whole inbound path is compiled out.
+
+### Inbound as a source
+
+The receiver is one adapter of a general primitive — *an external message becomes a
+normalized `InboundMessage` on a durable spine that `after:ingest[:<source>]` functions
+consume* — the symmetric mirror of the outbound observer→signed-webhook path. A `Source`
+models both **push** (ack-based, e.g. a provider webhook) and **pull** (cursor-based, e.g.
+the poll-IMAP email adapter behind the `inbound-email` feature) transports; the shared
+normalization above transport (idempotency/thread keys, bodies, attachments, declared
+routing) lives once in `InboundMessage`.
+
+Each normalized delivery is deduplicated by `(source, idempotency_key)` on the spine
+(`_fraiseql_inbound_message`) and fires `after:ingest[:<source>]` functions on the same
+I/O-capable host context as `after:mutation`, reusing the durable dispatch path (retry +
+dead-letter). A declared routing rule maps a message to an entity by dedicated address +
+plus-tag (`support+ticket-42@…` → `Ticket`/`42`); an `after:ingest` handler receives the
+whole message and can route it itself. See `docs/architecture/inbound-email.md` for the
+poll-IMAP adapter and `docs/architecture/functions.md` for the `after:ingest` host surface.
 
 ### Supported Providers
 

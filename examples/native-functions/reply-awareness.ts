@@ -1,8 +1,7 @@
 // Native reply-awareness — an `after:ingest:email` function.
 //
 // Stops an active outreach sequence when a human replies. This is the workload
-// the poll-IMAP email adapter was built for (native-runtime-migration Phase 04;
-// folds into Phase 05's beta migration). It runs on the durable dispatch path, so
+// the poll-IMAP email adapter was built for. It runs on the durable dispatch path, so
 // a transient failure is retried and an exhausted one is dead-lettered.
 //
 // The inbound email has already been normalized by the shared layer: the message

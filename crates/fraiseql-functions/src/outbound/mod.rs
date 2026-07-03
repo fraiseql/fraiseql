@@ -16,7 +16,7 @@
 //! one is an error rather than a silent fall-back to a shared mailbox.
 //!
 //! A first-class `send_email` host op that injects the bound `from` and a concrete
-//! SMTP / provider transport are the Phase 06 promotion of this policy (see
+//! SMTP / provider transport are a planned hardening follow-up on this policy (see
 //! `docs/architecture/native-runtime-ergonomics.md`); this module ships the
 //! enforceable rule that op will call, and the reference workload
 //! `examples/native-functions/follow-up-email.ts` mirrors it in `TypeScript`.

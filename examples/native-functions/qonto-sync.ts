@@ -1,10 +1,10 @@
 // Native Qonto sync — an `after:mutation:Invoice:*` function on the DURABLE path.
 //
-// The second workload migrated off the Python/FastAPI sidecar (native-runtime
-// Phase 05). Unlike the fire-and-forget scorer, this touches money, so it runs on
+// Another workload migrated off the Python/FastAPI sidecar. Unlike the
+// fire-and-forget scorer, this touches money, so it runs on
 // the durable dispatch path: it is registered `re_runnable = false`, so a
-// transient failure is retried with backoff and an exhausted one is dead-lettered
-// (native-runtime Phase 02). See docs/architecture/functions.md and ADR 0015.
+// transient failure is retried with backoff and an exhausted one is dead-lettered.
+// See docs/architecture/functions.md and ADR 0015.
 //
 // Money-path safety rests on ONE property: the idempotency key is *derived from
 // the invoice*, never random. Every retry, replay, or backfill of the same

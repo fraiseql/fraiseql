@@ -1,4 +1,4 @@
-//! The per-user follow-up-send demonstrator (native-runtime P05, Cycle 3).
+//! The per-user follow-up-send demonstrator.
 //!
 //! Drives the real `examples/native-functions/follow-up-email.ts` through
 //! `invoke_with_context`, proving the banked per-user send constraint: the `from`

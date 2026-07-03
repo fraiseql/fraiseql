@@ -207,7 +207,7 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
-// Inbound ingestion as a source (native-runtime-migration Phase 03) - optional
+// Inbound ingestion as a source - optional
 #[cfg(feature = "inbound")]
 pub mod inbound;
 

@@ -40,7 +40,7 @@ fn emitted_new_reports_is_new_and_carries_id() {
     assert!(!Emitted::Duplicate.is_new());
 }
 
-/// The core Cycle 2 guarantee: a message is durable and deduplicated by its
+/// The core guarantee: a message is durable and deduplicated by its
 /// idempotency key, so `after:ingest` dispatch is at-least-once.
 #[tokio::test]
 async fn emit_persists_once_and_deduplicates_by_idempotency_key() {

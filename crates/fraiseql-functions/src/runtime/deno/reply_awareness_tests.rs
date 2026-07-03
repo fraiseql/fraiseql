@@ -1,5 +1,4 @@
-//! Reply-awareness end-to-end against a fixture mailbox (native-runtime P05,
-//! Cycle 3 — the live e2e deferred from Phase 04).
+//! Reply-awareness end-to-end against a fixture mailbox.
 //!
 //! Each raw `.eml` fixture is run through the *real* normalization pipeline
 //! (`normalize_email` → classify → thread-key) and the *real* dispatch payload

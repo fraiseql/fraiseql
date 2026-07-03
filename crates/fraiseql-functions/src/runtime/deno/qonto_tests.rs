@@ -1,4 +1,4 @@
-//! The Qonto durable-path demonstrator (native-runtime P05, Cycle 2).
+//! The Qonto durable-path demonstrator.
 //!
 //! Drives the real `examples/native-functions/qonto-sync.ts` through
 //! `invoke_with_context` against a recording mock host. Where the scorer is

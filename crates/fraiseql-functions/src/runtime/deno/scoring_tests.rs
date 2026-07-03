@@ -1,4 +1,4 @@
-//! The LLM deal-scoring + next-action demonstrator (native-runtime P01/P05).
+//! The LLM deal-scoring + next-action demonstrator.
 //!
 //! Drives the real `examples/native-functions/deal-scoring.ts` through
 //! `invoke_with_context` against a recording mock host, proving the full host
