@@ -53,6 +53,7 @@ pub mod concurrent;
 pub mod condition;
 pub mod config;
 pub mod dedup;
+pub mod dispatch;
 #[cfg(feature = "dedup")]
 pub mod deduped_executor;
 pub mod insecure_guard;
@@ -109,6 +110,7 @@ pub use config::{
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;
 pub use dedup::{DeduplicationStats, DeduplicationStore};
+pub use dispatch::{DispatchPolicy, RetryDecision, run_with_retry};
 pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};

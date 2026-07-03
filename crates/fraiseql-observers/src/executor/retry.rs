@@ -2,13 +2,12 @@
 
 use std::{sync::Arc, time::Duration};
 
-use rand::Rng;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
 use super::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 use crate::{
-    config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig},
+    config::{ActionConfig, FailurePolicy, RetryConfig},
     error::{ObserverError, Result},
     event::EntityEvent,
 };
@@ -121,42 +120,13 @@ impl ObserverExecutor {
         });
     }
 
-    /// Calculate backoff delay based on attempt number and strategy
+    /// Calculate backoff delay based on attempt number and strategy.
+    ///
+    /// Delegates to [`RetryConfig::backoff_delay`], the single source of truth
+    /// shared with the function-dispatch driver ([`crate::dispatch`]).
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
     pub(crate) fn calculate_backoff(&self, attempt: u32, config: &RetryConfig) -> Duration {
-        let delay_ms = match config.backoff_strategy {
-            BackoffStrategy::Exponential => {
-                // 2^(attempt-1) * initial_delay, capped at max_delay.
-                // saturating_mul + saturating_pow prevent overflow when
-                // initial_delay_ms is large or attempt is high.
-                // ±25% jitter prevents thundering-herd retry storms across
-                // multiple observer instances sharing the same endpoint.
-                let exponent = attempt - 1;
-                let base_delay = config
-                    .initial_delay_ms
-                    .saturating_mul(2_u64.saturating_pow(exponent))
-                    .min(config.max_delay_ms);
-                // jitter: ±25% of base_delay
-                let jitter_range = base_delay / 4;
-                if jitter_range > 0 {
-                    let jitter = rand::rng().random_range(0..=jitter_range.saturating_mul(2));
-                    base_delay.saturating_add(jitter).saturating_sub(jitter_range)
-                } else {
-                    base_delay
-                }
-            },
-            BackoffStrategy::Linear => {
-                // attempt * initial_delay, capped at max_delay
-                let base_delay = config.initial_delay_ms * u64::from(attempt);
-                base_delay.min(config.max_delay_ms)
-            },
-            BackoffStrategy::Fixed => {
-                // Always use initial_delay
-                config.initial_delay_ms
-            },
-        };
-
-        Duration::from_millis(delay_ms)
+        config.backoff_delay(attempt)
     }
 
     /// Run observer executor with pluggable event transport
