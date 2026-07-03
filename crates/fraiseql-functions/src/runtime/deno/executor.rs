@@ -20,7 +20,11 @@ use std::{
 use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
-use crate::types::{LogEntry, LogLevel, ResourceLimits};
+use super::ops::DenoHostContext;
+use crate::{
+    host::dyn_context::DynHostContext,
+    types::{LogEntry, LogLevel, ResourceLimits},
+};
 
 // ── Log collector state stored in OpState ─────────────────────────────────────
 
@@ -61,12 +65,28 @@ fn fraiseql_log(state: Rc<RefCell<OpState>>, #[smi] level: u8, #[string] message
 
 // ── Extension builder ──────────────────────────────────────────────────────────
 
-fn make_fraiseql_extension(collector: LogCollector) -> Extension {
+fn make_fraiseql_extension(
+    collector: LogCollector,
+    host: Option<Arc<dyn DynHostContext>>,
+) -> Extension {
+    use super::ops;
     Extension {
         name: "fraiseql",
-        ops: std::borrow::Cow::Owned(vec![fraiseql_log()]),
+        ops: std::borrow::Cow::Owned(vec![
+            fraiseql_log(),
+            ops::fraiseql_query(),
+            ops::fraiseql_sql_query(),
+            ops::fraiseql_http_request(),
+            ops::fraiseql_storage_get(),
+            ops::fraiseql_storage_put(),
+            ops::fraiseql_auth_context(),
+            ops::fraiseql_env_var(),
+        ]),
         op_state_fn: Some(Box::new(move |state: &mut OpState| {
             state.put(collector);
+            if let Some(host) = host {
+                state.put(DenoHostContext(host));
+            }
         })),
         ..Default::default()
     }
@@ -140,6 +160,7 @@ pub fn run_in_dedicated_thread(
     source: &str,
     event_value: &Value,
     limits: &ResourceLimits,
+    host: Option<Arc<dyn DynHostContext>>,
 ) -> Result<ExecutionResult, String> {
     // Resource limits are enforced for real against the V8 isolate (M-deno-limits):
     //
@@ -192,7 +213,7 @@ pub fn run_in_dedicated_thread(
         let create_params = v8::CreateParams::default().heap_limits(0, max_memory_bytes);
 
         let mut js_runtime = JsRuntime::new(RuntimeOptions {
-            extensions: vec![make_fraiseql_extension(collector)],
+            extensions: vec![make_fraiseql_extension(collector, host)],
             create_params: Some(create_params),
             ..Default::default()
         });

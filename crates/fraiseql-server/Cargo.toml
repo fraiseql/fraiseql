@@ -190,6 +190,16 @@ functions-runtime = [
     "fraiseql-functions/runtime-wasm",
     "fraiseql-functions/host-live",
 ]
+# TypeScript/JavaScript function runtime (Deno/V8), additive to `functions-runtime`.
+# Lets `after:mutation` (and future `after:ingest`) functions be authored in
+# TypeScript with the same I/O-capable host surface as WASM. Kept a separate
+# opt-in because it pulls in V8 (~30 MB) and lengthens compile time; the finalize
+# phase decides the batteries-included default. The embedder still registers the
+# runtime on the observer (`observer.register_runtime(RuntimeType::Deno, ...)`).
+functions-runtime-deno = [
+    "functions-runtime",
+    "fraiseql-functions/runtime-deno",
+]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]

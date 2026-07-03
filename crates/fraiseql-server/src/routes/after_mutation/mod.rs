@@ -243,12 +243,14 @@ impl DurableDispatcher {
         module: &FunctionModule,
         payload: EventPayload,
     ) -> fraiseql_error::Result<fraiseql_functions::FunctionResult> {
-        let host: std::sync::Arc<
-            dyn fraiseql_functions::runtime::wasm::host_bridge::DynHostContext,
-        > = std::sync::Arc::new(fraiseql_functions::host::live::LiveHostContext::new(
-            payload.clone(),
-            self.host_config.clone(),
-        ));
+        // Shared, runtime-agnostic host bridge: the observer dispatches the plan
+        // to the WASM or Deno backend by the module's runtime, so the host type
+        // must not be tied to either.
+        let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
+            std::sync::Arc::new(fraiseql_functions::host::live::LiveHostContext::new(
+                payload.clone(),
+                self.host_config.clone(),
+            ));
         self.observer
             .invoke_with_context(module, payload, host, self.limits.clone())
             .await

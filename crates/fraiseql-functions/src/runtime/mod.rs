@@ -6,6 +6,9 @@ pub mod wasm;
 #[cfg(feature = "runtime-deno")]
 pub mod deno;
 
+#[cfg(all(test, feature = "runtime-wasm", feature = "runtime-deno"))]
+mod parity_tests;
+
 use std::future::Future;
 
 use async_trait::async_trait;

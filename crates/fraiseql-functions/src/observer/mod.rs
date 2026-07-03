@@ -129,44 +129,87 @@ impl FunctionObserver {
         registry.after_mutation_triggers.find(&event.entity, event.event_kind)
     }
 
-    /// Execute a WASM module with a full I/O-capable host context.
+    /// Execute a function module with a full I/O-capable host context.
     ///
     /// Unlike [`invoke`](Self::invoke) — which snapshots the host into a
-    /// sync-only `HostContextSnapshot` and so returns `Unsupported` for async
-    /// I/O — this routes to
-    /// [`WasmRuntime::invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context),
-    /// giving the guest live HTTP / query / storage access through `host`. The
-    /// after:mutation dispatcher uses this so side-effecting functions (webhooks,
-    /// external provisioning) can reach the network.
+    /// sync-only view and so returns `Unsupported` for async I/O — this routes to
+    /// the runtime's `invoke_with_context`, giving the guest live HTTP / query /
+    /// storage access through `host`. The after:mutation dispatcher uses this so
+    /// side-effecting functions (webhooks, external provisioning, LLM scoring) can
+    /// reach the network.
     ///
-    /// Only the WASM runtime is supported on this path; an event whose module
-    /// targets another runtime returns `Unsupported`.
+    /// Dispatches by the module's [`runtime`](FunctionModule::runtime) field:
+    /// WASM modules route to
+    /// [`WasmRuntime::invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context),
+    /// Deno (`JavaScript`/`TypeScript`) modules to
+    /// [`DenoRuntime::invoke_with_context`](crate::runtime::deno::DenoRuntime::invoke_with_context).
+    /// An event whose module targets a runtime that is not compiled in returns
+    /// `Unsupported`.
     ///
     /// # Errors
     ///
-    /// Returns `Err` if no WASM runtime is registered, the registered runtime is
-    /// not a [`WasmRuntime`](crate::runtime::wasm::WasmRuntime), or guest
-    /// execution fails.
-    #[cfg(feature = "runtime-wasm")]
+    /// Returns `Err` if no runtime is registered for the module's runtime type,
+    /// the registered runtime is of the wrong concrete type, or guest execution
+    /// fails.
+    #[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
     pub async fn invoke_with_context(
         &self,
         module: &FunctionModule,
         event: EventPayload,
-        host: Arc<dyn crate::runtime::wasm::host_bridge::DynHostContext>,
+        #[allow(unused_variables)]
+        // Reason: used only when the matching runtime feature is enabled
+        host: Arc<dyn crate::host::dyn_context::DynHostContext>,
+        #[allow(unused_variables)]
+        // Reason: used only when the matching runtime feature is enabled
         limits: ResourceLimits,
     ) -> Result<FunctionResult> {
-        let runtime_box = self.runtimes.get(&RuntimeType::Wasm).ok_or_else(|| {
+        #[allow(unused_variables)] // Reason: used only when the matching runtime feature is enabled
+        let runtime_box = self.runtimes.get(&module.runtime).ok_or_else(|| {
             fraiseql_error::FraiseQLError::Unsupported {
-                message: "No WASM runtime registered for after:mutation dispatch".to_string(),
+                message: format!(
+                    "No runtime registered for {:?} on the I/O host-context dispatch path",
+                    module.runtime
+                ),
             }
         })?;
-        let runtime =
-            runtime_box.downcast_ref::<crate::runtime::wasm::WasmRuntime>().ok_or_else(|| {
-                fraiseql_error::FraiseQLError::Unsupported {
-                    message: "Invalid WASM runtime".to_string(),
+
+        #[allow(unreachable_patterns)] // Reason: pattern reachability depends on features
+        match module.runtime {
+            RuntimeType::Wasm => {
+                #[cfg(feature = "runtime-wasm")]
+                {
+                    let runtime = runtime_box
+                        .downcast_ref::<crate::runtime::wasm::WasmRuntime>()
+                        .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {
+                        message: "Invalid WASM runtime".to_string(),
+                    })?;
+                    runtime.invoke_with_context(module, event, host, limits).await
                 }
-            })?;
-        runtime.invoke_with_context(module, event, host, limits).await
+                #[cfg(not(feature = "runtime-wasm"))]
+                {
+                    Err(fraiseql_error::FraiseQLError::Unsupported {
+                        message: "WASM runtime not enabled".to_string(),
+                    })
+                }
+            },
+            RuntimeType::Deno => {
+                #[cfg(feature = "runtime-deno")]
+                {
+                    let runtime = runtime_box
+                        .downcast_ref::<crate::runtime::deno::DenoRuntime>()
+                        .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {
+                        message: "Invalid Deno runtime".to_string(),
+                    })?;
+                    runtime.invoke_with_context(module, event, host, limits).await
+                }
+                #[cfg(not(feature = "runtime-deno"))]
+                {
+                    Err(fraiseql_error::FraiseQLError::Unsupported {
+                        message: "Deno runtime not enabled".to_string(),
+                    })
+                }
+            },
+        }
     }
 }
 

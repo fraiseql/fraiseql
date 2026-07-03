@@ -141,6 +141,52 @@ async fn test_function_observer_unknown_runtime_returns_error() {
     );
 }
 
+#[tokio::test]
+#[cfg(feature = "runtime-deno")]
+async fn test_invoke_with_context_dispatches_js_to_deno() {
+    // A Deno module submitted to invoke_with_context must route to the Deno
+    // backend (not the hardcoded WASM lookup it used to have). A JS source would
+    // fail to load as a WASM component, so success proves it reached Deno.
+    let source = "export default async (event) => ({ ...event, via: 'deno' });".to_string();
+    let module = FunctionModule::from_source("test_js_ctx".to_string(), source, RuntimeType::Deno);
+
+    let mut observer = FunctionObserver::new();
+    let deno_runtime =
+        crate::runtime::deno::DenoRuntime::new(&crate::runtime::deno::DenoConfig::default())
+            .unwrap();
+    observer.register_runtime(RuntimeType::Deno, deno_runtime);
+
+    let event = test_event();
+    let host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext> =
+        std::sync::Arc::new(NoopHostContext::new(event.clone()));
+    let result = observer
+        .invoke_with_context(&module, event, host, ResourceLimits::default())
+        .await;
+
+    assert!(result.is_ok(), "invoke_with_context should route JS to the Deno backend");
+    let value = result.unwrap().value.unwrap();
+    assert_eq!(value["via"], "deno");
+}
+
+#[tokio::test]
+#[cfg(feature = "runtime-deno")]
+async fn test_invoke_with_context_unregistered_deno_errors() {
+    // No runtime registered → invoke_with_context fails loud with Unsupported.
+    let source = "export default async (event) => event;".to_string();
+    let module = FunctionModule::from_source("no_rt".to_string(), source, RuntimeType::Deno);
+
+    let observer = FunctionObserver::new();
+    let event = test_event();
+    let host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext> =
+        std::sync::Arc::new(NoopHostContext::new(event.clone()));
+    let result = observer
+        .invoke_with_context(&module, event, host, ResourceLimits::default())
+        .await;
+
+    assert!(result.is_err(), "unregistered runtime should error");
+    assert!(matches!(result.unwrap_err(), fraiseql_error::FraiseQLError::Unsupported { .. }));
+}
+
 // ── Cycle 5: dispatch_entity_event tests ─────────────────────────────────────
 
 #[test]

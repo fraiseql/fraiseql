@@ -28,6 +28,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after:mutation functions (`functions-runtime`) therefore now compiles the
   `observers` subsystem. See ADR 0015 for the durable-by-default rationale.
 
+- **TypeScript/JavaScript functions reach the full I/O-capable host surface
+  (native-runtime-migration Phase 01).** `FunctionObserver::invoke_with_context`
+  now dispatches by the module's runtime (WASM **or** Deno) instead of a hardwired
+  WASM lookup, and the Deno runtime gained `invoke_with_context` plus the async
+  host ops (`fraiseql_query`, `fraiseql_sql_query`, `fraiseql_http_request`,
+  `fraiseql_storage_get`/`_put`, `fraiseql_auth_context`, `fraiseql_env_var`), so a
+  TS `after:mutation` function can make SSRF-allowlisted outbound HTTP calls, run
+  GraphQL queries, read storage and secrets, and write results back — at parity
+  with WASM. Both backends share one `DynHostContext` bridge (hoisted to
+  `fraiseql_functions::host::dyn_context`), so the SSRF/validation policy is defined
+  once. A host op invoked without a live host context (the sync `invoke` path) fails
+  loud rather than returning empty data. New opt-in server feature
+  `functions-runtime-deno` builds the runtime in; the embedder registers it on the
+  observer. (The isolate executes JavaScript today — TypeScript type-stripping
+  transpilation is a tracked follow-up.)
+
 - **Saga steps can pre-fetch cross-subgraph `@requires` fields under
   `saga` (#429).** A saga step may declare `RequiredField` specs
   (`SagaCoordinatorStep::with_required_fields`): before the step's mutation runs,
