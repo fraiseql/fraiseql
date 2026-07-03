@@ -137,6 +137,92 @@ impl Default for FunctionDispatchSetting {
     }
 }
 
+/// Server-level defaults for durable dispatch, layered under per-function
+/// settings from the compiled schema.
+///
+/// Built from the environment so production can tune durability without
+/// recompiling the schema (mirroring `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`):
+///
+/// - `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` — default retry attempts.
+/// - `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS` — default initial backoff.
+/// - `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS` — default backoff cap.
+/// - `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` — dead-letter queue retention cap (unset = unbounded).
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone)]
+pub struct DispatchDefaults {
+    /// Default retry policy for functions without an explicit `retry`.
+    pub retry:        fraiseql_observers::RetryConfig,
+    /// Dead-letter queue retention cap (`None` = unbounded).
+    pub dlq_max_size: Option<usize>,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl DispatchDefaults {
+    /// Read the defaults from the process environment.
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self::from_getter(|key| std::env::var(key).ok())
+    }
+
+    /// Read the defaults from an arbitrary key→value getter.
+    ///
+    /// Factored out from [`from_env`](Self::from_env) so the env layering is unit
+    /// testable without mutating global process state. An unset or unparseable
+    /// variable leaves the corresponding default untouched.
+    #[must_use]
+    pub fn from_getter(get: impl Fn(&str) -> Option<String>) -> Self {
+        let mut retry = fraiseql_observers::RetryConfig::default();
+        if let Some(value) =
+            get("FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS").and_then(|s| s.parse().ok())
+        {
+            retry.max_attempts = value;
+        }
+        if let Some(value) =
+            get("FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS").and_then(|s| s.parse().ok())
+        {
+            retry.initial_delay_ms = value;
+        }
+        if let Some(value) =
+            get("FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS").and_then(|s| s.parse().ok())
+        {
+            retry.max_delay_ms = value;
+        }
+        let dlq_max_size = get("FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE").and_then(|s| s.parse().ok());
+        Self {
+            retry,
+            dlq_max_size,
+        }
+    }
+}
+
+/// Resolve per-function [`FunctionDispatchSetting`]s from the compiled schema.
+///
+/// Each function's `re_runnable` flag and optional `retry` policy come from its
+/// [`FunctionDefinition`](fraiseql_functions::FunctionDefinition); a function
+/// with no explicit `retry` inherits `defaults.retry`. The result keys settings
+/// by function name for [`spawn_after_mutation`] to look up.
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+pub fn resolve_dispatch_settings(
+    definitions: &[fraiseql_functions::FunctionDefinition],
+    defaults: &DispatchDefaults,
+) -> std::collections::HashMap<String, FunctionDispatchSetting> {
+    definitions
+        .iter()
+        .map(|definition| {
+            let retry = definition.retry.clone().unwrap_or_else(|| defaults.retry.clone());
+            let setting = FunctionDispatchSetting {
+                re_runnable: definition.re_runnable,
+                policy:      fraiseql_observers::DispatchPolicy::new(
+                    retry,
+                    fraiseql_observers::FailurePolicy::Dlq,
+                ),
+            };
+            (definition.name.clone(), setting)
+        })
+        .collect()
+}
+
 /// Runs after:mutation function plans durably: retry transient failures with
 /// backoff and dead-letter what exhausts its retries, unless the function is
 /// marked re-runnable (then a single fire-and-forget attempt).
@@ -163,7 +249,9 @@ impl DurableDispatcher {
             payload.clone(),
             self.host_config.clone(),
         ));
-        self.observer.invoke_with_context(module, payload, host, self.limits.clone()).await
+        self.observer
+            .invoke_with_context(module, payload, host, self.limits.clone())
+            .await
     }
 
     /// Dispatch a single plan under its [`FunctionDispatchSetting`].
@@ -272,8 +360,7 @@ pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutatio
     };
 
     for plan in plans {
-        let setting =
-            hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
+        let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
         let dispatcher = dispatcher.clone();
         tokio::spawn(async move {
             dispatcher.dispatch(plan.module, plan.payload, &setting).await;

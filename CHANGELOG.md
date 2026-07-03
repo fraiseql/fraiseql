@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`after:mutation` function dispatch is now durable (retry + dead-letter).**
+  Previously fire-and-forget — a transient failure silently dropped the
+  invocation — dispatch is now durable by default: a transient failure (5xx,
+  timeout, execution error; a `4xx` client error is treated as permanent) is
+  retried with backoff, and once retries are exhausted the invocation is pushed
+  to a dead-letter queue where it is inspectable (`function_dlq_count` on the
+  observer delivery-health endpoint) and replayable, so money- and send-path
+  work is never silently lost. A function can opt out into fire-and-forget with
+  `re_runnable = true` for re-runnable/idempotent work (e.g. LLM scoring). The
+  retry policy round-trips per-function from the compiled schema
+  (`FunctionDefinition.retry`), with `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS`,
+  `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS`,
+  `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS`, and `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`
+  environment overrides. Reuses the observer subsystem's retry/backoff and
+  dead-letter-queue machinery (shared `DispatchPolicy`, extended
+  `DeadLetterQueue` trait) rather than a parallel implementation; running
+  after:mutation functions (`functions-runtime`) therefore now compiles the
+  `observers` subsystem. See ADR 0015 for the durable-by-default rationale.
+
 - **Saga steps can pre-fetch cross-subgraph `@requires` fields under
   `saga` (#429).** A saga step may declare `RequiredField` specs
   (`SagaCoordinatorStep::with_required_fields`): before the step's mutation runs,

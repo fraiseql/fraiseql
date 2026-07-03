@@ -32,13 +32,13 @@ pub struct DlqState {
 #[derive(Debug, Serialize)]
 pub struct DeliveryStatusSummary {
     /// Whether the observer runtime is running.
-    pub running:          bool,
+    pub running:            bool,
     /// Number of loaded observers.
-    pub observer_count:   usize,
+    pub observer_count:     usize,
     /// Total events processed since startup.
-    pub events_processed: u64,
+    pub events_processed:   u64,
     /// Total errors since startup.
-    pub errors:           u64,
+    pub errors:             u64,
     /// Number of items currently in the DLQ.
     pub dlq_count:          usize,
     /// Number of function-dispatch failures currently in the DLQ (after:mutation

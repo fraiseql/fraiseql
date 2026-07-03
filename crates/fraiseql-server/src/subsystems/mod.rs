@@ -179,9 +179,64 @@ pub struct BeforeMutationHooks {
 
     /// Per-function dispatch settings (re-runnable flag + retry policy) resolved
     /// from the compiled schema, keyed by function name. Functions absent from
-    /// the map fall back to the durable
-    /// [`FunctionDispatchSetting::default`](crate::routes::after_mutation::FunctionDispatchSetting::default).
+    /// the map fall back to the durable `FunctionDispatchSetting::default`.
     #[cfg(feature = "functions-runtime")]
     pub dispatch_settings:
         std::collections::HashMap<String, crate::routes::after_mutation::FunctionDispatchSetting>,
+}
+
+impl BeforeMutationHooks {
+    /// Create a hook bundle with default durable-dispatch wiring: an unbounded
+    /// in-memory dead-letter queue and no per-function overrides (every function
+    /// uses the durable default).
+    ///
+    /// For the full compiled-schema resolution (per-function settings +
+    /// `FRAISEQL_FUNCTIONS_*` env overrides), use
+    /// [`FunctionsSubsystem::into_before_mutation_hooks`] instead.
+    #[must_use]
+    pub fn new(
+        trigger_registry: TriggerRegistry,
+        module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
+        observer: Arc<FunctionObserver>,
+    ) -> Self {
+        Self {
+            trigger_registry,
+            module_registry,
+            observer,
+            #[cfg(feature = "functions-runtime")]
+            dlq: Arc::new(crate::observers::runtime::InMemoryDlq::new_with_max(None)),
+            #[cfg(feature = "functions-runtime")]
+            dispatch_settings: std::collections::HashMap::new(),
+        }
+    }
+}
+
+#[cfg(feature = "functions-runtime")]
+impl FunctionsSubsystem {
+    /// Assemble the before-mutation hook bundle for `AppState`.
+    ///
+    /// Resolves each function's durable-dispatch settings (re-runnable flag +
+    /// retry policy) from the compiled schema, layering the
+    /// `FRAISEQL_FUNCTIONS_*` environment overrides via `DispatchDefaults::from_env`,
+    /// and creates the shared dead-letter queue (capped by
+    /// `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`). Consumes the subsystem because the hook
+    /// bundle takes ownership of its trigger registry, modules, and observer.
+    #[must_use]
+    pub fn into_before_mutation_hooks(self) -> BeforeMutationHooks {
+        use crate::routes::after_mutation::{DispatchDefaults, resolve_dispatch_settings};
+
+        let defaults = DispatchDefaults::from_env();
+        let dispatch_settings = resolve_dispatch_settings(&self.config.definitions, &defaults);
+        let dlq = std::sync::Arc::new(crate::observers::runtime::InMemoryDlq::new_with_max(
+            defaults.dlq_max_size,
+        ));
+
+        BeforeMutationHooks {
+            trigger_registry: self.trigger_registry,
+            module_registry: self.module_registry,
+            observer: self.observer,
+            dlq,
+            dispatch_settings,
+        }
+    }
 }

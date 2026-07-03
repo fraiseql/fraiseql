@@ -218,17 +218,15 @@ impl RetryConfig {
     /// `attempt` (1-based).
     ///
     /// This is the single source of truth for backoff timing, shared by the
-    /// observer executor ([`ObserverExecutor::calculate_backoff`]) and the
-    /// function-dispatch driver ([`crate::dispatch::run_with_retry`]) so both
-    /// subsystems age retries identically.
+    /// observer executor (`ObserverExecutor::calculate_backoff` delegates to it)
+    /// and the function-dispatch driver ([`crate::dispatch::run_with_retry`]) so
+    /// both subsystems age retries identically.
     ///
-    /// - `Exponential`: `2^(attempt-1) * initial_delay`, capped at `max_delay`,
-    ///   with ±25% jitter to break up thundering-herd retry storms across
-    ///   instances sharing an endpoint. Overflow-safe (`saturating_*`).
+    /// - `Exponential`: `2^(attempt-1) * initial_delay`, capped at `max_delay`, with ±25% jitter to
+    ///   break up thundering-herd retry storms across instances sharing an endpoint. Overflow-safe
+    ///   (`saturating_*`).
     /// - `Linear`: `attempt * initial_delay`, capped at `max_delay`.
     /// - `Fixed`: always `initial_delay`.
-    ///
-    /// [`ObserverExecutor::calculate_backoff`]: crate::executor::ObserverExecutor::calculate_backoff
     #[must_use]
     pub fn backoff_delay(&self, attempt: u32) -> std::time::Duration {
         use rand::Rng;

@@ -154,7 +154,7 @@ async fn reinsert_bypasses_the_cap() {
     assert_eq!(dlq.overflow_count(), 0, "reinsert is not an overflow");
 }
 
-// ── Function-dispatch DLQ (native runtime P02, Cycle 2) ─────────────────────
+// ── Function-dispatch DLQ ───────────────────────────────────────────────────
 
 mod function_dlq {
     use fraiseql_observers::{DeadLetterQueue, DispatchSource, FunctionDispatchRecord};
@@ -174,8 +174,8 @@ mod function_dlq {
 
     #[tokio::test]
     async fn exhausted_dispatch_lands_one_row() {
-        // Cycle 2 acceptance: a permanently-failing function dispatch that
-        // exhausted its retries lands exactly one inspectable DLQ row.
+        // A permanently-failing function dispatch that exhausted its retries
+        // lands exactly one inspectable DLQ row.
         let dlq = InMemoryDlq::new_with_max(None);
 
         let id = dlq.push_function(record("upstream 503")).await.unwrap();

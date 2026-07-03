@@ -53,9 +53,9 @@ pub mod concurrent;
 pub mod condition;
 pub mod config;
 pub mod dedup;
-pub mod dispatch;
 #[cfg(feature = "dedup")]
 pub mod deduped_executor;
+pub mod dispatch;
 pub mod insecure_guard;
 
 #[cfg(feature = "arrow")]

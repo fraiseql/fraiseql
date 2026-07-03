@@ -27,6 +27,34 @@ dispatches execution.
 - `BeforeMutationChain` allows ordered execution of pre-mutation logic
 - Triggers are registered at server startup from the compiled schema
 
+### Durable After-Mutation Dispatch
+
+`after:mutation` function dispatch is **durable by default** (ADR 0015): a
+transient failure is retried with backoff and, once retries are exhausted, the
+invocation is dead-lettered so money- and send-path work is never silently lost.
+
+- **Retry.** Transient failures (5xx, timeouts, execution errors) are retried up
+  to `max_attempts` with exponential backoff + jitter. A `4xx` client error is
+  treated as permanent and dead-lettered without retry. Backoff and the
+  transient/permanent split reuse the observer subsystem via a shared
+  `DispatchPolicy` (`fraiseql-observers`), so retries age identically in both.
+- **Dead-letter queue.** An exhausted or permanently-failed dispatch is pushed to
+  the shared dead-letter queue (`DeadLetterQueue::push_function`), tagged with a
+  `DispatchSource` discriminator, under the same size-cap / drop-newest policy as
+  observer-action failures. Inspect it via `function_dlq_count` on the observer
+  delivery-health endpoint.
+- **Fire-and-forget opt-out.** Set `re_runnable = true` on a function definition
+  for re-runnable/idempotent work (e.g. LLM scoring): such dispatch stays
+  fire-and-forget with no retry or dead-letter overhead.
+- **Configuration.** The retry policy round-trips per-function from the compiled
+  schema (`FunctionDefinition.retry`); server-level defaults are overridable via
+  `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS`,
+  `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS`,
+  `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS`, and `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`.
+
+Durable dispatch requires the `functions-runtime` feature, which enables the
+`observers` subsystem (whose dead-letter-queue store is reused).
+
 ### Cron Scheduler
 
 The `CronScheduler` manages periodic function execution:

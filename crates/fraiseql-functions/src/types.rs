@@ -105,6 +105,17 @@ pub struct FunctionDefinition {
     /// no retry or dead-letter overhead. See ADR 0015 for the rationale.
     #[serde(default)]
     pub re_runnable: bool,
+
+    /// Per-function retry policy for durable dispatch.
+    ///
+    /// `None` uses the server default (overridable via `FRAISEQL_FUNCTIONS_RETRY_*`
+    /// environment variables). Ignored when [`re_runnable`](Self::re_runnable) is
+    /// `true`. Reuses the observer subsystem's [`RetryConfig`] so retry semantics
+    /// are identical across both subsystems.
+    ///
+    /// [`RetryConfig`]: fraiseql_observers::RetryConfig
+    #[serde(default)]
+    pub retry: Option<fraiseql_observers::RetryConfig>,
 }
 
 impl FunctionDefinition {
@@ -117,6 +128,7 @@ impl FunctionDefinition {
             runtime,
             timeout_ms: None,
             re_runnable: false,
+            retry: None,
         }
     }
 
@@ -241,3 +253,6 @@ impl Default for ResourceLimits {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
