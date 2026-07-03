@@ -182,6 +182,11 @@ functions = []
 # mutation; without it the dispatch step is compiled out.
 functions-runtime = [
     "functions",
+    # Durable dispatch (retry + dead-letter) reuses the fraiseql-observers DLQ
+    # trait + the server's InMemoryDlq store, so running after:mutation functions
+    # pulls the observer subsystem in. fraiseql-functions already depends on
+    # fraiseql-observers transitively, so this only enables direct naming here.
+    "observers",
     "fraiseql-functions/runtime-wasm",
     "fraiseql-functions/host-live",
 ]

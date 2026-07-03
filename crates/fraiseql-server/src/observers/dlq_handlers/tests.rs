@@ -3,16 +3,18 @@ use super::*;
 #[test]
 fn delivery_status_summary_serializes() {
     let summary = DeliveryStatusSummary {
-        running:          true,
-        observer_count:   3,
-        events_processed: 42,
-        errors:           1,
-        dlq_count:        2,
-        dlq_dropped:      5,
+        running:            true,
+        observer_count:     3,
+        events_processed:   42,
+        errors:             1,
+        dlq_count:          2,
+        function_dlq_count: 4,
+        dlq_dropped:        5,
     };
     let json = serde_json::to_value(&summary).expect("serialize");
     assert_eq!(json["running"], true);
     assert_eq!(json["dlq_count"], 2);
+    assert_eq!(json["function_dlq_count"], 4);
     assert_eq!(json["dlq_dropped"], 5);
     assert_eq!(json["events_processed"], 42);
 }

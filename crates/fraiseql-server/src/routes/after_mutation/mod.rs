@@ -105,43 +105,178 @@ pub fn plan_after_mutation_dispatch(
         .collect()
 }
 
-/// Spawn each planned after:mutation invocation as a fire-and-forget task.
+/// Per-function dispatch settings resolved from the compiled schema.
+///
+/// Durable dispatch is the default (see ADR 0015): a transient failure is
+/// retried per [`policy`](Self::policy) and, on exhaustion, dead-lettered.
+/// Setting [`re_runnable`](Self::re_runnable) opts a function out into
+/// fire-and-forget dispatch with no retry or dead-letter overhead.
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone)]
+pub struct FunctionDispatchSetting {
+    /// Fire-and-forget (no retry, no DLQ) when `true`.
+    pub re_runnable: bool,
+    /// Retry + failure policy applied to durable dispatch.
+    pub policy:      fraiseql_observers::DispatchPolicy,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl Default for FunctionDispatchSetting {
+    /// Durable-by-default: retry per the default [`RetryConfig`] and dead-letter
+    /// on exhaustion.
+    ///
+    /// [`RetryConfig`]: fraiseql_observers::RetryConfig
+    fn default() -> Self {
+        Self {
+            re_runnable: false,
+            policy:      fraiseql_observers::DispatchPolicy::new(
+                fraiseql_observers::RetryConfig::default(),
+                fraiseql_observers::FailurePolicy::Dlq,
+            ),
+        }
+    }
+}
+
+/// Runs after:mutation function plans durably: retry transient failures with
+/// backoff and dead-letter what exhausts its retries, unless the function is
+/// marked re-runnable (then a single fire-and-forget attempt).
+#[cfg(feature = "functions-runtime")]
+#[derive(Clone)]
+struct DurableDispatcher {
+    observer:    std::sync::Arc<fraiseql_functions::FunctionObserver>,
+    host_config: fraiseql_functions::host::live::HostContextConfig,
+    limits:      fraiseql_functions::ResourceLimits,
+    dlq:         std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl DurableDispatcher {
+    /// Run one function on a fresh live host context.
+    async fn invoke_once(
+        &self,
+        module: &FunctionModule,
+        payload: EventPayload,
+    ) -> fraiseql_error::Result<fraiseql_functions::FunctionResult> {
+        let host: std::sync::Arc<
+            dyn fraiseql_functions::runtime::wasm::host_bridge::DynHostContext,
+        > = std::sync::Arc::new(fraiseql_functions::host::live::LiveHostContext::new(
+            payload.clone(),
+            self.host_config.clone(),
+        ));
+        self.observer.invoke_with_context(module, payload, host, self.limits.clone()).await
+    }
+
+    /// Dispatch a single plan under its [`FunctionDispatchSetting`].
+    ///
+    /// Re-runnable → one attempt, errors logged and dropped. Durable → retry
+    /// transient failures per the policy; on a permanent error or exhausted
+    /// retries, dead-letter the invocation so it is inspectable and replayable.
+    async fn dispatch(
+        &self,
+        module: FunctionModule,
+        payload: EventPayload,
+        setting: &FunctionDispatchSetting,
+    ) {
+        let function_name = module.name.clone();
+
+        if setting.re_runnable {
+            // Fire-and-forget: a single attempt; a failure is re-runnable later
+            // by design, so it is logged but never retried or dead-lettered.
+            match self.invoke_once(&module, payload).await {
+                Ok(_) => tracing::debug!(
+                    function = %function_name,
+                    "re-runnable after:mutation function dispatched"
+                ),
+                Err(error) => tracing::warn!(
+                    error = %error,
+                    function = %function_name,
+                    "re-runnable after:mutation function failed (not retried)"
+                ),
+            }
+            return;
+        }
+
+        // Durable dispatch: retry transient failures with backoff.
+        let trigger_type = payload.trigger_type.clone();
+        let attempts = std::sync::atomic::AtomicU32::new(0);
+        let result = fraiseql_observers::run_with_retry(
+            &setting.policy,
+            // A 4xx client error (e.g. a malformed payload) will not succeed on
+            // retry; everything else (5xx, timeouts, execution failures) is
+            // treated as transient and retried.
+            |error: &fraiseql_error::FraiseQLError| !error.is_client_error(),
+            |n| {
+                attempts.store(n, std::sync::atomic::Ordering::Relaxed);
+                // Clone per attempt so the retry closure stays `FnMut`; the
+                // bytecode is `bytes::Bytes` (ref-counted), so this is cheap.
+                let attempt_module = module.clone();
+                let attempt_payload = payload.clone();
+                async move { self.invoke_once(&attempt_module, attempt_payload).await }
+            },
+        )
+        .await;
+
+        let Err(error) = result else {
+            tracing::debug!(function = %function_name, "after:mutation function dispatched");
+            return;
+        };
+
+        // Exhausted (or permanently failed): dead-letter for inspection/replay.
+        let attempts = attempts.load(std::sync::atomic::Ordering::Relaxed);
+        let record = fraiseql_observers::FunctionDispatchRecord::new(
+            fraiseql_observers::DispatchSource::AfterMutation,
+            function_name.clone(),
+            trigger_type,
+            serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null),
+            error.to_string(),
+            attempts,
+        );
+        match self.dlq.push_function(record).await {
+            Ok(_) => tracing::error!(
+                error = %error,
+                function = %function_name,
+                attempts,
+                "after:mutation function dead-lettered after exhausting retries"
+            ),
+            Err(dlq_error) => tracing::error!(
+                error = %error,
+                dlq_error = %dlq_error,
+                function = %function_name,
+                "after:mutation function failed and could not be dead-lettered"
+            ),
+        }
+    }
+}
+
+/// Spawn each planned after:mutation invocation as a background task.
 ///
 /// Each task runs its module on a [`LiveHostContext`] so the function can perform
 /// outbound I/O (HTTP, with the SSRF allowlist from
-/// `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`). Errors are logged, never propagated —
-/// the mutation response has already been sent.
+/// `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`). Dispatch is durable by default —
+/// transient failures are retried and exhausted ones are dead-lettered
+/// (`hooks.dlq`) — unless the function is marked `re_runnable`, in which case it
+/// stays fire-and-forget. Either way the mutation response has already been sent,
+/// so nothing here propagates back to the client.
+///
+/// Per-function settings come from `hooks.dispatch_settings`; a function absent
+/// from that map uses the durable [`FunctionDispatchSetting::default`].
 ///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 #[cfg(feature = "functions-runtime")]
 pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
-    let config = host_context_config();
-    let limits = fraiseql_functions::ResourceLimits::default();
+    let dispatcher = DurableDispatcher {
+        observer:    std::sync::Arc::clone(&hooks.observer),
+        host_config: host_context_config(),
+        limits:      fraiseql_functions::ResourceLimits::default(),
+        dlq:         std::sync::Arc::clone(&hooks.dlq),
+    };
 
     for plan in plans {
-        let observer = std::sync::Arc::clone(&hooks.observer);
-        let config = config.clone();
-        let limits = limits.clone();
+        let setting =
+            hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
+        let dispatcher = dispatcher.clone();
         tokio::spawn(async move {
-            let function_name = plan.module.name.clone();
-            let host: std::sync::Arc<
-                dyn fraiseql_functions::runtime::wasm::host_bridge::DynHostContext,
-            > = std::sync::Arc::new(fraiseql_functions::host::live::LiveHostContext::new(
-                plan.payload.clone(),
-                config,
-            ));
-            match observer.invoke_with_context(&plan.module, plan.payload, host, limits).await {
-                Ok(_) => {
-                    tracing::debug!(function = %function_name, "after:mutation function dispatched");
-                },
-                Err(error) => {
-                    tracing::error!(
-                        error = %error,
-                        function = %function_name,
-                        "after:mutation function failed",
-                    );
-                },
-            }
+            dispatcher.dispatch(plan.module, plan.payload, &setting).await;
         });
     }
 }

@@ -21,10 +21,11 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
     let definitions: Vec<FunctionDefinition> = triggers
         .iter()
         .map(|(name, trigger)| FunctionDefinition {
-            name:       (*name).to_string(),
-            trigger:    (*trigger).to_string(),
-            runtime:    RuntimeType::Wasm,
-            timeout_ms: None,
+            name:        (*name).to_string(),
+            trigger:     (*trigger).to_string(),
+            runtime:     RuntimeType::Wasm,
+            timeout_ms:  None,
+            re_runnable: false,
         })
         .collect();
     let trigger_registry =
@@ -35,6 +36,10 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
         trigger_registry,
         module_registry,
         observer: Arc::new(FunctionObserver::new()),
+        #[cfg(feature = "functions-runtime")]
+        dlq: Arc::new(crate::observers::runtime::InMemoryDlq::new_with_max(None)),
+        #[cfg(feature = "functions-runtime")]
+        dispatch_settings: HashMap::new(),
     }
 }
 
@@ -190,4 +195,95 @@ fn null_entity_yields_empty_new_but_still_dispatches() {
 
     assert_eq!(plans.len(), 1);
     assert!(plans[0].payload.data["new"].is_null());
+}
+
+// ── Durable dispatch: retry + DLQ + re_runnable opt-out (P02) ────────────────
+
+#[cfg(feature = "functions-runtime")]
+mod durable_dispatch {
+    use fraiseql_functions::{EventPayload, FunctionObserver, ResourceLimits};
+    use fraiseql_observers::{
+        BackoffStrategy, DeadLetterQueue, DispatchPolicy, FailurePolicy, RetryConfig,
+    };
+
+    use super::module;
+    use super::super::{DurableDispatcher, FunctionDispatchSetting, host_context_config};
+    use crate::observers::runtime::InMemoryDlq;
+
+    /// A dispatcher whose observer has no registered runtime, so every
+    /// `invoke_with_context` returns a permanent-less `Unsupported` error
+    /// (`501` → not a client error → transient), letting durable dispatch retry.
+    fn failing_dispatcher(dlq: std::sync::Arc<dyn DeadLetterQueue>) -> DurableDispatcher {
+        DurableDispatcher {
+            observer: std::sync::Arc::new(FunctionObserver::new()),
+            host_config: host_context_config(),
+            limits: ResourceLimits::default(),
+            dlq,
+        }
+    }
+
+    fn payload() -> EventPayload {
+        EventPayload {
+            trigger_type: "after:mutation:onUserCreated".to_string(),
+            entity:       "User".to_string(),
+            event_kind:   "insert".to_string(),
+            data:         serde_json::json!({ "new": { "id": "u1" } }),
+            timestamp:    chrono::Utc::now(),
+        }
+    }
+
+    /// Zero-delay policy so retry tests run without real backoff waits.
+    fn zero_delay_policy(max_attempts: u32) -> DispatchPolicy {
+        DispatchPolicy::new(
+            RetryConfig {
+                max_attempts,
+                initial_delay_ms: 0,
+                max_delay_ms: 0,
+                backoff_strategy: BackoffStrategy::Fixed,
+            },
+            FailurePolicy::Dlq,
+        )
+    }
+
+    #[tokio::test]
+    async fn durable_dispatch_dead_letters_after_exhausting_retries() {
+        let dlq = std::sync::Arc::new(InMemoryDlq::new_with_max(None));
+        let dispatcher = failing_dispatcher(dlq.clone());
+        let setting = FunctionDispatchSetting {
+            re_runnable: false,
+            policy:      zero_delay_policy(3),
+        };
+
+        dispatcher.dispatch(module("onUserCreated"), payload(), &setting).await;
+
+        assert_eq!(dlq.function_count(), 1, "an exhausted durable dispatch lands one DLQ row");
+        let pending = dlq.get_pending_functions(10).await.unwrap();
+        assert_eq!(pending[0].function_name, "onUserCreated");
+        assert_eq!(pending[0].attempts, 3, "the record captures every attempt made");
+        assert_eq!(pending[0].trigger_type, "after:mutation:onUserCreated");
+    }
+
+    #[tokio::test]
+    async fn re_runnable_dispatch_does_not_dead_letter() {
+        let dlq = std::sync::Arc::new(InMemoryDlq::new_with_max(None));
+        let dispatcher = failing_dispatcher(dlq.clone());
+        let setting = FunctionDispatchSetting {
+            re_runnable: true,
+            policy:      zero_delay_policy(3),
+        };
+
+        dispatcher.dispatch(module("scoreDeal"), payload(), &setting).await;
+
+        assert_eq!(
+            dlq.function_count(),
+            0,
+            "a re-runnable dispatch is fire-and-forget: no retry, no DLQ"
+        );
+    }
+
+    #[test]
+    fn default_setting_is_durable() {
+        // ADR 0015: dispatch is durable by default; re_runnable is the opt-out.
+        assert!(!FunctionDispatchSetting::default().re_runnable);
+    }
 }

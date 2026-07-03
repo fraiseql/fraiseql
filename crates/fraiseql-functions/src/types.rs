@@ -94,6 +94,17 @@ pub struct FunctionDefinition {
     /// - For `before:mutation` triggers: defaults to 500ms
     /// - For other triggers: defaults to 5s
     pub timeout_ms: Option<u64>,
+
+    /// Fire-and-forget opt-out for durable dispatch.
+    ///
+    /// After-mutation function dispatch is durable by default: a transient
+    /// failure is retried with backoff and, once retries are exhausted, the
+    /// invocation is dead-lettered so money- and send-path work is never
+    /// silently lost. Set `re_runnable = true` for work that is safe to simply
+    /// re-run later (e.g. LLM scoring) — such dispatch stays fire-and-forget with
+    /// no retry or dead-letter overhead. See ADR 0015 for the rationale.
+    #[serde(default)]
+    pub re_runnable: bool,
 }
 
 impl FunctionDefinition {
@@ -105,7 +116,17 @@ impl FunctionDefinition {
             trigger: trigger.to_string(),
             runtime,
             timeout_ms: None,
+            re_runnable: false,
         }
+    }
+
+    /// Mark this function as re-runnable (fire-and-forget) dispatch.
+    ///
+    /// See [`re_runnable`](Self::re_runnable) and ADR 0015.
+    #[must_use]
+    pub const fn re_runnable(mut self) -> Self {
+        self.re_runnable = true;
+        self
     }
 
     /// Set a custom timeout for this function.

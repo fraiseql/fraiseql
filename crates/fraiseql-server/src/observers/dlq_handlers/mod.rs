@@ -40,11 +40,15 @@ pub struct DeliveryStatusSummary {
     /// Total errors since startup.
     pub errors:           u64,
     /// Number of items currently in the DLQ.
-    pub dlq_count:        usize,
+    pub dlq_count:          usize,
+    /// Number of function-dispatch failures currently in the DLQ (after:mutation
+    /// functions that exhausted their retries), counted separately from
+    /// observer-action failures.
+    pub function_dlq_count: usize,
     /// Number of failed entries dropped because the DLQ was at capacity
     /// (drop-newest, controlled by `[observers.runtime] max_dlq_size`). A
     /// non-zero value signals sustained delivery failure against a capped DLQ.
-    pub dlq_dropped:      usize,
+    pub dlq_dropped:        usize,
 }
 
 /// A single DLQ item in the HTTP response.
@@ -148,12 +152,13 @@ pub async fn delivery_health_handler(State(state): State<DlqState>) -> impl Into
     let dlq = runtime.dlq();
 
     let summary = DeliveryStatusSummary {
-        running:          health.running,
-        observer_count:   health.observer_count,
-        events_processed: health.events_processed,
-        errors:           health.errors,
-        dlq_count:        dlq.count(),
-        dlq_dropped:      dlq.overflow_count(),
+        running:            health.running,
+        observer_count:     health.observer_count,
+        events_processed:   health.events_processed,
+        errors:             health.errors,
+        dlq_count:          dlq.count(),
+        function_dlq_count: dlq.function_count(),
+        dlq_dropped:        dlq.overflow_count(),
     };
 
     (StatusCode::OK, Json(summary))

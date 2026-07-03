@@ -170,4 +170,18 @@ pub struct BeforeMutationHooks {
     pub module_registry:  std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
     /// Observer that dispatches events to the appropriate function runtime.
     pub observer:         std::sync::Arc<FunctionObserver>,
+
+    /// Dead-letter queue for durable after:mutation dispatch: an invocation that
+    /// exhausts its retries (or fails permanently) is pushed here rather than
+    /// silently lost.
+    #[cfg(feature = "functions-runtime")]
+    pub dlq: std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+
+    /// Per-function dispatch settings (re-runnable flag + retry policy) resolved
+    /// from the compiled schema, keyed by function name. Functions absent from
+    /// the map fall back to the durable
+    /// [`FunctionDispatchSetting::default`](crate::routes::after_mutation::FunctionDispatchSetting::default).
+    #[cfg(feature = "functions-runtime")]
+    pub dispatch_settings:
+        std::collections::HashMap<String, crate::routes::after_mutation::FunctionDispatchSetting>,
 }

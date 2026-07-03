@@ -1232,7 +1232,7 @@ pub(crate) struct InMemoryDlq {
 
 impl InMemoryDlq {
     /// Create a DLQ with an optional retention cap (`None` = unbounded).
-    const fn new_with_max(max_size: Option<usize>) -> Self {
+    pub(crate) const fn new_with_max(max_size: Option<usize>) -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
             function_items: std::sync::Mutex::new(Vec::new()),
