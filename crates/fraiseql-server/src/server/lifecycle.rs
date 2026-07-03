@@ -145,6 +145,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let (app, app_state) = self.build_router();
 
+        // Start the poll-IMAP email workers (native-runtime-migration Phase 04).
+        // Each configured `[imap.<name>]` mailbox runs a background poll loop on
+        // the server's JoinSet, so graceful shutdown aborts them. The workers
+        // reuse the durable inbound spine and the `after:ingest` dispatch path;
+        // attachments stream into the legacy storage backend when one is
+        // configured. Must run here (async, after `build_router` supplies the
+        // function-dispatch hooks) rather than in the sync `build_router`.
+        #[cfg(feature = "inbound-email")]
+        if let Some(ref db_pool) = self.db_pool {
+            if !self.config.imap.is_empty() {
+                use crate::inbound::{email, spine::PostgresInboundSpine};
+
+                // The email path shares the inbound spine; create it here too in
+                // case only `[imap.*]` (no `[webhooks.*]`) is configured. Both
+                // DDLs are idempotent.
+                PostgresInboundSpine::new(db_pool.clone()).init().await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize inbound spine schema: {e}"
+                    ))
+                })?;
+                email::init_cursor_store(db_pool).await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize inbound email cursor schema: {e}"
+                    ))
+                })?;
+
+                let sink = self.storage_backend.as_ref().map(|backend| {
+                    std::sync::Arc::new(email::LegacyStorageSink::new(backend.clone()))
+                        as std::sync::Arc<
+                            dyn fraiseql_functions::host::live::storage::StorageBackend,
+                        >
+                });
+                let hooks = app_state.before_mutation_hooks.clone();
+                let workers = email::build_workers(
+                    &self.config.imap,
+                    db_pool,
+                    hooks.as_ref(),
+                    sink.as_ref(),
+                    |name| std::env::var(name).ok(),
+                );
+                let started = workers.len();
+                for (worker, interval) in workers {
+                    self.tasks.spawn(async move { worker.poll_forever(interval).await });
+                }
+                info!(mailboxes = started, "poll-IMAP email workers started");
+            }
+        }
+
         // Spawn SIGUSR1 schema reload handler when running on Unix.
         // The handler loops forever, reloading on each signal, until the
         // server process exits — tracked on the server's JoinSet so graceful

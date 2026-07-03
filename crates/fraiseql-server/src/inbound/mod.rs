@@ -20,6 +20,8 @@
 //! - [`spine`] — the durable inbound-message store (persist + dedup, at-least-once).
 //! - [`webhook`] — the `fraiseql-webhooks` push adapter (`POST /webhooks/{provider}`).
 
+#[cfg(feature = "inbound-email")]
+pub mod email;
 pub mod spine;
 pub mod webhook;
 

@@ -25,6 +25,23 @@ The host surface it uses:
 | `fraiseql_http_request(method, url, headers, body?)` | call the LLM (deny-by-default SSRF allowlist via `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`) |
 | `fraiseql_query(graphql, variablesJson)` | write the score back |
 
+## `reply-awareness.ts`
+
+An `after:ingest:email` handler for the poll-IMAP email adapter (see
+`docs/architecture/inbound-email.md`). Every inbound email is normalized and
+classified before this runs, so the function is a thin decision: only a **human**
+reply stops the active outreach sequence (via a GraphQL `query`); bounces,
+out-of-office replies, challenges, and auto-mail are ignored — that single
+`classification === "human"` check is both the reply-awareness gate and the mail-loop
+guard. It runs on the **durable** dispatch path (retry + dead-letter), and the
+stop mutation is idempotent, so at-least-once inbound delivery is safe.
+
+The host surface it uses:
+
+| Op | Purpose |
+|----|---------|
+| `fraiseql_query(graphql, variablesJson)` | look up the active sequence and stop it |
+
 ## Running
 
 Build the server with the Deno runtime and register it on the function observer:

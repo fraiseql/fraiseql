@@ -106,6 +106,15 @@ serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha1 = "0.11"
 sha2 = "0.11"
+# Poll-IMAP email adapter (opt-in `inbound-email`) — async IMAP client over
+# rustls (no OpenSSL). MIME normalization lives in fraiseql-functions; these pull
+# only the transport. webpki-roots + tokio-rustls are already in the workspace
+# tree (via tokio-tungstenite), so this adds no new TLS stack.
+async-imap = {version = "0.11", default-features = false, features = ["runtime-tokio"], optional = true}
+# ring provider explicitly (both ring and aws-lc-rs are in the tree; picking one
+# avoids the rustls process-default-provider ambiguity panic).
+tokio-rustls = {version = "0.26", default-features = false, features = ["ring", "tls12", "logging"], optional = true}
+webpki-roots = {version = "0.26", optional = true}
 # Database
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 # Constant-time comparison (timing attack prevention)
@@ -208,6 +217,18 @@ functions-runtime-deno = [
 # host path, and the observer DLQ it reuses) and `webhooks` (the receiver
 # pipeline). Opt-in: without it the whole inbound path is compiled out.
 inbound = ["functions-runtime", "webhooks"]
+# Poll-IMAP email adapter — the first PULL inbound source (native-runtime-migration
+# Phase 04), additive to `inbound`. Fetches new messages by UID watermark (no
+# IMAP-IDLE), normalizes MIME to a durable `InboundMessage` via the shared
+# fraiseql-functions layer, and fires `after:ingest:email`. Opt-in: pulls the
+# async IMAP client (its `runtime-tokio` mode speaks tokio's AsyncRead/Write, so
+# the tokio-rustls TLS stream is used directly, no compat shim).
+inbound-email = [
+    "inbound",
+    "dep:async-imap",
+    "dep:tokio-rustls",
+    "dep:webpki-roots",
+]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]

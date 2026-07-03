@@ -619,6 +619,16 @@ pub struct ServerConfig {
     #[serde(default)]
     pub webhooks: HashMap<String, crate::config::WebhookRouteConfig>,
 
+    /// Poll-IMAP inbound email mailboxes (`[imap.<name>]`), keyed by mailbox name.
+    ///
+    /// Each entry starts a background poll worker that fetches new messages by UID
+    /// watermark, normalizes their MIME to an `InboundMessage` on the durable
+    /// spine, and fires `after:ingest:email` functions. Requires the
+    /// `inbound-email` feature and a PostgreSQL pool; empty by default.
+    #[cfg(feature = "inbound-email")]
+    #[serde(default)]
+    pub imap: HashMap<String, crate::inbound::email::ImapMailboxConfig>,
+
     /// Multi-tenant executor runtime configuration.
     ///
     /// Off by default. Enable with `[tenancy.runtime] enabled = true` to mount the
@@ -807,6 +817,8 @@ impl Default for ServerConfig {
             files: HashMap::new(),   // No file-upload routes by default
             #[cfg(feature = "inbound")]
             webhooks: HashMap::new(), // No inbound webhook routes by default
+            #[cfg(feature = "inbound-email")]
+            imap: HashMap::new(), // No poll-IMAP mailboxes by default
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
         }
     }

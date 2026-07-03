@@ -54,8 +54,9 @@ mod tests;
 pub use cron::{CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger};
 pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use ingest::{
-    Attachment, InboundMessage, InboundRouting, IngestError, IngestSource, IngestTrigger,
-    PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef, Transport,
+    Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSource,
+    IngestTrigger, PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef, Transport,
+    email::{ParsedEmail, PendingAttachment, classify, derive_thread_key, normalize_email},
     parse_recipient, resolve_routing,
 };
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};

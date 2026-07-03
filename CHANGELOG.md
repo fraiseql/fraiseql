@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Poll-IMAP email adapter + normalization (native-runtime-migration Phase 04).**
+  The first *pull* inbound source, riding the Phase 03 primitive. Behind the
+  opt-in `inbound-email` feature, each configured `[imap.<name>]` mailbox runs a
+  background poll worker (no IMAP-IDLE — *stateless with a cursor*) that fetches
+  messages above a per-mailbox `UIDVALIDITY`/`UID` watermark
+  (`_fraiseql_inbound_email_cursor`), normalizes their MIME, emits them onto the
+  same durable spine as the webhook adapter, and fires `after:ingest:email`
+  functions. Transport is IMAPS over rustls (no OpenSSL); `BODY.PEEK[]` means
+  polling never marks mail `\Seen`. The high-value **normalization layer** is pure
+  and lives in `fraiseql-functions` (always compiled, unit-tested): MIME headers,
+  text/HTML bodies, attachments (streamed to `[storage]`, with the raw message
+  retained for replay), threading (`Message-ID`/`In-Reply-To`/`References` →
+  `thread_key`), dedup by `Message-ID`, and a `Classification`
+  (human / out-of-office / bounce / challenge / auto-generated) that reply-awareness
+  keys on — with loop protection via `Auto-Submitted` / `Precedence` / list
+  headers. The cursor advances only past committed messages, so a transient
+  failure or a `UIDVALIDITY` reset re-fetches and the spine's `Message-ID` dedup
+  makes it idempotent (at-least-once). Sending stays per-user (Phase 05). Attachment
+  size/type limits, virus scanning, and `StorageState` wiring remain follow-ups.
 - **Inbound ingestion as a source (native-runtime-migration Phase 03, continues
   #431).** The symmetric mirror of the outbound observer→signed-webhook path: an
   external message becomes a normalized `InboundMessage` on a durable spine that
