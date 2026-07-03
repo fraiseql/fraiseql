@@ -200,6 +200,14 @@ functions-runtime-deno = [
     "functions-runtime",
     "fraiseql-functions/runtime-deno",
 ]
+# Inbound ingestion as a source (native-runtime-migration Phase 03, continues
+# #431). Mounts the fraiseql-webhooks receiver as the first push `Source`,
+# normalizes each verified delivery to a durable `InboundMessage` on the inbound
+# spine, and fires `after:ingest[:<source>]` functions on the same I/O-capable
+# host context as `after:mutation`. Pulls `functions-runtime` (the dispatch +
+# host path, and the observer DLQ it reuses) and `webhooks` (the receiver
+# pipeline). Opt-in: without it the whole inbound path is compiled out.
+inbound = ["functions-runtime", "webhooks"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]

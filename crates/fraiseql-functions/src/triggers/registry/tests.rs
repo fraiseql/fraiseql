@@ -57,6 +57,77 @@ fn test_parse_invalid_trigger() {
 }
 
 #[test]
+fn test_parse_after_ingest_triggers() {
+    // Bare: matches every source.
+    match ParsedTrigger::parse("after:ingest").expect("parse") {
+        ParsedTrigger::AfterIngest { source } => assert_eq!(source, None),
+        _ => panic!("Wrong trigger type"),
+    }
+    // Simple source.
+    match ParsedTrigger::parse("after:ingest:email").expect("parse") {
+        ParsedTrigger::AfterIngest { source } => assert_eq!(source.as_deref(), Some("email")),
+        _ => panic!("Wrong trigger type"),
+    }
+    // Colon-bearing source (webhook:<provider>) is rejoined intact.
+    match ParsedTrigger::parse("after:ingest:webhook:stripe").expect("parse") {
+        ParsedTrigger::AfterIngest { source } => {
+            assert_eq!(source.as_deref(), Some("webhook:stripe"));
+        },
+        _ => panic!("Wrong trigger type"),
+    }
+    assert_eq!(
+        ParsedTrigger::parse("after:ingest").expect("parse").trigger_type(),
+        "after:ingest"
+    );
+}
+
+#[test]
+fn test_registry_registers_ingest_triggers() {
+    use crate::{FunctionDefinition, InboundMessage, IngestSource, RuntimeType};
+
+    let functions = vec![
+        FunctionDefinition::new("onAnyInbound", "after:ingest", RuntimeType::Deno),
+        FunctionDefinition::new("onStripe", "after:ingest:webhook:stripe", RuntimeType::Deno),
+        FunctionDefinition::new("onEmail", "after:ingest:email", RuntimeType::Deno),
+    ];
+    let registry = TriggerRegistry::load_from_definitions(&functions).expect("load registry");
+    assert_eq!(registry.ingest_trigger_count(), 3);
+
+    let stripe_msg = InboundMessage::new(
+        IngestSource::Webhook {
+            provider: "stripe".to_string(),
+        },
+        "evt_1",
+        chrono::Utc::now(),
+    );
+    // The stripe message fires the source-agnostic trigger and the stripe-specific
+    // one, but not the email trigger.
+    let matched: Vec<_> = registry
+        .find_ingest_triggers(&stripe_msg)
+        .into_iter()
+        .map(|t| t.function_name)
+        .collect();
+    assert_eq!(matched.len(), 2);
+    assert!(matched.contains(&"onAnyInbound".to_string()));
+    assert!(matched.contains(&"onStripe".to_string()));
+    assert!(!matched.contains(&"onEmail".to_string()));
+}
+
+#[test]
+fn test_registry_rejects_unknown_ingest_source() {
+    use crate::{FunctionDefinition, RuntimeType};
+
+    let functions = vec![FunctionDefinition::new(
+        "onBad",
+        "after:ingest:carrier-pigeon",
+        RuntimeType::Deno,
+    )];
+    let error = TriggerRegistry::load_from_definitions(&functions)
+        .expect_err("unknown source must fail loud");
+    assert!(error.message.contains("carrier-pigeon"));
+}
+
+#[test]
 fn test_registry_loads_multiple_triggers() {
     use crate::{FunctionDefinition, RuntimeType};
 

@@ -190,6 +190,50 @@ fn null_entity_yields_empty_new_but_still_dispatches() {
     assert!(plans[0].payload.data["new"].is_null());
 }
 
+// ── after:ingest planning ───────────────────────────────────────────────────
+
+#[test]
+fn plan_after_ingest_matches_source_and_builds_payload() {
+    use fraiseql_functions::{InboundMessage, IngestSource};
+
+    let hooks = hooks(
+        &[
+            ("onStripe", "after:ingest:webhook:stripe"),
+            ("onEmail", "after:ingest:email"),
+        ],
+        &["onStripe", "onEmail"],
+    );
+    let message = InboundMessage::new(
+        IngestSource::Webhook {
+            provider: "stripe".to_string(),
+        },
+        "evt_1",
+        chrono::Utc::now(),
+    );
+
+    let plans = plan_after_ingest_dispatch(&hooks, &message);
+
+    assert_eq!(plans.len(), 1);
+    assert_eq!(plans[0].module.name, "onStripe");
+    assert_eq!(plans[0].payload.trigger_type, "after:ingest:webhook:stripe");
+}
+
+#[test]
+fn plan_after_ingest_skips_when_no_trigger_matches() {
+    use fraiseql_functions::{InboundMessage, IngestSource};
+
+    let hooks = hooks(&[("onEmail", "after:ingest:email")], &["onEmail"]);
+    let message = InboundMessage::new(
+        IngestSource::Webhook {
+            provider: "stripe".to_string(),
+        },
+        "evt_1",
+        chrono::Utc::now(),
+    );
+
+    assert!(plan_after_ingest_dispatch(&hooks, &message).is_empty());
+}
+
 // ── Durable dispatch: retry + DLQ + re_runnable opt-out ─────────────────────
 
 #[cfg(feature = "functions-runtime")]
@@ -214,6 +258,7 @@ mod durable_dispatch {
             host_config: host_context_config(),
             limits: ResourceLimits::default(),
             dlq,
+            source: fraiseql_observers::DispatchSource::AfterMutation,
         }
     }
 

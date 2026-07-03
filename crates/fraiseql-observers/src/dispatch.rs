@@ -59,13 +59,14 @@ impl DispatchPolicy {
 ///
 /// Recorded on every [`FunctionDispatchRecord`] so a single dead-letter queue can
 /// hold — and be filtered by — failures from more than one dispatch source. The
-/// enum is `#[non_exhaustive]`: the inbound-ingestion source (`after:ingest`)
-/// lands in a later phase of this train.
+/// enum is `#[non_exhaustive]` for sources added by later phases of this train.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DispatchSource {
     /// An `after:mutation` function trigger.
     AfterMutation,
+    /// An `after:ingest` function trigger (inbound-message ingestion).
+    AfterIngest,
 }
 
 /// A function-trigger dispatch that exhausted its retries (or failed

@@ -182,6 +182,12 @@ impl FunctionDefinition {
         self.trigger.starts_with("after:storage:")
     }
 
+    /// Check if this function is an after:ingest trigger.
+    #[must_use]
+    pub fn is_after_ingest(&self) -> bool {
+        self.trigger == "after:ingest" || self.trigger.starts_with("after:ingest:")
+    }
+
     /// Check if this function is a cron trigger.
     #[must_use]
     pub fn is_cron(&self) -> bool {

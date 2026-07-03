@@ -44,6 +44,7 @@
 
 pub mod cron;
 pub mod http;
+pub mod ingest;
 pub mod mutation;
 pub mod registry;
 pub mod storage;
@@ -52,6 +53,11 @@ mod tests;
 
 pub use cron::{CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger};
 pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
+pub use ingest::{
+    Attachment, InboundMessage, InboundRouting, IngestError, IngestSource, IngestTrigger,
+    PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef, Transport,
+    parse_recipient, resolve_routing,
+};
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
 pub use registry::{ParsedTrigger, RegistryError, TriggerRegistry};
 pub use storage::{StorageEventPayload, StorageOperation, StorageTrigger};

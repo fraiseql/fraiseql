@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Inbound ingestion as a source (native-runtime-migration Phase 03, continues
+  #431).** The symmetric mirror of the outbound observer→signed-webhook path: an
+  external message becomes a normalized `InboundMessage` on a durable spine that
+  `after:ingest[:<source>]` functions consume. A `Source` trait models both push
+  (ack-based, e.g. a provider webhook) and pull (cursor-based, e.g. poll-IMAP)
+  adapters; the shared normalization above transport (idempotency/thread keys,
+  bodies, attachments, routing) lives once in `InboundMessage`. The
+  `fraiseql-webhooks` receiver — previously verified-but-unmounted — is now
+  mounted as the first push adapter behind the opt-in `inbound` feature:
+  `POST /webhooks/{provider}` verifies the signature via the existing pipeline,
+  normalizes the delivery, and persists it onto the spine
+  (`_fraiseql_inbound_message`, deduplicated by `(source, idempotency_key)`)
+  *inside the receiver transaction*, so persistence is atomic with the
+  idempotency claim and `after:ingest` dispatch is at-least-once. Normalized
+  messages fire `after:ingest[:<source>]` functions on the same I/O-capable host
+  context as `after:mutation`, reusing the durable dispatch path (retry +
+  dead-letter, tagged `DispatchSource::AfterIngest`). A declared routing rule
+  (`resolve_routing` — dedicated address + plus-tag, e.g.
+  `support+ticket-42@…` → `Ticket`/`42`) maps a message to an entity; a resolver
+  function is available for free since `after:ingest` handlers receive the whole
+  message. Poll-IMAP email is the first pull adapter, in a later phase.
+
 - **`after:mutation` function dispatch is now durable (retry + dead-letter).**
   Previously fire-and-forget — a transient failure silently dropped the
   invocation — dispatch is now durable by default: a transient failure (5xx,

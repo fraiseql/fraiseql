@@ -609,6 +609,16 @@ pub struct ServerConfig {
     #[serde(default)]
     pub files: HashMap<String, FileSectionConfig>,
 
+    /// Inbound webhook receiver routes (`[webhooks.<name>]`), keyed by route name.
+    ///
+    /// Each entry mounts `POST /webhooks/<name>`: the delivery is signature-verified
+    /// (per `provider`, secret from `secret_env`), normalized to an `InboundMessage`,
+    /// and persisted onto the durable spine. Requires the `inbound` feature and a
+    /// PostgreSQL pool; empty by default.
+    #[cfg(feature = "inbound")]
+    #[serde(default)]
+    pub webhooks: HashMap<String, crate::config::WebhookRouteConfig>,
+
     /// Multi-tenant executor runtime configuration.
     ///
     /// Off by default. Enable with `[tenancy.runtime] enabled = true` to mount the
@@ -795,6 +805,8 @@ impl Default for ServerConfig {
             usage: None,             // Usage persistence disabled by default
             storage: HashMap::new(), // No storage backends wired by default
             files: HashMap::new(),   // No file-upload routes by default
+            #[cfg(feature = "inbound")]
+            webhooks: HashMap::new(), // No inbound webhook routes by default
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
         }
     }

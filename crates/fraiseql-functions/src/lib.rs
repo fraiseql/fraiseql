@@ -24,6 +24,11 @@ pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
+    ingest::{
+        Attachment, InboundMessage, InboundRouting, IngestError, IngestSource, IngestTrigger,
+        PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef, Transport,
+        parse_recipient, resolve_routing,
+    },
     mutation::{
         AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
         EntityEvent, EventKind, TriggerMatcher,

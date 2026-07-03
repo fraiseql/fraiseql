@@ -105,6 +105,30 @@ pub fn plan_after_mutation_dispatch(
         .collect()
 }
 
+/// Plan the `after:ingest` dispatch for a persisted inbound message.
+///
+/// Finds the `after:ingest[:<source>]` triggers matching the message, pairs each
+/// with its function module, and builds the event payload (the normalized
+/// message as JSON). Like [`plan_after_mutation_dispatch`] this is pure,
+/// always-compiled, and unit-tested: it needs no function runtime and returns an
+/// empty vector when no trigger matches (the common fast path).
+pub fn plan_after_ingest_dispatch(
+    hooks: &BeforeMutationHooks,
+    message: &fraiseql_functions::InboundMessage,
+) -> Vec<AfterMutationDispatch> {
+    hooks
+        .trigger_registry
+        .find_ingest_triggers(message)
+        .into_iter()
+        .filter_map(|trigger| {
+            // A trigger whose module never loaded is silently skipped.
+            let module = hooks.module_registry.get(&trigger.function_name)?.clone();
+            let payload = trigger.build_payload(message);
+            Some(AfterMutationDispatch { module, payload })
+        })
+        .collect()
+}
+
 /// Per-function dispatch settings resolved from the compiled schema.
 ///
 /// Durable dispatch is the default (see ADR 0015): a transient failure is
@@ -233,6 +257,9 @@ struct DurableDispatcher {
     host_config: fraiseql_functions::host::live::HostContextConfig,
     limits:      fraiseql_functions::ResourceLimits,
     dlq:         std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+    /// Which trigger subsystem this dispatcher serves — tags dead-letter records
+    /// so `after:mutation` and `after:ingest` failures are distinguishable.
+    source:      fraiseql_observers::DispatchSource,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -275,12 +302,12 @@ impl DurableDispatcher {
             match self.invoke_once(&module, payload).await {
                 Ok(_) => tracing::debug!(
                     function = %function_name,
-                    "re-runnable after:mutation function dispatched"
+                    "re-runnable function dispatched"
                 ),
                 Err(error) => tracing::warn!(
                     error = %error,
                     function = %function_name,
-                    "re-runnable after:mutation function failed (not retried)"
+                    "re-runnable function failed (not retried)"
                 ),
             }
             return;
@@ -307,14 +334,14 @@ impl DurableDispatcher {
         .await;
 
         let Err(error) = result else {
-            tracing::debug!(function = %function_name, "after:mutation function dispatched");
+            tracing::debug!(function = %function_name, "function dispatched");
             return;
         };
 
         // Exhausted (or permanently failed): dead-letter for inspection/replay.
         let attempts = attempts.load(std::sync::atomic::Ordering::Relaxed);
         let record = fraiseql_observers::FunctionDispatchRecord::new(
-            fraiseql_observers::DispatchSource::AfterMutation,
+            self.source,
             function_name.clone(),
             trigger_type,
             serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null),
@@ -326,13 +353,13 @@ impl DurableDispatcher {
                 error = %error,
                 function = %function_name,
                 attempts,
-                "after:mutation function dead-lettered after exhausting retries"
+                "function dead-lettered after exhausting retries"
             ),
             Err(dlq_error) => tracing::error!(
                 error = %error,
                 dlq_error = %dlq_error,
                 function = %function_name,
-                "after:mutation function failed and could not be dead-lettered"
+                "function failed and could not be dead-lettered"
             ),
         }
     }
@@ -354,11 +381,37 @@ impl DurableDispatcher {
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 #[cfg(feature = "functions-runtime")]
 pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
+    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterMutation);
+}
+
+/// Spawn each planned `after:ingest` invocation as a background task.
+///
+/// The inbound-ingestion analogue of [`spawn_after_mutation`]: it runs each
+/// function on the same I/O-capable [`LiveHostContext`] with the same durability
+/// (retry + dead-letter, or fire-and-forget for `re_runnable` functions), so an
+/// `after:ingest` handler can classify a message and issue a mutation with the
+/// same reliability guarantees. Dead-letter records are tagged
+/// [`DispatchSource::AfterIngest`](fraiseql_observers::DispatchSource::AfterIngest).
+///
+/// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
+#[cfg(feature = "functions-runtime")]
+pub fn spawn_after_ingest(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
+    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterIngest);
+}
+
+/// Spawn each plan on a durable dispatcher tagged with `source`.
+#[cfg(feature = "functions-runtime")]
+fn spawn_dispatch(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    source: fraiseql_observers::DispatchSource,
+) {
     let dispatcher = DurableDispatcher {
-        observer:    std::sync::Arc::clone(&hooks.observer),
+        observer: std::sync::Arc::clone(&hooks.observer),
         host_config: host_context_config(),
-        limits:      fraiseql_functions::ResourceLimits::default(),
-        dlq:         std::sync::Arc::clone(&hooks.dlq),
+        limits: fraiseql_functions::ResourceLimits::default(),
+        dlq: std::sync::Arc::clone(&hooks.dlq),
+        source,
     };
 
     for plan in plans {

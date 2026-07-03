@@ -49,6 +49,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Ensure the inbound-ingestion tables exist before the router mounts
+        // POST /webhooks/{provider}. Like RBAC, this must run here (async context)
+        // rather than in the sync build_router(). The spine holds normalized
+        // messages; the idempotency ledger backs the pipeline's atomic claim.
+        #[cfg(feature = "inbound")]
+        if let Some(ref db_pool) = self.db_pool {
+            if !self.config.webhooks.is_empty() {
+                crate::inbound::WebhookInboundState::init_spine(db_pool).await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize inbound spine schema: {e}"
+                    ))
+                })?;
+                fraiseql_webhooks::PostgresIdempotencyStore::new(db_pool.clone())
+                    .init()
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize webhook idempotency schema: {e}"
+                        ))
+                    })?;
+                info!(
+                    routes = self.config.webhooks.len(),
+                    "Inbound ingestion schema ready (spine + idempotency ledger)"
+                );
+            }
+        }
+
         // Initialize usage persistence backend if configured.
         // Must run before build_router() so the aggregator is populated before
         // serving requests, but after the DB pool is available (async context).
