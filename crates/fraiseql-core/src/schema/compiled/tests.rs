@@ -230,6 +230,32 @@ fn subscribable_round_trips_when_present() {
     assert_eq!(back.subscribable, schema.subscribable, "subscribable round-trips");
 }
 
+// ── cascade flag (opt-in typed cascade surface, gate decision 3) ──────
+
+#[test]
+fn mutation_cascade_defaults_off() {
+    let m = MutationDefinition::new("createPost", "Post");
+    assert!(!m.cascade, "a new mutation has the cascade surface off by default");
+}
+
+#[test]
+fn mutation_cascade_absent_is_not_serialized() {
+    // skip_serializing_if keeps a non-cascade mutation byte-identical to one
+    // authored before the flag existed, so the codegen schema hash is unchanged.
+    let m = MutationDefinition::new("createPost", "Post");
+    let json = serde_json::to_string(&m).unwrap();
+    assert!(!json.contains("cascade"), "off cascade is omitted: {json}");
+}
+
+#[test]
+fn mutation_cascade_round_trips_when_on() {
+    let json = r#"{ "name": "createPost", "return_type": "Post", "cascade": true }"#;
+    let m: MutationDefinition = serde_json::from_str(json).unwrap();
+    assert!(m.cascade, "cascade=true deserializes");
+    let back = serde_json::to_string(&m).unwrap();
+    assert!(back.contains("\"cascade\":true"), "on cascade serializes: {back}");
+}
+
 #[test]
 fn subscribable_participates_in_content_hash() {
     let plain = CompiledSchema::default();

@@ -1944,6 +1944,44 @@ mod tenancy_tests {
         assert!(on.changelog_pre_image);
     }
 
+    // ── cascade threading (default off / explicit on, gate decision 3) ────
+
+    /// An absent / unset `cascade` converts to `false` (no typed cascade
+    /// surface — byte-identical to the behavior before the flag existed).
+    #[test]
+    fn convert_mutation_defaults_cascade_to_false() {
+        use crate::schema::SchemaConverter;
+        let md = SchemaConverter::convert_mutation(make_mutation("createPost", "Post")).unwrap();
+        assert!(!md.cascade);
+    }
+
+    /// `cascade = true` threads through to the compiled mutation so the runtime
+    /// exposes and enforces the typed cascade field. Before this, the compiler
+    /// silently dropped the SDK flag (eval finding 4).
+    #[test]
+    fn convert_mutation_threads_cascade() {
+        use crate::schema::SchemaConverter;
+        let im = IntermediateMutation {
+            cascade: true,
+            ..make_mutation("createPost", "Post")
+        };
+        let md = SchemaConverter::convert_mutation(im).unwrap();
+        assert!(md.cascade);
+    }
+
+    /// The authoring JSON contract: an absent key defaults to `false`; `true`
+    /// threads through. This is the key the Python/TS SDKs write for
+    /// `@fraiseql.type(crud=True, cascade=True)`.
+    #[test]
+    fn intermediate_mutation_cascade_json_contract() {
+        let absent: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
+        assert!(!absent.cascade);
+        let on: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "cascade": true }"#).unwrap();
+        assert!(on.cascade);
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(

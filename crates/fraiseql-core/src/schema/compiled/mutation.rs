@@ -172,6 +172,26 @@ pub struct MutationDefinition {
     /// churn the codegen schema hash).
     #[serde(default, skip_serializing_if = "core::ops::Not::not")]
     pub changelog_pre_image: bool,
+
+    /// Whether this mutation exposes and enforces the typed graphql-cascade
+    /// `cascade` field on its success payload. Default `false`.
+    ///
+    /// When `true`, the runtime surfaces a typed, selection-gated `cascade`
+    /// field — mutation responses carrying all affected entities, per the
+    /// graphql-cascade spec — whose entities are projected to camelCase and run
+    /// through the field-level authorizer (#423), exactly like a queried
+    /// entity. When `false`, no cascade surface exists and any `cascade` the SQL
+    /// function returns is ignored.
+    ///
+    /// Set via the authoring SDK's `@fraiseql.type(crud=True, cascade=True)` (or
+    /// `@fraiseql.mutation(cascade=True)`); before this field existed the
+    /// compiler silently dropped that flag.
+    ///
+    /// Defaults to `false`; an absent value is byte-identical to the behavior
+    /// before this field existed (so it adds no compiled-schema bytes and does
+    /// not churn the codegen schema hash).
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub cascade: bool,
 }
 
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
@@ -250,6 +270,7 @@ impl MutationDefinition {
             changelog:               true,
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
+            cascade:                 false,
         }
     }
 
