@@ -17,17 +17,13 @@
 //!   with server-side denial logging.
 //!
 //! The read-path consumer (`apply::enrich_security_context`) is wired into the
-//! `/graphql` handler (P02). The admin flush surface (P04) and the sender profile
-//! (P03) consume the remaining items, so a narrowed `dead_code` allow persists
-//! until the P04 finalize.
+//! `/graphql` handler; the cache flush surface and the DB-backed sender are the
+//! two seams whose consumers land next (an admin flush endpoint, and the
+//! hardening-train `send_email` op respectively) — each carries a scoped
+//! `dead_code` allow at its definition rather than a blanket module allow.
 //!
 //! Enrichment requires an authenticated subject, so the whole module is gated on
 //! the `auth` feature (mirroring the `enrichment_pool` the resolver uses).
-
-// Reason: the read path is fully wired (P02); `flush`/`flush_all` (admin surface,
-// P04) and the sender profile (P03) are not yet consumed. Removed at the P04
-// finalize once every seam is live.
-#![allow(dead_code)]
 
 pub(crate) mod apply;
 pub(crate) mod cache;

@@ -254,13 +254,16 @@ impl IdentityResolver {
         self.finalize(sub, resolution)
     }
 
-    /// Evict every cache entry for `sub` — used by the admin flush surface and
-    /// (later) the provision/deprovision mutation hook.
+    /// Evict every cache entry for `sub` — the admin flush surface and (later) the
+    /// provision/deprovision mutation hook. That endpoint is the immediate
+    /// follow-up; the method is ready and tested (`flush_evicts_subject_...`).
+    #[allow(dead_code)]
     pub(super) fn flush(&self, sub: &str) {
         self.cache.flush(sub);
     }
 
     /// Evict the entire cache.
+    #[allow(dead_code)] // Reason: admin flush surface — immediate follow-up.
     pub(super) fn flush_all(&self) {
         self.cache.flush_all();
     }

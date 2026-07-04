@@ -886,3 +886,130 @@ async fn db_sender_refuses_a_malformed_resolved_address() {
 
     assert!(sender.resolve_sender(&auth).await.is_err());
 }
+
+// ── Acceptance: the two-role read boundary (DESIGN §9, self-contained) ─────
+//
+// The partner runs §9 against their live two-role setup at P04; this is the
+// self-contained local proof of the same property. It exercises the real chain:
+// enrich a known subject against a real `tb_actor`, then apply the enriched
+// values as GUCs on a connection (exactly the keys the `Enrichment` session-var
+// source reads) and assert RLS-view visibility.
+
+/// Count rows visible under the enriched GUCs, transaction-locally so no GUC
+/// leaks onto a pooled connection.
+async fn count_visible(pool: &sqlx::PgPool, view: &str, role: &str, actor_id: &str) -> i64 {
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.actor_role', $1, true)")
+        .bind(role)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("SELECT set_config('app.actor_id', $1, true)")
+        .bind(actor_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let (count,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {view}"))
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.rollback().await.unwrap();
+    count
+}
+
+fn enriched(ctx: &SecurityContext, field: &str) -> String {
+    ctx.attributes[&format!("{ENRICHED_NAMESPACE_PREFIX}{field}")]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn acceptance_two_role_read_boundary() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP acceptance_two_role_read_boundary: no postgres");
+        return;
+    };
+    let suffix = uuid::Uuid::new_v4().simple();
+    let actor = format!("tb_actor_acc_{suffix}");
+    let item = format!("tb_item_acc_{suffix}");
+    let view = format!("v_item_acc_{suffix}");
+
+    sqlx::query(&format!("CREATE TABLE {actor} (sub text, actor_id text, actor_role text)"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!(
+        "INSERT INTO {actor} VALUES ('admin-sub','a-admin','manager'), ('staff-sub','a-staff','staff')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(&format!("CREATE TABLE {item} (id int, owner_actor_id text)"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!("INSERT INTO {item} VALUES (1,'a-admin'),(2,'a-staff'),(3,'a-other')"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // The view scopes exactly as the partner's does: a `manager` sees all, any
+    // other role sees only its own rows.
+    sqlx::query(&format!(
+        "CREATE VIEW {view} AS SELECT * FROM {item} \
+         WHERE current_setting('app.actor_role', true) = 'manager' \
+            OR owner_actor_id = current_setting('app.actor_id', true)"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resolver = actor_resolver(&pool, &actor);
+
+    // §9.1 — known sub → role-A (manager, unfiltered): sees all rows.
+    let mut ctx_admin = sec_ctx("admin-sub", &[]);
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx_admin).await,
+        EnrichmentOutcome::Proceed
+    );
+    assert_eq!(
+        count_visible(
+            &pool,
+            &view,
+            &enriched(&ctx_admin, "actor_role"),
+            &enriched(&ctx_admin, "actor_id")
+        )
+        .await,
+        3,
+        "the manager role sees every row"
+    );
+
+    // §9.2 — known sub → role-B (staff, own-scope): sees only its own row.
+    let mut ctx_staff = sec_ctx("staff-sub", &[]);
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx_staff).await,
+        EnrichmentOutcome::Proceed
+    );
+    assert_eq!(
+        count_visible(
+            &pool,
+            &view,
+            &enriched(&ctx_staff, "actor_role"),
+            &enriched(&ctx_staff, "actor_id")
+        )
+        .await,
+        1,
+        "the staff role sees only its own row"
+    );
+
+    // §9.3 — unknown sub → DENIED (fail-closed before dispatch), NOT an empty set.
+    let mut ctx_unknown = sec_ctx("nobody", &[]);
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx_unknown).await,
+        EnrichmentOutcome::Denied
+    );
+
+    sqlx::query(&format!("DROP VIEW {view}")).execute(&pool).await.unwrap();
+    sqlx::query(&format!("DROP TABLE {item}")).execute(&pool).await.unwrap();
+    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+}

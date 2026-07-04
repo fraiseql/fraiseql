@@ -9,6 +9,12 @@
 //! This lands the resolver and the seam; the `send_email` host op that injects
 //! and calls it — and the SMTP transport — are the hardening train's, not #539's.
 
+// Reason: the DB-backed sender is constructed and injected into the functions
+// host by the hardening-train `send_email` op; until that lands it has no
+// non-test caller. Scoped to this file so the rest of the module keeps live
+// dead-code detection.
+#![allow(dead_code)]
+
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use fraiseql_functions::{SendPolicyError, SenderIdentity, SenderIdentityResolver};

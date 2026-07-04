@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Enriched-identity RLS (#539).** One request-scoped `sub → DB → identity`
+  resolver: the application maps a token's subject to its own internal identity
+  (`actor_id`/`actor_role` for reads, verified from-address for sends) in its own
+  database, resolved once per request, cached, and **fail-closed**. Configure a
+  top-level `[identity.enrichment]` (and `[identity.sender]`) — top-level so it
+  applies under HS256 and OIDC alike. Resolved fields merge under the reserved,
+  forge-proof `fraiseql.enriched.*` namespace (the extractor strips incoming
+  `fraiseql.` claims), read with no fallback by the new
+  `SessionVariableSource::Enrichment` / `InjectedParamSource::Enrichment` sources,
+  so RLS/views/inject-params scope on a DB-derived identity rather than a
+  client-asserted claim. An unknown/ambiguous subject, a NULL mapped field, or a
+  missing bound param is denied (403) *before* any data query runs — never a
+  silent skip or an empty-string GUC; a transient DB error is a 503, never an
+  unscoped read. The precise denial reason is logged server-side (WARN) while the
+  outward body stays generic (no actor-table existence oracle). The cache keys on
+  the bound-`$param` tuple (multi-issuer apps bind `$iss`) with a bounded positive
+  TTL (default 60s) so a revocation propagates within that window. Verified
+  sender-identity resolves on the same primitive through an object-safe
+  `SenderIdentityResolver` seam (`LoginEmailSender` is the degenerate default);
+  the `send_email` op that consumes it lands with the native-runtime hardening
+  train. Supersedes #242. See `docs/architecture/enriched-identity-rls.md` and
+  ADR-0016.
 - **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
   sidecar's compute is now native TypeScript,
   proving the host surface against a real workload. Four `examples/native-functions`
