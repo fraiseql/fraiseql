@@ -707,7 +707,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             let sv = &ctx.schema.session_variables;
             match security_ctx {
                 Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
-                    crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)
+                    crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)?
                 },
                 _ => Vec::new(),
             }

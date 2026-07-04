@@ -23,7 +23,7 @@ use std::{
     time::Duration,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{
     cache::{CachedOutcome, IdentityCache},
@@ -39,29 +39,45 @@ pub(super) type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// schema, reused by the enrichment and sender profiles. `deny_unknown_fields`
 /// makes a mistyped/stranded key fail loud — the failure mode that hid #242's
 /// absence.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct EnrichmentQueryConfig {
+pub struct EnrichmentQueryConfig {
     /// When `true`, every authenticated request resolves and fail-closes,
     /// whether or not the operation consumes an enriched field (DESIGN §7,
     /// amendment B). The resolver is only constructed when enabled; it does not
     /// re-check this flag per request.
     #[serde(default)]
-    pub(super) enabled:           bool,
+    pub enabled:           bool,
     /// The SQL, with named `$param` tokens bound from token claims.
-    pub(super) query:             String,
+    pub query:             String,
     /// Column → enriched-field renaming. A declared column that is NULL/absent in
     /// the resolved row is a denial (DESIGN §5).
     #[serde(default)]
-    pub(super) map:               BTreeMap<String, String>,
+    pub map:               BTreeMap<String, String>,
     /// Positive TTL for a `Resolved` outcome. Bounded (DESIGN §6.1): a revocation
     /// propagates within this window, or immediately via `flush(sub)`.
     #[serde(default = "default_cache_ttl_secs")]
-    pub(super) cache_ttl_secs:    u64,
+    pub cache_ttl_secs:    u64,
     /// Negative TTL for a `Denied` outcome — short, so a freshly provisioned
     /// actor goes live quickly.
     #[serde(default = "default_negative_ttl_secs")]
-    pub(super) negative_ttl_secs: u64,
+    pub negative_ttl_secs: u64,
+}
+
+/// Top-level `[identity]` configuration: one shared query schema, two profiles
+/// (DESIGN §7). Lives on `ServerConfig` (the config the running server loads), so
+/// it applies under any auth mode — HS256/OIDC parity by construction.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IdentityConfig {
+    /// Consumer A — read scoping. When enabled, every authenticated request
+    /// resolves and fail-closes.
+    #[serde(default)]
+    pub enrichment: Option<EnrichmentQueryConfig>,
+    /// Consumer B — verified sender-identity, consumed by the send path (P03 +
+    /// the hardening train). Resolves at send time, not per request.
+    #[serde(default)]
+    pub sender:     Option<EnrichmentQueryConfig>,
 }
 
 /// DESIGN §6.1: 60s, not #242's token-remaining-lifetime — a tighter revocation
@@ -167,7 +183,7 @@ impl IdentityStore for PgIdentityStore {
 
 /// The shared resolver: one per profile, server-lifetime, memoizing per
 /// bound-parameter tuple.
-pub(super) struct IdentityResolver {
+pub struct IdentityResolver {
     config: EnrichmentQueryConfig,
     store:  Arc<dyn IdentityStore>,
     cache:  IdentityCache,
@@ -181,6 +197,13 @@ impl IdentityResolver {
             store,
             cache: IdentityCache::new(),
         }
+    }
+
+    /// Construct a Postgres-backed resolver on an unscoped pool — the server's
+    /// entry point for building a profile instance from config.
+    #[must_use]
+    pub fn postgres(config: EnrichmentQueryConfig, pool: sqlx::PgPool) -> Self {
+        Self::new(config, Arc::new(PgIdentityStore::new(pool)))
     }
 
     /// Resolve `sub`'s identity, using the cache. `claims` supplies the `$param`

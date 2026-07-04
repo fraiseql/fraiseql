@@ -82,6 +82,45 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("API key authenticator attached to AppState");
         }
 
+        // Enriched-identity resolution (#539). When `[identity.enrichment]` is
+        // enabled, build the resolver on the unscoped auth pool and attach it, so
+        // every authenticated request resolves its DB identity and fail-closes
+        // before dispatch. `enabled = true` alone is the trigger (DESIGN §7).
+        #[cfg(feature = "auth")]
+        if let Some(enrichment) =
+            self.config.identity.as_ref().and_then(|identity| identity.enrichment.as_ref())
+        {
+            if enrichment.enabled {
+                if let Some(pool) = self.enrichment_pool.as_ref() {
+                    state = state.with_identity_resolver(std::sync::Arc::new(
+                        crate::identity::IdentityResolver::postgres(
+                            enrichment.clone(),
+                            pool.clone(),
+                        ),
+                    ));
+                    if crate::identity::schema_declares_enrichment_consumer(self.executor.schema())
+                    {
+                        info!(
+                            "Enriched-identity resolution enabled (#539): every authenticated \
+                             request resolves and fail-closes"
+                        );
+                    } else {
+                        tracing::warn!(
+                            "[identity.enrichment] is enabled but no session variable or inject \
+                             param uses an `enrichment` source — every authenticated request will \
+                             resolve identity, yet nothing reads it (likely a misconfiguration)"
+                        );
+                    }
+                } else {
+                    tracing::warn!(
+                        "[identity.enrichment] is enabled but no auth database pool is available \
+                         — enrichment cannot run (a non-PostgreSQL backend, or DATABASE_URL is \
+                         unset). Requests will NOT be enriched."
+                    );
+                }
+            }
+        }
+
         // Attach state encryption service if configured
         #[cfg(feature = "auth")]
         match &self.state_encryption {

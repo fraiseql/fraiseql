@@ -374,5 +374,23 @@ fn resolve_inject_value(
                 path:    None,
             })
         },
+        InjectedParamSource::Enrichment(field) => {
+            // Read ONLY the reserved namespace — no fallback to a raw claim or a
+            // well-known field (#539). A raw claim of the same name must never
+            // impersonate a DB-derived identity parameter.
+            let key = format!("{}{field}", crate::security::ENRICHED_NAMESPACE_PREFIX);
+            security_ctx
+                .attributes
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Inject param '{param_name}': enriched field '{field}' absent from the \
+                         resolved identity (enrichment did not run, or the query's `map` does \
+                         not produce it)"
+                    ),
+                    path:    None,
+                })
+        },
     }
 }

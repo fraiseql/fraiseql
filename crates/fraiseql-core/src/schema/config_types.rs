@@ -608,6 +608,19 @@ pub enum SessionVariableSource {
         /// The literal string value to inject.
         value: String,
     },
+    /// Pull from a DB-resolved enriched-identity field, read from the reserved
+    /// `fraiseql.enriched.*` attribute namespace (#539).
+    ///
+    /// Unlike [`SessionVariableSource::Jwt`], there is **no** fallback to a raw
+    /// claim or a well-known field: the namespace is forge-proof (the extractor
+    /// strips `fraiseql.` claims), and a missing enriched field is a hard error,
+    /// never a silently-skipped/empty GUC. This is the construct that carries the
+    /// fail-closed read-scoping guarantee.
+    Enrichment {
+        /// The enriched field name, without the `fraiseql.enriched.` prefix
+        /// (e.g. `"actor_role"`).
+        field: String,
+    },
 }
 
 /// One session variable declaration.

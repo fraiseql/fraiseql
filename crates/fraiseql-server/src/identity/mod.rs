@@ -16,23 +16,50 @@
 //! - `resolver` — the shared `IdentityResolver`: bind → cache → fetch (≤2 rows) → classify → cache,
 //!   with server-side denial logging.
 //!
-//! The resolver is not yet wired into a request path — that is P02 (the
-//! `/graphql` handler step and server construction), which removes the
-//! module-scoped `dead_code` allow below. Until then these items have no
-//! non-test caller.
+//! The read-path consumer (`apply::enrich_security_context`) is wired into the
+//! `/graphql` handler (P02). The admin flush surface (P04) and the sender profile
+//! (P03) consume the remaining items, so a narrowed `dead_code` allow persists
+//! until the P04 finalize.
 //!
 //! Enrichment requires an authenticated subject, so the whole module is gated on
 //! the `auth` feature (mirroring the `enrichment_pool` the resolver uses).
 
-// Reason: the resolver and its supporting types are exercised only by tests until
-// P02 wires them into the `/graphql` handler and server construction; that phase
-// removes this allow.
+// Reason: the read path is fully wired (P02); `flush`/`flush_all` (admin surface,
+// P04) and the sender profile (P03) are not yet consumed. Removed at the P04
+// finalize once every seam is live.
 #![allow(dead_code)]
 
+pub(crate) mod apply;
 pub(crate) mod cache;
 pub(crate) mod failure;
 pub(crate) mod query;
 pub(crate) mod resolver;
+
+pub(crate) use apply::{EnrichmentOutcome, enrich_security_context};
+use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariableSource};
+pub(crate) use resolver::{IdentityConfig, IdentityResolver};
+
+/// Whether the compiled schema declares any consumer of enriched identity — a
+/// `SessionVariableSource::Enrichment` or an `InjectedParamSource::Enrichment`.
+///
+/// Used only to decide whether an enabled-but-unused enrichment profile warrants
+/// a loud startup warning (DESIGN §7). The per-request fail-closed boundary
+/// itself never depends on this scan — that would reintroduce the exact
+/// declaration-conditional silent-skip the design fights.
+pub(crate) fn schema_declares_enrichment_consumer(schema: &CompiledSchema) -> bool {
+    let in_session_vars = schema
+        .session_variables
+        .variables
+        .iter()
+        .any(|mapping| matches!(mapping.source, SessionVariableSource::Enrichment { .. }));
+    let in_inject_params = schema
+        .queries
+        .iter()
+        .flat_map(|q| q.inject_params.values())
+        .chain(schema.mutations.iter().flat_map(|m| m.inject_params.values()))
+        .any(|source| matches!(source, InjectedParamSource::Enrichment(_)));
+    in_session_vars || in_inject_params
+}
 
 #[cfg(test)]
 mod tests;

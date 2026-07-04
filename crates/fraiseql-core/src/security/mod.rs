@@ -38,6 +38,16 @@ pub mod security_context;
 pub mod tls_enforcer;
 pub mod validation_audit;
 
+/// Reserved attribute-namespace prefix for DB-resolved enriched-identity fields.
+///
+/// The request extractor strips any incoming JWT claim whose key begins with
+/// `fraiseql.`, so an attribute under this prefix cannot be forged by a token —
+/// it can only originate from the server's identity resolver (#539). Read with
+/// **no** fallback by `SessionVariableSource::Enrichment` and
+/// `InjectedParamSource::Enrichment`, and written by the server when it merges a
+/// resolved identity into the security context.
+pub const ENRICHED_NAMESPACE_PREFIX: &str = "fraiseql.enriched.";
+
 // Re-export key types for convenience
 pub use actor_type::{ActorType, derive_actor};
 pub use audit::{

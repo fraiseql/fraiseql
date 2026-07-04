@@ -19,14 +19,21 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
+use fraiseql_core::{
+    security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
+    types::UserId,
+};
 use serde_json::{Value, json};
 
 use super::{
+    apply::{EnrichmentOutcome, enrich_security_context},
     cache::{CachedOutcome, IdentityCache},
     failure::{DenyReason, IdentityResolution, ResolveError},
     query::{MissingParam, prepare_enrichment_query},
     resolver::{
-        BoxFuture, EnrichmentQueryConfig, IdentityResolver, IdentityStore, PgIdentityStore,
+        BoxFuture, EnrichmentQueryConfig, IdentityConfig, IdentityResolver, IdentityStore,
+        PgIdentityStore,
     },
 };
 
@@ -677,4 +684,133 @@ async fn pg_store_binds_hostile_subject_value_safely() {
     assert_eq!(count, 1);
 
     sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+}
+
+// ── Consumer A: enrich_security_context + config (DESIGN §3, §7) ───────────
+
+fn sec_ctx(sub: &str, attrs: &[(&str, Value)]) -> SecurityContext {
+    SecurityContext {
+        user_id:          UserId::new(sub),
+        roles:            vec![],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       attrs.iter().map(|(k, v)| ((*k).to_owned(), v.clone())).collect(),
+        request_id:       "req-test".to_owned(),
+        ip_address:       None,
+        authenticated_at: Utc::now(),
+        expires_at:       Utc::now(),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// A store that records the binds it received (to prove `claims_for_binding`
+/// surfaces the subject) and returns a fixed row set.
+struct CapturingStore {
+    rows:     Vec<serde_json::Map<String, Value>>,
+    captured: std::sync::Mutex<Vec<Value>>,
+}
+
+impl IdentityStore for CapturingStore {
+    fn fetch_rows<'a>(
+        &'a self,
+        _sql: &'a str,
+        binds: &'a [Value],
+    ) -> BoxFuture<'a, Result<Vec<serde_json::Map<String, Value>>, ResolveError>> {
+        *self.captured.lock().unwrap() = binds.to_vec();
+        let rows = self.rows.clone();
+        Box::pin(async move { Ok(rows) })
+    }
+}
+
+fn actor_row() -> serde_json::Map<String, Value> {
+    row(&[("actor_id", json!("a-1")), ("actor_role", json!("manager"))])
+}
+
+#[tokio::test]
+async fn enrich_resolved_merges_under_reserved_namespace() {
+    let mut ctx = sec_ctx("u1", &[]);
+    let resolver = resolver(MockStore::returning(vec![actor_row()]));
+
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert_eq!(ctx.attributes[&format!("{ENRICHED_NAMESPACE_PREFIX}actor_role")], "manager");
+    assert_eq!(ctx.attributes[&format!("{ENRICHED_NAMESPACE_PREFIX}actor_id")], "a-1");
+}
+
+#[tokio::test]
+async fn enrich_denied_merges_nothing() {
+    let mut ctx = sec_ctx("u1", &[]);
+    let resolver = resolver(MockStore::returning(vec![])); // zero rows → Denied
+
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Denied);
+    assert!(
+        ctx.attributes.keys().all(|k| !k.starts_with(ENRICHED_NAMESPACE_PREFIX)),
+        "a denial must merge nothing"
+    );
+}
+
+#[tokio::test]
+async fn enrich_unavailable_maps_to_unavailable() {
+    let mut ctx = sec_ctx("u1", &[]);
+    let resolver = resolver(MockStore::failing());
+
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx).await,
+        EnrichmentOutcome::Unavailable
+    );
+}
+
+#[tokio::test]
+async fn enrich_binds_subject_from_context() {
+    let store = Arc::new(CapturingStore {
+        rows:     vec![actor_row()],
+        captured: std::sync::Mutex::new(Vec::new()),
+    });
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+    let mut ctx = sec_ctx("subject-42", &[]);
+
+    let _ = enrich_security_context(&resolver, &mut ctx).await;
+
+    // The subject from the context bound `$sub` — the read scopes on a
+    // DB-derived identity, not a client-asserted one.
+    assert_eq!(*store.captured.lock().unwrap(), vec![json!("subject-42")]);
+}
+
+#[test]
+fn identity_config_deserializes_from_toml() {
+    let toml_src = r#"
+[enrichment]
+enabled = true
+query = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
+map = { actor_id = "actor_id", actor_role = "actor_role" }
+cache_ttl_secs = 30
+"#;
+    let cfg: IdentityConfig = toml::from_str(toml_src).unwrap();
+    let enrichment = cfg.enrichment.unwrap();
+    assert!(enrichment.enabled);
+    assert_eq!(enrichment.cache_ttl_secs, 30);
+    assert_eq!(enrichment.negative_ttl_secs, 5, "negative TTL defaults to 5s");
+    assert_eq!(enrichment.map["actor_role"], "actor_role");
+    assert!(cfg.sender.is_none());
+}
+
+#[test]
+fn identity_config_rejects_unknown_field() {
+    // deny_unknown_fields makes a mistyped/stranded key fail loud — the failure
+    // mode that hid #242's absence (DESIGN §7).
+    let toml_src = r#"
+[enrichment]
+enabled = true
+query = "SELECT 1"
+typo_field = "oops"
+"#;
+    assert!(toml::from_str::<IdentityConfig>(toml_src).is_err());
 }

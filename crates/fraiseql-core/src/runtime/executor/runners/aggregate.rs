@@ -27,13 +27,13 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
     fn resolve_session_vars(
         &self,
         security_context: Option<&SecurityContext>,
-    ) -> Vec<(String, String)> {
+    ) -> Result<Vec<(String, String)>> {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
             Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
                 crate::runtime::executor::security::resolve_session_variables(sv, sec)
             },
-            _ => Vec::new(),
+            _ => Ok(Vec::new()),
         }
     }
 
@@ -236,7 +236,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
 
         // 5. Execute with bind parameters (eliminates escape-based injection risk), pinning session
         //    variables to the connection for current_setting() RLS (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
@@ -412,7 +412,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
         //    values are passed as prepared-statement parameters, not inlined. Session variables are
         //    pinned to the connection for current_setting() RLS (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self

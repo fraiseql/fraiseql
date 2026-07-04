@@ -13,11 +13,15 @@ use crate::{
 /// Resolve session variable mappings against the current security context.
 ///
 /// See [`support::security::resolve_session_variables`] for full documentation.
-#[must_use]
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if a `SessionVariableSource::Enrichment`
+/// mapping references an enriched field absent from the resolved identity (#539).
 pub fn resolve_session_variables(
     config: &SessionVariablesConfig,
     security_context: &SecurityContext,
-) -> Vec<(String, String)> {
+) -> crate::error::Result<Vec<(String, String)>> {
     support::security::resolve_session_variables(config, security_context)
 }
 
@@ -287,7 +291,7 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         // tenant_id is in attributes
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.tenant_id");
@@ -306,7 +310,7 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.user_id");
         assert_eq!(vars[0].1, "user-42");
@@ -324,7 +328,7 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.locale");
         assert_eq!(vars[0].1, "en");
@@ -342,7 +346,7 @@ mod session_variable_tests {
             }],
             inject_started_at: true,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         // started_at must come first
         assert_eq!(vars.len(), 2);
         assert_eq!(vars[0].0, fraiseql_db::STARTED_AT_VAR);
@@ -359,7 +363,7 @@ mod session_variable_tests {
             variables:         vec![],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert!(vars.is_empty());
         assert!(!vars.iter().any(|(k, _)| k == "fraiseql.started_at"));
     }
@@ -376,7 +380,7 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.tenant");
         assert_eq!(vars[0].1, "header-tenant");
@@ -395,7 +399,7 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.email");
         assert_eq!(vars[0].1, "user@corp.com");
@@ -422,7 +426,7 @@ mod session_variable_tests {
             ],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert_eq!(vars.len(), 2);
         assert_eq!(vars[0].1, "Jane Doe");
         assert_eq!(vars[1].1, "Jane Doe");
@@ -440,7 +444,70 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx);
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
         assert!(vars.is_empty(), "missing email should be silently skipped");
+    }
+
+    #[test]
+    fn resolve_session_variables_enrichment_reads_namespace() {
+        let mut ctx = make_context();
+        // A resolved enriched field, merged by the server under the reserved
+        // namespace (the extractor strips `fraiseql.` claims, so a token can't
+        // forge this key).
+        ctx.attributes
+            .insert("fraiseql.enriched.actor_role".to_string(), serde_json::json!("manager"));
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.actor_role".to_string(),
+                source: SessionVariableSource::Enrichment {
+                    field: "actor_role".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.actor_role");
+        assert_eq!(vars[0].1, "manager");
+    }
+
+    #[test]
+    fn resolve_session_variables_enrichment_missing_field_errors() {
+        // Enrichment declared but the field is absent from the namespace: a
+        // hard error, never a silently-skipped/empty GUC (DESIGN §3.2, §5.2).
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.actor_role".to_string(),
+                source: SessionVariableSource::Enrichment {
+                    field: "actor_role".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        assert!(resolve_session_variables(&config, &ctx).is_err());
+    }
+
+    #[test]
+    fn resolve_session_variables_enrichment_does_not_fall_back_to_raw_claim() {
+        // A raw claim of the same name is present in attributes, but the
+        // Enrichment source reads ONLY the reserved namespace — so it must still
+        // fail, never impersonate a DB-derived field with an attacker-influenced
+        // claim (the security property `Enrichment` exists for).
+        let mut ctx = make_context();
+        ctx.attributes.insert("actor_role".to_string(), serde_json::json!("admin"));
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.actor_role".to_string(),
+                source: SessionVariableSource::Enrichment {
+                    field: "actor_role".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        assert!(
+            resolve_session_variables(&config, &ctx).is_err(),
+            "Enrichment must not fall back to a raw JWT claim"
+        );
     }
 }

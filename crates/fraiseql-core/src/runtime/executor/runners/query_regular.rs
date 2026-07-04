@@ -39,13 +39,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     fn resolve_session_vars(
         &self,
         security_context: Option<&SecurityContext>,
-    ) -> Vec<(String, String)> {
+    ) -> Result<Vec<(String, String)>> {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
             Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
                 crate::runtime::executor::security::resolve_session_variables(sv, sec)
             },
-            _ => Vec::new(),
+            _ => Ok(Vec::new()),
         }
     }
 
@@ -98,7 +98,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // on the same connection as the read (fixes #329) by passing them into
         // the connection-affine adapter call below, so PostgreSQL RLS policies
         // that read `current_setting()` (e.g. `app.tenant_id`) are effective.
-        let resolved_session_vars = self.resolve_session_vars(Some(security_context));
+        let resolved_session_vars = self.resolve_session_vars(Some(security_context))?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
@@ -846,7 +846,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
 
         // Execute, pinning session variables to the read's connection (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let results = self
@@ -982,7 +982,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 4. Execute COUNT query via adapter, pinning session variables to the read's connection so
         //    RLS counts match the filtered rows (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context);
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
