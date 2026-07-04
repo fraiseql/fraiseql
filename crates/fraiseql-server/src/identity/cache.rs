@@ -36,9 +36,6 @@ pub(super) enum CachedOutcome {
 /// absolute expiry instant.
 struct CacheEntry {
     outcome:    CachedOutcome,
-    // Reason: read only by `flush(sub)`, whose admin/after-mutation caller is the
-    // immediate follow-up (see the flush methods below).
-    #[allow(dead_code)]
     sub:        String,
     expires_at: Instant,
 }
@@ -84,15 +81,11 @@ impl IdentityCache {
 
     /// Evict every entry belonging to `sub` (DESIGN §6). Rare/admin — the sweep
     /// is fine. Propagates a grant or revoke for a subject instantly.
-    // Reason: exposed via `IdentityResolver::flush`; its admin endpoint /
-    // after-mutation hook caller is the immediate follow-up.
-    #[allow(dead_code)]
     pub(super) fn flush(&self, sub: &str) {
         self.entries.retain(|_key, entry| entry.sub != sub);
     }
 
     /// Evict all entries.
-    #[allow(dead_code)] // Reason: exposed via `IdentityResolver::flush_all` (same follow-up).
     pub(super) fn flush_all(&self) {
         self.entries.clear();
     }

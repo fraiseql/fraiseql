@@ -19,14 +19,20 @@ use std::{
     time::Duration,
 };
 
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use chrono::Utc;
 use fraiseql_core::{
     security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
     types::UserId,
 };
 use serde_json::{Value, json};
+use tower::ServiceExt;
 
 use super::{
+    admin::identity_admin_router,
     apply::{EnrichmentOutcome, enrich_security_context},
     cache::{CachedOutcome, IdentityCache},
     failure::{DenyReason, IdentityResolution, ResolveError},
@@ -1012,4 +1018,85 @@ async fn acceptance_two_role_read_boundary() {
     sqlx::query(&format!("DROP VIEW {view}")).execute(&pool).await.unwrap();
     sqlx::query(&format!("DROP TABLE {item}")).execute(&pool).await.unwrap();
     sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+}
+
+// ── Admin flush endpoint (the immediate #539 follow-up) ────────────────────
+
+fn actor_resolver_arc() -> std::sync::Arc<IdentityResolver> {
+    std::sync::Arc::new(IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        Arc::new(MockStore::returning(vec![actor_row()])),
+    ))
+}
+
+#[tokio::test]
+async fn identity_admin_router_constructs() {
+    // axum validates path-capture syntax inside `Router::route`, so a bad literal
+    // would panic here at build time (issue #316 prevention).
+    let _ = identity_admin_router(actor_resolver_arc());
+}
+
+#[tokio::test]
+async fn flush_endpoint_evicts_the_subject() {
+    let store = Arc::new(MockStore::returning(vec![actor_row()]));
+    let resolver = Arc::new(IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    ));
+
+    // Warm the cache, then flush the subject through the HTTP handler.
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    assert_eq!(store.calls(), 1);
+
+    let response = identity_admin_router(resolver.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/identity/flush")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"sub":"u1"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // The next resolve re-hits the store — the entry was evicted.
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    assert_eq!(store.calls(), 2, "flush must evict the subject's cache entry");
+}
+
+#[tokio::test]
+async fn flush_all_endpoint_clears_the_cache() {
+    let store = Arc::new(MockStore::returning(vec![actor_row()]));
+    let resolver = Arc::new(IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    ));
+
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+
+    let response = identity_admin_router(resolver.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/identity/flush-all")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    assert_eq!(store.calls(), 2, "flush-all must clear the cache");
 }

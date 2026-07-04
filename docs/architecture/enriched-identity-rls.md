@@ -135,6 +135,9 @@ an existence oracle over the actor table.
 - **Invariant:** *a revocation or role change propagates within `cache_ttl_secs`,
   or immediately via `flush(sub)`.* Raising `cache_ttl_secs` widens that window —
   do it with open eyes.
+- **Manual flush** is exposed on the admin API, behind the admin bearer token,
+  when enrichment is enabled: `POST /api/identity/flush` with `{"sub": "..."}`
+  evicts one subject; `POST /api/identity/flush-all` clears the cache.
 
 ---
 

@@ -30,6 +30,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_rbac(app, db_pool);
         }
 
+        // Identity-cache admin API (flush) — same admin bearer gate as RBAC,
+        // mounted only when an enrichment resolver exists (#539). Lets an operator
+        // propagate a revoke/provision immediately instead of waiting out the TTL.
+        #[cfg(feature = "auth")]
+        if let (Some(resolver), Some(token)) =
+            (state.identity_resolver.as_ref(), self.config.admin_token.as_ref())
+        {
+            let auth_state = BearerAuthState::with_max_failures(
+                token.clone(),
+                self.config.admin_auth_max_failures,
+            );
+            let identity_router = crate::identity::identity_admin_router(resolver.clone())
+                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
+            app = app.merge(identity_router);
+            info!(
+                "Identity-cache admin API enabled (POST /api/identity/flush[-all]; admin bearer \
+                 token required)"
+            );
+        }
+
         // Observer routes (if enabled and compiled with feature)
         #[cfg(feature = "observers")]
         {
