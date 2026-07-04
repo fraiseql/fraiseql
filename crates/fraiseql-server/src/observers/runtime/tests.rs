@@ -36,7 +36,7 @@ async fn push(dlq: &InMemoryDlq) -> Uuid {
     dlq.push(test_event(), test_action(), "boom".to_string()).await.unwrap()
 }
 
-// ── Cycle 1: cap (drop-newest) ──────────────────────────────────────────────
+// ── cap (drop-newest) ───────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn unbounded_dlq_grows_without_limit() {
@@ -67,7 +67,7 @@ async fn capped_dlq_drops_newest_at_capacity() {
     );
 }
 
-// ── Cycle 2: mark_retry_failed keeps the item ───────────────────────────────
+// ── mark_retry_failed keeps the item ────────────────────────────────────────
 
 #[tokio::test]
 async fn mark_retry_failed_keeps_item_and_records_failure() {
@@ -152,6 +152,68 @@ async fn reinsert_bypasses_the_cap() {
 
     assert_eq!(dlq.count(), 2, "reinsert must bypass the cap");
     assert_eq!(dlq.overflow_count(), 0, "reinsert is not an overflow");
+}
+
+// ── Function-dispatch DLQ ───────────────────────────────────────────────────
+
+mod function_dlq {
+    use fraiseql_observers::{DeadLetterQueue, DispatchSource, FunctionDispatchRecord};
+
+    use super::InMemoryDlq;
+
+    fn record(error: &str) -> FunctionDispatchRecord {
+        FunctionDispatchRecord::new(
+            DispatchSource::AfterMutation,
+            "onUserCreated",
+            "after:mutation:onUserCreated",
+            serde_json::json!({ "event_kind": "insert", "new": { "id": "u1" } }),
+            error,
+            3,
+        )
+    }
+
+    #[tokio::test]
+    async fn exhausted_dispatch_lands_one_row() {
+        // A permanently-failing function dispatch that exhausted its retries
+        // lands exactly one inspectable DLQ row.
+        let dlq = InMemoryDlq::new_with_max(None);
+
+        let id = dlq.push_function(record("upstream 503")).await.unwrap();
+
+        assert_eq!(dlq.function_count(), 1, "one function DLQ row after exhaustion");
+        let pending = dlq.get_pending_functions(10).await.unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].id, id);
+        assert_eq!(pending[0].function_name, "onUserCreated");
+        assert_eq!(pending[0].attempts, 3);
+        assert_eq!(pending[0].error_message, "upstream 503");
+    }
+
+    #[tokio::test]
+    async fn function_and_observer_entries_are_separate() {
+        // The two collections share one store but are counted independently, so a
+        // function failure never masks an observer failure or vice versa.
+        let dlq = InMemoryDlq::new_with_max(None);
+
+        super::push(&dlq).await; // observer-action failure
+        dlq.push_function(record("boom")).await.unwrap();
+
+        assert_eq!(dlq.count(), 1, "observer entries counted separately");
+        assert_eq!(dlq.function_count(), 1, "function entries counted separately");
+    }
+
+    #[tokio::test]
+    async fn capped_function_dlq_drops_newest() {
+        let dlq = InMemoryDlq::new_with_max(Some(2));
+
+        dlq.push_function(record("e1")).await.unwrap();
+        dlq.push_function(record("e2")).await.unwrap();
+        // Third is at capacity → dropped (drop-newest), mirroring `push`.
+        dlq.push_function(record("e3")).await.unwrap();
+
+        assert_eq!(dlq.function_count(), 2, "cap holds the function queue at 2");
+        assert_eq!(dlq.overflow_count(), 1, "the dropped entry bumps the overflow counter");
+    }
 }
 
 // ── Listener selection seam (#350) ──────────────────────────────────────────

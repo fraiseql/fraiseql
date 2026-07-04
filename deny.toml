@@ -81,6 +81,10 @@ name = "darling"
 reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling 0.20; workspace on 0.23"
 version = "=0.20.11"
 
+# async-imap (opt-in `inbound-email`, poll-IMAP adapter) pulls stop-token → the
+# async-channel 1.x / event-listener 2.x line; the rest of the workspace is on
+# async-channel 2.x / event-listener 5.x. Pinned to the async-imap-side versions.
+
 [[bans.skip]]
 name = "darling_core"
 reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_core 0.20; workspace on 0.23"
@@ -115,6 +119,15 @@ version = "=0.24.2"
 name = "tokio-rustls"
 reason = "transitive via rustls 0.21 (aws-sdk)"
 version = "=0.24.1"
+[[bans.skip]]
+name = "async-channel"
+reason = "async-imap (inbound-email) → stop-token → async-channel 1.9.0; workspace on 2.x"
+version = "=1.9.0"
+
+[[bans.skip]]
+name = "event-listener"
+reason = "async-imap (inbound-email) → stop-token → async-channel 1.9.0 → event-listener 2.5.3; workspace on 5.x"
+version = "=2.5.3"
 
 [[bans.skip]]
 name = "hashbrown"

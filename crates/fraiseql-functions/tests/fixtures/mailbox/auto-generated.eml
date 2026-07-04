@@ -1,0 +1,12 @@
+From: Acme Notifications <notifications@acme.example>
+To: rep@outreach.example
+Subject: [Acme] Your support ticket was updated
+Message-ID: <notif-4242@acme.example>
+Auto-Submitted: auto-generated
+Precedence: bulk
+List-Id: Acme Notifications <notifications.acme.example>
+Date: Fri, 03 Jul 2026 10:18:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+Ticket #4242 was updated. Do not reply to this message; replies to this address
+are not monitored.

@@ -529,96 +529,219 @@ async fn test_deno_guest_log_limit_enforced() {
     assert_eq!(result.logs[999].message, "log entry 999");
 }
 
-// ========== Phase 5B Cycle 2: Deno Host Op Bridge Tests (RED Phase) ==========
+// ========== Cycle 2: Deno host-op bridge (async I/O → HostContext) ==========
+//
+// These exercise the real `Deno.core.ops.fraiseql_*` bridge through
+// `DenoRuntime::invoke_with_context`, using a self-contained mock host so they run
+// in the plain `runtime-deno` leg (no `host-live`/network needed).
 
-#[cfg(feature = "host-live")]
-#[tokio::test]
-async fn test_deno_guest_calls_query_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_query()
-    // Should receive GraphQL result
-    let source = r"
-export default async (event) => {
-    // In real implementation, this would call:
-    // const result = await Deno.core.ops.fraiseql_query('{ users { id } }', '{}');
-    // For now, just verify the op infrastructure is in place
-    return { query_test: true };
-};
-"
-    .to_string();
+/// A canned [`HostContext`](crate::HostContext) that echoes its inputs back as
+/// deterministic outputs, so a guest can prove it reached the host.
+#[allow(dead_code)] // Reason: used only by #[test] fns, which are stripped from the lib build
+struct MockHostContext {
+    event_payload: crate::EventPayload,
+}
 
+impl MockHostContext {
+    #[allow(dead_code)] // Reason: used only by #[test] fns, which are stripped from the lib build
+    fn new() -> Self {
+        Self {
+            event_payload: test_event(),
+        }
+    }
+}
+
+impl crate::HostContext for MockHostContext {
+    async fn query(
+        &self,
+        graphql: &str,
+        variables: serde_json::Value,
+    ) -> fraiseql_error::Result<serde_json::Value> {
+        Ok(serde_json::json!({
+            "graphql": graphql,
+            "variables": variables,
+            "data": { "ok": true },
+        }))
+    }
+
+    async fn sql_query(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> fraiseql_error::Result<Vec<serde_json::Value>> {
+        Ok(vec![serde_json::json!({ "sql": sql, "params": params })])
+    }
+
+    async fn http_request(
+        &self,
+        method: &str,
+        url: &str,
+        headers: &[(String, String)],
+        body: Option<&[u8]>,
+    ) -> fraiseql_error::Result<crate::host::HttpResponse> {
+        let body_len = body.map_or(0, <[u8]>::len);
+        Ok(crate::host::HttpResponse {
+            status:  200,
+            headers: vec![("x-mock".to_string(), "true".to_string())],
+            body:    format!("{method} {url} headers={} body={body_len}", headers.len())
+                .into_bytes(),
+        })
+    }
+
+    async fn storage_get(&self, bucket: &str, key: &str) -> fraiseql_error::Result<Vec<u8>> {
+        Ok(format!("stored:{bucket}/{key}").into_bytes())
+    }
+
+    async fn storage_put(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _body: &[u8],
+        _content_type: &str,
+    ) -> fraiseql_error::Result<()> {
+        Ok(())
+    }
+
+    fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
+        Ok(serde_json::json!({ "user_id": "u123", "roles": ["admin"] }))
+    }
+
+    fn env_var(&self, name: &str) -> fraiseql_error::Result<Option<String>> {
+        if name == "MODEL_KEY" {
+            Ok(Some("sk-test".to_string()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn event_payload(&self) -> &crate::EventPayload {
+        &self.event_payload
+    }
+
+    fn log(&self, _level: crate::LogLevel, _message: &str) {}
+}
+
+/// Run a guest through `invoke_with_context` with the mock host and return its value.
+#[allow(dead_code)] // Reason: used only by #[test] fns, which are stripped from the lib build
+async fn run_with_mock(source: &str) -> fraiseql_error::Result<serde_json::Value> {
     let module =
-        FunctionModule::from_source("test_query_op".to_string(), source, RuntimeType::Deno);
+        FunctionModule::from_source("mock_op".to_string(), source.to_string(), RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
-
-    let event = test_event();
-    let result = runtime
-        .invoke(
-            &module,
-            event.clone(),
-            &crate::host::NoopHostContext::new(event),
-            ResourceLimits::default(),
-        )
-        .await;
-
-    // Should execute successfully
-    assert!(result.is_ok(), "Query op call should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "Query op should return a value");
+    let host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext> =
+        std::sync::Arc::new(MockHostContext::new());
+    runtime
+        .invoke_with_context(&module, test_event(), host, ResourceLimits::default())
+        .await
+        .map(|r| r.value.unwrap_or(serde_json::Value::Null))
 }
 
-#[cfg(feature = "host-live")]
 #[tokio::test]
-async fn test_deno_guest_calls_http_request_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_http_request()
-    // Should receive HTTP response
-    let source = r"
-export default async (event) => {
-    // In real implementation:
-    // const response = await Deno.core.ops.fraiseql_http_request('GET', 'https://example.com', [], null);
-    return { http_test: true };
+async fn test_deno_op_http_request_reaches_host() {
+    // GET, no body — asserts the mock's echo comes back and the Uint8Array body
+    // decodes (String.fromCharCode avoids needing the deno_web TextDecoder).
+    let value = run_with_mock(
+        r"
+export default async () => {
+    const resp = await Deno.core.ops.fraiseql_http_request(
+        'GET', 'https://api.test/x', [['accept', 'application/json']], null);
+    return { status: resp.status, body: String.fromCharCode(...resp.body) };
 };
-"
-    .to_string();
+",
+    )
+    .await
+    .expect("http_request op should succeed");
 
-    let module = FunctionModule::from_source("test_http_op".to_string(), source, RuntimeType::Deno);
-    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
-        .expect("Failed to create DenoRuntime");
-
-    let event = test_event();
-    let result = runtime
-        .invoke(
-            &module,
-            event.clone(),
-            &crate::host::NoopHostContext::new(event),
-            ResourceLimits::default(),
-        )
-        .await;
-
-    assert!(result.is_ok(), "HTTP request op should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "HTTP op should return a value");
+    assert_eq!(value["status"], 200);
+    assert_eq!(value["body"], "GET https://api.test/x headers=1 body=0");
 }
 
-#[cfg(feature = "host-live")]
 #[tokio::test]
-async fn test_deno_guest_calls_storage_get_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_storage_get()
-    // Should receive bytes from storage
-    let source = r"
-export default async (event) => {
-    // In real implementation:
-    // const data = await Deno.core.ops.fraiseql_storage_get('bucket', 'key');
-    return { storage_get_test: true };
+async fn test_deno_op_http_request_sends_body() {
+    let value = run_with_mock(
+        r"
+export default async () => {
+    const resp = await Deno.core.ops.fraiseql_http_request(
+        'POST', 'https://api.test/x', [], new Uint8Array([1, 2, 3, 4, 5]));
+    return { body: String.fromCharCode(...resp.body) };
 };
-"
-    .to_string();
+",
+    )
+    .await
+    .expect("http_request op with body should succeed");
 
+    assert_eq!(value["body"], "POST https://api.test/x headers=0 body=5");
+}
+
+#[tokio::test]
+async fn test_deno_op_query_reaches_host() {
+    let value = run_with_mock(
+        r"
+export default async () => {
+    const raw = await Deno.core.ops.fraiseql_query('{ users { id } }', JSON.stringify({ limit: 5 }));
+    return JSON.parse(raw);
+};
+",
+    )
+    .await
+    .expect("query op should succeed");
+
+    assert_eq!(value["graphql"], "{ users { id } }");
+    assert_eq!(value["variables"]["limit"], 5);
+    assert_eq!(value["data"]["ok"], true);
+}
+
+#[tokio::test]
+async fn test_deno_op_storage_round_trip() {
+    let value = run_with_mock(
+        r"
+export default async () => {
+    await Deno.core.ops.fraiseql_storage_put('b', 'k', new Uint8Array([104, 105]), 'text/plain');
+    const data = await Deno.core.ops.fraiseql_storage_get('bucket', 'key');
+    return { got: String.fromCharCode(...data) };
+};
+",
+    )
+    .await
+    .expect("storage ops should succeed");
+
+    assert_eq!(value["got"], "stored:bucket/key");
+}
+
+#[tokio::test]
+async fn test_deno_op_auth_context_and_env_var() {
+    let value = run_with_mock(
+        r"
+export default async () => {
+    const auth = JSON.parse(Deno.core.ops.fraiseql_auth_context());
+    const key = Deno.core.ops.fraiseql_env_var('MODEL_KEY');
+    const missing = Deno.core.ops.fraiseql_env_var('DOES_NOT_EXIST');
+    return { user: auth.user_id, key, missing };
+};
+",
+    )
+    .await
+    .expect("auth/env ops should succeed");
+
+    assert_eq!(value["user"], "u123");
+    assert_eq!(value["key"], "sk-test");
+    assert_eq!(value["missing"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn test_deno_op_without_host_fails_loud() {
+    // On the sync `invoke` path there is no host: an I/O op must fail loud, not
+    // silently return empty data.
+    let source = r"
+export default async () => {
+    const resp = await Deno.core.ops.fraiseql_http_request('GET', 'https://x', [], null);
+    return { status: resp.status };
+};
+";
     let module =
-        FunctionModule::from_source("test_storage_get_op".to_string(), source, RuntimeType::Deno);
+        FunctionModule::from_source("no_host".to_string(), source.to_string(), RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
-
     let event = test_event();
     let result = runtime
         .invoke(
@@ -629,107 +752,10 @@ export default async (event) => {
         )
         .await;
 
-    assert!(result.is_ok(), "Storage get op should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "Storage get op should return a value");
-}
-
-#[cfg(feature = "host-live")]
-#[tokio::test]
-async fn test_deno_guest_calls_storage_put_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_storage_put()
-    let source = r"
-export default async (event) => {
-    // In real implementation:
-    // await Deno.core.ops.fraiseql_storage_put('bucket', 'key', data, 'text/plain');
-    return { storage_put_test: true };
-};
-"
-    .to_string();
-
-    let module =
-        FunctionModule::from_source("test_storage_put_op".to_string(), source, RuntimeType::Deno);
-    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
-        .expect("Failed to create DenoRuntime");
-
-    let event = test_event();
-    let result = runtime
-        .invoke(
-            &module,
-            event.clone(),
-            &crate::host::NoopHostContext::new(event),
-            ResourceLimits::default(),
-        )
-        .await;
-
-    assert!(result.is_ok(), "Storage put op should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "Storage put op should return a value");
-}
-
-#[cfg(feature = "host-live")]
-#[tokio::test]
-async fn test_deno_guest_calls_auth_context_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_auth_context()
-    // Should receive auth context JSON
-    let source = r"
-export default async (event) => {
-    // In real implementation:
-    // const auth = Deno.core.ops.fraiseql_auth_context();
-    return { auth_test: true };
-};
-"
-    .to_string();
-
-    let module = FunctionModule::from_source("test_auth_op".to_string(), source, RuntimeType::Deno);
-    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
-        .expect("Failed to create DenoRuntime");
-
-    let event = test_event();
-    let result = runtime
-        .invoke(
-            &module,
-            event.clone(),
-            &crate::host::NoopHostContext::new(event),
-            ResourceLimits::default(),
-        )
-        .await;
-
-    assert!(result.is_ok(), "Auth context op should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "Auth context op should return a value");
-}
-
-#[cfg(feature = "host-live")]
-#[tokio::test]
-async fn test_deno_guest_calls_env_var_op() {
-    // RED: JS calls Deno.core.ops.fraiseql_env_var()
-    // Should receive environment variable value or null
-    let source = r"
-export default async (event) => {
-    // In real implementation:
-    // const value = Deno.core.ops.fraiseql_env_var('TEST_VAR');
-    return { env_test: true };
-};
-"
-    .to_string();
-
-    let module =
-        FunctionModule::from_source("test_env_var_op".to_string(), source, RuntimeType::Deno);
-    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
-        .expect("Failed to create DenoRuntime");
-
-    let event = test_event();
-    let result = runtime
-        .invoke(
-            &module,
-            event.clone(),
-            &crate::host::NoopHostContext::new(event),
-            ResourceLimits::default(),
-        )
-        .await;
-
-    assert!(result.is_ok(), "Env var op should execute");
-    let result = result.unwrap();
-    assert!(result.value.is_some(), "Env var op should return a value");
+    assert!(result.is_err(), "host op on the no-host path must fail loud");
+    let msg = format!("{:?}", result.unwrap_err());
+    assert!(
+        msg.contains("host context unavailable"),
+        "error should explain the missing host context, got: {msg}"
+    );
 }

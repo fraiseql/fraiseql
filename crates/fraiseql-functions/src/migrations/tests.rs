@@ -5,7 +5,7 @@
 
 use sqlx::PgPool;
 
-use super::cron_migration_sql;
+use super::{cron_migration_sql, inbound_migration_sql};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -97,6 +97,70 @@ async fn test_cron_migration_creates_table() {
     .unwrap();
 
     assert!(exists, "table _fraiseql_cron_state must exist after migration");
+}
+
+/// Verify the inbound-spine DDL is syntactically complete and contains all
+/// expected columns and the dedup constraint. Runs without a database.
+#[test]
+fn test_inbound_migration_ddl_is_valid_sql() {
+    let ddl = inbound_migration_sql();
+
+    assert!(
+        ddl.contains("_fraiseql_inbound_message"),
+        "DDL must create _fraiseql_inbound_message table"
+    );
+    assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
+
+    for col in [
+        "pk_inbound_message",
+        "source",
+        "idempotency_key",
+        "thread_key",
+        "payload",
+        "received_at",
+        "created_at",
+    ] {
+        assert!(ddl.contains(col), "DDL must contain column: {col}");
+    }
+
+    // Dedup key is the at-least-once guarantee.
+    assert!(
+        ddl.contains("UNIQUE (source, idempotency_key)"),
+        "DDL must dedup on (source, idempotency_key)"
+    );
+    assert!(
+        ddl.contains("GENERATED ALWAYS AS IDENTITY"),
+        "pk must use GENERATED ALWAYS AS IDENTITY (Trinity pattern)"
+    );
+    assert!(ddl.contains("idx_inbound_message_thread"), "DDL must create thread_key index");
+    assert!(
+        ddl.contains("idx_inbound_message_received"),
+        "DDL must create received_at index"
+    );
+}
+
+/// Verify the inbound migration creates the table in a real PostgreSQL database.
+#[tokio::test]
+async fn test_inbound_migration_creates_table() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP test_inbound_migration_creates_table: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+
+    execute_ddl(&pool, inbound_migration_sql()).await;
+
+    let (exists,): (bool,) = sqlx::query_as(
+        "SELECT EXISTS (
+            SELECT 1 FROM pg_class WHERE relname = '_fraiseql_inbound_message'
+        )",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert!(exists, "table _fraiseql_inbound_message must exist after migration");
 }
 
 /// Verify the migration is idempotent — running it twice does not error.

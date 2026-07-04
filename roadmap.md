@@ -262,7 +262,7 @@ Second half of the audit campaign — a correctness sweep across auth, honest-fa
 - **Audit campaign close-out** — Phases 13–16 of the 2026-06-11 remediation: ops hardening (H46 unauthenticated `docker-compose.prod.yml` ports — security), quality sweep, coverage-gap follow-ups, finalize
 - **Auth foundation** — persistent identity store (#411) → Argon2id local-password authenticator (#412), unblocking magic links/TOTP/reset (#367), social OAuth (#368), SAML/SCIM (#381)
 - **Change-Spine / CDC** — WAL-tail CDC source (#366 follow-up), Change-Spine envelope delivery (#425), outbound CDC → Kafka/NATS/Kinesis (#382)
-- **Audit "make-it-real" deferrals** — federation distributed saga (#429), webhooks inbound receiver (#431), real observer transports (#428), allow-list-backed `redirect_uri` (#427)
+- **Audit "make-it-real" deferrals** — real observer transports (#428), allow-list-backed `redirect_uri` (#427). *Delivered since:* federation distributed saga (#429, closed); webhooks inbound receiver (#431) — now mounted behind the opt-in `inbound` feature as the first inbound-source adapter (push), with a poll-IMAP email adapter (pull) behind `inbound-email`.
 - **Hard deadline** — `rustls-0.21` (via opt-in `aws-s3`) reaches EOL 2026-09-01; needs a `hyper-rustls-0.27` `HttpClient` swap before then (accepted in `deny.toml` until the deadline)
 
 See `.phases/2026-06-11-audit-remediation/` and `.phases/2026-05-31-release-train/track-3-enhancements/ROADMAP.md` for detailed plans.

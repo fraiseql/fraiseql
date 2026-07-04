@@ -47,6 +47,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_functions(app);
         }
 
+        // Inbound webhook receiver (POST /webhooks/{provider})
+        #[cfg(feature = "inbound")]
+        {
+            app = self.add_inbound_routes(app, state);
+        }
+
         // REST transport (read-only GET + SSE routes)
         #[cfg(feature = "rest")]
         {
@@ -89,6 +95,43 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         app
+    }
+
+    /// Mount the inbound webhook receiver at `POST /webhooks/{provider}`.
+    ///
+    /// Requires a database pool (the receiver pipeline is Postgres-backed) and at
+    /// least one `[webhooks.*]` route; otherwise the receiver is not mounted. The
+    /// spine and idempotency tables are created at startup in
+    /// [`serve_with_shutdown`](Server::serve_with_shutdown). The function-dispatch
+    /// hooks from `state` are attached so a persisted message fires its
+    /// `after:ingest` functions.
+    #[cfg(feature = "inbound")]
+    fn add_inbound_routes(&self, app: Router, state: &AppState<A>) -> Router {
+        let Some(ref db_pool) = self.db_pool else {
+            if !self.config.webhooks.is_empty() {
+                tracing::error!(
+                    "Inbound webhook routes NOT mounted — a database pool is required but none is configured"
+                );
+            }
+            return app;
+        };
+        if self.config.webhooks.is_empty() {
+            return app;
+        }
+
+        let mut inbound_state = crate::inbound::WebhookInboundState::new(
+            db_pool.clone(),
+            &self.config.webhooks,
+            |name| std::env::var(name).ok(),
+        );
+        if let Some(ref hooks) = state.before_mutation_hooks {
+            inbound_state = inbound_state.with_hooks(std::sync::Arc::clone(hooks));
+        }
+        info!(
+            routes = self.config.webhooks.len(),
+            "Inbound webhook routes mounted at POST /webhooks/{{provider}}"
+        );
+        app.merge(crate::inbound::webhook_router(inbound_state))
     }
 
     #[cfg(feature = "mcp")]

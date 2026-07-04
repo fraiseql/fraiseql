@@ -106,6 +106,15 @@ serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha1 = "0.11"
 sha2 = "0.11"
+# Poll-IMAP email adapter (opt-in `inbound-email`) — async IMAP client over
+# rustls (no OpenSSL). MIME normalization lives in fraiseql-functions; these pull
+# only the transport. webpki-roots + tokio-rustls are already in the workspace
+# tree (via tokio-tungstenite), so this adds no new TLS stack.
+async-imap = {version = "0.11", default-features = false, features = ["runtime-tokio"], optional = true}
+# ring provider explicitly (both ring and aws-lc-rs are in the tree; picking one
+# avoids the rustls process-default-provider ambiguity panic).
+tokio-rustls = {version = "0.26", default-features = false, features = ["ring", "tls12", "logging"], optional = true}
+webpki-roots = {version = "0.26", optional = true}
 # Database
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 # Constant-time comparison (timing attack prevention)
@@ -182,8 +191,43 @@ functions = []
 # mutation; without it the dispatch step is compiled out.
 functions-runtime = [
     "functions",
+    # Durable dispatch (retry + dead-letter) reuses the fraiseql-observers DLQ
+    # trait + the server's InMemoryDlq store, so running after:mutation functions
+    # pulls the observer subsystem in. fraiseql-functions already depends on
+    # fraiseql-observers transitively, so this only enables direct naming here.
+    "observers",
     "fraiseql-functions/runtime-wasm",
     "fraiseql-functions/host-live",
+]
+# TypeScript/JavaScript function runtime (Deno/V8), additive to `functions-runtime`.
+# Lets `after:mutation` (and future `after:ingest`) functions be authored in
+# TypeScript with the same I/O-capable host surface as WASM. Kept a separate
+# opt-in because it pulls in V8 (~30 MB) and lengthens compile time; a
+# batteries-included default build is a planned follow-up. The embedder still
+# registers the runtime on the observer (`observer.register_runtime(RuntimeType::Deno, ...)`).
+functions-runtime-deno = [
+    "functions-runtime",
+    "fraiseql-functions/runtime-deno",
+]
+# Inbound ingestion as a source (continues #431). Mounts the fraiseql-webhooks
+# receiver as the first push `Source`,
+# normalizes each verified delivery to a durable `InboundMessage` on the inbound
+# spine, and fires `after:ingest[:<source>]` functions on the same I/O-capable
+# host context as `after:mutation`. Pulls `functions-runtime` (the dispatch +
+# host path, and the observer DLQ it reuses) and `webhooks` (the receiver
+# pipeline). Opt-in: without it the whole inbound path is compiled out.
+inbound = ["functions-runtime", "webhooks"]
+# Poll-IMAP email adapter — the first PULL inbound source, additive to `inbound`.
+# Fetches new messages by UID watermark (no
+# IMAP-IDLE), normalizes MIME to a durable `InboundMessage` via the shared
+# fraiseql-functions layer, and fires `after:ingest:email`. Opt-in: pulls the
+# async IMAP client (its `runtime-tokio` mode speaks tokio's AsyncRead/Write, so
+# the tokio-rustls TLS stream is used directly, no compat shim).
+inbound-email = [
+    "inbound",
+    "dep:async-imap",
+    "dep:tokio-rustls",
+    "dep:webpki-roots",
 ]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.

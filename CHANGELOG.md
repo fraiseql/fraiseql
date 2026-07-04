@@ -9,6 +9,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
+  sidecar's compute is now native TypeScript,
+  proving the host surface against a real workload. Four `examples/native-functions`
+  are the migrated workload, each driven end-to-end through the Deno runtime
+  against a recording host: `deal-scoring.ts` (LLM scoring **+ next-action** on the
+  fire-and-forget re-runnable path); `qonto-sync.ts` (money path on the **durable**
+  dispatcher, with a deterministic invoice-derived idempotency key so at-least-once
+  dispatch never double-charges, and fail-loud on any non-2xx); `follow-up-email.ts`
+  (**per-user** send — the `from` comes only from the connected user's verified
+  address in `auth_context`, never a shared mailbox, and a missing address fails
+  loud); and `reply-awareness.ts` (`after:ingest:email`) **proven end-to-end
+  against a fixture mailbox** — real `.eml` fixtures run through the real
+  normalization + classification + dispatch-payload builder, where only a *human*
+  reply stops the sequence and out-of-office / bounce / auto-generated mail is
+  ignored (the live end-to-end proof of the inbound-email path). The per-user send rule is a pure,
+  fail-loud policy `fraiseql_functions::outbound::resolve_sender_identity`, and the
+  live host's `auth_context` now surfaces the connected user's verified `email` /
+  `display_name`. A first-class `send_email` host op (host-owned `from`) over a
+  concrete SMTP/provider transport, and real TypeScript type-stripping, are
+  documented follow-ups for a planned hardening train — see
+  `docs/architecture/native-runtime-ergonomics.md`.
+- **Poll-IMAP email adapter + normalization.**
+  The first *pull* inbound source, riding the inbound-source primitive. Behind the
+  opt-in `inbound-email` feature, each configured `[imap.<name>]` mailbox runs a
+  background poll worker (no IMAP-IDLE — *stateless with a cursor*) that fetches
+  messages above a per-mailbox `UIDVALIDITY`/`UID` watermark
+  (`_fraiseql_inbound_email_cursor`), normalizes their MIME, emits them onto the
+  same durable spine as the webhook adapter, and fires `after:ingest:email`
+  functions. Transport is IMAPS over rustls (no OpenSSL); `BODY.PEEK[]` means
+  polling never marks mail `\Seen`. The high-value **normalization layer** is pure
+  and lives in `fraiseql-functions` (always compiled, unit-tested): MIME headers,
+  text/HTML bodies, attachments (streamed to `[storage]`, with the raw message
+  retained for replay), threading (`Message-ID`/`In-Reply-To`/`References` →
+  `thread_key`), dedup by `Message-ID`, and a `Classification`
+  (human / out-of-office / bounce / challenge / auto-generated) that reply-awareness
+  keys on — with loop protection via `Auto-Submitted` / `Precedence` / list
+  headers. The cursor advances only past committed messages, so a transient
+  failure or a `UIDVALIDITY` reset re-fetches and the spine's `Message-ID` dedup
+  makes it idempotent (at-least-once). Sending stays per-user. Attachment
+  size/type limits, virus scanning, and `StorageState` wiring remain follow-ups.
+- **Inbound ingestion as a source (continues #431).** The symmetric mirror of the
+  outbound observer→signed-webhook path: an
+  external message becomes a normalized `InboundMessage` on a durable spine that
+  `after:ingest[:<source>]` functions consume. A `Source` trait models both push
+  (ack-based, e.g. a provider webhook) and pull (cursor-based, e.g. poll-IMAP)
+  adapters; the shared normalization above transport (idempotency/thread keys,
+  bodies, attachments, routing) lives once in `InboundMessage`. The
+  `fraiseql-webhooks` receiver — previously verified-but-unmounted — is now
+  mounted as the first push adapter behind the opt-in `inbound` feature:
+  `POST /webhooks/{provider}` verifies the signature via the existing pipeline,
+  normalizes the delivery, and persists it onto the spine
+  (`_fraiseql_inbound_message`, deduplicated by `(source, idempotency_key)`)
+  *inside the receiver transaction*, so persistence is atomic with the
+  idempotency claim and `after:ingest` dispatch is at-least-once. Normalized
+  messages fire `after:ingest[:<source>]` functions on the same I/O-capable host
+  context as `after:mutation`, reusing the durable dispatch path (retry +
+  dead-letter, tagged `DispatchSource::AfterIngest`). A declared routing rule
+  (`resolve_routing` — dedicated address + plus-tag, e.g.
+  `support+ticket-42@…` → `Ticket`/`42`) maps a message to an entity; a resolver
+  function is available for free since `after:ingest` handlers receive the whole
+  message. Poll-IMAP email is the first pull adapter, in a later phase.
+
+- **`after:mutation` function dispatch is now durable (retry + dead-letter).**
+  Previously fire-and-forget — a transient failure silently dropped the
+  invocation — dispatch is now durable by default: a transient failure (5xx,
+  timeout, execution error; a `4xx` client error is treated as permanent) is
+  retried with backoff, and once retries are exhausted the invocation is pushed
+  to a dead-letter queue where it is inspectable (`function_dlq_count` on the
+  observer delivery-health endpoint) and replayable, so money- and send-path
+  work is never silently lost. A function can opt out into fire-and-forget with
+  `re_runnable = true` for re-runnable/idempotent work (e.g. LLM scoring). The
+  retry policy round-trips per-function from the compiled schema
+  (`FunctionDefinition.retry`), with `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS`,
+  `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS`,
+  `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS`, and `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`
+  environment overrides. Reuses the observer subsystem's retry/backoff and
+  dead-letter-queue machinery (shared `DispatchPolicy`, extended
+  `DeadLetterQueue` trait) rather than a parallel implementation; running
+  after:mutation functions (`functions-runtime`) therefore now compiles the
+  `observers` subsystem. See ADR 0015 for the durable-by-default rationale.
+
+- **TypeScript/JavaScript functions reach the full I/O-capable host surface.**
+  `FunctionObserver::invoke_with_context`
+  now dispatches by the module's runtime (WASM **or** Deno) instead of a hardwired
+  WASM lookup, and the Deno runtime gained `invoke_with_context` plus the async
+  host ops (`fraiseql_query`, `fraiseql_sql_query`, `fraiseql_http_request`,
+  `fraiseql_storage_get`/`_put`, `fraiseql_auth_context`, `fraiseql_env_var`), so a
+  TS `after:mutation` function can make SSRF-allowlisted outbound HTTP calls, run
+  GraphQL queries, read storage and secrets, and write results back — at parity
+  with WASM. Both backends share one `DynHostContext` bridge (hoisted to
+  `fraiseql_functions::host::dyn_context`), so the SSRF/validation policy is defined
+  once. A host op invoked without a live host context (the sync `invoke` path) fails
+  loud rather than returning empty data. New opt-in server feature
+  `functions-runtime-deno` builds the runtime in; the embedder registers it on the
+  observer. (The isolate executes JavaScript today — TypeScript type-stripping
+  transpilation is a tracked follow-up.)
+
 - **Saga steps can pre-fetch cross-subgraph `@requires` fields under
   `saga` (#429).** A saga step may declare `RequiredField` specs
   (`SagaCoordinatorStep::with_required_fields`): before the step's mutation runs,

@@ -73,11 +73,7 @@ fn test_platform_e2e_before_mutation_hooks_construction() {
     let observer = Arc::new(FunctionObserver::new());
     let module_registry: HashMap<String, FunctionModule> = HashMap::new();
 
-    let hooks = BeforeMutationHooks {
-        trigger_registry: registry,
-        module_registry,
-        observer,
-    };
+    let hooks = BeforeMutationHooks::new(registry, module_registry, observer);
 
     assert!(
         hooks.trigger_registry.before_chain("createUser").is_some(),
@@ -162,11 +158,7 @@ fn test_platform_e2e_before_mutation_chain_finds_correct_triggers() {
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
     let observer = Arc::new(FunctionObserver::new());
 
-    let hooks = BeforeMutationHooks {
-        trigger_registry: registry,
-        module_registry: HashMap::new(),
-        observer,
-    };
+    let hooks = BeforeMutationHooks::new(registry, HashMap::new(), observer);
 
     // createUser has 2 triggers
     let chain = hooks.trigger_registry.before_chain("createUser");

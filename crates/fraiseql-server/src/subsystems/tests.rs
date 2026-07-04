@@ -144,6 +144,37 @@ fn test_server_state_without_functions() {
     assert!(subsystems.functions.is_none());
 }
 
+#[cfg(feature = "functions-runtime")]
+#[test]
+fn into_before_mutation_hooks_resolves_dispatch_settings() {
+    // The subsystem → hooks seam resolves per-function durable-dispatch settings
+    // from the compiled schema and stands up the shared dead-letter queue.
+    let config = FunctionsConfig {
+        module_dir:  "/functions".into(),
+        definitions: vec![
+            FunctionDefinition::new("chargeCard", "after:mutation:Order:insert", RuntimeType::Wasm),
+            FunctionDefinition::new("scoreDeal", "after:mutation:Deal:insert", RuntimeType::Wasm)
+                .re_runnable(),
+        ],
+    };
+    let trigger_registry = TriggerRegistry::load_from_definitions(&config.definitions).unwrap();
+    let subsystem = FunctionsSubsystem {
+        observer: Arc::new(FunctionObserver::new()),
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
+
+    let hooks = subsystem.into_before_mutation_hooks();
+
+    assert_eq!(hooks.dispatch_settings.len(), 2, "one setting per function definition");
+    assert!(
+        hooks.dispatch_settings["scoreDeal"].re_runnable,
+        "re_runnable resolved from schema"
+    );
+    assert!(!hooks.dispatch_settings["chargeCard"].re_runnable);
+}
+
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
 #[test]

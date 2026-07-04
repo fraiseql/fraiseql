@@ -303,7 +303,7 @@ fn default_ready_path() -> String {
 }
 
 /// Configuration for a single incoming webhook route.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
     pub secret_env: String,

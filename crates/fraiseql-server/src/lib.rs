@@ -207,6 +207,10 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
+// Inbound ingestion as a source - optional
+#[cfg(feature = "inbound")]
+pub mod inbound;
+
 // Connection pool management and auto-tuning
 pub mod pool;
 

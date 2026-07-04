@@ -88,6 +88,9 @@ var featureCombos = []featureCombo{
 	{name: "server-gcs", crate: "fraiseql-server", features: []string{"gcs"}},
 	{name: "server-metrics-observers", crate: "fraiseql-server", features: []string{"metrics", "observers"}},
 	{name: "server-webhooks-auth", crate: "fraiseql-server", features: []string{"webhooks", "auth"}},
+	// Poll-IMAP email adapter: pulls async-imap + a rustls
+	// TLS transport, so clippy it in isolation to catch feature-gating regressions.
+	{name: "server-inbound-email", crate: "fraiseql-server", clippy: true, features: []string{"inbound-email"}},
 	{name: "server-otel", crate: "fraiseql-server", features: []string{"tracing-opentelemetry"}},
 	{name: "server-functions-rest-testing", crate: "fraiseql-server", features: []string{"functions", "rest", "testing"}},
 	{name: "server-kitchen-sink", crate: "fraiseql-server", features: []string{"auth", "observers", "secrets", "federation"}},

@@ -10,7 +10,9 @@
 //!
 //! Each execution:
 //! 1. Creates a new V8 isolate with memory and timeout limits
-//! 2. Loads the function source (JS/TS, transpiled on-the-fly)
+//! 2. Loads the function source. The isolate executes `JavaScript`; `TypeScript` without type
+//!    annotations runs as-is, but full TS type-stripping transpilation is a tracked follow-up
+//!    (`enable_typescript` is not yet wired).
 //! 3. Calls the default export with the event as a JS object
 //! 4. Captures logs and enforces resource limits throughout
 //! 5. Properly cleans up the isolate after execution
@@ -19,10 +21,22 @@ pub mod executor;
 pub mod ops;
 pub mod tests;
 
+#[cfg(test)]
+mod follow_up_tests;
+#[cfg(test)]
+mod qonto_tests;
+#[cfg(test)]
+mod reply_awareness_tests;
+#[cfg(test)]
+mod scoring_tests;
+
+use std::sync::Arc;
+
 use fraiseql_error::Result;
 
 use crate::{
     HostContext,
+    host::dyn_context::DynHostContext,
     runtime::FunctionRuntime,
     types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits},
 };
@@ -92,7 +106,9 @@ function fraiseql_log(level: number, message: string): void;
 /// Allows tuning of the V8 engine for performance and feature support.
 #[derive(Debug, Clone)]
 pub struct DenoConfig {
-    /// Enable `TypeScript` support (built-in transpiler).
+    /// Intended to enable `TypeScript` type-stripping transpilation. Not yet
+    /// wired — the isolate currently executes `JavaScript` (TS without type
+    /// annotations runs as-is). Tracked as a follow-up.
     pub enable_typescript: bool,
     /// Additional V8 flags (e.g., "--expose-gc").
     pub v8_flags:          Vec<String>,
@@ -137,6 +153,84 @@ impl DenoRuntime {
             config: config.clone(),
         })
     }
+
+    /// Execute a `JavaScript`/`TypeScript` module with a full I/O-capable host context.
+    ///
+    /// Unlike [`FunctionRuntime::invoke`] — which runs the guest with no host, so
+    /// the `Deno.core.ops.fraiseql_*` I/O ops fail loud — this threads a live
+    /// [`DynHostContext`] into the V8 op-state, giving the guest outbound HTTP,
+    /// GraphQL `query`, storage, `env_var`, and `auth_context` at parity with the
+    /// WASM [`invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context)
+    /// path. The after:mutation dispatcher uses this so side-effecting `TypeScript`
+    /// functions can reach the network.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` on syntax errors, runtime exceptions, resource-limit
+    /// violations, or a host op that fails (e.g. an SSRF-blocked request).
+    pub async fn invoke_with_context(
+        &self,
+        module: &FunctionModule,
+        event: EventPayload,
+        host_context: Arc<dyn DynHostContext>,
+        limits: ResourceLimits,
+    ) -> Result<FunctionResult> {
+        run_guest(module, event, limits, Some(host_context)).await
+    }
+}
+
+/// Run a guest module on a dedicated OS thread (with its own single-threaded Tokio
+/// runtime for deno's event loop), optionally wiring a live host context into the
+/// op-state. Shared by [`FunctionRuntime::invoke`] (no host) and
+/// [`DenoRuntime::invoke_with_context`] (live host).
+fn run_guest(
+    module: &FunctionModule,
+    event: EventPayload,
+    limits: ResourceLimits,
+    host: Option<Arc<dyn DynHostContext>>,
+) -> impl std::future::Future<Output = Result<FunctionResult>> + Send {
+    let source = String::from_utf8_lossy(&module.bytecode).to_string();
+    // Functions receive the entity data, not the full internal EventPayload.
+    let event_data = event.data;
+
+    async move {
+        let start = std::time::Instant::now();
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<
+            std::result::Result<executor::ExecutionResult, String>,
+        >();
+
+        std::thread::spawn(move || {
+            let result = executor::run_in_dedicated_thread(&source, &event_data, &limits, host);
+            let _ = tx.send(result);
+        });
+
+        let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
+            message: "Deno executor thread crashed".to_string(),
+            source:  None,
+        })?;
+
+        // Measure AFTER the executor thread completes (M-deno-duration). Taking
+        // the elapsed time right after spawning measured only channel setup,
+        // not the actual script execution awaited on `rx`.
+        let duration = start.elapsed();
+
+        match exec_result {
+            Ok(execution_result) => Ok(FunctionResult {
+                value: Some(execution_result.value),
+                logs: execution_result.logs,
+                duration,
+                memory_peak_bytes: 0,
+            }),
+            Err(e) if e.starts_with("SyntaxError") => {
+                Err(fraiseql_error::FraiseQLError::Validation {
+                    message: e,
+                    path:    None,
+                })
+            },
+            Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),
+        }
+    }
 }
 
 impl FunctionRuntime for DenoRuntime {
@@ -163,48 +257,10 @@ impl FunctionRuntime for DenoRuntime {
     where
         H: HostContext + ?Sized,
     {
-        let source = String::from_utf8_lossy(&module.bytecode).to_string();
-        // Functions receive the entity data, not the full internal EventPayload.
-        let event_data = event.data;
-
-        async move {
-            let start = std::time::Instant::now();
-
-            let (tx, rx) = tokio::sync::oneshot::channel::<
-                std::result::Result<executor::ExecutionResult, String>,
-            >();
-
-            std::thread::spawn(move || {
-                let result = executor::run_in_dedicated_thread(&source, &event_data, &limits);
-                let _ = tx.send(result);
-            });
-
-            let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
-                message: "Deno executor thread crashed".to_string(),
-                source:  None,
-            })?;
-
-            // Measure AFTER the executor thread completes (M-deno-duration). Taking
-            // the elapsed time right after spawning measured only channel setup,
-            // not the actual script execution awaited on `rx`.
-            let duration = start.elapsed();
-
-            match exec_result {
-                Ok(execution_result) => Ok(FunctionResult {
-                    value: Some(execution_result.value),
-                    logs: execution_result.logs,
-                    duration,
-                    memory_peak_bytes: 0,
-                }),
-                Err(e) if e.starts_with("SyntaxError") => {
-                    Err(fraiseql_error::FraiseQLError::Validation {
-                        message: e,
-                        path:    None,
-                    })
-                },
-                Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),
-            }
-        }
+        // The sync `invoke` path provides no live host: the guest may log and
+        // transform data, but any `fraiseql_*` I/O op fails loud. Use
+        // `invoke_with_context` for outbound HTTP / query / storage.
+        run_guest(module, event, limits, None)
     }
 
     fn supported_extensions(&self) -> &[&str] {

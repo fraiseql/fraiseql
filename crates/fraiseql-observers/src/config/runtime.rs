@@ -213,6 +213,51 @@ impl Default for RetryConfig {
     }
 }
 
+impl RetryConfig {
+    /// Compute the backoff delay to wait *before* the retry that follows a failed
+    /// `attempt` (1-based).
+    ///
+    /// This is the single source of truth for backoff timing, shared by the
+    /// observer executor (`ObserverExecutor::calculate_backoff` delegates to it)
+    /// and the function-dispatch driver ([`crate::dispatch::run_with_retry`]) so
+    /// both subsystems age retries identically.
+    ///
+    /// - `Exponential`: `2^(attempt-1) * initial_delay`, capped at `max_delay`, with ±25% jitter to
+    ///   break up thundering-herd retry storms across instances sharing an endpoint. Overflow-safe
+    ///   (`saturating_*`).
+    /// - `Linear`: `attempt * initial_delay`, capped at `max_delay`.
+    /// - `Fixed`: always `initial_delay`.
+    #[must_use]
+    pub fn backoff_delay(&self, attempt: u32) -> std::time::Duration {
+        use rand::Rng;
+
+        let delay_ms = match self.backoff_strategy {
+            BackoffStrategy::Exponential => {
+                let exponent = attempt.saturating_sub(1);
+                let base_delay = self
+                    .initial_delay_ms
+                    .saturating_mul(2_u64.saturating_pow(exponent))
+                    .min(self.max_delay_ms);
+                // jitter: ±25% of base_delay
+                let jitter_range = base_delay / 4;
+                if jitter_range > 0 {
+                    let jitter = rand::rng().random_range(0..=jitter_range.saturating_mul(2));
+                    base_delay.saturating_add(jitter).saturating_sub(jitter_range)
+                } else {
+                    base_delay
+                }
+            },
+            BackoffStrategy::Linear => {
+                let base_delay = self.initial_delay_ms.saturating_mul(u64::from(attempt));
+                base_delay.min(self.max_delay_ms)
+            },
+            BackoffStrategy::Fixed => self.initial_delay_ms,
+        };
+
+        std::time::Duration::from_millis(delay_ms)
+    }
+}
+
 const fn default_max_attempts() -> u32 {
     3
 }

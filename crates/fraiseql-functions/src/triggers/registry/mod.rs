@@ -9,6 +9,7 @@ use crate::{
     FunctionDefinition,
     triggers::{
         http::{HttpTriggerMatcher, HttpTriggerRoute},
+        ingest::{InboundMessage, IngestSource, IngestTrigger},
         mutation::{AfterMutationTrigger, BeforeMutationTrigger, TriggerMatcher},
     },
 };
@@ -49,6 +50,12 @@ pub enum ParsedTrigger {
         bucket:    String,
         /// Operation: "upload", "delete", or "all".
         operation: String,
+    },
+    /// After ingest: `after:ingest[:<source>]` (e.g. `after:ingest:webhook:stripe`).
+    AfterIngest {
+        /// Source discriminant (`webhook:<provider>` / `email`); `None` matches
+        /// every source.
+        source: Option<String>,
     },
     /// Cron: `cron:<expression>`
     Cron {
@@ -95,6 +102,16 @@ impl ParsedTrigger {
                 let operation = parts[3].to_string();
                 Ok(ParsedTrigger::AfterStorage { bucket, operation })
             },
+            Some("after") if parts.len() >= 2 && parts[1] == "ingest" => {
+                // The source discriminant may itself contain a colon
+                // (`webhook:stripe`), so rejoin everything past `after:ingest`.
+                let source = if parts.len() > 2 {
+                    Some(parts[2..].join(":"))
+                } else {
+                    None
+                };
+                Ok(ParsedTrigger::AfterIngest { source })
+            },
             Some("cron") if parts.len() >= 2 => {
                 // Cron expressions can have colons in them (e.g., "cron:0 2 * * * :30")
                 // So we need to rejoin the remaining parts
@@ -119,6 +136,7 @@ impl ParsedTrigger {
             ParsedTrigger::AfterMutation { .. } => "after:mutation",
             ParsedTrigger::BeforeMutation { .. } => "before:mutation",
             ParsedTrigger::AfterStorage { .. } => "after:storage",
+            ParsedTrigger::AfterIngest { .. } => "after:ingest",
             ParsedTrigger::Cron { .. } => "cron",
             ParsedTrigger::Http { .. } => "http",
         }
@@ -153,6 +171,12 @@ impl ParsedTrigger {
     pub const fn is_after_storage(&self) -> bool {
         matches!(self, ParsedTrigger::AfterStorage { .. })
     }
+
+    /// Check if this is an after:ingest trigger.
+    #[must_use]
+    pub const fn is_after_ingest(&self) -> bool {
+        matches!(self, ParsedTrigger::AfterIngest { .. })
+    }
 }
 
 /// Central registry for all triggers in the system.
@@ -166,6 +190,8 @@ pub struct TriggerRegistry {
     pub http_routes:              HttpTriggerMatcher,
     /// Cron-scheduled triggers.
     pub cron_triggers:            Vec<crate::triggers::cron::CronTrigger>,
+    /// `after:ingest` triggers for inbound-message ingestion.
+    pub ingest_triggers:          Vec<IngestTrigger>,
     /// Total function definitions loaded.
     pub function_count:           usize,
 }
@@ -231,6 +257,25 @@ impl TriggerRegistry {
                         message: "after:storage triggers not yet implemented".to_string(),
                     });
                 },
+                ParsedTrigger::AfterIngest { source } => {
+                    // A `None` source matches every inbound source; a named source
+                    // must be a recognised discriminant (fail loud otherwise).
+                    let source = match source {
+                        None => None,
+                        Some(key) => {
+                            Some(IngestSource::from_key(&key).ok_or_else(|| RegistryError {
+                                message: format!(
+                                    "unknown after:ingest source '{key}' (expected \
+                                     'email' or 'webhook:<provider>')"
+                                ),
+                            })?)
+                        },
+                    };
+                    registry.ingest_triggers.push(IngestTrigger {
+                        function_name: func.name.clone(),
+                        source,
+                    });
+                },
                 ParsedTrigger::Cron { expression } => {
                     let trigger = crate::triggers::cron::CronTrigger {
                         function_name: func.name.clone(),
@@ -262,6 +307,26 @@ impl TriggerRegistry {
     #[must_use]
     pub const fn cron_trigger_count(&self) -> usize {
         self.cron_triggers.len()
+    }
+
+    /// Get the number of `after:ingest` triggers.
+    #[must_use]
+    pub const fn ingest_trigger_count(&self) -> usize {
+        self.ingest_triggers.len()
+    }
+
+    /// Find all `after:ingest` triggers matching the given inbound message.
+    ///
+    /// A source-agnostic trigger (`after:ingest`) matches every message; a
+    /// source-specific one (`after:ingest:webhook:stripe`) matches only its
+    /// source.
+    #[must_use]
+    pub fn find_ingest_triggers(&self, message: &InboundMessage) -> Vec<IngestTrigger> {
+        self.ingest_triggers
+            .iter()
+            .filter(|trigger| trigger.matches(message))
+            .cloned()
+            .collect()
     }
 
     /// Build a [`CronScheduler`] from all registered cron triggers.

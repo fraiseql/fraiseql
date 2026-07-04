@@ -1217,20 +1217,33 @@ async fn write_observer_log(
 /// mutex, so there is no separate-atomic TOCTOU.
 pub(crate) struct InMemoryDlq {
     items:          std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
+    /// Function-trigger dispatch failures (after:mutation and future
+    /// after:ingest), kept in the same store as observer-action failures but in a
+    /// separate typed collection because they carry a
+    /// [`FunctionDispatchRecord`](fraiseql_observers::FunctionDispatchRecord)
+    /// rather than an `EntityEvent` + `ActionConfig`. Same size-cap policy.
+    function_items: std::sync::Mutex<Vec<fraiseql_observers::FunctionDispatchRecord>>,
     /// Maximum retained entries; `None` = unbounded (back-compat default).
     max_size:       Option<usize>,
     /// Count of entries dropped because the DLQ was at capacity (drop-newest).
+    /// Shared across observer-action and function-dispatch entries.
     overflow_count: std::sync::atomic::AtomicUsize,
 }
 
 impl InMemoryDlq {
     /// Create a DLQ with an optional retention cap (`None` = unbounded).
-    const fn new_with_max(max_size: Option<usize>) -> Self {
+    pub(crate) const fn new_with_max(max_size: Option<usize>) -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
+            function_items: std::sync::Mutex::new(Vec::new()),
             max_size,
             overflow_count: std::sync::atomic::AtomicUsize::new(0),
         }
+    }
+
+    /// Returns the number of function-dispatch entries currently in the DLQ.
+    pub(crate) fn function_count(&self) -> usize {
+        self.function_items.lock().expect("function_items mutex poisoned").len()
     }
 
     /// Returns the number of items currently in the DLQ.
@@ -1361,5 +1374,44 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
             item.error_message = error.to_string();
         }
         Ok(())
+    }
+
+    async fn push_function(
+        &self,
+        record: fraiseql_observers::FunctionDispatchRecord,
+    ) -> fraiseql_observers::Result<uuid::Uuid> {
+        let id = record.id;
+        let mut items = self.function_items.lock().expect("function_items mutex poisoned");
+
+        // Drop-newest when at capacity, mirroring `push` and the library policy
+        // so `max_dlq_size` means the same thing for function dispatches.
+        if let Some(max) = self.max_size {
+            if items.len() >= max {
+                warn!(
+                    max_dlq_size = max,
+                    function = %record.function_name,
+                    trigger = %record.trigger_type,
+                    "DLQ full; dropping failed function dispatch entry"
+                );
+                self.overflow_count.fetch_add(1, Ordering::Relaxed);
+                // Drop the newest entry: it is intentionally not stored.
+                return Ok(id);
+            }
+        }
+
+        items.push(record);
+        Ok(id)
+    }
+
+    async fn get_pending_functions(
+        &self,
+        limit: i64,
+    ) -> fraiseql_observers::Result<Vec<fraiseql_observers::FunctionDispatchRecord>> {
+        let items = self.function_items.lock().expect("function_items mutex poisoned");
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values
+        // wrap to 0 safely
+        let limit_usize = limit as usize;
+        Ok(items.iter().take(limit_usize).cloned().collect())
     }
 }

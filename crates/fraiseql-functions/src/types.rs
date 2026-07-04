@@ -94,6 +94,28 @@ pub struct FunctionDefinition {
     /// - For `before:mutation` triggers: defaults to 500ms
     /// - For other triggers: defaults to 5s
     pub timeout_ms: Option<u64>,
+
+    /// Fire-and-forget opt-out for durable dispatch.
+    ///
+    /// After-mutation function dispatch is durable by default: a transient
+    /// failure is retried with backoff and, once retries are exhausted, the
+    /// invocation is dead-lettered so money- and send-path work is never
+    /// silently lost. Set `re_runnable = true` for work that is safe to simply
+    /// re-run later (e.g. LLM scoring) — such dispatch stays fire-and-forget with
+    /// no retry or dead-letter overhead. See ADR 0015 for the rationale.
+    #[serde(default)]
+    pub re_runnable: bool,
+
+    /// Per-function retry policy for durable dispatch.
+    ///
+    /// `None` uses the server default (overridable via `FRAISEQL_FUNCTIONS_RETRY_*`
+    /// environment variables). Ignored when [`re_runnable`](Self::re_runnable) is
+    /// `true`. Reuses the observer subsystem's [`RetryConfig`] so retry semantics
+    /// are identical across both subsystems.
+    ///
+    /// [`RetryConfig`]: fraiseql_observers::RetryConfig
+    #[serde(default)]
+    pub retry: Option<fraiseql_observers::RetryConfig>,
 }
 
 impl FunctionDefinition {
@@ -105,7 +127,18 @@ impl FunctionDefinition {
             trigger: trigger.to_string(),
             runtime,
             timeout_ms: None,
+            re_runnable: false,
+            retry: None,
         }
+    }
+
+    /// Mark this function as re-runnable (fire-and-forget) dispatch.
+    ///
+    /// See [`re_runnable`](Self::re_runnable) and ADR 0015.
+    #[must_use]
+    pub const fn re_runnable(mut self) -> Self {
+        self.re_runnable = true;
+        self
     }
 
     /// Set a custom timeout for this function.
@@ -147,6 +180,12 @@ impl FunctionDefinition {
     #[must_use]
     pub fn is_after_storage(&self) -> bool {
         self.trigger.starts_with("after:storage:")
+    }
+
+    /// Check if this function is an after:ingest trigger.
+    #[must_use]
+    pub fn is_after_ingest(&self) -> bool {
+        self.trigger == "after:ingest" || self.trigger.starts_with("after:ingest:")
     }
 
     /// Check if this function is a cron trigger.
@@ -220,3 +259,6 @@ impl Default for ResourceLimits {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

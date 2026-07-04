@@ -29,6 +29,12 @@ trait-variant = "0.1"
 chrono = {workspace = true}
 hex.workspace = true
 sha2.workspace = true
+# Pure MIME/RFC5322 email parsing for the inbound email-normalization layer
+# (headers, text/HTML bodies, attachments, threading). Non-optional so the
+# normalization is always compiled and unit-tested in the fast lib leg; it does
+# no network I/O. `full_encoding` decodes legacy charsets to UTF-8 (encoding_rs
+# is already in the workspace tree).
+mail-parser = {version = "0.11", default-features = false, features = ["full_encoding"]}
 sqlparser = {version = "0.62", optional = true}
 reqwest = {workspace = true, optional = true}
 
