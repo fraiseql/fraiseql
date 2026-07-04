@@ -8,7 +8,7 @@ use crate::{
     error::{FraiseQLError, Result},
     runtime::{classify_field_access, field_filter::FieldAccessResult},
     schema::{CompiledSchema, SessionVariableSource, SessionVariablesConfig},
-    security::SecurityContext,
+    security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
 };
 
 /// Resolve session variable mappings against the current security context.
@@ -23,6 +23,9 @@ use crate::{
 /// - [`SessionVariableSource::Header`] — looks up the header name in `security_context.attributes`.
 ///   Missing headers are silently skipped.
 /// - [`SessionVariableSource::Literal`] — uses the fixed value as-is.
+/// - [`SessionVariableSource::Enrichment`] — reads the reserved `fraiseql.enriched.*` attribute
+///   namespace with **no** fallback; a missing enriched field is a hard error, never a
+///   silently-skipped/empty GUC (#539).
 ///
 /// When `config.inject_started_at` is `true`, the pair
 /// `(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)` is **prepended** to the returned
@@ -31,11 +34,19 @@ use crate::{
 /// the **DB clock**, the same clock used to close the interval at the change-log
 /// outbox write (no app↔DB skew). This replaces the former app-clock
 /// `Utc::now()` RFC-3339 value.
-#[must_use]
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if a [`SessionVariableSource::Enrichment`]
+/// mapping references an enriched field absent from the resolved identity. The
+/// lenient `Jwt`/`Header`/`Literal` arms never error. This is defense-in-depth:
+/// the server fail-closes enrichment before dispatch, so reaching a missing
+/// enriched field here is an invariant violation (a config mismatch), treated as
+/// one rather than silently skipped.
 pub(in super::super) fn resolve_session_variables(
     config: &SessionVariablesConfig,
     security_context: &SecurityContext,
-) -> Vec<(String, String)> {
+) -> Result<Vec<(String, String)>> {
     let mut vars: Vec<(String, String)> = Vec::new();
 
     if config.inject_started_at {
@@ -81,13 +92,36 @@ pub(in super::super) fn resolve_session_variables(
                 })
             },
             SessionVariableSource::Literal { value } => Some(value.clone()),
+            SessionVariableSource::Enrichment { field } => {
+                // Read ONLY the reserved namespace — no fallback to a raw claim or
+                // a well-known field. The extractor strips `fraiseql.` claims, so
+                // this key can only have been written by the server's identity
+                // resolver (DESIGN §3.2).
+                let key = format!("{ENRICHED_NAMESPACE_PREFIX}{field}");
+                let Some(v) = security_context.attributes.get(&key) else {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Session variable '{}' maps to enriched field '{field}', which is \
+                             absent from the resolved identity (enrichment did not run, or the \
+                             enrichment query's `map` does not produce it)",
+                            mapping.name
+                        ),
+                        path:    None,
+                    });
+                };
+                Some(if let serde_json::Value::String(s) = v {
+                    s.clone()
+                } else {
+                    v.to_string()
+                })
+            },
         };
         if let Some(v) = value {
             vars.push((mapping.name.clone(), v));
         }
     }
 
-    vars
+    Ok(vars)
 }
 
 /// Classify each requested field as allowed, masked, or rejected.

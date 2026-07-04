@@ -195,6 +195,12 @@ pub use fraiseql_secrets::{encryption, secrets_manager};
 // TLS/SSL and encryption
 pub mod tls;
 
+// Enriched-identity resolution (#539): request-scoped `sub → DB → identity`
+// mapping for RLS read-scoping and verified sender-identity. Requires an
+// authenticated subject and the unscoped enrichment pool, so gated on `auth`.
+#[cfg(feature = "auth")]
+pub mod identity;
+
 // Observer management - optional
 #[cfg(feature = "observers")]
 pub mod observers;

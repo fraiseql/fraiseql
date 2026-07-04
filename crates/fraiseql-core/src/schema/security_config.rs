@@ -25,6 +25,15 @@ pub enum InjectedParamSource {
     /// - `"tenant_id"` / `"org_id"` → `SecurityContext.tenant_id`
     /// - any other name → `SecurityContext.attributes.get(name)`
     Jwt(String),
+    /// Extract a DB-resolved enriched-identity field, read from the reserved
+    /// `fraiseql.enriched.*` attribute namespace (#539).
+    ///
+    /// Unlike [`InjectedParamSource::Jwt`], there is **no** fallback to a raw
+    /// claim or a well-known field: the namespace is forge-proof and a missing
+    /// enriched field is a hard error, so a raw claim of the same name can never
+    /// impersonate a DB-derived identity parameter. The wrapped value is the
+    /// enriched field name, without the `fraiseql.enriched.` prefix.
+    Enrichment(String),
 }
 
 /// Role definition for field-level RBAC.

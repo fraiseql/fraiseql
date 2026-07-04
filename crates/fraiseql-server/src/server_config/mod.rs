@@ -643,6 +643,14 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub tenancy: TenancyServerConfig,
+
+    /// Enriched-identity resolution (#539): `[identity.enrichment]` /
+    /// `[identity.sender]`. Top-level (not under `[auth]`) so it applies under
+    /// any auth mode — HS256/OIDC parity by construction. Gated on `auth`
+    /// because enrichment requires an authenticated subject and the auth DB pool.
+    #[cfg(feature = "auth")]
+    #[serde(default)]
+    pub identity: Option<crate::identity::IdentityConfig>,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -820,6 +828,8 @@ impl Default for ServerConfig {
             #[cfg(feature = "inbound-email")]
             imap: HashMap::new(), // No poll-IMAP mailboxes by default
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
+            #[cfg(feature = "auth")]
+            identity: None, // Enriched-identity resolution off by default
         }
     }
 }

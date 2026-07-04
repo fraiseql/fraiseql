@@ -136,6 +136,13 @@ pub struct AppState<A: DatabaseAdapter> {
     /// (not buffered) when the delivery pipeline is under backpressure, so
     /// mutation response latency is never affected.
     pub realtime_observer: Option<Arc<crate::realtime::observer::RealtimeBroadcastObserver>>,
+
+    /// Enrichment-profile identity resolver (#539). `Some` when
+    /// `[identity.enrichment].enabled` and an auth DB pool is present; every
+    /// authenticated request then resolves its DB identity and fail-closes
+    /// before dispatch (read-scoping via the `fraiseql.enriched.*` namespace).
+    #[cfg(feature = "auth")]
+    pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -191,7 +198,20 @@ impl<A: DatabaseAdapter> AppState<A> {
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             before_mutation_hooks: None,
             realtime_observer: None,
+            #[cfg(feature = "auth")]
+            identity_resolver: None,
         }
+    }
+
+    /// Attach the enrichment-profile identity resolver (#539).
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_identity_resolver(
+        mut self,
+        resolver: Arc<crate::identity::IdentityResolver>,
+    ) -> Self {
+        self.identity_resolver = Some(resolver);
+        self
     }
 
     /// Load the current executor.

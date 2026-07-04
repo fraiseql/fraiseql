@@ -152,7 +152,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 super::super::security::resolve_session_variables(
                     &self.ctx.schema.session_variables,
                     sc,
-                )
+                )?
             },
             _ => Vec::new(),
         };

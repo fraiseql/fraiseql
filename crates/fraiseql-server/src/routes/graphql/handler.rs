@@ -338,6 +338,36 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         security_context = security_context.map(|ctx| ctx.with_trace_context(trace_context));
     }
 
+    // Enriched-identity resolution (#539): when `[identity.enrichment]` is
+    // enabled, resolve the subject's DB identity and merge it under the
+    // forge-proof `fraiseql.enriched.*` namespace *before* dispatch, so RLS /
+    // views / inject-params scope on a DB-derived identity, not a client-asserted
+    // one. Fail-closed at source: an unresolved identity denies the request (403)
+    // before any data query runs; a transient resolver failure is 503. An
+    // unauthenticated request has no subject to resolve and proceeds unchanged.
+    #[cfg(feature = "auth")]
+    if let Some(resolver) = state.identity_resolver.as_ref() {
+        if let Some(ctx) = security_context.as_mut() {
+            match crate::identity::enrich_security_context(resolver, ctx).await {
+                crate::identity::EnrichmentOutcome::Proceed => {},
+                crate::identity::EnrichmentOutcome::Denied => {
+                    // Generic outward body (DESIGN §5.4): the precise DenyReason is
+                    // logged server-side, never surfaced (actor-table oracle guard).
+                    return Err(ErrorResponse::from_error(GraphQLError::new(
+                        "Access denied",
+                        crate::error::ErrorCode::Forbidden,
+                    )));
+                },
+                crate::identity::EnrichmentOutcome::Unavailable => {
+                    return Err(ErrorResponse::from_error(GraphQLError::new(
+                        "Identity resolution temporarily unavailable",
+                        crate::error::ErrorCode::ServiceUnavailable,
+                    )));
+                },
+            }
+        }
+    }
+
     // Resolve query body — trusted documents take priority over APQ.
     // If a trusted document store is configured, resolve the document ID first.
     if let Some(ref td_store) = state.trusted_docs {

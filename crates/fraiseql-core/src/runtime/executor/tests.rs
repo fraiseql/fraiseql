@@ -975,6 +975,37 @@ mod inject {
     }
 
     #[test]
+    fn test_resolve_inject_enrichment_reads_namespace() {
+        let ctx = make_security_ctx(
+            "user-1",
+            None,
+            &[("fraiseql.enriched.actor_id", serde_json::json!("a-1"))],
+        );
+        let source = InjectedParamSource::Enrichment("actor_id".to_string());
+        let result = resolve_inject_value("actor_id", &source, &ctx).unwrap();
+        assert_eq!(result, serde_json::Value::String("a-1".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_inject_enrichment_missing_field_errors() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::Enrichment("actor_id".to_string());
+        assert!(resolve_inject_value("actor_id", &source, &ctx).is_err());
+    }
+
+    #[test]
+    fn test_resolve_inject_enrichment_does_not_fall_back_to_raw_claim() {
+        // A raw claim of the same name must NOT satisfy an enriched param — the
+        // source reads only the forge-proof `fraiseql.enriched.*` namespace.
+        let ctx = make_security_ctx("user-1", None, &[("actor_id", serde_json::json!("forged"))]);
+        let source = InjectedParamSource::Enrichment("actor_id".to_string());
+        assert!(
+            resolve_inject_value("actor_id", &source, &ctx).is_err(),
+            "Enrichment inject param must not fall back to a raw claim"
+        );
+    }
+
+    #[test]
     fn test_resolve_inject_missing_tenant_id_returns_error() {
         let ctx = make_security_ctx("user-1", None, &[]);
         let source = InjectedParamSource::Jwt("tenant_id".to_string());
