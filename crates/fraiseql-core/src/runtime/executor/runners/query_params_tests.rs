@@ -174,3 +174,50 @@ fn empty_fact_metadata() -> crate::compiler::fact_table::FactTableMetadata {
     }))
     .expect("valid empty fact-table metadata")
 }
+
+// ── Native-column path: camelCase arg → snake_case SQL column ────────────────
+
+/// Build a one-argument explicit-arg WHERE clause whose arg resolves to a
+/// native column, and return the emitted SQL column name.
+fn explicit_native_arg_column(arg_name: &str) -> String {
+    let args = [ArgumentDefinition::new(arg_name, FieldType::Id)];
+    let mut provided = HashMap::new();
+    provided.insert(arg_name.to_string(), serde_json::json!("x"));
+    let mut native = HashMap::new();
+    native.insert(arg_name.to_string(), "uuid".to_string());
+    let clause = combine_explicit_arg_where(None, &args, &provided, &native)
+        .expect("single explicit arg yields a clause");
+    match clause {
+        WhereClause::NativeField { column, .. } => column,
+        other => panic!("expected WhereClause::NativeField, got {other:?}"),
+    }
+}
+
+#[test]
+fn explicit_native_arg_multiword_camel_is_recased_to_snake_column() {
+    // `native_columns` is keyed by the GraphQL argument name (camelCase under
+    // `naming_convention = "camelCase"`), but the SQL column it resolved from is
+    // snake_case (`post_id`). Emitting the key verbatim produces
+    // `WHERE "postId" = …` → `column does not exist` → 500 on every filtered
+    // query. The column name must be recased exactly like the JSONB path (#486).
+    assert_eq!(explicit_native_arg_column("postId"), "post_id");
+    assert_eq!(explicit_native_arg_column("authorId"), "author_id");
+}
+
+#[test]
+fn explicit_native_arg_snake_is_unchanged() {
+    // Idempotent for as-authored snake_case (`naming_convention = "preserve"`).
+    assert_eq!(explicit_native_arg_column("post_id"), "post_id");
+    assert_eq!(explicit_native_arg_column("status"), "status");
+}
+
+#[test]
+fn inject_param_native_camel_is_recased_to_snake_column() {
+    let mut native = HashMap::new();
+    native.insert("tenantId".to_string(), "uuid".to_string());
+    let clause = inject_param_where_clause("tenantId", serde_json::json!("t"), &native);
+    match clause {
+        WhereClause::NativeField { column, .. } => assert_eq!(column, "tenant_id"),
+        other => panic!("expected WhereClause::NativeField, got {other:?}"),
+    }
+}

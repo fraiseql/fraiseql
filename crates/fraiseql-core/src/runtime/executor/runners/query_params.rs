@@ -22,7 +22,11 @@ pub fn inject_param_where_clause(
 ) -> WhereClause {
     if let Some(pg_type) = native_columns.get(col) {
         WhereClause::NativeField {
-            column: col.to_string(),
+            // `native_columns` is keyed by the GraphQL-surface name (camelCase
+            // under `naming_convention = "camelCase"`); the SQL column it was
+            // resolved from is snake_case. Recase like the JSONB path below —
+            // idempotent for as-authored snake_case names.
+            column: crate::utils::to_snake_case(col),
             pg_cast: pg_type_to_cast(pg_type).to_string(),
             operator: WhereOperator::Eq,
             value,
@@ -103,7 +107,11 @@ pub fn combine_explicit_arg_where(
             provided_args.get(&arg.name).map(|value| {
                 if let Some(pg_type) = native_columns.get(&arg.name) {
                     WhereClause::NativeField {
-                        column:   arg.name.clone(),
+                        // Same recasing as the JSONB branch below: the map key is
+                        // the GraphQL argument name, not the SQL column name.
+                        // `comments(postId: …)` must emit `WHERE post_id = …`,
+                        // never `WHERE "postId" = …` (column does not exist).
+                        column:   crate::utils::to_snake_case(&arg.name),
                         pg_cast:  pg_type_to_cast(pg_type).to_string(),
                         operator: WhereOperator::Eq,
                         value:    value.clone(),
