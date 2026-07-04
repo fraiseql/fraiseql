@@ -7,12 +7,17 @@ name: Dagger — preflight
 # clippy compile reuses the box's cargo/target/sccache cache volumes (shared with
 # local `dagger call` runs), so warm runs are fast. See .phases/dagger-adoption/.
 #
-# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
-# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
-# Pre-merge remote verification uses workflow_dispatch against the working branch.
+# push-only by design: push events are inherently same-repo (forks cannot push
+# here), so the self-hosted runner never sees fork code — `pull_request` is
+# deliberately absent because those runs execute the PR merge-ref's workflow
+# definition (a fork could edit out any in-workflow guard). Push runs on every
+# in-repo working branch, so this leg's check lands on the PR head SHA and gates the
+# merge via the `dev` ruleset. Fork PRs get no check by design — unblock by pushing
+# the reviewed head commit to an in-repo branch (identical SHA → the check lands).
+# See docs/contributing/branching-model.md.
 on:
   push:
-    branches: [dev]
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
   workflow_dispatch:
 
 # packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image
@@ -27,7 +32,7 @@ concurrency:
 
 jobs:
   preflight:
-    name: preflight (fmt · clippy · rustdoc · shell gates)
+    name: preflight
     runs-on: [self-hosted, fraiseql-8core]
     timeout-minutes: 45
     steps:
