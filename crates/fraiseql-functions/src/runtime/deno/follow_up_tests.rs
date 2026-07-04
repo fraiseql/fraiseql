@@ -1,10 +1,12 @@
 //! The per-user follow-up-send demonstrator.
 //!
 //! Drives the real `examples/native-functions/follow-up-email.ts` through
-//! `invoke_with_context`, proving the banked per-user send constraint: the `from`
-//! is the connected user's verified address from the host auth context and
-//! nothing else, and a missing verified address fails loud rather than falling
-//! back to a shared or default mailbox.
+//! `invoke_with_context`. The example now delegates the send to the `send_email`
+//! host op: the guest supplies only `to`/`subject`/body, and the host injects the
+//! host-owned `from`. So these tests prove the guest calls the op correctly and
+//! that a host refusal (no verified sending identity) propagates as a failure —
+//! the `from`-resolution enforcement itself is host-side, covered by the
+//! `LiveHostContext::send_email` tests.
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code
 
@@ -15,30 +17,25 @@ use chrono::Utc;
 use crate::{
     EventPayload, FunctionModule, ResourceLimits, RuntimeType,
     host::{HttpResponse, dyn_context::DynHostContext},
+    outbound::{SendEmailRequest, SendEmailResponse},
     runtime::deno::{DenoConfig, DenoRuntime},
 };
 
 const FOLLOW_UP_TS: &str =
     include_str!("../../../../../examples/native-functions/follow-up-email.ts");
 
-/// One recorded send, with the parsed JSON body so the test can read `from`.
-#[derive(Clone)]
-struct SendCall {
-    url:  String,
-    body: serde_json::Value,
-}
-
 #[derive(Default)]
 struct Recorded {
-    sends: Vec<SendCall>,
+    sends: Vec<SendEmailRequest>,
 }
 
-/// A mock host with a configurable auth context (the per-user identity) that
-/// fakes the mail provider's send endpoint.
+/// A mock host that records `send_email` requests and either accepts them or, when
+/// `refuse` is set, emulates the host refusing (no verified sending identity) so a
+/// test can prove the refusal propagates through the guest.
 struct SendHost {
     event:    EventPayload,
     recorded: Arc<Mutex<Recorded>>,
-    auth:     serde_json::Value,
+    refuse:   bool,
 }
 
 impl crate::HostContext for SendHost {
@@ -61,21 +58,14 @@ impl crate::HostContext for SendHost {
     async fn http_request(
         &self,
         _method: &str,
-        url: &str,
+        _url: &str,
         _headers: &[(String, String)],
-        body: Option<&[u8]>,
+        _body: Option<&[u8]>,
     ) -> fraiseql_error::Result<HttpResponse> {
-        let parsed = body
-            .and_then(|bytes| serde_json::from_slice(bytes).ok())
-            .unwrap_or(serde_json::Value::Null);
-        self.recorded.lock().unwrap().sends.push(SendCall {
-            url:  url.to_string(),
-            body: parsed,
-        });
         Ok(HttpResponse {
             status:  200,
-            headers: vec![("content-type".to_string(), "application/json".to_string())],
-            body:    serde_json::to_vec(&serde_json::json!({ "id": "msg-1" })).unwrap(),
+            headers: vec![],
+            body:    vec![],
         })
     }
 
@@ -95,24 +85,31 @@ impl crate::HostContext for SendHost {
 
     async fn send_email(
         &self,
-        _request: &crate::outbound::SendEmailRequest,
-    ) -> fraiseql_error::Result<crate::outbound::SendEmailResponse> {
-        Ok(crate::outbound::SendEmailResponse {
-            message_id: None,
+        request: &SendEmailRequest,
+    ) -> fraiseql_error::Result<SendEmailResponse> {
+        // A host refusal happens before any send — the identity is resolved first
+        // and fails closed, so nothing is recorded.
+        if self.refuse {
+            return Err(fraiseql_error::FraiseQLError::Authorization {
+                message:  "no verified sending identity for the connected user".to_string(),
+                action:   Some("send_email".to_string()),
+                resource: None,
+            });
+        }
+        self.recorded.lock().unwrap().sends.push(request.clone());
+        Ok(SendEmailResponse {
+            message_id: Some("msg-1".to_string()),
             accepted:   true,
         })
     }
 
     fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
-        Ok(self.auth.clone())
+        // The guest no longer reads this — the host op owns the `from`.
+        Ok(serde_json::json!({}))
     }
 
-    fn env_var(&self, name: &str) -> fraiseql_error::Result<Option<String>> {
-        if name == "MAIL_API_KEY" {
-            Ok(Some("mail-live-test".to_string()))
-        } else {
-            Ok(None)
-        }
+    fn env_var(&self, _name: &str) -> fraiseql_error::Result<Option<String>> {
+        Ok(None)
     }
 
     fn event_payload(&self) -> &EventPayload {
@@ -134,14 +131,14 @@ fn deal_event(deal: serde_json::Value) -> EventPayload {
 
 async fn run_follow_up(
     deal: serde_json::Value,
-    auth: serde_json::Value,
+    refuse: bool,
     recorded: &Arc<Mutex<Recorded>>,
 ) -> fraiseql_error::Result<serde_json::Value> {
     let event = deal_event(deal);
     let host: Arc<dyn DynHostContext> = Arc::new(SendHost {
         event: event.clone(),
         recorded: Arc::clone(recorded),
-        auth,
+        refuse,
     });
     let module = FunctionModule::from_source(
         "follow-up-email".to_string(),
@@ -156,47 +153,45 @@ async fn run_follow_up(
 }
 
 #[tokio::test]
-async fn test_follow_up_sends_from_the_connected_users_address() {
+async fn test_follow_up_sends_via_the_host_op() {
     let recorded = Arc::new(Mutex::new(Recorded::default()));
     let value = run_follow_up(
         serde_json::json!({
             "id": "deal-1", "next_action": "send_follow_up",
             "name": "Acme rollout", "contact_email": "jane@acme.example"
         }),
-        serde_json::json!({ "user_id": "u1", "email": "rep@outreach.example" }),
+        false,
         &recorded,
     )
     .await
     .expect("send should run");
 
-    assert_eq!(value["sent_from"], "rep@outreach.example");
     assert_eq!(value["sent_to"], "jane@acme.example");
     assert_eq!(value["message_id"], "msg-1");
+    assert_eq!(value["accepted"], true);
 
     let rec = recorded.lock().unwrap();
     assert_eq!(rec.sends.len(), 1, "exactly one send");
-    assert_eq!(rec.sends[0].url, "https://mail.provider.test/v1/send");
-    // The critical enforcement: `from` is the connected user's address, verbatim.
-    assert_eq!(rec.sends[0].body["from"], "rep@outreach.example");
-    assert_eq!(rec.sends[0].body["to"], "jane@acme.example");
+    // The guest supplies only recipient/subject/body — never a `from` (host-owned).
+    assert_eq!(rec.sends[0].to, "jane@acme.example");
+    assert!(rec.sends[0].subject.contains("Acme rollout"));
 }
 
-/// No verified sending address in the auth context → refuse to send (fail loud),
-/// never fall back to a shared or default mailbox.
+/// A host refusal (no verified sending identity) propagates as a failure — the
+/// guest does not swallow it or fall back to another sender.
 #[tokio::test]
-async fn test_follow_up_refuses_without_a_verified_sender() {
+async fn test_follow_up_propagates_a_host_refusal() {
     let recorded = Arc::new(Mutex::new(Recorded::default()));
     let result = run_follow_up(
         serde_json::json!({
             "id": "deal-2", "next_action": "send_follow_up", "contact_email": "jane@acme.example"
         }),
-        // Authenticated, but no verified sending address.
-        serde_json::json!({ "user_id": "u1", "roles": ["rep"] }),
+        true, // host refuses to resolve a sending identity
         &recorded,
     )
     .await;
 
-    assert!(result.is_err(), "a missing sender identity must fail loud, not send");
+    assert!(result.is_err(), "a host refusal must fail loud, not send");
     assert!(recorded.lock().unwrap().sends.is_empty(), "nothing was sent");
 }
 
@@ -207,7 +202,7 @@ async fn test_follow_up_skips_when_action_is_not_send() {
         serde_json::json!({
             "id": "deal-3", "next_action": "wait", "contact_email": "jane@acme.example"
         }),
-        serde_json::json!({ "email": "rep@outreach.example" }),
+        false,
         &recorded,
     )
     .await
@@ -225,7 +220,7 @@ async fn test_follow_up_skips_when_no_contact() {
     let recorded = Arc::new(Mutex::new(Recorded::default()));
     let value = run_follow_up(
         serde_json::json!({ "id": "deal-4", "next_action": "send_follow_up" }),
-        serde_json::json!({ "email": "rep@outreach.example" }),
+        false,
         &recorded,
     )
     .await

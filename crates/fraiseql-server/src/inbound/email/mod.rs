@@ -32,10 +32,12 @@ use tracing::{info, warn};
 pub mod config;
 pub mod cursor;
 pub mod imap;
+pub mod smtp;
 pub mod store;
 pub mod worker;
 
-pub use config::{ImapConfig, MailboxConfig, RoutingRuleConfig};
+pub use config::{ImapConfig, MailboxConfig, MailboxSmtpConfig, RoutingRuleConfig, SmtpTlsMode};
+pub use smtp::SmtpMailboxTransport;
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
 pub use store::PostgresEmailCursorStore;

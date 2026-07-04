@@ -183,6 +183,17 @@ pub struct BeforeMutationHooks {
     #[cfg(feature = "functions-runtime")]
     pub dispatch_settings:
         std::collections::HashMap<String, crate::routes::after_mutation::FunctionDispatchSetting>,
+
+    /// Host-owned sender-identity resolver for the `send_email` op — resolves the
+    /// `from` from the authenticated context (the #539 seam). `None` → `send_email`
+    /// is unconfigured and fails loud. Set together with `email_transport` via
+    /// [`with_email`](Self::with_email).
+    #[cfg(feature = "functions-runtime")]
+    pub sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
+
+    /// Email transport for the `send_email` op. `None` → `send_email` fails loud.
+    #[cfg(feature = "functions-runtime")]
+    pub email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
 }
 
 impl BeforeMutationHooks {
@@ -207,7 +218,31 @@ impl BeforeMutationHooks {
             dlq: Arc::new(crate::observers::runtime::InMemoryDlq::new_with_max(None)),
             #[cfg(feature = "functions-runtime")]
             dispatch_settings: std::collections::HashMap::new(),
+            #[cfg(feature = "functions-runtime")]
+            sender_resolver: None,
+            #[cfg(feature = "functions-runtime")]
+            email_transport: None,
         }
+    }
+
+    /// Enable the `send_email` host op for dispatched functions by attaching a
+    /// sender-identity resolver (the host-owned `from`) and an email transport.
+    ///
+    /// Without both, `send_email` fails loud (mirrors the `sql_query`
+    /// fail-loud-until-wired stance). The resolver is the #539 seam —
+    /// `LoginEmailSender` (from = login email) by default, a DB-backed resolver
+    /// where the sending mailbox differs; the transport is the per-connected-account
+    /// SMTP relay ([`SmtpMailboxTransport`](crate::inbound::email::SmtpMailboxTransport)).
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn with_email(
+        mut self,
+        sender_resolver: Arc<dyn fraiseql_functions::SenderIdentityResolver>,
+        email_transport: Arc<dyn fraiseql_functions::EmailTransport>,
+    ) -> Self {
+        self.sender_resolver = Some(sender_resolver);
+        self.email_transport = Some(email_transport);
+        self
     }
 }
 
@@ -237,6 +272,8 @@ impl FunctionsSubsystem {
             observer: self.observer,
             dlq,
             dispatch_settings,
+            sender_resolver: None,
+            email_transport: None,
         }
     }
 }

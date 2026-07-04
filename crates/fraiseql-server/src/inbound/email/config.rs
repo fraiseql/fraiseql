@@ -40,6 +40,10 @@ pub struct MailboxConfig {
     /// is send-only and starts no poll worker.
     #[serde(default)]
     pub imap: Option<ImapConfig>,
+    /// The SMTP send half (`[mailbox.<name>.smtp]`) the `send_email` host op relays
+    /// through. Absent → this account is receive-only.
+    #[serde(default)]
+    pub smtp: Option<MailboxSmtpConfig>,
 }
 
 /// The poll-IMAP receive configuration for a mailbox (`[mailbox.<name>.imap]`).
@@ -79,6 +83,62 @@ pub struct ImapConfig {
     pub routing:            Vec<RoutingRuleConfig>,
 }
 
+/// Default SMTP submission port (STARTTLS).
+const fn default_smtp_port() -> u16 {
+    587
+}
+
+/// Default SMTP connect/send timeout.
+const fn default_smtp_timeout_secs() -> u64 {
+    30
+}
+
+/// Transport security for the SMTP send connection.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum SmtpTlsMode {
+    /// STARTTLS upgrade on the submission port (default; typically port 587).
+    #[default]
+    StartTls,
+    /// Implicit TLS / SMTPS (typically port 465).
+    Tls,
+    /// No transport security — plaintext. Local relays / development only.
+    None,
+}
+
+/// The SMTP send half of a connected mailbox (`[mailbox.<name>.smtp]`).
+///
+/// Strict (`deny_unknown_fields`): a mistyped key in this security-relevant block
+/// fails the parse rather than being silently ignored. The password is read from
+/// the environment at [`password_env`](Self::password_env), never stored in config.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MailboxSmtpConfig {
+    /// SMTP server hostname (also the TLS SNI / certificate name).
+    pub host:         String,
+    /// SMTP submission port; defaults to 587 (STARTTLS).
+    #[serde(default = "default_smtp_port")]
+    pub port:         u16,
+    /// The verified sending address this account relays for. The `send_email` op
+    /// selects the account whose `address` equals the resolved sender identity's
+    /// address, so this must match what the sender resolver returns — guest input
+    /// never selects the account.
+    pub address:      String,
+    /// SMTP auth username (often the mailbox address itself).
+    pub username:     String,
+    /// Name of the environment variable holding the SMTP password. An account whose
+    /// password env is unset is skipped with a warning rather than relaying
+    /// unauthenticated.
+    pub password_env: String,
+    /// Transport security; defaults to STARTTLS.
+    #[serde(default)]
+    pub tls:          SmtpTlsMode,
+    /// Connection/send timeout in seconds; defaults to 30.
+    #[serde(default = "default_smtp_timeout_secs")]
+    pub timeout_secs: u64,
+}
+
 /// A declared `[[mailbox.<name>.imap.routing]]` rule: a dedicated address that maps
 /// to an entity type (the recipient's plus-tag becomes the entity id).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,3 +159,6 @@ impl RoutingRuleConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

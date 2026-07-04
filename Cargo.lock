@@ -3892,6 +3892,7 @@ dependencies = [
  "http-body-util",
  "ipnet",
  "jsonwebtoken",
+ "lettre",
  "metrics",
  "metrics-exporter-prometheus",
  "opentelemetry",

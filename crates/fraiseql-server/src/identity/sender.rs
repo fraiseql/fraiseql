@@ -9,10 +9,13 @@
 //! This lands the resolver and the seam; the `send_email` host op that injects
 //! and calls it — and the SMTP transport — are the hardening train's, not #539's.
 
-// Reason: the DB-backed sender is constructed and injected into the functions
-// host by the hardening-train `send_email` op; until that lands it has no
-// non-test caller. Scoped to this file so the rest of the module keeps live
-// dead-code detection.
+// Reason: the DB-backed sender is composed into the `send_email` wiring
+// (`BeforeMutationHooks::with_email`) by whoever builds the functions-runtime
+// hooks. The `send_email` op + transport now exist, but the stock server binary
+// does not yet populate `before_mutation_hooks` (a separate pre-existing gap from
+// the beta native-runtime train), so this resolver has no production caller until
+// that binary wiring lands. Scoped to this file so the rest of the module keeps
+// live dead-code detection.
 #![allow(dead_code)]
 
 use std::{collections::HashMap, future::Future, pin::Pin};
