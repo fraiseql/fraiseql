@@ -34,6 +34,7 @@ pub(crate) mod cache;
 pub(crate) mod failure;
 pub(crate) mod query;
 pub(crate) mod resolver;
+pub(crate) mod sender;
 
 pub(crate) use apply::{EnrichmentOutcome, enrich_security_context};
 use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariableSource};

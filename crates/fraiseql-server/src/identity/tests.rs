@@ -814,3 +814,75 @@ typo_field = "oops"
 "#;
     assert!(toml::from_str::<IdentityConfig>(toml_src).is_err());
 }
+
+// ── Consumer B: DB-backed sender identity (DESIGN §4) ─────────────────────
+
+use fraiseql_functions::SenderIdentityResolver;
+
+use super::sender::DbSenderIdentityResolver;
+
+fn sender_resolver(store: MockStore, display: bool) -> DbSenderIdentityResolver {
+    let map: &[(&str, &str)] = if display {
+        &[
+            ("sending_address", "sending_address"),
+            ("display_name", "display_name"),
+        ]
+    } else {
+        &[("sending_address", "sending_address")]
+    };
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT sending_address, display_name FROM tb_sales_mailbox WHERE sub = $sub",
+            map,
+        ),
+        Arc::new(store),
+    );
+    DbSenderIdentityResolver::new(
+        resolver,
+        "sending_address",
+        display.then(|| "display_name".to_owned()),
+    )
+}
+
+#[tokio::test]
+async fn db_sender_resolves_verified_address_not_login_email() {
+    let store = MockStore::returning(vec![row(&[
+        ("sending_address", json!("sales@acme.example")),
+        ("display_name", json!("Acme Sales")),
+    ])]);
+    let sender = sender_resolver(store, true);
+    // The auth context's login email differs from the verified sending mailbox.
+    let auth = json!({ "sub": "u1", "email": "rep.personal@acme.example" });
+
+    let identity = sender.resolve_sender(&auth).await.unwrap();
+    assert_eq!(identity.address, "sales@acme.example");
+    assert_eq!(identity.display_name.as_deref(), Some("Acme Sales"));
+}
+
+#[tokio::test]
+async fn db_sender_denies_unprovisioned_subject() {
+    let sender = sender_resolver(MockStore::returning(vec![]), false);
+    let auth = json!({ "sub": "nobody" });
+
+    assert!(
+        sender.resolve_sender(&auth).await.is_err(),
+        "an unprovisioned subject must refuse, never fall back to a shared mailbox"
+    );
+}
+
+#[tokio::test]
+async fn db_sender_refuses_without_a_subject() {
+    let sender = sender_resolver(MockStore::returning(vec![]), false);
+    let auth = json!({ "email": "someone@acme.example" }); // no `sub`
+
+    assert!(sender.resolve_sender(&auth).await.is_err());
+}
+
+#[tokio::test]
+async fn db_sender_refuses_a_malformed_resolved_address() {
+    let store = MockStore::returning(vec![row(&[("sending_address", json!("not-an-email"))])]);
+    let sender = sender_resolver(store, false);
+    let auth = json!({ "sub": "u1" });
+
+    assert!(sender.resolve_sender(&auth).await.is_err());
+}

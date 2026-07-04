@@ -68,3 +68,18 @@ fn surrounding_whitespace_is_trimmed() {
     assert_eq!(identity.address, "rep@outreach.example");
     assert_eq!(identity.display_name, Some("Rep".to_string()));
 }
+
+#[tokio::test]
+async fn login_email_sender_delegates_to_the_pure_policy() {
+    use super::{LoginEmailSender, SenderIdentityResolver};
+
+    // The degenerate resolver reframes the pure login-email policy (DESIGN §4.1):
+    // a valid verified address resolves, a missing one refuses — identically.
+    let auth = json!({ "email": "rep@outreach.example", "display_name": "Rep" });
+    let identity = LoginEmailSender.resolve_sender(&auth).await.expect("address present");
+    assert_eq!(identity.address, "rep@outreach.example");
+    assert_eq!(identity.display_name.as_deref(), Some("Rep"));
+
+    let missing = json!({ "sub": "u1" });
+    assert!(LoginEmailSender.resolve_sender(&missing).await.is_err());
+}

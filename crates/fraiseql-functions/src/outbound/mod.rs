@@ -21,7 +21,14 @@
 //! enforceable rule that op will call, and the reference workload
 //! `examples/native-functions/follow-up-email.ts` mirrors it in `TypeScript`.
 
+use std::{future::Future, pin::Pin};
+
 use serde_json::Value;
+
+/// An owned, `Send` boxed future — the object-safe async return used to keep
+/// [`SenderIdentityResolver`] dyn-dispatchable without adding a new dyn-dispatch
+/// trait-macro (the workspace ratchet).
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// The connected user's verified sending identity — the only `from` a paired
 /// outbound email may use.
@@ -99,6 +106,49 @@ pub fn resolve_sender_identity(auth_context: &Value) -> Result<SenderIdentity, S
         address: address.to_string(),
         display_name,
     })
+}
+
+/// The injectable seam the `send_email` host op calls to obtain a host-owned
+/// `from` (DESIGN §4.2).
+///
+/// One implementation per deployment, object-safe so the server can inject an
+/// `Arc<dyn SenderIdentityResolver>` into the functions host.
+/// The default [`LoginEmailSender`] is the degenerate case — the sending address
+/// *is* the connected user's login email, read from the auth context with no DB.
+/// A DB-backed implementation (in the server) resolves `sub → verified
+/// from-address + mailbox` on the shared identity primitive, cached and
+/// fail-closed. Either way a refusal is a [`SendPolicyError`], never a silent
+/// fall-back to a shared mailbox.
+pub trait SenderIdentityResolver: Send + Sync {
+    /// Resolve the sending identity for `auth_context` — the host-owned
+    /// authenticated context, never guest input.
+    ///
+    /// The future resolves to [`SendPolicyError`] when no verified sending
+    /// identity is available.
+    fn resolve_sender<'a>(
+        &'a self,
+        auth_context: &'a Value,
+    ) -> BoxFuture<'a, Result<SenderIdentity, SendPolicyError>>;
+}
+
+/// The degenerate [`SenderIdentityResolver`]: the sending address is the
+/// connected user's login email, read from the host auth context (no DB).
+///
+/// This subsumes the pure [`resolve_sender_identity`] policy as a trait
+/// implementation (DESIGN §4.1) — the seam works with no `[identity.sender]`
+/// configured, and a DB-backed resolver replaces it verbatim where the sending
+/// mailbox differs from the login email.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LoginEmailSender;
+
+impl SenderIdentityResolver for LoginEmailSender {
+    fn resolve_sender<'a>(
+        &'a self,
+        auth_context: &'a Value,
+    ) -> BoxFuture<'a, Result<SenderIdentity, SendPolicyError>> {
+        let result = resolve_sender_identity(auth_context);
+        Box::pin(async move { result })
+    }
 }
 
 #[cfg(test)]
