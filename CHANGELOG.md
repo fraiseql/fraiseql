@@ -264,6 +264,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
+  A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
+  poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
+  (`[mailbox.<name>.smtp]`, consumed by the new `send_email` host op). Either half is
+  optional. **Migration:** move each `[imap.foo]` section to `[mailbox.foo.imap]` and each
+  `[[imap.foo.routing]]` to `[[mailbox.foo.imap.routing]]`. Only affects the opt-in
+  `inbound-email` feature. See `docs/architecture/inbound-email.md`.
+
 - **The distributed saga subsystem is now stable (#429).** The `unstable-saga`
   Cargo feature has been renamed to **`saga`** and its API is now covered by semver
   (it will not change without a major version bump). It remains an opt-in feature so

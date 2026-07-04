@@ -64,7 +64,7 @@ promoted from opt-in to stable.
 
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's
-   *sending* mailbox (the connected IMAP/SMTP account, cf. `[imap.<name>]`) can
+   *sending* mailbox (the connected IMAP/SMTP account, cf. `[mailbox.<name>]`) can
    differ from the JWT subject's email. **Planned: a distinct, verified
    `sending_address` on the security/auth context**, resolved from the connected
    mailbox rather than assumed equal to the login email.
