@@ -15,11 +15,16 @@ name: Dagger — security
 # Code Scanning), dependency-review (GH Dependency-Graph API). security.yml and
 # security-compliance.yml remain workflow_dispatch as the porting spec / GH-native home.
 #
-# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
-# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+# push-only by design: push events are inherently same-repo (forks cannot push
+# here), so the self-hosted runner never sees fork code — `pull_request` is
+# deliberately absent because those runs execute the PR merge-ref's workflow
+# definition. Push runs on every in-repo working branch, so this leg's check lands
+# on the PR head SHA and gates the merge via the `dev` ruleset. Fork PRs get no
+# check by design — unblock by pushing the reviewed head commit to an in-repo branch
+# (identical SHA → the check lands). See docs/contributing/branching-model.md.
 on:
   push:
-    branches: [dev]
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
   workflow_dispatch:
 
 # packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image

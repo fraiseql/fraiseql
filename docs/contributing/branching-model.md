@@ -59,14 +59,44 @@ rather than living on a branch that drifts from the trunk.
 
 ## Keeping the trunk green
 
-- Every push runs the strict gates locally (`make preflight`) and the Dagger CI legs
-  (preflight / test / security / feature-matrix / integration).
-- **Recommended hardening (not yet adopted):** a **GitHub merge queue** with the
-  Dagger legs as **required checks on the PR**, so changes are validated against
-  trunk-HEAD and merged only when green. Today the Dagger legs run *post-merge* on the
-  `dev` push (and must be dispatched manually to validate a PR — see
-  [`.github/workflows/dagger-*.yml`](../../.github/workflows/)), which leaves a window
-  where the trunk can go red between merges. A merge queue closes that window.
+The **fast** Dagger legs — `preflight` (shell gates · fmt · clippy · rustdoc) and
+`security` (`cargo deny`) — run on **push to every in-repo branch**
+(`branches-ignore: [dependabot/**, …]`) on the self-hosted runner, with a warm sccache
+cache. Because **forks cannot push to this repo**, a `push` trigger only ever runs
+trusted in-repo code — so these legs are **fork-safe by construction**, with no
+`pull_request` trigger and no self-hosted exposure to fork code. (A `pull_request` run
+would execute the PR *merge-ref's* workflow definition, which a fork can edit — hence
+its deliberate absence.)
+
+Push-triggered check runs attach to the commit SHA, so they show on any open PR for
+that branch, and the **`dev` ruleset requires `preflight` + `security`** — a PR cannot
+merge until both are green on its head. That is what prevents "merged before CI was
+verified."
+
+The **heavy** legs (`test` / `feature-matrix` / `integration`, which spins up
+PostgreSQL) run **post-merge on the `dev` push** to spare the single runner; dispatch
+them manually (`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change
+warrants full validation before merge. Locally, `make preflight` mirrors the fast gate.
+
+### Fork pull requests
+
+A fork PR produces no `push` event here, so the required checks are **absent** and the
+merge is blocked by design — fork code must never run on the self-hosted runner. To
+land a reviewed fork PR, **push its head commit to an in-repo branch**:
+
+```bash
+git fetch origin pull/<N>/head
+git push origin FETCH_HEAD:refs/heads/review/<slug>
+```
+
+The SHA is identical, so the push fires the legs, the checks land on that SHA, and the
+fork PR's merge box goes green.
+
+### In-flight branches
+
+`push` runs the workflow file from the pushed ref, so branches created before this
+change won't have the new trigger until they are **rebased on `dev`** — otherwise the
+required checks never appear and the ruleset blocks the merge. Rebase once and push.
 
 ## Why we do this
 
@@ -102,8 +132,10 @@ from* it.
 
 These formalize the model further; tracked for follow-up:
 
-- **Single trunk name.** `main`/`dev` are currently kept in sync; the cleanest end
-  state is one trunk (either retire `main` and keep `dev`, or rename the trunk to
-  `main` and retire `dev`). Two branches held in sync is the divergence risk this
-  model exists to remove.
-- **Merge queue + Dagger-on-PR** (see [Keeping the trunk green](#keeping-the-trunk-green)).
+- **Single trunk name.** `main` auto-mirrors `dev` (`.github/workflows/mirror-main.yml`),
+  so divergence can no longer happen silently; the fully-tidy end state is one trunk
+  (retire `main`, or rename the trunk to `main` and retire `dev`) — deferred as churn
+  that isn't worth it right now.
+- **Default workflow token `write` → `read`.** Recommended hardening, but blocked on
+  first giving the ~30 workflows that currently rely on the default an explicit
+  `permissions:` block, so the flip doesn't silently break the ones that need write.
