@@ -17,14 +17,15 @@
 //!   with server-side denial logging.
 //!
 //! The read-path consumer (`apply::enrich_security_context`) is wired into the
-//! `/graphql` handler; the cache flush surface and the DB-backed sender are the
-//! two seams whose consumers land next (an admin flush endpoint, and the
-//! hardening-train `send_email` op respectively) — each carries a scoped
+//! `/graphql` handler, and the cache flush surface (`admin::identity_admin_router`)
+//! into the admin API. The DB-backed sender is the one seam whose consumer lands
+//! elsewhere (the hardening-train `send_email` op), so it carries a scoped
 //! `dead_code` allow at its definition rather than a blanket module allow.
 //!
 //! Enrichment requires an authenticated subject, so the whole module is gated on
 //! the `auth` feature (mirroring the `enrichment_pool` the resolver uses).
 
+pub(crate) mod admin;
 pub(crate) mod apply;
 pub(crate) mod cache;
 pub(crate) mod failure;
@@ -32,6 +33,7 @@ pub(crate) mod query;
 pub(crate) mod resolver;
 pub(crate) mod sender;
 
+pub(crate) use admin::identity_admin_router;
 pub(crate) use apply::{EnrichmentOutcome, enrich_security_context};
 use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariableSource};
 pub(crate) use resolver::{IdentityConfig, IdentityResolver};

@@ -25,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unscoped read. The precise denial reason is logged server-side (WARN) while the
   outward body stays generic (no actor-table existence oracle). The cache keys on
   the bound-`$param` tuple (multi-issuer apps bind `$iss`) with a bounded positive
-  TTL (default 60s) so a revocation propagates within that window. Verified
+  TTL (default 60s) so a revocation propagates within that window — or immediately
+  via the admin `POST /api/identity/flush[-all]` (behind the admin bearer token).
+  Verified
   sender-identity resolves on the same primitive through an object-safe
   `SenderIdentityResolver` seam (`LoginEmailSender` is the degenerate default);
   the `send_email` op that consumes it lands with the native-runtime hardening
