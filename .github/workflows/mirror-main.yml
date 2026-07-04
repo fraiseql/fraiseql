@@ -1,0 +1,40 @@
+name: Mirror main ← dev
+
+# Keeps `main` a read-only mirror of the `dev` trunk (trunk-based development —
+# see docs/contributing/branching-model.md). `dev` is the single line of work; `main`
+# exists only as a conventional, always-in-sync pointer to it.
+#
+# On every push to `dev`, fast-forward `main` to the same commit via the Git refs API.
+# Notes:
+#   - The update uses `force: false`, so it is a *fast-forward only*. If `main` ever
+#     diverges (i.e. someone committed original work to it — the anti-pattern this
+#     model forbids), the API rejects the update and this job fails loudly. That
+#     failure is the alert, not a problem to force past.
+#   - Ref updates made with GITHUB_TOKEN do not trigger further workflow runs, so
+#     there is no loop and no duplicate run of the `main`-triggered workflows.
+#   - Runs on a hosted runner and makes a single API call — it never touches the
+#     self-hosted Dagger runners.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror-main
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: fast-forward main ← dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fast-forward main to ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/heads/main" \
+            -f sha="${{ github.sha }}" \
+            -F force=false
