@@ -97,9 +97,9 @@ impl SenderIdentityResolver for DbSenderIdentityResolver {
                 IdentityResolution::Denied(_) => Err(SendPolicyError::new(
                     "refusing to send: no verified sending identity for the connected user",
                 )),
-                IdentityResolution::Unavailable(_) => {
-                    Err(SendPolicyError::new("sender identity resolution temporarily unavailable"))
-                },
+                IdentityResolution::Unavailable(_) => Err(SendPolicyError::transient(
+                    "sender identity resolution temporarily unavailable",
+                )),
             }
         })
     }

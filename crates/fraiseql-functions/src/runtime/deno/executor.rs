@@ -79,6 +79,7 @@ fn make_fraiseql_extension(
             ops::fraiseql_http_request(),
             ops::fraiseql_storage_get(),
             ops::fraiseql_storage_put(),
+            ops::fraiseql_send_email(),
             ops::fraiseql_auth_context(),
             ops::fraiseql_env_var(),
         ]),

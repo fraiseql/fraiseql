@@ -59,6 +59,12 @@ pub trait DynHostContext: Send + Sync {
         content_type: &str,
     ) -> BoxFuture<'_, Result<()>>;
 
+    /// Send an email (host-owned `from`).
+    fn send_email<'a>(
+        &'a self,
+        request: &'a crate::outbound::SendEmailRequest,
+    ) -> BoxFuture<'a, Result<crate::outbound::SendEmailResponse>>;
+
     /// Get the current auth context.
     ///
     /// # Errors
@@ -138,6 +144,14 @@ impl<T: crate::HostContext + Send + Sync> DynHostContext for T {
         Box::pin(async move {
             crate::HostContext::storage_put(self, &bucket, &key, &body, &content_type).await
         })
+    }
+
+    fn send_email<'a>(
+        &'a self,
+        request: &'a crate::outbound::SendEmailRequest,
+    ) -> BoxFuture<'a, Result<crate::outbound::SendEmailResponse>> {
+        let request = request.clone();
+        Box::pin(async move { crate::HostContext::send_email(self, &request).await })
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {

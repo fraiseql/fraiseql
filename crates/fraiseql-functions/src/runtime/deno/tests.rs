@@ -602,6 +602,18 @@ impl crate::HostContext for MockHostContext {
         Ok(())
     }
 
+    async fn send_email(
+        &self,
+        request: &crate::outbound::SendEmailRequest,
+    ) -> fraiseql_error::Result<crate::outbound::SendEmailResponse> {
+        // Echo the recipient so a guest test can prove the request JSON marshaled
+        // through the op intact.
+        Ok(crate::outbound::SendEmailResponse {
+            message_id: Some(format!("sent:{}", request.to)),
+            accepted:   true,
+        })
+    }
+
     fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
         Ok(serde_json::json!({ "user_id": "u123", "roles": ["admin"] }))
     }
@@ -706,6 +718,26 @@ export default async () => {
     .expect("storage ops should succeed");
 
     assert_eq!(value["got"], "stored:bucket/key");
+}
+
+#[tokio::test]
+async fn test_deno_op_send_email_reaches_host() {
+    let value = run_with_mock(
+        r"
+export default async () => {
+    const raw = await Deno.core.ops.fraiseql_send_email(
+        JSON.stringify({ to: 'bob@example.com', subject: 'hi', text: 'body' }),
+    );
+    return JSON.parse(raw);
+};
+",
+    )
+    .await
+    .expect("send_email op should succeed");
+
+    // The op reached the host and the request JSON marshaled through intact.
+    assert_eq!(value["accepted"], true);
+    assert_eq!(value["message_id"], "sent:bob@example.com");
 }
 
 #[tokio::test]

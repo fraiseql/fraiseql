@@ -93,6 +93,16 @@ impl crate::HostContext for SendHost {
         Ok(())
     }
 
+    async fn send_email(
+        &self,
+        _request: &crate::outbound::SendEmailRequest,
+    ) -> fraiseql_error::Result<crate::outbound::SendEmailResponse> {
+        Ok(crate::outbound::SendEmailResponse {
+            message_id: None,
+            accepted:   true,
+        })
+    }
+
     fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
         Ok(self.auth.clone())
     }

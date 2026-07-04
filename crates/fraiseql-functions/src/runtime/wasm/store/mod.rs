@@ -205,6 +205,14 @@ impl io::Host for StoreData {
             .await
             .map_err(|e| e.to_string())
     }
+
+    async fn send_email(&mut self, request: String) -> Result<String, String> {
+        let host = self.require_host_context()?;
+        let req: crate::outbound::SendEmailRequest =
+            serde_json::from_str(&request).map_err(|e| e.to_string())?;
+        let response = host.send_email(&req).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&response).map_err(|e| e.to_string())
+    }
 }
 
 impl wasmtime::ResourceLimiter for StoreData {

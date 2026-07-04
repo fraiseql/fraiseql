@@ -161,6 +161,23 @@ pub(crate) async fn fraiseql_storage_put(
         .map_err(AnyError::new)
 }
 
+/// Send an email on behalf of the guest (the `from` is host-owned).
+///
+/// `Deno.core.ops.fraiseql_send_email(requestJson) -> responseJson`
+#[op2(async)]
+#[string]
+pub(crate) async fn fraiseql_send_email(
+    state: Rc<RefCell<OpState>>,
+    #[string] request: String,
+) -> Result<String, AnyError> {
+    let host = require_host_rc(&state)?;
+    let req: crate::outbound::SendEmailRequest = serde_json::from_str(&request)
+        .map_err(|e| deno_core::anyhow::anyhow!("invalid send_email request JSON: {e}"))?;
+    let response = host.send_email(&req).await.map_err(AnyError::new)?;
+    serde_json::to_string(&response)
+        .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise send_email response: {e}"))
+}
+
 /// Return the current auth context as a JSON string (sync).
 ///
 /// `Deno.core.ops.fraiseql_auth_context() -> authJson`

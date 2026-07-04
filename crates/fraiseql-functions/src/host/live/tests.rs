@@ -964,3 +964,144 @@ async fn test_host_event_payload_returns_trigger_data() {
     assert_eq!(returned_payload.event_kind, "created");
     assert_eq!(returned_payload.data, event_data);
 }
+
+// ── send_email host op (host-owned `from`) ──────────────────────────────────────
+
+use crate::outbound::{
+    BoxFuture, EmailTransport, LoginEmailSender, SendEmailRequest, SendEmailResponse,
+    SendPolicyError, SenderIdentity, SenderIdentityResolver,
+};
+
+/// A transport that records the `(sender, request)` it was last asked to send and
+/// returns success — so a test can assert on the host-owned `from` the op bound.
+#[derive(Default)]
+struct RecordingTransport {
+    last: std::sync::Mutex<Option<(SenderIdentity, SendEmailRequest)>>,
+}
+
+impl EmailTransport for RecordingTransport {
+    fn send<'a>(
+        &'a self,
+        sender: &'a SenderIdentity,
+        request: &'a SendEmailRequest,
+    ) -> BoxFuture<'a, Result<SendEmailResponse>> {
+        *self.last.lock().unwrap() = Some((sender.clone(), request.clone()));
+        Box::pin(async {
+            Ok(SendEmailResponse {
+                message_id: Some("recorded".to_string()),
+                accepted:   true,
+            })
+        })
+    }
+}
+
+/// A resolver that fails **transiently** (a retry may succeed) — models the
+/// identity store being momentarily unavailable.
+struct TransientResolver;
+
+impl SenderIdentityResolver for TransientResolver {
+    fn resolve_sender<'a>(
+        &'a self,
+        _auth_context: &'a serde_json::Value,
+    ) -> BoxFuture<'a, std::result::Result<SenderIdentity, SendPolicyError>> {
+        Box::pin(async { Err(SendPolicyError::transient("identity store unavailable")) })
+    }
+}
+
+fn send_email_payload() -> EventPayload {
+    EventPayload {
+        trigger_type: "after:mutation:Deal:update".to_string(),
+        entity:       "Deal".to_string(),
+        event_kind:   "updated".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
+    }
+}
+
+#[tokio::test]
+async fn test_send_email_from_is_host_owned_not_guest_supplied() {
+    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
+    host.security_context.email = Some("alice@example.com".to_string());
+    let transport = Arc::new(RecordingTransport::default());
+    let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
+
+    // A guest request that *tries* to set `from`. `SendEmailRequest` has no `from`
+    // field, so the attempted value is dropped on deserialization; the op binds
+    // `from` from the auth context regardless.
+    let request: SendEmailRequest = serde_json::from_str(
+        r#"{"from":"attacker@evil.example","to":"bob@example.com","subject":"hi","text":"b"}"#,
+    )
+    .unwrap();
+
+    let response = host.send_email(&request).await.unwrap();
+    assert!(response.accepted);
+
+    let (sender, sent) = transport.last.lock().unwrap().clone().unwrap();
+    // The transport was handed the connected user's verified address, never the
+    // guest's attempted `from`.
+    assert_eq!(sender.address, "alice@example.com");
+    assert_eq!(sent.to, "bob@example.com");
+}
+
+#[tokio::test]
+async fn test_send_email_fails_closed_without_verified_identity() {
+    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
+    host.security_context.email = None; // no verified sending address
+    let transport = Arc::new(RecordingTransport::default());
+    let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
+
+    let request = SendEmailRequest {
+        to:       "bob@example.com".to_string(),
+        subject:  "hi".to_string(),
+        text:     Some("b".to_string()),
+        html:     None,
+        reply_to: None,
+    };
+
+    let error = host.send_email(&request).await.unwrap_err();
+    // Permanent policy denial → 403 (durable dispatch dead-letters, does not retry).
+    assert_eq!(error.status_code(), 403);
+    // Never attempted a send.
+    assert!(transport.last.lock().unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_send_email_transient_identity_failure_is_retryable() {
+    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
+    host.security_context.email = Some("alice@example.com".to_string());
+    let transport = Arc::new(RecordingTransport::default());
+    let host = host.with_email(Arc::new(TransientResolver), transport.clone());
+
+    let request = SendEmailRequest {
+        to:       "bob@example.com".to_string(),
+        subject:  "hi".to_string(),
+        text:     Some("b".to_string()),
+        html:     None,
+        reply_to: None,
+    };
+
+    let error = host.send_email(&request).await.unwrap_err();
+    // Transient failure → 503 (durable dispatch retries rather than dead-letters).
+    assert_eq!(error.status_code(), 503);
+    assert!(transport.last.lock().unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_send_email_unconfigured_fails_loud() {
+    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
+    host.security_context.email = Some("alice@example.com".to_string());
+    // No `.with_email(...)` → resolver + transport absent.
+
+    let request = SendEmailRequest {
+        to:       "bob@example.com".to_string(),
+        subject:  "hi".to_string(),
+        text:     Some("b".to_string()),
+        html:     None,
+        reply_to: None,
+    };
+
+    let error = host.send_email(&request).await.unwrap_err();
+    // Fail loud (Unsupported / 501), never a silent phantom success — mirror
+    // `sql_query`.
+    assert_eq!(error.status_code(), 501);
+}

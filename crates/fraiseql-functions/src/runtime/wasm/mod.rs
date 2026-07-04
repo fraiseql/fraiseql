@@ -473,6 +473,23 @@ impl DynHostContext for HostContextSnapshot {
         })
     }
 
+    fn send_email<'a>(
+        &'a self,
+        _request: &'a crate::outbound::SendEmailRequest,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = fraiseql_error::Result<crate::outbound::SendEmailResponse>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "send_email not available in snapshot context".to_string(),
+            })
+        })
+    }
+
     fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
         self.auth_context
             .clone()

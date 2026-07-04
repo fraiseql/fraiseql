@@ -97,6 +97,14 @@ pub struct LiveHostContext {
 
     /// Security context for the authenticated user.
     pub security_context: SecurityContext,
+
+    /// Sender-identity resolver for `send_email` — resolves the host-owned `from`
+    /// from the authenticated context. `None` → `send_email` is unconfigured and
+    /// fails loud (mirrors the `sql_query` fail-loud-until-wired stance).
+    sender_resolver: Option<Arc<dyn crate::outbound::SenderIdentityResolver>>,
+
+    /// Email transport for `send_email`. `None` → `send_email` fails loud.
+    email_transport: Option<Arc<dyn crate::outbound::EmailTransport>>,
 }
 
 impl LiveHostContext {
@@ -111,6 +119,8 @@ impl LiveHostContext {
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
+            sender_resolver: None,
+            email_transport: None,
         }
     }
 
@@ -128,6 +138,8 @@ impl LiveHostContext {
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
+            sender_resolver: None,
+            email_transport: None,
         }
     }
 
@@ -146,6 +158,8 @@ impl LiveHostContext {
             http_client: Some(http_client),
             storage_backend: None,
             security_context: Self::default_security_context(),
+            sender_resolver: None,
+            email_transport: None,
         }
     }
 
@@ -180,6 +194,24 @@ impl LiveHostContext {
     #[must_use]
     pub fn captured_logs(&self) -> Vec<LogEntry> {
         self.logs.lock().expect("log mutex poisoned").clone()
+    }
+
+    /// Attach a sender-identity resolver and email transport, enabling
+    /// [`send_email`](HostContext::send_email).
+    ///
+    /// The resolver produces the host-owned `from` from the authenticated context
+    /// (the #539 seam — `LoginEmailSender` by default, a DB-backed resolver where
+    /// the sending mailbox differs from the login email); the transport relays the
+    /// message. Without both, `send_email` fails loud.
+    #[must_use]
+    pub fn with_email(
+        mut self,
+        sender_resolver: Arc<dyn crate::outbound::SenderIdentityResolver>,
+        email_transport: Arc<dyn crate::outbound::EmailTransport>,
+    ) -> Self {
+        self.sender_resolver = Some(sender_resolver);
+        self.email_transport = Some(email_transport);
+        self
     }
 }
 
@@ -370,6 +402,50 @@ impl HostContext for LiveHostContext {
         })?;
 
         backend.put(bucket, key, body, content_type).await
+    }
+
+    async fn send_email(
+        &self,
+        request: &crate::outbound::SendEmailRequest,
+    ) -> Result<crate::outbound::SendEmailResponse> {
+        // Fail loud, not silent, when the op is unconfigured — mirror `sql_query`.
+        let resolver = self.sender_resolver.as_ref().ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "send_email is not configured: no sender-identity resolver is wired \
+                          (configure a mailbox with an SMTP send half)"
+                    .to_string(),
+            }
+        })?;
+        let transport = self.email_transport.as_ref().ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "send_email is not configured: no email transport is wired (configure a \
+                          mailbox with an SMTP send half)"
+                    .to_string(),
+            }
+        })?;
+
+        // The `from` is host-owned: resolve it from the authenticated context, not
+        // from the guest request. A refusal is fail-closed and never falls back to
+        // a shared mailbox. Map the refusal's permanence onto the error status
+        // durable dispatch classifies by: permanent → 403 (dead-letter), transient
+        // → 503 (retry).
+        let auth = self.auth_context()?;
+        let sender = resolver.resolve_sender(&auth).await.map_err(|error| {
+            if error.retryable {
+                fraiseql_error::FraiseQLError::ServiceUnavailable {
+                    message:     error.message,
+                    retry_after: None,
+                }
+            } else {
+                fraiseql_error::FraiseQLError::Authorization {
+                    message:  error.message,
+                    action:   Some("send_email".to_string()),
+                    resource: None,
+                }
+            }
+        })?;
+
+        transport.send(&sender, request).await
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {

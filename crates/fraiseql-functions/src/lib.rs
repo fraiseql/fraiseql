@@ -22,8 +22,8 @@ pub mod types;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use outbound::{
-    LoginEmailSender, SendPolicyError, SenderIdentity, SenderIdentityResolver,
-    resolve_sender_identity,
+    EmailTransport, LoginEmailSender, SendEmailRequest, SendEmailResponse, SendPolicyError,
+    SenderIdentity, SenderIdentityResolver, resolve_sender_identity,
 };
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
