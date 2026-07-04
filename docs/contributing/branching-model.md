@@ -78,19 +78,35 @@ PostgreSQL) run **post-merge on the `dev` push** to spare the single runner; dis
 them manually (`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change
 warrants full validation before merge. Locally, `make preflight` mirrors the fast gate.
 
-### Fork pull requests
+### Fork PRs and Dependabot PRs
 
-A fork PR produces no `push` event here, so the required checks are **absent** and the
-merge is blocked by design — fork code must never run on the self-hosted runner. To
-land a reviewed fork PR, **push its head commit to an in-repo branch**:
+Two PR categories don't produce an in-repo `push` under a full-token actor, so the
+required checks are **absent** and the merge is blocked by design:
+
+- **Fork PRs** — a fork cannot push here, and fork code must never run on the
+  self-hosted runner.
+- **Dependabot PRs** — `dependabot/**` branches are excluded from the trigger because
+  Dependabot's degraded token cannot pull the private ghcr base image.
+
+Unblock either the same way — **push the reviewed head commit to an in-repo `ci/…`
+branch** under your own actor:
 
 ```bash
 git fetch origin pull/<N>/head
-git push origin FETCH_HEAD:refs/heads/review/<slug>
+git push origin FETCH_HEAD:refs/heads/ci/review-<N>
 ```
 
-The SHA is identical, so the push fires the legs, the checks land on that SHA, and the
-fork PR's merge box goes green.
+The SHA is identical, so the push fires the legs under a full token (the ghcr pull
+works), the checks land on that SHA, and the PR's merge box goes green.
+
+For a **`cargo` bump this is not overhead — it is the point**: `cargo deny` runs against
+the actual bumped `Cargo.lock` before merge, which is exactly where it earns its keep
+(e.g. the #515 AWS-SDK bump tripped `bans.multiple-versions`). For a pure SDK/npm dep
+bump the Rust legs assert nothing, so an **admin bypass** once the SDK CI is green is
+also fine.
+
+Do **not** add a blanket Dependabot bypass to the ruleset — it would exempt the one PR
+category (`cargo`) with the best track record of catching a real problem at the gate.
 
 ### In-flight branches
 
