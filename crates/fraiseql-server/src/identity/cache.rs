@@ -1,67 +1,98 @@
-//! In-memory per-`sub` TTL cache for resolved identities.
+//! In-memory cache for resolved identities (DESIGN §6) — one policy, reused by
+//! every profile instance.
 //!
-//! Ported verbatim from #242 (`routes/enrichment.rs`, `v2.2.1`): a `DashMap`
-//! keyed on the subject, with absolute-instant expiry checked on read.
+//! Evolved from #242's per-`sub` TTL map in two ways the design requires:
 //!
-//! P01 refines this in two ways specified by the design
-//! (`.phases/539-enriched-identity/DESIGN.md` §6): the key becomes the ordered
-//! bound-`$param` tuple rather than bare `sub` (amendment A — cross-issuer
-//! correctness), and a short negative TTL is added for `Denied` results. This
-//! phase lands the proven get/insert/expiry behaviour and its tests unchanged.
+//! - **Key = the ordered bound-`$param` tuple**, not bare `sub` (amendment A). `sub` is unique only
+//!   *per issuer*, and FraiseQL speaks multi-IdP; keying on the bound parameters makes cache
+//!   correctness exactly track the query's `WHERE` clause (a multi-issuer app binds `$iss`), and
+//!   closes the same-`sub`-different-`$email` staleness case for free. The key is computed by the
+//!   resolver from `BoundQuery::binds`.
+//! - **Positive *and* negative TTL.** A `Resolved` outcome is cached for `cache_ttl_secs`; a
+//!   `Denied` outcome for a short `negative_ttl_secs` (so a freshly provisioned actor goes live
+//!   quickly). An `Unavailable` outcome is **never** cached — a transient blip must not pin a
+//!   denial.
+//!
+//! Each entry also records its `sub` so `flush(sub)` can evict every entry for a
+//! subject on revoke/provision, independent of which parameters the query binds.
 
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 
-/// A cached identity map with an absolute expiry instant.
-pub(super) struct CacheEntry {
-    /// The resolved (and possibly column-renamed) identity fields.
-    pub(super) value:      serde_json::Map<String, serde_json::Value>,
-    /// The instant after which this entry is stale.
-    pub(super) expires_at: Instant,
+use super::failure::DenyReason;
+
+/// A cacheable resolution outcome. `Unavailable` is deliberately absent: transient
+/// failures are never cached (DESIGN §5.3).
+#[derive(Clone)]
+pub(super) enum CachedOutcome {
+    /// A resolved identity map (renamed enriched fields), cached positively.
+    Resolved(serde_json::Map<String, serde_json::Value>),
+    /// A permanent denial, cached negatively for a short TTL.
+    Denied(DenyReason),
 }
 
-/// Per-`sub` cache for identity-resolution results.
+/// One cache entry: an outcome, its owning subject (for `flush(sub)`), and an
+/// absolute expiry instant.
+struct CacheEntry {
+    outcome:    CachedOutcome,
+    sub:        String,
+    expires_at: Instant,
+}
+
+/// Identity-resolution cache, keyed by the serialized bound-`$param` tuple.
 #[derive(Default)]
-pub(super) struct EnrichmentCache {
-    /// Live entries, keyed by subject.
-    pub(super) entries: DashMap<String, CacheEntry>,
+pub(super) struct IdentityCache {
+    entries: DashMap<String, CacheEntry>,
 }
 
-impl EnrichmentCache {
+impl IdentityCache {
     /// Create an empty cache.
     pub(super) fn new() -> Self {
         Self::default()
     }
 
-    /// Return a cached result if one exists and has not expired.
+    /// Return a cached outcome if one exists for `key` and has not expired.
     ///
     /// An expired entry is evicted as a side effect before returning `None`.
-    pub(super) fn get(&self, sub: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
-        let entry = self.entries.get(sub)?;
+    pub(super) fn get(&self, key: &str) -> Option<CachedOutcome> {
+        let entry = self.entries.get(key)?;
         if Instant::now() < entry.expires_at {
-            Some(entry.value.clone())
+            Some(entry.outcome.clone())
         } else {
             // Release the read guard before removing to avoid a self-deadlock.
             drop(entry);
-            self.entries.remove(sub);
+            self.entries.remove(key);
             None
         }
     }
 
-    /// Insert a result with the given TTL.
-    pub(super) fn insert(
-        &self,
-        sub: String,
-        value: serde_json::Map<String, serde_json::Value>,
-        ttl: Duration,
-    ) {
+    /// Insert an outcome for `key` (owned by `sub`) with the given TTL.
+    pub(super) fn insert(&self, key: String, sub: String, outcome: CachedOutcome, ttl: Duration) {
         self.entries.insert(
-            sub,
+            key,
             CacheEntry {
-                value,
+                outcome,
+                sub,
                 expires_at: Instant::now() + ttl,
             },
         );
+    }
+
+    /// Evict every entry belonging to `sub` (DESIGN §6). Rare/admin — the sweep
+    /// is fine. Propagates a grant or revoke for a subject instantly.
+    pub(super) fn flush(&self, sub: &str) {
+        self.entries.retain(|_key, entry| entry.sub != sub);
+    }
+
+    /// Evict all entries.
+    pub(super) fn flush_all(&self) {
+        self.entries.clear();
+    }
+
+    /// Number of live (not-yet-swept) entries. Test-only visibility into the map.
+    #[cfg(test)]
+    pub(super) fn len(&self) -> usize {
+        self.entries.len()
     }
 }

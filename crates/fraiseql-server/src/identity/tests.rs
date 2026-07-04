@@ -1,40 +1,55 @@
-//! Adversarial + behavioural test suite ported verbatim from #242
-//! (`routes/enrichment.rs`, `v2.2.1`). These are the hard-to-get-right part of
-//! the primitive and they are already correct; they are ported first (DESIGN
-//! §8, P00) and pinned as a fixed point before any new resolver logic lands.
+//! Test suite for the enriched-identity resolver.
+//!
+//! The `prepare_enrichment_query` adversarial cases are ported verbatim from #242
+//! (`routes/enrichment.rs`, `v2.2.1`) — the hard-to-get-right, already-correct
+//! core, pinned as a fixed point (DESIGN §8, P00). The cache, the failure model
+//! (against a mock store), and the Postgres store (behind the live-DB skip-clean
+//! pattern) are exercised on top (P01).
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::print_stderr)] // Reason: skip message when no backing Postgres is available
 
 use std::{
     collections::HashMap,
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
 };
+
+use serde_json::{Value, json};
 
 use super::{
-    cache::{CacheEntry, EnrichmentCache},
-    query::prepare_enrichment_query,
+    cache::{CachedOutcome, IdentityCache},
+    failure::{DenyReason, IdentityResolution, ResolveError},
+    query::{MissingParam, prepare_enrichment_query},
+    resolver::{
+        BoxFuture, EnrichmentQueryConfig, IdentityResolver, IdentityStore, PgIdentityStore,
+    },
 };
 
-// ── prepare_enrichment_query ─────────────────────────────────────────────
+// ── prepare_enrichment_query (ported verbatim from #242) ──────────────────
 
 #[test]
 fn rewrites_single_param() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("user-123"));
+    claims.insert("sub".to_owned(), json!("user-123"));
 
     let bound =
         prepare_enrichment_query("SELECT role FROM users WHERE sub = $sub", &claims).unwrap();
 
     assert_eq!(bound.sql, "SELECT role FROM users WHERE sub = $1");
     assert_eq!(bound.binds.len(), 1);
-    assert_eq!(bound.binds[0], serde_json::json!("user-123"));
+    assert_eq!(bound.binds[0], json!("user-123"));
 }
 
 #[test]
 fn rewrites_multiple_params() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("u1"));
-    claims.insert("email".to_owned(), serde_json::json!("a@b.com"));
+    claims.insert("sub".to_owned(), json!("u1"));
+    claims.insert("email".to_owned(), json!("a@b.com"));
 
     let bound = prepare_enrichment_query(
         "SELECT role FROM users WHERE sub = $sub AND email = $email",
@@ -49,7 +64,7 @@ fn rewrites_multiple_params() {
 #[test]
 fn reuses_position_for_repeated_param() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("u1"));
+    claims.insert("sub".to_owned(), json!("u1"));
 
     let bound =
         prepare_enrichment_query("SELECT * FROM users WHERE sub = $sub OR alt_sub = $sub", &claims)
@@ -60,13 +75,14 @@ fn reuses_position_for_repeated_param() {
 }
 
 #[test]
-fn missing_param_returns_error() {
+fn missing_param_returns_structured_error() {
     let claims = HashMap::new();
 
+    // Refined from #242's message string to a structured `MissingParam` so the
+    // resolver maps it directly to a fail-closed denial (DESIGN §5).
     let err = prepare_enrichment_query("SELECT 1 WHERE sub = $sub", &claims).unwrap_err();
 
-    assert!(err.contains("$sub"));
-    assert!(err.contains("not in the JWT claims"));
+    assert_eq!(err, MissingParam("sub".to_owned()));
 }
 
 #[test]
@@ -89,70 +105,30 @@ fn preserves_dollar_followed_by_digit() {
     assert_eq!(bound.sql, "SELECT $1");
 }
 
-// ── EnrichmentCache ──────────────────────────────────────────────────────
-
-#[test]
-fn cache_hit_returns_value() {
-    let cache = EnrichmentCache::new();
-    let mut map = serde_json::Map::new();
-    map.insert("role".to_owned(), serde_json::json!("admin"));
-
-    cache.insert("user-1".to_owned(), map, Duration::from_secs(60));
-
-    let result = cache.get("user-1");
-    assert!(result.is_some());
-    assert_eq!(result.unwrap()["role"], "admin");
-}
-
-#[test]
-fn cache_miss_returns_none() {
-    let cache = EnrichmentCache::new();
-    assert!(cache.get("nonexistent").is_none());
-}
-
-#[test]
-fn expired_entry_returns_none() {
-    let cache = EnrichmentCache::new();
-    let map = serde_json::Map::new();
-
-    // Insert with an already-expired timestamp.
-    cache.entries.insert(
-        "user-1".to_owned(),
-        CacheEntry {
-            value:      map,
-            expires_at: Instant::now().checked_sub(Duration::from_secs(1)).unwrap(),
-        },
-    );
-
-    assert!(cache.get("user-1").is_none());
-}
-
-// ── Security: adversarial inputs ─────────────────────────────────────────
-
 #[test]
 fn sql_injection_in_claim_value_is_bound_not_interpolated() {
     let mut claims = HashMap::new();
-    claims.insert("email".to_owned(), serde_json::json!("'; DROP TABLE users; --"));
+    claims.insert("email".to_owned(), json!("'; DROP TABLE users; --"));
 
     let bound =
         prepare_enrichment_query("SELECT role FROM users WHERE email = $email", &claims).unwrap();
 
     // The malicious value must appear as a bind parameter, not in the SQL.
     assert_eq!(bound.sql, "SELECT role FROM users WHERE email = $1");
-    assert_eq!(bound.binds[0], serde_json::json!("'; DROP TABLE users; --"));
+    assert_eq!(bound.binds[0], json!("'; DROP TABLE users; --"));
     assert!(!bound.sql.contains("DROP"));
 }
 
 #[test]
 fn sql_comment_in_claim_value_is_bound_not_interpolated() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("user /* */ OR 1=1"));
+    claims.insert("sub".to_owned(), json!("user /* */ OR 1=1"));
 
     let bound =
         prepare_enrichment_query("SELECT role FROM users WHERE sub = $sub", &claims).unwrap();
 
     assert_eq!(bound.sql, "SELECT role FROM users WHERE sub = $1");
-    assert_eq!(bound.binds[0], serde_json::json!("user /* */ OR 1=1"));
+    assert_eq!(bound.binds[0], json!("user /* */ OR 1=1"));
     assert!(!bound.sql.contains("/*"));
 }
 
@@ -161,8 +137,8 @@ fn overlapping_param_names_are_distinguished() {
     // $email vs $email_verified — ensure the greedy match doesn't treat
     // $email_verified as "$email" + "verified".
     let mut claims = HashMap::new();
-    claims.insert("email".to_owned(), serde_json::json!("a@b.com"));
-    claims.insert("email_verified".to_owned(), serde_json::json!(true));
+    claims.insert("email".to_owned(), json!("a@b.com"));
+    claims.insert("email_verified".to_owned(), json!(true));
 
     let bound = prepare_enrichment_query(
         "SELECT * FROM users WHERE email = $email AND verified = $email_verified",
@@ -172,14 +148,14 @@ fn overlapping_param_names_are_distinguished() {
 
     assert_eq!(bound.sql, "SELECT * FROM users WHERE email = $1 AND verified = $2");
     assert_eq!(bound.binds.len(), 2);
-    assert_eq!(bound.binds[0], serde_json::json!("a@b.com"));
-    assert_eq!(bound.binds[1], serde_json::json!(true));
+    assert_eq!(bound.binds[0], json!("a@b.com"));
+    assert_eq!(bound.binds[1], json!(true));
 }
 
 #[test]
 fn param_at_end_of_query() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("u1"));
+    claims.insert("sub".to_owned(), json!("u1"));
 
     let bound = prepare_enrichment_query("SELECT * FROM users WHERE sub = $sub", &claims).unwrap();
 
@@ -189,10 +165,516 @@ fn param_at_end_of_query() {
 #[test]
 fn unicode_claim_value_is_bound() {
     let mut claims = HashMap::new();
-    claims.insert("sub".to_owned(), serde_json::json!("用户-émoji-🍓"));
+    claims.insert("sub".to_owned(), json!("用户-émoji-🍓"));
 
     let bound =
         prepare_enrichment_query("SELECT role FROM users WHERE sub = $sub", &claims).unwrap();
 
-    assert_eq!(bound.binds[0], serde_json::json!("用户-émoji-🍓"));
+    assert_eq!(bound.binds[0], json!("用户-émoji-🍓"));
+}
+
+// ── IdentityCache (DESIGN §6) ─────────────────────────────────────────────
+
+fn resolved(field: &str, value: Value) -> CachedOutcome {
+    let mut map = serde_json::Map::new();
+    map.insert(field.to_owned(), value);
+    CachedOutcome::Resolved(map)
+}
+
+#[test]
+fn cache_returns_inserted_outcome() {
+    let cache = IdentityCache::new();
+    cache.insert(
+        "[\"u1\"]".to_owned(),
+        "u1".to_owned(),
+        resolved("actor_role", json!("admin")),
+        Duration::from_secs(60),
+    );
+
+    match cache.get("[\"u1\"]") {
+        Some(CachedOutcome::Resolved(map)) => assert_eq!(map["actor_role"], "admin"),
+        other => panic!("expected Resolved, got {:?}", other.is_some()),
+    }
+}
+
+#[test]
+fn cache_miss_returns_none() {
+    let cache = IdentityCache::new();
+    assert!(cache.get("nonexistent").is_none());
+}
+
+#[test]
+fn cache_expired_entry_returns_none() {
+    let cache = IdentityCache::new();
+    // A zero TTL is already elapsed by the next monotonic `get` (strict `<`).
+    cache.insert(
+        "[\"u1\"]".to_owned(),
+        "u1".to_owned(),
+        resolved("actor_role", json!("admin")),
+        Duration::from_secs(0),
+    );
+
+    assert!(cache.get("[\"u1\"]").is_none());
+}
+
+#[test]
+fn cache_flush_evicts_only_matching_subject() {
+    let cache = IdentityCache::new();
+    // Two entries for u1 (different bound tuples), one for u2.
+    cache.insert(
+        "[\"u1\"]".to_owned(),
+        "u1".to_owned(),
+        resolved("r", json!("a")),
+        Duration::from_secs(60),
+    );
+    cache.insert(
+        "[\"u1\",\"x\"]".to_owned(),
+        "u1".to_owned(),
+        resolved("r", json!("a")),
+        Duration::from_secs(60),
+    );
+    cache.insert(
+        "[\"u2\"]".to_owned(),
+        "u2".to_owned(),
+        resolved("r", json!("b")),
+        Duration::from_secs(60),
+    );
+
+    cache.flush("u1");
+
+    assert_eq!(cache.len(), 1);
+    assert!(cache.get("[\"u1\"]").is_none());
+    assert!(cache.get("[\"u1\",\"x\"]").is_none());
+    assert!(cache.get("[\"u2\"]").is_some());
+}
+
+#[test]
+fn cache_flush_all_clears() {
+    let cache = IdentityCache::new();
+    cache.insert(
+        "[\"u1\"]".to_owned(),
+        "u1".to_owned(),
+        resolved("r", json!("a")),
+        Duration::from_secs(60),
+    );
+    cache.insert(
+        "[\"u2\"]".to_owned(),
+        "u2".to_owned(),
+        resolved("r", json!("b")),
+        Duration::from_secs(60),
+    );
+
+    cache.flush_all();
+
+    assert_eq!(cache.len(), 0);
+}
+
+// ── Failure model against a mock store (DESIGN §5) ────────────────────────
+
+/// A store that returns a fixed row set (or a transient error) and counts calls,
+/// so tests can assert both the classification and the caching behaviour.
+struct MockStore {
+    rows:  Vec<serde_json::Map<String, Value>>,
+    fail:  Option<ResolveError>,
+    calls: AtomicUsize,
+}
+
+impl MockStore {
+    fn returning(rows: Vec<serde_json::Map<String, Value>>) -> Self {
+        Self {
+            rows,
+            fail: None,
+            calls: AtomicUsize::new(0),
+        }
+    }
+
+    fn failing() -> Self {
+        Self {
+            rows:  Vec::new(),
+            fail:  Some(ResolveError::new("db unreachable")),
+            calls: AtomicUsize::new(0),
+        }
+    }
+
+    fn calls(&self) -> usize {
+        self.calls.load(Ordering::Relaxed)
+    }
+}
+
+impl IdentityStore for MockStore {
+    fn fetch_rows<'a>(
+        &'a self,
+        _sql: &'a str,
+        _binds: &'a [Value],
+    ) -> BoxFuture<'a, Result<Vec<serde_json::Map<String, Value>>, ResolveError>> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        let result = self.fail.clone().map_or_else(|| Ok(self.rows.clone()), Err);
+        Box::pin(async move { result })
+    }
+}
+
+fn row(pairs: &[(&str, Value)]) -> serde_json::Map<String, Value> {
+    pairs.iter().map(|(k, v)| ((*k).to_owned(), v.clone())).collect()
+}
+
+fn claims(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
+    pairs.iter().map(|(k, v)| ((*k).to_owned(), v.clone())).collect()
+}
+
+fn config(query: &str, map: &[(&str, &str)]) -> EnrichmentQueryConfig {
+    EnrichmentQueryConfig {
+        enabled:           true,
+        query:             query.to_owned(),
+        map:               map.iter().map(|(c, f)| ((*c).to_owned(), (*f).to_owned())).collect(),
+        cache_ttl_secs:    60,
+        negative_ttl_secs: 5,
+    }
+}
+
+/// A resolver over a `sub`-keyed query with the actor mapping, backed by `store`.
+fn resolver(store: MockStore) -> IdentityResolver {
+    IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        Arc::new(store),
+    )
+}
+
+fn sub_claims() -> HashMap<String, Value> {
+    claims(&[("sub", json!("u1"))])
+}
+
+#[tokio::test]
+async fn resolve_one_row_all_fields_present_resolves() {
+    let store = MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", json!("manager")),
+    ])]);
+    let resolver = resolver(store);
+
+    match resolver.resolve("u1", &sub_claims()).await {
+        IdentityResolution::Resolved(map) => {
+            assert_eq!(map["actor_id"], "a-1");
+            assert_eq!(map["actor_role"], "manager");
+        },
+        other => panic!("expected Resolved, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_zero_rows_denies_unknown_subject() {
+    let resolver = resolver(MockStore::returning(vec![]));
+
+    match resolver.resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::ZeroRows) => {},
+        other => panic!("expected Denied(ZeroRows), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_more_than_one_row_denies_ambiguous() {
+    let store = MockStore::returning(vec![
+        row(&[("actor_id", json!("a-1")), ("actor_role", json!("manager"))]),
+        row(&[("actor_id", json!("a-2")), ("actor_role", json!("staff"))]),
+    ]);
+
+    match resolver(store).resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::Ambiguous) => {},
+        other => panic!("expected Denied(Ambiguous), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_null_mapped_field_denies() {
+    let store = MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", Value::Null),
+    ])]);
+
+    match resolver(store).resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::NullField(col)) => assert_eq!(col, "actor_role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_absent_mapped_field_denies() {
+    // Row is present but omits `actor_role` entirely — treated as NULL.
+    let store = MockStore::returning(vec![row(&[("actor_id", json!("a-1"))])]);
+
+    match resolver(store).resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::NullField(col)) => assert_eq!(col, "actor_role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_missing_bound_param_denies() {
+    // Query binds $email but the token has no email claim (DESIGN §9 item 8).
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id FROM tb_actor WHERE sub = $sub AND email = $email",
+            &[("actor_id", "actor_id")],
+        ),
+        Arc::new(MockStore::returning(vec![])),
+    );
+
+    match resolver.resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::MissingParam(name)) => assert_eq!(name, "email"),
+        other => panic!("expected Denied(MissingParam), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_transient_error_is_unavailable_and_not_cached() {
+    let resolver = resolver(MockStore::failing());
+
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Unavailable(_)
+    ));
+    // A transient blip must not be cached — the second call re-hits the store.
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Unavailable(_)
+    ));
+}
+
+#[tokio::test]
+async fn resolve_caches_resolved_positively() {
+    let store = MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", json!("manager")),
+    ])]);
+    let store = Arc::new(store);
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+
+    assert_eq!(store.calls(), 1, "second resolve should be served from cache");
+}
+
+#[tokio::test]
+async fn resolve_caches_denied_negatively() {
+    let store = Arc::new(MockStore::returning(vec![]));
+    let resolver = IdentityResolver::new(
+        config("SELECT actor_id FROM tb_actor WHERE sub = $sub", &[("actor_id", "actor_id")]),
+        store.clone(),
+    );
+
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::ZeroRows)
+    ));
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::ZeroRows)
+    ));
+
+    assert_eq!(store.calls(), 1, "a denial is negative-cached");
+}
+
+#[tokio::test]
+async fn flush_evicts_subject_so_next_resolve_rehits() {
+    let store = Arc::new(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", json!("manager")),
+    ])]));
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    resolver.flush("u1");
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+
+    assert_eq!(store.calls(), 2, "flush forces a re-resolution");
+}
+
+#[tokio::test]
+async fn cache_key_discriminates_by_bound_params() {
+    // Same query, two different `$sub` bindings → two distinct cache keys, so the
+    // store is hit for each (amendment A: no cross-subject sharing).
+    let store = Arc::new(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", json!("manager")),
+    ])]));
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+
+    let _ = resolver.resolve("u1", &claims(&[("sub", json!("u1"))])).await;
+    let _ = resolver.resolve("u2", &claims(&[("sub", json!("u2"))])).await;
+
+    assert_eq!(store.calls(), 2, "distinct bound tuples do not share a cache entry");
+}
+
+// ── PgIdentityStore against a live Postgres (skip-clean) ──────────────────
+
+/// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn
+/// with the `local-testcontainers` feature). `None` when no service is available
+/// so the test skips cleanly.
+async fn connect_pool() -> Option<(sqlx::PgPool, fraiseql_test_support::Service)> {
+    let svc = fraiseql_test_support::postgres().await?;
+    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
+    Some((pool, svc))
+}
+
+/// Create a fresh, uniquely-named actor table so parallel runs stay independent.
+async fn make_actor_table(pool: &sqlx::PgPool) -> String {
+    let table = format!("tb_actor_test_{}", uuid::Uuid::new_v4().simple());
+    sqlx::query(&format!("CREATE TABLE {table} (sub text, actor_id text, actor_role text)"))
+        .execute(pool)
+        .await
+        .unwrap();
+    table
+}
+
+fn actor_resolver(pool: &sqlx::PgPool, table: &str) -> IdentityResolver {
+    IdentityResolver::new(
+        config(
+            &format!("SELECT actor_id, actor_role FROM {table} WHERE sub = $sub"),
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        Arc::new(PgIdentityStore::new(pool.clone())),
+    )
+}
+
+#[tokio::test]
+async fn pg_store_resolves_and_renames_known_subject() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_store_resolves_and_renames_known_subject: no postgres");
+        return;
+    };
+    let table = make_actor_table(&pool).await;
+    sqlx::query(&format!(
+        "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resolver = actor_resolver(&pool, &table);
+    match resolver.resolve("u1", &sub_claims()).await {
+        IdentityResolution::Resolved(map) => {
+            assert_eq!(map["actor_id"], "a-1");
+            assert_eq!(map["actor_role"], "manager");
+        },
+        other => panic!("expected Resolved, got {other:?}"),
+    }
+
+    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn pg_store_denies_unknown_subject() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_store_denies_unknown_subject: no postgres");
+        return;
+    };
+    let table = make_actor_table(&pool).await;
+
+    let resolver = actor_resolver(&pool, &table);
+    assert!(matches!(
+        resolver.resolve("nobody", &claims(&[("sub", json!("nobody"))])).await,
+        IdentityResolution::Denied(DenyReason::ZeroRows)
+    ));
+
+    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn pg_store_denies_ambiguous_subject() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_store_denies_ambiguous_subject: no postgres");
+        return;
+    };
+    let table = make_actor_table(&pool).await;
+    sqlx::query(&format!(
+        "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager'), ('u1', 'a-2', 'staff')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resolver = actor_resolver(&pool, &table);
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::Ambiguous)
+    ));
+
+    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn pg_store_denies_null_field() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_store_denies_null_field: no postgres");
+        return;
+    };
+    let table = make_actor_table(&pool).await;
+    sqlx::query(&format!(
+        "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', NULL)"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resolver = actor_resolver(&pool, &table);
+    match resolver.resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::NullField(col)) => assert_eq!(col, "actor_role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+
+    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn pg_store_binds_hostile_subject_value_safely() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_store_binds_hostile_subject_value_safely: no postgres");
+        return;
+    };
+    let table = make_actor_table(&pool).await;
+    sqlx::query(&format!(
+        "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // A classic injection payload as the `sub` value must bind as data (matching
+    // no row) — not drop the table.
+    let hostile = format!("'; DROP TABLE {table}; --");
+    let resolver = actor_resolver(&pool, &table);
+    assert!(matches!(
+        resolver.resolve(&hostile, &claims(&[("sub", json!(hostile))])).await,
+        IdentityResolution::Denied(DenyReason::ZeroRows)
+    ));
+
+    // The table survives, proving the value never reached the SQL text.
+    let (count,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {table}"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+
+    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
 }

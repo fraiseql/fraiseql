@@ -19,6 +19,15 @@ pub(super) struct BoundQuery {
     pub(super) binds: Vec<serde_json::Value>,
 }
 
+/// The query references a `$param` that is not present in the token claims.
+///
+/// A structured error (refining #242's message string) so the resolver can map
+/// it directly to `DenyReason::MissingParam` — a missing bound parameter is a
+/// fail-closed denial (DESIGN §5), not a query-preparation footnote. The wrapped
+/// value is the bare parameter name (no leading `$`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct MissingParam(pub(super) String);
+
 /// Rewrite `$name` tokens in `query` to positional `$1`, `$2`, … and look up the
 /// corresponding values in `claims`.
 ///
@@ -30,11 +39,11 @@ pub(super) struct BoundQuery {
 ///
 /// # Errors
 ///
-/// Returns an error string if a referenced parameter is missing from `claims`.
+/// Returns [`MissingParam`] if a referenced parameter is absent from `claims`.
 pub(super) fn prepare_enrichment_query(
     query: &str,
     claims: &HashMap<String, serde_json::Value>,
-) -> Result<BoundQuery, String> {
+) -> Result<BoundQuery, MissingParam> {
     let mut sql = String::with_capacity(query.len());
     let mut binds: Vec<serde_json::Value> = Vec::new();
     let mut param_index: HashMap<String, usize> = HashMap::new();
@@ -56,9 +65,7 @@ pub(super) fn prepare_enrichment_query(
             let pos = if let Some(&existing) = param_index.get(name) {
                 existing
             } else {
-                let value = claims.get(name).ok_or_else(|| {
-                    format!("Enrichment query references ${name} but it is not in the JWT claims")
-                })?;
+                let value = claims.get(name).ok_or_else(|| MissingParam(name.to_owned()))?;
                 binds.push(value.clone());
                 let pos = binds.len();
                 param_index.insert(name.to_owned(), pos);
