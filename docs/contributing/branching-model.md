@@ -114,6 +114,15 @@ category (`cargo`) with the best track record of catching a real problem at the 
 change won't have the new trigger until they are **rebased on `dev`** — otherwise the
 required checks never appear and the ruleset blocks the merge. Rebase once and push.
 
+### Workflow token permissions
+
+The repository's default `GITHUB_TOKEN` permission is **`read`** (least-privilege). A
+workflow (or a single job) that needs to write — comment on a PR, push a commit, create
+a release, publish a package — must **declare that scope explicitly** in a `permissions:`
+block. A workflow that needs write and forgets fails **closed and loud** (a `403` on first
+run), never silently holding a scope it didn't ask for. Declare permissions at the *job*
+level when only some jobs need write.
+
 ## Why we do this
 
 Trunk-based development is not an aesthetic preference here — it is the direct fix for

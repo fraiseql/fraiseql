@@ -24,6 +24,12 @@ name: Velocitybench Regression Gate
 on:
   workflow_dispatch:
 
+# Repo default is least-privilege (contents: read). This workflow posts its
+# regression report as a PR comment, so it declares the extra scope explicitly.
+permissions:
+  contents: read
+  pull-requests: write
+
 env:
   CARGO_TERM_COLOR: always
   SCCACHE_GHA_ENABLED: "true"
