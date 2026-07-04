@@ -9,6 +9,7 @@
 | Understand the SQL compiler | [`docs/architecture/compiler.md`](architecture/compiler.md) |
 | Read why design decisions were made | [`docs/adr/`](adr/) — 14 Architecture Decision Records |
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
+| Understand the branching / release model | [`docs/contributing/branching-model.md`](contributing/branching-model.md) — trunk-based development |
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |

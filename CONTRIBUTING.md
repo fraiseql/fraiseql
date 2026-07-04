@@ -148,6 +148,13 @@ cargo test test_schema
 
 ## Development Workflow
 
+FraiseQL uses **trunk-based development**: `dev` is the single trunk (and default
+branch), work lands there via short-lived squash-merged branches, and incomplete work
+rides behind default-off Cargo features rather than long-lived branches. The **one
+rule**: every change lands on the trunk first; release lines only get cherry-picked
+backports. See [`docs/contributing/branching-model.md`](docs/contributing/branching-model.md)
+for the full model and rationale.
+
 ### 1. Create a Feature Branch
 
 ```bash
@@ -215,7 +222,7 @@ git commit -m "feat(scope): description
 git push origin feature/my-feature
 ```
 
-Then create a Pull Request on GitHub targeting `v2-development`.
+Then create a Pull Request on GitHub targeting `dev` (the trunk).
 
 ---
 
