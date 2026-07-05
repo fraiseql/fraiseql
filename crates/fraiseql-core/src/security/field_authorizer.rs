@@ -217,13 +217,15 @@ fn selection_field_has_gated_descendant(
     let Some(child_def) = schema.find_type(child_type) else {
         return false;
     };
-    effective_selections(&sel.nested_fields, child_type, schema).iter().any(|child_sel| {
-        child_def
-            .fields
-            .iter()
-            .any(|f| f.name.as_str() == child_sel.name && f.authorize)
-            || selection_field_has_gated_descendant(schema, child_type, child_sel)
-    })
+    effective_selections(&sel.nested_fields, child_type, schema)
+        .iter()
+        .any(|child_sel| {
+            child_def
+                .fields
+                .iter()
+                .any(|f| f.name.as_str() == child_sel.name && f.authorize)
+                || selection_field_has_gated_descendant(schema, child_type, child_sel)
+        })
 }
 
 /// Returns `true` if a policy-gated field is selected **below** the given fields

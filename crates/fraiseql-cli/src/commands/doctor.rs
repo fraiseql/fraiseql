@@ -1144,7 +1144,10 @@ async fn rls_security_invoker_checks(db_url: &str, schema_path: &Path) -> Vec<Do
     views.sort();
     views.dedup();
     if views.is_empty() {
-        return vec![DoctorCheck::pass(SECURITY_INVOKER_NAME, "no sql_source views to audit")];
+        return vec![DoctorCheck::pass(
+            SECURITY_INVOKER_NAME,
+            "no sql_source views to audit",
+        )];
     }
 
     let catalog = match PgCatalog::connect(db_url) {

@@ -3133,7 +3133,7 @@ mod cascade {
 
     /// A mutation adapter returning a fixed `app.mutation_response` row whose
     /// `cascade` JSONB the test supplies. The primary entity is a `Post` with a
-    /// snake_case source key (`author_id`) to exercise camelCase projection.
+    /// `snake_case` source key (`author_id`) to exercise `camelCase` projection.
     struct CannedMutationAdapter {
         row:               HashMap<String, serde_json::Value>,
         /// Accumulates every view name passed to `invalidate_views`.
@@ -3264,7 +3264,7 @@ mod cascade {
         }
     }
 
-    /// A `createPost` cascade mutation over a `Post` entity carrying a snake_case
+    /// A `createPost` cascade mutation over a `Post` entity carrying a `snake_case`
     /// source key (`author_id` → `authorId`) and a policy-gated `email`.
     fn cascade_schema() -> CompiledSchema {
         let mut s = CompiledSchema::new();
@@ -3308,11 +3308,13 @@ mod cascade {
     }
 
     /// The typed payload shape: `{ entity, cascade { updated, deleted }, updatedFields }`,
-    /// with the primary entity AND each cascade entity projected to camelCase.
+    /// with the primary entity AND each cascade entity projected to `camelCase`.
     #[tokio::test]
     async fn cascade_payload_shape_and_camelcase() {
-        let executor =
-            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let executor = Executor::new(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+        );
         let q = r"mutation { createPost {
             entity { id title authorId }
             cascade {
@@ -3346,10 +3348,14 @@ mod cascade {
     /// unrequested injection — eval finding 3).
     #[tokio::test]
     async fn cascade_selection_gated_to_requested_fields() {
-        let executor =
-            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
-        let res =
-            executor.execute("mutation { createPost { entity { id } } }", None).await.unwrap();
+        let executor = Executor::new(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+        );
+        let res = executor
+            .execute("mutation { createPost { entity { id } } }", None)
+            .await
+            .unwrap();
         let payload = &res["data"]["createPost"];
         assert_eq!(payload["entity"], json!({ "id": "p1" }));
         assert!(payload.get("cascade").is_none(), "unselected cascade must be absent: {payload}");
@@ -3382,8 +3388,10 @@ mod cascade {
     /// and `truncated` is false for an under-limit cascade.
     #[tokio::test]
     async fn cascade_metadata_reports_affected_count() {
-        let executor =
-            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let executor = Executor::new(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+        );
         let q = "mutation { createPost { cascade { metadata { affectedCount truncated } } } }";
         let res = executor.execute(q, None).await.unwrap();
         let meta = &res["data"]["createPost"]["cascade"]["metadata"];
@@ -3434,8 +3442,10 @@ mod cascade {
     #[tokio::test]
     async fn cascade_metadata_timestamp_is_runtime_stamped_when_absent() {
         // standard_cascade() carries no `metadata` block at all.
-        let executor =
-            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let executor = Executor::new(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+        );
         let q = "mutation { createPost { cascade { metadata { timestamp } } } }";
         let res = executor.execute(q, None).await.unwrap();
         let ts = &res["data"]["createPost"]["cascade"]["metadata"]["timestamp"];
@@ -3486,7 +3496,8 @@ mod cascade {
         });
         let executor =
             Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
-        let q = "mutation { createPost { cascade { invalidations { queryName strategy scope } } } }";
+        let q =
+            "mutation { createPost { cascade { invalidations { queryName strategy scope } } } }";
         let res = executor.execute(q, None).await.unwrap();
         let inv = &res["data"]["createPost"]["cascade"]["invalidations"][0];
         assert_eq!(inv["queryName"], "listPosts");
@@ -3511,7 +3522,10 @@ mod cascade {
         let adapter = Arc::new(CannedMutationAdapter::new(cascade));
         let executor = Executor::new(cascade_schema(), Arc::clone(&adapter));
         // The client selects only the primary entity — cascade is not requested.
-        executor.execute("mutation { createPost { entity { id } } }", None).await.unwrap();
+        executor
+            .execute("mutation { createPost { entity { id } } }", None)
+            .await
+            .unwrap();
         let views = adapter.invalidated_views.lock().unwrap().clone();
         assert!(
             views.iter().any(|v| v == "tv_account"),

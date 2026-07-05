@@ -272,16 +272,16 @@ pub struct RuntimeConfig {
 /// Response-size limits for the typed cascade surface, per the graphql-cascade
 /// spec's security requirements (`specification/16_security.md`).
 ///
-/// Defaults are the spec's: depth 3, 500 affected entities, 5 MiB.
+/// Defaults are the spec's: depth 3, 500 affected entities, 5 `MiB`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CascadeLimits {
     /// Maximum relationship depth a cascade may traverse (spec default `3`).
-    pub max_depth: usize,
+    pub max_depth:            usize,
     /// Maximum number of affected entities (`updated` + `deleted`) before the
     /// cascade is truncated and flagged `truncated` in its metadata (spec
     /// default `500`).
     pub max_updated_entities: usize,
-    /// Maximum serialized cascade size in MiB before the mutation is rejected
+    /// Maximum serialized cascade size in `MiB` before the mutation is rejected
     /// (spec default `5`). A value of `0` **disables** the size ceiling — set it
     /// only to intentionally lift the limit, never as an "unbounded" value reached
     /// by accident.

@@ -94,7 +94,9 @@ async fn cascade_rls_conformance_isolates_tenants() {
     // Tenant A sees its own post through the security_invoker view.
     let own: serde_json::Value = client
         .query_one(
-            &format!("SELECT fraiseql.cascade_entity('Post', '{POST_A}', 'UPDATED', 'v_post') AS c"),
+            &format!(
+                "SELECT fraiseql.cascade_entity('Post', '{POST_A}', 'UPDATED', 'v_post') AS c"
+            ),
             &[],
         )
         .await
@@ -106,7 +108,9 @@ async fn cascade_rls_conformance_isolates_tenants() {
     // never rides in tenant A's cascade. THE conformance guarantee.
     let cross: Option<serde_json::Value> = client
         .query_one(
-            &format!("SELECT fraiseql.cascade_entity('Post', '{POST_B}', 'UPDATED', 'v_post') AS c"),
+            &format!(
+                "SELECT fraiseql.cascade_entity('Post', '{POST_B}', 'UPDATED', 'v_post') AS c"
+            ),
             &[],
         )
         .await

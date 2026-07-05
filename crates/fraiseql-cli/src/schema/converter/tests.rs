@@ -1978,7 +1978,8 @@ mod tenancy_tests {
             serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
         assert!(!absent.cascade);
         let on: IntermediateMutation =
-            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "cascade": true }"#).unwrap();
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "cascade": true }"#)
+                .unwrap();
         assert!(on.cascade);
     }
 
@@ -2013,7 +2014,10 @@ mod tenancy_tests {
         // CascadeNode interface exists and the queryable entity implements it.
         assert!(compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
         let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
-        assert!(post.implements.iter().any(|i| i == "CascadeNode"), "Post implements CascadeNode");
+        assert!(
+            post.implements.iter().any(|i| i == "CascadeNode"),
+            "Post implements CascadeNode"
+        );
 
         // CascadeOperation enum with the spec's three values.
         let op = compiled.enums.iter().find(|e| e.name == "CascadeOperation").expect("enum");

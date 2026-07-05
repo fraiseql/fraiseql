@@ -7,17 +7,16 @@
 //! (`graphql-cascade/reference/cascade_base.graphql`).
 //!
 //! When ≥1 mutation has `cascade = true`, it synthesizes, once:
-//! - a `CascadeNode` interface (`id: ID!`), auto-implemented on every queryable
-//!   entity type (view-backed, non-error) so any entity can ride in a cascade and
-//!   be selected via an inline fragment. Deliberately distinct from the relay
-//!   `Node` interface (which carries global-id refetch semantics);
+//! - a `CascadeNode` interface (`id: ID!`), auto-implemented on every queryable entity type
+//!   (view-backed, non-error) so any entity can ride in a cascade and be selected via an inline
+//!   fragment. Deliberately distinct from the relay `Node` interface (which carries global-id
+//!   refetch semantics);
 //! - the `CascadeOperation` enum (`CREATED`/`UPDATED`/`DELETED`);
-//! - `UpdatedEntity` (`id`, `operation`, `entity: CascadeNode!`) for created/updated
-//!   rows, and `DeletedEntity` (`id`, `deletedAt`) for deleted rows — a deleted row
-//!   has no entity body to project, so it is a distinct type (a shared type with a
-//!   non-null `entity` would be unsatisfiable);
-//! - the `CascadeUpdates` envelope (`updated: [UpdatedEntity!]!`,
-//!   `deleted: [DeletedEntity!]!`).
+//! - `UpdatedEntity` (`id`, `operation`, `entity: CascadeNode!`) for created/updated rows, and
+//!   `DeletedEntity` (`id`, `deletedAt`) for deleted rows — a deleted row has no entity body to
+//!   project, so it is a distinct type (a shared type with a non-null `entity` would be
+//!   unsatisfiable);
+//! - the `CascadeUpdates` envelope (`updated: [UpdatedEntity!]!`, `deleted: [DeletedEntity!]!`).
 //!
 //! Then, per cascade mutation, it synthesizes a `<Mutation>Payload`
 //! (`entity: <ReturnType>`, `cascade: CascadeUpdates`, `updatedFields: [String!]!`)
@@ -124,8 +123,8 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
         schema.types.push(cascade_updates_type());
     }
 
-    // 3. Per-mutation payload wrapper + return-type rewrite. Plan up front so the
-    //    mutation list isn't borrowed while pushing synthesized types.
+    // 3. Per-mutation payload wrapper + return-type rewrite. Plan up front so the mutation list
+    //    isn't borrowed while pushing synthesized types.
     let plans: Vec<(usize, String, String)> = cascade_mutation_indices
         .iter()
         .map(|&idx| {
@@ -190,17 +189,17 @@ fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) ->
 /// Build a synthetic object type (empty `sql_source` — never queried via SQL).
 fn synth_type(name: &str, fields: Vec<FieldDefinition>, desc: &str) -> TypeDefinition {
     TypeDefinition {
-        name:                name.into(),
-        sql_source:          String::new().into(),
-        jsonb_column:        String::new(),
+        name: name.into(),
+        sql_source: String::new().into(),
+        jsonb_column: String::new(),
         fields,
-        description:         Some(desc.to_string()),
+        description: Some(desc.to_string()),
         sql_projection_hint: None,
-        implements:          Vec::new(),
-        requires_role:       None,
-        is_error:            false,
-        relay:               false,
-        relationships:       Vec::new(),
+        implements: Vec::new(),
+        requires_role: None,
+        is_error: false,
+        relay: false,
+        relationships: Vec::new(),
     }
 }
 
@@ -255,12 +254,7 @@ fn deleted_entity_type() -> TypeDefinition {
         DELETED_ENTITY,
         vec![
             synth_field("id", FieldType::Id, false, "The deleted entity's global ID."),
-            synth_field(
-                "deletedAt",
-                FieldType::DateTime,
-                false,
-                "When the entity was deleted.",
-            ),
+            synth_field("deletedAt", FieldType::DateTime, false, "When the entity was deleted."),
         ],
         "An entity deleted by a mutation's cascade.",
     )
@@ -442,6 +436,8 @@ fn cascade_payload_type(payload_name: &str, entity_type: &str) -> TypeDefinition
                 "GraphQL field names on the primary entity changed by this mutation (#433).",
             ),
         ],
-        &format!("Payload of a cascade mutation returning {entity_type}: the entity plus its cascade."),
+        &format!(
+            "Payload of a cascade mutation returning {entity_type}: the entity plus its cascade."
+        ),
     )
 }

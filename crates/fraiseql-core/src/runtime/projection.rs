@@ -648,7 +648,7 @@ fn lookup_source<'a>(obj: &'a Map<String, JsonValue>, field_name: &str) -> Optio
 /// Shared with the mutation runner's cascade projection, which navigates the
 /// payload/envelope selection sets (`... on <Name>Payload`, `... on <EntityType>`)
 /// the same way the entity projector does.
-pub(crate) fn effective_selections<'a>(
+pub fn effective_selections<'a>(
     selections: &'a [FieldSelection],
     type_name: &str,
     schema: &CompiledSchema,

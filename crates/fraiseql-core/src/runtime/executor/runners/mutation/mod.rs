@@ -174,6 +174,10 @@ fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<St
 /// Build the typed cascade payload `{ entity, cascade, updatedFields }`, filtered
 /// to the client's selection set. Projects + field-authorizes the primary entity
 /// and delegates the cascade envelope to [`build_cascade_updates`].
+// Reason: cohesive per-call inputs for cascade projection (context, the two
+// resolved type names, and the three outcome payloads); grouping into a struct
+// would only relocate them.
+#[allow(clippy::too_many_arguments)]
 fn build_cascade_payload<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
     security_ctx: Option<&SecurityContext>,
@@ -364,9 +368,10 @@ fn build_cascade_metadata(
                 // `affectedCount`): prefer the function's transaction timestamp,
                 // else stamp the current server time so a function that omits it
                 // still yields an SDL-valid response rather than a null violation.
-                let ts = db.and_then(|m| m.get("timestamp")).cloned().unwrap_or_else(|| {
-                    serde_json::Value::String(chrono::Utc::now().to_rfc3339())
-                });
+                let ts = db
+                    .and_then(|m| m.get("timestamp"))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
                 out.insert(key, ts);
             },
             "transactionId" => {
@@ -466,7 +471,7 @@ fn build_updated_entities<A: DatabaseAdapter>(
                         "cascade.updated entry has a missing or invalid operation: {other:?} \
                          (expected CREATED, UPDATED, or DELETED)"
                     ),
-                    path: Some("cascade.updated.operation".to_string()),
+                    path:    Some("cascade.updated.operation".to_string()),
                 });
             },
         }
@@ -1426,7 +1431,6 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             // payload's `entity` field type.
             let payload_type = resolve_payload_type(&mutation_return_type, &ctx.schema);
             let entity_type_name = entity_type
-                .clone()
                 .or_else(|| payload_entity_type(&payload_type, &ctx.schema))
                 .unwrap_or_else(|| mutation_return_type.clone());
             build_cascade_payload(
