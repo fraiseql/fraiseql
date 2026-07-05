@@ -363,6 +363,15 @@ impl DurableDispatcher {
                 // retry; everything else (5xx, timeouts, execution failures) is
                 // treated as transient and retried.
                 |error: &fraiseql_error::FraiseQLError| !error.is_client_error(),
+                // A transient error may request a minimum backoff (greylisting: an
+                // SMTP tempfail clears in minutes, not the policy's seconds).
+                |error: &fraiseql_error::FraiseQLError| match error {
+                    fraiseql_error::FraiseQLError::ServiceUnavailable {
+                        retry_after: Some(secs),
+                        ..
+                    } => Some(std::time::Duration::from_secs(*secs)),
+                    _ => None,
+                },
                 |n| {
                     attempts.store(n, std::sync::atomic::Ordering::Relaxed);
                     // Clone per attempt so the retry closure stays `FnMut`; the

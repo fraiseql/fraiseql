@@ -222,12 +222,21 @@ pub struct SendSettings {
     /// — a reply or a released send resets it, never elapsed time.
     #[serde(default = "default_challenge_suppress_after")]
     pub challenge_suppress_after: u32,
+
+    /// Run a Return-Path probe at startup for each mailbox with both an IMAP and an
+    /// SMTP half: send a self-addressed `bounces+probe-<nonce>@…` and confirm it
+    /// lands with the plus-tag intact, so VERP delivery correlation can be trusted.
+    /// Off by default (it emits a probe message per boot); enable it once to verify
+    /// a new deployment's provider preserves plus-addressing.
+    #[serde(default)]
+    pub verp_probe_on_start: bool,
 }
 
 impl Default for SendSettings {
     fn default() -> Self {
         Self {
             challenge_suppress_after: default_challenge_suppress_after(),
+            verp_probe_on_start:      false,
         }
     }
 }

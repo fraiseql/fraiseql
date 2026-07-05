@@ -29,6 +29,7 @@ async fn retries_transient_failure_until_success() {
     let result: Result<u32, &str> = run_with_retry(
         &zero_delay_policy(3),
         |_error| true, // every error is transient
+        |_error| None, // no backoff-floor hint
         |n| {
             calls.fetch_add(1, Ordering::SeqCst);
             async move { if n < 3 { Err("transient boom") } else { Ok(n) } }
@@ -46,6 +47,7 @@ async fn gives_up_after_max_attempts() {
     let result: Result<u32, &str> = run_with_retry(
         &zero_delay_policy(3),
         |_error| true,
+        |_error| None,
         |_n| {
             calls.fetch_add(1, Ordering::SeqCst);
             async { Err::<u32, &str>("always fails") }
@@ -63,6 +65,7 @@ async fn permanent_error_is_not_retried() {
     let result: Result<u32, &str> = run_with_retry(
         &zero_delay_policy(5),
         |_error| false, // permanent
+        |_error| None,
         |_n| {
             calls.fetch_add(1, Ordering::SeqCst);
             async { Err::<u32, &str>("permanent") }
@@ -72,6 +75,26 @@ async fn permanent_error_is_not_retried() {
 
     assert_eq!(result, Err("permanent"));
     assert_eq!(calls.load(Ordering::SeqCst), 1, "permanent error is not retried");
+}
+
+#[tokio::test(start_paused = true)]
+async fn honors_the_error_supplied_backoff_floor() {
+    // Greylisting: a zero-delay policy would retry in seconds, but a 5-minute error
+    // hint raises the floor, so the retry waits the mail-appropriate delay (virtual
+    // time under the paused clock keeps this instant and deterministic).
+    let start = tokio::time::Instant::now();
+    let result: Result<u32, &str> = run_with_retry(
+        &zero_delay_policy(2),
+        |_error| true,
+        |_error| Some(Duration::from_secs(300)),
+        |n| async move { if n < 2 { Err("greylisted") } else { Ok(n) } },
+    )
+    .await;
+    assert_eq!(result, Ok(2));
+    assert!(
+        start.elapsed() >= Duration::from_secs(300),
+        "the retry waited the error's mail-appropriate floor, not the policy's zero delay"
+    );
 }
 
 #[test]

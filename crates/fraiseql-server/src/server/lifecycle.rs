@@ -198,6 +198,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             dyn fraiseql_functions::host::live::storage::StorageBackend,
                         >
                 });
+                // Opt-in Return-Path probe: verify the provider preserves
+                // plus-addressing before trusting VERP correlation. Blocks startup
+                // up to the probe window per eligible mailbox; off by default.
+                if self.config.send.verp_probe_on_start {
+                    email::run_startup_probes(&self.config.mailbox, |name| {
+                        std::env::var(name).ok()
+                    })
+                    .await;
+                }
+
                 let hooks = app_state.before_mutation_hooks.clone();
                 let workers = email::build_workers(
                     &self.config.mailbox,

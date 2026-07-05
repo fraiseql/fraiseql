@@ -123,7 +123,7 @@ pub struct SentRecord<'a> {
 /// The delivery-feedback seam the `send_email` transport consults before a relay
 /// and writes to after one.
 ///
-/// Object-safe (`BoxFuture` returns, no `#[async_trait]`) so the transport holds an
+/// Object-safe (`BoxFuture` returns, no `async_trait` macro) so the transport holds an
 /// `Arc<dyn SendTracker>` and tests can substitute an in-memory fake.
 pub trait SendTracker: Send + Sync {
     /// The active suppression reason for a recipient (by keyed hash) in a tenant,

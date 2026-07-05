@@ -161,9 +161,9 @@ fn expand_subkey(root_secret: &[u8], info: &[u8]) -> [u8; 32] {
 /// Derive the idempotency-token HMAC subkey from a server root secret.
 ///
 /// The 32-byte output is the `key` passed to [`derive_idempotency_token`] to
-/// produce the unforgeable, signed send-id. Domain-separated (see
-/// [`expand_subkey`]) so it is independent of any other use of the same root
-/// secret, such as [`derive_address_hash_key`] or a JWT-signing use.
+/// produce the unforgeable, signed send-id. Domain-separated (a per-use `info`
+/// label) so it is independent of any other use of the same root secret, such as
+/// [`derive_address_hash_key`] or a JWT-signing use.
 #[must_use]
 pub fn derive_idempotency_subkey(root_secret: &[u8]) -> [u8; 32] {
     expand_subkey(root_secret, b"fraiseql:idempotency-send-id:v1")
@@ -173,7 +173,7 @@ pub fn derive_idempotency_subkey(root_secret: &[u8]) -> [u8; 32] {
 ///
 /// The 32-byte output keys [`hash_address`], which turns a recipient address into
 /// the opaque hash stored on the suppression list. Domain-separated from the
-/// send-id subkey (see [`expand_subkey`]) so the two are cryptographically
+/// send-id subkey (a distinct `info` label) so the two are cryptographically
 /// independent. Keying the hash (rather than a bare digest) both makes it
 /// unforgeable and lets the "do-not-contact" match survive a GDPR erasure of the
 /// raw address elsewhere — the hash is retained, the address is not.
@@ -282,6 +282,14 @@ pub enum RetryDecision {
 /// zero backoff (`initial_delay_ms = 0`) runs with no real delay, which keeps the
 /// unit tests instant.
 ///
+/// `retry_after` lets a transient error request a **minimum** backoff before the
+/// next attempt — the driver waits the longer of the policy's computed delay and
+/// this hint. It is the greylisting lever: an SMTP transient (a `4xx` tempfail from
+/// a greylister) clears in minutes, not the seconds a default policy backs off, so
+/// the transport returns a mail-appropriate `retry_after` and the driver honors it
+/// without a per-function retry-config change. Return `None` (the common case) to
+/// use the policy backoff verbatim.
+///
 /// # Errors
 ///
 /// Returns the error `E` from the last attempt: either a permanent error (one
@@ -290,6 +298,7 @@ pub enum RetryDecision {
 pub async fn run_with_retry<T, E, F, Fut>(
     policy: &DispatchPolicy,
     is_transient: impl Fn(&E) -> bool,
+    retry_after: impl Fn(&E) -> Option<std::time::Duration>,
     mut attempt: F,
 ) -> Result<T, E>
 where
@@ -306,7 +315,12 @@ where
                     return Err(error);
                 }
                 match policy.after_transient_failure(n) {
-                    RetryDecision::Retry(delay) => tokio::time::sleep(delay).await,
+                    // Honor an error-supplied backoff floor (greylisting): wait the
+                    // longer of the policy delay and the error's hint.
+                    RetryDecision::Retry(delay) => {
+                        let wait = retry_after(&error).map_or(delay, |hint| delay.max(hint));
+                        tokio::time::sleep(wait).await;
+                    },
                     RetryDecision::GiveUp => return Err(error),
                 }
             },

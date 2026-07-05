@@ -31,6 +31,14 @@ use super::{
     tracking::{SendTracker, SentRecord},
 };
 
+/// Mail-appropriate backoff floor for a transient SMTP failure (greylisting).
+///
+/// Greylisters tempfail a first delivery and accept a retry a few minutes later, so
+/// a seconds-scale policy backoff would exhaust its attempts before the greylist
+/// lifts. Five minutes is a common greylist window; the durable dispatcher waits at
+/// least this long between retries of a transient send.
+const GREYLISTING_BACKOFF_SECS: u64 = 300;
+
 /// Build the `send_email` transport from the SMTP halves of the configured mailboxes.
 ///
 /// Returns an `Arc<dyn EmailTransport>` ready to attach via
@@ -256,6 +264,13 @@ impl EmailTransport for SmtpMailboxTransport {
                 // 2. Exactly-once: a durable retry of an already-sent dispatch must not
                 //    double-send. If this send-id already completed, skip the relay and return the
                 //    recorded response.
+                //
+                //    ASSUMPTION — one send per dispatch: the send-id is per *dispatch*,
+                //    so a single dispatch that sends N distinct emails would share one
+                //    send-id and only the first would relay (the rest skip as
+                //    "already sent"). The outreach use case is one send per dispatch;
+                //    per-recipient send-ids (derive a sub-key per `to`) are a future
+                //    refinement if a multi-send dispatch is ever needed.
                 if let Some(send_id) = context.send_id {
                     if let Some(recorded) = tracker.recorded_send(context.tenant, send_id).await? {
                         return Ok(SendEmailResponse {
@@ -328,10 +343,13 @@ impl EmailTransport for SmtpMailboxTransport {
                     path:    None,
                 }),
                 // Everything else (connection refused, timeout, 4xx greylisting) is
-                // transient — a 5xx so durable dispatch retries.
+                // transient — a 5xx so durable dispatch retries. Greylisting clears
+                // in minutes, not seconds, so the error carries a mail-appropriate
+                // backoff floor the durable dispatcher honors (a fast policy backoff
+                // would otherwise exhaust before the greylist lifts).
                 Err(error) => Err(FraiseQLError::ServiceUnavailable {
                     message:     format!("SMTP transient error: {error}"),
-                    retry_after: None,
+                    retry_after: Some(GREYLISTING_BACKOFF_SECS),
                 }),
             }
         })

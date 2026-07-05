@@ -34,6 +34,7 @@ pub mod config;
 pub mod correlation;
 pub mod cursor;
 pub mod imap;
+pub mod probe;
 pub mod smtp;
 pub mod store;
 pub mod tracking;
@@ -48,6 +49,7 @@ pub use config::{
 pub use correlation::correlate;
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
+pub use probe::{ProbeOutcome, probe_recipient, run_return_path_probe};
 pub use smtp::{SmtpMailboxTransport, build_email_transport};
 pub use store::PostgresEmailCursorStore;
 pub use tracking::{
@@ -140,6 +142,88 @@ pub fn build_workers<S: std::hash::BuildHasher>(
         workers.push((worker, interval));
     }
     workers
+}
+
+/// How long to wait for a startup Return-Path probe to land before warning.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(120);
+/// How often to poll the mailbox while waiting for the probe.
+const PROBE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Run a Return-Path probe at startup for each mailbox with both halves.
+///
+/// Opt-in (`[send] verp_probe_on_start`): for every mailbox that both sends (SMTP)
+/// and receives (IMAP), send a self-addressed `bounces+probe-<nonce>@…` and confirm
+/// it lands with the plus-tag intact — proving the provider preserves plus-
+/// addressing, without which VERP delivery correlation silently fails. The outcome
+/// is logged loudly; a probe never blocks a send. `get_env` resolves the account
+/// passwords (in production, [`std::env::var`]).
+pub async fn run_startup_probes<S: std::hash::BuildHasher + Sync>(
+    mailboxes: &HashMap<String, MailboxConfig, S>,
+    get_env: impl Fn(&str) -> Option<String> + Send,
+) {
+    for (name, mailbox) in mailboxes {
+        // Only a mailbox that both sends and receives can be self-probed.
+        let (Some(imap), Some(smtp)) = (mailbox.imap.as_ref(), mailbox.smtp.as_ref()) else {
+            continue;
+        };
+        let Some(transport) =
+            SmtpMailboxTransport::build(std::iter::once((name.as_str(), smtp)), &get_env)
+        else {
+            continue; // password unset / relay build failed — already warned by build
+        };
+        let Some(password) = get_env(&imap.password_env) else {
+            continue;
+        };
+        let fetcher = match ImapMailboxFetcher::new(
+            &imap.host,
+            imap.port,
+            &imap.username,
+            password,
+            &imap.mailbox,
+        ) {
+            Ok(fetcher) => fetcher,
+            Err(error) => {
+                warn!(mailbox = %name, %error, "Return-Path probe skipped: IMAP TLS setup failed");
+                continue;
+            },
+        };
+
+        let nonce = uuid::Uuid::new_v4().simple().to_string();
+        let sender = fraiseql_functions::SenderIdentity {
+            address:      smtp.address.clone(),
+            display_name: None,
+        };
+        let probe_to = probe::probe_recipient(
+            smtp.return_path_local_part(),
+            smtp.return_path_domain(),
+            &nonce,
+        );
+        match probe::run_return_path_probe(
+            &transport,
+            &fetcher,
+            &sender,
+            &probe_to,
+            &nonce,
+            PROBE_TIMEOUT,
+            PROBE_INTERVAL,
+        )
+        .await
+        {
+            Ok(ProbeOutcome::Confirmed) => info!(
+                mailbox = %name,
+                "VERP Return-Path probe confirmed — delivery correlation is active"
+            ),
+            Ok(ProbeOutcome::NotObserved) => warn!(
+                mailbox = %name,
+                "VERP Return-Path probe did NOT land within the window — plus-addressing may be \
+                 stripped by the provider; delivery correlation may not work (sends still go out, \
+                 but bounces/challenges/replies will not be tracked)"
+            ),
+            Err(error) => {
+                warn!(mailbox = %name, %error, "VERP Return-Path probe failed to run");
+            },
+        }
+    }
 }
 
 /// An attachment sink backed by the server's legacy storage.
