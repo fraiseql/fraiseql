@@ -33,6 +33,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `send_email` op that consumes it lands with the native-runtime hardening
   train. Supersedes #242. See `docs/architecture/enriched-identity-rls.md` and
   ADR-0016.
+- **`send_email` host op with a host-owned `from` (native-runtime hardening).**
+  Functions can now send email through a first-class `send_email` host op (WASM +
+  Deno): the guest supplies only `to`/`subject`/body, and the host injects the
+  `from` from the resolved sender identity (the #539 seam — `LoginEmailSender` by
+  default, a DB-backed resolver where the sending mailbox differs). A guest cannot
+  send from another address (a `from` in the request is dropped at the type level).
+  The transport is **per-connected-account SMTP** (`[mailbox.<name>.smtp]`,
+  STARTTLS, secrets read server-side by mailbox, the account selected by the
+  verified sending address — never a shared mailbox), with a **send-warming daily
+  cap** that ramps 10/day → 200/day → unlimited. Failures classify onto durable
+  dispatch: a permanent refusal (denied identity, bad recipient, SMTP 5xx,
+  over-cap) is a 4xx → dead-letter; a transient one (SMTP timeout/greylist,
+  identity store momentarily down) is a 5xx → retry. Attach it via
+  `BeforeMutationHooks::with_email`. **Note:** the stock server binary does not yet
+  populate `before_mutation_hooks`, so after:mutation functions (this op included)
+  run only where the functions-runtime hooks are built — a separate pre-existing
+  gap. The DB-backed `SendCounter` (over the app's mailbox table) is the remaining
+  warming piece. See `docs/architecture/native-runtime-ergonomics.md`.
 - **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
   sidecar's compute is now native TypeScript,
   proving the host surface against a real workload. Four `examples/native-functions`

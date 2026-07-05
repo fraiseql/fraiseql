@@ -50,17 +50,24 @@ promoted from opt-in to stable.
    sharing types with the rest of a TS codebase. **Planned: wire real
    type-stripping** (`deno_ast` / swc) so authors write ordinary TypeScript.
 
-2. **Per-user send is a policy + reference pattern, not yet a host op.** The
-   banked constraint — a paired outbound email is sent *from the connected user's
-   verified address, never a shared mailbox* — is enforced today by
-   `fraiseql_functions::outbound::resolve_sender_identity` (a pure, fail-loud
-   policy) plus surfacing the verified `email` in `auth_context`, and the
-   `follow-up-email.ts` reference mirrors it in TypeScript. That makes the rule
-   real and tested, but the `from` still lives in guest code. **Planned: a
-   first-class `send_email` host op that injects the bound `from` (structural,
-   guest cannot override) over a concrete SMTP / provider transport**, reusing the
-   `resolve_sender_identity` policy. The transport is the missing piece — mirror
-   the `sql_query` fail-loud-until-wired stance until it lands.
+2. **Per-user send — DELIVERED as a host op.** The banked constraint — a paired
+   outbound email is sent *from the connected user's verified address, never a
+   shared mailbox* — is now enforced structurally by the `send_email` host op: the
+   guest supplies only `to`/`subject`/body, and the host injects the `from` from
+   the resolved sender identity (the #539 seam — `LoginEmailSender` by default, a
+   DB-backed resolver where the sending mailbox differs). A guest-supplied `from`
+   is dropped at the type level. The transport is per-connected-account SMTP
+   (`[mailbox.<name>.smtp]`, STARTTLS, server-side secrets keyed by mailbox,
+   selected by the verified sending address), with a send-warming daily cap
+   (10/day → 200/day → unlimited). Failures classify onto durable dispatch: a
+   permanent refusal (denied identity, bad recipient, SMTP 5xx, over-cap) is a 4xx
+   → dead-letter; a transient one (SMTP timeout/greylist, identity store down) is a
+   5xx → retry. `follow-up-email.ts` now calls the op instead of a hand-rolled
+   send. **Known limitation:** the stock server binary does not yet populate
+   `before_mutation_hooks`, so after:mutation functions (this op included) run only
+   where the functions-runtime hooks are built — a separate pre-existing gap. **Not
+   yet closed:** the DB-backed `SendCounter` over the application's mailbox table
+   (see gap on warming state).
 
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's
@@ -84,9 +91,16 @@ promoted from opt-in to stable.
 5. **Error model is throw-or-return.** Transient vs permanent is inferred from the
    resulting `FraiseQLError` classification, which is the right default, but a
    function cannot yet *say* "this is permanent, do not retry" (e.g. a validation
-   failure that happens to surface as a 5xx). **Planned: let a function tag a
-   thrown error as permanent** so it dead-letters immediately instead of
-   exhausting retries.
+   failure that happens to surface as a 5xx). This bites the `send_email` op: the op
+   classifies its failures precisely (a denied identity / bad recipient / SMTP 5xx /
+   over-cap is a permanent 4xx; a timeout / greylist / identity store down is a
+   transient 5xx), but a guest that lets the op throw crosses the Deno exception
+   boundary, where every guest error flattens to `Unsupported` (501) — so durable
+   dispatch currently treats even a permanent send failure as transient (retries,
+   then dead-letters) instead of dead-lettering immediately. **Planned: let a
+   function tag a thrown error as permanent** so it dead-letters immediately instead
+   of exhausting retries — that is what makes the op's permanent/transient split
+   effective end-to-end.
 
 6. **Testing: one V8 isolate per process.** Two Deno invocations in a single test
    process abort (V8). Each workload test therefore does exactly one invocation
