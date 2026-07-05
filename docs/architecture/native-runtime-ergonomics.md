@@ -146,8 +146,8 @@ triggered them.
   erasure of the recipient's PII elsewhere leaves the "do not contact" fact intact.
   A hard bounce suppresses immediately (permanent); repeated unanswered challenges
   suppress with a ~30-day TTL; a genuine reply lifts a challenge suppression at once.
-  Both the send-status and suppression tables are tenant-scoped (explicit `tenant_id`
-  - RLS).
+  Both the send-status and suppression tables carry an explicit `tenant_id` column
+  and are RLS-scoped for app-facing reads.
 
 - **Challenge policy (a hard product boundary).** Detect + correlate + **surface** +
   suppress-after-N (`[send] challenge_suppress_after`, default 2, per-recipient
