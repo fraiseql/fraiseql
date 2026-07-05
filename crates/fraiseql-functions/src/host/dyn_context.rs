@@ -84,6 +84,15 @@ pub trait DynHostContext: Send + Sync {
 
     /// Log a message.
     fn log(&self, level: crate::types::LogLevel, message: &str);
+
+    /// A per-dispatch idempotency token (see
+    /// [`HostContext::idempotency_token`](crate::HostContext::idempotency_token)).
+    ///
+    /// Defaults to `None` so direct implementors that do not carry a token (e.g.
+    /// a WASM snapshot) need no change; the blanket impl forwards the real value.
+    fn idempotency_token(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Blanket implementation: any `T: HostContext + Send + Sync` can be used as `DynHostContext`.
@@ -168,5 +177,9 @@ impl<T: crate::HostContext + Send + Sync> DynHostContext for T {
 
     fn log(&self, level: crate::types::LogLevel, message: &str) {
         crate::HostContext::log(self, level, message);
+    }
+
+    fn idempotency_token(&self) -> Option<String> {
+        crate::HostContext::idempotency_token(self)
     }
 }

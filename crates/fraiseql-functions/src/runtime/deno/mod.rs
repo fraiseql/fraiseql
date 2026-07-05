@@ -23,6 +23,10 @@ pub mod tests;
 
 #[cfg(test)]
 mod follow_up_tests;
+// Uses the real `LiveHostContext` (host-live) to prove the op end-to-end, so it is
+// gated on host-live as well — the `runtime-deno`-only clippy combo has no live host.
+#[cfg(all(test, feature = "host-live"))]
+mod idempotency_tests;
 #[cfg(test)]
 mod qonto_tests;
 #[cfg(test)]
@@ -101,6 +105,12 @@ function fraiseql_auth_context(): string; // JSON string
 
 // Get an environment variable
 function fraiseql_env_var(name: string): string | null;
+
+// Get the per-dispatch idempotency token, or null when this invocation was not
+// durably dispatched. Stable across retries of the same dispatch and distinct
+// per dispatch; pass it to a downstream money/mail idempotency header so an
+// at-least-once retry stays at-most-once.
+function fraiseql_idempotency_token(): string | null;
 
 // Log a message
 function fraiseql_log(level: number, message: string): void;
