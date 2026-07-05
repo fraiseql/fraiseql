@@ -266,6 +266,11 @@ struct DurableDispatcher {
     /// verified address.
     sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
     email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
+    /// HMAC subkey for the per-dispatch idempotency token. `Some` → the token is
+    /// signed (unforgeable, required before it is exposed in a VERP Return-Path);
+    /// `None` → an unsigned digest (the zero-config default). Derived once from the
+    /// server HMAC secret and shared across every dispatch.
+    idempotency_key: Option<std::sync::Arc<[u8]>>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -324,6 +329,7 @@ impl DurableDispatcher {
         let trigger_identity =
             format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
         let idempotency_token = fraiseql_observers::derive_idempotency_token(
+            self.idempotency_key.as_deref(),
             self.source,
             &function_name,
             &trigger_identity,
@@ -454,6 +460,7 @@ fn spawn_dispatch(
         source,
         sender_resolver: hooks.sender_resolver.clone(),
         email_transport: hooks.email_transport.clone(),
+        idempotency_key: hooks.idempotency_key.clone(),
     };
 
     for plan in plans {

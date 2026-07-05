@@ -44,7 +44,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let subsystem = build_functions_subsystem(functions_config).map_err(|error| {
             ServerError::ConfigError(format!("functions-runtime setup failed: {error}"))
         })?;
-        let mut hooks = subsystem.into_before_mutation_hooks();
+
+        // Sign the per-dispatch idempotency token when an HMAC secret is
+        // configured; unsigned digest otherwise (zero-config default).
+        let idempotency_key = self.build_idempotency_key();
+        if idempotency_key.is_some() {
+            tracing::info!("idempotency tokens are HMAC-signed (VERP-ready send-ids)");
+        }
+        let mut hooks =
+            subsystem.into_before_mutation_hooks().with_idempotency_key(idempotency_key);
 
         if let Some((resolver, transport)) = self.build_send_email_wiring() {
             hooks = hooks.with_email(resolver, transport);
@@ -57,6 +65,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self.functions_hooks = Some(Arc::new(hooks));
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
         Ok(())
+    }
+
+    /// Derive the idempotency-token HMAC subkey from the configured server HMAC
+    /// secret (`hmac_secret_env` names an env var). `None` → the token stays an
+    /// unsigned digest (the zero-config default); a signed token is required before
+    /// it is exposed externally as a VERP Return-Path (P04b). A configured-but-empty
+    /// secret is a misconfiguration surfaced loudly, not silently signed with "".
+    fn build_idempotency_key(&self) -> Option<Arc<[u8]>> {
+        let env_name = self.config.hmac_secret_env.as_deref()?;
+        if let Some(secret) = std::env::var(env_name).ok().filter(|secret| !secret.is_empty()) {
+            let subkey = fraiseql_observers::derive_idempotency_subkey(secret.as_bytes());
+            Some(Arc::from(subkey.as_slice()))
+        } else {
+            tracing::warn!(
+                env = env_name,
+                "hmac_secret_env is set but the environment variable is empty/unset — \
+                 idempotency tokens stay unsigned and VERP send-correlation is disabled"
+            );
+            None
+        }
     }
 
     /// Build the `send_email` wiring — sender-identity resolver + SMTP transport —

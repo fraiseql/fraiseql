@@ -15,6 +15,7 @@
 
 use std::future::Future;
 
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -96,31 +97,65 @@ impl DispatchSource {
 /// downstream idempotency header, and the send path uses it as the VERP send-id,
 /// so an at-least-once dispatch stays at-most-once end to end.
 ///
-/// The output is 32 lowercase hex characters (a 128-bit truncated SHA-256): URL-
-/// safe and short enough for a 64-character email local part (`bounces+<token>@…`).
-/// The payload is hashed via its canonical JSON form — `serde_json::Value` orders
-/// object keys — so a resume that re-serialises the payload produces the same
-/// token. Each field is length-prefixed so no two distinct field tuples can
-/// collide by concatenation.
+/// `key` selects the mode:
+/// - `Some(key)` → **HMAC-SHA256** keyed with a server-side secret. Unforgeable: required once the
+///   token is exposed externally (a VERP `bounces+<token>@…` Return-Path), because a bare hash of
+///   guessable identity fields could be forged to poison a send's delivery status.
+/// - `None` → a plain SHA-256 digest. Fine while the token is only an internal idempotency key (the
+///   zero-config default); the keyed form is opt-in via the server HMAC secret.
+///
+/// The output is 32 lowercase hex characters (128 bits): URL-safe and short
+/// enough for a 64-character email local part. The payload is hashed via its
+/// canonical JSON form — `serde_json::Value` orders object keys — so a resume that
+/// re-serialises the payload produces the same token. Each field is
+/// length-prefixed so no two distinct field tuples can collide by concatenation.
 #[must_use]
 pub fn derive_idempotency_token(
+    key: Option<&[u8]>,
     source: DispatchSource,
     function_name: &str,
     trigger_type: &str,
     payload: &serde_json::Value,
 ) -> String {
     let payload_json = payload.to_string();
-    let mut hasher = Sha256::new();
+    // Length-prefix each field so no two distinct field tuples collide by
+    // concatenation (e.g. ("ab","c") vs ("a","bc")).
+    let mut buf = Vec::new();
     for field in [
         source.label(),
         function_name,
         trigger_type,
         payload_json.as_str(),
     ] {
-        hasher.update((field.len() as u64).to_le_bytes());
-        hasher.update(field.as_bytes());
+        buf.extend_from_slice(&(field.len() as u64).to_le_bytes());
+        buf.extend_from_slice(field.as_bytes());
     }
-    hex::encode(&hasher.finalize()[..16])
+    match key {
+        Some(key) => {
+            let mut mac = Hmac::<Sha256>::new_from_slice(key)
+                .expect("HMAC-SHA256 accepts a key of any length");
+            mac.update(&buf);
+            hex::encode(&mac.finalize().into_bytes()[..16])
+        },
+        None => hex::encode(&Sha256::digest(&buf)[..16]),
+    }
+}
+
+/// Derive the idempotency-token HMAC subkey from a server root secret.
+///
+/// Domain-separates the send-id key from any other use of the same root secret
+/// (HKDF-Expand-style: a single `HMAC-SHA256(root, info)` block), so the send-id
+/// key is independent of, say, a JWT-signing use of the same secret. The 32-byte
+/// output is the `key` passed to [`derive_idempotency_token`] to produce the
+/// unforgeable, signed send-id.
+#[must_use]
+pub fn derive_idempotency_subkey(root_secret: &[u8]) -> [u8; 32] {
+    let mut mac = Hmac::<Sha256>::new_from_slice(root_secret)
+        .expect("HMAC-SHA256 accepts a key of any length");
+    mac.update(b"fraiseql:idempotency-send-id:v1");
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&mac.finalize().into_bytes());
+    key
 }
 
 /// A function-trigger dispatch that exhausted its retries (or failed

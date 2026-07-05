@@ -253,6 +253,13 @@ mod durable_dispatch {
     /// `invoke_with_context` returns a permanent-less `Unsupported` error
     /// (`501` → not a client error → transient), letting durable dispatch retry.
     fn failing_dispatcher(dlq: std::sync::Arc<dyn DeadLetterQueue>) -> DurableDispatcher {
+        keyed_failing_dispatcher(dlq, None)
+    }
+
+    fn keyed_failing_dispatcher(
+        dlq: std::sync::Arc<dyn DeadLetterQueue>,
+        idempotency_key: Option<std::sync::Arc<[u8]>>,
+    ) -> DurableDispatcher {
         DurableDispatcher {
             observer: std::sync::Arc::new(FunctionObserver::new()),
             host_config: host_context_config(),
@@ -261,6 +268,7 @@ mod durable_dispatch {
             source: fraiseql_observers::DispatchSource::AfterMutation,
             sender_resolver: None,
             email_transport: None,
+            idempotency_key,
         }
     }
 
@@ -323,6 +331,7 @@ mod durable_dispatch {
         // Same-token-every-attempt therefore holds by construction, and the derived
         // value is exactly what the guest's `fraiseql_idempotency_token()` returns.
         let expected = fraiseql_observers::derive_idempotency_token(
+            None,
             fraiseql_observers::DispatchSource::AfterMutation,
             "onUserCreated",
             "after:mutation:onUserCreated:User:insert",
@@ -334,6 +343,43 @@ mod durable_dispatch {
             "the dead-letter carries the derived per-dispatch token"
         );
         assert_eq!(expected.len(), 32, "the token is a 32-char hex send-id");
+    }
+
+    #[tokio::test]
+    async fn keyed_dispatch_signs_the_idempotency_token() {
+        let dlq = std::sync::Arc::new(InMemoryDlq::new_with_max(None));
+        let key: std::sync::Arc<[u8]> = std::sync::Arc::from(
+            fraiseql_observers::derive_idempotency_subkey(b"root-secret").as_slice(),
+        );
+        let dispatcher = keyed_failing_dispatcher(dlq.clone(), Some(key.clone()));
+        let setting = FunctionDispatchSetting {
+            re_runnable: false,
+            policy:      zero_delay_policy(2),
+        };
+        let event = payload();
+
+        dispatcher.dispatch(module("onUserCreated"), event.clone(), &setting).await;
+
+        // With a key configured, the dispatched (and dead-lettered) token is the
+        // HMAC-keyed derivation — and differs from the unsigned digest of the same
+        // identity, proving the secret is actually applied end-to-end.
+        let signed = fraiseql_observers::derive_idempotency_token(
+            Some(&key[..]),
+            fraiseql_observers::DispatchSource::AfterMutation,
+            "onUserCreated",
+            "after:mutation:onUserCreated:User:insert",
+            &event.data,
+        );
+        let unsigned = fraiseql_observers::derive_idempotency_token(
+            None,
+            fraiseql_observers::DispatchSource::AfterMutation,
+            "onUserCreated",
+            "after:mutation:onUserCreated:User:insert",
+            &event.data,
+        );
+        let pending = dlq.get_pending_functions(10).await.expect("list pending function DLQ");
+        assert_eq!(pending[0].idempotency_token, signed, "the dispatch signs the token");
+        assert_ne!(pending[0].idempotency_token, unsigned, "signed ≠ unsigned digest");
     }
 
     #[tokio::test]

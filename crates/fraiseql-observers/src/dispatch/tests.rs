@@ -110,12 +110,14 @@ fn dispatch_source_label_is_stable() {
 fn idempotency_token_is_deterministic() {
     let payload = serde_json::json!({ "id": 42, "amount_cents": 1000 });
     let a = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "syncInvoice",
         "after:mutation:Invoice:create",
         &payload,
     );
     let b = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "syncInvoice",
         "after:mutation:Invoice:create",
@@ -127,31 +129,36 @@ fn idempotency_token_is_deterministic() {
 #[test]
 fn idempotency_token_is_email_safe_hex() {
     // The token doubles as a VERP send-id (`bounces+<token>@domain`), so it must be
-    // lowercase hex only and short enough for a 64-char local part.
+    // lowercase hex only and short enough for a 64-char local part — in both modes.
     let payload = serde_json::json!({ "id": 7 });
-    let token = derive_idempotency_token(
-        DispatchSource::AfterMutation,
-        "f",
-        "after:mutation:X:create",
-        &payload,
-    );
-    assert_eq!(token.len(), 32, "128-bit truncated digest → 32 hex chars");
-    assert!(
-        token.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
-        "token must be lowercase hex only, got {token:?}"
-    );
+    for key in [None, Some(b"server-secret".as_slice())] {
+        let token = derive_idempotency_token(
+            key,
+            DispatchSource::AfterMutation,
+            "f",
+            "after:mutation:X:create",
+            &payload,
+        );
+        assert_eq!(token.len(), 32, "128-bit truncated digest → 32 hex chars");
+        assert!(
+            token.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "token must be lowercase hex only, got {token:?}"
+        );
+    }
 }
 
 #[test]
 fn idempotency_token_distinct_per_function() {
     let payload = serde_json::json!({ "id": 1 });
     let a = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "sendFollowUp",
         "after:mutation:Deal:update",
         &payload,
     );
     let b = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "syncQonto",
         "after:mutation:Deal:update",
@@ -164,12 +171,14 @@ fn idempotency_token_distinct_per_function() {
 fn idempotency_token_distinct_per_trigger() {
     let payload = serde_json::json!({ "id": 1 });
     let a = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "f",
         "after:mutation:Deal:create",
         &payload,
     );
     let b = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "f",
         "after:mutation:Deal:update",
@@ -181,12 +190,14 @@ fn idempotency_token_distinct_per_trigger() {
 #[test]
 fn idempotency_token_distinct_per_payload() {
     let a = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "f",
         "after:mutation:Deal:update",
         &serde_json::json!({ "id": 1 }),
     );
     let b = derive_idempotency_token(
+        None,
         DispatchSource::AfterMutation,
         "f",
         "after:mutation:Deal:update",
@@ -198,8 +209,8 @@ fn idempotency_token_distinct_per_payload() {
 #[test]
 fn idempotency_token_distinct_per_source() {
     let payload = serde_json::json!({ "id": 1 });
-    let a = derive_idempotency_token(DispatchSource::AfterMutation, "f", "t", &payload);
-    let b = derive_idempotency_token(DispatchSource::AfterIngest, "f", "t", &payload);
+    let a = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &payload);
+    let b = derive_idempotency_token(None, DispatchSource::AfterIngest, "f", "t", &payload);
     assert_ne!(a, b, "the source is part of the dispatch identity");
 }
 
@@ -210,7 +221,66 @@ fn idempotency_token_ignores_object_key_order() {
     // makes it stable across a resume that re-serialises the payload.
     let a: serde_json::Value = serde_json::from_str(r#"{"a":1,"b":2}"#).unwrap();
     let b: serde_json::Value = serde_json::from_str(r#"{"b":2,"a":1}"#).unwrap();
-    let ta = derive_idempotency_token(DispatchSource::AfterMutation, "f", "t", &a);
-    let tb = derive_idempotency_token(DispatchSource::AfterMutation, "f", "t", &b);
+    let ta = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &a);
+    let tb = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &b);
     assert_eq!(ta, tb, "canonical payload → order-independent token");
+}
+
+// ── Keyed (HMAC) mode — the unforgeable VERP send-id ─────────────────────────────
+
+#[test]
+fn keyed_token_differs_from_unkeyed() {
+    // The keyed (HMAC) token must not equal the plain digest of the same identity —
+    // otherwise the secret adds nothing and the send-id stays forgeable.
+    let payload = serde_json::json!({ "id": 1 });
+    let plain = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &payload);
+    let keyed = derive_idempotency_token(
+        Some(b"server-secret"),
+        DispatchSource::AfterMutation,
+        "f",
+        "t",
+        &payload,
+    );
+    assert_ne!(plain, keyed, "the HMAC key must change the token");
+}
+
+#[test]
+fn keyed_token_is_deterministic() {
+    // Same key + same identity → same token (still resume-stable, retry-stable).
+    let payload = serde_json::json!({ "id": 1 });
+    let a = derive_idempotency_token(Some(b"k"), DispatchSource::AfterMutation, "f", "t", &payload);
+    let b = derive_idempotency_token(Some(b"k"), DispatchSource::AfterMutation, "f", "t", &payload);
+    assert_eq!(a, b, "keyed derivation is deterministic");
+}
+
+#[test]
+fn keyed_token_differs_by_key() {
+    // A different secret yields a different token: an attacker without the secret
+    // cannot mint a valid send-id even knowing the identity fields.
+    let payload = serde_json::json!({ "id": 1 });
+    let a = derive_idempotency_token(
+        Some(b"secret-a"),
+        DispatchSource::AfterMutation,
+        "f",
+        "t",
+        &payload,
+    );
+    let b = derive_idempotency_token(
+        Some(b"secret-b"),
+        DispatchSource::AfterMutation,
+        "f",
+        "t",
+        &payload,
+    );
+    assert_ne!(a, b, "the token binds to the secret");
+}
+
+#[test]
+fn subkey_is_deterministic_and_root_dependent() {
+    // The subkey is a stable function of the root (so tokens survive restart), and
+    // domain-separated so a different root yields a different subkey.
+    assert_eq!(derive_idempotency_subkey(b"root"), derive_idempotency_subkey(b"root"));
+    assert_ne!(derive_idempotency_subkey(b"root-a"), derive_idempotency_subkey(b"root-b"));
+    // Domain separation: the subkey is not the raw root truncated/padded.
+    assert_ne!(&derive_idempotency_subkey(b"root")[..], b"root");
 }
