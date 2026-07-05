@@ -843,16 +843,6 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         CachedDatabaseAdapter::invalidate_list_queries(self, views)
     }
 
-    async fn invalidate_cascade_entities(
-        &self,
-        cascade_response: &serde_json::Value,
-    ) -> Result<u64> {
-        // Delegate to the inherent method (parses the cascade and view-invalidates
-        // every affected entity type). Previously this had no production caller.
-        let parser = crate::cache::cascade_response_parser::CascadeResponseParser::new();
-        CachedDatabaseAdapter::invalidate_cascade_entities(self, cascade_response, &parser)
-    }
-
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         self.bump_fact_table_versions_impl(tables).await
     }

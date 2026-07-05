@@ -926,29 +926,6 @@ pub trait DatabaseAdapter: Send + Sync {
         self.invalidate_views(views).await
     }
 
-    /// Evict cache entries for every entity type affected by a mutation's cascade.
-    ///
-    /// Called by the executor after a successful cascade mutation. The cascade a
-    /// mutation returns can touch entity types *other than* its primary return
-    /// type (e.g. a `Post` mutation that updates a `User`); those types' cached
-    /// queries would otherwise go stale, since the executor's primary-entity
-    /// invalidation only covers the return type and declared `invalidates_views`.
-    ///
-    /// `cascade_response` is the raw `cascade` JSONB from the `mutation_response`
-    /// (spec-nested `{ updated: [{ __typename, id, … }], deleted: [ … ] }`). The
-    /// default implementation is a no-op; `CachedDatabaseAdapter` overrides it to
-    /// invalidate the views backing each affected entity type.
-    ///
-    /// # Returns
-    ///
-    /// The number of cache entries evicted.
-    async fn invalidate_cascade_entities(
-        &self,
-        _cascade_response: &serde_json::Value,
-    ) -> Result<u64> {
-        Ok(0)
-    }
-
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

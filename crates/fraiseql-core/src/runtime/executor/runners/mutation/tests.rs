@@ -3135,9 +3135,9 @@ mod cascade {
     /// `cascade` JSONB the test supplies. The primary entity is a `Post` with a
     /// snake_case source key (`author_id`) to exercise camelCase projection.
     struct CannedMutationAdapter {
-        row:                 HashMap<String, serde_json::Value>,
-        /// Records the cascade passed to `invalidate_cascade_entities`, if any.
-        invalidated_cascade: std::sync::Mutex<Option<serde_json::Value>>,
+        row:               HashMap<String, serde_json::Value>,
+        /// Accumulates every view name passed to `invalidate_views`.
+        invalidated_views: std::sync::Mutex<Vec<String>>,
     }
 
     impl CannedMutationAdapter {
@@ -3155,7 +3155,7 @@ mod cascade {
             row.insert("message".to_string(), json!(""));
             Self {
                 row,
-                invalidated_cascade: std::sync::Mutex::new(None),
+                invalidated_views: std::sync::Mutex::new(Vec::new()),
             }
         }
     }
@@ -3171,12 +3171,10 @@ mod cascade {
             Ok(vec![self.row.clone()])
         }
 
-        async fn invalidate_cascade_entities(
-            &self,
-            cascade_response: &serde_json::Value,
-        ) -> Result<u64> {
-            *self.invalidated_cascade.lock().unwrap() = Some(cascade_response.clone());
-            Ok(0)
+        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+            let mut captured = self.invalidated_views.lock().unwrap();
+            captured.extend(views.iter().map(|v| v.as_str().to_string()));
+            Ok(views.len() as u64)
         }
 
         async fn execute_with_projection(
@@ -3284,6 +3282,12 @@ mod cascade {
         ];
         post.implements = vec!["CascadeNode".to_string()];
         s.types.push(post);
+        // A type whose view is NOT `v_<lowercase>` (a pg_tviews materialized view),
+        // so cache-invalidation resolution can't fall back to a string guess.
+        let mut account = TypeDefinition::new("Account", "tv_account");
+        account.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        account.implements = vec!["CascadeNode".to_string()];
+        s.types.push(account);
         s.build_indexes();
         s
     }
@@ -3492,19 +3496,27 @@ mod cascade {
 
     /// A cascade mutation invalidates its affected entities' caches server-side
     /// (finding 7) — independent of whether the client selected `cascade`, since
-    /// stale caches on OTHER entity types are a server concern. Before this,
-    /// `invalidate_cascade_entities` was dead code.
+    /// stale caches on OTHER entity types are a server concern. The view is
+    /// resolved from the compiled schema (`Account` → `tv_account`), NOT guessed as
+    /// `v_<lowercase>` — a guess would invalidate a nonexistent view and silently
+    /// no-op, re-hiding the stale-cache bug.
     #[tokio::test]
-    async fn cascade_mutation_invalidates_cascade_entity_caches() {
-        let adapter = Arc::new(CannedMutationAdapter::new(standard_cascade()));
+    async fn cascade_mutation_invalidates_resolved_cascade_entity_views() {
+        let cascade = json!({
+            "updated": [
+                { "__typename": "Account", "id": "a1", "operation": "UPDATED", "entity": { "id": "a1" } }
+            ],
+            "deleted": []
+        });
+        let adapter = Arc::new(CannedMutationAdapter::new(cascade));
         let executor = Executor::new(cascade_schema(), Arc::clone(&adapter));
         // The client selects only the primary entity — cascade is not requested.
         executor.execute("mutation { createPost { entity { id } } }", None).await.unwrap();
-        let captured = adapter.invalidated_cascade.lock().unwrap().clone();
-        let captured = captured.expect("cascade mutation must invalidate cascade-entity caches");
-        assert_eq!(
-            captured["updated"][0]["__typename"], "Post",
-            "the affected entities are passed to cache invalidation"
+        let views = adapter.invalidated_views.lock().unwrap().clone();
+        assert!(
+            views.iter().any(|v| v == "tv_account"),
+            "the cascade Account entity's real view (tv_account) must be invalidated, \
+             not a v_<lowercase> guess: {views:?}"
         );
     }
 

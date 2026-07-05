@@ -132,6 +132,33 @@ fn resolve_payload_type(return_type: &str, schema: &CompiledSchema) -> String {
         .unwrap_or_else(|| return_type.to_string())
 }
 
+/// Resolve the distinct views backing every entity type in a cascade, via the
+/// compiled schema (`type name → sql_source`) — the same lookup the primary-entity
+/// invalidation uses, so `tv_*` / multi-word / custom view names resolve correctly
+/// instead of being guessed as `v_<lowercase>`. Types with no `sql_source`, and
+/// unknown types, are skipped.
+fn resolve_cascade_views(cascade: &serde_json::Value, schema: &CompiledSchema) -> Vec<ViewName> {
+    let mut seen = std::collections::HashSet::new();
+    let mut views = Vec::new();
+    for arm in ["updated", "deleted"] {
+        let Some(entries) = cascade.get(arm).and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        for entry in entries {
+            let Some(typename) = entry.get("__typename").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            if let Some(td) = schema.types.iter().find(|t| t.name.as_str() == typename) {
+                let src = td.sql_source.as_str();
+                if !src.is_empty() && seen.insert(src.to_string()) {
+                    views.push(ViewName::from(src));
+                }
+            }
+        }
+    }
+    views
+}
+
 /// The concrete entity type a payload wraps, read from its `entity` field type.
 fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<String> {
     schema
@@ -1341,16 +1368,23 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // side-effects on entity types OTHER than its return type (e.g. a `Post`
     // mutation that updates a `User`) leave those types' cached queries stale —
     // the primary-entity invalidation above only covers the return type and
-    // declared `invalidates_views`. Wire the cascade's affected entities into
-    // cache invalidation (previously `invalidate_cascade_entities` had no
-    // production caller). Non-cached adapters no-op via the default trait method.
+    // declared `invalidates_views`. Resolve each cascade entity type to its view
+    // via the compiled schema (NOT a `v_<lowercase>` string guess, which misses
+    // `tv_*`, multi-word, and custom view names) and invalidate those views. Both
+    // the adapter cache and the response cache, matching the primary path.
     if mutation_def.cascade {
         if let MutationOutcome::Success {
             cascade: Some(cascade_json),
             ..
         } = &outcome
         {
-            ctx.adapter.invalidate_cascade_entities(cascade_json).await?;
+            let views = resolve_cascade_views(cascade_json, &ctx.schema);
+            if !views.is_empty() {
+                ctx.adapter.invalidate_views(&views).await?;
+                if let Some(ref rc) = ctx.response_cache {
+                    let _ = rc.invalidate_views(&views);
+                }
+            }
         }
     }
 
