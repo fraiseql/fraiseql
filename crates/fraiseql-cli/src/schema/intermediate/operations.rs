@@ -201,7 +201,7 @@ pub struct IntermediateMutation {
     /// cascade=True)` / `@fraiseql.mutation(cascade=True)`, or TOML
     /// `cascade = true`. Defaults to `false`, byte-identical to a schema
     /// authored before this field existed. Before this field, the compiler
-    /// silently dropped the SDK flag (eval finding 4).
+    /// silently dropped the SDK flag.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cascade: bool,
 }

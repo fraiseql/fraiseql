@@ -168,7 +168,7 @@ fn payload_type_name(mutation_name: &str) -> String {
 
 /// Build a synthetic output field. Synthetic cascade fields carry no
 /// scope/authz/encryption of their own — enforcement happens per cascade entity
-/// at runtime (Phase 03).
+/// at runtime.
 fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) -> FieldDefinition {
     FieldDefinition {
         name: name.into(),
@@ -266,9 +266,8 @@ fn deleted_entity_type() -> TypeDefinition {
     )
 }
 
-/// The `CascadeUpdates` envelope carried on a cascade mutation's payload.
-///
-/// `invalidations` is added in Phase 05 — until then this is a spec-aligned subset.
+/// The `CascadeUpdates` envelope carried on a cascade mutation's payload
+/// (`updated` / `deleted` / `metadata` / `invalidations`).
 fn cascade_updates_type() -> TypeDefinition {
     synth_type(
         CASCADE_UPDATES,

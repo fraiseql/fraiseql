@@ -97,7 +97,7 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
     authz::apply_field_authorizer_to_entity(&pass, entity, projected)
 }
 
-// ── Typed cascade payload projection (Phase 03: findings 1 + 5) ───────────────
+// ── Typed cascade payload projection ─────────────────────────────────────────
 //
 // A `cascade = true` mutation returns a synthesized `<Name>Payload { entity,
 // cascade, updatedFields }` (see `cli::converter::cascade_types`). The DB function
@@ -228,7 +228,6 @@ fn build_cascade_payload<A: DatabaseAdapter>(
 /// filtered to the client's selection set. Enforces the affected-entity ceiling
 /// (truncating + flagging `metadata.truncated`) and the response-size ceiling
 /// (rejecting an over-large cascade), per graphql-cascade `16_security`.
-/// `invalidations` lands in Phase 05.
 fn build_cascade_updates<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
     security_ctx: Option<&SecurityContext>,
@@ -420,7 +419,7 @@ fn build_invalidations(
 /// Build the `updated: [UpdatedEntity!]!` array, projecting + field-authorizing
 /// each entry's `entity` under its concrete `__typename`.
 ///
-/// Fail-closed on any malformed entry (Phase 04 strict validation): a missing or
+/// Fail-closed on any malformed entry: a missing or
 /// unknown `__typename`, a missing `id`, or a missing/invalid `operation` aborts
 /// the response rather than shipping an unprojectable entity or an SDL-invalid
 /// non-null violation — regardless of what the client selected.
@@ -517,7 +516,7 @@ fn build_updated_entities<A: DatabaseAdapter>(
 /// body (the row is gone) — only `id` + `deletedAt` — so there is nothing to
 /// project or field-authorize.
 ///
-/// Fail-closed (Phase 04 strict validation): an entry missing the non-null `id` or
+/// Fail-closed: an entry missing the non-null `id` or
 /// `deletedAt` aborts the response rather than emitting an SDL-invalid violation.
 fn build_deleted_entities(
     entries: &[serde_json::Value],
@@ -1364,7 +1363,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     }
 
-    // Cascade-driven cache invalidation (finding 7): a cascade mutation's
+    // Cascade-driven cache invalidation: a cascade mutation's
     // side-effects on entity types OTHER than its return type (e.g. a `Post`
     // mutation that updates a `User`) leave those types' cached queries stale —
     // the primary-entity invalidation above only covers the return type and
@@ -1391,7 +1390,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // Clone name and return_type to avoid borrow issues after schema lookups
     let mutation_return_type = mutation_def.return_type.clone();
     let mutation_name_owned = mutation_name.to_string();
-    // Whether this mutation exposes the typed cascade payload surface (Phase 03).
+    // Whether this mutation exposes the typed cascade payload surface.
     let is_cascade = mutation_def.cascade;
 
     // Evaluate @skip / @include against the request variables before projecting, so
@@ -1483,9 +1482,8 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 
             // Cascade is opt-in (`cascade = true`, handled by the guarded arm
             // above): a non-cascade mutation never surfaces cascade, even if its
-            // function returns a `cascade` JSONB. This ends the unrequested,
-            // undeclared injection the cascade evaluation flagged (finding 3) —
-            // `cascade` is now a typed, selection-gated payload field or nothing.
+            // function returns a `cascade` JSONB. `cascade` is a typed,
+            // selection-gated payload field on cascade mutations, or nothing.
             let _ = cascade;
 
             // Surface `updated_fields` (the GraphQL field names this mutation

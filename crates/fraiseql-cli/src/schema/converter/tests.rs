@@ -1982,7 +1982,7 @@ mod tenancy_tests {
         assert!(on.cascade);
     }
 
-    // ── cascade type synthesis (Phase 02: typed payload-wrapper surface) ──
+    // ── cascade type synthesis (typed payload-wrapper surface) ──
 
     /// A view-backed entity type with the given name (queryable — so it
     /// auto-implements `CascadeNode`).
