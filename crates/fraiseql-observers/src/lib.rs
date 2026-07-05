@@ -111,7 +111,8 @@ pub use config::{
 pub use dedup::redis::RedisDeduplicationStore;
 pub use dedup::{DeduplicationStats, DeduplicationStore};
 pub use dispatch::{
-    DispatchPolicy, DispatchSource, FunctionDispatchRecord, RetryDecision, run_with_retry,
+    DispatchPolicy, DispatchSource, FunctionDispatchRecord, RetryDecision,
+    derive_idempotency_token, run_with_retry,
 };
 pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};

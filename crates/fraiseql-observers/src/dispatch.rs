@@ -15,6 +15,7 @@
 
 use std::future::Future;
 
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::config::{FailurePolicy, RetryConfig};
@@ -67,6 +68,59 @@ pub enum DispatchSource {
     AfterMutation,
     /// An `after:ingest` function trigger (inbound-message ingestion).
     AfterIngest,
+}
+
+impl DispatchSource {
+    /// A stable string label for this source, decoupled from `Debug`.
+    ///
+    /// It is part of the [`derive_idempotency_token`] hash input, so it must stay
+    /// constant across refactors — a changed label would silently change every
+    /// dispatch token and break at-most-once downstream dedup.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::AfterMutation => "after:mutation",
+            Self::AfterIngest => "after:ingest",
+        }
+    }
+}
+
+/// Derive a per-dispatch idempotency token from a dispatch's stable identity.
+///
+/// The token is a deterministic function of `(source, function_name,
+/// trigger_type, payload)` — never wall-clock or random — so it is **identical
+/// across every retry of the same dispatch, and across a resume** that re-derives
+/// the same inputs, and **distinct per logical operation** (a different function,
+/// trigger, or payload yields a different token). It generalises the hand-derived
+/// money-path key (`qonto-invoice-${id}`): a guest can pass it straight to a
+/// downstream idempotency header, and the send path uses it as the VERP send-id,
+/// so an at-least-once dispatch stays at-most-once end to end.
+///
+/// The output is 32 lowercase hex characters (a 128-bit truncated SHA-256): URL-
+/// safe and short enough for a 64-character email local part (`bounces+<token>@…`).
+/// The payload is hashed via its canonical JSON form — `serde_json::Value` orders
+/// object keys — so a resume that re-serialises the payload produces the same
+/// token. Each field is length-prefixed so no two distinct field tuples can
+/// collide by concatenation.
+#[must_use]
+pub fn derive_idempotency_token(
+    source: DispatchSource,
+    function_name: &str,
+    trigger_type: &str,
+    payload: &serde_json::Value,
+) -> String {
+    let payload_json = payload.to_string();
+    let mut hasher = Sha256::new();
+    for field in [
+        source.label(),
+        function_name,
+        trigger_type,
+        payload_json.as_str(),
+    ] {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field.as_bytes());
+    }
+    hex::encode(&hasher.finalize()[..16])
 }
 
 /// A function-trigger dispatch that exhausted its retries (or failed
