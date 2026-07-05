@@ -180,8 +180,10 @@ triggered them.
 - **App surface.** Send status is read directly from `_fraiseql_send_status` under
   RLS (keyed by the non-secret send-id — no server key needed). Suppression append +
   query go through the admin API (`POST /api/email/suppress`,
-  `GET /api/email/suppression`, bearer-gated) because the address must be hashed
-  server-side with the server HMAC key before it touches the store.
+  `POST /api/email/suppression`, bearer-gated) because the address must be hashed
+  server-side with the server HMAC key before it touches the store. Both are `POST`
+  with the address in the body (never a query string), so the raw address is never
+  captured by access logs or proxies.
 
 **Configuration.** `[server] hmac_secret_env` names the env var holding the root
 secret — VERP status-tracking activates only when it is set (fail-closed: no secret →

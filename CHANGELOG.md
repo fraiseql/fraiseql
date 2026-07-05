@@ -109,8 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seconds). An opt-in startup **Return-Path probe** (`[send] verp_probe_on_start`)
   verifies the provider preserves plus-addressing before VERP is trusted. All stores
   are tenant-scoped (RLS); the operator appends/queries suppressions via
-  `POST /api/email/suppress` / `GET /api/email/suppression` (admin bearer,
-  server-side hashing); IMAP processing is read-and-move only (never expunges).
+  `POST /api/email/suppress` / `POST /api/email/suppression` (admin bearer,
+  server-side hashing, address in the body — never a query string, so it is not
+  captured by access logs); IMAP processing is read-and-move only (never expunges).
   Configured via `[server] hmac_secret_env` (VERP-gated: absent → plain token, no
   correlation), `[mailbox.<name>.smtp.return_path]`, and `[send]`.
 - **After:mutation functions now run in the stock server binary.** The server loads

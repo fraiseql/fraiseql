@@ -74,7 +74,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
             app = app.merge(suppression_router);
             info!(
-                "Suppression admin API enabled (POST /api/email/suppress, GET \
+                "Suppression admin API enabled (POST /api/email/suppress, POST \
                  /api/email/suppression; admin bearer token required)"
             );
         }

@@ -14,13 +14,7 @@
 
 use std::sync::Arc;
 
-use axum::{
-    Json, Router,
-    extract::{Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, post},
-};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 use serde::Deserialize;
 
 use super::tracking::{PgSendTracker, SendCorrelator, SendTracker, SuppressionReason};
@@ -49,12 +43,15 @@ impl SuppressionAdminState {
 /// Build the suppression admin router.
 ///
 /// - `POST /api/email/suppress` — add/refresh a suppression for an address.
-/// - `GET /api/email/suppression?address=…[&tenant=…]` — whether an address is suppressed (and
-///   why).
+/// - `POST /api/email/suppression` — whether an address is suppressed (and why).
+///
+/// The query is a `POST` (not a `GET` with the address in the query string) so the
+/// raw recipient address stays out of access logs and proxy caches — matching the
+/// no-raw-address hygiene the store itself keeps (it only ever sees the keyed hash).
 pub fn suppression_admin_router(state: Arc<SuppressionAdminState>) -> Router {
     Router::new()
         .route("/api/email/suppress", post(suppress))
-        .route("/api/email/suppression", get(query))
+        .route("/api/email/suppression", post(query))
         .with_state(state)
 }
 
@@ -71,10 +68,11 @@ struct SuppressRequest {
     tenant:  Option<String>,
 }
 
-/// Query of `GET /api/email/suppression`.
+/// Body of `POST /api/email/suppression`.
 #[derive(Debug, Deserialize)]
 struct SuppressionQuery {
-    /// The recipient address to check.
+    /// The recipient address to check (in the body — never a query string — so it
+    /// is not captured by access logs / proxies).
     address: String,
     /// Optional tenant scope.
     #[serde(default)]
@@ -111,10 +109,10 @@ async fn suppress(
 /// Whether an address is currently suppressed (and why).
 async fn query(
     State(state): State<Arc<SuppressionAdminState>>,
-    Query(params): Query<SuppressionQuery>,
+    Json(request): Json<SuppressionQuery>,
 ) -> impl IntoResponse {
-    let hash = fraiseql_observers::hash_address(&state.address_hash_key, &params.address);
-    match state.tracker.suppression_reason(params.tenant.as_deref(), &hash).await {
+    let hash = fraiseql_observers::hash_address(&state.address_hash_key, &request.address);
+    match state.tracker.suppression_reason(request.tenant.as_deref(), &hash).await {
         Ok(reason) => (
             StatusCode::OK,
             Json(serde_json::json!({
