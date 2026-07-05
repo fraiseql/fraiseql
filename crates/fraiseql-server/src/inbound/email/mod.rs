@@ -29,7 +29,9 @@ use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::Durat
 use fraiseql_functions::host::live::storage::StorageBackend;
 use tracing::{info, warn};
 
+pub mod admin;
 pub mod config;
+pub mod correlation;
 pub mod cursor;
 pub mod imap;
 pub mod smtp;
@@ -38,14 +40,20 @@ pub mod tracking;
 pub mod warming;
 pub mod worker;
 
+pub use admin::{SuppressionAdminState, suppression_admin_router};
 pub use config::{
-    ImapConfig, MailboxConfig, MailboxSmtpConfig, ReturnPathConfig, RoutingRuleConfig, SmtpTlsMode,
+    ImapConfig, MailboxConfig, MailboxSmtpConfig, ReturnPathConfig, RoutingRuleConfig,
+    SendSettings, SmtpTlsMode,
 };
+pub use correlation::correlate;
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
 pub use smtp::{SmtpMailboxTransport, build_email_transport};
 pub use store::PostgresEmailCursorStore;
-pub use tracking::{PgSendTracker, RecordedSend, SendTracker, SentRecord, SuppressionReason};
+pub use tracking::{
+    CorrelatedSend, PgSendTracker, RecordedSend, SendCorrelator, SendTracker, SentRecord,
+    SuppressionReason,
+};
 pub use warming::{SendCounter, WarmingState, warming_daily_limit};
 pub use worker::EmailPollWorker;
 
@@ -70,11 +78,15 @@ pub async fn init_cursor_store(pool: &sqlx::PgPool) -> fraiseql_error::Result<()
 /// storage backend attachments stream into (`None` drops attachments); `hooks`
 /// fire `after:ingest:email` (`None` ingests without dispatch).
 #[must_use]
+#[allow(clippy::too_many_arguments)] // Reason: worker assembly wires several independent collaborators.
 pub fn build_workers<S: std::hash::BuildHasher>(
     mailboxes: &HashMap<String, MailboxConfig, S>,
     pool: &sqlx::PgPool,
     hooks: Option<&Arc<BeforeMutationHooks>>,
     sink: Option<&Arc<dyn StorageBackend>>,
+    correlator: Option<&Arc<dyn SendCorrelator>>,
+    address_hash_key: Option<&Arc<[u8]>>,
+    challenge_suppress_after: u32,
     get_env: impl Fn(&str) -> Option<String>,
 ) -> Vec<(EmailPollWorker, Duration)> {
     let mut workers = Vec::new();
@@ -114,6 +126,9 @@ pub fn build_workers<S: std::hash::BuildHasher>(
             imap.attachment_bucket.clone(),
             sink.cloned(),
             hooks.cloned(),
+            correlator.cloned(),
+            address_hash_key.cloned(),
+            challenge_suppress_after,
         );
         let interval = Duration::from_secs(imap.poll_interval_secs.max(1));
         info!(

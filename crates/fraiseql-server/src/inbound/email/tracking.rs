@@ -66,6 +66,24 @@ impl SuppressionReason {
             _ => None,
         }
     }
+
+    /// The default suppression expiry for this reason, relative to `now`.
+    ///
+    /// A hard bounce and a manual unsubscribe are ~permanent (`None`): the address
+    /// does not accept mail / the recipient opted out. An unanswered-challenge
+    /// suppression expires after ~30 days — long enough to stop re-quarantining the
+    /// domain, short enough that a since-fixed mailbox is not muted forever (and it
+    /// lifts immediately on a genuine reply, well before the TTL).
+    #[must_use]
+    pub fn default_ttl(
+        self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<chrono::DateTime<chrono::Utc>> {
+        match self {
+            SuppressionReason::HardBounce | SuppressionReason::Unsubscribe => None,
+            SuppressionReason::ChallengeUnanswered => Some(now + chrono::Duration::days(30)),
+        }
+    }
 }
 
 impl std::fmt::Display for SuppressionReason {
@@ -129,6 +147,96 @@ pub trait SendTracker: Send + Sync {
     fn record_sent<'a>(
         &'a self,
         record: SentRecord<'a>,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+}
+
+/// A send matched by the correlation step.
+///
+/// Carries the fields the transition needs: the tenant (RLS scope for suppression
+/// writes) and the raw recipient (which the correlator keyed-hashes to write/lift a
+/// suppression row).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorrelatedSend {
+    /// The send-id (echoed for send-id lookups; resolved from the row for
+    /// message-id fallback lookups).
+    pub send_id:   String,
+    /// The tenant the original send was scoped to.
+    pub tenant:    Option<String>,
+    /// The raw recipient address of the original send.
+    pub recipient: String,
+}
+
+/// The inbound-correlation seam: look a tracked send up from an inbound signal and
+/// transition its status + the recipient's suppression state.
+///
+/// Separate from [`SendTracker`] (the send path) so the poll worker depends only on
+/// the inbound half and a test fake implements only these methods. `PgSendTracker`
+/// implements both. All lookups run through the table-owning pool (which bypasses
+/// RLS) because an inbound bounce carries no session tenant — the tenant is read
+/// from the matched row and stamped on any suppression write.
+pub trait SendCorrelator: Send + Sync {
+    /// Find a tracked send by its VERP send-id (the Return-Path plus-tag).
+    fn find_by_send_id<'a>(
+        &'a self,
+        send_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<CorrelatedSend>>> + Send + 'a>>;
+
+    /// Find a tracked send by our sent message-id (the References fallback).
+    fn find_by_message_id<'a>(
+        &'a self,
+        message_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<CorrelatedSend>>> + Send + 'a>>;
+
+    /// Transition a send to `Bounced`.
+    fn mark_bounced<'a>(
+        &'a self,
+        send_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Transition a send to `ChallengePending` and return the recipient's total
+    /// unanswered-challenge count (across campaigns, tenant-scoped) — the value the
+    /// challenge policy compares against `challenge_suppress_after`.
+    fn bump_challenge<'a>(
+        &'a self,
+        send_id: &'a str,
+        tenant: Option<&'a str>,
+        recipient: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<i64>> + Send + 'a>>;
+
+    /// Transition a send to `Replied` and reset the recipient's unanswered-challenge
+    /// state (a reply is the positive signal that resets the per-recipient counter).
+    fn mark_replied<'a>(
+        &'a self,
+        send_id: &'a str,
+        tenant: Option<&'a str>,
+        recipient: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Record an informational signal (out-of-office / auto-generated) without
+    /// changing the send status.
+    fn record_signal<'a>(
+        &'a self,
+        send_id: &'a str,
+        signal: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Add or refresh a suppression for a recipient (by keyed hash). A permanent
+    /// existing suppression (no TTL, e.g. a hard bounce) is never downgraded.
+    fn suppress<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        address_hash: &'a str,
+        reason: SuppressionReason,
+        ttl: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Lift a suppression of a specific reason for a recipient (by keyed hash) — a
+    /// reply lifts a `challenge_unanswered`, never a `hard_bounce`.
+    fn lift_suppression<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        address_hash: &'a str,
+        reason: SuppressionReason,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }
 
@@ -240,6 +348,201 @@ impl SendTracker for PgSendTracker {
             .execute(&self.pool)
             .await
             .map_err(|error| db_err("record sent", &error))?;
+            Ok(())
+        })
+    }
+}
+
+/// The columns a correlation lookup selects.
+type SendRow = (String, Option<String>, String);
+
+fn to_correlated((send_id, tenant, recipient): SendRow) -> CorrelatedSend {
+    CorrelatedSend {
+        send_id,
+        tenant,
+        recipient,
+    }
+}
+
+impl SendCorrelator for PgSendTracker {
+    fn find_by_send_id<'a>(
+        &'a self,
+        send_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<CorrelatedSend>>> + Send + 'a>> {
+        Box::pin(async move {
+            let row: Option<SendRow> = sqlx::query_as(
+                "SELECT send_id, tenant_id, recipient FROM _fraiseql_send_status \
+                 WHERE send_id = $1 LIMIT 1",
+            )
+            .bind(send_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|error| db_err("find by send-id", &error))?;
+            Ok(row.map(to_correlated))
+        })
+    }
+
+    fn find_by_message_id<'a>(
+        &'a self,
+        message_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<CorrelatedSend>>> + Send + 'a>> {
+        Box::pin(async move {
+            let row: Option<SendRow> = sqlx::query_as(
+                "SELECT send_id, tenant_id, recipient FROM _fraiseql_send_status \
+                 WHERE message_id = $1 LIMIT 1",
+            )
+            .bind(message_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|error| db_err("find by message-id", &error))?;
+            Ok(row.map(to_correlated))
+        })
+    }
+
+    fn mark_bounced<'a>(
+        &'a self,
+        send_id: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            sqlx::query(
+                "UPDATE _fraiseql_send_status \
+                 SET status = 'Bounced', last_signal = 'bounce', updated_at = now() \
+                 WHERE send_id = $1",
+            )
+            .bind(send_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("mark bounced", &error))?;
+            Ok(())
+        })
+    }
+
+    fn bump_challenge<'a>(
+        &'a self,
+        send_id: &'a str,
+        tenant: Option<&'a str>,
+        recipient: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<i64>> + Send + 'a>> {
+        Box::pin(async move {
+            sqlx::query(
+                "UPDATE _fraiseql_send_status \
+                 SET status = 'ChallengePending', challenge_count = challenge_count + 1, \
+                     last_signal = 'challenge', updated_at = now() \
+                 WHERE send_id = $1",
+            )
+            .bind(send_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("bump challenge", &error))?;
+
+            // Per-recipient across campaigns: how many of this recipient's sends are
+            // still awaiting a challenge answer.
+            let (count,): (i64,) = sqlx::query_as(
+                "SELECT count(*) FROM _fraiseql_send_status \
+                 WHERE recipient = $1 AND tenant_id IS NOT DISTINCT FROM $2 \
+                   AND status = 'ChallengePending'",
+            )
+            .bind(recipient)
+            .bind(tenant)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|error| db_err("count pending challenges", &error))?;
+            Ok(count)
+        })
+    }
+
+    fn mark_replied<'a>(
+        &'a self,
+        send_id: &'a str,
+        tenant: Option<&'a str>,
+        recipient: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            // The replied send → Replied, and reset the recipient's other pending
+            // challenges (a reply is the per-recipient positive signal).
+            sqlx::query(
+                "UPDATE _fraiseql_send_status \
+                 SET status = 'Replied', challenge_count = 0, last_signal = 'reply', \
+                     updated_at = now() \
+                 WHERE tenant_id IS NOT DISTINCT FROM $2 \
+                   AND (send_id = $1 OR (recipient = $3 AND status = 'ChallengePending'))",
+            )
+            .bind(send_id)
+            .bind(tenant)
+            .bind(recipient)
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("mark replied", &error))?;
+            Ok(())
+        })
+    }
+
+    fn record_signal<'a>(
+        &'a self,
+        send_id: &'a str,
+        signal: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            sqlx::query(
+                "UPDATE _fraiseql_send_status SET last_signal = $2, updated_at = now() \
+                 WHERE send_id = $1",
+            )
+            .bind(send_id)
+            .bind(signal)
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("record signal", &error))?;
+            Ok(())
+        })
+    }
+
+    fn suppress<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        address_hash: &'a str,
+        reason: SuppressionReason,
+        ttl: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            // Never downgrade a permanent suppression (ttl IS NULL, e.g. a hard
+            // bounce) to a temporary one — only refresh/upgrade a temporary row or
+            // insert a new one.
+            sqlx::query(
+                "INSERT INTO _fraiseql_suppression (tenant_id, address_hash, reason, ttl) \
+                 VALUES ($1, $2, $3, $4) \
+                 ON CONFLICT (COALESCE(tenant_id, ''), address_hash) DO UPDATE \
+                     SET reason = EXCLUDED.reason, ttl = EXCLUDED.ttl, \
+                         since = now(), updated_at = now() \
+                     WHERE _fraiseql_suppression.ttl IS NOT NULL",
+            )
+            .bind(tenant)
+            .bind(address_hash)
+            .bind(reason.as_str())
+            .bind(ttl)
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("suppress", &error))?;
+            Ok(())
+        })
+    }
+
+    fn lift_suppression<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        address_hash: &'a str,
+        reason: SuppressionReason,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            sqlx::query(
+                "DELETE FROM _fraiseql_suppression \
+                 WHERE address_hash = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND reason = $3",
+            )
+            .bind(address_hash)
+            .bind(tenant)
+            .bind(reason.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(|error| db_err("lift suppression", &error))?;
             Ok(())
         })
     }

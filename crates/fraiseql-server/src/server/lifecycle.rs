@@ -179,6 +179,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     ))
                 })?;
 
+                // The correlator transitions send-status and suppression from
+                // inbound signals; its tables are also created by the send path,
+                // but a receive-only deployment needs them here too (idempotent).
+                let tracker = std::sync::Arc::new(email::PgSendTracker::new(db_pool.clone()));
+                tracker.init().await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize send-tracking schema: {e}"
+                    ))
+                })?;
+                let correlator =
+                    std::sync::Arc::clone(&tracker) as std::sync::Arc<dyn email::SendCorrelator>;
+                let address_hash_key = self.build_address_hash_key();
+
                 let sink = self.storage_backend.as_ref().map(|backend| {
                     std::sync::Arc::new(email::LegacyStorageSink::new(backend.clone()))
                         as std::sync::Arc<
@@ -191,6 +204,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     db_pool,
                     hooks.as_ref(),
                     sink.as_ref(),
+                    Some(&correlator),
+                    address_hash_key.as_ref(),
+                    self.config.send.challenge_suppress_after,
                     |name| std::env::var(name).ok(),
                 );
                 let started = workers.len();

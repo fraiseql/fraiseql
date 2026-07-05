@@ -112,8 +112,19 @@ async fn poll_ingests_new_mail_and_advances_the_cursor() {
             },
         ],
     });
-    let worker =
-        EmailPollWorker::new(mailbox.clone(), fetcher, pool.clone(), vec![], 50, None, None, None);
+    let worker = EmailPollWorker::new(
+        mailbox.clone(),
+        fetcher,
+        pool.clone(),
+        vec![],
+        50,
+        None,
+        None,
+        None,
+        None,
+        None,
+        2,
+    );
 
     // First poll ingests both and advances the cursor to the highest UID.
     assert_eq!(worker.run_once().await.unwrap(), 2);
@@ -155,6 +166,9 @@ async fn uidvalidity_reset_redelivers_but_dedups_on_message_id() {
         None,
         None,
         None,
+        None,
+        None,
+        2,
     );
     assert_eq!(worker_v1.run_once().await.unwrap(), 1);
     assert_eq!(spine_count(&pool, &key).await, 1);
@@ -176,6 +190,9 @@ async fn uidvalidity_reset_redelivers_but_dedups_on_message_id() {
         None,
         None,
         None,
+        None,
+        None,
+        2,
     );
     assert_eq!(worker_v2.run_once().await.unwrap(), 0, "redelivery dedups; nothing new");
     assert_eq!(spine_count(&pool, &key).await, 1, "still exactly one row");

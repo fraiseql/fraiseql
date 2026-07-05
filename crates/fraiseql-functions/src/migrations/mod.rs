@@ -220,6 +220,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_tenant_send
 CREATE INDEX IF NOT EXISTS idx_send_status_send_id
     ON _fraiseql_send_status (send_id);
 
+-- Fallback correlation: matching our sent message-id quoted in the inbound
+-- References / In-Reply-To when the VERP plus-tag was stripped.
+CREATE INDEX IF NOT EXISTS idx_send_status_message_id
+    ON _fraiseql_send_status (message_id)
+    WHERE message_id IS NOT NULL;
+
+-- The challenge policy counts a recipient's pending challenges across campaigns.
+CREATE INDEX IF NOT EXISTS idx_send_status_recipient
+    ON _fraiseql_send_status (recipient);
+
 ALTER TABLE _fraiseql_send_status ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS p_send_status_tenant ON _fraiseql_send_status;
 CREATE POLICY p_send_status_tenant ON _fraiseql_send_status

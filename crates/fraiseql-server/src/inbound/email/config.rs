@@ -201,6 +201,37 @@ pub struct ReturnPathConfig {
     pub domain:     Option<String>,
 }
 
+/// The default number of unanswered challenges before a recipient is suppressed.
+const fn default_challenge_suppress_after() -> u32 {
+    2
+}
+
+/// Delivery-feedback send policy (`[send]`).
+///
+/// Governs how the correlation step reacts to inbound signals. Currently just the
+/// challenge-suppression threshold; separated from the per-mailbox config because
+/// it is a cross-mailbox policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendSettings {
+    /// The number of **unanswered** challenge-response prompts to a recipient
+    /// (across campaigns) before that recipient is suppressed. Default 2: a
+    /// challenge means the mailbox works but quarantines us, so a third send would
+    /// only re-quarantine (near-zero read, nonzero reputation cost); N=1 forecloses
+    /// the human decision window (a surfaced `ChallengePending` a salesperson can
+    /// personally solve, or the recipient can release). "Unanswered" is event-based
+    /// — a reply or a released send resets it, never elapsed time.
+    #[serde(default = "default_challenge_suppress_after")]
+    pub challenge_suppress_after: u32,
+}
+
+impl Default for SendSettings {
+    fn default() -> Self {
+        Self {
+            challenge_suppress_after: default_challenge_suppress_after(),
+        }
+    }
+}
+
 /// A declared `[[mailbox.<name>.imap.routing]]` rule: a dedicated address that maps
 /// to an entity type (the recipient's plus-tag becomes the entity id).
 #[derive(Debug, Clone, Serialize, Deserialize)]

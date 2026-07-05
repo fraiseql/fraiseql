@@ -1,0 +1,227 @@
+//! Inbound-to-outbound correlation: the built-in poll-worker step that links an
+//! inbound bounce / challenge / reply back to the send that triggered it.
+//!
+//! This is **platform infrastructure**, not an app-written `after:ingest` function
+//! — fraiseql mints the sends and detects their outcomes, and only exposes the
+//! result (send-status + suppression) to the app. App `after:ingest` functions
+//! still fire afterwards for app logic.
+//!
+//! The link is the per-send VERP send-id: a bounce/challenge addressed to the
+//! `bounces+<send-id>@…` Return-Path carries the send-id in its recipient plus-tag
+//! ([`extract_send_id`]); a reply on the thread carries our sent message-id in its
+//! `References` ([`referenced_message_ids`], the fallback). Given a matched send,
+//! [`correlate`] transitions its status and the recipient's suppression state per
+//! the classifier's verdict — including the **event-based, per-recipient,
+//! never-auto-solve** challenge policy.
+
+use fraiseql_functions::{Classification, InboundMessage, parse_recipient};
+use tracing::{info, warn};
+
+use super::tracking::{CorrelatedSend, SendCorrelator, SuppressionReason};
+
+/// Headers whose value is (or contains) the envelope recipient the message was
+/// actually delivered to — where a VERP `bounces+<send-id>@…` Return-Path lands.
+const DELIVERY_HEADERS: [&str; 3] = ["delivered-to", "x-original-to", "envelope-to"];
+
+/// Headers that quote the message-ids of the thread (the reply fallback).
+const REFERENCE_HEADERS: [&str; 2] = ["references", "in-reply-to"];
+
+/// Whether a plus-tag has the shape of a send-id (32 lowercase hex chars).
+///
+/// A cheap pre-filter so an unrelated plus-tag (`support+ticket-42@…`) is not
+/// looked up as a send-id; a genuine send-id is an unguessable 32-hex HMAC, so a
+/// non-matching tag would only ever miss anyway.
+fn looks_like_send_id(tag: &str) -> bool {
+    tag.len() == 32 && tag.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Extract the send-id from an inbound message's recipient plus-tag.
+///
+/// Scans the primary recipients and the delivery headers for a
+/// `bounces+<send-id>@domain` address and returns the first `<send-id>` that has
+/// the send-id shape. Pure — no I/O.
+#[must_use]
+pub fn extract_send_id(message: &InboundMessage) -> Option<String> {
+    let header_addrs = DELIVERY_HEADERS
+        .iter()
+        .filter_map(|name| message.headers.get(*name))
+        .flat_map(|value| value.split([',', ' ']))
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    message
+        .to
+        .iter()
+        .map(String::as_str)
+        .chain(header_addrs)
+        .filter_map(parse_recipient)
+        .filter_map(|recipient| recipient.tag)
+        .find(|tag| looks_like_send_id(tag))
+}
+
+/// The message-ids this message quotes in its `References` / `In-Reply-To`, the
+/// fallback correlation when the VERP plus-tag was stripped by a mailbox. Pure.
+#[must_use]
+pub fn referenced_message_ids(message: &InboundMessage) -> Vec<String> {
+    REFERENCE_HEADERS
+        .iter()
+        .filter_map(|name| message.headers.get(*name))
+        .flat_map(|value| value.split_whitespace())
+        .map(str::trim)
+        .filter(|token| token.starts_with('<') && token.ends_with('>'))
+        .map(ToString::to_string)
+        .collect()
+}
+
+/// What the correlation step did with a message (for logging + tests).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CorrelationOutcome {
+    /// No tracked send matched this message (not one of ours, or the id was lost).
+    NoMatch,
+    /// A send matched but the classification is not actionable (or absent).
+    Ignored,
+    /// The send was marked `Bounced` and the recipient suppressed (`hard_bounce`).
+    Bounced,
+    /// The send was marked `ChallengePending`; `suppressed` when the recipient
+    /// reached the unanswered-challenge threshold. Never auto-solved.
+    Challenge {
+        /// The recipient's total unanswered challenges (across campaigns).
+        pending_count: i64,
+        /// Whether this pushed the recipient over the suppression threshold.
+        suppressed:    bool,
+    },
+    /// The send was marked `Replied`; any `challenge_unanswered` suppression lifted.
+    Replied,
+    /// An informational signal (out-of-office / auto-generated) was recorded.
+    Informational,
+}
+
+/// The action a classification maps to. Pure decision, separated for testing.
+enum Action {
+    Bounce,
+    Challenge,
+    Reply,
+    Signal(&'static str),
+    Ignore,
+}
+
+/// Map a classification to a correlation action.
+const fn decide(classification: Option<Classification>) -> Action {
+    match classification {
+        Some(Classification::Bounce) => Action::Bounce,
+        Some(Classification::Challenge) => Action::Challenge,
+        Some(Classification::Human) => Action::Reply,
+        Some(Classification::OutOfOffice) => Action::Signal("out_of_office"),
+        Some(Classification::AutoGenerated) => Action::Signal("auto_generated"),
+        // No classification, or a future variant → not actionable.
+        _ => Action::Ignore,
+    }
+}
+
+/// Look a tracked send up from an inbound message: the VERP send-id plus-tag first,
+/// then the quoted message-id fallback.
+async fn resolve_send(
+    correlator: &dyn SendCorrelator,
+    message: &InboundMessage,
+) -> fraiseql_error::Result<Option<CorrelatedSend>> {
+    if let Some(send_id) = extract_send_id(message) {
+        if let Some(send) = correlator.find_by_send_id(&send_id).await? {
+            return Ok(Some(send));
+        }
+    }
+    for message_id in referenced_message_ids(message) {
+        if let Some(send) = correlator.find_by_message_id(&message_id).await? {
+            return Ok(Some(send));
+        }
+    }
+    Ok(None)
+}
+
+/// Correlate one inbound message back to its send and transition status +
+/// suppression per the classifier's verdict.
+///
+/// `address_hash_key` (the server-HMAC subkey) keys the recipient hash for
+/// suppression writes; when `None` (no secret), status still transitions but no
+/// suppression is written — matching the send path, which cannot enforce a
+/// suppression it cannot key either. `challenge_suppress_after` is the per-recipient
+/// unanswered-challenge threshold (`N`, default 2). `now` is threaded in for the
+/// TTL so the caller controls the clock.
+///
+/// # Errors
+///
+/// Returns the underlying database error from a lookup or transition.
+pub async fn correlate(
+    correlator: &dyn SendCorrelator,
+    address_hash_key: Option<&[u8]>,
+    challenge_suppress_after: u32,
+    now: chrono::DateTime<chrono::Utc>,
+    message: &InboundMessage,
+) -> fraiseql_error::Result<CorrelationOutcome> {
+    let Some(send) = resolve_send(correlator, message).await? else {
+        return Ok(CorrelationOutcome::NoMatch);
+    };
+    let tenant = send.tenant.as_deref();
+    let recipient_hash =
+        address_hash_key.map(|key| fraiseql_observers::hash_address(key, &send.recipient));
+
+    match decide(message.classification) {
+        Action::Bounce => {
+            correlator.mark_bounced(&send.send_id).await?;
+            if let Some(hash) = recipient_hash.as_deref() {
+                correlator.suppress(tenant, hash, SuppressionReason::HardBounce, None).await?;
+            }
+            info!(send_id = %send.send_id, "delivery correlation: hard bounce → suppressed");
+            Ok(CorrelationOutcome::Bounced)
+        },
+        Action::Challenge => {
+            let pending_count =
+                correlator.bump_challenge(&send.send_id, tenant, &send.recipient).await?;
+            let suppressed = pending_count >= i64::from(challenge_suppress_after);
+            if suppressed {
+                if let Some(hash) = recipient_hash.as_deref() {
+                    correlator
+                        .suppress(
+                            tenant,
+                            hash,
+                            SuppressionReason::ChallengeUnanswered,
+                            SuppressionReason::ChallengeUnanswered.default_ttl(now),
+                        )
+                        .await?;
+                }
+            }
+            // Surface: a challenge is a human decision point — a salesperson may
+            // personally solve it, or the recipient may release us. NEVER
+            // auto-solved for cold outreach.
+            warn!(
+                send_id = %send.send_id,
+                pending_count,
+                suppressed,
+                "delivery correlation: challenge pending — surfaced for review, not auto-solved"
+            );
+            Ok(CorrelationOutcome::Challenge {
+                pending_count,
+                suppressed,
+            })
+        },
+        Action::Reply => {
+            correlator.mark_replied(&send.send_id, tenant, &send.recipient).await?;
+            if let Some(hash) = recipient_hash.as_deref() {
+                // A genuine reply lifts a challenge suppression immediately (never a
+                // hard bounce).
+                correlator
+                    .lift_suppression(tenant, hash, SuppressionReason::ChallengeUnanswered)
+                    .await?;
+            }
+            info!(send_id = %send.send_id, "delivery correlation: reply → engaged");
+            Ok(CorrelationOutcome::Replied)
+        },
+        Action::Signal(signal) => {
+            correlator.record_signal(&send.send_id, signal).await?;
+            Ok(CorrelationOutcome::Informational)
+        },
+        Action::Ignore => Ok(CorrelationOutcome::Ignored),
+    }
+}
+
+#[cfg(test)]
+mod tests;

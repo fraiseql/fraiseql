@@ -647,6 +647,16 @@ pub struct ServerConfig {
     #[serde(default)]
     pub mailbox: HashMap<String, crate::inbound::email::MailboxConfig>,
 
+    /// Delivery-feedback send policy (`[send]`).
+    ///
+    /// Governs how the correlation step reacts to inbound bounces / challenges /
+    /// replies — currently the challenge-suppression threshold
+    /// (`challenge_suppress_after`, default 2). Requires the `inbound-email`
+    /// feature; defaults apply when the section is absent.
+    #[cfg(feature = "inbound-email")]
+    #[serde(default)]
+    pub send: crate::inbound::email::SendSettings,
+
     /// Multi-tenant executor runtime configuration.
     ///
     /// Off by default. Enable with `[tenancy.runtime] enabled = true` to mount the
@@ -846,6 +856,8 @@ impl Default for ServerConfig {
             webhooks: HashMap::new(), // No inbound webhook routes by default
             #[cfg(feature = "inbound-email")]
             mailbox: HashMap::new(), // No connected mailboxes by default
+            #[cfg(feature = "inbound-email")]
+            send: crate::inbound::email::SendSettings::default(),
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
             #[cfg(feature = "auth")]
             identity: None, // Enriched-identity resolution off by default

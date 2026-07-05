@@ -150,8 +150,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Derive the recipient address-hash key from the configured server HMAC secret
     /// (domain-separated from the send-id subkey). `None` → no suppression check
     /// (the same fail-closed posture as the unsigned idempotency token).
+    ///
+    /// Shared with the poll-worker correlation path (`lifecycle`), which keys the
+    /// same recipient hash to write/lift suppressions.
     #[cfg(feature = "inbound-email")]
-    fn build_address_hash_key(&self) -> Option<Arc<[u8]>> {
+    pub(super) fn build_address_hash_key(&self) -> Option<Arc<[u8]>> {
         let env_name = self.config.hmac_secret_env.as_deref()?;
         let secret = std::env::var(env_name).ok().filter(|secret| !secret.is_empty())?;
         let key = fraiseql_observers::derive_address_hash_key(secret.as_bytes());
