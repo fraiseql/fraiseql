@@ -59,7 +59,7 @@ pub mod mutation_result;
 pub(crate) mod native_columns;
 pub mod partial_period;
 mod planner;
-mod projection;
+pub(crate) mod projection;
 pub mod query_tracing;
 pub mod relay;
 pub mod sql_logger;
@@ -260,6 +260,42 @@ pub struct RuntimeConfig {
     /// a `Validation` error from `execute_function_call_dry_run` rather than
     /// silently committing. Queries are unaffected (they never commit).
     pub dry_run_mutations: bool,
+
+    /// Response-size guards for the typed cascade surface (graphql-cascade
+    /// `16_security`). A cascade mutation returning more affected entities than
+    /// [`CascadeLimits::max_updated_entities`] is truncated with `truncated`
+    /// metadata; one exceeding [`CascadeLimits::max_response_size_mb`] is
+    /// rejected. Same DoS-guard family as [`max_page_size`](Self::max_page_size).
+    pub cascade_limits: CascadeLimits,
+}
+
+/// Response-size limits for the typed cascade surface, per the graphql-cascade
+/// spec's security requirements (`specification/16_security.md`).
+///
+/// Defaults are the spec's: depth 3, 500 affected entities, 5 `MiB`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CascadeLimits {
+    /// Maximum relationship depth a cascade may traverse (spec default `3`).
+    pub max_depth:            usize,
+    /// Maximum number of affected entities (`updated` + `deleted`) before the
+    /// cascade is truncated and flagged `truncated` in its metadata (spec
+    /// default `500`).
+    pub max_updated_entities: usize,
+    /// Maximum serialized cascade size in `MiB` before the mutation is rejected
+    /// (spec default `5`). A value of `0` **disables** the size ceiling — set it
+    /// only to intentionally lift the limit, never as an "unbounded" value reached
+    /// by accident.
+    pub max_response_size_mb: usize,
+}
+
+impl Default for CascadeLimits {
+    fn default() -> Self {
+        Self {
+            max_depth:            3,
+            max_updated_entities: 500,
+            max_response_size_mb: 5,
+        }
+    }
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -280,6 +316,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
+            .field("cascade_limits", &self.cascade_limits)
             .finish()
     }
 }
@@ -302,6 +339,7 @@ impl Default for RuntimeConfig {
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
+            cascade_limits:       CascadeLimits::default(),
         }
     }
 }
@@ -379,6 +417,13 @@ impl RuntimeConfig {
     #[must_use = "builder method returns modified builder"]
     pub fn with_field_authorizer(mut self, authorizer: Arc<dyn FieldAuthorizer>) -> Self {
         self.field_authorizer = Some(authorizer);
+        self
+    }
+
+    /// Override the cascade response-size limits (graphql-cascade `16_security`).
+    #[must_use = "builder method returns modified builder"]
+    pub const fn with_cascade_limits(mut self, limits: CascadeLimits) -> Self {
+        self.cascade_limits = limits;
         self
     }
 

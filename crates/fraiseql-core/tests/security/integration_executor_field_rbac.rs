@@ -320,6 +320,7 @@ fn test_executor_runtime_config_with_field_filter() {
         audit_mutations:      false,
         changelog_enabled:    true,
         dry_run_mutations:    false,
+        cascade_limits:       fraiseql_core::runtime::CascadeLimits::default(),
     };
 
     // WHEN: Config is created

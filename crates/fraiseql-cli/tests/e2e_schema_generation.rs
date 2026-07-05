@@ -480,6 +480,7 @@ fn test_e2e_full_field_assertion() {
             changelog:               true,
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
+            cascade:                 false,
         }],
         enums:                vec![],
         input_types:          vec![],

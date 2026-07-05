@@ -36,6 +36,7 @@ use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
+    runtime::projection::effective_selections,
     schema::{CompiledSchema, FieldDenyPolicy, FieldType},
     security::SecurityContext,
 };
@@ -185,7 +186,10 @@ pub(crate) fn selection_set_selects_gated_field(
     let Some(type_def) = schema.find_type(type_name) else {
         return false;
     };
-    fields.iter().any(|sel| {
+    // Resolve inline `... on T` fragments so a gated field selected through a
+    // fragment (interface/union member, e.g. a cascade `entity { ... on Post {
+    // gated } }` or a union mutation's `... on Post { gated }`) is not invisible.
+    effective_selections(fields, type_name, schema).iter().any(|sel| {
         type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize)
             || selection_field_has_gated_descendant(schema, type_name, sel)
     })
@@ -213,13 +217,15 @@ fn selection_field_has_gated_descendant(
     let Some(child_def) = schema.find_type(child_type) else {
         return false;
     };
-    sel.nested_fields.iter().any(|child_sel| {
-        child_def
-            .fields
-            .iter()
-            .any(|f| f.name.as_str() == child_sel.name && f.authorize)
-            || selection_field_has_gated_descendant(schema, child_type, child_sel)
-    })
+    effective_selections(&sel.nested_fields, child_type, schema)
+        .iter()
+        .any(|child_sel| {
+            child_def
+                .fields
+                .iter()
+                .any(|f| f.name.as_str() == child_sel.name && f.authorize)
+                || selection_field_has_gated_descendant(schema, child_type, child_sel)
+        })
 }
 
 /// Returns `true` if a policy-gated field is selected **below** the given fields
@@ -230,7 +236,7 @@ pub(crate) fn selection_set_has_nested_gated_field(
     type_name: &str,
     fields: &[FieldSelection],
 ) -> bool {
-    fields
+    effective_selections(fields, type_name, schema)
         .iter()
         .any(|sel| selection_field_has_gated_descendant(schema, type_name, sel))
 }
@@ -245,8 +251,8 @@ pub(crate) fn collect_top_level_gated_fields(
     let Some(type_def) = schema.find_type(type_name) else {
         return Vec::new();
     };
-    fields
-        .iter()
+    effective_selections(fields, type_name, schema)
+        .into_iter()
         .filter(|sel| type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize))
         .map(|sel| GatedField {
             field_name: sel.name.clone(),

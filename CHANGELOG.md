@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typed, enforced GraphQL cascade (cascade hardening).** The `cascade`
+  feature — a mutation returning every entity it affected, per the graphql-cascade
+  spec — is rebuilt from a verbatim JSONB passthrough into a first-class, enforced
+  surface. Opt a mutation in with `cascade=True`
+  (`@fraiseql.type(crud=True, cascade=True)` / `@fraiseql.mutation(cascade=True)`);
+  the flag is now honored end-to-end (it was silently dropped by the compiler). The
+  mutation then returns a typed payload wrapper `<Name>Payload { entity, cascade,
+  updatedFields }` whose `cascade: CascadeUpdates` carries `updated`
+  (`[UpdatedEntity!]!`), `deleted` (`[DeletedEntity!]!`), `metadata`
+  (`CascadeMetadata!`), and `invalidations` (`[QueryInvalidation!]!`) — a
+  `CascadeNode` interface is auto-implemented on every queryable entity so cascade
+  entities are selectable via inline fragments. At runtime every cascade entity is
+  projected to camelCase and run through the field-level authorizer (#423) exactly
+  like a queried entity; cascade is selection-gated (never injected unrequested);
+  the response is bounded by `RuntimeConfig.cascade_limits` (max affected entities →
+  truncated with `metadata.truncated`, max response size → rejected); and cascade
+  entities drive cache invalidation on their schema-resolved views. Shipped SQL
+  builders (`fraiseql.build_cascade` / `cascade_entity` / `deleted_entity` /
+  `cascade_invalidation`, installed by `fraiseql setup`) are the paved path; a live
+  2-tenant conformance test pins that cascade row-visibility follows RLS. See
+  `docs/architecture/mutation-response.md`.
+- **`fraiseql doctor --against-db` audits `sql_source` views for `security_invoker`.**
+  Warns when a view backing an entity type lacks `security_invoker` while the
+  database uses RLS — that view runs as its owner and silently bypasses the caller's
+  RLS (a cross-tenant leak on ordinary reads and in cascades).
+
 - **Enriched-identity RLS (#539).** One request-scoped `sub → DB → identity`
   resolver: the application maps a token's subject to its own internal identity
   (`actor_id`/`actor_role` for reads, verified from-address for sends) in its own
@@ -296,6 +322,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes persist. Dry-run is PostgreSQL-only; other adapters return a clear
   "not supported" error rather than silently committing.
 
+### Breaking
+
+- **Cascade is now typed, selection-gated, and enforced (cascade hardening).**
+  Cascade was previously injected verbatim into *every* mutation response, unrequested
+  and undeclared. Now: (1) only mutations with `cascade=True` expose it, and they
+  return a payload wrapper — `createUser { id }` becomes
+  `createUser { entity { id } cascade { … } }`; (2) cascade is present only when the
+  client selects it; (3) cascade entities are projected to camelCase (a cascade entity
+  that used to arrive with snake_case keys like `author_id` now arrives as `authorId`);
+  (4) a non-cascade mutation no longer surfaces a `cascade` blob even if its function
+  returns one; (5) the cascade JSON the DB function returns must use the spec-nested
+  shape (`updated: [{__typename, id, operation, entity}]`, `deleted: [{__typename, id,
+  deletedAt}]`) — use the shipped `fraiseql.build_cascade` builders. No production
+  consumers existed, so this affects no shipped deployment.
+
 ### Changed
 
 - **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
@@ -459,7 +500,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overrides (`[[federation.circuit_breaker.per_database]]` ⇒ runtime `per_entity`) reach
   the runtime instead of being silently dropped on a field-name mismatch.
 
-## [2.10.0] - 2026-06-26
+### Security
+
+- **Field-level authorization (#423) now resolves inline fragments.** The gated-field
+  detector matched selection field names literally, so a policy-gated field selected
+  through an inline fragment — `{ users { ... on User { ssn } } }` — was invisible to the
+  gate check: the field authorizer was skipped for it while the projector still resolved
+  the fragment. A gated field wrapped in a fragment could therefore evade the per-row
+  authorizer. Present since the field authorizer shipped (v2.5.0). The detector
+  (`selection_set_selects_gated_field` / `collect_top_level_gated_fields` /
+  `selection_set_has_nested_gated_field`) now resolves `... on T` fragments via
+  `effective_selections` before matching; the fix is over-enforcement-safe (it can only
+  add authorization checks, never remove them). Regression-tested at the detector level
+  and end-to-end through the cascade authz suite. This surfaced while wiring per-entity
+  authorization for cascade entities (which are interface-typed and always fragment-selected).
+
+- **RLS deployments must make `sql_source` views `security_invoker` (deployment-dependent
+  hardening).** A *default* PostgreSQL view runs with the view owner's privileges and
+  bypasses the querying role's Row-Level Security, so any RLS deployment whose view owner
+  differs from the querying role silently leaks cross-tenant rows on ordinary reads (and in
+  mutation cascades, which read the same views). This is a property of PostgreSQL views, not
+  a code regression, but it is now called out: create each `sql_source` view
+  `WITH (security_invoker = true)` (PG 15+), the view-authoring docs document it, and
+  `fraiseql doctor --against-db` warns when a view lacks it while RLS is in use.
 
 ### Added
 

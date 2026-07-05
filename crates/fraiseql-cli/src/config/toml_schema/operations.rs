@@ -137,6 +137,15 @@ pub struct MutationDefinition {
     /// byte-identical to a schema authored before this field existed.
     #[serde(default)]
     pub changelog_pre_image: bool,
+    /// Whether this mutation exposes the typed graphql-cascade `cascade` field
+    /// on its success payload.
+    ///
+    /// Set `true` to expose a typed, selection-gated `cascade` (mutation
+    /// responses carrying all affected entities per the graphql-cascade spec),
+    /// projected to camelCase and field-authorized per entity. Defaults to
+    /// `false`, byte-identical to a schema authored before this field existed.
+    #[serde(default)]
+    pub cascade:             bool,
     /// Mutation description
     pub description:         Option<String>,
     /// Mutation arguments
@@ -151,6 +160,7 @@ impl Default for MutationDefinition {
             operation:           "CREATE".to_string(),
             input_style:         default_input_style(),
             changelog_pre_image: false,
+            cascade:             false,
             description:         None,
             args:                vec![],
         }

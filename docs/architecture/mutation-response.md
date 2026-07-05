@@ -57,7 +57,8 @@ CREATE TYPE app.mutation_response AS (
 ```
 
 PG composite types do not support `CHECK` directly. The invariant below is
-enforced by `core.build_mutation_response`:
+enforced by the shipped builders `fraiseql.mutation_ok` / `fraiseql.mutation_err`
+(installed by `fraiseql setup`):
 
 ```sql
 -- Enforced in the builder, not in DDL
@@ -214,6 +215,59 @@ pub struct MutationResponse {
 
 Extra columns in the row (e.g. from older DB functions) are silently ignored
 by the `serde` deserializer.
+
+---
+
+## Cascade (the typed cascade surface)
+
+A mutation opts into the graphql-cascade surface with `cascade=True`
+(`@fraiseql.type(crud=True, cascade=True)` or `@fraiseql.mutation(cascade=True)`).
+The compiler then rewrites the mutation to return a **payload wrapper**
+`<Name>Payload { entity, cascade, updatedFields }` — cascade lives on the payload,
+not on the entity, so normalized client caches never store a `cascade` key against
+an entity. A non-cascade mutation is unchanged and never surfaces cascade.
+
+The function fills the `cascade` column with the spec-nested shape (see the
+graphql-cascade spec): `{ updated: [{__typename, id, operation, entity}],
+deleted: [{__typename, id, deletedAt}], invalidations: [...], metadata: {...} }`.
+Author it with the shipped builders (installed by `fraiseql setup`):
+
+```sql
+v_cascade := fraiseql.build_cascade(
+    p_updated := jsonb_build_array(
+        fraiseql.cascade_entity('Post', v_post_id, 'CREATED', 'v_post'),
+        fraiseql.cascade_entity('User', v_author_id, 'UPDATED', 'v_user')
+    ),
+    p_deleted := jsonb_build_array(
+        fraiseql.deleted_entity('Comment', v_comment_id)
+    )
+);
+```
+
+At runtime FraiseQL projects each cascade entity to camelCase and runs the
+field-level authorizer (#423) on it, exactly like a queried entity, and enforces
+the response limits (`RuntimeConfig.cascade_limits`: max affected entities → the
+cascade is truncated with `metadata.truncated`, max response size → rejected).
+
+### Row-visibility boundary (RLS)
+
+FraiseQL enforces **field-level** authorization on every cascade entity, but it
+does **not** re-check row visibility on the wire — just as it does not for a
+queried entity. Row visibility comes from RLS: `cascade_entity` reads each entity
+from its **RLS-protected view** (`v_*`) on the mutation function's own connection,
+whose session variables are pinned (the #329 fix), so a row the caller cannot see
+is not returned by the view and never rides in the cascade — symmetric with a
+query. The residual risk is an author bypassing that paved path — reading a base
+table (`tb_*`) directly, or using `SECURITY DEFINER` — which no runtime check can
+catch. **Always assemble cascade entities from the RLS views**, never base tables.
+
+> **The view must be `security_invoker = true`** (PostgreSQL 15+, FraiseQL's
+> standard view convention). A *default* view runs with the view owner's
+> privileges and silently bypasses the caller's RLS — a cross-tenant leak the
+> runtime cannot catch. `security_invoker` runs the view as the querying role, so
+> the base-table policy applies. This is verified by the `cascade_rls_conformance`
+> 2-tenant integration test: with a `security_invoker` view, tenant B's rows never
+> ride in tenant A's cascade; with a default view, they leak.
 
 ---
 

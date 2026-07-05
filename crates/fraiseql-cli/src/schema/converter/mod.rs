@@ -2,6 +2,7 @@
 //!
 //! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
+mod cascade_types;
 mod directives;
 mod mutation_error_union;
 mod mutations;
@@ -273,6 +274,14 @@ impl SchemaConverter {
         // Inject the changelog GraphQL surface (EntityChangeLog / TransportCheckpoint
         // types + cursor query + point lookup + upsert mutation) when opted in.
         fraiseql_core::schema::inject_changelog(&mut compiled);
+
+        // Synthesize the typed cascade surface (CascadeNode interface + envelope
+        // types + per-mutation `<Name>Payload` wrappers) for mutations that opt in
+        // via `cascade = true`. Runs BEFORE error-union synthesis so a cascade
+        // payload becomes the success member of the result union
+        // (`<Name>Result = <Name>Payload | MutationError`). Inert with no cascade
+        // mutations.
+        cascade_types::synthesize_cascade_types(&mut compiled);
 
         // Auto-synthesize a shared MutationError type + per-mutation result unions
         // when opted in (`[fraiseql.mutations] auto_error_union`), so the runtime's

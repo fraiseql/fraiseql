@@ -193,6 +193,17 @@ pub struct IntermediateMutation {
     /// byte-identical to a schema authored before this field existed.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub changelog_pre_image: bool,
+
+    /// Whether this mutation exposes the typed graphql-cascade `cascade` field
+    /// on its success payload.
+    ///
+    /// Set `true` via the authoring SDK's `@fraiseql.type(crud=True,
+    /// cascade=True)` / `@fraiseql.mutation(cascade=True)`, or TOML
+    /// `cascade = true`. Defaults to `false`, byte-identical to a schema
+    /// authored before this field existed. Before this field, the compiler
+    /// silently dropped the SDK flag.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cascade: bool,
 }
 
 impl Default for IntermediateMutation {
@@ -216,6 +227,7 @@ impl Default for IntermediateMutation {
             changelog:               default_changelog(),
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
+            cascade:                 false,
         }
     }
 }

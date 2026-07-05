@@ -79,6 +79,7 @@ impl SchemaConverter {
             changelog: intermediate.changelog,
             input_style: intermediate.input_style,
             changelog_pre_image: intermediate.changelog_pre_image,
+            cascade: intermediate.cascade,
         })
     }
 

@@ -1262,6 +1262,42 @@ sql_source = "touch_price"
         let touch = schema.mutations.iter().find(|m| m.name == "touch_price").unwrap();
         assert!(!touch.changelog_pre_image);
     }
+
+    #[test]
+    fn toml_mutation_cascade_threads_to_intermediate() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[types.Post]
+sql_source = "v_post"
+
+[types.Post.fields.id]
+type = "ID"
+
+[mutations.create_post]
+return_type = "Post"
+operation = "CREATE"
+sql_source = "create_post"
+cascade = true
+
+[mutations.touch_post]
+return_type = "Post"
+operation = "UPDATE"
+sql_source = "touch_post"
+"#;
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
+        // Explicit cascade = true threads through (was rejected by deny_unknown_fields
+        // and silently dropped before the flag was wired — eval finding 4).
+        let create = schema.mutations.iter().find(|m| m.name == "create_post").unwrap();
+        assert!(create.cascade);
+        // Absent cascade defaults to false (no cascade surface).
+        let touch = schema.mutations.iter().find(|m| m.name == "touch_post").unwrap();
+        assert!(!touch.cascade);
+    }
 }
 
 mod multi_file_loader_tests {

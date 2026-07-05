@@ -509,6 +509,7 @@ impl SchemaMerger {
                 "operation": toml_mutation.operation,
                 "input_style": toml_mutation.input_style,
                 "changelog_pre_image": toml_mutation.changelog_pre_image,
+                "cascade": toml_mutation.cascade,
                 "description": toml_mutation.description,
                 "args": toml_mutation.args.iter().map(|arg| json!({
                     "name": arg.name,

@@ -2129,6 +2129,25 @@ mod runtime_mod_tests {
         assert_eq!(config.max_query_complexity, 1000);
         assert!(!config.enable_tracing);
     }
+
+    #[test]
+    fn cascade_limits_default_to_spec_values() {
+        let limits = CascadeLimits::default();
+        assert_eq!(limits.max_depth, 3, "spec default maxDepth");
+        assert_eq!(limits.max_updated_entities, 500, "spec default maxUpdatedEntities");
+        assert_eq!(limits.max_response_size_mb, 5, "spec default maxResponseSizeMb");
+        assert_eq!(RuntimeConfig::default().cascade_limits, limits, "carried on RuntimeConfig");
+    }
+
+    #[test]
+    fn with_cascade_limits_overrides() {
+        let limits = CascadeLimits {
+            max_depth:            1,
+            max_updated_entities: 10,
+            max_response_size_mb: 1,
+        };
+        assert_eq!(RuntimeConfig::default().with_cascade_limits(limits).cascade_limits, limits);
+    }
 }
 
 mod mutation_result_tests {

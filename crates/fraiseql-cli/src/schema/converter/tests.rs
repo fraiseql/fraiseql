@@ -1944,6 +1944,148 @@ mod tenancy_tests {
         assert!(on.changelog_pre_image);
     }
 
+    // ── cascade threading (default off / explicit on, gate decision 3) ────
+
+    /// An absent / unset `cascade` converts to `false` (no typed cascade
+    /// surface — byte-identical to the behavior before the flag existed).
+    #[test]
+    fn convert_mutation_defaults_cascade_to_false() {
+        use crate::schema::SchemaConverter;
+        let md = SchemaConverter::convert_mutation(make_mutation("createPost", "Post")).unwrap();
+        assert!(!md.cascade);
+    }
+
+    /// `cascade = true` threads through to the compiled mutation so the runtime
+    /// exposes and enforces the typed cascade field. Before this, the compiler
+    /// silently dropped the SDK flag (eval finding 4).
+    #[test]
+    fn convert_mutation_threads_cascade() {
+        use crate::schema::SchemaConverter;
+        let im = IntermediateMutation {
+            cascade: true,
+            ..make_mutation("createPost", "Post")
+        };
+        let md = SchemaConverter::convert_mutation(im).unwrap();
+        assert!(md.cascade);
+    }
+
+    /// The authoring JSON contract: an absent key defaults to `false`; `true`
+    /// threads through. This is the key the Python/TS SDKs write for
+    /// `@fraiseql.type(crud=True, cascade=True)`.
+    #[test]
+    fn intermediate_mutation_cascade_json_contract() {
+        let absent: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
+        assert!(!absent.cascade);
+        let on: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "cascade": true }"#)
+                .unwrap();
+        assert!(on.cascade);
+    }
+
+    // ── cascade type synthesis (typed payload-wrapper surface) ──
+
+    /// A view-backed entity type with the given name (queryable — so it
+    /// auto-implements `CascadeNode`).
+    fn make_entity_type(name: &str) -> IntermediateType {
+        IntermediateType {
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            ..make_type(name, vec![make_field("id", "ID")])
+        }
+    }
+
+    /// A `cascade = true` mutation synthesizes the spec-aligned typed surface: the
+    /// `CascadeNode` interface (auto-implemented on every queryable entity), the
+    /// `CascadeOperation` enum, the `UpdatedEntity`/`DeletedEntity`/`CascadeUpdates`
+    /// envelope, and a `<Name>Payload { entity, cascade, updatedFields }` wrapper.
+    #[test]
+    fn cascade_synthesis_builds_typed_surface() {
+        use fraiseql_core::schema::FieldType;
+
+        use crate::schema::SchemaConverter;
+        let create_post = IntermediateMutation {
+            cascade: true,
+            sql_source: Some("fn_create_post".to_string()),
+            ..make_mutation("createPost", "Post")
+        };
+        let schema = make_schema(vec![make_entity_type("Post")], vec![], vec![create_post]);
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+
+        // CascadeNode interface exists and the queryable entity implements it.
+        assert!(compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
+        assert!(
+            post.implements.iter().any(|i| i == "CascadeNode"),
+            "Post implements CascadeNode"
+        );
+
+        // CascadeOperation enum with the spec's three values.
+        let op = compiled.enums.iter().find(|e| e.name == "CascadeOperation").expect("enum");
+        for v in ["CREATED", "UPDATED", "DELETED"] {
+            assert!(op.has_value(v), "CascadeOperation has {v}");
+        }
+
+        // UpdatedEntity carries operation + a non-null typed entity; DeletedEntity
+        // carries no entity body (a deleted row has nothing to project).
+        let updated = compiled.types.iter().find(|t| t.name.as_str() == "UpdatedEntity").unwrap();
+        assert!(updated.find_field("operation").is_some(), "UpdatedEntity.operation");
+        let entity_field = updated.find_field("entity").expect("UpdatedEntity.entity");
+        assert!(!entity_field.nullable, "UpdatedEntity.entity is non-null");
+        let deleted = compiled.types.iter().find(|t| t.name.as_str() == "DeletedEntity").unwrap();
+        assert!(deleted.find_field("entity").is_none(), "DeletedEntity has no entity body");
+        assert!(deleted.find_field("deletedAt").is_some(), "DeletedEntity.deletedAt");
+
+        // CascadeUpdates references the split entry types + a metadata envelope.
+        let updates = compiled.types.iter().find(|t| t.name.as_str() == "CascadeUpdates").unwrap();
+        let updated_field = updates.find_field("updated").expect("CascadeUpdates.updated");
+        assert!(
+            matches!(&updated_field.field_type, FieldType::List(inner)
+                if matches!(inner.as_ref(), FieldType::Object(n) if n == "UpdatedEntity")),
+            "updated: [UpdatedEntity!]!"
+        );
+        assert!(updates.find_field("metadata").is_some(), "CascadeUpdates.metadata");
+        assert!(updates.find_field("invalidations").is_some(), "CascadeUpdates.invalidations");
+        let meta = compiled.types.iter().find(|t| t.name.as_str() == "CascadeMetadata").unwrap();
+        for f in ["timestamp", "depth", "affectedCount", "truncated"] {
+            assert!(meta.find_field(f).is_some(), "CascadeMetadata.{f}");
+        }
+        // The invalidation surface (type + its two enums) is synthesized.
+        assert!(compiled.types.iter().any(|t| t.name.as_str() == "QueryInvalidation"));
+        assert!(compiled.enums.iter().any(|e| e.name == "InvalidationStrategy"));
+        assert!(compiled.enums.iter().any(|e| e.name == "InvalidationScope"));
+
+        // The mutation returns CreatePostPayload { entity, cascade, updatedFields }.
+        let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
+        assert_eq!(m.return_type, "CreatePostPayload");
+        let payload =
+            compiled.types.iter().find(|t| t.name.as_str() == "CreatePostPayload").unwrap();
+        assert!(payload.find_field("entity").is_some(), "payload has entity");
+        assert!(payload.find_field("cascade").is_some(), "payload has cascade");
+        assert!(payload.find_field("updatedFields").is_some(), "payload rehomes updatedFields");
+    }
+
+    /// No `cascade = true` mutation ⇒ the pass is inert: no cascade types/enum, no
+    /// `implements` churn, mutation return type unchanged (byte-identical to a
+    /// schema compiled before the pass existed).
+    #[test]
+    fn cascade_synthesis_inert_without_cascade_mutations() {
+        use crate::schema::SchemaConverter;
+        let create_post = IntermediateMutation {
+            sql_source: Some("fn_create_post".to_string()),
+            ..make_mutation("createPost", "Post")
+        };
+        let schema = make_schema(vec![make_entity_type("Post")], vec![], vec![create_post]);
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+
+        assert!(!compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
+        assert!(!compiled.types.iter().any(|t| t.name.as_str() == "CascadeUpdates"));
+        assert!(!compiled.enums.iter().any(|e| e.name == "CascadeOperation"));
+        let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
+        assert_eq!(m.return_type, "Post");
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
+        assert!(!post.implements.iter().any(|i| i == "CascadeNode"));
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(

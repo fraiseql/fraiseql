@@ -24,7 +24,9 @@ use crate::{
     runtime::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row},
-        project_entity, suggest_similar,
+        project_entity,
+        projection::effective_selections,
+        suggest_similar,
     },
     schema::{CompiledSchema, InputStyle, MutationOperation, NamingConvention},
     security::SecurityContext,
@@ -93,6 +95,484 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
         statically_masked: &[],
     };
     authz::apply_field_authorizer_to_entity(&pass, entity, projected)
+}
+
+// ── Typed cascade payload projection ─────────────────────────────────────────
+//
+// A `cascade = true` mutation returns a synthesized `<Name>Payload { entity,
+// cascade, updatedFields }` (see `cli::converter::cascade_types`). The DB function
+// emits the spec-nested cascade shape — `{ updated: [{ __typename, id, operation,
+// entity }], deleted: [{ __typename, id, deletedAt }] }` — and the runtime builds
+// the payload filtered to the client's selection set, projecting (camelCase) and
+// field-authorizing the primary entity AND every cascade `entity` exactly like a
+// queried entity. This is the load-bearing security fix: cascade entities no
+// longer bypass the field authorizer and projection.
+
+/// The synthesized cascade type names (mirror `cli::converter::cascade_types`).
+const CASCADE_UPDATES_TYPE: &str = "CascadeUpdates";
+const CASCADE_METADATA_TYPE: &str = "CascadeMetadata";
+const QUERY_INVALIDATION_TYPE: &str = "QueryInvalidation";
+const UPDATED_ENTITY_TYPE: &str = "UpdatedEntity";
+const DELETED_ENTITY_TYPE: &str = "DeletedEntity";
+
+/// One mebibyte, for the `max_response_size_mb` cascade ceiling.
+const MIB: usize = 1024 * 1024;
+
+/// Resolve a cascade mutation's concrete payload type: the first non-error member
+/// of the result union, or the return type itself when it is not a union.
+fn resolve_payload_type(return_type: &str, schema: &CompiledSchema) -> String {
+    schema
+        .find_union(return_type)
+        .and_then(|u| {
+            u.member_types
+                .iter()
+                .find(|t| schema.find_type(t).is_none_or(|td| !td.is_error))
+                .cloned()
+        })
+        .unwrap_or_else(|| return_type.to_string())
+}
+
+/// Resolve the distinct views backing every entity type in a cascade, via the
+/// compiled schema (`type name → sql_source`) — the same lookup the primary-entity
+/// invalidation uses, so `tv_*` / multi-word / custom view names resolve correctly
+/// instead of being guessed as `v_<lowercase>`. Types with no `sql_source`, and
+/// unknown types, are skipped.
+fn resolve_cascade_views(cascade: &serde_json::Value, schema: &CompiledSchema) -> Vec<ViewName> {
+    let mut seen = std::collections::HashSet::new();
+    let mut views = Vec::new();
+    for arm in ["updated", "deleted"] {
+        let Some(entries) = cascade.get(arm).and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        for entry in entries {
+            let Some(typename) = entry.get("__typename").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            if let Some(td) = schema.types.iter().find(|t| t.name.as_str() == typename) {
+                let src = td.sql_source.as_str();
+                if !src.is_empty() && seen.insert(src.to_string()) {
+                    views.push(ViewName::from(src));
+                }
+            }
+        }
+    }
+    views
+}
+
+/// The concrete entity type a payload wraps, read from its `entity` field type.
+fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<String> {
+    schema
+        .find_type(payload_type)?
+        .fields
+        .iter()
+        .find(|f| f.name.as_str() == "entity")?
+        .field_type
+        .type_name()
+        .map(std::string::ToString::to_string)
+}
+
+/// Build the typed cascade payload `{ entity, cascade, updatedFields }`, filtered
+/// to the client's selection set. Projects + field-authorizes the primary entity
+/// and delegates the cascade envelope to [`build_cascade_updates`].
+// Reason: cohesive per-call inputs for cascade projection (context, the two
+// resolved type names, and the three outcome payloads); grouping into a struct
+// would only relocate them.
+#[allow(clippy::too_many_arguments)]
+fn build_cascade_payload<A: DatabaseAdapter>(
+    ctx: &ExecutorContext<A>,
+    security_ctx: Option<&SecurityContext>,
+    payload_type: &str,
+    entity_type: &str,
+    entity: &serde_json::Value,
+    cascade: Option<&serde_json::Value>,
+    updated_fields: &[String],
+    selections: &[FieldSelection],
+) -> Result<serde_json::Value> {
+    let mut out = serde_json::Map::new();
+    for sel in effective_selections(selections, payload_type, &ctx.schema) {
+        match sel.name.as_str() {
+            "__typename" => {
+                out.insert(
+                    sel.response_key().to_string(),
+                    serde_json::Value::String(payload_type.to_string()),
+                );
+            },
+            "entity" => {
+                let mut projected =
+                    project_entity(entity, entity_type, &sel.nested_fields, &ctx.schema);
+                enforce_mutation_field_authz(
+                    ctx,
+                    security_ctx,
+                    entity_type,
+                    &sel.nested_fields,
+                    entity,
+                    &mut projected,
+                )?;
+                out.insert(sel.response_key().to_string(), projected);
+            },
+            "cascade" => {
+                let built = build_cascade_updates(ctx, security_ctx, cascade, &sel.nested_fields)?;
+                out.insert(sel.response_key().to_string(), built);
+            },
+            "updatedFields" => {
+                out.insert(
+                    sel.response_key().to_string(),
+                    serde_json::Value::Array(
+                        updated_fields.iter().cloned().map(serde_json::Value::String).collect(),
+                    ),
+                );
+            },
+            _ => {},
+        }
+    }
+    Ok(serde_json::Value::Object(out))
+}
+
+/// Build the `CascadeUpdates` envelope (`updated` / `deleted` / `metadata`),
+/// filtered to the client's selection set. Enforces the affected-entity ceiling
+/// (truncating + flagging `metadata.truncated`) and the response-size ceiling
+/// (rejecting an over-large cascade), per graphql-cascade `16_security`.
+fn build_cascade_updates<A: DatabaseAdapter>(
+    ctx: &ExecutorContext<A>,
+    security_ctx: Option<&SecurityContext>,
+    cascade: Option<&serde_json::Value>,
+    selections: &[FieldSelection],
+) -> Result<serde_json::Value> {
+    let cascade_obj = cascade.and_then(serde_json::Value::as_object);
+    let empty: Vec<serde_json::Value> = Vec::new();
+    let updated: &[serde_json::Value] = cascade_obj
+        .and_then(|c| c.get("updated"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(empty.as_slice(), Vec::as_slice);
+    let deleted: &[serde_json::Value] = cascade_obj
+        .and_then(|c| c.get("deleted"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(empty.as_slice(), Vec::as_slice);
+
+    // Affected-entity ceiling: greedily fill up to the limit — `updated` first
+    // (they carry entity data), remainder to `deleted` — and record the truncation
+    // in metadata (spec `16_security` size-limiting). Greedy fill honors the full
+    // limit for a lopsided cascade, where a half-each split would waste headroom.
+    let limits = ctx.config.cascade_limits;
+    let total = updated.len() + deleted.len();
+    let truncated = total > limits.max_updated_entities;
+    let (updated, deleted) = if truncated {
+        let updated_keep = updated.len().min(limits.max_updated_entities);
+        let deleted_keep = deleted.len().min(limits.max_updated_entities - updated_keep);
+        (&updated[..updated_keep], &deleted[..deleted_keep])
+    } else {
+        (updated, deleted)
+    };
+    let affected_count = updated.len() + deleted.len();
+
+    let mut out = serde_json::Map::new();
+    for sel in effective_selections(selections, CASCADE_UPDATES_TYPE, &ctx.schema) {
+        match sel.name.as_str() {
+            "__typename" => {
+                out.insert(
+                    sel.response_key().to_string(),
+                    serde_json::Value::String(CASCADE_UPDATES_TYPE.to_string()),
+                );
+            },
+            "updated" => {
+                let arr = build_updated_entities(ctx, security_ctx, updated, &sel.nested_fields)?;
+                out.insert(sel.response_key().to_string(), arr);
+            },
+            "deleted" => {
+                let arr = build_deleted_entities(deleted, &sel.nested_fields, &ctx.schema)?;
+                out.insert(sel.response_key().to_string(), arr);
+            },
+            "metadata" => {
+                let meta = build_cascade_metadata(
+                    &ctx.schema,
+                    cascade_obj.and_then(|c| c.get("metadata")),
+                    affected_count,
+                    truncated,
+                    truncated.then_some(total),
+                    &sel.nested_fields,
+                );
+                out.insert(sel.response_key().to_string(), meta);
+            },
+            "invalidations" => {
+                let arr = build_invalidations(
+                    &ctx.schema,
+                    cascade_obj.and_then(|c| c.get("invalidations")),
+                    &sel.nested_fields,
+                );
+                out.insert(sel.response_key().to_string(), arr);
+            },
+            _ => {},
+        }
+    }
+    let cascade_value = serde_json::Value::Object(out);
+
+    // Response-size ceiling: reject an over-large cascade (spec `16_security`).
+    let max_bytes = limits.max_response_size_mb.saturating_mul(MIB);
+    if max_bytes > 0 {
+        let size = serde_json::to_vec(&cascade_value).map_or(0, |v| v.len());
+        if size > max_bytes {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "cascade response too large: {size} bytes exceeds the \
+                     max_response_size_mb={} ceiling",
+                    limits.max_response_size_mb
+                ),
+                path:    Some("cascade".to_string()),
+            });
+        }
+    }
+    Ok(cascade_value)
+}
+
+/// Build the `CascadeMetadata` object, filtered to the client's selection set.
+/// The runtime owns `affectedCount` / `truncated` / `originalCount` (computed from
+/// what it actually returns) and the non-null `timestamp` (the function's if given,
+/// else the server clock); `transactionId` / `depth` pass through from the
+/// function's `cascade.metadata` (`depth` defaults to 0 if absent).
+fn build_cascade_metadata(
+    schema: &CompiledSchema,
+    db_metadata: Option<&serde_json::Value>,
+    affected_count: usize,
+    truncated: bool,
+    original_count: Option<usize>,
+    selections: &[FieldSelection],
+) -> serde_json::Value {
+    let db = db_metadata.and_then(serde_json::Value::as_object);
+    let mut out = serde_json::Map::new();
+    for sel in effective_selections(selections, CASCADE_METADATA_TYPE, schema) {
+        let key = sel.response_key().to_string();
+        match sel.name.as_str() {
+            "__typename" => {
+                out.insert(key, serde_json::Value::String(CASCADE_METADATA_TYPE.to_string()));
+            },
+            "affectedCount" => {
+                out.insert(key, serde_json::Value::from(affected_count as u64));
+            },
+            "truncated" => {
+                out.insert(key, serde_json::Value::Bool(truncated));
+            },
+            "originalCount" => {
+                if let Some(oc) = original_count {
+                    out.insert(key, serde_json::Value::from(oc as u64));
+                }
+            },
+            "depth" => {
+                let depth = db
+                    .and_then(|m| m.get("depth"))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::from(0u64));
+                out.insert(key, depth);
+            },
+            "timestamp" => {
+                // The runtime owns the non-null `DateTime!` guarantee (like
+                // `affectedCount`): prefer the function's transaction timestamp,
+                // else stamp the current server time so a function that omits it
+                // still yields an SDL-valid response rather than a null violation.
+                let ts = db
+                    .and_then(|m| m.get("timestamp"))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
+                out.insert(key, ts);
+            },
+            "transactionId" => {
+                if let Some(v) =
+                    db.and_then(|m| m.get("transactionId").or_else(|| m.get("transaction_id")))
+                {
+                    out.insert(key, v.clone());
+                }
+            },
+            _ => {},
+        }
+    }
+    serde_json::Value::Object(out)
+}
+
+/// Build the `invalidations: [QueryInvalidation!]!` array — the client-side cache
+/// hints the function emitted, filtered to the client's selection set. Plain
+/// passthrough: these are advisory hints, not entity data, so there is nothing to
+/// project or field-authorize.
+fn build_invalidations(
+    schema: &CompiledSchema,
+    entries: Option<&serde_json::Value>,
+    selections: &[FieldSelection],
+) -> serde_json::Value {
+    let Some(arr) = entries.and_then(serde_json::Value::as_array) else {
+        return serde_json::Value::Array(Vec::new());
+    };
+    let effective = effective_selections(selections, QUERY_INVALIDATION_TYPE, schema);
+    let mut result = Vec::with_capacity(arr.len());
+    for entry in arr {
+        let Some(entry_obj) = entry.as_object() else {
+            continue;
+        };
+        let mut item = serde_json::Map::new();
+        for sel in &effective {
+            if sel.name == "__typename" {
+                item.insert(
+                    sel.response_key().to_string(),
+                    serde_json::Value::String(QUERY_INVALIDATION_TYPE.to_string()),
+                );
+            } else if let Some(v) = entry_obj.get(sel.name.as_str()) {
+                item.insert(sel.response_key().to_string(), v.clone());
+            }
+        }
+        result.push(serde_json::Value::Object(item));
+    }
+    serde_json::Value::Array(result)
+}
+
+/// Build the `updated: [UpdatedEntity!]!` array, projecting + field-authorizing
+/// each entry's `entity` under its concrete `__typename`.
+///
+/// Fail-closed on any malformed entry: a missing or
+/// unknown `__typename`, a missing `id`, or a missing/invalid `operation` aborts
+/// the response rather than shipping an unprojectable entity or an SDL-invalid
+/// non-null violation — regardless of what the client selected.
+fn build_updated_entities<A: DatabaseAdapter>(
+    ctx: &ExecutorContext<A>,
+    security_ctx: Option<&SecurityContext>,
+    entries: &[serde_json::Value],
+    selections: &[FieldSelection],
+) -> Result<serde_json::Value> {
+    let effective = effective_selections(selections, UPDATED_ENTITY_TYPE, &ctx.schema);
+    let mut result = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Some(entry_obj) = entry.as_object() else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.updated entry is not an object".to_string(),
+                path:    Some("cascade.updated".to_string()),
+            });
+        };
+        let Some(typename) = entry_obj.get("__typename").and_then(serde_json::Value::as_str) else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.updated entry is missing __typename".to_string(),
+                path:    Some("cascade.updated.__typename".to_string()),
+            });
+        };
+        // Fail-closed on an unknown type — we cannot project or authorize it.
+        if ctx.schema.find_type(typename).is_none() {
+            return Err(FraiseQLError::Validation {
+                message: format!("cascade.updated entry has unknown __typename '{typename}'"),
+                path:    Some("cascade.updated.__typename".to_string()),
+            });
+        }
+        // Non-null `id: ID!` and a valid `operation: CascadeOperation!` are required.
+        if !entry_obj.contains_key("id") {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.updated entry is missing id".to_string(),
+                path:    Some("cascade.updated.id".to_string()),
+            });
+        }
+        match entry_obj.get("operation").and_then(serde_json::Value::as_str) {
+            Some("CREATED" | "UPDATED" | "DELETED") => {},
+            other => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "cascade.updated entry has a missing or invalid operation: {other:?} \
+                         (expected CREATED, UPDATED, or DELETED)"
+                    ),
+                    path:    Some("cascade.updated.operation".to_string()),
+                });
+            },
+        }
+        let mut item = serde_json::Map::new();
+        for sel in &effective {
+            match sel.name.as_str() {
+                "__typename" => {
+                    item.insert(
+                        sel.response_key().to_string(),
+                        serde_json::Value::String(UPDATED_ENTITY_TYPE.to_string()),
+                    );
+                },
+                "id" => {
+                    if let Some(id) = entry_obj.get("id") {
+                        item.insert(sel.response_key().to_string(), id.clone());
+                    }
+                },
+                "operation" => {
+                    if let Some(op) = entry_obj.get("operation") {
+                        item.insert(sel.response_key().to_string(), op.clone());
+                    }
+                },
+                "entity" => {
+                    let entity_blob =
+                        entry_obj.get("entity").cloned().unwrap_or(serde_json::Value::Null);
+                    let mut projected =
+                        project_entity(&entity_blob, typename, &sel.nested_fields, &ctx.schema);
+                    enforce_mutation_field_authz(
+                        ctx,
+                        security_ctx,
+                        typename,
+                        &sel.nested_fields,
+                        &entity_blob,
+                        &mut projected,
+                    )?;
+                    item.insert(sel.response_key().to_string(), projected);
+                },
+                _ => {},
+            }
+        }
+        result.push(serde_json::Value::Object(item));
+    }
+    Ok(serde_json::Value::Array(result))
+}
+
+/// Build the `deleted: [DeletedEntity!]!` array. Deleted entries carry no entity
+/// body (the row is gone) — only `id` + `deletedAt` — so there is nothing to
+/// project or field-authorize.
+///
+/// Fail-closed: an entry missing the non-null `id` or
+/// `deletedAt` aborts the response rather than emitting an SDL-invalid violation.
+fn build_deleted_entities(
+    entries: &[serde_json::Value],
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+) -> Result<serde_json::Value> {
+    let effective = effective_selections(selections, DELETED_ENTITY_TYPE, schema);
+    let mut result = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Some(entry_obj) = entry.as_object() else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is not an object".to_string(),
+                path:    Some("cascade.deleted".to_string()),
+            });
+        };
+        if !entry_obj.contains_key("id") {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is missing id".to_string(),
+                path:    Some("cascade.deleted.id".to_string()),
+            });
+        }
+        let deleted_at = entry_obj.get("deletedAt").or_else(|| entry_obj.get("deleted_at"));
+        let Some(deleted_at) = deleted_at else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is missing deletedAt".to_string(),
+                path:    Some("cascade.deleted.deletedAt".to_string()),
+            });
+        };
+        let mut item = serde_json::Map::new();
+        for sel in &effective {
+            match sel.name.as_str() {
+                "__typename" => {
+                    item.insert(
+                        sel.response_key().to_string(),
+                        serde_json::Value::String(DELETED_ENTITY_TYPE.to_string()),
+                    );
+                },
+                "id" => {
+                    if let Some(id) = entry_obj.get("id") {
+                        item.insert(sel.response_key().to_string(), id.clone());
+                    }
+                },
+                "deletedAt" => {
+                    item.insert(sel.response_key().to_string(), deleted_at.clone());
+                },
+                _ => {},
+            }
+        }
+        result.push(serde_json::Value::Object(item));
+    }
+    Ok(serde_json::Value::Array(result))
 }
 
 /// Executes GraphQL mutations with compile-time capability enforcement.
@@ -888,9 +1368,35 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     }
 
+    // Cascade-driven cache invalidation: a cascade mutation's
+    // side-effects on entity types OTHER than its return type (e.g. a `Post`
+    // mutation that updates a `User`) leave those types' cached queries stale —
+    // the primary-entity invalidation above only covers the return type and
+    // declared `invalidates_views`. Resolve each cascade entity type to its view
+    // via the compiled schema (NOT a `v_<lowercase>` string guess, which misses
+    // `tv_*`, multi-word, and custom view names) and invalidate those views. Both
+    // the adapter cache and the response cache, matching the primary path.
+    if mutation_def.cascade {
+        if let MutationOutcome::Success {
+            cascade: Some(cascade_json),
+            ..
+        } = &outcome
+        {
+            let views = resolve_cascade_views(cascade_json, &ctx.schema);
+            if !views.is_empty() {
+                ctx.adapter.invalidate_views(&views).await?;
+                if let Some(ref rc) = ctx.response_cache {
+                    let _ = rc.invalidate_views(&views);
+                }
+            }
+        }
+    }
+
     // Clone name and return_type to avoid borrow issues after schema lookups
     let mutation_return_type = mutation_def.return_type.clone();
     let mutation_name_owned = mutation_name.to_string();
+    // Whether this mutation exposes the typed cascade payload surface.
+    let is_cascade = mutation_def.cascade;
 
     // Evaluate @skip / @include against the request variables before projecting, so
     // conditional fields are honoured exactly as on the query path. (Named fragment
@@ -910,6 +1416,34 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let selections: &[FieldSelection] = &filtered_selections;
 
     let result_json = match outcome {
+        MutationOutcome::Success {
+            entity,
+            entity_type,
+            cascade,
+            updated_fields,
+            ..
+        } if is_cascade => {
+            // Cascade mutation: build the typed payload `{ entity, cascade,
+            // updatedFields }`, projecting + field-authorizing the primary entity
+            // and every cascade entity (findings 1, 5). The payload type is the
+            // success member of the (possibly error-union) return type; the
+            // concrete entity type is the DB-stamped `entity_type`, else the
+            // payload's `entity` field type.
+            let payload_type = resolve_payload_type(&mutation_return_type, &ctx.schema);
+            let entity_type_name = entity_type
+                .or_else(|| payload_entity_type(&payload_type, &ctx.schema))
+                .unwrap_or_else(|| mutation_return_type.clone());
+            build_cascade_payload(
+                ctx,
+                security_ctx,
+                &payload_type,
+                &entity_type_name,
+                &entity,
+                cascade.as_ref(),
+                &updated_fields,
+                selections,
+            )?
+        },
         MutationOutcome::Success {
             entity,
             entity_type,
@@ -950,20 +1484,17 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 &mut projected,
             )?;
 
-            // Surface the graphql-cascade wire format
-            // (updated/deleted/invalidations/metadata) to clients without requiring
-            // the DB function to embed it in the entity JSONB itself.
-            if let Some(cascade_json) = cascade {
-                if let serde_json::Value::Object(ref mut map) = projected {
-                    map.insert("cascade".to_string(), cascade_json);
-                }
-            }
+            // Cascade is opt-in (`cascade = true`, handled by the guarded arm
+            // above): a non-cascade mutation never surfaces cascade, even if its
+            // function returns a `cascade` JSONB. `cascade` is a typed,
+            // selection-gated payload field on cascade mutations, or nothing.
+            let _ = cascade;
 
             // Surface `updated_fields` (the GraphQL field names this mutation
-            // changed) as `updatedFields`, symmetric with `cascade` but
-            // selection-gated — present only when the client selects it, so a
-            // mutation that does not ask for it keeps an exact projected shape
-            // (#433). An empty list (noop) still surfaces as `[]` when selected.
+            // changed) as `updatedFields`, selection-gated — present only when the
+            // client selects it, so a mutation that does not ask for it keeps an
+            // exact projected shape (#433). An empty list (noop) still surfaces as
+            // `[]` when selected.
             if selections_contain_field(selections, "updatedFields") {
                 if let serde_json::Value::Object(ref mut map) = projected {
                     map.insert(
