@@ -25,9 +25,9 @@
 //! [`super::mutation_error_union`] makes the payload the success member of the
 //! result union (`<Mutation>Result = <Mutation>Payload | MutationError`).
 //!
-//! Scope: `CascadeUpdates.metadata` (timestamp / depth / affectedCount /
-//! truncation) is synthesized here; `.invalidations` is added in Phase 05 — until
-//! then this is a spec-*aligned* subset, not the full envelope.
+//! The full spec envelope is synthesized: `updated` / `deleted` / `metadata` /
+//! `invalidations` (the latter with the `QueryInvalidation` type and the
+//! `InvalidationStrategy` / `InvalidationScope` enums).
 //!
 //! It is idempotent (names already owned by a real type/interface/enum are left
 //! alone) and inert unless a mutation opts in — so a schema with no cascade
@@ -54,6 +54,12 @@ const DELETED_ENTITY: &str = "DeletedEntity";
 const CASCADE_UPDATES: &str = "CascadeUpdates";
 /// Metadata about a cascade (timestamp / depth / counts / truncation).
 const CASCADE_METADATA: &str = "CascadeMetadata";
+/// A client-side cache-invalidation hint.
+const QUERY_INVALIDATION: &str = "QueryInvalidation";
+/// How a client should handle an invalidation hint.
+const INVALIDATION_STRATEGY: &str = "InvalidationStrategy";
+/// The scope of an invalidation hint.
+const INVALIDATION_SCOPE: &str = "InvalidationScope";
 
 /// Synthesize the cascade interface, enum, envelope types, and per-mutation
 /// payload wrappers, then rewrite cascade mutations to return their payloads.
@@ -92,9 +98,15 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
         }
     }
 
-    // 2. Shared enum + envelope types.
+    // 2. Shared enums + envelope types.
     if !existing_enum_names.contains(CASCADE_OPERATION) {
         schema.enums.push(cascade_operation_enum());
+    }
+    if !existing_enum_names.contains(INVALIDATION_STRATEGY) {
+        schema.enums.push(invalidation_strategy_enum());
+    }
+    if !existing_enum_names.contains(INVALIDATION_SCOPE) {
+        schema.enums.push(invalidation_scope_enum());
     }
     if !existing_type_names.contains(UPDATED_ENTITY) {
         schema.types.push(updated_entity_type());
@@ -104,6 +116,9 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
     }
     if !existing_type_names.contains(CASCADE_METADATA) {
         schema.types.push(cascade_metadata_type());
+    }
+    if !existing_type_names.contains(QUERY_INVALIDATION) {
+        schema.types.push(query_invalidation_type());
     }
     if !existing_type_names.contains(CASCADE_UPDATES) {
         schema.types.push(cascade_updates_type());
@@ -276,8 +291,85 @@ fn cascade_updates_type() -> TypeDefinition {
                 false,
                 "Timestamp, depth, affected count, and truncation status of the cascade.",
             ),
+            synth_field(
+                "invalidations",
+                FieldType::List(Box::new(FieldType::Object(QUERY_INVALIDATION.to_string()))),
+                false,
+                "Client-side cache-invalidation hints emitted by the mutation.",
+            ),
         ],
         "The set of entities affected by a mutation, per the graphql-cascade spec.",
+    )
+}
+
+/// The `InvalidationStrategy` enum (how a client handles an invalidation hint).
+fn invalidation_strategy_enum() -> EnumDefinition {
+    EnumDefinition::new(INVALIDATION_STRATEGY)
+        .with_value(
+            EnumValueDefinition::new("INVALIDATE")
+                .with_description("Mark the query stale; refetch on next access."),
+        )
+        .with_value(
+            EnumValueDefinition::new("REFETCH").with_description("Immediately refetch the query."),
+        )
+        .with_value(
+            EnumValueDefinition::new("REMOVE").with_description("Remove the query from cache."),
+        )
+        .with_description("How a client should handle a cache-invalidation hint.")
+}
+
+/// The `InvalidationScope` enum (which queries an invalidation hint targets).
+fn invalidation_scope_enum() -> EnumDefinition {
+    EnumDefinition::new(INVALIDATION_SCOPE)
+        .with_value(
+            EnumValueDefinition::new("EXACT")
+                .with_description("Only the exact query with exact arguments."),
+        )
+        .with_value(
+            EnumValueDefinition::new("PREFIX")
+                .with_description("All queries whose name matches the prefix."),
+        )
+        .with_value(
+            EnumValueDefinition::new("PATTERN")
+                .with_description("All queries matching the glob-style pattern."),
+        )
+        .with_value(EnumValueDefinition::new("ALL").with_description("All queries."))
+        .with_description("The scope a cache-invalidation hint targets.")
+}
+
+/// The `QueryInvalidation` type (a client-side cache-invalidation hint).
+fn query_invalidation_type() -> TypeDefinition {
+    synth_type(
+        QUERY_INVALIDATION,
+        vec![
+            synth_field("queryName", FieldType::String, true, "Query name to invalidate."),
+            synth_field("queryHash", FieldType::String, true, "Hash of the query for exact match."),
+            synth_field(
+                "arguments",
+                FieldType::Json,
+                true,
+                "Arguments identifying the query to invalidate.",
+            ),
+            synth_field(
+                "queryPattern",
+                FieldType::String,
+                true,
+                "Glob-style pattern matching queries to invalidate.",
+            ),
+            synth_field(
+                "strategy",
+                FieldType::Enum(INVALIDATION_STRATEGY.to_string()),
+                false,
+                "How the client should handle the invalidation.",
+            ),
+            synth_field(
+                "scope",
+                FieldType::Enum(INVALIDATION_SCOPE.to_string()),
+                false,
+                "The scope of the invalidation.",
+            ),
+        ],
+        "A client-side cache-invalidation hint emitted by a mutation.",
     )
 }
 

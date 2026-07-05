@@ -2040,10 +2040,15 @@ mod tenancy_tests {
             "updated: [UpdatedEntity!]!"
         );
         assert!(updates.find_field("metadata").is_some(), "CascadeUpdates.metadata");
+        assert!(updates.find_field("invalidations").is_some(), "CascadeUpdates.invalidations");
         let meta = compiled.types.iter().find(|t| t.name.as_str() == "CascadeMetadata").unwrap();
         for f in ["timestamp", "depth", "affectedCount", "truncated"] {
             assert!(meta.find_field(f).is_some(), "CascadeMetadata.{f}");
         }
+        // The invalidation surface (type + its two enums) is synthesized.
+        assert!(compiled.types.iter().any(|t| t.name.as_str() == "QueryInvalidation"));
+        assert!(compiled.enums.iter().any(|e| e.name == "InvalidationStrategy"));
+        assert!(compiled.enums.iter().any(|e| e.name == "InvalidationScope"));
 
         // The mutation returns CreatePostPayload { entity, cascade, updatedFields }.
         let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();

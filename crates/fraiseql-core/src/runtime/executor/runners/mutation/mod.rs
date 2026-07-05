@@ -111,6 +111,7 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
 /// The synthesized cascade type names (mirror `cli::converter::cascade_types`).
 const CASCADE_UPDATES_TYPE: &str = "CascadeUpdates";
 const CASCADE_METADATA_TYPE: &str = "CascadeMetadata";
+const QUERY_INVALIDATION_TYPE: &str = "QueryInvalidation";
 const UPDATED_ENTITY_TYPE: &str = "UpdatedEntity";
 const DELETED_ENTITY_TYPE: &str = "DeletedEntity";
 
@@ -262,6 +263,14 @@ fn build_cascade_updates<A: DatabaseAdapter>(
                 );
                 out.insert(sel.response_key().to_string(), meta);
             },
+            "invalidations" => {
+                let arr = build_invalidations(
+                    &ctx.schema,
+                    cascade_obj.and_then(|c| c.get("invalidations")),
+                    &sel.nested_fields,
+                );
+                out.insert(sel.response_key().to_string(), arr);
+            },
             _ => {},
         }
     }
@@ -345,6 +354,40 @@ fn build_cascade_metadata(
         }
     }
     serde_json::Value::Object(out)
+}
+
+/// Build the `invalidations: [QueryInvalidation!]!` array — the client-side cache
+/// hints the function emitted, filtered to the client's selection set. Plain
+/// passthrough: these are advisory hints, not entity data, so there is nothing to
+/// project or field-authorize.
+fn build_invalidations(
+    schema: &CompiledSchema,
+    entries: Option<&serde_json::Value>,
+    selections: &[FieldSelection],
+) -> serde_json::Value {
+    let Some(arr) = entries.and_then(serde_json::Value::as_array) else {
+        return serde_json::Value::Array(Vec::new());
+    };
+    let effective = effective_selections(selections, QUERY_INVALIDATION_TYPE, schema);
+    let mut result = Vec::with_capacity(arr.len());
+    for entry in arr {
+        let Some(entry_obj) = entry.as_object() else {
+            continue;
+        };
+        let mut item = serde_json::Map::new();
+        for sel in &effective {
+            if sel.name == "__typename" {
+                item.insert(
+                    sel.response_key().to_string(),
+                    serde_json::Value::String(QUERY_INVALIDATION_TYPE.to_string()),
+                );
+            } else if let Some(v) = entry_obj.get(sel.name.as_str()) {
+                item.insert(sel.response_key().to_string(), v.clone());
+            }
+        }
+        result.push(serde_json::Value::Object(item));
+    }
+    serde_json::Value::Array(result)
 }
 
 /// Build the `updated: [UpdatedEntity!]!` array, projecting + field-authorizing
@@ -1291,6 +1334,23 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                     let _ = rc.invalidate_views(&views_to_invalidate);
                 }
             }
+        }
+    }
+
+    // Cascade-driven cache invalidation (finding 7): a cascade mutation's
+    // side-effects on entity types OTHER than its return type (e.g. a `Post`
+    // mutation that updates a `User`) leave those types' cached queries stale —
+    // the primary-entity invalidation above only covers the return type and
+    // declared `invalidates_views`. Wire the cascade's affected entities into
+    // cache invalidation (previously `invalidate_cascade_entities` had no
+    // production caller). Non-cached adapters no-op via the default trait method.
+    if mutation_def.cascade {
+        if let MutationOutcome::Success {
+            cascade: Some(cascade_json),
+            ..
+        } = &outcome
+        {
+            ctx.adapter.invalidate_cascade_entities(cascade_json).await?;
         }
     }
 

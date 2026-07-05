@@ -3135,7 +3135,9 @@ mod cascade {
     /// `cascade` JSONB the test supplies. The primary entity is a `Post` with a
     /// snake_case source key (`author_id`) to exercise camelCase projection.
     struct CannedMutationAdapter {
-        row: HashMap<String, serde_json::Value>,
+        row:                 HashMap<String, serde_json::Value>,
+        /// Records the cascade passed to `invalidate_cascade_entities`, if any.
+        invalidated_cascade: std::sync::Mutex<Option<serde_json::Value>>,
     }
 
     impl CannedMutationAdapter {
@@ -3151,7 +3153,10 @@ mod cascade {
             row.insert("updated_fields".to_string(), json!(["title"]));
             row.insert("cascade".to_string(), cascade);
             row.insert("message".to_string(), json!(""));
-            Self { row }
+            Self {
+                row,
+                invalidated_cascade: std::sync::Mutex::new(None),
+            }
         }
     }
 
@@ -3164,6 +3169,14 @@ mod cascade {
             _args: &[serde_json::Value],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             Ok(vec![self.row.clone()])
+        }
+
+        async fn invalidate_cascade_entities(
+            &self,
+            cascade_response: &serde_json::Value,
+        ) -> Result<u64> {
+            *self.invalidated_cascade.lock().unwrap() = Some(cascade_response.clone());
+            Ok(0)
         }
 
         async fn execute_with_projection(
@@ -3455,6 +3468,44 @@ mod cascade {
             .execute("mutation { createPost { cascade { deleted { id } } } }", None)
             .await;
         assert!(res.is_err(), "a cascade deleted entry missing deletedAt must fail closed");
+    }
+
+    /// `invalidations` (client-side cache hints) pass through, filtered to the
+    /// selection set — advisory hints, no projection or authz.
+    #[tokio::test]
+    async fn cascade_invalidations_pass_through() {
+        let cascade = json!({
+            "updated": [], "deleted": [],
+            "invalidations": [
+                { "queryName": "listPosts", "strategy": "INVALIDATE", "scope": "PREFIX" }
+            ]
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { invalidations { queryName strategy scope } } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let inv = &res["data"]["createPost"]["cascade"]["invalidations"][0];
+        assert_eq!(inv["queryName"], "listPosts");
+        assert_eq!(inv["strategy"], "INVALIDATE");
+        assert_eq!(inv["scope"], "PREFIX");
+    }
+
+    /// A cascade mutation invalidates its affected entities' caches server-side
+    /// (finding 7) — independent of whether the client selected `cascade`, since
+    /// stale caches on OTHER entity types are a server concern. Before this,
+    /// `invalidate_cascade_entities` was dead code.
+    #[tokio::test]
+    async fn cascade_mutation_invalidates_cascade_entity_caches() {
+        let adapter = Arc::new(CannedMutationAdapter::new(standard_cascade()));
+        let executor = Executor::new(cascade_schema(), Arc::clone(&adapter));
+        // The client selects only the primary entity — cascade is not requested.
+        executor.execute("mutation { createPost { entity { id } } }", None).await.unwrap();
+        let captured = adapter.invalidated_cascade.lock().unwrap().clone();
+        let captured = captured.expect("cascade mutation must invalidate cascade-entity caches");
+        assert_eq!(
+            captured["updated"][0]["__typename"], "Post",
+            "the affected entities are passed to cache invalidation"
+        );
     }
 
     /// Fail-closed: a cascade entry naming an unknown type cannot be projected or
