@@ -1140,6 +1140,44 @@ mod doctor_tests {
         assert!(c.hint.is_some());
     }
 
+    // ── RLS view security_invoker check ──────────────────────────────────────
+    use crate::schema::pg_catalog::SecurityInvokerAudit;
+
+    #[test]
+    fn security_invoker_no_rls_is_pass() {
+        // No RLS anywhere → security_invoker isn't required for isolation.
+        let audit = SecurityInvokerAudit {
+            rls_in_use:            false,
+            views_without_invoker: vec!["v_bad".into()],
+        };
+        assert_eq!(security_invoker_check(&audit).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn security_invoker_all_invoker_is_pass() {
+        let audit = SecurityInvokerAudit {
+            rls_in_use:            true,
+            views_without_invoker: vec![],
+        };
+        let c = security_invoker_check(&audit);
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert!(c.detail.contains("honoured"));
+    }
+
+    #[test]
+    fn security_invoker_missing_under_rls_warns() {
+        // RLS in use + a non-security_invoker view (including a tv_* view) → warn.
+        let audit = SecurityInvokerAudit {
+            rls_in_use:            true,
+            views_without_invoker: vec!["v_post".into(), "tv_user".into()],
+        };
+        let c = security_invoker_check(&audit);
+        assert_eq!(c.status, CheckStatus::Warn);
+        assert!(c.detail.contains("v_post") && c.detail.contains("tv_user"));
+        assert!(c.detail.contains("BYPASS"));
+        assert!(c.hint.is_some());
+    }
+
     // ── capture function security check (#443 / #437 F6) ─────────────────────
 
     #[test]

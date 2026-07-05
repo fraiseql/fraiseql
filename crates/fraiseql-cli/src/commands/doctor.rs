@@ -21,7 +21,7 @@ use crate::{
         mutation_contract::{ContractReport, Severity, validate_mutation_contract},
         pg_catalog::{
             CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
-            PublicGrant,
+            PublicGrant, SecurityInvokerAudit,
         },
     },
 };
@@ -576,6 +576,7 @@ pub async fn run_with_db_checks(
         checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
         checks.extend(mutation_contract_checks(url, schema).await);
+        checks.extend(rls_security_invoker_checks(url, schema).await);
     }
 
     // Runtime smoke (#501): actually execute each probeable root operation. Prefers
@@ -1110,6 +1111,88 @@ pub(crate) fn changelog_public_grants_check(grants: &[PublicGrant]) -> DoctorChe
         ),
         "REVOKE ALL ON <relation> FROM PUBLIC (or re-run migration \
          12_enable_change_log_rls.sql) so only explicitly granted roles read the change-log.",
+    )
+}
+
+const SECURITY_INVOKER_NAME: &str = "RLS view security_invoker";
+
+/// Warn when any `sql_source` view lacks `security_invoker` while the database uses
+/// RLS. A default view runs as the view owner and BYPASSES the caller's RLS, so
+/// ordinary reads — and cascades assembled from that view — silently leak
+/// cross-tenant rows. Turns that silent leak class into a diagnosable one.
+///
+/// A connection or introspection failure becomes a single `Fail` (never panics).
+async fn rls_security_invoker_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+    let schema = match load_compiled_schema(schema_path) {
+        Ok(s) => s,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                SECURITY_INVOKER_NAME,
+                format!("cannot load compiled schema: {e}"),
+                "Compile the schema before running --against-db.",
+            )];
+        },
+    };
+    // Distinct bare view names backing entity types (strip any schema qualifier).
+    let mut views: Vec<String> = schema
+        .types
+        .iter()
+        .map(|t| t.sql_source.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.rsplit('.').next().unwrap_or(s).to_string())
+        .collect();
+    views.sort();
+    views.dedup();
+    if views.is_empty() {
+        return vec![DoctorCheck::pass(SECURITY_INVOKER_NAME, "no sql_source views to audit")];
+    }
+
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                SECURITY_INVOKER_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db.",
+            )];
+        },
+    };
+    match catalog.security_invoker_audit(&views).await {
+        Ok(audit) => vec![security_invoker_check(&audit)],
+        Err(e) => vec![DoctorCheck::fail(
+            SECURITY_INVOKER_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read pg_class and pg_policies.",
+        )],
+    }
+}
+
+/// Classify a [`SecurityInvokerAudit`] into a doctor check.
+pub(crate) fn security_invoker_check(audit: &SecurityInvokerAudit) -> DoctorCheck {
+    if !audit.rls_in_use {
+        return DoctorCheck::pass(
+            SECURITY_INVOKER_NAME,
+            "No RLS policies in the database — security_invoker views are not required for \
+             row isolation.",
+        );
+    }
+    if audit.views_without_invoker.is_empty() {
+        return DoctorCheck::pass(
+            SECURITY_INVOKER_NAME,
+            "RLS is in use and every sql_source view is security_invoker — base-table RLS is \
+             honoured on reads and in cascades.",
+        );
+    }
+    DoctorCheck::warn(
+        SECURITY_INVOKER_NAME,
+        format!(
+            "RLS is in use, but these sql_source views are NOT security_invoker, so they run as \
+             the view owner and BYPASS the caller's RLS — a cross-tenant leak on ordinary reads \
+             AND in cascades: {}",
+            audit.views_without_invoker.join(", ")
+        ),
+        "Recreate each as `CREATE VIEW <v> WITH (security_invoker = true) AS …` (or \
+         `ALTER VIEW <v> SET (security_invoker = true)`), PostgreSQL 15+.",
     )
 }
 

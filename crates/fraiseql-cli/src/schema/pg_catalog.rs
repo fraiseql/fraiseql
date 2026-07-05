@@ -145,6 +145,15 @@ pub struct CaptureFnSecurity {
     pub search_path:      Option<String>,
 }
 
+/// Result of auditing `sql_source` views for the `security_invoker` requirement.
+#[derive(Debug)]
+pub struct SecurityInvokerAudit {
+    /// Whether any RLS policy exists in the database (RLS is in use at all).
+    pub rls_in_use:            bool,
+    /// The audited views (by bare relname) that are NOT `security_invoker`.
+    pub views_without_invoker: Vec<String>,
+}
+
 /// A live PostgreSQL connection pool for catalog introspection.
 pub struct PgCatalog {
     pool: Pool,
@@ -427,6 +436,43 @@ impl PgCatalog {
             is_owner:    row.get("is_owner"),
             role_name:   row.get("role_name"),
         }))
+    }
+
+    /// Audit the given `sql_source` views (bare relnames) for `security_invoker`.
+    ///
+    /// A *default* view runs with the view owner's privileges and bypasses the
+    /// caller's RLS; only a `security_invoker` view (PG 15+) honours base-table RLS
+    /// — the requirement the cascade RLS boundary (and the query path) rely on.
+    /// Returns which audited views lack the option, plus whether any RLS policy
+    /// exists at all (the requirement only bites under RLS).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or a catalog query fails.
+    pub async fn security_invoker_audit(&self, views: &[String]) -> Result<SecurityInvokerAudit> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rls_in_use: bool = client
+            .query_one("SELECT EXISTS (SELECT 1 FROM pg_policies) AS in_use", &[])
+            .await
+            .context("failed to query pg_policies for RLS usage")?
+            .get("in_use");
+        let rows = client
+            .query(
+                "SELECT c.relname \
+                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE c.relkind = 'v' AND c.relname = ANY($1) \
+                   AND NOT EXISTS ( \
+                     SELECT 1 FROM pg_options_to_table(c.reloptions) o \
+                     WHERE o.option_name = 'security_invoker' \
+                       AND lower(o.option_value) IN ('true', 'on', '1'))",
+                &[&views],
+            )
+            .await
+            .context("failed to audit view security_invoker options from pg_class")?;
+        Ok(SecurityInvokerAudit {
+            rls_in_use,
+            views_without_invoker: rows.iter().map(|r| r.get::<_, String>("relname")).collect(),
+        })
     }
 
     /// Read the privileges granted to the `PUBLIC` pseudo-role on the three

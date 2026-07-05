@@ -420,6 +420,20 @@ def documents(status: str | None = None) -> list[Document]:
 
 The SQL view receives `$tenant_id` as a parameter, enabling database-level tenant isolation.
 
+> **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
+> tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST
+> be created `WITH (security_invoker = true)` (PostgreSQL 15+):
+>
+> ```sql
+> CREATE VIEW v_document WITH (security_invoker = true) AS SELECT … FROM tb_document;
+> ```
+>
+> A *default* view runs with the view owner's privileges and **silently bypasses the
+> querying role's RLS** — a cross-tenant leak on ordinary reads (and in mutation
+> cascades, which read the same views). `security_invoker` runs the view as the
+> caller so the base-table policy applies. `fraiseql doctor --against-db` warns when
+> a `sql_source` view lacks `security_invoker` while the database uses RLS.
+
 ### Cache Invalidation
 
 ```python
