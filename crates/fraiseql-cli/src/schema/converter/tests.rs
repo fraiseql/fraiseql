@@ -1982,6 +1982,71 @@ mod tenancy_tests {
         assert!(on.cascade);
     }
 
+    // ── cascade type synthesis (Phase 02: typed payload-wrapper surface) ──
+
+    /// A view-backed entity type with the given name (queryable — so it
+    /// auto-implements `CascadeNode`).
+    fn make_entity_type(name: &str) -> IntermediateType {
+        IntermediateType {
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            ..make_type(name, vec![make_field("id", "ID")])
+        }
+    }
+
+    /// A `cascade = true` mutation synthesizes the typed surface: the shared
+    /// `CascadeNode` interface (auto-implemented on every queryable entity), the
+    /// `CascadeUpdates`/`CascadeEntity` envelope, and a `<Name>Payload { entity,
+    /// cascade }` wrapper the mutation now returns.
+    #[test]
+    fn cascade_synthesis_builds_typed_surface() {
+        use crate::schema::SchemaConverter;
+        let create_post = IntermediateMutation {
+            cascade: true,
+            sql_source: Some("fn_create_post".to_string()),
+            ..make_mutation("createPost", "Post")
+        };
+        let schema = make_schema(vec![make_entity_type("Post")], vec![], vec![create_post]);
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+
+        // CascadeNode interface exists and the queryable entity implements it.
+        assert!(compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
+        assert!(post.implements.iter().any(|i| i == "CascadeNode"), "Post implements CascadeNode");
+
+        // Envelope types exist.
+        assert!(compiled.types.iter().any(|t| t.name.as_str() == "CascadeUpdates"));
+        assert!(compiled.types.iter().any(|t| t.name.as_str() == "CascadeEntity"));
+
+        // The mutation returns CreatePostPayload { entity, cascade }.
+        let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
+        assert_eq!(m.return_type, "CreatePostPayload");
+        let payload =
+            compiled.types.iter().find(|t| t.name.as_str() == "CreatePostPayload").unwrap();
+        assert!(payload.find_field("entity").is_some(), "payload has entity");
+        assert!(payload.find_field("cascade").is_some(), "payload has cascade");
+    }
+
+    /// No `cascade = true` mutation ⇒ the pass is inert: no cascade types, no
+    /// `implements` churn, mutation return type unchanged (byte-identical to a
+    /// schema compiled before the pass existed).
+    #[test]
+    fn cascade_synthesis_inert_without_cascade_mutations() {
+        use crate::schema::SchemaConverter;
+        let create_post = IntermediateMutation {
+            sql_source: Some("fn_create_post".to_string()),
+            ..make_mutation("createPost", "Post")
+        };
+        let schema = make_schema(vec![make_entity_type("Post")], vec![], vec![create_post]);
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+
+        assert!(!compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
+        assert!(!compiled.types.iter().any(|t| t.name.as_str() == "CascadeUpdates"));
+        let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
+        assert_eq!(m.return_type, "Post");
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
+        assert!(!post.implements.iter().any(|i| i == "CascadeNode"));
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(
