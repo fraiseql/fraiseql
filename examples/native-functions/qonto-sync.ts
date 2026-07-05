@@ -12,6 +12,7 @@
 // is created at-most-once even though dispatch is at-least-once.
 //
 // Host surface used (all via `Deno.core.ops.fraiseql_*`, typed by the runtime):
+//   - idempotency_token — host-provided per-dispatch idempotency key
 //   - env_var       — read the Qonto API key (a secret, allowlisted by the host)
 //   - http_request  — call Qonto (outbound HTTP, SSRF-allowlisted by the host)
 //   - query         — record the Qonto reference back onto the invoice
@@ -42,8 +43,20 @@ export default async (invoice) => {
     throw new Error("QONTO_API_KEY is not configured");
   }
 
-  // Deterministic, invoice-derived idempotency key — the money-path safety net.
-  const idempotencyKey = `qonto-invoice-${invoice.id}`;
+  // Idempotency key — the money-path safety net. The host now provides a
+  // per-dispatch token that is stable across retries and across a resume
+  // (derived from the dispatch's identity, never wall-clock/random), so we no
+  // longer have to hand-derive one. We fall back to an invoice-derived key on a
+  // non-dispatched invocation (e.g. a one-shot `fraiseql query` run), where no
+  // host token exists.
+  //
+  // Trade-off — both are valid: the host token dedups retries and redeliveries
+  // of THIS dispatch. If you also need to dedup across DIFFERENT dispatches that
+  // touch the same invoice (a manual backfill AND this auto-sync), make the
+  // content-addressed `qonto-invoice-${invoice.id}` the primary instead — it
+  // gives the strongest cross-dispatch guarantee at the cost of hand-derivation.
+  const idempotencyKey =
+    Deno.core.ops.fraiseql_idempotency_token() || `qonto-invoice-${invoice.id}`;
 
   const reqBody = Deno.core.encode(JSON.stringify({
     reference:    invoice.reference,

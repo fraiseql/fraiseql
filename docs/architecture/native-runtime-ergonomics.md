@@ -76,17 +76,24 @@ promoted from opt-in to stable.
    `sending_address` on the security/auth context**, resolved from the connected
    mailbox rather than assumed equal to the login email.
 
-4. **Idempotency keys are author-managed.** The money path is safe only because
-   the author derived a deterministic key (`qonto-invoice-${id}`) by hand. Nothing
-   in the host nudges them toward it, and a random key would silently double-spend
-   on retry. This is also what keeps the per-user follow-up send on the
-   *fire-and-forget* path for now: without a stable send-idempotency token, a
-   durable retry could double-send, and a fire-and-forget failure is simply lost —
-   neither is right for user-facing mail. **Planned: a host-provided,
-   per-dispatch-stable idempotency token** (stable across retries of the same
-   dispatch, distinct per logical operation) the guest passes straight through to
-   a downstream money or mail API, so paired sends can move to the durable path
-   safely.
+4. **Host-provided idempotency token — DELIVERED.** The guest no longer has to
+   hand-derive a deterministic key. The host exposes a per-dispatch idempotency
+   token — `Deno.core.ops.fraiseql_idempotency_token()` (WASM:
+   `get-idempotency-token`) — that the durable dispatcher derives once from the
+   dispatch's stable identity (source + function + trigger + payload data; never
+   wall-clock/random) and injects into every retry attempt. So it is **stable
+   across retries of the same dispatch and across a resume**, and **distinct per
+   logical operation**. The guest passes it straight to a downstream money/mail
+   idempotency header, so an at-least-once dispatch stays at-most-once. It is 32
+   lowercase hex characters — URL-safe and short enough for a VERP email local
+   part (`bounces+<token>@…`), which the delivery-feedback work reuses as the
+   per-send correlation id. `qonto-sync.ts` now prefers it, falling back to the
+   invoice-derived key only on a non-dispatched invocation (`null` token).
+   **Trade-off (both valid):** the host token dedups retries/redeliveries of one
+   dispatch; a content-addressed key (`qonto-invoice-${id}`) additionally dedups
+   across *different* dispatches touching the same entity — use the latter where
+   cross-dispatch money dedup matters. The dead-letter record also carries the
+   token for operator inspection/replay.
 
 5. **Permanent-error tagging — DELIVERED.** A function can now say "this failure is
    permanent, do not retry": a guest throws a tagged error

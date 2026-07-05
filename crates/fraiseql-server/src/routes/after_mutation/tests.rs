@@ -306,6 +306,37 @@ mod durable_dispatch {
     }
 
     #[tokio::test]
+    async fn dead_letter_carries_the_per_dispatch_idempotency_token() {
+        let dlq = std::sync::Arc::new(InMemoryDlq::new_with_max(None));
+        let dispatcher = failing_dispatcher(dlq.clone());
+        let setting = FunctionDispatchSetting {
+            re_runnable: false,
+            policy:      zero_delay_policy(2),
+        };
+        let event = payload();
+
+        dispatcher.dispatch(module("onUserCreated"), event.clone(), &setting).await;
+
+        // The dispatcher derives the token ONCE and passes it to every attempt; it
+        // is recorded on the dead-letter, and equals the pure derivation from the
+        // dispatch's stable identity (source + function + trigger + payload data).
+        // Same-token-every-attempt therefore holds by construction, and the derived
+        // value is exactly what the guest's `fraiseql_idempotency_token()` returns.
+        let expected = fraiseql_observers::derive_idempotency_token(
+            fraiseql_observers::DispatchSource::AfterMutation,
+            "onUserCreated",
+            "after:mutation:onUserCreated:User:insert",
+            &event.data,
+        );
+        let pending = dlq.get_pending_functions(10).await.expect("list pending function DLQ");
+        assert_eq!(
+            pending[0].idempotency_token, expected,
+            "the dead-letter carries the derived per-dispatch token"
+        );
+        assert_eq!(expected.len(), 32, "the token is a 32-char hex send-id");
+    }
+
+    #[tokio::test]
     async fn re_runnable_dispatch_does_not_dead_letter() {
         let dlq = std::sync::Arc::new(InMemoryDlq::new_with_max(None));
         let dispatcher = failing_dispatcher(dlq.clone());

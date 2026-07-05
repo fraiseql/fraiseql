@@ -140,20 +140,25 @@ pub fn derive_idempotency_token(
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDispatchRecord {
     /// Unique identifier for this dead-letter entry.
-    pub id:            Uuid,
+    pub id:                Uuid,
     /// Which trigger subsystem produced the failed dispatch.
-    pub source:        DispatchSource,
+    pub source:            DispatchSource,
     /// Name of the function whose dispatch failed.
-    pub function_name: String,
+    pub function_name:     String,
     /// The trigger type string, e.g. `after:mutation:onUserCreated`.
-    pub trigger_type:  String,
+    pub trigger_type:      String,
+    /// The per-dispatch idempotency token every attempt of this dispatch saw (see
+    /// [`derive_idempotency_token`]). Recorded so an operator inspecting or
+    /// replaying the dead-letter knows the exact idempotency key the guest used
+    /// downstream — a redundant retry with the same token stays at-most-once.
+    pub idempotency_token: String,
     /// The event payload the function was dispatched with (opaque JSON), kept for
     /// operator inspection and replay.
-    pub payload:       serde_json::Value,
+    pub payload:           serde_json::Value,
     /// The final error message from the exhausted or permanently-failed dispatch.
-    pub error_message: String,
+    pub error_message:     String,
     /// How many attempts were made before the dispatch was dead-lettered.
-    pub attempts:      u32,
+    pub attempts:          u32,
 }
 
 impl FunctionDispatchRecord {
@@ -163,6 +168,7 @@ impl FunctionDispatchRecord {
         source: DispatchSource,
         function_name: impl Into<String>,
         trigger_type: impl Into<String>,
+        idempotency_token: impl Into<String>,
         payload: serde_json::Value,
         error_message: impl Into<String>,
         attempts: u32,
@@ -172,6 +178,7 @@ impl FunctionDispatchRecord {
             source,
             function_name: function_name.into(),
             trigger_type: trigger_type.into(),
+            idempotency_token: idempotency_token.into(),
             payload,
             error_message: error_message.into(),
             attempts,

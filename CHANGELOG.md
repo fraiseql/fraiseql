@@ -74,6 +74,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identity store momentarily down) is a 5xx → retry. The DB-backed `SendCounter`
   (over the app's mailbox table) is the remaining warming piece. See
   `docs/architecture/native-runtime-ergonomics.md`.
+- **Host-provided per-dispatch idempotency token (native-runtime hardening).** A
+  function can read a per-dispatch idempotency token —
+  `Deno.core.ops.fraiseql_idempotency_token()` (WASM: `get-idempotency-token`),
+  `string | null` — and pass it straight to a downstream money/mail idempotency
+  header. The durable dispatcher derives it **once** from the dispatch's stable
+  identity (source + function + trigger + payload data — never wall-clock/random)
+  and injects it into every retry attempt, so it is stable across retries and
+  across a resume, and distinct per logical operation; an at-least-once dispatch
+  therefore stays at-most-once. The token is 32 lowercase hex characters, URL-safe
+  and short enough for a VERP email local part (reused as the send correlation id
+  by the delivery-feedback work). `examples/native-functions/qonto-sync.ts` now
+  prefers it and falls back to its invoice-derived key only on a non-dispatched
+  invocation; the dead-letter record carries the token for operator inspection.
 - **After:mutation functions now run in the stock server binary.** The server loads
   each declared function's module from the compiled schema's `module_dir`
   (`<module_dir>/<name>.<ext>` — `.wasm` for WASM, `.js`/`.ts` for Deno), registers
