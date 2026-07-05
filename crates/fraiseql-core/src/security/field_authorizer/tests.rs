@@ -142,3 +142,57 @@ fn owner_only_masks_non_owner() {
         FieldAuthzDecision::Allow => panic!("expected deny for non-owner"),
     }
 }
+
+// ── inline-fragment gated-field detection (released #423 bypass regression) ───
+
+/// A `User` type whose `ssn` field is policy-gated.
+fn schema_with_gated_ssn() -> crate::schema::CompiledSchema {
+    use crate::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+    let mut schema = CompiledSchema::new();
+    let mut user = TypeDefinition::new("User", "v_user");
+    user.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("ssn", FieldType::String).with_authorize(true),
+    ];
+    schema.types.push(user);
+    schema.build_indexes();
+    schema
+}
+
+/// A bare field selection (no args / nesting / directives).
+fn field(name: &str) -> crate::graphql::FieldSelection {
+    crate::graphql::FieldSelection {
+        name:          name.to_string(),
+        alias:         None,
+        arguments:     vec![],
+        nested_fields: vec![],
+        directives:    vec![],
+    }
+}
+
+/// Regression for a released-version (#423, since v2.5.0) query-path authorization
+/// bypass: a policy-gated field wrapped in a same-type inline fragment
+/// (`{ users { ... on User { ssn } } }`) was invisible to gated-field detection —
+/// the detector matched selection names literally, so the authorizer was skipped
+/// while the projector (which resolves fragments) emitted the field. The detector
+/// now resolves inline fragments before matching.
+#[test]
+fn gated_field_inside_inline_fragment_is_detected() {
+    let schema = schema_with_gated_ssn();
+    let fragment = crate::graphql::FieldSelection {
+        name:          "...on User".to_string(),
+        alias:         None,
+        arguments:     vec![],
+        nested_fields: vec![field("id"), field("ssn")],
+        directives:    vec![],
+    };
+    let selections = vec![fragment];
+
+    assert!(
+        super::selection_set_selects_gated_field(&schema, "User", &selections),
+        "a gated field inside a same-type inline fragment must be detected"
+    );
+    let gated = super::collect_top_level_gated_fields(&schema, "User", &selections);
+    assert_eq!(gated.len(), 1, "the fragment-wrapped gated field must be collected");
+    assert_eq!(gated[0].field_name, "ssn");
+}

@@ -417,7 +417,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overrides (`[[federation.circuit_breaker.per_database]]` ⇒ runtime `per_entity`) reach
   the runtime instead of being silently dropped on a field-name mismatch.
 
-## [2.10.0] - 2026-06-26
+### Security
+
+- **Field-level authorization (#423) now resolves inline fragments.** The gated-field
+  detector matched selection field names literally, so a policy-gated field selected
+  through an inline fragment — `{ users { ... on User { ssn } } }` — was invisible to the
+  gate check: the field authorizer was skipped for it while the projector still resolved
+  the fragment. A gated field wrapped in a fragment could therefore evade the per-row
+  authorizer. Present since the field authorizer shipped (v2.5.0). The detector
+  (`selection_set_selects_gated_field` / `collect_top_level_gated_fields` /
+  `selection_set_has_nested_gated_field`) now resolves `... on T` fragments via
+  `effective_selections` before matching; the fix is over-enforcement-safe (it can only
+  add authorization checks, never remove them). Regression-tested at the detector level
+  and end-to-end through the cascade authz suite. This surfaced while wiring per-entity
+  authorization for cascade entities (which are interface-typed and always fragment-selected).
 
 ### Added
 
