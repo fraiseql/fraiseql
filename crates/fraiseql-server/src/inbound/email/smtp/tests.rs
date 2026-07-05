@@ -9,12 +9,14 @@
 
 use fraiseql_functions::{EmailTransport, SendEmailRequest, SenderIdentity};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
+
+use fraiseql_error::Result;
 
 use super::{
     MailboxSmtpConfig, SmtpMailboxTransport, SmtpTlsMode, build_email_transport, build_message,
 };
-use crate::inbound::email::MailboxConfig;
+use crate::inbound::email::{MailboxConfig, SendCounter, WarmingState};
 
 fn smtp_cfg(address: &str) -> MailboxSmtpConfig {
     MailboxSmtpConfig {
@@ -108,6 +110,53 @@ fn build_email_transport_from_mailbox_config() {
     ))
     .collect();
     assert!(build_email_transport(&receive_only, |_| Some("pw".to_string())).is_none());
+}
+
+/// A counter reporting a fixed warming state, for cap-enforcement tests.
+struct FixedCounter {
+    state: Option<WarmingState>,
+}
+
+impl SendCounter for FixedCounter {
+    fn state<'a>(
+        &'a self,
+        _address: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<WarmingState>>> + Send + 'a>> {
+        let state = self.state;
+        Box::pin(async move { Ok(state) })
+    }
+
+    fn record_send<'a>(
+        &'a self,
+        _address: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[tokio::test]
+async fn send_is_refused_at_the_warming_daily_cap() {
+    let cfg = smtp_cfg("sales@example.com");
+    // Day 0 → cap 10; already 10 sent today → over cap.
+    let counter = Arc::new(FixedCounter {
+        state: Some(WarmingState {
+            days_since_start: 0,
+            sends_today:      10,
+        }),
+    });
+    let transport =
+        SmtpMailboxTransport::build(std::iter::once(("sales", &cfg)), |_| Some("pw".to_string()))
+            .unwrap()
+            .with_send_counter(counter);
+
+    let sender = SenderIdentity {
+        address:      "sales@example.com".to_string(),
+        display_name: None,
+    };
+    // The cap gate refuses BEFORE any SMTP connection is attempted.
+    let error = transport.send(&sender, &request("bob@example.com")).await.unwrap_err();
+    // 429 → a client error → durable dispatch dead-letters (replay next day).
+    assert_eq!(error.status_code(), 429);
 }
 
 #[test]

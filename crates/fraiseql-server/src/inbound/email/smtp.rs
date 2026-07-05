@@ -54,6 +54,9 @@ struct SmtpAccount {
 /// verified sending address matches the resolved sender identity.
 pub struct SmtpMailboxTransport {
     accounts: HashMap<String, SmtpAccount>,
+    /// Optional per-mailbox send-warming counter. `None` → no daily cap is
+    /// enforced (see [`with_send_counter`](Self::with_send_counter)).
+    counter:  Option<std::sync::Arc<dyn super::warming::SendCounter>>,
 }
 
 impl SmtpMailboxTransport {
@@ -94,8 +97,22 @@ impl SmtpMailboxTransport {
         if accounts.is_empty() {
             None
         } else {
-            Some(Self { accounts })
+            Some(Self {
+                accounts,
+                counter: None,
+            })
         }
+    }
+
+    /// Attach a per-mailbox send-warming counter that caps daily volume during a
+    /// mailbox's warming period. Without one, no daily cap is enforced.
+    #[must_use]
+    pub fn with_send_counter(
+        mut self,
+        counter: std::sync::Arc<dyn super::warming::SendCounter>,
+    ) -> Self {
+        self.counter = Some(counter);
+        self
     }
 
     /// Number of connected send accounts (for diagnostics/tests).
@@ -124,13 +141,40 @@ impl EmailTransport for SmtpMailboxTransport {
                 });
             };
 
+            // Warming cap: refuse when the mailbox is at its daily limit. A daily
+            // cap will not clear on a seconds-scale retry, so this is a permanent
+            // failure for this dispatch (429 → dead-letter → replay next day),
+            // not a transient one.
+            if let Some(counter) = self.counter.as_ref() {
+                if let Some(state) = counter.state(&sender.address).await? {
+                    if !state.within_cap() {
+                        return Err(FraiseQLError::RateLimited {
+                            message:          format!(
+                                "sending address {:?} is at its warming daily cap",
+                                sender.address
+                            ),
+                            retry_after_secs: 86_400,
+                        });
+                    }
+                }
+            }
+
             let message = build_message(sender, request)?;
 
             match account.transport.send(message).await {
-                Ok(response) => Ok(SendEmailResponse {
-                    message_id: response.first_line().map(ToString::to_string),
-                    accepted:   true,
-                }),
+                Ok(response) => {
+                    // Best-effort accounting: the message is already sent, so a
+                    // counter error is logged, not surfaced (it must not un-send).
+                    if let Some(counter) = self.counter.as_ref() {
+                        if let Err(error) = counter.record_send(&sender.address).await {
+                            warn!(address = %sender.address, %error, "failed to record send for warming");
+                        }
+                    }
+                    Ok(SendEmailResponse {
+                        message_id: response.first_line().map(ToString::to_string),
+                        accepted:   true,
+                    })
+                },
                 // A permanent SMTP failure (5xx: auth rejected, bad recipient) must
                 // NOT retry — map to a 4xx so durable dispatch dead-letters it.
                 Err(error) if error.is_permanent() => Err(FraiseQLError::Validation {
