@@ -5,7 +5,7 @@
 
 use sqlx::PgPool;
 
-use super::{cron_migration_sql, inbound_migration_sql};
+use super::{cron_migration_sql, inbound_migration_sql, send_tracking_migration_sql};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -161,6 +161,75 @@ async fn test_inbound_migration_creates_table() {
     .unwrap();
 
     assert!(exists, "table _fraiseql_inbound_message must exist after migration");
+}
+
+/// Verify the send-tracking DDL is syntactically complete and contains the
+/// columns, exactly-once key, and tenant RLS. Runs without a database.
+#[test]
+fn test_send_tracking_migration_ddl_is_valid_sql() {
+    let ddl = send_tracking_migration_sql();
+
+    for table in ["_fraiseql_send_status", "_fraiseql_suppression"] {
+        assert!(ddl.contains(table), "DDL must create {table}");
+    }
+    assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
+
+    for col in [
+        "send_id",
+        "tenant_id",
+        "recipient",
+        "sending_address",
+        "status",
+        "challenge_count",
+        "last_signal",
+        "address_hash",
+        "reason",
+    ] {
+        assert!(ddl.contains(col), "DDL must contain column: {col}");
+    }
+
+    // Exactly-once + suppression keys coalesce NULL tenants so single-tenant rows
+    // are not treated as always-distinct.
+    assert!(
+        ddl.contains("COALESCE(tenant_id, '')"),
+        "unique keys must coalesce NULL tenant_id"
+    );
+    // Tenant-scoped RLS for app-facing reads.
+    assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"), "DDL must enable RLS");
+    assert!(
+        ddl.contains("current_setting('fraiseql.tenant_id', true)"),
+        "RLS policy must key on the fraiseql.tenant_id GUC"
+    );
+    // Policies are dropped-if-exists first so re-running the DDL is idempotent
+    // (CREATE POLICY has no IF NOT EXISTS form).
+    assert!(ddl.contains("DROP POLICY IF EXISTS"), "policies must be idempotent");
+}
+
+/// Verify the send-tracking migration creates both tables in a real PostgreSQL
+/// database and is idempotent (re-running does not error).
+#[tokio::test]
+async fn test_send_tracking_migration_creates_tables_idempotently() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP test_send_tracking_migration_creates_tables_idempotently: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+
+    let ddl = send_tracking_migration_sql();
+    // Run twice — the RLS policy drop-and-recreate must keep it idempotent.
+    execute_ddl(&pool, ddl).await;
+    execute_ddl(&pool, ddl).await;
+
+    for table in ["_fraiseql_send_status", "_fraiseql_suppression"] {
+        let (exists,): (bool,) =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = $1)")
+                .bind(table)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(exists, "table {table} must exist after migration");
+    }
 }
 
 /// Verify the migration is idempotent — running it twice does not error.

@@ -336,6 +336,22 @@ pub struct ServerConfig {
     #[serde(default)]
     pub auth_hs256: Option<Hs256Config>,
 
+    /// Name of the environment variable holding the server HMAC secret.
+    ///
+    /// When set, the per-dispatch idempotency token surfaced to functions is
+    /// HMAC-signed with a subkey derived from this secret, making it unforgeable —
+    /// required before it is exposed externally as a VERP delivery-tracking
+    /// Return-Path. Unset → the token is an unsigned digest (the zero-config
+    /// default). The secret must be **stable across restarts and shared across
+    /// instances** (a per-process random value would break resume + multi-instance
+    /// idempotency); resolved from the environment at startup, never the config file.
+    ///
+    /// ```toml
+    /// hmac_secret_env = "FRAISEQL_HMAC_SECRET"
+    /// ```
+    #[serde(default)]
+    pub hmac_secret_env: Option<String>,
+
     /// TLS/SSL configuration for HTTPS and encrypted connections.
     ///
     /// When set, enables TLS enforcement for HTTP/gRPC endpoints and
@@ -631,6 +647,16 @@ pub struct ServerConfig {
     #[serde(default)]
     pub mailbox: HashMap<String, crate::inbound::email::MailboxConfig>,
 
+    /// Delivery-feedback send policy (`[send]`).
+    ///
+    /// Governs how the correlation step reacts to inbound bounces / challenges /
+    /// replies — currently the challenge-suppression threshold
+    /// (`challenge_suppress_after`, default 2). Requires the `inbound-email`
+    /// feature; defaults apply when the section is absent.
+    #[cfg(feature = "inbound-email")]
+    #[serde(default)]
+    pub send: crate::inbound::email::SendSettings,
+
     /// Multi-tenant executor runtime configuration.
     ///
     /// Off by default. Enable with `[tenancy.runtime] enabled = true` to mount the
@@ -801,11 +827,12 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,       // No auth by default
-            auth_hs256: None, // No HS256 auth by default
-            tls: None,        // TLS disabled by default
-            database_tls: None, /* Database TLS disabled
-                               * by default */
+            auth: None,            // No auth by default
+            auth_hs256: None,      // No HS256 auth by default
+            hmac_secret_env: None, // No HMAC secret → unsigned idempotency token
+            tls: None,             // TLS disabled by default
+            database_tls: None,    /* Database TLS disabled
+                                    * by default */
             require_json_content_type: true, // CSRF protection
             max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
             max_header_count: default_max_header_count(), // 100 headers
@@ -829,6 +856,8 @@ impl Default for ServerConfig {
             webhooks: HashMap::new(), // No inbound webhook routes by default
             #[cfg(feature = "inbound-email")]
             mailbox: HashMap::new(), // No connected mailboxes by default
+            #[cfg(feature = "inbound-email")]
+            send: crate::inbound::email::SendSettings::default(),
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
             #[cfg(feature = "auth")]
             identity: None, // Enriched-identity resolution off by default

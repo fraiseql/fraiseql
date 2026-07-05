@@ -266,15 +266,25 @@ struct DurableDispatcher {
     /// verified address.
     sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
     email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
+    /// HMAC subkey for the per-dispatch idempotency token. `Some` → the token is
+    /// signed (unforgeable, required before it is exposed in a VERP Return-Path);
+    /// `None` → an unsigned digest (the zero-config default). Derived once from the
+    /// server HMAC secret and shared across every dispatch.
+    idempotency_key: Option<std::sync::Arc<[u8]>>,
 }
 
 #[cfg(feature = "functions-runtime")]
 impl DurableDispatcher {
     /// Run one function on a fresh live host context.
+    ///
+    /// `idempotency_token` is derived once per dispatch and passed to every retry
+    /// attempt, so the fresh host each attempt builds carries the *same* token —
+    /// the guest observes a stable, per-dispatch idempotency key across retries.
     async fn invoke_once(
         &self,
         module: &FunctionModule,
         payload: EventPayload,
+        idempotency_token: &str,
     ) -> fraiseql_error::Result<fraiseql_functions::FunctionResult> {
         // Shared, runtime-agnostic host bridge: the observer dispatches the plan
         // to the WASM or Deno backend by the module's runtime, so the host type
@@ -282,7 +292,8 @@ impl DurableDispatcher {
         let mut live = fraiseql_functions::host::live::LiveHostContext::new(
             payload.clone(),
             self.host_config.clone(),
-        );
+        )
+        .with_idempotency_token(idempotency_token);
         // Enable `send_email` (host-owned `from` + transport) when both are wired.
         if let (Some(resolver), Some(transport)) =
             (self.sender_resolver.as_ref(), self.email_transport.as_ref())
@@ -310,10 +321,25 @@ impl DurableDispatcher {
     ) {
         let function_name = module.name.clone();
 
+        // Derive the per-dispatch idempotency token ONCE, from the dispatch's
+        // stable identity (never wall-clock/random), so every retry attempt below
+        // sees the same token and a durable retry of a money/mail call stays
+        // at-most-once. The trigger identity folds in entity + event_kind; the
+        // payload data (which excludes the event timestamp) makes it resume-stable.
+        let trigger_identity =
+            format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
+        let idempotency_token = fraiseql_observers::derive_idempotency_token(
+            self.idempotency_key.as_deref(),
+            self.source,
+            &function_name,
+            &trigger_identity,
+            &payload.data,
+        );
+
         if setting.re_runnable {
             // Fire-and-forget: a single attempt; a failure is re-runnable later
             // by design, so it is logged but never retried or dead-lettered.
-            match self.invoke_once(&module, payload).await {
+            match self.invoke_once(&module, payload, &idempotency_token).await {
                 Ok(_) => tracing::debug!(
                     function = %function_name,
                     "re-runnable function dispatched"
@@ -330,22 +356,36 @@ impl DurableDispatcher {
         // Durable dispatch: retry transient failures with backoff.
         let trigger_type = payload.trigger_type.clone();
         let attempts = std::sync::atomic::AtomicU32::new(0);
-        let result = fraiseql_observers::run_with_retry(
-            &setting.policy,
-            // A 4xx client error (e.g. a malformed payload) will not succeed on
-            // retry; everything else (5xx, timeouts, execution failures) is
-            // treated as transient and retried.
-            |error: &fraiseql_error::FraiseQLError| !error.is_client_error(),
-            |n| {
-                attempts.store(n, std::sync::atomic::Ordering::Relaxed);
-                // Clone per attempt so the retry closure stays `FnMut`; the
-                // bytecode is `bytes::Bytes` (ref-counted), so this is cheap.
-                let attempt_module = module.clone();
-                let attempt_payload = payload.clone();
-                async move { self.invoke_once(&attempt_module, attempt_payload).await }
-            },
-        )
-        .await;
+        let result =
+            fraiseql_observers::run_with_retry(
+                &setting.policy,
+                // A 4xx client error (e.g. a malformed payload) will not succeed on
+                // retry; everything else (5xx, timeouts, execution failures) is
+                // treated as transient and retried.
+                |error: &fraiseql_error::FraiseQLError| !error.is_client_error(),
+                // A transient error may request a minimum backoff (greylisting: an
+                // SMTP tempfail clears in minutes, not the policy's seconds).
+                |error: &fraiseql_error::FraiseQLError| match error {
+                    fraiseql_error::FraiseQLError::ServiceUnavailable {
+                        retry_after: Some(secs),
+                        ..
+                    } => Some(std::time::Duration::from_secs(*secs)),
+                    _ => None,
+                },
+                |n| {
+                    attempts.store(n, std::sync::atomic::Ordering::Relaxed);
+                    // Clone per attempt so the retry closure stays `FnMut`; the
+                    // bytecode is `bytes::Bytes` (ref-counted), so this is cheap. The
+                    // token is derived once above, so every attempt shares it.
+                    let attempt_module = module.clone();
+                    let attempt_payload = payload.clone();
+                    let attempt_token = idempotency_token.clone();
+                    async move {
+                        self.invoke_once(&attempt_module, attempt_payload, &attempt_token).await
+                    }
+                },
+            )
+            .await;
 
         let Err(error) = result else {
             tracing::debug!(function = %function_name, "function dispatched");
@@ -358,6 +398,7 @@ impl DurableDispatcher {
             self.source,
             function_name.clone(),
             trigger_type,
+            idempotency_token,
             serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null),
             error.to_string(),
             attempts,
@@ -428,6 +469,7 @@ fn spawn_dispatch(
         source,
         sender_resolver: hooks.sender_resolver.clone(),
         email_transport: hooks.email_transport.clone(),
+        idempotency_key: hooks.idempotency_key.clone(),
     };
 
     for plan in plans {

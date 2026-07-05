@@ -137,6 +137,108 @@ pub struct MailboxSmtpConfig {
     /// Connection/send timeout in seconds; defaults to 30.
     #[serde(default = "default_smtp_timeout_secs")]
     pub timeout_secs: u64,
+    /// The VERP Return-Path for delivery tracking (`[mailbox.<name>.smtp.return_path]`).
+    /// Absent → defaults (`bounces` local part, the sending address's own domain).
+    #[serde(default)]
+    pub return_path:  Option<ReturnPathConfig>,
+}
+
+impl MailboxSmtpConfig {
+    /// The domain part of the account's verified sending address (everything after
+    /// the last `@`), or the whole string if it has no `@`.
+    #[must_use]
+    pub fn sending_domain(&self) -> &str {
+        self.address
+            .rsplit_once('@')
+            .map_or(self.address.as_str(), |(_, domain)| domain)
+    }
+
+    /// The resolved VERP Return-Path local part (`bounces` by default).
+    #[must_use]
+    pub fn return_path_local_part(&self) -> &str {
+        self.return_path
+            .as_ref()
+            .and_then(|rp| rp.local_part.as_deref())
+            .unwrap_or(DEFAULT_RETURN_PATH_LOCAL_PART)
+    }
+
+    /// The resolved VERP Return-Path domain — the configured override, or the
+    /// sending address's own domain (SPF/DMARC alignment).
+    #[must_use]
+    pub fn return_path_domain(&self) -> &str {
+        self.return_path
+            .as_ref()
+            .and_then(|rp| rp.domain.as_deref())
+            .unwrap_or_else(|| self.sending_domain())
+    }
+}
+
+/// The default VERP Return-Path local part.
+const DEFAULT_RETURN_PATH_LOCAL_PART: &str = "bounces";
+
+/// The VERP Return-Path configuration for delivery tracking
+/// (`[mailbox.<name>.smtp.return_path]`).
+///
+/// The transport sets the SMTP envelope sender (`MAIL FROM`) to
+/// `<local_part>+<send-id>@<domain>` while the header `From` stays the verified
+/// sending address, so an inbound bounce/challenge/reply addressed to the
+/// Return-Path carries the send-id back for correlation.
+///
+/// Both fields are optional: the local part defaults to `bounces` and the domain
+/// defaults to the sending address's own domain. **The domain should equal the
+/// sending domain** — the envelope sender is the SPF/DMARC alignment target, so a
+/// bounce domain on a different domain silently degrades deliverability of the very
+/// sends it tracks; a mismatch is warned about at build time.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReturnPathConfig {
+    /// The Return-Path local part before the `+<send-id>` tag; defaults to `bounces`.
+    #[serde(default)]
+    pub local_part: Option<String>,
+    /// The Return-Path domain; defaults to the sending address's own domain.
+    /// Should equal the sending domain for SPF/DMARC alignment.
+    #[serde(default)]
+    pub domain:     Option<String>,
+}
+
+/// The default number of unanswered challenges before a recipient is suppressed.
+const fn default_challenge_suppress_after() -> u32 {
+    2
+}
+
+/// Delivery-feedback send policy (`[send]`).
+///
+/// Governs how the correlation step reacts to inbound signals. Currently just the
+/// challenge-suppression threshold; separated from the per-mailbox config because
+/// it is a cross-mailbox policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendSettings {
+    /// The number of **unanswered** challenge-response prompts to a recipient
+    /// (across campaigns) before that recipient is suppressed. Default 2: a
+    /// challenge means the mailbox works but quarantines us, so a third send would
+    /// only re-quarantine (near-zero read, nonzero reputation cost); N=1 forecloses
+    /// the human decision window (a surfaced `ChallengePending` a salesperson can
+    /// personally solve, or the recipient can release). "Unanswered" is event-based
+    /// — a reply or a released send resets it, never elapsed time.
+    #[serde(default = "default_challenge_suppress_after")]
+    pub challenge_suppress_after: u32,
+
+    /// Run a Return-Path probe at startup for each mailbox with both an IMAP and an
+    /// SMTP half: send a self-addressed `bounces+probe-<nonce>@…` and confirm it
+    /// lands with the plus-tag intact, so VERP delivery correlation can be trusted.
+    /// Off by default (it emits a probe message per boot); enable it once to verify
+    /// a new deployment's provider preserves plus-addressing.
+    #[serde(default)]
+    pub verp_probe_on_start: bool,
+}
+
+impl Default for SendSettings {
+    fn default() -> Self {
+        Self {
+            challenge_suppress_after: default_challenge_suppress_after(),
+            verp_probe_on_start:      false,
+        }
+    }
 }
 
 /// A declared `[[mailbox.<name>.imap.routing]]` rule: a dedicated address that maps

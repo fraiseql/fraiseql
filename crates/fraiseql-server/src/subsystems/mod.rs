@@ -198,6 +198,13 @@ pub struct BeforeMutationHooks {
     /// Email transport for the `send_email` op. `None` → `send_email` fails loud.
     #[cfg(feature = "functions-runtime")]
     pub email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
+
+    /// HMAC subkey for the per-dispatch idempotency token, derived from the server
+    /// HMAC secret. `Some` → the token is signed (unforgeable, required before it is
+    /// exposed in a VERP Return-Path); `None` → an unsigned digest (zero-config
+    /// default). Set via [`with_idempotency_key`](Self::with_idempotency_key).
+    #[cfg(feature = "functions-runtime")]
+    pub idempotency_key: Option<std::sync::Arc<[u8]>>,
 }
 
 impl BeforeMutationHooks {
@@ -226,7 +233,22 @@ impl BeforeMutationHooks {
             sender_resolver: None,
             #[cfg(feature = "functions-runtime")]
             email_transport: None,
+            #[cfg(feature = "functions-runtime")]
+            idempotency_key: None,
         }
+    }
+
+    /// Attach the HMAC subkey that signs the per-dispatch idempotency token.
+    ///
+    /// Derived once from the server HMAC secret
+    /// ([`fraiseql_observers::derive_idempotency_subkey`]). `None` leaves the token
+    /// as an unsigned digest — the zero-config default; a signed token is required
+    /// before it is exposed externally as a VERP Return-Path (P04b).
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn with_idempotency_key(mut self, key: Option<std::sync::Arc<[u8]>>) -> Self {
+        self.idempotency_key = key;
+        self
     }
 
     /// Enable the `send_email` host op for dispatched functions by attaching a
@@ -278,6 +300,7 @@ impl FunctionsSubsystem {
             dispatch_settings,
             sender_resolver: None,
             email_transport: None,
+            idempotency_key: None,
         }
     }
 }

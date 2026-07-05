@@ -215,6 +215,21 @@ pub(crate) fn fraiseql_env_var(
     host.env_var(&name).map_err(op_error)
 }
 
+/// Return the per-dispatch idempotency token, or `null` when this invocation was
+/// not durably dispatched (sync).
+///
+/// `Deno.core.ops.fraiseql_idempotency_token() -> string | null`
+///
+/// Stable across retries of the same dispatch and distinct per dispatch; a guest
+/// passes it straight to a downstream money/mail API idempotency header so an
+/// at-least-once retry stays at-most-once.
+#[op2]
+#[string]
+pub(crate) fn fraiseql_idempotency_token(state: &OpState) -> Result<Option<String>, AnyError> {
+    let host = require_host(state)?;
+    Ok(host.idempotency_token())
+}
+
 /// Parse a JSON-string op argument, treating an empty string as an empty object.
 fn parse_json_arg(raw: &str, what: &str) -> Result<serde_json::Value, AnyError> {
     if raw.trim().is_empty() {

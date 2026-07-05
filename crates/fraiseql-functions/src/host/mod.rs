@@ -128,6 +128,19 @@ pub trait HostContext: Send + Sync {
 
     /// Log a message to the tracing subscriber.
     fn log(&self, level: LogLevel, message: &str);
+
+    /// A per-dispatch idempotency token, stable across retries of the same
+    /// dispatch and distinct per dispatch.
+    ///
+    /// `None` on invocation paths that are not durably dispatched (the bare sync
+    /// `invoke` path, or a mock host that does not set one). The durable
+    /// dispatcher derives the token from the dispatch's stable identity and
+    /// injects it so a guest can pass it straight to a downstream money/mail
+    /// idempotency header, keeping an at-least-once dispatch at-most-once end to
+    /// end. Defaults to `None` so only hosts that carry a token override it.
+    fn idempotency_token(&self) -> Option<String> {
+        None
+    }
 }
 
 /// A no-op host context for testing WASM execution without real backends.

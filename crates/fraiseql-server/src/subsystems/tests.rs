@@ -183,7 +183,8 @@ fn with_email_attaches_sender_resolver_and_transport() {
     use std::{future::Future, pin::Pin};
 
     use fraiseql_functions::{
-        EmailTransport, LoginEmailSender, SendEmailRequest, SendEmailResponse, SenderIdentity,
+        EmailTransport, LoginEmailSender, SendContext, SendEmailRequest, SendEmailResponse,
+        SenderIdentity,
     };
 
     // A transport stub so the seam test needs no SMTP / `inbound-email`.
@@ -193,6 +194,7 @@ fn with_email_attaches_sender_resolver_and_transport() {
             &'a self,
             _sender: &'a SenderIdentity,
             _request: &'a SendEmailRequest,
+            _context: SendContext<'a>,
         ) -> Pin<Box<dyn Future<Output = fraiseql_error::Result<SendEmailResponse>> + Send + 'a>>
         {
             Box::pin(async {

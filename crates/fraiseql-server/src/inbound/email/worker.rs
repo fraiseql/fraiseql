@@ -21,9 +21,11 @@ use fraiseql_functions::{
 use tracing::{debug, info, warn};
 
 use super::{
+    correlation::correlate,
     cursor,
     imap::{FetchedMessage, MailboxFetcher},
     store::PostgresEmailCursorStore,
+    tracking::SendCorrelator,
 };
 use crate::{
     inbound::spine::PostgresInboundSpine,
@@ -45,23 +47,31 @@ enum Ingested {
 /// A poll worker for one configured mailbox.
 pub struct EmailPollWorker {
     /// Stable mailbox identity — names the cursor row.
-    mailbox_key:       String,
+    mailbox_key:              String,
     /// The transport that fetches raw messages.
-    fetcher:           Arc<dyn MailboxFetcher>,
+    fetcher:                  Arc<dyn MailboxFetcher>,
     /// The durable inbound spine (dedup by `(source, idempotency_key)`).
-    spine:             PostgresInboundSpine,
+    spine:                    PostgresInboundSpine,
     /// The per-mailbox UID cursor store.
-    cursor_store:      PostgresEmailCursorStore,
+    cursor_store:             PostgresEmailCursorStore,
     /// Declared routing rules applied during normalization.
-    routing_rules:     Vec<RoutingRule>,
+    routing_rules:            Vec<RoutingRule>,
     /// Maximum messages processed per poll.
-    batch_size:        u32,
+    batch_size:               u32,
     /// Storage bucket for attachments + raw retention (`None` drops attachments).
-    attachment_bucket: Option<String>,
+    attachment_bucket:        Option<String>,
     /// Storage sink; `None` disables attachment / raw persistence.
-    attachment_sink:   Option<Arc<dyn StorageBackend>>,
+    attachment_sink:          Option<Arc<dyn StorageBackend>>,
     /// Function-dispatch hooks; `None` ingests without firing `after:ingest`.
-    hooks:             Option<Arc<BeforeMutationHooks>>,
+    hooks:                    Option<Arc<BeforeMutationHooks>>,
+    /// Delivery-feedback correlator; `None` ingests without correlating inbound
+    /// bounces / challenges / replies to their send.
+    correlator:               Option<Arc<dyn SendCorrelator>>,
+    /// The recipient address-hash key for suppression writes (needs the server HMAC
+    /// secret); `None` transitions status without writing suppressions.
+    address_hash_key:         Option<Arc<[u8]>>,
+    /// The per-recipient unanswered-challenge suppression threshold (`N`).
+    challenge_suppress_after: u32,
 }
 
 impl EmailPollWorker {
@@ -77,6 +87,9 @@ impl EmailPollWorker {
         attachment_bucket: Option<String>,
         attachment_sink: Option<Arc<dyn StorageBackend>>,
         hooks: Option<Arc<BeforeMutationHooks>>,
+        correlator: Option<Arc<dyn SendCorrelator>>,
+        address_hash_key: Option<Arc<[u8]>>,
+        challenge_suppress_after: u32,
     ) -> Self {
         Self {
             mailbox_key: mailbox_key.into(),
@@ -88,6 +101,9 @@ impl EmailPollWorker {
             attachment_bucket,
             attachment_sink,
             hooks,
+            correlator,
+            address_hash_key,
+            challenge_suppress_after,
         }
     }
 
@@ -187,10 +203,42 @@ impl EmailPollWorker {
         self.persist_blobs(&mut normalized, &parsed.attachments, &message.raw).await?;
 
         if self.spine.emit(&normalized).await?.is_new() {
+            // Platform correlation runs first (only on a genuinely-new message —
+            // `bump_challenge` is not idempotent, so a redelivery must not
+            // re-count), then app `after:ingest` functions fire for app logic.
+            self.correlate(&normalized).await;
             self.dispatch(&normalized);
             Ok(Ingested::New)
         } else {
             Ok(Ingested::Duplicate)
+        }
+    }
+
+    /// Correlate an inbound bounce / challenge / reply back to its send.
+    ///
+    /// Best-effort: a correlation failure is logged, not propagated — the message
+    /// is already ingested, and a redelivery would be deduplicated by the spine
+    /// (so it would never re-correlate). A stale send-status is a lesser evil than
+    /// wedging the mailbox or losing the message. A no-op when no correlator is
+    /// wired (no database / feature off).
+    async fn correlate(&self, message: &InboundMessage) {
+        let Some(correlator) = self.correlator.as_ref() else {
+            return;
+        };
+        let result = correlate(
+            correlator.as_ref(),
+            self.address_hash_key.as_deref(),
+            self.challenge_suppress_after,
+            chrono::Utc::now(),
+            message,
+        )
+        .await;
+        if let Err(error) = result {
+            warn!(
+                mailbox = %self.mailbox_key,
+                %error,
+                "delivery correlation failed; send-status left unchanged"
+            );
         }
     }
 

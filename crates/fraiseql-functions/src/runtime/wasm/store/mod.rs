@@ -150,6 +150,13 @@ impl context::Host for StoreData {
         };
         host.env_var(&name).ok().flatten()
     }
+
+    async fn get_idempotency_token(&mut self) -> Option<String> {
+        let Ok(host) = self.require_host_context() else {
+            return None;
+        };
+        host.idempotency_token()
+    }
 }
 
 /// Stringify a host error for the WIT `result<_, string>` boundary, tagging a

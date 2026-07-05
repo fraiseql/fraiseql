@@ -74,6 +74,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identity store momentarily down) is a 5xx → retry. The DB-backed `SendCounter`
   (over the app's mailbox table) is the remaining warming piece. See
   `docs/architecture/native-runtime-ergonomics.md`.
+- **Host-provided per-dispatch idempotency token (native-runtime hardening).** A
+  function can read a per-dispatch idempotency token —
+  `Deno.core.ops.fraiseql_idempotency_token()` (WASM: `get-idempotency-token`),
+  `string | null` — and pass it straight to a downstream money/mail idempotency
+  header. The durable dispatcher derives it **once** from the dispatch's stable
+  identity (source + function + trigger + payload data — never wall-clock/random)
+  and injects it into every retry attempt, so it is stable across retries and
+  across a resume, and distinct per logical operation; an at-least-once dispatch
+  therefore stays at-most-once. The token is 32 lowercase hex characters, URL-safe
+  and short enough for a VERP email local part (reused as the send correlation id
+  by the delivery-feedback work). `examples/native-functions/qonto-sync.ts` now
+  prefers it and falls back to its invoice-derived key only on a non-dispatched
+  invocation; the dead-letter record carries the token for operator inspection.
+- **Delivery feedback loop — bounces, challenges, replies, suppression
+  (native-runtime hardening).** `send_email` is now a *tracked* delivery rather than
+  a one-shot: SMTP `2xx` means accepted, not delivered, and the real outcome arrives
+  inbound. Each send sets a per-send VERP Return-Path
+  (`MAIL FROM: bounces+<send-id>@<domain>`, header `From` unchanged) keyed by the
+  **HMAC** idempotency token (unforgeable, so a forged bounce cannot poison delivery
+  status); the poll-IMAP adapter correlates an inbound bounce/challenge/reply back to
+  the send via the recipient plus-tag (with a `References`/`Message-ID` fallback) and
+  transitions a send-status lifecycle (`Sent → Bounced | ChallengePending | Replied`;
+  **no lying `Delivered`** — "no news ≈ delivered"). A **suppression list** is checked
+  before every send (a suppressed recipient is a permanent refusal); it stores a
+  **keyed hash of the address, never the raw address**, so a GDPR erasure elsewhere
+  keeps the do-not-contact match. Hard bounces suppress immediately (permanent);
+  repeated unanswered **challenges** suppress after N (`[send]
+  challenge_suppress_after`, default 2, per-recipient, event-based) and are
+  **surfaced, never auto-solved** for cold outreach (reputation + GDPR); a genuine
+  reply lifts a challenge suppression at once. A durable retry of an already-sent
+  dispatch is **skipped** (exactly-once). Transient SMTP failures carry a
+  mail-appropriate backoff floor (greylisting clears in minutes, not the policy's
+  seconds). An opt-in startup **Return-Path probe** (`[send] verp_probe_on_start`)
+  verifies the provider preserves plus-addressing before VERP is trusted. All stores
+  are tenant-scoped (RLS); the operator appends/queries suppressions via
+  `POST /api/email/suppress` / `POST /api/email/suppression` (admin bearer,
+  server-side hashing, address in the body — never a query string, so it is not
+  captured by access logs); IMAP processing is read-and-move only (never expunges).
+  Configured via `[server] hmac_secret_env` (VERP-gated: absent → plain token, no
+  correlation), `[mailbox.<name>.smtp.return_path]`, and `[send]`.
 - **After:mutation functions now run in the stock server binary.** The server loads
   each declared function's module from the compiled schema's `module_dir`
   (`<module_dir>/<name>.<ext>` — `.wasm` for WASM, `.js`/`.ts` for Deno), registers

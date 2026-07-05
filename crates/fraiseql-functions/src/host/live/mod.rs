@@ -105,6 +105,12 @@ pub struct LiveHostContext {
 
     /// Email transport for `send_email`. `None` → `send_email` fails loud.
     email_transport: Option<Arc<dyn crate::outbound::EmailTransport>>,
+
+    /// Per-dispatch idempotency token, injected by the durable dispatcher. `None`
+    /// on non-dispatched paths (bare `invoke`). Stable across retries of the same
+    /// dispatch and distinct per dispatch — see
+    /// [`derive_idempotency_token`](fraiseql_observers::derive_idempotency_token).
+    idempotency_token: Option<String>,
 }
 
 impl LiveHostContext {
@@ -121,6 +127,7 @@ impl LiveHostContext {
             security_context: Self::default_security_context(),
             sender_resolver: None,
             email_transport: None,
+            idempotency_token: None,
         }
     }
 
@@ -140,6 +147,7 @@ impl LiveHostContext {
             security_context: Self::default_security_context(),
             sender_resolver: None,
             email_transport: None,
+            idempotency_token: None,
         }
     }
 
@@ -160,6 +168,7 @@ impl LiveHostContext {
             security_context: Self::default_security_context(),
             sender_resolver: None,
             email_transport: None,
+            idempotency_token: None,
         }
     }
 
@@ -211,6 +220,18 @@ impl LiveHostContext {
     ) -> Self {
         self.sender_resolver = Some(sender_resolver);
         self.email_transport = Some(email_transport);
+        self
+    }
+
+    /// Attach the per-dispatch idempotency token surfaced to the guest via
+    /// [`idempotency_token`](HostContext::idempotency_token).
+    ///
+    /// The durable dispatcher derives the token once (from the dispatch's stable
+    /// identity) and sets it on the fresh host it builds for every retry attempt,
+    /// so the guest observes the same token on each attempt.
+    #[must_use]
+    pub fn with_idempotency_token(mut self, token: impl Into<String>) -> Self {
+        self.idempotency_token = Some(token.into());
         self
     }
 }
@@ -445,7 +466,14 @@ impl HostContext for LiveHostContext {
             }
         })?;
 
-        transport.send(&sender, request).await
+        // The per-dispatch context: the send-id is the host idempotency token (the
+        // VERP correlation key + exactly-once dedup key); the tenant scopes the
+        // send-status / suppression rows. Both are host-owned, never guest input.
+        let context = crate::outbound::SendContext {
+            send_id: self.idempotency_token.as_deref(),
+            tenant:  self.security_context.tenant_id.as_ref().map(|tenant| tenant.as_str()),
+        };
+        transport.send(&sender, request, context).await
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {
@@ -488,5 +516,9 @@ impl HostContext for LiveHostContext {
             timestamp: chrono::Utc::now(),
         };
         self.logs.lock().expect("log mutex poisoned").push(entry);
+    }
+
+    fn idempotency_token(&self) -> Option<String> {
+        self.idempotency_token.clone()
     }
 }

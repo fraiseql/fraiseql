@@ -54,6 +54,9 @@ struct QontoHost {
     event:       EventPayload,
     recorded:    Arc<Mutex<Recorded>>,
     http_status: u16,
+    /// The per-dispatch idempotency token the dispatcher would inject; `None`
+    /// models a non-dispatched invocation (the guest falls back to its own key).
+    token:       Option<String>,
 }
 
 impl crate::HostContext for QontoHost {
@@ -137,6 +140,10 @@ impl crate::HostContext for QontoHost {
     }
 
     fn log(&self, _level: crate::LogLevel, _message: &str) {}
+
+    fn idempotency_token(&self) -> Option<String> {
+        self.token.clone()
+    }
 }
 
 fn invoice_event(invoice: serde_json::Value) -> EventPayload {
@@ -154,11 +161,21 @@ async fn run_sync(
     http_status: u16,
     recorded: &Arc<Mutex<Recorded>>,
 ) -> fraiseql_error::Result<serde_json::Value> {
+    run_sync_with_token(invoice, http_status, None, recorded).await
+}
+
+async fn run_sync_with_token(
+    invoice: serde_json::Value,
+    http_status: u16,
+    token: Option<String>,
+    recorded: &Arc<Mutex<Recorded>>,
+) -> fraiseql_error::Result<serde_json::Value> {
     let event = invoice_event(invoice);
     let host: Arc<dyn DynHostContext> = Arc::new(QontoHost {
         event: event.clone(),
         recorded: Arc::clone(recorded),
         http_status,
+        token,
     });
     let module = FunctionModule::from_source(
         "qonto-sync".to_string(),
@@ -232,6 +249,33 @@ async fn test_qonto_idempotency_key_is_invoice_derived_not_random() {
         .unwrap()
         .to_string();
     assert_eq!(sent, "qonto-invoice-inv-42");
+}
+
+/// When the durable dispatcher provides a per-dispatch idempotency token, the
+/// money call carries THAT token — a resume-stable key the host derived — instead
+/// of the hand-derived invoice key. Proves the example consumes the host op and
+/// prefers it when present.
+#[tokio::test]
+async fn test_qonto_uses_the_host_token_when_present() {
+    let recorded = Arc::new(Mutex::new(Recorded::default()));
+    let token = "aabbccddeeff00112233445566778899";
+    let value = run_sync_with_token(
+        serde_json::json!({
+            "id": "inv-77", "reference": "INV-77", "amount_cents": 100, "counterparty": "acme"
+        }),
+        200,
+        Some(token.to_string()),
+        &recorded,
+    )
+    .await
+    .expect("sync should run");
+
+    assert_eq!(value["idempotency_key"], token, "the guest prefers the host-provided token");
+    assert_eq!(
+        recorded.lock().unwrap().http_calls[0].header("idempotency-key"),
+        Some(token),
+        "the money call carries the host-provided per-dispatch token"
+    );
 }
 
 /// A transient (5xx) Qonto failure fails loud — the function never fabricates a

@@ -76,17 +76,24 @@ promoted from opt-in to stable.
    `sending_address` on the security/auth context**, resolved from the connected
    mailbox rather than assumed equal to the login email.
 
-4. **Idempotency keys are author-managed.** The money path is safe only because
-   the author derived a deterministic key (`qonto-invoice-${id}`) by hand. Nothing
-   in the host nudges them toward it, and a random key would silently double-spend
-   on retry. This is also what keeps the per-user follow-up send on the
-   *fire-and-forget* path for now: without a stable send-idempotency token, a
-   durable retry could double-send, and a fire-and-forget failure is simply lost —
-   neither is right for user-facing mail. **Planned: a host-provided,
-   per-dispatch-stable idempotency token** (stable across retries of the same
-   dispatch, distinct per logical operation) the guest passes straight through to
-   a downstream money or mail API, so paired sends can move to the durable path
-   safely.
+4. **Host-provided idempotency token — DELIVERED.** The guest no longer has to
+   hand-derive a deterministic key. The host exposes a per-dispatch idempotency
+   token — `Deno.core.ops.fraiseql_idempotency_token()` (WASM:
+   `get-idempotency-token`) — that the durable dispatcher derives once from the
+   dispatch's stable identity (source + function + trigger + payload data; never
+   wall-clock/random) and injects into every retry attempt. So it is **stable
+   across retries of the same dispatch and across a resume**, and **distinct per
+   logical operation**. The guest passes it straight to a downstream money/mail
+   idempotency header, so an at-least-once dispatch stays at-most-once. It is 32
+   lowercase hex characters — URL-safe and short enough for a VERP email local
+   part (`bounces+<token>@…`), which the delivery-feedback work reuses as the
+   per-send correlation id. `qonto-sync.ts` now prefers it, falling back to the
+   invoice-derived key only on a non-dispatched invocation (`null` token).
+   **Trade-off (both valid):** the host token dedups retries/redeliveries of one
+   dispatch; a content-addressed key (`qonto-invoice-${id}`) additionally dedups
+   across *different* dispatches touching the same entity — use the latter where
+   cross-dispatch money dedup matters. The dead-letter record also carries the
+   token for operator inspection/replay.
 
 5. **Permanent-error tagging — DELIVERED.** A function can now say "this failure is
    permanent, do not retry": a guest throws a tagged error
@@ -106,6 +113,84 @@ promoted from opt-in to stable.
    stability) are proven by asserting the pure-function output of a single run
    rather than diffing two runs. Worth documenting for anyone adding tests; not a
    runtime problem.
+
+## Delivery feedback loop (SMTP `2xx` ≠ delivered)
+
+A `send_email` that returns success means the relay *accepted* the message — **not
+that it was delivered**. The real outcome arrives later, *inbound*: a hard bounce, a
+greylist tempfail-then-accept, or a challenge-response prompt (Mailinblack, Boxbe)
+that holds the message until the sender passes a challenge. The delivery-feedback
+loop closes that gap by correlating those inbound events back to the send that
+triggered them.
+
+- **VERP Return-Path correlation.** Each send sets the SMTP envelope sender
+  (`MAIL FROM`) to `bounces+<send-id>@<domain>` while the header `From` stays the
+  verified sending address. A bounce/challenge is addressed to the Return-Path, so it
+  lands at `bounces+<send-id>@…` and the poll-IMAP adapter recovers the `<send-id>`
+  from the recipient plus-tag (falling back to our sent `Message-ID` quoted in the
+  reply's `References`). The `<send-id>` is the per-dispatch **HMAC** idempotency
+  token — deterministic and resume-stable, but *unforgeable*, so a forged
+  `bounces+<token>@…` cannot poison another send's status. Correlation is a built-in
+  Rust step in the poll worker (platform infrastructure); app `after:ingest`
+  functions still fire afterwards for app logic.
+
+- **Send-status lifecycle — no lying `Delivered`.** A send is recorded `Sent` on
+  relay and only transitions on an inbound signal: `Bounced`, `ChallengePending`,
+  `Replied`. Delivery is *not* positively observable, so there is **no** `Delivered`
+  transition — "no news ≈ delivered". A monitoring view may *infer*
+  delivered-after-a-window, but the platform never fabricates the state.
+
+- **Suppression list + GDPR.** A do-not-contact list is checked *before every send*
+  (a suppressed recipient is a permanent refusal — the biggest deliverability lever).
+  It stores a **keyed HMAC hash of the address, never the raw address**, so a GDPR
+  erasure of the recipient's PII elsewhere leaves the "do not contact" fact intact.
+  A hard bounce suppresses immediately (permanent); repeated unanswered challenges
+  suppress with a ~30-day TTL; a genuine reply lifts a challenge suppression at once.
+  Both the send-status and suppression tables carry an explicit `tenant_id` column
+  and are RLS-scoped for app-facing reads.
+
+- **Challenge policy (a hard product boundary).** Detect + correlate + **surface** +
+  suppress-after-N (`[send] challenge_suppress_after`, default 2, per-recipient
+  across campaigns, event-based). Challenges are **never auto-solved** for
+  cold/unsolicited outreach — it circumvents the recipient's anti-spam control,
+  torches sender-domain reputation, and (Mailinblack being a French product) the
+  recipients are under GDPR. A surfaced `ChallengePending` is a human decision point:
+  a salesperson personally solves it, or the recipient releases us.
+
+- **Exactly-once send.** Because the send-id is per-dispatch-stable, a durable retry
+  of an already-sent dispatch is detected and **skipped** (the recorded response is
+  returned), so a transient failure after the relay already accepted cannot
+  double-send.
+
+- **Greylisting.** A transient SMTP failure carries a mail-appropriate backoff floor
+  (minutes, not the policy's seconds) that the durable dispatcher honors, so a
+  greylist tempfail is retried after the greylist window rather than exhausting fast
+  retries into the DLQ.
+
+- **Return-Path probe.** Plus-addressing is provider-dependent; a provider that
+  strips the `+<send-id>` tag makes every bounce vanish and every send look
+  delivered. The opt-in startup probe (`[send] verp_probe_on_start`) sends a
+  self-addressed `bounces+probe-<nonce>@…` and confirms it lands with the tag intact,
+  turning that silent, deployment-dependent failure into a loud, diagnosable one.
+
+- **IMAP safety.** Bounce/challenge processing is **read-and-move only** — the poll
+  adapter `BODY.PEEK`s (no `\Seen`) and nothing flags-deleted + expunges. An IMAP
+  mailbox can be the only copy of irreplaceable data; the loop never destroys it.
+
+- **App surface.** Send status is read directly from `_fraiseql_send_status` under
+  RLS (keyed by the non-secret send-id — no server key needed). Suppression append +
+  query go through the admin API (`POST /api/email/suppress`,
+  `POST /api/email/suppression`, bearer-gated) because the address must be hashed
+  server-side with the server HMAC key before it touches the store. Both are `POST`
+  with the address in the body (never a query string), so the raw address is never
+  captured by access logs or proxies.
+
+**Configuration.** `[server] hmac_secret_env` names the env var holding the root
+secret — VERP status-tracking activates only when it is set (fail-closed: no secret →
+plain token, plain Return-Path, no correlation). `[mailbox.<name>.smtp.return_path]`
+overrides the local part / domain (default `bounces`@the sending domain; a mismatched
+domain warns, since the envelope sender is the SPF/DMARC alignment target). `[send]`
+carries `challenge_suppress_after` and `verp_probe_on_start`.
 
 ## Bottom line
 

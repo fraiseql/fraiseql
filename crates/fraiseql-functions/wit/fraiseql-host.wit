@@ -9,6 +9,9 @@ interface context {
     get-event-payload: func() -> string;  // JSON
     get-auth-context: func() -> result<string, string>;  // JSON or error
     get-env-var: func(name: string) -> option<string>;
+    // Per-dispatch idempotency token, or none when not durably dispatched.
+    // Stable across retries of the same dispatch, distinct per dispatch.
+    get-idempotency-token: func() -> option<string>;
 }
 
 interface io {

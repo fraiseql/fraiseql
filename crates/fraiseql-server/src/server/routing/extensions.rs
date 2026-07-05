@@ -50,6 +50,35 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Suppression admin API (append + query) — the operator surface for manual
+        // do-not-contact entries (support removals, GDPR requests). Same admin
+        // bearer gate; mounted only when a database pool, the admin token, and the
+        // address-hash key (the server HMAC secret) are all present, since the
+        // address must be hashed server-side before it touches the store.
+        #[cfg(feature = "inbound-email")]
+        if let (Some(pool), Some(token), Some(key)) = (
+            self.db_pool.as_ref(),
+            self.config.admin_token.as_ref(),
+            self.build_address_hash_key(),
+        ) {
+            let tracker = Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
+            let suppression_state =
+                Arc::new(crate::inbound::email::SuppressionAdminState::new(tracker, key));
+            let auth_state = BearerAuthState::with_max_failures(
+                token.clone(),
+                self.config.admin_auth_max_failures,
+            );
+            let suppression_router = crate::inbound::email::suppression_admin_router(
+                suppression_state,
+            )
+            .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
+            app = app.merge(suppression_router);
+            info!(
+                "Suppression admin API enabled (POST /api/email/suppress, POST \
+                 /api/email/suppression; admin bearer token required)"
+            );
+        }
+
         // Observer routes (if enabled and compiled with feature)
         #[cfg(feature = "observers")]
         {

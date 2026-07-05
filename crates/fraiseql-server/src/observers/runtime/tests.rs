@@ -166,6 +166,7 @@ mod function_dlq {
             DispatchSource::AfterMutation,
             "onUserCreated",
             "after:mutation:onUserCreated",
+            "0123456789abcdef0123456789abcdef",
             serde_json::json!({ "event_kind": "insert", "new": { "id": "u1" } }),
             error,
             3,
