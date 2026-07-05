@@ -282,7 +282,9 @@ pub struct CascadeLimits {
     /// default `500`).
     pub max_updated_entities: usize,
     /// Maximum serialized cascade size in MiB before the mutation is rejected
-    /// (spec default `5`).
+    /// (spec default `5`). A value of `0` **disables** the size ceiling — set it
+    /// only to intentionally lift the limit, never as an "unbounded" value reached
+    /// by accident.
     pub max_response_size_mb: usize,
 }
 

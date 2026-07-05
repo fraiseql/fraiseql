@@ -218,14 +218,17 @@ fn build_cascade_updates<A: DatabaseAdapter>(
         .and_then(serde_json::Value::as_array)
         .map_or(empty.as_slice(), Vec::as_slice);
 
-    // Affected-entity ceiling: truncate `updated`/`deleted` each to half the limit
-    // and record it in metadata (spec `16_security` size-limiting).
+    // Affected-entity ceiling: greedily fill up to the limit — `updated` first
+    // (they carry entity data), remainder to `deleted` — and record the truncation
+    // in metadata (spec `16_security` size-limiting). Greedy fill honors the full
+    // limit for a lopsided cascade, where a half-each split would waste headroom.
     let limits = ctx.config.cascade_limits;
     let total = updated.len() + deleted.len();
     let truncated = total > limits.max_updated_entities;
     let (updated, deleted) = if truncated {
-        let half = limits.max_updated_entities / 2;
-        (&updated[..updated.len().min(half)], &deleted[..deleted.len().min(half)])
+        let updated_keep = updated.len().min(limits.max_updated_entities);
+        let deleted_keep = deleted.len().min(limits.max_updated_entities - updated_keep);
+        (&updated[..updated_keep], &deleted[..deleted_keep])
     } else {
         (updated, deleted)
     };
@@ -284,8 +287,9 @@ fn build_cascade_updates<A: DatabaseAdapter>(
 
 /// Build the `CascadeMetadata` object, filtered to the client's selection set.
 /// The runtime owns `affectedCount` / `truncated` / `originalCount` (computed from
-/// what it actually returns); `timestamp` / `transactionId` / `depth` pass through
-/// from the function's `cascade.metadata` (`depth` defaults to 0 if absent).
+/// what it actually returns) and the non-null `timestamp` (the function's if given,
+/// else the server clock); `transactionId` / `depth` pass through from the
+/// function's `cascade.metadata` (`depth` defaults to 0 if absent).
 fn build_cascade_metadata(
     schema: &CompiledSchema,
     db_metadata: Option<&serde_json::Value>,
@@ -321,9 +325,14 @@ fn build_cascade_metadata(
                 out.insert(key, depth);
             },
             "timestamp" => {
-                if let Some(v) = db.and_then(|m| m.get("timestamp")) {
-                    out.insert(key, v.clone());
-                }
+                // The runtime owns the non-null `DateTime!` guarantee (like
+                // `affectedCount`): prefer the function's transaction timestamp,
+                // else stamp the current server time so a function that omits it
+                // still yields an SDL-valid response rather than a null violation.
+                let ts = db.and_then(|m| m.get("timestamp")).cloned().unwrap_or_else(|| {
+                    serde_json::Value::String(chrono::Utc::now().to_rfc3339())
+                });
+                out.insert(key, ts);
             },
             "transactionId" => {
                 if let Some(v) =

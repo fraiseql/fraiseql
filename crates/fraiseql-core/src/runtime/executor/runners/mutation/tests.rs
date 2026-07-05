@@ -3403,11 +3403,27 @@ mod cascade {
         } } }";
         let res = executor.execute(q, None).await.unwrap();
         let cascade = &res["data"]["createPost"]["cascade"];
-        // 4 updated, limit 2 ⇒ truncate updated to half = 1.
-        assert_eq!(cascade["updated"].as_array().unwrap().len(), 1);
+        // 4 updated, 0 deleted, limit 2 ⇒ greedy fill keeps 2 updated (a half-each
+        // split would have wasted the deleted headroom and kept only 1).
+        assert_eq!(cascade["updated"].as_array().unwrap().len(), 2);
         assert_eq!(cascade["metadata"]["truncated"], true);
-        assert_eq!(cascade["metadata"]["affectedCount"], 1);
+        assert_eq!(cascade["metadata"]["affectedCount"], 2);
         assert_eq!(cascade["metadata"]["originalCount"], 4);
+    }
+
+    /// `timestamp` is a non-null `DateTime!`: the runtime stamps the server clock
+    /// when the function's cascade omits a metadata timestamp, so a common cascade
+    /// (no metadata block) never violates the SDL's non-null contract.
+    #[tokio::test]
+    async fn cascade_metadata_timestamp_is_runtime_stamped_when_absent() {
+        // standard_cascade() carries no `metadata` block at all.
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let q = "mutation { createPost { cascade { metadata { timestamp } } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let ts = &res["data"]["createPost"]["cascade"]["metadata"]["timestamp"];
+        assert!(ts.is_string(), "timestamp must be present (runtime-stamped): {ts}");
+        assert!(!ts.as_str().unwrap().is_empty(), "timestamp must be non-empty");
     }
 
     /// Strict entry validation: an `updated` entry missing `operation` fails closed
