@@ -7,11 +7,10 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code
 
-use fraiseql_functions::{EmailTransport, SendEmailRequest, SenderIdentity};
-
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use fraiseql_error::Result;
+use fraiseql_functions::{EmailTransport, SendEmailRequest, SenderIdentity};
 
 use super::{
     MailboxSmtpConfig, SmtpMailboxTransport, SmtpTlsMode, build_email_transport, build_message,
@@ -92,10 +91,13 @@ fn build_email_transport_from_mailbox_config() {
             smtp: Some(smtp_cfg("sales@example.com")),
         },
     );
-    mailboxes.insert("receive_only".to_string(), MailboxConfig {
-        imap: None,
-        smtp: None,
-    });
+    mailboxes.insert(
+        "receive_only".to_string(),
+        MailboxConfig {
+            imap: None,
+            smtp: None,
+        },
+    );
 
     let transport = build_email_transport(&mailboxes, |_| Some("pw".to_string()));
     assert!(transport.is_some(), "an SMTP half yields a transport");

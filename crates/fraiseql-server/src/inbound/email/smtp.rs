@@ -202,11 +202,13 @@ fn build_account_transport(
             .map_err(|error| FraiseQLError::Configuration {
                 message: format!("cannot build STARTTLS relay to {}: {error}", cfg.host),
             })?,
-        SmtpTlsMode::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(
-            |error| FraiseQLError::Configuration {
-                message: format!("cannot build TLS relay to {}: {error}", cfg.host),
-            },
-        )?,
+        SmtpTlsMode::Tls => {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(|error| {
+                FraiseQLError::Configuration {
+                    message: format!("cannot build TLS relay to {}: {error}", cfg.host),
+                }
+            })?
+        },
         SmtpTlsMode::None => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host),
     };
     builder = builder
@@ -227,10 +229,9 @@ fn build_message(sender: &SenderIdentity, request: &SendEmailRequest) -> Result<
     }
 
     let built = match (request.text.as_deref(), request.html.as_deref()) {
-        (Some(text), Some(html)) => builder.multipart(MultiPart::alternative_plain_html(
-            text.to_owned(),
-            html.to_owned(),
-        )),
+        (Some(text), Some(html)) => {
+            builder.multipart(MultiPart::alternative_plain_html(text.to_owned(), html.to_owned()))
+        },
         (Some(text), None) => builder.singlepart(SinglePart::plain(text.to_owned())),
         (None, Some(html)) => builder.singlepart(SinglePart::html(html.to_owned())),
         // No body: a valid, empty plain-text part rather than an error.

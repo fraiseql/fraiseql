@@ -29,11 +29,13 @@ fn a_future_dated_start_uses_the_most_conservative_cap() {
 #[test]
 fn within_cap_enforces_the_daily_limit() {
     // Day 0 → limit 10.
-    assert!(WarmingState {
-        days_since_start: 0,
-        sends_today:      9,
-    }
-    .within_cap());
+    assert!(
+        WarmingState {
+            days_since_start: 0,
+            sends_today:      9,
+        }
+        .within_cap()
+    );
     assert!(
         !WarmingState {
             days_since_start: 0,
@@ -46,9 +48,11 @@ fn within_cap_enforces_the_daily_limit() {
 
 #[test]
 fn a_fully_warmed_mailbox_is_never_over_cap() {
-    assert!(WarmingState {
-        days_since_start: 90,
-        sends_today:      10_000,
-    }
-    .within_cap());
+    assert!(
+        WarmingState {
+            days_since_start: 90,
+            sends_today:      10_000,
+        }
+        .within_cap()
+    );
 }

@@ -478,8 +478,9 @@ impl DynHostContext for HostContextSnapshot {
         _request: &'a crate::outbound::SendEmailRequest,
     ) -> std::pin::Pin<
         Box<
-            dyn std::future::Future<Output = fraiseql_error::Result<crate::outbound::SendEmailResponse>>
-                + Send
+            dyn std::future::Future<
+                    Output = fraiseql_error::Result<crate::outbound::SendEmailResponse>,
+                > + Send
                 + 'a,
         >,
     > {

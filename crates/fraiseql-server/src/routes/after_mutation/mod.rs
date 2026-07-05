@@ -253,19 +253,18 @@ pub fn resolve_dispatch_settings(
 #[cfg(feature = "functions-runtime")]
 #[derive(Clone)]
 struct DurableDispatcher {
-    observer:    std::sync::Arc<fraiseql_functions::FunctionObserver>,
-    host_config: fraiseql_functions::host::live::HostContextConfig,
-    limits:      fraiseql_functions::ResourceLimits,
-    dlq:         std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+    observer:        std::sync::Arc<fraiseql_functions::FunctionObserver>,
+    host_config:     fraiseql_functions::host::live::HostContextConfig,
+    limits:          fraiseql_functions::ResourceLimits,
+    dlq:             std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
     /// Which trigger subsystem this dispatcher serves — tags dead-letter records
     /// so `after:mutation` and `after:ingest` failures are distinguishable.
-    source:      fraiseql_observers::DispatchSource,
+    source:          fraiseql_observers::DispatchSource,
     /// Host-owned sender-identity resolver + email transport for the `send_email`
     /// op. `None` → the op fails loud on the built host. Threaded from the hooks so
     /// every dispatched function's fresh host can send from the connected user's
     /// verified address.
-    sender_resolver:
-        Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
+    sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
     email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
 }
 
@@ -288,7 +287,8 @@ impl DurableDispatcher {
         if let (Some(resolver), Some(transport)) =
             (self.sender_resolver.as_ref(), self.email_transport.as_ref())
         {
-            live = live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
+            live =
+                live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
         }
         let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
             std::sync::Arc::new(live);

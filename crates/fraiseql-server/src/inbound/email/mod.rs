@@ -38,11 +38,11 @@ pub mod warming;
 pub mod worker;
 
 pub use config::{ImapConfig, MailboxConfig, MailboxSmtpConfig, RoutingRuleConfig, SmtpTlsMode};
-pub use smtp::SmtpMailboxTransport;
-pub use warming::{SendCounter, WarmingState, warming_daily_limit};
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
+pub use smtp::SmtpMailboxTransport;
 pub use store::PostgresEmailCursorStore;
+pub use warming::{SendCounter, WarmingState, warming_daily_limit};
 pub use worker::EmailPollWorker;
 
 use crate::subsystems::BeforeMutationHooks;
