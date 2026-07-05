@@ -36,6 +36,8 @@ use crate::{
 
 mod builder;
 mod extensions;
+#[cfg(feature = "functions-runtime")]
+mod functions_setup;
 mod initialization;
 mod lifecycle;
 mod routing;
@@ -144,6 +146,14 @@ pub struct Server<A: DatabaseAdapter> {
     /// When `Some`, `build_base_router` merges `realtime_router(state)` at
     /// `/realtime/v1`. Set via [`Server::with_realtime`].
     pub(super) realtime_state: Option<crate::realtime::server::RealtimeState>,
+
+    /// Before-mutation function-dispatch hooks, prepared at serve time from the
+    /// compiled schema's functions config (modules loaded, runtimes registered,
+    /// `send_email` wiring attached). When `Some`, `build_app_state` attaches them
+    /// so after:mutation functions fire. `None` when no functions are declared or
+    /// the `functions-runtime` feature is off.
+    #[cfg(feature = "functions-runtime")]
+    pub(super) functions_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
 
     /// Factory for building per-tenant executors at registration time.
     ///

@@ -31,6 +31,10 @@
 pub mod builder;
 pub mod validator;
 
+/// Loads function modules from disk and assembles the functions-runtime subsystem.
+#[cfg(feature = "functions-runtime")]
+pub mod loader;
+
 #[cfg(test)]
 mod tests;
 

@@ -63,9 +63,11 @@ promoted from opt-in to stable.
    permanent refusal (denied identity, bad recipient, SMTP 5xx, over-cap) is a 4xx
    → dead-letter; a transient one (SMTP timeout/greylist, identity store down) is a
    5xx → retry (effective end-to-end via permanent-error tagging, gap #5).
-   `follow-up-email.ts` now calls the op instead of a hand-rolled send. **Not yet
-   closed:** the DB-backed `SendCounter` over the application's mailbox table (the
-   remaining warming piece).
+   `follow-up-email.ts` now calls the op instead of a hand-rolled send. The op runs
+   in the stock server binary: the server loads function modules from the compiled
+   schema's `module_dir` and mounts the after:mutation dispatch hooks at serve time
+   (a missing module fails startup, fail-loud). **Not yet closed:** the DB-backed
+   `SendCounter` over the application's mailbox table (the remaining warming piece).
 
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's

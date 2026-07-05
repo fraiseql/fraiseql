@@ -82,6 +82,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("API key authenticator attached to AppState");
         }
 
+        // Attach the functions-runtime before-mutation hooks prepared at serve time
+        // (modules loaded, runtimes registered, send_email wiring attached), so
+        // after:mutation functions fire on the I/O-capable live host.
+        #[cfg(feature = "functions-runtime")]
+        if let Some(hooks) = self.functions_hooks.as_ref() {
+            state = state.with_functions(hooks.clone());
+        }
+
         // Enriched-identity resolution (#539). When `[identity.enrichment]` is
         // enabled, build the resolver on the unscoped auth pool and attach it, so
         // every authenticated request resolves its DB identity and fail-closes

@@ -143,6 +143,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Prepare functions-runtime dispatch (load modules, register runtimes,
+        // attach the send_email wiring) before the router is built, so
+        // `build_app_state` mounts the before-mutation hooks. Async + fail-loud,
+        // like the RBAC/inbound schema init above; a no-op when no functions are
+        // declared or the feature is off.
+        #[cfg(feature = "functions-runtime")]
+        self.prepare_functions_runtime().await?;
+
         let (app, app_state) = self.build_router();
 
         // Start the poll-IMAP email workers.

@@ -45,12 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cap** that ramps 10/day → 200/day → unlimited. Failures classify onto durable
   dispatch: a permanent refusal (denied identity, bad recipient, SMTP 5xx,
   over-cap) is a 4xx → dead-letter; a transient one (SMTP timeout/greylist,
-  identity store momentarily down) is a 5xx → retry. Attach it via
-  `BeforeMutationHooks::with_email`. **Note:** the stock server binary does not yet
-  populate `before_mutation_hooks`, so after:mutation functions (this op included)
-  run only where the functions-runtime hooks are built — a separate pre-existing
-  gap. The DB-backed `SendCounter` (over the app's mailbox table) is the remaining
-  warming piece. See `docs/architecture/native-runtime-ergonomics.md`.
+  identity store momentarily down) is a 5xx → retry. The DB-backed `SendCounter`
+  (over the app's mailbox table) is the remaining warming piece. See
+  `docs/architecture/native-runtime-ergonomics.md`.
+- **After:mutation functions now run in the stock server binary.** The server loads
+  each declared function's module from the compiled schema's `module_dir`
+  (`<module_dir>/<name>.<ext>` — `.wasm` for WASM, `.js`/`.ts` for Deno), registers
+  the compiled-in runtimes, and mounts the before-mutation dispatch hooks at serve
+  time, so `after:mutation` functions (and the `send_email` op) fire on the
+  I/O-capable live host. Previously the runtime + dispatch machinery existed and was
+  unit-tested but was never wired into the binary. A declared function whose module
+  file is missing or unreadable, or whose runtime is not compiled in, **fails server
+  startup** (a declared function that can never run is a misconfiguration, surfaced
+  loudly rather than silently never firing).
 - **Permanent-error tagging for durable functions.** A function can now signal that
   a failure is permanent so durable dispatch dead-letters it on the first attempt
   instead of exhausting retries: a guest throws
