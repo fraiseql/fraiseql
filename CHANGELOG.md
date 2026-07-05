@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Typed, enforced GraphQL cascade (#539 cascade hardening).** The `cascade`
+- **Typed, enforced GraphQL cascade (cascade hardening).** The `cascade`
   feature — a mutation returning every entity it affected, per the graphql-cascade
   spec — is rebuilt from a verbatim JSONB passthrough into a first-class, enforced
   surface. Opt a mutation in with `cascade=True`
