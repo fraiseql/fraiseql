@@ -110,8 +110,12 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
 
 /// The synthesized cascade type names (mirror `cli::converter::cascade_types`).
 const CASCADE_UPDATES_TYPE: &str = "CascadeUpdates";
+const CASCADE_METADATA_TYPE: &str = "CascadeMetadata";
 const UPDATED_ENTITY_TYPE: &str = "UpdatedEntity";
 const DELETED_ENTITY_TYPE: &str = "DeletedEntity";
+
+/// One mebibyte, for the `max_response_size_mb` cascade ceiling.
+const MIB: usize = 1024 * 1024;
 
 /// Resolve a cascade mutation's concrete payload type: the first non-error member
 /// of the result union, or the return type itself when it is not a union.
@@ -192,8 +196,11 @@ fn build_cascade_payload<A: DatabaseAdapter>(
     Ok(serde_json::Value::Object(out))
 }
 
-/// Build the `CascadeUpdates` envelope (`updated` / `deleted`), filtered to the
-/// client's selection set. `metadata` / `invalidations` land in Phases 04 / 05.
+/// Build the `CascadeUpdates` envelope (`updated` / `deleted` / `metadata`),
+/// filtered to the client's selection set. Enforces the affected-entity ceiling
+/// (truncating + flagging `metadata.truncated`) and the response-size ceiling
+/// (rejecting an over-large cascade), per graphql-cascade `16_security`.
+/// `invalidations` lands in Phase 05.
 fn build_cascade_updates<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
     security_ctx: Option<&SecurityContext>,
@@ -201,6 +208,29 @@ fn build_cascade_updates<A: DatabaseAdapter>(
     selections: &[FieldSelection],
 ) -> Result<serde_json::Value> {
     let cascade_obj = cascade.and_then(serde_json::Value::as_object);
+    let empty: Vec<serde_json::Value> = Vec::new();
+    let updated: &[serde_json::Value] = cascade_obj
+        .and_then(|c| c.get("updated"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(empty.as_slice(), Vec::as_slice);
+    let deleted: &[serde_json::Value] = cascade_obj
+        .and_then(|c| c.get("deleted"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(empty.as_slice(), Vec::as_slice);
+
+    // Affected-entity ceiling: truncate `updated`/`deleted` each to half the limit
+    // and record it in metadata (spec `16_security` size-limiting).
+    let limits = ctx.config.cascade_limits;
+    let total = updated.len() + deleted.len();
+    let truncated = total > limits.max_updated_entities;
+    let (updated, deleted) = if truncated {
+        let half = limits.max_updated_entities / 2;
+        (&updated[..updated.len().min(half)], &deleted[..deleted.len().min(half)])
+    } else {
+        (updated, deleted)
+    };
+    let affected_count = updated.len() + deleted.len();
+
     let mut out = serde_json::Map::new();
     for sel in effective_selections(selections, CASCADE_UPDATES_TYPE, &ctx.schema) {
         match sel.name.as_str() {
@@ -211,44 +241,119 @@ fn build_cascade_updates<A: DatabaseAdapter>(
                 );
             },
             "updated" => {
-                let arr = build_updated_entities(
-                    ctx,
-                    security_ctx,
-                    cascade_obj.and_then(|c| c.get("updated")),
-                    &sel.nested_fields,
-                )?;
+                let arr = build_updated_entities(ctx, security_ctx, updated, &sel.nested_fields)?;
                 out.insert(sel.response_key().to_string(), arr);
             },
             "deleted" => {
-                let arr = build_deleted_entities(
-                    cascade_obj.and_then(|c| c.get("deleted")),
-                    &sel.nested_fields,
-                    &ctx.schema,
-                );
+                let arr = build_deleted_entities(deleted, &sel.nested_fields, &ctx.schema)?;
                 out.insert(sel.response_key().to_string(), arr);
+            },
+            "metadata" => {
+                let meta = build_cascade_metadata(
+                    &ctx.schema,
+                    cascade_obj.and_then(|c| c.get("metadata")),
+                    affected_count,
+                    truncated,
+                    truncated.then_some(total),
+                    &sel.nested_fields,
+                );
+                out.insert(sel.response_key().to_string(), meta);
             },
             _ => {},
         }
     }
-    Ok(serde_json::Value::Object(out))
+    let cascade_value = serde_json::Value::Object(out);
+
+    // Response-size ceiling: reject an over-large cascade (spec `16_security`).
+    let max_bytes = limits.max_response_size_mb.saturating_mul(MIB);
+    if max_bytes > 0 {
+        let size = serde_json::to_vec(&cascade_value).map_or(0, |v| v.len());
+        if size > max_bytes {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "cascade response too large: {size} bytes exceeds the \
+                     max_response_size_mb={} ceiling",
+                    limits.max_response_size_mb
+                ),
+                path:    Some("cascade".to_string()),
+            });
+        }
+    }
+    Ok(cascade_value)
+}
+
+/// Build the `CascadeMetadata` object, filtered to the client's selection set.
+/// The runtime owns `affectedCount` / `truncated` / `originalCount` (computed from
+/// what it actually returns); `timestamp` / `transactionId` / `depth` pass through
+/// from the function's `cascade.metadata` (`depth` defaults to 0 if absent).
+fn build_cascade_metadata(
+    schema: &CompiledSchema,
+    db_metadata: Option<&serde_json::Value>,
+    affected_count: usize,
+    truncated: bool,
+    original_count: Option<usize>,
+    selections: &[FieldSelection],
+) -> serde_json::Value {
+    let db = db_metadata.and_then(serde_json::Value::as_object);
+    let mut out = serde_json::Map::new();
+    for sel in effective_selections(selections, CASCADE_METADATA_TYPE, schema) {
+        let key = sel.response_key().to_string();
+        match sel.name.as_str() {
+            "__typename" => {
+                out.insert(key, serde_json::Value::String(CASCADE_METADATA_TYPE.to_string()));
+            },
+            "affectedCount" => {
+                out.insert(key, serde_json::Value::from(affected_count as u64));
+            },
+            "truncated" => {
+                out.insert(key, serde_json::Value::Bool(truncated));
+            },
+            "originalCount" => {
+                if let Some(oc) = original_count {
+                    out.insert(key, serde_json::Value::from(oc as u64));
+                }
+            },
+            "depth" => {
+                let depth = db
+                    .and_then(|m| m.get("depth"))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::from(0u64));
+                out.insert(key, depth);
+            },
+            "timestamp" => {
+                if let Some(v) = db.and_then(|m| m.get("timestamp")) {
+                    out.insert(key, v.clone());
+                }
+            },
+            "transactionId" => {
+                if let Some(v) =
+                    db.and_then(|m| m.get("transactionId").or_else(|| m.get("transaction_id")))
+                {
+                    out.insert(key, v.clone());
+                }
+            },
+            _ => {},
+        }
+    }
+    serde_json::Value::Object(out)
 }
 
 /// Build the `updated: [UpdatedEntity!]!` array, projecting + field-authorizing
-/// each entry's `entity` under its concrete `__typename`. Fail-closed: an entry
-/// with a missing or unknown `__typename` aborts the response rather than shipping
-/// an unprojected, unauthorized entity.
+/// each entry's `entity` under its concrete `__typename`.
+///
+/// Fail-closed on any malformed entry (Phase 04 strict validation): a missing or
+/// unknown `__typename`, a missing `id`, or a missing/invalid `operation` aborts
+/// the response rather than shipping an unprojectable entity or an SDL-invalid
+/// non-null violation — regardless of what the client selected.
 fn build_updated_entities<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
     security_ctx: Option<&SecurityContext>,
-    entries: Option<&serde_json::Value>,
+    entries: &[serde_json::Value],
     selections: &[FieldSelection],
 ) -> Result<serde_json::Value> {
-    let Some(arr) = entries.and_then(serde_json::Value::as_array) else {
-        return Ok(serde_json::Value::Array(Vec::new()));
-    };
     let effective = effective_selections(selections, UPDATED_ENTITY_TYPE, &ctx.schema);
-    let mut result = Vec::with_capacity(arr.len());
-    for entry in arr {
+    let mut result = Vec::with_capacity(entries.len());
+    for entry in entries {
         let Some(entry_obj) = entry.as_object() else {
             return Err(FraiseQLError::Validation {
                 message: "cascade.updated entry is not an object".to_string(),
@@ -267,6 +372,25 @@ fn build_updated_entities<A: DatabaseAdapter>(
                 message: format!("cascade.updated entry has unknown __typename '{typename}'"),
                 path:    Some("cascade.updated.__typename".to_string()),
             });
+        }
+        // Non-null `id: ID!` and a valid `operation: CascadeOperation!` are required.
+        if !entry_obj.contains_key("id") {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.updated entry is missing id".to_string(),
+                path:    Some("cascade.updated.id".to_string()),
+            });
+        }
+        match entry_obj.get("operation").and_then(serde_json::Value::as_str) {
+            Some("CREATED" | "UPDATED" | "DELETED") => {},
+            other => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "cascade.updated entry has a missing or invalid operation: {other:?} \
+                         (expected CREATED, UPDATED, or DELETED)"
+                    ),
+                    path: Some("cascade.updated.operation".to_string()),
+                });
+            },
         }
         let mut item = serde_json::Map::new();
         for sel in &effective {
@@ -313,19 +437,35 @@ fn build_updated_entities<A: DatabaseAdapter>(
 /// Build the `deleted: [DeletedEntity!]!` array. Deleted entries carry no entity
 /// body (the row is gone) — only `id` + `deletedAt` — so there is nothing to
 /// project or field-authorize.
+///
+/// Fail-closed (Phase 04 strict validation): an entry missing the non-null `id` or
+/// `deletedAt` aborts the response rather than emitting an SDL-invalid violation.
 fn build_deleted_entities(
-    entries: Option<&serde_json::Value>,
+    entries: &[serde_json::Value],
     selections: &[FieldSelection],
     schema: &CompiledSchema,
-) -> serde_json::Value {
-    let Some(arr) = entries.and_then(serde_json::Value::as_array) else {
-        return serde_json::Value::Array(Vec::new());
-    };
+) -> Result<serde_json::Value> {
     let effective = effective_selections(selections, DELETED_ENTITY_TYPE, schema);
-    let mut result = Vec::with_capacity(arr.len());
-    for entry in arr {
+    let mut result = Vec::with_capacity(entries.len());
+    for entry in entries {
         let Some(entry_obj) = entry.as_object() else {
-            continue;
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is not an object".to_string(),
+                path:    Some("cascade.deleted".to_string()),
+            });
+        };
+        if !entry_obj.contains_key("id") {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is missing id".to_string(),
+                path:    Some("cascade.deleted.id".to_string()),
+            });
+        }
+        let deleted_at = entry_obj.get("deletedAt").or_else(|| entry_obj.get("deleted_at"));
+        let Some(deleted_at) = deleted_at else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is missing deletedAt".to_string(),
+                path:    Some("cascade.deleted.deletedAt".to_string()),
+            });
         };
         let mut item = serde_json::Map::new();
         for sel in &effective {
@@ -342,18 +482,14 @@ fn build_deleted_entities(
                     }
                 },
                 "deletedAt" => {
-                    if let Some(d) =
-                        entry_obj.get("deletedAt").or_else(|| entry_obj.get("deleted_at"))
-                    {
-                        item.insert(sel.response_key().to_string(), d.clone());
-                    }
+                    item.insert(sel.response_key().to_string(), deleted_at.clone());
                 },
                 _ => {},
             }
         }
         result.push(serde_json::Value::Object(item));
     }
-    serde_json::Value::Array(result)
+    Ok(serde_json::Value::Array(result))
 }
 
 /// Executes GraphQL mutations with compile-time capability enforcement.

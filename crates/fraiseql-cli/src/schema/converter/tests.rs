@@ -2031,7 +2031,7 @@ mod tenancy_tests {
         assert!(deleted.find_field("entity").is_none(), "DeletedEntity has no entity body");
         assert!(deleted.find_field("deletedAt").is_some(), "DeletedEntity.deletedAt");
 
-        // CascadeUpdates references the split entry types.
+        // CascadeUpdates references the split entry types + a metadata envelope.
         let updates = compiled.types.iter().find(|t| t.name.as_str() == "CascadeUpdates").unwrap();
         let updated_field = updates.find_field("updated").expect("CascadeUpdates.updated");
         assert!(
@@ -2039,6 +2039,11 @@ mod tenancy_tests {
                 if matches!(inner.as_ref(), FieldType::Object(n) if n == "UpdatedEntity")),
             "updated: [UpdatedEntity!]!"
         );
+        assert!(updates.find_field("metadata").is_some(), "CascadeUpdates.metadata");
+        let meta = compiled.types.iter().find(|t| t.name.as_str() == "CascadeMetadata").unwrap();
+        for f in ["timestamp", "depth", "affectedCount", "truncated"] {
+            assert!(meta.find_field(f).is_some(), "CascadeMetadata.{f}");
+        }
 
         // The mutation returns CreatePostPayload { entity, cascade, updatedFields }.
         let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();

@@ -25,9 +25,9 @@
 //! [`super::mutation_error_union`] makes the payload the success member of the
 //! result union (`<Mutation>Result = <Mutation>Payload | MutationError`).
 //!
-//! Scope: `CascadeUpdates.metadata` (depth / affectedCount / truncation) and
-//! `.invalidations` are added in Phases 04 and 05 respectively — until then this
-//! is a spec-*aligned* subset (updated/deleted/operation), not the full envelope.
+//! Scope: `CascadeUpdates.metadata` (timestamp / depth / affectedCount /
+//! truncation) is synthesized here; `.invalidations` is added in Phase 05 — until
+//! then this is a spec-*aligned* subset, not the full envelope.
 //!
 //! It is idempotent (names already owned by a real type/interface/enum are left
 //! alone) and inert unless a mutation opts in — so a schema with no cascade
@@ -52,6 +52,8 @@ const UPDATED_ENTITY: &str = "UpdatedEntity";
 const DELETED_ENTITY: &str = "DeletedEntity";
 /// The cascade envelope carried on a mutation payload.
 const CASCADE_UPDATES: &str = "CascadeUpdates";
+/// Metadata about a cascade (timestamp / depth / counts / truncation).
+const CASCADE_METADATA: &str = "CascadeMetadata";
 
 /// Synthesize the cascade interface, enum, envelope types, and per-mutation
 /// payload wrappers, then rewrite cascade mutations to return their payloads.
@@ -99,6 +101,9 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
     }
     if !existing_type_names.contains(DELETED_ENTITY) {
         schema.types.push(deleted_entity_type());
+    }
+    if !existing_type_names.contains(CASCADE_METADATA) {
+        schema.types.push(cascade_metadata_type());
     }
     if !existing_type_names.contains(CASCADE_UPDATES) {
         schema.types.push(cascade_updates_type());
@@ -248,8 +253,7 @@ fn deleted_entity_type() -> TypeDefinition {
 
 /// The `CascadeUpdates` envelope carried on a cascade mutation's payload.
 ///
-/// `metadata` and `invalidations` are added in Phases 04 and 05 — until then this
-/// is a spec-aligned subset.
+/// `invalidations` is added in Phase 05 — until then this is a spec-aligned subset.
 fn cascade_updates_type() -> TypeDefinition {
     synth_type(
         CASCADE_UPDATES,
@@ -266,8 +270,57 @@ fn cascade_updates_type() -> TypeDefinition {
                 false,
                 "Entities deleted by the mutation.",
             ),
+            synth_field(
+                "metadata",
+                FieldType::Object(CASCADE_METADATA.to_string()),
+                false,
+                "Timestamp, depth, affected count, and truncation status of the cascade.",
+            ),
         ],
         "The set of entities affected by a mutation, per the graphql-cascade spec.",
+    )
+}
+
+/// The `CascadeMetadata` type (graphql-cascade `metadata.schema.json`, plus the
+/// `truncated` / `originalCount` fields the spec's size-limit section adds when a
+/// cascade is truncated).
+fn cascade_metadata_type() -> TypeDefinition {
+    synth_type(
+        CASCADE_METADATA,
+        vec![
+            synth_field(
+                "timestamp",
+                FieldType::DateTime,
+                false,
+                "Server timestamp when the mutation executed (ISO 8601).",
+            ),
+            synth_field(
+                "transactionId",
+                FieldType::Id,
+                true,
+                "Transaction ID for tracking (optional).",
+            ),
+            synth_field("depth", FieldType::Int, false, "Maximum relationship depth traversed."),
+            synth_field(
+                "affectedCount",
+                FieldType::Int,
+                false,
+                "Number of entities in this (possibly truncated) cascade.",
+            ),
+            synth_field(
+                "truncated",
+                FieldType::Boolean,
+                false,
+                "Whether the cascade was truncated to satisfy the affected-entity limit.",
+            ),
+            synth_field(
+                "originalCount",
+                FieldType::Int,
+                true,
+                "The pre-truncation affected count, present only when truncated.",
+            ),
+        ],
+        "Metadata about a mutation's cascade.",
     )
 }
 

@@ -77,6 +77,7 @@ mod query {
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
+            cascade_limits:       crate::runtime::CascadeLimits::default(),
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -866,6 +867,7 @@ mod config {
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
+            cascade_limits:       crate::runtime::CascadeLimits::default(),
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -895,6 +897,7 @@ mod config {
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
+            cascade_limits:       crate::runtime::CascadeLimits::default(),
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);

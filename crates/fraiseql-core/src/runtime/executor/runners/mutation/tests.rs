@@ -3126,6 +3126,7 @@ mod cascade {
     use super::*;
     use crate::{
         db::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        runtime::CascadeLimits,
         schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
         security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
     };
@@ -3358,6 +3359,86 @@ mod cascade {
             entity["email"].is_null(),
             "a gated field on a cascade entity must be authorized (masked): {entity}"
         );
+    }
+
+    /// `metadata` is populated: `affectedCount` counts what is actually returned
+    /// and `truncated` is false for an under-limit cascade.
+    #[tokio::test]
+    async fn cascade_metadata_reports_affected_count() {
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let q = "mutation { createPost { cascade { metadata { affectedCount truncated } } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let meta = &res["data"]["createPost"]["cascade"]["metadata"];
+        // 1 updated + 1 deleted.
+        assert_eq!(meta["affectedCount"], 2);
+        assert_eq!(meta["truncated"], false);
+    }
+
+    /// A cascade over the affected-entity ceiling is truncated (each side to half
+    /// the limit) and flagged `truncated` with the pre-truncation `originalCount`.
+    #[tokio::test]
+    async fn cascade_over_limit_is_truncated_and_flagged() {
+        let updated: Vec<_> = (0..4)
+            .map(|i| {
+                json!({
+                    "__typename": "Post", "id": format!("p{i}"), "operation": "UPDATED",
+                    "entity": { "id": format!("p{i}") }
+                })
+            })
+            .collect();
+        let cascade = json!({ "updated": updated, "deleted": [] });
+        let executor = Executor::with_config(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(cascade)),
+            RuntimeConfig::default().with_cascade_limits(CascadeLimits {
+                max_depth:            3,
+                max_updated_entities: 2,
+                max_response_size_mb: 5,
+            }),
+        );
+        let q = "mutation { createPost { cascade {
+            updated { id }
+            metadata { affectedCount truncated originalCount }
+        } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let cascade = &res["data"]["createPost"]["cascade"];
+        // 4 updated, limit 2 ⇒ truncate updated to half = 1.
+        assert_eq!(cascade["updated"].as_array().unwrap().len(), 1);
+        assert_eq!(cascade["metadata"]["truncated"], true);
+        assert_eq!(cascade["metadata"]["affectedCount"], 1);
+        assert_eq!(cascade["metadata"]["originalCount"], 4);
+    }
+
+    /// Strict entry validation: an `updated` entry missing `operation` fails closed
+    /// (would otherwise be an SDL-invalid non-null `CascadeOperation!` violation).
+    #[tokio::test]
+    async fn cascade_updated_missing_operation_fails_closed() {
+        let cascade = json!({
+            "updated": [ { "__typename": "Post", "id": "p2", "entity": { "id": "p2" } } ],
+            "deleted": []
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let res = executor
+            .execute("mutation { createPost { cascade { updated { id } } } }", None)
+            .await;
+        assert!(res.is_err(), "a cascade updated entry missing operation must fail closed");
+    }
+
+    /// Strict entry validation: a `deleted` entry missing `deletedAt` fails closed.
+    #[tokio::test]
+    async fn cascade_deleted_missing_deleted_at_fails_closed() {
+        let cascade = json!({
+            "updated": [],
+            "deleted": [ { "__typename": "Post", "id": "p3" } ]
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let res = executor
+            .execute("mutation { createPost { cascade { deleted { id } } } }", None)
+            .await;
+        assert!(res.is_err(), "a cascade deleted entry missing deletedAt must fail closed");
     }
 
     /// Fail-closed: a cascade entry naming an unknown type cannot be projected or
