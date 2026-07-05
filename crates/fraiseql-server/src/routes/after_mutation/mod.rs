@@ -253,13 +253,19 @@ pub fn resolve_dispatch_settings(
 #[cfg(feature = "functions-runtime")]
 #[derive(Clone)]
 struct DurableDispatcher {
-    observer:    std::sync::Arc<fraiseql_functions::FunctionObserver>,
-    host_config: fraiseql_functions::host::live::HostContextConfig,
-    limits:      fraiseql_functions::ResourceLimits,
-    dlq:         std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+    observer:        std::sync::Arc<fraiseql_functions::FunctionObserver>,
+    host_config:     fraiseql_functions::host::live::HostContextConfig,
+    limits:          fraiseql_functions::ResourceLimits,
+    dlq:             std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
     /// Which trigger subsystem this dispatcher serves — tags dead-letter records
     /// so `after:mutation` and `after:ingest` failures are distinguishable.
-    source:      fraiseql_observers::DispatchSource,
+    source:          fraiseql_observers::DispatchSource,
+    /// Host-owned sender-identity resolver + email transport for the `send_email`
+    /// op. `None` → the op fails loud on the built host. Threaded from the hooks so
+    /// every dispatched function's fresh host can send from the connected user's
+    /// verified address.
+    sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
+    email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -273,11 +279,19 @@ impl DurableDispatcher {
         // Shared, runtime-agnostic host bridge: the observer dispatches the plan
         // to the WASM or Deno backend by the module's runtime, so the host type
         // must not be tied to either.
+        let mut live = fraiseql_functions::host::live::LiveHostContext::new(
+            payload.clone(),
+            self.host_config.clone(),
+        );
+        // Enable `send_email` (host-owned `from` + transport) when both are wired.
+        if let (Some(resolver), Some(transport)) =
+            (self.sender_resolver.as_ref(), self.email_transport.as_ref())
+        {
+            live =
+                live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
+        }
         let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
-            std::sync::Arc::new(fraiseql_functions::host::live::LiveHostContext::new(
-                payload.clone(),
-                self.host_config.clone(),
-            ));
+            std::sync::Arc::new(live);
         self.observer
             .invoke_with_context(module, payload, host, self.limits.clone())
             .await
@@ -412,6 +426,8 @@ fn spawn_dispatch(
         limits: fraiseql_functions::ResourceLimits::default(),
         dlq: std::sync::Arc::clone(&hooks.dlq),
         source,
+        sender_resolver: hooks.sender_resolver.clone(),
+        email_transport: hooks.email_transport.clone(),
     };
 
     for plan in plans {

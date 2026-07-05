@@ -33,6 +33,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `send_email` op that consumes it lands with the native-runtime hardening
   train. Supersedes #242. See `docs/architecture/enriched-identity-rls.md` and
   ADR-0016.
+- **`send_email` host op with a host-owned `from` (native-runtime hardening).**
+  Functions can now send email through a first-class `send_email` host op (WASM +
+  Deno): the guest supplies only `to`/`subject`/body, and the host injects the
+  `from` from the resolved sender identity (the #539 seam — `LoginEmailSender` by
+  default, a DB-backed resolver where the sending mailbox differs). A guest cannot
+  send from another address (a `from` in the request is dropped at the type level).
+  The transport is **per-connected-account SMTP** (`[mailbox.<name>.smtp]`,
+  STARTTLS, secrets read server-side by mailbox, the account selected by the
+  verified sending address — never a shared mailbox), with a **send-warming daily
+  cap** that ramps 10/day → 200/day → unlimited. Failures classify onto durable
+  dispatch: a permanent refusal (denied identity, bad recipient, SMTP 5xx,
+  over-cap) is a 4xx → dead-letter; a transient one (SMTP timeout/greylist,
+  identity store momentarily down) is a 5xx → retry. The DB-backed `SendCounter`
+  (over the app's mailbox table) is the remaining warming piece. See
+  `docs/architecture/native-runtime-ergonomics.md`.
+- **After:mutation functions now run in the stock server binary.** The server loads
+  each declared function's module from the compiled schema's `module_dir`
+  (`<module_dir>/<name>.<ext>` — `.wasm` for WASM, `.js`/`.ts` for Deno), registers
+  the compiled-in runtimes, and mounts the before-mutation dispatch hooks at serve
+  time, so `after:mutation` functions (and the `send_email` op) fire on the
+  I/O-capable live host. Previously the runtime + dispatch machinery existed and was
+  unit-tested but was never wired into the binary. A declared function whose module
+  file is missing or unreadable, or whose runtime is not compiled in, **fails server
+  startup** (a declared function that can never run is a misconfiguration, surfaced
+  loudly rather than silently never firing).
+- **Permanent-error tagging for durable functions.** A function can now signal that
+  a failure is permanent so durable dispatch dead-letters it on the first attempt
+  instead of exhausting retries: a guest throws
+  `Object.assign(new Error(msg), { fraiseqlPermanent: true })` (or a message carrying
+  the `[fraiseql:permanent]` marker), which the runtime maps to a 4xx `FraiseQLError`.
+  Host ops auto-tag — any op returning a 4xx (client) error is permanent by default,
+  so e.g. a `send_email` refusal (denied identity, rejected recipient, over-cap)
+  dead-letters immediately while a transient one still retries. Untagged errors are
+  unchanged (transient). Works on both the Deno and WASM runtimes.
 - **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
   sidecar's compute is now native TypeScript,
   proving the host surface against a real workload. Four `examples/native-functions`
@@ -263,6 +297,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "not supported" error rather than silently committing.
 
 ### Changed
+
+- **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
+  A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
+  poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
+  (`[mailbox.<name>.smtp]`, consumed by the new `send_email` host op). Either half is
+  optional. **Migration:** move each `[imap.foo]` section to `[mailbox.foo.imap]` and each
+  `[[imap.foo.routing]]` to `[[mailbox.foo.imap.routing]]`. Only affects the opt-in
+  `inbound-email` feature. See `docs/architecture/inbound-email.md`.
 
 - **The distributed saga subsystem is now stable (#429).** The `unstable-saga`
   Cargo feature has been renamed to **`saga`** and its API is now covered by semver

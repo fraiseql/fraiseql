@@ -304,6 +304,18 @@ fn map_guest_outcome(outcome: GuestOutcome) -> Result<Option<serde_json::Value>>
             );
             Ok(Some(value))
         },
+        // A permanent-tagged guest error (a host op that returned a 4xx, or a guest
+        // that tagged its `Err`) maps to a 4xx so durable dispatch dead-letters
+        // immediately; untagged errors stay `Unsupported` (501, transient). Parity
+        // with the Deno runtime.
+        GuestOutcome::GuestError(message)
+            if message.contains(crate::types::PERMANENT_ERROR_MARKER) =>
+        {
+            Err(fraiseql_error::FraiseQLError::Validation {
+                message,
+                path: None,
+            })
+        },
         GuestOutcome::GuestError(message) => {
             Err(fraiseql_error::FraiseQLError::Unsupported { message })
         },
@@ -469,6 +481,24 @@ impl DynHostContext for HostContextSnapshot {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "storage_put not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn send_email<'a>(
+        &'a self,
+        _request: &'a crate::outbound::SendEmailRequest,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = fraiseql_error::Result<crate::outbound::SendEmailResponse>,
+                > + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "send_email not available in snapshot context".to_string(),
             })
         })
     }

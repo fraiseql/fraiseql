@@ -90,6 +90,12 @@ async function fraiseql_storage_put(
   content_type: string,
 ): Promise<void>;
 
+// Send an email. The `from` is host-owned (resolved from the auth context),
+// never supplied by the guest. The request carries only to/subject/body.
+async function fraiseql_send_email(
+  request: string, // JSON: { to, subject, text?, html?, reply_to? }
+): Promise<string>; // JSON: { message_id?, accepted }
+
 // Get the current authenticated user's context
 function fraiseql_auth_context(): string; // JSON string
 
@@ -223,6 +229,16 @@ fn run_guest(
                 memory_peak_bytes: 0,
             }),
             Err(e) if e.starts_with("SyntaxError") => {
+                Err(fraiseql_error::FraiseQLError::Validation {
+                    message: e,
+                    path:    None,
+                })
+            },
+            // A permanent-tagged failure (a host op that returned a 4xx, or a guest
+            // that tagged its throw) maps to a 4xx so durable dispatch dead-letters
+            // immediately instead of retrying. Untagged failures stay `Unsupported`
+            // (501, transient).
+            Err(e) if e.contains(crate::types::PERMANENT_ERROR_MARKER) => {
                 Err(fraiseql_error::FraiseQLError::Validation {
                     message: e,
                     path:    None,

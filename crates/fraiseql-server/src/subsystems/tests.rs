@@ -19,6 +19,8 @@ use fraiseql_storage::{
 use sqlx::PgPool;
 use tempfile::tempdir;
 
+#[cfg(feature = "functions-runtime")]
+use super::BeforeMutationHooks;
 use super::{
     FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem,
     builder::{ServerSubsystemsBuilder, SubsystemBuildError},
@@ -173,6 +175,49 @@ fn into_before_mutation_hooks_resolves_dispatch_settings() {
         "re_runnable resolved from schema"
     );
     assert!(!hooks.dispatch_settings["chargeCard"].re_runnable);
+}
+
+#[cfg(feature = "functions-runtime")]
+#[test]
+fn with_email_attaches_sender_resolver_and_transport() {
+    use std::{future::Future, pin::Pin};
+
+    use fraiseql_functions::{
+        EmailTransport, LoginEmailSender, SendEmailRequest, SendEmailResponse, SenderIdentity,
+    };
+
+    // A transport stub so the seam test needs no SMTP / `inbound-email`.
+    struct NoopTransport;
+    impl EmailTransport for NoopTransport {
+        fn send<'a>(
+            &'a self,
+            _sender: &'a SenderIdentity,
+            _request: &'a SendEmailRequest,
+        ) -> Pin<Box<dyn Future<Output = fraiseql_error::Result<SendEmailResponse>> + Send + 'a>>
+        {
+            Box::pin(async {
+                Ok(SendEmailResponse {
+                    message_id: None,
+                    accepted:   true,
+                })
+            })
+        }
+    }
+
+    let trigger_registry = TriggerRegistry::load_from_definitions(&[]).unwrap();
+    let hooks = BeforeMutationHooks::new(
+        trigger_registry,
+        HashMap::new(),
+        Arc::new(FunctionObserver::new()),
+    );
+    // Unconfigured by default → send_email fails loud.
+    assert!(hooks.sender_resolver.is_none());
+    assert!(hooks.email_transport.is_none());
+
+    // Attaching both enables the op for every dispatched function's fresh host.
+    let hooks = hooks.with_email(Arc::new(LoginEmailSender), Arc::new(NoopTransport));
+    assert!(hooks.sender_resolver.is_some(), "resolver attached");
+    assert!(hooks.email_transport.is_some(), "transport attached");
 }
 
 // ── Realtime ──────────────────────────────────────────────────────────────────

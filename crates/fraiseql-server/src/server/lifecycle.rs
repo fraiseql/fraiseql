@@ -143,23 +143,31 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Prepare functions-runtime dispatch (load modules, register runtimes,
+        // attach the send_email wiring) before the router is built, so
+        // `build_app_state` mounts the before-mutation hooks. Async + fail-loud,
+        // like the RBAC/inbound schema init above; a no-op when no functions are
+        // declared or the feature is off.
+        #[cfg(feature = "functions-runtime")]
+        self.prepare_functions_runtime().await?;
+
         let (app, app_state) = self.build_router();
 
         // Start the poll-IMAP email workers.
-        // Each configured `[imap.<name>]` mailbox runs a background poll loop on
-        // the server's JoinSet, so graceful shutdown aborts them. The workers
+        // Each configured `[mailbox.<name>.imap]` half runs a background poll loop
+        // on the server's JoinSet, so graceful shutdown aborts them. The workers
         // reuse the durable inbound spine and the `after:ingest` dispatch path;
         // attachments stream into the legacy storage backend when one is
         // configured. Must run here (async, after `build_router` supplies the
         // function-dispatch hooks) rather than in the sync `build_router`.
         #[cfg(feature = "inbound-email")]
         if let Some(ref db_pool) = self.db_pool {
-            if !self.config.imap.is_empty() {
+            if self.config.mailbox.values().any(|mailbox| mailbox.imap.is_some()) {
                 use crate::inbound::{email, spine::PostgresInboundSpine};
 
                 // The email path shares the inbound spine; create it here too in
-                // case only `[imap.*]` (no `[webhooks.*]`) is configured. Both
-                // DDLs are idempotent.
+                // case only `[mailbox.*.imap]` (no `[webhooks.*]`) is configured.
+                // Both DDLs are idempotent.
                 PostgresInboundSpine::new(db_pool.clone()).init().await.map_err(|e| {
                     ServerError::ConfigError(format!(
                         "Failed to initialize inbound spine schema: {e}"
@@ -179,7 +187,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 });
                 let hooks = app_state.before_mutation_hooks.clone();
                 let workers = email::build_workers(
-                    &self.config.imap,
+                    &self.config.mailbox,
                     db_pool,
                     hooks.as_ref(),
                     sink.as_ref(),

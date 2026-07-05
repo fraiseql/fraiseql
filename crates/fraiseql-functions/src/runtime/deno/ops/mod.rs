@@ -54,6 +54,20 @@ fn require_host_rc(state: &Rc<RefCell<OpState>>) -> Result<Arc<dyn DynHostContex
     require_host(&state.borrow())
 }
 
+/// Convert a host-op error into an `AnyError`, tagging it **permanent** when it is
+/// a client error (4xx) — a failure that will not succeed on retry (a denied
+/// identity, a rejected recipient, a validation error). The marker travels in the
+/// message so the runtime maps it to a 4xx `FraiseQLError`, which durable dispatch
+/// dead-letters immediately rather than exhausting retries. A 5xx stays untagged
+/// (transient, retried).
+fn op_error(error: fraiseql_error::FraiseQLError) -> AnyError {
+    if error.is_client_error() {
+        deno_core::anyhow::anyhow!("{} {error}", crate::types::PERMANENT_ERROR_MARKER)
+    } else {
+        AnyError::new(error)
+    }
+}
+
 /// Serialised HTTP response handed back to the guest.
 ///
 /// `body` is a [`ToJsBuffer`] so it serialises to a `Uint8Array` in JS, matching
@@ -77,7 +91,7 @@ pub(crate) async fn fraiseql_query(
 ) -> Result<String, AnyError> {
     let host = require_host_rc(&state)?;
     let vars = parse_json_arg(&variables, "variables")?;
-    let result = host.query(&graphql, vars).await.map_err(AnyError::new)?;
+    let result = host.query(&graphql, vars).await.map_err(op_error)?;
     serde_json::to_string(&result)
         .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise query result: {e}"))
 }
@@ -99,7 +113,7 @@ pub(crate) async fn fraiseql_sql_query(
         serde_json::Value::Null => Vec::new(),
         other => vec![other],
     };
-    let rows = host.sql_query(&sql, &params_vec).await.map_err(AnyError::new)?;
+    let rows = host.sql_query(&sql, &params_vec).await.map_err(op_error)?;
     serde_json::to_string(&rows)
         .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise sql result: {e}"))
 }
@@ -121,7 +135,7 @@ pub(crate) async fn fraiseql_http_request(
     let resp = host
         .http_request(&method, &url, &headers, body_vec.as_deref())
         .await
-        .map_err(AnyError::new)?;
+        .map_err(op_error)?;
     Ok(HttpResponseJs {
         status:  resp.status,
         headers: resp.headers,
@@ -140,7 +154,7 @@ pub(crate) async fn fraiseql_storage_get(
     #[string] key: String,
 ) -> Result<Vec<u8>, AnyError> {
     let host = require_host_rc(&state)?;
-    host.storage_get(&bucket, &key).await.map_err(AnyError::new)
+    host.storage_get(&bucket, &key).await.map_err(op_error)
 }
 
 /// Store an object to storage on behalf of the guest.
@@ -156,9 +170,24 @@ pub(crate) async fn fraiseql_storage_put(
 ) -> Result<(), AnyError> {
     let host = require_host_rc(&state)?;
     let body = body.to_vec();
-    host.storage_put(&bucket, &key, &body, &content_type)
-        .await
-        .map_err(AnyError::new)
+    host.storage_put(&bucket, &key, &body, &content_type).await.map_err(op_error)
+}
+
+/// Send an email on behalf of the guest (the `from` is host-owned).
+///
+/// `Deno.core.ops.fraiseql_send_email(requestJson) -> responseJson`
+#[op2(async)]
+#[string]
+pub(crate) async fn fraiseql_send_email(
+    state: Rc<RefCell<OpState>>,
+    #[string] request: String,
+) -> Result<String, AnyError> {
+    let host = require_host_rc(&state)?;
+    let req: crate::outbound::SendEmailRequest = serde_json::from_str(&request)
+        .map_err(|e| deno_core::anyhow::anyhow!("invalid send_email request JSON: {e}"))?;
+    let response = host.send_email(&req).await.map_err(op_error)?;
+    serde_json::to_string(&response)
+        .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise send_email response: {e}"))
 }
 
 /// Return the current auth context as a JSON string (sync).
@@ -168,7 +197,7 @@ pub(crate) async fn fraiseql_storage_put(
 #[string]
 pub(crate) fn fraiseql_auth_context(state: &OpState) -> Result<String, AnyError> {
     let host = require_host(state)?;
-    let ctx = host.auth_context().map_err(AnyError::new)?;
+    let ctx = host.auth_context().map_err(op_error)?;
     serde_json::to_string(&ctx)
         .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise auth context: {e}"))
 }
@@ -183,7 +212,7 @@ pub(crate) fn fraiseql_env_var(
     #[string] name: String,
 ) -> Result<Option<String>, AnyError> {
     let host = require_host(state)?;
-    host.env_var(&name).map_err(AnyError::new)
+    host.env_var(&name).map_err(op_error)
 }
 
 /// Parse a JSON-string op argument, treating an empty string as an empty object.

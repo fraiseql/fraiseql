@@ -47,15 +47,34 @@ pub struct SenderIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SendPolicyError {
     /// Human-readable reason the send is refused.
-    pub message: String,
+    pub message:   String,
+    /// Whether a retry might succeed. A **permanent** refusal (`false`, the
+    /// default) — no verified identity, an ambiguous subject — will not succeed
+    /// on retry and should be dead-lettered immediately. A **transient** refusal
+    /// (`true`) — the identity store is momentarily unavailable — is eligible for
+    /// retry. The `send_email` host op maps this onto the error status durable
+    /// dispatch classifies by (permanent → 403, transient → 503).
+    pub retryable: bool,
 }
 
 impl SendPolicyError {
-    /// Build a refusal from a reason.
+    /// Build a **permanent** refusal from a reason (the default: a retry will not
+    /// help — e.g. no verified sending identity).
     #[must_use]
     pub fn new(message: impl Into<String>) -> Self {
         Self {
-            message: message.into(),
+            message:   message.into(),
+            retryable: false,
+        }
+    }
+
+    /// Build a **transient** refusal from a reason (a retry may succeed — e.g. the
+    /// identity store is momentarily unavailable).
+    #[must_use]
+    pub fn transient(message: impl Into<String>) -> Self {
+        Self {
+            message:   message.into(),
+            retryable: true,
         }
     }
 }
@@ -149,6 +168,60 @@ impl SenderIdentityResolver for LoginEmailSender {
         let result = resolve_sender_identity(auth_context);
         Box::pin(async move { result })
     }
+}
+
+/// A guest's request to send an email via the `send_email` host op.
+///
+/// The `from` is **not** part of this request: it is host-owned and injected by
+/// the op from the resolved [`SenderIdentity`], so a guest can never send from
+/// another address. A `from` field in the guest's JSON is silently ignored (it
+/// maps to no field here), which is the enforcement — the guest cannot override
+/// the sender.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SendEmailRequest {
+    /// The recipient address.
+    pub to:       String,
+    /// The message subject.
+    pub subject:  String,
+    /// The plain-text body, if any. At least one of `text`/`html` should be set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text:     Option<String>,
+    /// The HTML body, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html:     Option<String>,
+    /// An optional `Reply-To` address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<String>,
+}
+
+/// The result of a successful [`send_email`](crate::HostContext::send_email).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SendEmailResponse {
+    /// The relay/provider message id, when one was returned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    /// Always `true` on a returned response — the relay accepted the message.
+    pub accepted:   bool,
+}
+
+/// The transport seam the `send_email` host op relays through, once the op has
+/// resolved the host-owned `from` from the [`SenderIdentityResolver`].
+///
+/// Object-safe so the server can inject an `Arc<dyn EmailTransport>` into the
+/// functions host; the concrete per-connected-account SMTP transport lives in
+/// `fraiseql-server` (the runtime-SMTP owner), mirroring the resolver split.
+///
+/// The returned [`FraiseQLError`](fraiseql_error::FraiseQLError) carries the status
+/// that durable dispatch classifies by: a **4xx** (e.g. `Validation`/403) is a
+/// permanent failure routed straight to the dead-letter queue, a **5xx** (e.g.
+/// `ServiceUnavailable`) is transient and retried.
+pub trait EmailTransport: Send + Sync {
+    /// Send `request` from the resolved verified `sender` identity.
+    fn send<'a>(
+        &'a self,
+        sender: &'a SenderIdentity,
+        request: &'a SendEmailRequest,
+    ) -> BoxFuture<'a, fraiseql_error::Result<SendEmailResponse>>;
 }
 
 #[cfg(test)]

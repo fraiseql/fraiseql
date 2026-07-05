@@ -50,21 +50,28 @@ promoted from opt-in to stable.
    sharing types with the rest of a TS codebase. **Planned: wire real
    type-stripping** (`deno_ast` / swc) so authors write ordinary TypeScript.
 
-2. **Per-user send is a policy + reference pattern, not yet a host op.** The
-   banked constraint — a paired outbound email is sent *from the connected user's
-   verified address, never a shared mailbox* — is enforced today by
-   `fraiseql_functions::outbound::resolve_sender_identity` (a pure, fail-loud
-   policy) plus surfacing the verified `email` in `auth_context`, and the
-   `follow-up-email.ts` reference mirrors it in TypeScript. That makes the rule
-   real and tested, but the `from` still lives in guest code. **Planned: a
-   first-class `send_email` host op that injects the bound `from` (structural,
-   guest cannot override) over a concrete SMTP / provider transport**, reusing the
-   `resolve_sender_identity` policy. The transport is the missing piece — mirror
-   the `sql_query` fail-loud-until-wired stance until it lands.
+2. **Per-user send — DELIVERED as a host op.** The banked constraint — a paired
+   outbound email is sent *from the connected user's verified address, never a
+   shared mailbox* — is now enforced structurally by the `send_email` host op: the
+   guest supplies only `to`/`subject`/body, and the host injects the `from` from
+   the resolved sender identity (the #539 seam — `LoginEmailSender` by default, a
+   DB-backed resolver where the sending mailbox differs). A guest-supplied `from`
+   is dropped at the type level. The transport is per-connected-account SMTP
+   (`[mailbox.<name>.smtp]`, STARTTLS, server-side secrets keyed by mailbox,
+   selected by the verified sending address), with a send-warming daily cap
+   (10/day → 200/day → unlimited). Failures classify onto durable dispatch: a
+   permanent refusal (denied identity, bad recipient, SMTP 5xx, over-cap) is a 4xx
+   → dead-letter; a transient one (SMTP timeout/greylist, identity store down) is a
+   5xx → retry (effective end-to-end via permanent-error tagging, gap #5).
+   `follow-up-email.ts` now calls the op instead of a hand-rolled send. The op runs
+   in the stock server binary: the server loads function modules from the compiled
+   schema's `module_dir` and mounts the after:mutation dispatch hooks at serve time
+   (a missing module fails startup, fail-loud). **Not yet closed:** the DB-backed
+   `SendCounter` over the application's mailbox table (the remaining warming piece).
 
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's
-   *sending* mailbox (the connected IMAP/SMTP account, cf. `[imap.<name>]`) can
+   *sending* mailbox (the connected IMAP/SMTP account, cf. `[mailbox.<name>]`) can
    differ from the JWT subject's email. **Planned: a distinct, verified
    `sending_address` on the security/auth context**, resolved from the connected
    mailbox rather than assumed equal to the login email.
@@ -81,12 +88,17 @@ promoted from opt-in to stable.
    a downstream money or mail API, so paired sends can move to the durable path
    safely.
 
-5. **Error model is throw-or-return.** Transient vs permanent is inferred from the
-   resulting `FraiseQLError` classification, which is the right default, but a
-   function cannot yet *say* "this is permanent, do not retry" (e.g. a validation
-   failure that happens to surface as a 5xx). **Planned: let a function tag a
-   thrown error as permanent** so it dead-letters immediately instead of
-   exhausting retries.
+5. **Permanent-error tagging — DELIVERED.** A function can now say "this failure is
+   permanent, do not retry": a guest throws a tagged error
+   (`Object.assign(new Error(msg), { fraiseqlPermanent: true })`, or a message
+   carrying the `[fraiseql:permanent]` marker), and the runtime maps it to a 4xx
+   `FraiseQLError` — which durable dispatch dead-letters on the first attempt rather
+   than exhausting retries. Host ops auto-tag: any op that returns a 4xx (client)
+   error is permanent by default, so a `send_email` refusal (denied identity, bad
+   recipient, SMTP 5xx, over-cap) dead-letters immediately, while a transient one
+   (timeout, greylist, identity store down) still retries. Untagged errors are
+   unchanged (transient / 501). This makes the op's permanent/transient split
+   effective end-to-end across the guest boundary.
 
 6. **Testing: one V8 isolate per process.** Two Deno invocations in a single test
    process abort (V8). Each workload test therefore does exactly one invocation

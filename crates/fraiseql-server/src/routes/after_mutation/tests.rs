@@ -259,6 +259,8 @@ mod durable_dispatch {
             limits: ResourceLimits::default(),
             dlq,
             source: fraiseql_observers::DispatchSource::AfterMutation,
+            sender_resolver: None,
+            email_transport: None,
         }
     }
 

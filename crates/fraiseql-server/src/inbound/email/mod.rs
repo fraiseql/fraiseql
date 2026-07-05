@@ -32,13 +32,17 @@ use tracing::{info, warn};
 pub mod config;
 pub mod cursor;
 pub mod imap;
+pub mod smtp;
 pub mod store;
+pub mod warming;
 pub mod worker;
 
-pub use config::{ImapMailboxConfig, RoutingRuleConfig};
+pub use config::{ImapConfig, MailboxConfig, MailboxSmtpConfig, RoutingRuleConfig, SmtpTlsMode};
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
+pub use smtp::{SmtpMailboxTransport, build_email_transport};
 pub use store::PostgresEmailCursorStore;
+pub use warming::{SendCounter, WarmingState, warming_daily_limit};
 pub use worker::EmailPollWorker;
 
 use crate::subsystems::BeforeMutationHooks;
@@ -53,37 +57,42 @@ pub async fn init_cursor_store(pool: &sqlx::PgPool) -> fraiseql_error::Result<()
     PostgresEmailCursorStore::new(pool.clone()).init().await
 }
 
-/// Build a poll worker (and its interval) for each configured mailbox.
+/// Build a poll worker (and its interval) for each mailbox with an IMAP half.
 ///
-/// A mailbox whose `password_env` is unset, or whose TLS connector cannot be
-/// built, is skipped with a warning rather than started without credentials.
-/// `get_env` resolves the password env (in production, [`std::env::var`]); `sink`
-/// is the storage backend attachments stream into (`None` drops attachments);
-/// `hooks` fire `after:ingest:email` (`None` ingests without dispatch).
+/// A mailbox with no `[mailbox.<name>.imap]` half is skipped (send-only). A mailbox
+/// whose `password_env` is unset, or whose TLS connector cannot be built, is
+/// skipped with a warning rather than started without credentials. `get_env`
+/// resolves the password env (in production, [`std::env::var`]); `sink` is the
+/// storage backend attachments stream into (`None` drops attachments); `hooks`
+/// fire `after:ingest:email` (`None` ingests without dispatch).
 #[must_use]
 pub fn build_workers<S: std::hash::BuildHasher>(
-    mailboxes: &HashMap<String, ImapMailboxConfig, S>,
+    mailboxes: &HashMap<String, MailboxConfig, S>,
     pool: &sqlx::PgPool,
     hooks: Option<&Arc<BeforeMutationHooks>>,
     sink: Option<&Arc<dyn StorageBackend>>,
     get_env: impl Fn(&str) -> Option<String>,
 ) -> Vec<(EmailPollWorker, Duration)> {
     let mut workers = Vec::new();
-    for (name, config) in mailboxes {
-        let Some(password) = get_env(&config.password_env) else {
+    for (name, mailbox) in mailboxes {
+        // Send-only mailboxes have no IMAP half — nothing to poll.
+        let Some(imap) = mailbox.imap.as_ref() else {
+            continue;
+        };
+        let Some(password) = get_env(&imap.password_env) else {
             warn!(
                 mailbox = %name,
-                password_env = %config.password_env,
+                password_env = %imap.password_env,
                 "poll-IMAP mailbox not started: password env is unset"
             );
             continue;
         };
         let fetcher = match ImapMailboxFetcher::new(
-            &config.host,
-            config.port,
-            &config.username,
+            &imap.host,
+            imap.port,
+            &imap.username,
             password,
-            &config.mailbox,
+            &imap.mailbox,
         ) {
             Ok(fetcher) => Arc::new(fetcher),
             Err(error) => {
@@ -91,22 +100,22 @@ pub fn build_workers<S: std::hash::BuildHasher>(
                 continue;
             },
         };
-        let routing_rules = config.routing.iter().map(RoutingRuleConfig::to_rule).collect();
+        let routing_rules = imap.routing.iter().map(RoutingRuleConfig::to_rule).collect();
         let worker = EmailPollWorker::new(
             name.clone(),
             fetcher,
             pool.clone(),
             routing_rules,
-            config.batch_size,
-            config.attachment_bucket.clone(),
+            imap.batch_size,
+            imap.attachment_bucket.clone(),
             sink.cloned(),
             hooks.cloned(),
         );
-        let interval = Duration::from_secs(config.poll_interval_secs.max(1));
+        let interval = Duration::from_secs(imap.poll_interval_secs.max(1));
         info!(
             mailbox = %name,
-            host = %config.host,
-            folder = %config.mailbox,
+            host = %imap.host,
+            folder = %imap.mailbox,
             "poll-IMAP mailbox configured"
         );
         workers.push((worker, interval));

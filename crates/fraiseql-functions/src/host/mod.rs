@@ -91,6 +91,22 @@ pub trait HostContext: Send + Sync {
         content_type: &str,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    /// Send an email.
+    ///
+    /// The `from` is **host-owned**: it is resolved by the host from the
+    /// authenticated identity, never supplied by the guest (a `from` field in the
+    /// guest request is ignored). The request carries only `to`/`subject`/body.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if no sender-identity resolver or transport is configured, the
+    /// sender identity cannot be resolved (fail-closed), or the relay rejects the
+    /// message.
+    fn send_email(
+        &self,
+        request: &crate::outbound::SendEmailRequest,
+    ) -> impl Future<Output = Result<crate::outbound::SendEmailResponse>> + Send;
+
     /// Get the current authenticated user's context.
     ///
     /// # Errors
@@ -191,6 +207,15 @@ impl HostContext for NoopHostContext {
     ) -> Result<()> {
         Err(fraiseql_error::FraiseQLError::Unsupported {
             message: "HostContext::storage_put not implemented".to_string(),
+        })
+    }
+
+    async fn send_email(
+        &self,
+        _request: &crate::outbound::SendEmailRequest,
+    ) -> Result<crate::outbound::SendEmailResponse> {
+        Err(fraiseql_error::FraiseQLError::Unsupported {
+            message: "HostContext::send_email not implemented".to_string(),
         })
     }
 

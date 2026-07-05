@@ -9,10 +9,10 @@
 //! This lands the resolver and the seam; the `send_email` host op that injects
 //! and calls it — and the SMTP transport — are the hardening train's, not #539's.
 
-// Reason: the DB-backed sender is constructed and injected into the functions
-// host by the hardening-train `send_email` op; until that lands it has no
-// non-test caller. Scoped to this file so the rest of the module keeps live
-// dead-code detection.
+// Reason: the DB-backed sender is constructed by the `send_email` wiring
+// (`Server::build_sender_resolver`), which is gated on `inbound-email`. Under an
+// `auth`-only build (no `inbound-email`) it has no caller, so the file keeps this
+// allow; the rest of the module keeps live dead-code detection.
 #![allow(dead_code)]
 
 use std::{collections::HashMap, future::Future, pin::Pin};
@@ -97,9 +97,9 @@ impl SenderIdentityResolver for DbSenderIdentityResolver {
                 IdentityResolution::Denied(_) => Err(SendPolicyError::new(
                     "refusing to send: no verified sending identity for the connected user",
                 )),
-                IdentityResolution::Unavailable(_) => {
-                    Err(SendPolicyError::new("sender identity resolution temporarily unavailable"))
-                },
+                IdentityResolution::Unavailable(_) => Err(SendPolicyError::transient(
+                    "sender identity resolution temporarily unavailable",
+                )),
             }
         })
     }

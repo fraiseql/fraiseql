@@ -619,15 +619,17 @@ pub struct ServerConfig {
     #[serde(default)]
     pub webhooks: HashMap<String, crate::config::WebhookRouteConfig>,
 
-    /// Poll-IMAP inbound email mailboxes (`[imap.<name>]`), keyed by mailbox name.
+    /// Connected mailbox accounts (`[mailbox.<name>]`), keyed by account name.
     ///
-    /// Each entry starts a background poll worker that fetches new messages by UID
-    /// watermark, normalizes their MIME to an `InboundMessage` on the durable
-    /// spine, and fires `after:ingest:email` functions. Requires the
+    /// Each account carries an optional poll-IMAP receive half
+    /// (`[mailbox.<name>.imap]`) — a background poll worker that fetches new
+    /// messages by UID watermark, normalizes their MIME to an `InboundMessage` on
+    /// the durable spine, and fires `after:ingest:email` functions — and (via the
+    /// hardening `send_email` transport) an SMTP send half. Requires the
     /// `inbound-email` feature and a PostgreSQL pool; empty by default.
     #[cfg(feature = "inbound-email")]
     #[serde(default)]
-    pub imap: HashMap<String, crate::inbound::email::ImapMailboxConfig>,
+    pub mailbox: HashMap<String, crate::inbound::email::MailboxConfig>,
 
     /// Multi-tenant executor runtime configuration.
     ///
@@ -826,7 +828,7 @@ impl Default for ServerConfig {
             #[cfg(feature = "inbound")]
             webhooks: HashMap::new(), // No inbound webhook routes by default
             #[cfg(feature = "inbound-email")]
-            imap: HashMap::new(), // No poll-IMAP mailboxes by default
+            mailbox: HashMap::new(), // No connected mailboxes by default
             tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
             #[cfg(feature = "auth")]
             identity: None, // Enriched-identity resolution off by default

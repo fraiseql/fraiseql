@@ -23,6 +23,9 @@ interface io {
     http-request: func(method: string, url: string, headers: list<tuple<string, string>>, body: option<list<u8>>) -> result<http-response, string>;
     storage-get: func(bucket: string, key: string) -> result<list<u8>, string>;
     storage-put: func(bucket: string, key: string, body: list<u8>, content-type: string) -> result<_, string>;
+    // Host-owned `from`: the request JSON carries only to/subject/body; the host
+    // resolves and injects the sender address. JSON in, JSON out.
+    send-email: func(request: string) -> result<string, string>;
 }
 
 world fraiseql-function {

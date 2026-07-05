@@ -29,12 +29,15 @@ It is opt-in behind the `inbound-email` Cargo feature.
 
 ## Configuration
 
-Each mailbox is one `[imap.<name>]` section. The section name is the mailbox's
-stable identity — it names the cursor row, so do not rename a mailbox in
-production.
+Each connected account is one `[mailbox.<name>]` section. The section name is the
+account's stable identity — it names the cursor row, so do not rename a mailbox in
+production. The poll-IMAP *receive* half lives under `[mailbox.<name>.imap]`; the
+SMTP *send* half (used by the `send_email` host op) lives under
+`[mailbox.<name>.smtp]`. Either half is optional — a `[mailbox.<name>.imap]`-only
+account only receives; a `[mailbox.<name>.smtp]`-only account only sends.
 
 ```toml
-[imap.support]
+[mailbox.support.imap]
 host = "imap.example.com"        # also the TLS SNI / certificate name
 port = 993                        # default 993 (IMAPS)
 username = "support@example.com"
@@ -47,13 +50,18 @@ attachment_bucket = "inbound"     # optional; attachments dropped if unset
 # Declared dedicated-address routing (optional). A message to a rule's address
 # maps to `entity_type`; the recipient's plus-tag becomes the entity id
 # (`support+ticket-42@…` → Ticket / 42).
-[[imap.support.routing]]
+[[mailbox.support.imap.routing]]
 address = "support@example.com"
 entity_type = "Ticket"
 ```
 
-A mailbox whose `password_env` is unset is **skipped with a warning**, never
+A mailbox whose IMAP `password_env` is unset is **skipped with a warning**, never
 polled without credentials. Requires a PostgreSQL pool.
+
+> **Renamed (breaking).** The receive config moved from `[imap.<name>]` to
+> `[mailbox.<name>.imap]` so one connected account can carry both its inbound and
+> outbound halves under one section name. Update any `[imap.*]` sections to
+> `[mailbox.*.imap]` (and `[[imap.*.routing]]` to `[[mailbox.*.imap.routing]]`).
 
 ---
 
