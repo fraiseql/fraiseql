@@ -1993,12 +1993,14 @@ mod tenancy_tests {
         }
     }
 
-    /// A `cascade = true` mutation synthesizes the typed surface: the shared
+    /// A `cascade = true` mutation synthesizes the spec-aligned typed surface: the
     /// `CascadeNode` interface (auto-implemented on every queryable entity), the
-    /// `CascadeUpdates`/`CascadeEntity` envelope, and a `<Name>Payload { entity,
-    /// cascade }` wrapper the mutation now returns.
+    /// `CascadeOperation` enum, the `UpdatedEntity`/`DeletedEntity`/`CascadeUpdates`
+    /// envelope, and a `<Name>Payload { entity, cascade, updatedFields }` wrapper.
     #[test]
     fn cascade_synthesis_builds_typed_surface() {
+        use fraiseql_core::schema::FieldType;
+
         use crate::schema::SchemaConverter;
         let create_post = IntermediateMutation {
             cascade: true,
@@ -2013,20 +2015,42 @@ mod tenancy_tests {
         let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
         assert!(post.implements.iter().any(|i| i == "CascadeNode"), "Post implements CascadeNode");
 
-        // Envelope types exist.
-        assert!(compiled.types.iter().any(|t| t.name.as_str() == "CascadeUpdates"));
-        assert!(compiled.types.iter().any(|t| t.name.as_str() == "CascadeEntity"));
+        // CascadeOperation enum with the spec's three values.
+        let op = compiled.enums.iter().find(|e| e.name == "CascadeOperation").expect("enum");
+        for v in ["CREATED", "UPDATED", "DELETED"] {
+            assert!(op.has_value(v), "CascadeOperation has {v}");
+        }
 
-        // The mutation returns CreatePostPayload { entity, cascade }.
+        // UpdatedEntity carries operation + a non-null typed entity; DeletedEntity
+        // carries no entity body (a deleted row has nothing to project).
+        let updated = compiled.types.iter().find(|t| t.name.as_str() == "UpdatedEntity").unwrap();
+        assert!(updated.find_field("operation").is_some(), "UpdatedEntity.operation");
+        let entity_field = updated.find_field("entity").expect("UpdatedEntity.entity");
+        assert!(!entity_field.nullable, "UpdatedEntity.entity is non-null");
+        let deleted = compiled.types.iter().find(|t| t.name.as_str() == "DeletedEntity").unwrap();
+        assert!(deleted.find_field("entity").is_none(), "DeletedEntity has no entity body");
+        assert!(deleted.find_field("deletedAt").is_some(), "DeletedEntity.deletedAt");
+
+        // CascadeUpdates references the split entry types.
+        let updates = compiled.types.iter().find(|t| t.name.as_str() == "CascadeUpdates").unwrap();
+        let updated_field = updates.find_field("updated").expect("CascadeUpdates.updated");
+        assert!(
+            matches!(&updated_field.field_type, FieldType::List(inner)
+                if matches!(inner.as_ref(), FieldType::Object(n) if n == "UpdatedEntity")),
+            "updated: [UpdatedEntity!]!"
+        );
+
+        // The mutation returns CreatePostPayload { entity, cascade, updatedFields }.
         let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
         assert_eq!(m.return_type, "CreatePostPayload");
         let payload =
             compiled.types.iter().find(|t| t.name.as_str() == "CreatePostPayload").unwrap();
         assert!(payload.find_field("entity").is_some(), "payload has entity");
         assert!(payload.find_field("cascade").is_some(), "payload has cascade");
+        assert!(payload.find_field("updatedFields").is_some(), "payload rehomes updatedFields");
     }
 
-    /// No `cascade = true` mutation ⇒ the pass is inert: no cascade types, no
+    /// No `cascade = true` mutation ⇒ the pass is inert: no cascade types/enum, no
     /// `implements` churn, mutation return type unchanged (byte-identical to a
     /// schema compiled before the pass existed).
     #[test]
@@ -2041,6 +2065,7 @@ mod tenancy_tests {
 
         assert!(!compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
         assert!(!compiled.types.iter().any(|t| t.name.as_str() == "CascadeUpdates"));
+        assert!(!compiled.enums.iter().any(|e| e.name == "CascadeOperation"));
         let m = compiled.mutations.iter().find(|m| m.name == "createPost").unwrap();
         assert_eq!(m.return_type, "Post");
         let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
