@@ -284,3 +284,38 @@ fn subkey_is_deterministic_and_root_dependent() {
     // Domain separation: the subkey is not the raw root truncated/padded.
     assert_ne!(&derive_idempotency_subkey(b"root")[..], b"root");
 }
+
+// ── Suppression address hashing (GDPR: never store the raw address) ───────────────
+
+#[test]
+fn address_hash_key_is_domain_separated_from_the_send_id_subkey() {
+    // The two subkeys derive from the same root but must be independent — one must
+    // not be recoverable from the other.
+    assert_ne!(derive_address_hash_key(b"root"), derive_idempotency_subkey(b"root"));
+    // Deterministic + root-dependent, like the send-id subkey.
+    assert_eq!(derive_address_hash_key(b"root"), derive_address_hash_key(b"root"));
+    assert_ne!(derive_address_hash_key(b"root-a"), derive_address_hash_key(b"root-b"));
+}
+
+#[test]
+fn address_hash_is_deterministic_case_and_whitespace_insensitive() {
+    let key = derive_address_hash_key(b"root");
+    let canonical = hash_address(&key, "bob@example.com");
+    // Casing and surrounding whitespace must not split one recipient into distinct
+    // suppression entries.
+    assert_eq!(hash_address(&key, "Bob@Example.COM"), canonical);
+    assert_eq!(hash_address(&key, "  bob@example.com  "), canonical);
+    // A full HMAC-SHA256, hex-encoded → 64 chars, lowercase hex.
+    assert_eq!(canonical.len(), 64);
+    assert!(canonical.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+}
+
+#[test]
+fn address_hash_binds_to_the_key() {
+    // Without the key an attacker cannot recompute the stored hash from the address,
+    // and a different address hashes differently under the same key.
+    let key_a = derive_address_hash_key(b"root-a");
+    let key_b = derive_address_hash_key(b"root-b");
+    assert_ne!(hash_address(&key_a, "bob@example.com"), hash_address(&key_b, "bob@example.com"));
+    assert_ne!(hash_address(&key_a, "bob@example.com"), hash_address(&key_a, "eve@example.com"));
+}

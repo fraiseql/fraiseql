@@ -54,7 +54,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut hooks =
             subsystem.into_before_mutation_hooks().with_idempotency_key(idempotency_key);
 
-        if let Some((resolver, transport)) = self.build_send_email_wiring() {
+        if let Some((resolver, transport)) = self.build_send_email_wiring().await? {
             hooks = hooks.with_email(resolver, transport);
             tracing::info!(
                 "send_email host op enabled (host-owned from, per-connected-account SMTP)"
@@ -90,24 +90,72 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build the `send_email` wiring — sender-identity resolver + SMTP transport —
     /// from config. Returns `None` when no SMTP mailbox is configured, leaving
     /// `send_email` fail-loud.
-    fn build_send_email_wiring(
+    ///
+    /// When a database pool is available, the transport is wired to the
+    /// delivery-feedback store (`PgSendTracker`, tables created here); when the
+    /// server HMAC secret is set, the recipient address-hash key is derived so the
+    /// suppression check is active. The store's tables are created here (async,
+    /// fail-loud) rather than in the IMAP-worker block, because a send-only mailbox
+    /// needs them without ever polling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`] if the delivery-feedback schema cannot
+    /// be created.
+    // Reason: the body awaits only under `inbound-email`; without it, `Ok(None)`.
+    #[allow(clippy::unused_async)]
+    async fn build_send_email_wiring(
         &self,
-    ) -> Option<(
-        Arc<dyn fraiseql_functions::SenderIdentityResolver>,
-        Arc<dyn fraiseql_functions::EmailTransport>,
-    )> {
+    ) -> Result<
+        Option<(
+            Arc<dyn fraiseql_functions::SenderIdentityResolver>,
+            Arc<dyn fraiseql_functions::EmailTransport>,
+        )>,
+        ServerError,
+    > {
         #[cfg(feature = "inbound-email")]
         {
-            let transport =
-                crate::inbound::email::build_email_transport(&self.config.mailbox, |name| {
-                    std::env::var(name).ok()
-                })?;
-            Some((self.build_sender_resolver(), transport))
+            // The delivery-feedback store (suppression + send-status + exactly-once)
+            // needs a database pool; without one the transport still sends, just
+            // without tracking.
+            let tracker = match self.db_pool.as_ref() {
+                Some(pool) => {
+                    let tracker = crate::inbound::email::PgSendTracker::new(pool.clone());
+                    tracker.init().await.map_err(|error| {
+                        ServerError::ConfigError(format!(
+                            "failed to initialize send-tracking schema: {error}"
+                        ))
+                    })?;
+                    Some(Arc::new(tracker) as Arc<dyn crate::inbound::email::SendTracker>)
+                },
+                None => None,
+            };
+            let address_hash_key = self.build_address_hash_key();
+            let Some(transport) = crate::inbound::email::build_email_transport(
+                &self.config.mailbox,
+                |name| std::env::var(name).ok(),
+                tracker,
+                address_hash_key,
+            ) else {
+                return Ok(None);
+            };
+            Ok(Some((self.build_sender_resolver(), transport)))
         }
         #[cfg(not(feature = "inbound-email"))]
         {
-            None
+            Ok(None)
         }
+    }
+
+    /// Derive the recipient address-hash key from the configured server HMAC secret
+    /// (domain-separated from the send-id subkey). `None` → no suppression check
+    /// (the same fail-closed posture as the unsigned idempotency token).
+    #[cfg(feature = "inbound-email")]
+    fn build_address_hash_key(&self) -> Option<Arc<[u8]>> {
+        let env_name = self.config.hmac_secret_env.as_deref()?;
+        let secret = std::env::var(env_name).ok().filter(|secret| !secret.is_empty())?;
+        let key = fraiseql_observers::derive_address_hash_key(secret.as_bytes());
+        Some(Arc::from(key.as_slice()))
     }
 
     /// The sender-identity resolver: DB-backed on the shared identity primitive

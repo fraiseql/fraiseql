@@ -131,31 +131,70 @@ pub fn derive_idempotency_token(
         buf.extend_from_slice(field.as_bytes());
     }
     match key {
-        Some(key) => {
-            let mut mac = Hmac::<Sha256>::new_from_slice(key)
-                .expect("HMAC-SHA256 accepts a key of any length");
-            mac.update(&buf);
-            hex::encode(&mac.finalize().into_bytes()[..16])
-        },
+        Some(key) => hex::encode(&hmac_sha256(key, &buf)[..16]),
         None => hex::encode(&Sha256::digest(&buf)[..16]),
     }
 }
 
+/// Compute `HMAC-SHA256(key, data)`.
+///
+/// The single place the HMAC construction lives: HMAC accepts a key of any length,
+/// so `new_from_slice` is infallible here — keeping the one unreachable `.expect`
+/// out of the public functions (and their panic docs).
+fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(key).expect("HMAC-SHA256 accepts a key of any length");
+    mac.update(data);
+    mac.finalize().into_bytes().into()
+}
+
+/// Expand a server root secret into a domain-separated 32-byte subkey.
+///
+/// HKDF-Expand-style: a single `HMAC-SHA256(root, info)` block. `info` is the
+/// domain-separation label so two uses of the same root secret (the send-id key,
+/// the suppression address-hash key, …) derive independent, non-interchangeable
+/// subkeys — knowing one never reveals another.
+fn expand_subkey(root_secret: &[u8], info: &[u8]) -> [u8; 32] {
+    hmac_sha256(root_secret, info)
+}
+
 /// Derive the idempotency-token HMAC subkey from a server root secret.
 ///
-/// Domain-separates the send-id key from any other use of the same root secret
-/// (HKDF-Expand-style: a single `HMAC-SHA256(root, info)` block), so the send-id
-/// key is independent of, say, a JWT-signing use of the same secret. The 32-byte
-/// output is the `key` passed to [`derive_idempotency_token`] to produce the
-/// unforgeable, signed send-id.
+/// The 32-byte output is the `key` passed to [`derive_idempotency_token`] to
+/// produce the unforgeable, signed send-id. Domain-separated (see
+/// [`expand_subkey`]) so it is independent of any other use of the same root
+/// secret, such as [`derive_address_hash_key`] or a JWT-signing use.
 #[must_use]
 pub fn derive_idempotency_subkey(root_secret: &[u8]) -> [u8; 32] {
-    let mut mac = Hmac::<Sha256>::new_from_slice(root_secret)
-        .expect("HMAC-SHA256 accepts a key of any length");
-    mac.update(b"fraiseql:idempotency-send-id:v1");
-    let mut key = [0u8; 32];
-    key.copy_from_slice(&mac.finalize().into_bytes());
-    key
+    expand_subkey(root_secret, b"fraiseql:idempotency-send-id:v1")
+}
+
+/// Derive the suppression-address-hash key from a server root secret.
+///
+/// The 32-byte output keys [`hash_address`], which turns a recipient address into
+/// the opaque hash stored on the suppression list. Domain-separated from the
+/// send-id subkey (see [`expand_subkey`]) so the two are cryptographically
+/// independent. Keying the hash (rather than a bare digest) both makes it
+/// unforgeable and lets the "do-not-contact" match survive a GDPR erasure of the
+/// raw address elsewhere — the hash is retained, the address is not.
+#[must_use]
+pub fn derive_address_hash_key(root_secret: &[u8]) -> [u8; 32] {
+    expand_subkey(root_secret, b"fraiseql:suppression-address:v1")
+}
+
+/// Hash a recipient email address for the suppression list, keyed with the
+/// [`derive_address_hash_key`] subkey.
+///
+/// The address is normalised (trimmed, lowercased) before hashing so casing and
+/// surrounding whitespace do not split a recipient into distinct suppression
+/// entries. The output is 64 lowercase hex characters (a full `HMAC-SHA256`) —
+/// this hash is stored/compared in a table column, not an email local part, so it
+/// is not truncated. Storing only this keyed hash (never the raw address) is what
+/// keeps the suppression match intact after the address is erased elsewhere.
+#[must_use]
+pub fn hash_address(key: &[u8], address: &str) -> String {
+    let normalised = address.trim().to_lowercase();
+    hex::encode(hmac_sha256(key, normalised.as_bytes()))
 }
 
 /// A function-trigger dispatch that exhausted its retries (or failed

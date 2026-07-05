@@ -466,7 +466,14 @@ impl HostContext for LiveHostContext {
             }
         })?;
 
-        transport.send(&sender, request).await
+        // The per-dispatch context: the send-id is the host idempotency token (the
+        // VERP correlation key + exactly-once dedup key); the tenant scopes the
+        // send-status / suppression rows. Both are host-owned, never guest input.
+        let context = crate::outbound::SendContext {
+            send_id: self.idempotency_token.as_deref(),
+            tenant:  self.security_context.tenant_id.as_ref().map(|tenant| tenant.as_str()),
+        };
+        transport.send(&sender, request, context).await
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {

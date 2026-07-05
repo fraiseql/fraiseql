@@ -204,6 +204,31 @@ pub struct SendEmailResponse {
     pub accepted:   bool,
 }
 
+/// The per-dispatch context a [`send`](EmailTransport::send) carries beyond the
+/// sender and the request: the correlation send-id and the tenant scope.
+///
+/// The `send_id` is the host's per-dispatch idempotency token (see
+/// [`idempotency_token`](crate::HostContext::idempotency_token)); the transport
+/// uses it two ways — as the VERP `bounces+<send-id>@…` Return-Path that
+/// correlates an inbound bounce/challenge/reply back to this send, and as an
+/// exactly-once key so a durable retry of an already-sent dispatch does not
+/// double-send. The `tenant` scopes the send-status and suppression rows the
+/// transport reads/writes. Both are `Option` because a zero-config deployment (no
+/// HMAC secret, no tenant) sends without correlation or tenant scoping.
+///
+/// A named struct rather than positional `Option<&str>` parameters: `send_id` and
+/// `tenant` are both optional strings and would be trivially transposable at the
+/// call site.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SendContext<'a> {
+    /// The per-dispatch VERP send-id / exactly-once key. `None` → the transport
+    /// sends with no VERP Return-Path and no exactly-once dedup.
+    pub send_id: Option<&'a str>,
+    /// The tenant the send is scoped to (RLS stamp on send-status / suppression
+    /// rows). `None` → single-tenant.
+    pub tenant:  Option<&'a str>,
+}
+
 /// The transport seam the `send_email` host op relays through, once the op has
 /// resolved the host-owned `from` from the [`SenderIdentityResolver`].
 ///
@@ -216,11 +241,13 @@ pub struct SendEmailResponse {
 /// permanent failure routed straight to the dead-letter queue, a **5xx** (e.g.
 /// `ServiceUnavailable`) is transient and retried.
 pub trait EmailTransport: Send + Sync {
-    /// Send `request` from the resolved verified `sender` identity.
+    /// Send `request` from the resolved verified `sender` identity, within the
+    /// per-dispatch [`SendContext`] (correlation send-id + tenant scope).
     fn send<'a>(
         &'a self,
         sender: &'a SenderIdentity,
         request: &'a SendEmailRequest,
+        context: SendContext<'a>,
     ) -> BoxFuture<'a, fraiseql_error::Result<SendEmailResponse>>;
 }
 

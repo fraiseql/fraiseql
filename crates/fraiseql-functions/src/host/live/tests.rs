@@ -968,15 +968,26 @@ async fn test_host_event_payload_returns_trigger_data() {
 // ── send_email host op (host-owned `from`) ──────────────────────────────────────
 
 use crate::outbound::{
-    BoxFuture, EmailTransport, LoginEmailSender, SendEmailRequest, SendEmailResponse,
+    BoxFuture, EmailTransport, LoginEmailSender, SendContext, SendEmailRequest, SendEmailResponse,
     SendPolicyError, SenderIdentity, SenderIdentityResolver,
 };
 
-/// A transport that records the `(sender, request)` it was last asked to send and
-/// returns success — so a test can assert on the host-owned `from` the op bound.
+/// What a [`RecordingTransport`] captured on its last send: the resolved sender,
+/// the request, and the per-dispatch send-id / tenant the host threaded in.
+#[derive(Clone)]
+struct RecordedSend {
+    sender:  SenderIdentity,
+    request: SendEmailRequest,
+    send_id: Option<String>,
+    tenant:  Option<String>,
+}
+
+/// A transport that records the send it was last asked to make and returns success
+/// — so a test can assert on the host-owned `from` the op bound and the
+/// per-dispatch context (send-id / tenant) the host threaded through.
 #[derive(Default)]
 struct RecordingTransport {
-    last: std::sync::Mutex<Option<(SenderIdentity, SendEmailRequest)>>,
+    last: std::sync::Mutex<Option<RecordedSend>>,
 }
 
 impl EmailTransport for RecordingTransport {
@@ -984,8 +995,14 @@ impl EmailTransport for RecordingTransport {
         &'a self,
         sender: &'a SenderIdentity,
         request: &'a SendEmailRequest,
+        context: SendContext<'a>,
     ) -> BoxFuture<'a, Result<SendEmailResponse>> {
-        *self.last.lock().unwrap() = Some((sender.clone(), request.clone()));
+        *self.last.lock().unwrap() = Some(RecordedSend {
+            sender:  sender.clone(),
+            request: request.clone(),
+            send_id: context.send_id.map(ToString::to_string),
+            tenant:  context.tenant.map(ToString::to_string),
+        });
         Box::pin(async {
             Ok(SendEmailResponse {
                 message_id: Some("recorded".to_string()),
@@ -1036,11 +1053,61 @@ async fn test_send_email_from_is_host_owned_not_guest_supplied() {
     let response = host.send_email(&request).await.unwrap();
     assert!(response.accepted);
 
-    let (sender, sent) = transport.last.lock().unwrap().clone().unwrap();
+    let recorded = transport.last.lock().unwrap().clone().unwrap();
     // The transport was handed the connected user's verified address, never the
     // guest's attempted `from`.
-    assert_eq!(sender.address, "alice@example.com");
-    assert_eq!(sent.to, "bob@example.com");
+    assert_eq!(recorded.sender.address, "alice@example.com");
+    assert_eq!(recorded.request.to, "bob@example.com");
+}
+
+#[tokio::test]
+async fn test_send_email_threads_the_idempotency_token_as_send_id() {
+    // The per-dispatch idempotency token reaches the transport as the VERP send-id /
+    // exactly-once key, and the tenant is threaded through for RLS scoping. Both are
+    // host-owned context, never guest input.
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_idempotency_token("abc123def456");
+    let mut host = host;
+    host.security_context.email = Some("alice@example.com".to_string());
+    host.security_context.tenant_id = Some(fraiseql_core::types::TenantId::new("tenant-7"));
+    let transport = Arc::new(RecordingTransport::default());
+    let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
+
+    let request = SendEmailRequest {
+        to:       "bob@example.com".to_string(),
+        subject:  "hi".to_string(),
+        text:     Some("b".to_string()),
+        html:     None,
+        reply_to: None,
+    };
+    host.send_email(&request).await.unwrap();
+
+    let recorded = transport.last.lock().unwrap().clone().unwrap();
+    assert_eq!(recorded.send_id.as_deref(), Some("abc123def456"), "send-id = host token");
+    assert_eq!(recorded.tenant.as_deref(), Some("tenant-7"), "tenant threaded for RLS");
+}
+
+#[tokio::test]
+async fn test_send_email_without_idempotency_token_sends_uncorrelated() {
+    // Zero-config (no HMAC secret → no token): the send still happens, just without
+    // a VERP send-id or tenant scope.
+    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
+    host.security_context.email = Some("alice@example.com".to_string());
+    let transport = Arc::new(RecordingTransport::default());
+    let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
+
+    let request = SendEmailRequest {
+        to:       "bob@example.com".to_string(),
+        subject:  "hi".to_string(),
+        text:     Some("b".to_string()),
+        html:     None,
+        reply_to: None,
+    };
+    host.send_email(&request).await.unwrap();
+
+    let recorded = transport.last.lock().unwrap().clone().unwrap();
+    assert_eq!(recorded.send_id, None, "no token → no send-id");
+    assert_eq!(recorded.tenant, None, "no tenant → no scope");
 }
 
 #[tokio::test]

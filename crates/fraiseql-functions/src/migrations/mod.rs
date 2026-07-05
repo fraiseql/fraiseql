@@ -9,6 +9,9 @@
 //!   ([`inbound_migration_sql`]).
 //! - `_fraiseql_inbound_email_cursor` — the per-mailbox UID watermark the poll-IMAP email adapter
 //!   advances between polls ([`inbound_email_cursor_migration_sql`]).
+//! - `_fraiseql_send_status` + `_fraiseql_suppression` — the delivery-feedback stores that
+//!   correlate an inbound bounce/challenge/reply back to a tracked send and hold the do-not-contact
+//!   list checked before every send ([`send_tracking_migration_sql`]).
 
 #[cfg(test)]
 mod tests;
@@ -153,5 +156,91 @@ CREATE TABLE IF NOT EXISTS _fraiseql_inbound_email_cursor (
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (mailbox_key)
 );
+"
+}
+
+/// Returns the SQL DDL to create the delivery-feedback stores.
+///
+/// Two fraiseql-managed tables underpin the delivery-feedback loop (the outbound
+/// mirror of the inbound spine):
+///
+/// - `_fraiseql_send_status` — one row per tracked send, keyed by the per-dispatch VERP `send_id`.
+///   It records the recipient, the sending address, the send-status lifecycle (`Sent` → `Bounced` /
+///   `ChallengePending` / `Replied` / …), the challenge count, and the relay message id. The
+///   exactly-once unique key on `(COALESCE(tenant_id, ''), send_id)` is what makes a durable retry
+///   skip an already-sent dispatch instead of double-sending.
+/// - `_fraiseql_suppression` — the do-not-contact list checked before every send, keyed on a
+///   **keyed hash** of the address (never the raw address, so the match survives a GDPR erasure of
+///   the recipient's PII elsewhere) plus a granular reason (`hard_bounce` / `challenge_unanswered`
+///   / `unsubscribe`) and optional TTL.
+///
+/// Both tables carry an explicit `tenant_id` (stamped from the security context at
+/// write time — a `TEXT` column because the runtime tenant id is an opaque string,
+/// not necessarily a UUID) and are protected by a tenant-scoped RLS policy for
+/// app-facing reads, mirroring #443's `tb_entity_change_log`. The platform writes
+/// through the table-owning role (which bypasses RLS) and stamps `tenant_id`
+/// explicitly; app reads through a non-owner role are filtered to the session's
+/// `fraiseql.tenant_id`. `COALESCE(tenant_id, '')` in the unique indexes keeps the
+/// exactly-once and suppression keys correct for single-tenant (NULL) rows, which a
+/// bare `UNIQUE (tenant_id, …)` would treat as always-distinct.
+///
+/// The DDL is idempotent: `CREATE … IF NOT EXISTS` for tables/indexes, `ENABLE ROW
+/// LEVEL SECURITY` is a no-op when already enabled, and each policy is dropped-if-
+/// exists before creation (`CREATE POLICY` has no `IF NOT EXISTS` form).
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_functions::migrations::send_tracking_migration_sql();
+/// assert!(sql.contains("_fraiseql_send_status"));
+/// assert!(sql.contains("_fraiseql_suppression"));
+/// ```
+#[must_use]
+pub const fn send_tracking_migration_sql() -> &'static str {
+    "\
+CREATE TABLE IF NOT EXISTS _fraiseql_send_status (
+    pk_send_status  BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    send_id         TEXT        NOT NULL,
+    tenant_id       TEXT,
+    recipient       TEXT        NOT NULL,
+    sending_address TEXT        NOT NULL,
+    status          TEXT        NOT NULL,
+    challenge_count INT         NOT NULL DEFAULT 0,
+    last_signal     TEXT,
+    message_id      TEXT,
+    sent_at         TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_tenant_send
+    ON _fraiseql_send_status (COALESCE(tenant_id, ''), send_id);
+
+-- The correlation path looks a send up by send_id alone (from the inbound
+-- Return-Path plus-tag), without a session tenant, so it needs its own index.
+CREATE INDEX IF NOT EXISTS idx_send_status_send_id
+    ON _fraiseql_send_status (send_id);
+
+ALTER TABLE _fraiseql_send_status ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS p_send_status_tenant ON _fraiseql_send_status;
+CREATE POLICY p_send_status_tenant ON _fraiseql_send_status
+    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
+
+CREATE TABLE IF NOT EXISTS _fraiseql_suppression (
+    pk_suppression BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id      TEXT,
+    address_hash   TEXT        NOT NULL,
+    reason         TEXT        NOT NULL,
+    since          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ttl            TIMESTAMPTZ,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_tenant_addr
+    ON _fraiseql_suppression (COALESCE(tenant_id, ''), address_hash);
+
+ALTER TABLE _fraiseql_suppression ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS p_suppression_tenant ON _fraiseql_suppression;
+CREATE POLICY p_suppression_tenant ON _fraiseql_suppression
+    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
 "
 }
