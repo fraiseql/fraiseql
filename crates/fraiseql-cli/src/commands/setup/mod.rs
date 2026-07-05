@@ -17,6 +17,11 @@ const HELPERS_VERSION: &str = "2.2.0";
 /// The SQL helper library content embedded as a const
 const MUTATION_RESPONSE_SQL: &str = include_str!("../../../sql/helpers/mutation_response.sql");
 
+/// The cascade builders (`fraiseql.build_cascade`, `cascade_entity`,
+/// `deleted_entity`, `cascade_invalidation`) — the paved path for authoring a
+/// spec-conformant, RLS-safe cascade.
+const CASCADE_SQL: &str = include_str!("../../../sql/helpers/cascade.sql");
+
 /// Run the setup command to install helpers to a database.
 ///
 /// # Errors
@@ -133,6 +138,12 @@ async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatt
         .batch_execute(MUTATION_RESPONSE_SQL)
         .await
         .context("Failed to install FraiseQL helper library")?;
+
+    // Install the cascade builders (depend on the `fraiseql` schema created above).
+    client
+        .batch_execute(CASCADE_SQL)
+        .await
+        .context("Failed to install FraiseQL cascade builders")?;
 
     formatter.progress("✓ SQL helpers applied");
 
