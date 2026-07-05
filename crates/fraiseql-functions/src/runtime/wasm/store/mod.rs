@@ -152,12 +152,24 @@ impl context::Host for StoreData {
     }
 }
 
+/// Stringify a host error for the WIT `result<_, string>` boundary, tagging a
+/// client error (4xx) as permanent so the runtime dead-letters it immediately
+/// instead of retrying (parity with the Deno op path).
+#[allow(clippy::needless_pass_by_value)] // Reason: consumed via `.map_err` at each WIT call site
+fn host_err_string(error: fraiseql_error::FraiseQLError) -> String {
+    if error.is_client_error() {
+        format!("{} {error}", crate::types::PERMANENT_ERROR_MARKER)
+    } else {
+        error.to_string()
+    }
+}
+
 impl io::Host for StoreData {
     async fn query(&mut self, graphql: String, variables: String) -> Result<String, String> {
         let host = self.require_host_context()?;
         let vars: serde_json::Value =
             serde_json::from_str(&variables).map_err(|e| e.to_string())?;
-        let result = host.query(&graphql, vars).await.map_err(|e| e.to_string())?;
+        let result = host.query(&graphql, vars).await.map_err(host_err_string)?;
         serde_json::to_string(&result).map_err(|e| e.to_string())
     }
 
@@ -165,7 +177,7 @@ impl io::Host for StoreData {
         let host = self.require_host_context()?;
         let params_vec: Vec<serde_json::Value> =
             serde_json::from_str(&params).map_err(|e| e.to_string())?;
-        let result = host.sql_query(&sql, &params_vec).await.map_err(|e| e.to_string())?;
+        let result = host.sql_query(&sql, &params_vec).await.map_err(host_err_string)?;
         serde_json::to_string(&result).map_err(|e| e.to_string())
     }
 
@@ -180,7 +192,7 @@ impl io::Host for StoreData {
         let response = host
             .http_request(&method, &url, &headers, body.as_deref())
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(host_err_string)?;
         Ok(io::HttpResponse {
             status:  response.status,
             headers: response.headers,
@@ -190,7 +202,7 @@ impl io::Host for StoreData {
 
     async fn storage_get(&mut self, bucket: String, key: String) -> Result<Vec<u8>, String> {
         let host = self.require_host_context()?;
-        host.storage_get(&bucket, &key).await.map_err(|e| e.to_string())
+        host.storage_get(&bucket, &key).await.map_err(host_err_string)
     }
 
     async fn storage_put(
@@ -203,14 +215,14 @@ impl io::Host for StoreData {
         let host = self.require_host_context()?;
         host.storage_put(&bucket, &key, &body, &content_type)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(host_err_string)
     }
 
     async fn send_email(&mut self, request: String) -> Result<String, String> {
         let host = self.require_host_context()?;
         let req: crate::outbound::SendEmailRequest =
             serde_json::from_str(&request).map_err(|e| e.to_string())?;
-        let response = host.send_email(&req).await.map_err(|e| e.to_string())?;
+        let response = host.send_email(&req).await.map_err(host_err_string)?;
         serde_json::to_string(&response).map_err(|e| e.to_string())
     }
 }

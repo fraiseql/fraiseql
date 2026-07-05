@@ -5,6 +5,20 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
+/// Marker a function (or a host op) puts in a thrown error's message to signal the
+/// failure is **permanent** — do not retry, dead-letter immediately.
+///
+/// Both runtimes surface a guest failure as a string, so permanence travels as this
+/// sentinel substring: when the error message contains it, the runtime classifies
+/// the failure as a client error (4xx) — which the durable dispatcher dead-letters
+/// on the first attempt — rather than the default transient `Unsupported` (501).
+///
+/// A guest can also throw `Object.assign(new Error(msg), { fraiseqlPermanent: true })`
+/// (Deno); the wrapper folds that into this marker. Host ops that already know a
+/// failure is permanent (e.g. `send_email` on a denied identity or a rejected
+/// recipient) prepend it automatically.
+pub const PERMANENT_ERROR_MARKER: &str = "[fraiseql:permanent]";
+
 /// Supported runtime types for serverless functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]

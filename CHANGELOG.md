@@ -51,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run only where the functions-runtime hooks are built — a separate pre-existing
   gap. The DB-backed `SendCounter` (over the app's mailbox table) is the remaining
   warming piece. See `docs/architecture/native-runtime-ergonomics.md`.
+- **Permanent-error tagging for durable functions.** A function can now signal that
+  a failure is permanent so durable dispatch dead-letters it on the first attempt
+  instead of exhausting retries: a guest throws
+  `Object.assign(new Error(msg), { fraiseqlPermanent: true })` (or a message carrying
+  the `[fraiseql:permanent]` marker), which the runtime maps to a 4xx `FraiseQLError`.
+  Host ops auto-tag — any op returning a 4xx (client) error is permanent by default,
+  so e.g. a `send_email` refusal (denied identity, rejected recipient, over-cap)
+  dead-letters immediately while a transient one still retries. Untagged errors are
+  unchanged (transient). Works on both the Deno and WASM runtimes.
 - **Beta workload migrated to the native runtime.** The adjacent Python/FastAPI
   sidecar's compute is now native TypeScript,
   proving the host surface against a real workload. Four `examples/native-functions`

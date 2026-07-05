@@ -741,6 +741,36 @@ export default async () => {
 }
 
 #[tokio::test]
+async fn test_deno_guest_can_tag_an_error_permanent() {
+    // A guest that structurally tags its throw as permanent crosses the exception
+    // boundary as a 4xx client error → durable dispatch dead-letters immediately.
+    let error = run_with_mock(
+        r"
+export default async () => {
+    throw Object.assign(new Error('nope'), { fraiseqlPermanent: true });
+};
+",
+    )
+    .await
+    .expect_err("guest threw");
+    assert!(error.is_client_error(), "a permanent-tagged guest error is a 4xx");
+}
+
+#[tokio::test]
+async fn test_deno_untagged_guest_error_stays_transient() {
+    // Default behaviour is unchanged: an untagged throw is transient (501), retried.
+    let error = run_with_mock(
+        r"
+export default async () => { throw new Error('boom'); };
+",
+    )
+    .await
+    .expect_err("guest threw");
+    assert!(!error.is_client_error(), "an untagged guest error stays transient");
+    assert_eq!(error.status_code(), 501);
+}
+
+#[tokio::test]
 async fn test_deno_op_auth_context_and_env_var() {
     let value = run_with_mock(
         r"

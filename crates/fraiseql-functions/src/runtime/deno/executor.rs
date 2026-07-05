@@ -112,8 +112,13 @@ fn wrap_source(source: &str, event_json: &str) -> String {
         .replace("export default function", "const __fn = function")
         .replace("export default", "const __fn =");
 
+    // Injected so a guest can mark a thrown error permanent structurally
+    // (`throw Object.assign(new Error(msg), {{ fraiseqlPermanent: true }})`) and the
+    // runtime dead-letters it immediately. Host-op errors already carry the marker
+    // in their message; this folds the property form into the same signal.
+    let marker = crate::types::PERMANENT_ERROR_MARKER;
     format!(
-        r"
+        r#"
 {inner}
 (async () => {{
     try {{
@@ -123,10 +128,11 @@ fn wrap_source(source: &str, event_json: &str) -> String {
         globalThis.__fraiseql_error = null;
     }} catch (e) {{
         globalThis.__fraiseql_result = null;
-        globalThis.__fraiseql_error = String(e);
+        const __permanent = e && e.fraiseqlPermanent === true;
+        globalThis.__fraiseql_error = (__permanent ? "{marker} " : "") + String(e);
     }}
 }})();
-"
+"#
     )
 }
 

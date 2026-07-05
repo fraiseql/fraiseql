@@ -62,12 +62,10 @@ promoted from opt-in to stable.
    (10/day → 200/day → unlimited). Failures classify onto durable dispatch: a
    permanent refusal (denied identity, bad recipient, SMTP 5xx, over-cap) is a 4xx
    → dead-letter; a transient one (SMTP timeout/greylist, identity store down) is a
-   5xx → retry. `follow-up-email.ts` now calls the op instead of a hand-rolled
-   send. **Known limitation:** the stock server binary does not yet populate
-   `before_mutation_hooks`, so after:mutation functions (this op included) run only
-   where the functions-runtime hooks are built — a separate pre-existing gap. **Not
-   yet closed:** the DB-backed `SendCounter` over the application's mailbox table
-   (see gap on warming state).
+   5xx → retry (effective end-to-end via permanent-error tagging, gap #5).
+   `follow-up-email.ts` now calls the op instead of a hand-rolled send. **Not yet
+   closed:** the DB-backed `SendCounter` over the application's mailbox table (the
+   remaining warming piece).
 
 3. **Verified sending address vs. authenticated email.** Today the per-user
    `from` is taken from the authenticated identity's `email`. An outreach tool's
@@ -88,19 +86,17 @@ promoted from opt-in to stable.
    a downstream money or mail API, so paired sends can move to the durable path
    safely.
 
-5. **Error model is throw-or-return.** Transient vs permanent is inferred from the
-   resulting `FraiseQLError` classification, which is the right default, but a
-   function cannot yet *say* "this is permanent, do not retry" (e.g. a validation
-   failure that happens to surface as a 5xx). This bites the `send_email` op: the op
-   classifies its failures precisely (a denied identity / bad recipient / SMTP 5xx /
-   over-cap is a permanent 4xx; a timeout / greylist / identity store down is a
-   transient 5xx), but a guest that lets the op throw crosses the Deno exception
-   boundary, where every guest error flattens to `Unsupported` (501) — so durable
-   dispatch currently treats even a permanent send failure as transient (retries,
-   then dead-letters) instead of dead-lettering immediately. **Planned: let a
-   function tag a thrown error as permanent** so it dead-letters immediately instead
-   of exhausting retries — that is what makes the op's permanent/transient split
-   effective end-to-end.
+5. **Permanent-error tagging — DELIVERED.** A function can now say "this failure is
+   permanent, do not retry": a guest throws a tagged error
+   (`Object.assign(new Error(msg), { fraiseqlPermanent: true })`, or a message
+   carrying the `[fraiseql:permanent]` marker), and the runtime maps it to a 4xx
+   `FraiseQLError` — which durable dispatch dead-letters on the first attempt rather
+   than exhausting retries. Host ops auto-tag: any op that returns a 4xx (client)
+   error is permanent by default, so a `send_email` refusal (denied identity, bad
+   recipient, SMTP 5xx, over-cap) dead-letters immediately, while a transient one
+   (timeout, greylist, identity store down) still retries. Untagged errors are
+   unchanged (transient / 501). This makes the op's permanent/transient split
+   effective end-to-end across the guest boundary.
 
 6. **Testing: one V8 isolate per process.** Two Deno invocations in a single test
    process abort (V8). Each workload test therefore does exactly one invocation

@@ -178,17 +178,12 @@ async fn test_follow_up_sends_via_the_host_op() {
 }
 
 /// A host refusal (no verified sending identity) propagates as a failure — the
-/// guest does not swallow it or fall back to another sender.
-///
-/// It also pins a known boundary property: the host refusal is *permanent* (a 403
-/// from `send_email`), but a guest exception flattens to `Unsupported` (501) at the
-/// Deno runtime boundary, so durable dispatch currently sees it as **transient**
-/// (retries, then dead-letters) rather than dead-lettering immediately. Closing
-/// that — letting a guest tag a thrown error as permanent — is the hardening
-/// train's permanent-error-tagging phase (P05); this assertion will flag the day
-/// that lands.
+/// guest does not swallow it or fall back to another sender — and, because the
+/// refusal is *permanent* (a 4xx from `send_email`), it is tagged permanent across
+/// the guest exception boundary so durable dispatch dead-letters it immediately
+/// rather than exhausting retries (the permanent-error-tagging fix).
 #[tokio::test]
-async fn test_follow_up_propagates_a_host_refusal() {
+async fn test_follow_up_propagates_a_host_refusal_as_permanent() {
     let recorded = Arc::new(Mutex::new(Recorded::default()));
     let result = run_follow_up(
         serde_json::json!({
@@ -200,9 +195,9 @@ async fn test_follow_up_propagates_a_host_refusal() {
     .await;
 
     let error = result.expect_err("a host refusal must fail loud, not send");
-    // Documents the boundary: a permanent (403) refusal is seen as 501 (transient)
-    // once it crosses the guest exception boundary. See the doc comment above.
-    assert_eq!(error.status_code(), 501);
+    // The op's permanent (403) refusal survives the boundary as a 4xx client error,
+    // so durable dispatch dead-letters on the first attempt (no retry loop).
+    assert!(error.is_client_error(), "a permanent refusal stays permanent → immediate DLQ");
     assert!(recorded.lock().unwrap().sends.is_empty(), "nothing was sent");
 }
 

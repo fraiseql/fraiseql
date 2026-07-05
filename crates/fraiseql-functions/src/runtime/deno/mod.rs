@@ -234,6 +234,16 @@ fn run_guest(
                     path:    None,
                 })
             },
+            // A permanent-tagged failure (a host op that returned a 4xx, or a guest
+            // that tagged its throw) maps to a 4xx so durable dispatch dead-letters
+            // immediately instead of retrying. Untagged failures stay `Unsupported`
+            // (501, transient).
+            Err(e) if e.contains(crate::types::PERMANENT_ERROR_MARKER) => {
+                Err(fraiseql_error::FraiseQLError::Validation {
+                    message: e,
+                    path:    None,
+                })
+            },
             Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),
         }
     }
