@@ -440,28 +440,28 @@ async fn error_path_populates_nested_object_fields() {
     assert_eq!(data["details"]["rule"], "unique");
 }
 
-/// Cascade JSONB from `mutation_response_v2.cascade` is surfaced in the response.
+/// Cascade is opt-in: a NON-cascade mutation never surfaces cascade, even if its
+/// function returns a `cascade` JSONB.
 ///
-/// When the DB function returns a non-null `cascade` JSONB, the executor must
-/// inject it as a `"cascade"` key on the projected entity object so that clients
-/// receive the full graphql-cascade wire format
-/// (`{ updated[], deleted[], invalidations[], metadata }`).
+/// This is the fix for the cascade evaluation's finding 3 — cascade used to be
+/// injected into every mutation response unrequested and undeclared. It is now a
+/// typed, selection-gated payload field that only cascade-enabled mutations
+/// (`cascade = true`, synthesized `<Name>Payload { entity, cascade }`) expose;
+/// that path is covered end-to-end in the mutation-runner unit tests
+/// (`runners::mutation::tests::cascade`). The golden fixture's `createUser` is a
+/// plain mutation, so its returned cascade blob must be dropped.
 #[tokio::test]
-async fn mutation_cascade_json_is_surfaced_in_response() {
+async fn non_cascade_mutation_does_not_surface_cascade() {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
     let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let cascade_payload = json!({
-        "updated": [
-            { "__typename": "User", "id": "abc-123" }
-        ],
+        "updated": [ { "__typename": "User", "id": "abc-123" } ],
         "deleted": [],
-        "invalidations": [],
-        "metadata": { "triggered_by": "createUser" }
     });
 
     let mut row = mutation_success_row();
-    row.insert("cascade".to_string(), cascade_payload.clone());
+    row.insert("cascade".to_string(), cascade_payload);
 
     let mock = Arc::new(RecordingMockAdapter::new(row));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -473,9 +473,11 @@ async fn mutation_cascade_json_is_surfaced_in_response() {
         .expect("mutation must succeed");
 
     let entity = &result["data"]["createUser"];
-    assert!(entity.get("cascade").is_some(), "cascade must be present in response: {result}");
-    assert_eq!(entity["cascade"]["updated"][0]["__typename"], "User");
-    assert_eq!(entity["cascade"]["metadata"]["triggered_by"], "createUser");
+    assert_eq!(entity["id"], "abc-123", "the primary entity is still projected");
+    assert!(
+        entity.get("cascade").is_none(),
+        "a non-cascade mutation must NOT surface cascade (finding 3): {result}"
+    );
 }
 
 /// Pipeline 3: mutation with `inject_params` fails when no security context provided.

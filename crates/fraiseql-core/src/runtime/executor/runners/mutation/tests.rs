@@ -3112,3 +3112,268 @@ mod field_authz {
         assert!(payload.get("email").is_none(), "email not selected → absent");
     }
 }
+
+// ── mod cascade: typed cascade payload projection + per-entity enforcement ────
+mod cascade {
+    #![allow(clippy::panic)] // Reason: test doubles panic to assert they are never called
+
+    use std::collections::HashMap;
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use serde_json::json;
+
+    use super::*;
+    use crate::{
+        db::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
+        security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
+    };
+
+    /// A mutation adapter returning a fixed `app.mutation_response` row whose
+    /// `cascade` JSONB the test supplies. The primary entity is a `Post` with a
+    /// snake_case source key (`author_id`) to exercise camelCase projection.
+    struct CannedMutationAdapter {
+        row: HashMap<String, serde_json::Value>,
+    }
+
+    impl CannedMutationAdapter {
+        fn new(cascade: serde_json::Value) -> Self {
+            let mut row = HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert(
+                "entity".to_string(),
+                json!({ "id": "p1", "title": "Hello", "author_id": "u1" }),
+            );
+            row.insert("entity_type".to_string(), json!("Post"));
+            row.insert("updated_fields".to_string(), json!(["title"]));
+            row.insert("cascade".to_string(), cascade);
+            row.insert("message".to_string(), json!(""));
+            Self { row }
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for CannedMutationAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![self.row.clone()])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for CannedMutationAdapter {}
+
+    /// Field authorizer that masks (nulls) every gated field.
+    struct MaskAll;
+    impl FieldAuthorizer for MaskAll {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Deny {
+                code:    "no".into(),
+                on_deny: FieldDenyPolicy::Mask,
+            })
+        }
+    }
+
+    fn auth_ctx() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-cascade".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    /// A `createPost` cascade mutation over a `Post` entity carrying a snake_case
+    /// source key (`author_id` → `authorId`) and a policy-gated `email`.
+    fn cascade_schema() -> CompiledSchema {
+        let mut s = CompiledSchema::new();
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_post".to_string()),
+            cascade: true,
+            ..MutationDefinition::new("createPost", "CreatePostPayload")
+        });
+        let mut post = TypeDefinition::new("Post", "v_post");
+        post.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("title", FieldType::String),
+            FieldDefinition::nullable("authorId", FieldType::String),
+            FieldDefinition::nullable("email", FieldType::String).with_authorize(true),
+        ];
+        post.implements = vec!["CascadeNode".to_string()];
+        s.types.push(post);
+        s.build_indexes();
+        s
+    }
+
+    /// A cascade with one updated `Post` (carrying a gated `email`) and one deletion.
+    fn standard_cascade() -> serde_json::Value {
+        json!({
+            "updated": [
+                {
+                    "__typename": "Post", "id": "p2", "operation": "UPDATED",
+                    "entity": { "id": "p2", "title": "Sibling", "author_id": "u9", "email": "secret@x.com" }
+                }
+            ],
+            "deleted": [
+                { "__typename": "Post", "id": "p3", "deletedAt": "2026-01-01T00:00:00Z" }
+            ]
+        })
+    }
+
+    /// The typed payload shape: `{ entity, cascade { updated, deleted }, updatedFields }`,
+    /// with the primary entity AND each cascade entity projected to camelCase.
+    #[tokio::test]
+    async fn cascade_payload_shape_and_camelcase() {
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let q = r"mutation { createPost {
+            entity { id title authorId }
+            cascade {
+                updated { id operation entity { ... on Post { title authorId } } }
+                deleted { id deletedAt }
+            }
+            updatedFields
+        } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let payload = &res["data"]["createPost"];
+
+        // Primary entity, camelCase (author_id → authorId).
+        assert_eq!(payload["entity"], json!({ "id": "p1", "title": "Hello", "authorId": "u1" }));
+
+        // Cascade updated entry: id + operation + projected, camelCased entity.
+        let updated = &payload["cascade"]["updated"][0];
+        assert_eq!(updated["id"], "p2");
+        assert_eq!(updated["operation"], "UPDATED");
+        assert_eq!(updated["entity"], json!({ "title": "Sibling", "authorId": "u9" }));
+
+        // Deleted entry: id + deletedAt, no entity body.
+        let deleted = &payload["cascade"]["deleted"][0];
+        assert_eq!(deleted["id"], "p3");
+        assert_eq!(deleted["deletedAt"], "2026-01-01T00:00:00Z");
+
+        // updatedFields rehomed onto the payload.
+        assert_eq!(payload["updatedFields"], json!(["title"]));
+    }
+
+    /// Cascade + updatedFields are selection-gated: unselected ⇒ absent (no more
+    /// unrequested injection — eval finding 3).
+    #[tokio::test]
+    async fn cascade_selection_gated_to_requested_fields() {
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let res =
+            executor.execute("mutation { createPost { entity { id } } }", None).await.unwrap();
+        let payload = &res["data"]["createPost"];
+        assert_eq!(payload["entity"], json!({ "id": "p1" }));
+        assert!(payload.get("cascade").is_none(), "unselected cascade must be absent: {payload}");
+        assert!(payload.get("updatedFields").is_none(), "unselected updatedFields absent");
+    }
+
+    /// THE load-bearing fix (eval finding 1): a policy-gated field on a CASCADE
+    /// entity is run through the field authorizer, exactly like a queried entity.
+    /// Before this, cascade entities bypassed field authz entirely.
+    #[tokio::test]
+    async fn cascade_entity_gated_field_is_authorized() {
+        let executor = Executor::with_config(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(MaskAll)),
+        );
+        let q = r"mutation { createPost {
+            cascade { updated { entity { ... on Post { id email } } } }
+        } }";
+        let res = executor.execute_with_security(q, None, &auth_ctx()).await.unwrap();
+        let entity = &res["data"]["createPost"]["cascade"]["updated"][0]["entity"];
+        assert_eq!(entity["id"], "p2");
+        assert!(
+            entity["email"].is_null(),
+            "a gated field on a cascade entity must be authorized (masked): {entity}"
+        );
+    }
+
+    /// Fail-closed: a cascade entry naming an unknown type cannot be projected or
+    /// authorized, so it aborts the response rather than shipping raw.
+    #[tokio::test]
+    async fn cascade_unknown_typename_fails_closed() {
+        let cascade = json!({
+            "updated": [
+                { "__typename": "Ghost", "id": "x", "operation": "UPDATED", "entity": { "id": "x" } }
+            ],
+            "deleted": []
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { updated { entity { ... on Post { id } } } } } }";
+        let res = executor.execute(q, None).await;
+        assert!(res.is_err(), "unknown cascade __typename must fail closed");
+    }
+}

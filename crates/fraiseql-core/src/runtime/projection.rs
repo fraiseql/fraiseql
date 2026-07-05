@@ -642,7 +642,13 @@ fn lookup_source<'a>(obj: &'a Map<String, JsonValue>, field_name: &str) -> Optio
 
 /// Flatten a selection set for a concrete object type: direct fields, plus the
 /// contents of any inline fragment `... on T` (or on an interface `T` implements).
-fn effective_selections<'a>(
+/// Resolve inline `... on T` fragments in `selections` against `type_name`,
+/// returning the flat list of field selections that apply to it.
+///
+/// Shared with the mutation runner's cascade projection, which navigates the
+/// payload/envelope selection sets (`... on <Name>Payload`, `... on <EntityType>`)
+/// the same way the entity projector does.
+pub(crate) fn effective_selections<'a>(
     selections: &'a [FieldSelection],
     type_name: &str,
     schema: &CompiledSchema,

@@ -59,7 +59,7 @@ pub mod mutation_result;
 pub(crate) mod native_columns;
 pub mod partial_period;
 mod planner;
-mod projection;
+pub(crate) mod projection;
 pub mod query_tracing;
 pub mod relay;
 pub mod sql_logger;
