@@ -34,13 +34,16 @@ CREATE INDEX idx_post_author ON tb_post(author_id);
 -- Read views. The `data` JSONB uses snake_case source keys; FraiseQL projects
 -- them to camelCase on the GraphQL surface (post_count → postCount). Cascade
 -- entities are read from these views (never tb_*) so row-visibility follows RLS.
-CREATE VIEW v_user AS
+-- `security_invoker = true` is REQUIRED for that: it runs the view as the querying
+-- role so base-table RLS applies; a default view would run as the owner and leak
+-- cross-tenant rows into cascades.
+CREATE VIEW v_user WITH (security_invoker = true) AS
 SELECT id, jsonb_build_object(
     'id', id, 'name', name, 'post_count', post_count, 'created_at', created_at
 ) AS data
 FROM tb_user;
 
-CREATE VIEW v_post AS
+CREATE VIEW v_post WITH (security_invoker = true) AS
 SELECT id, jsonb_build_object(
     'id', id, 'title', title, 'content', content,
     'author_id', author_id, 'created_at', created_at

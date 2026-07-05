@@ -23,10 +23,11 @@ CREATE TABLE tb_user (id UUID PRIMARY KEY, name TEXT, post_count INT DEFAULT 0);
 CREATE TABLE tb_post (id UUID PRIMARY KEY, title TEXT, author_id UUID REFERENCES tb_user(id));
 
 -- Read views (RLS-protected in a real deployment) — cascade entities MUST be read
--- from these, never from tb_* directly. The `data` JSONB uses snake_case source
--- keys; FraiseQL projects them to camelCase (post_count → postCount).
-CREATE VIEW v_user AS SELECT id, jsonb_build_object('id', id, 'name', name, 'post_count', post_count) AS data FROM tb_user;
-CREATE VIEW v_post AS SELECT id, jsonb_build_object('id', id, 'title', title, 'author_id', author_id) AS data FROM tb_post;
+-- from these, never from tb_* directly, and the views MUST be `security_invoker`
+-- so base-table RLS applies (a default view runs as the owner and leaks cross-tenant
+-- rows). The `data` JSONB uses snake_case keys; FraiseQL projects them to camelCase.
+CREATE VIEW v_user WITH (security_invoker = true) AS SELECT id, jsonb_build_object('id', id, 'name', name, 'post_count', post_count) AS data FROM tb_user;
+CREATE VIEW v_post WITH (security_invoker = true) AS SELECT id, jsonb_build_object('id', id, 'title', title, 'author_id', author_id) AS data FROM tb_post;
 ```
 
 ## PostgreSQL Function

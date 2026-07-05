@@ -12,6 +12,13 @@
 -- cannot see is not returned by the view, so it never rides in the cascade. The
 -- runtime enforces field-level authorization on top, but it cannot re-check row
 -- visibility — so the paved path (these builders) must read through the views.
+--
+-- The view MUST be `security_invoker = true` (PostgreSQL 15+, FraiseQL's standard
+-- view convention). A default view runs with the VIEW OWNER's privileges and
+-- SILENTLY BYPASSES the caller's RLS — a cross-tenant leak. `security_invoker`
+-- runs the view as the querying role, so the base-table policy applies:
+--     CREATE VIEW v_post WITH (security_invoker = true) AS SELECT ... FROM tb_post;
+-- Verified by the 2-tenant conformance test (`cascade_rls_conformance`).
 
 CREATE SCHEMA IF NOT EXISTS fraiseql;
 

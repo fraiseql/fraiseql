@@ -261,6 +261,14 @@ query. The residual risk is an author bypassing that paved path — reading a ba
 table (`tb_*`) directly, or using `SECURITY DEFINER` — which no runtime check can
 catch. **Always assemble cascade entities from the RLS views**, never base tables.
 
+> **The view must be `security_invoker = true`** (PostgreSQL 15+, FraiseQL's
+> standard view convention). A *default* view runs with the view owner's
+> privileges and silently bypasses the caller's RLS — a cross-tenant leak the
+> runtime cannot catch. `security_invoker` runs the view as the querying role, so
+> the base-table policy applies. This is verified by the `cascade_rls_conformance`
+> 2-tenant integration test: with a `security_invoker` view, tenant B's rows never
+> ride in tenant A's cascade; with a default view, they leak.
+
 ---
 
 ## See also

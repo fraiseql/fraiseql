@@ -13,7 +13,10 @@
 --   row-visibility matches a query's
 --
 -- Requires `fraiseql setup` (installs `fraiseql.mutation_ok`, `fraiseql.build_cascade`,
--- `fraiseql.cascade_entity`, …) and the `v_category` / `v_product` read views.
+-- `fraiseql.cascade_entity`, …) and the `v_category` / `v_product` read views. Those
+-- views MUST be `security_invoker = true` so base-table RLS is honoured when
+-- `cascade_entity` reads through them — otherwise a default view runs as its owner
+-- and leaks cross-tenant rows into the cascade.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION graphql.update_category_and_products(input_payload jsonb)
