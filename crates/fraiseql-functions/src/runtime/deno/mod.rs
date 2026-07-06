@@ -10,9 +10,9 @@
 //!
 //! Each execution:
 //! 1. Creates a new V8 isolate with memory and timeout limits
-//! 2. Loads the function source. The isolate executes `JavaScript`; `TypeScript` without type
-//!    annotations runs as-is, but full TS type-stripping transpilation is a tracked follow-up
-//!    (`enable_typescript` is not yet wired).
+//! 2. Loads the function source. When [`DenoConfig::enable_typescript`] is set (the default),
+//!    `TypeScript` types are stripped to executable `JavaScript` first (see [`transpile`]); with it
+//!    off the isolate executes the `JavaScript` unchanged.
 //! 3. Calls the default export with the event as a JS object
 //! 4. Captures logs and enforces resource limits throughout
 //! 5. Properly cleans up the isolate after execution
@@ -125,9 +125,9 @@ function fraiseql_log(level: number, message: string): void;
 /// Allows tuning of the V8 engine for performance and feature support.
 #[derive(Debug, Clone)]
 pub struct DenoConfig {
-    /// Intended to enable `TypeScript` type-stripping transpilation. Not yet
-    /// wired — the isolate currently executes `JavaScript` (TS without type
-    /// annotations runs as-is). Tracked as a follow-up.
+    /// Strip `TypeScript` types to executable `JavaScript` before execution (see
+    /// [`transpile::transpile_typescript`]). On by default; with it off the source
+    /// is executed as-is, so only the type-annotation-free `TypeScript` subset runs.
     pub enable_typescript: bool,
     /// Additional V8 flags (e.g., "--expose-gc").
     pub v8_flags:          Vec<String>,
@@ -194,7 +194,7 @@ impl DenoRuntime {
         host_context: Arc<dyn DynHostContext>,
         limits: ResourceLimits,
     ) -> Result<FunctionResult> {
-        run_guest(module, event, limits, Some(host_context)).await
+        run_guest(module, event, limits, Some(host_context), self.config.enable_typescript).await
     }
 }
 
@@ -207,12 +207,26 @@ fn run_guest(
     event: EventPayload,
     limits: ResourceLimits,
     host: Option<Arc<dyn DynHostContext>>,
+    enable_typescript: bool,
 ) -> impl std::future::Future<Output = Result<FunctionResult>> + Send {
-    let source = String::from_utf8_lossy(&module.bytecode).to_string();
+    let raw = String::from_utf8_lossy(&module.bytecode).to_string();
+    // With `enable_typescript` (the default) strip `TypeScript` types to executable
+    // `JavaScript` before the isolate sees the source; with it off the `JavaScript`
+    // runs byte-for-byte unchanged. A transpile failure is a located `SyntaxError`,
+    // mapped below to the same permanent 4xx a malformed guest already gets.
+    let source = if enable_typescript {
+        transpile::transpile_typescript(&raw)
+    } else {
+        Ok(raw)
+    };
     // Functions receive the entity data, not the full internal EventPayload.
     let event_data = event.data;
 
     async move {
+        let source = source.map_err(|message| fraiseql_error::FraiseQLError::Validation {
+            message,
+            path: None,
+        })?;
         let start = std::time::Instant::now();
 
         let (tx, rx) = tokio::sync::oneshot::channel::<
@@ -289,7 +303,7 @@ impl FunctionRuntime for DenoRuntime {
         // The sync `invoke` path provides no live host: the guest may log and
         // transform data, but any `fraiseql_*` I/O op fails loud. Use
         // `invoke_with_context` for outbound HTTP / query / storage.
-        run_guest(module, event, limits, None)
+        run_guest(module, event, limits, None, self.config.enable_typescript)
     }
 
     fn supported_extensions(&self) -> &[&str] {
