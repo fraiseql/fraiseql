@@ -167,11 +167,13 @@ mod output_schemas_tests {
 }
 
 mod runner_tests {
-    use super::super::runner::format_cli_error;
+    use anyhow::Context as _;
+
+    use super::super::runner::{error_causes, format_cli_error};
 
     #[test]
     fn format_cli_error_json_mode_produces_structured_object() {
-        let output = format_cli_error("something went wrong", None, true, 1);
+        let output = format_cli_error("something went wrong", &[], None, true, 1);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         assert_eq!(parsed["error"]["message"], "something went wrong");
         assert_eq!(parsed["error"]["code"], 1);
@@ -179,20 +181,21 @@ mod runner_tests {
 
     #[test]
     fn format_cli_error_json_mode_uses_exit_code() {
-        let output = format_cli_error("validation failed", None, true, 2);
+        let output = format_cli_error("validation failed", &[], None, true, 2);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         assert_eq!(parsed["error"]["code"], 2);
     }
 
     #[test]
     fn format_cli_error_plain_mode_produces_human_readable_text() {
-        let output = format_cli_error("file not found", None, false, 1);
+        // No causes → byte-identical to the pre-chain output (backward compatible).
+        let output = format_cli_error("file not found", &[], None, false, 1);
         assert_eq!(output, "Error: file not found");
     }
 
     #[test]
     fn format_cli_error_plain_mode_appends_debug_info() {
-        let output = format_cli_error("oops", Some("stack trace here"), false, 1);
+        let output = format_cli_error("oops", &[], Some("stack trace here"), false, 1);
         assert!(output.contains("Error: oops"));
         assert!(output.contains("Debug info:"));
         assert!(output.contains("stack trace here"));
@@ -201,9 +204,60 @@ mod runner_tests {
     #[test]
     fn format_cli_error_json_mode_omits_debug_info() {
         // In JSON mode, debug_info is not included — keep the output machine-parseable.
-        let output = format_cli_error("oops", Some("secret internals"), true, 1);
+        let output = format_cli_error("oops", &[], Some("secret internals"), true, 1);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         let serialized = parsed.to_string();
         assert!(!serialized.contains("secret internals"));
+    }
+
+    #[test]
+    fn format_cli_error_plain_mode_surfaces_cause_chain() {
+        // The regression this fixes: the underlying reason must reach the user, not
+        // just the top-level context.
+        let causes = vec![
+            "Type 'Order' implements interface 'CascadeNode' but is missing field 'id'".to_string(),
+        ];
+        let output = format_cli_error(
+            "Failed to convert schema to compiled format",
+            &causes,
+            None,
+            false,
+            1,
+        );
+        assert!(output.starts_with("Error: Failed to convert schema to compiled format"));
+        assert!(output.contains("caused by: Type 'Order' implements interface 'CascadeNode'"));
+    }
+
+    #[test]
+    fn format_cli_error_json_mode_includes_causes_array() {
+        // `--json` must carry the chain too — previously it dropped it entirely.
+        let causes = vec!["root reason".to_string()];
+        let output = format_cli_error("top context", &causes, None, true, 1);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
+        assert_eq!(parsed["error"]["message"], "top context");
+        assert_eq!(parsed["error"]["causes"][0], "root reason");
+    }
+
+    #[test]
+    fn format_cli_error_plain_mode_lists_every_cause_in_order() {
+        let causes = vec!["middle".to_string(), "root".to_string()];
+        let output = format_cli_error("top", &causes, None, false, 1);
+        let mid = output.find("caused by: middle").expect("middle cause present");
+        let root = output.find("caused by: root").expect("root cause present");
+        assert!(mid < root, "causes are rendered outermost-first");
+    }
+
+    #[test]
+    fn error_causes_extracts_chain_below_top_context() {
+        // `bail!("root")` wrapped in two contexts: top is the message, the rest are causes.
+        let err = Err::<(), _>(anyhow::anyhow!("root reason"))
+            .context("middle context")
+            .context("top context")
+            .unwrap_err();
+        assert_eq!(err.to_string(), "top context");
+        assert_eq!(
+            error_causes(&err),
+            vec!["middle context".to_string(), "root reason".to_string(),]
+        );
     }
 }
