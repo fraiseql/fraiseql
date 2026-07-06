@@ -62,8 +62,13 @@ jobs:
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ${{ env.REGISTRY }}
+          # Use the built-in, per-run GITHUB_TOKEN (this job declares
+          # `packages: write` above) instead of a long-lived `GHCR_PAT` secret. The
+          # PAT expired/rotated and denied the v2.11.0 image push (it had worked
+          # through v2.10.0); the scoped GITHUB_TOKEN never expires and aligns with
+          # the token-least-privilege posture (#545).
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
@@ -259,13 +264,15 @@ jobs:
     steps:
       - name: Create deployment summary
         run: |
-          echo "## 🎉 Docker Images Built Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
-          echo "**Images**:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/server\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🎉 Docker Images Built Successfully"
+            echo ""
+            echo "**Registry**: GitHub Container Registry (ghcr.io)"
+            echo "**Images**:"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/server\`"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`"
+            echo ""
+            echo "**Branch**: ${{ github.ref }}"
+            echo "**Commit**: ${{ github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
