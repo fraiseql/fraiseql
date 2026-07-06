@@ -401,6 +401,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cancel_saga` / `get_saga_status` / `get_saga_result` / `list_in_flight_sagas`).
   **Migration:** replace `features = ["unstable-saga"]` with `features = ["saga"]`.
 
+- **The native functions runtime is now stable (native-runtime hardening).** The
+  `functions-runtime`, `functions-runtime-deno`, `inbound`, and `inbound-email`
+  features graduate from opt-in-and-maturing to **stable and semver-covered** (their
+  APIs will not change without a major version bump), mirroring the saga promotion.
+  They keep their names and stay **opt-in** so the default binary stays lean — V8
+  (~30 MB) is only compiled with `functions-runtime-deno` — and the stock server
+  binary mounts the runtime and the after:mutation dispatch hooks at serve time when
+  the feature is enabled. This closes the native-runtime hardening train: real
+  TypeScript type-stripping, the `send_email` host op, a verified sending address,
+  a host-provided idempotency token, the delivery-feedback loop, and permanent-error
+  tagging are all delivered. See `docs/architecture/native-runtime-ergonomics.md`.
+
 ### Removed
 
 - **The legacy fail-loud saga placeholders are removed (#429).** The former
@@ -415,6 +427,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Native-column `WHERE` filters no longer 500 on a camelCase argument (#540).**
+  A filter argument on a native (real-column) field emitted the camelCase argument
+  name verbatim as the SQL column — `comments(postId: …)` became `WHERE postId = …`,
+  a 500 on the non-existent column. Both native-column emission paths now recase the
+  argument to the `snake_case` column (`postId` → `post_id`), matching the JSONB
+  filter path.
 - **Federation `HttpMutationClient` now infers `Float!` for fractional variables
   (#429).** `build_variable_definitions` typed every JSON number `Int!`, so a mutation
   variable carrying a fractional value (e.g. a price `9.99`) produced `$price: Int!` and
@@ -563,6 +581,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a code regression, but it is now called out: create each `sql_source` view
   `WITH (security_invoker = true)` (PG 15+), the view-authoring docs document it, and
   `fraiseql doctor --against-db` warns when a view lacks it while RLS is in use.
+
+## [2.10.0] - 2026-06-26
 
 ### Added
 
