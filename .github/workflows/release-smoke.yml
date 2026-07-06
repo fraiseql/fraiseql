@@ -32,7 +32,9 @@ jobs:
   smoke:
     name: Server boot smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30 min: the default-features build + boot, then a second build with the
+    # native runtime mounted (functions-runtime-deno pulls a prebuilt V8 + swc).
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -173,6 +175,50 @@ jobs:
             sleep 1
           done
           echo "::error::Timed out waiting for /health (sql_source validation ON) after 30s." >&2
+          exit 1
+
+      # The native functions runtime (functions-runtime-deno + inbound-email) is a
+      # promoted-to-stable feature whose startup path — registering the V8/Deno and
+      # WASM runtimes, mounting the after:mutation dispatch hooks, wiring the inbound
+      # source — only runs when the feature is compiled in. A default-features boot
+      # never exercises it, so a panic in that feature-gated startup code (the exact
+      # "compiles but panics on boot" class this workflow guards) would ship
+      # unnoticed. Rebuild with the runtime mounted and prove it still boots healthy.
+      - name: Stop server (sql_source-ON run)
+        run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
+
+      - name: Build fraiseql-server with the native runtime mounted
+        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email
+
+      - name: Boot with the native runtime mounted
+        run: |
+          ./target/release/fraiseql-server &
+          echo $! > /tmp/fraiseql-server.pid
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_BIND_ADDR: 127.0.0.1:8817
+          FRAISEQL_INTROSPECTION_ENABLED: "true"
+          FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Wait for /health (native runtime mounted)
+        run: |
+          set -eu
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8817/health; then
+              echo
+              echo "Server booted healthy with functions-runtime-deno + inbound-email after ~$((i * 1))s."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
+              echo "::error::server exited before /health with the native runtime mounted — a panic in the runtime/inbound startup path." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Timed out waiting for /health (native runtime mounted) after 30s." >&2
           exit 1
 
       - name: Stop server
