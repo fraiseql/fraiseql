@@ -71,7 +71,7 @@ module by its `runtime` field:
 | Runtime | Feature | Authoring | Notes |
 |---------|---------|-----------|-------|
 | **WASM** (`RuntimeType::Wasm`) | `functions-runtime` | any language → `wasm32-wasip2` component | wasmtime, component model |
-| **Deno** (`RuntimeType::Deno`) | `functions-runtime-deno` | JavaScript (+ type-annotation-free TypeScript) | V8 isolate. Full TS type-stripping is a tracked follow-up; the runtime executes JS today. |
+| **Deno** (`RuntimeType::Deno`) | `functions-runtime-deno` | JavaScript & TypeScript | V8 isolate. `TypeScript` types are stripped to JS before execution (`deno_ast`/swc), gated by `DenoConfig.enable_typescript` (on by default). |
 
 Both reach the same **I/O-capable host surface** through
 `FunctionObserver::invoke_with_context`, which dispatches by the module's runtime.

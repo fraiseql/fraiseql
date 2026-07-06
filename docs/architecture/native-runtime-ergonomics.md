@@ -36,19 +36,31 @@ design-in-the-open output of the beta migration. The workloads migrated:
   already did the hard part (MIME, threading, bounce/OOO/challenge detection).
   That gate is simultaneously the reply signal and the mail-loop guard.
 
-## Friction and gaps → hardening backlog
+## Friction and gaps → hardening backlog (all DELIVERED)
 
-These are **known limitations of the opt-in native runtime, not blockers.** Every
-workload above runs today; each item below is an ergonomics or reach improvement
-slated for a follow-up hardening train, at the end of which the features are
-promoted from opt-in to stable.
+The native runtime is now **stable and semver-covered.** It remains **opt-in**
+behind its Cargo features (`functions-runtime`, `functions-runtime-deno`,
+`inbound`, `inbound-email`) so the default binary stays lean — V8 (~30 MB) is only
+compiled when `functions-runtime-deno` is enabled — but the feature surface is
+stable, not experimental. Every gap the beta migration surfaced (below) is
+**delivered**; this section is retained as the delivery record.
 
-1. **TypeScript is transpiled-in-name-only (the biggest papercut).** The runtime
-   executes JavaScript; a `.ts` file with type annotations is a `SyntaxError`. All
-   four examples are written in the type-annotation-free subset of TypeScript
-   (valid JS *and* valid TS). This is liveable but surprising, and it blocks
-   sharing types with the rest of a TS codebase. **Planned: wire real
-   type-stripping** (`deno_ast` / swc) so authors write ordinary TypeScript.
+> **Scope note (delivery-feedback).** The delivery-feedback surfaces — per-send VERP
+> Return-Path correlation, the suppression-store schema, the
+> `POST /api/email/suppress[ion]` admin API, and the send-status lifecycle — landed
+> immediately before the promotion and have not yet met a real bounce, a provider's
+> actual plus-addressing, or a live challenge-response. They are stable-*tracked* but
+> may evolve through v2.12 as the first beta feedback lands; treat their exact shapes
+> as provisional-within-stable until then.
+
+1. **TypeScript type-stripping — DELIVERED.** The runtime strips `TypeScript`
+   types to executable JavaScript before execution (`deno_ast` / swc, a real AST
+   transpile — interfaces, `: Type`, generics, `as`, and `enum`s are all handled),
+   gated by `DenoConfig.enable_typescript` (on by default). Authors write ordinary
+   `.ts` and can share types with the rest of a TS codebase; a host-op `.d.ts`
+   (`examples/native-functions/fraiseql-host.d.ts`) types the `Deno.core.ops.fraiseql_*`
+   surface, and `examples/native-functions/deal-scoring.ts` is the annotated
+   reference. A parse/transpile failure surfaces as a located `SyntaxError`.
 
 2. **Per-user send — DELIVERED as a host op.** The banked constraint — a paired
    outbound email is sent *from the connected user's verified address, never a
@@ -69,12 +81,29 @@ promoted from opt-in to stable.
    (a missing module fails startup, fail-loud). **Not yet closed:** the DB-backed
    `SendCounter` over the application's mailbox table (the remaining warming piece).
 
-3. **Verified sending address vs. authenticated email.** Today the per-user
-   `from` is taken from the authenticated identity's `email`. An outreach tool's
-   *sending* mailbox (the connected IMAP/SMTP account, cf. `[mailbox.<name>]`) can
-   differ from the JWT subject's email. **Planned: a distinct, verified
-   `sending_address` on the security/auth context**, resolved from the connected
-   mailbox rather than assumed equal to the login email.
+3. **Verified sending address vs. authenticated email — DELIVERED.** An outreach
+   tool's *sending* mailbox (the connected IMAP/SMTP account, cf.
+   `[mailbox.<name>]`) can differ from the JWT subject's email, so the `send_email`
+   `from` is **not** assumed equal to the login email. It is resolved at send time
+   by the `SenderIdentityResolver` seam — the send-side arm of the shared
+   `sub → DB → identity` primitive (sibling of the enriched-identity read scoping,
+   #539): `DbSenderIdentityResolver` maps `sub → verified from-address` from the
+   application's DB, **fail-closed** (a denied subject or a NULL address refuses the
+   send; a momentarily-down store is a transient 503, never a fall-back to a shared
+   mailbox). `LoginEmailSender` is the degenerate default where the two provably
+   coincide (no `[identity.sender]` configured). Ownership is two-sided: the SMTP
+   transport only relays for an address with a configured per-account
+   `[mailbox.<name>.smtp]`, so a resolved address that no account owns cannot send.
+
+   Resolved **at send time**, not eagerly surfaced on every `auth_context`: the
+   `from` is host-owned and a guest cannot set it (a guest-supplied `from` is
+   dropped at the type level), so there is nothing for a guest to do with a
+   `sending_address` field — and eager resolution would add a per-invocation DB hit
+   to functions that never send. `auth_context` still carries the login `email` /
+   `display_name` unchanged. **Non-PostgreSQL note:** the DB-backed resolver runs on
+   the PostgreSQL-only identity primitive; MySQL/SQLite deployments dispatch
+   functions with the `LoginEmailSender` default (`from` = the authenticated
+   `email`).
 
 4. **Host-provided idempotency token — DELIVERED.** The guest no longer has to
    hand-derive a deterministic key. The host exposes a per-dispatch idempotency

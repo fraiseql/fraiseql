@@ -128,6 +128,77 @@ export default async (event) => {
 }
 
 #[tokio::test]
+async fn test_deno_typescript_annotations_are_stripped() {
+    // Real TypeScript — interface, `: Type` annotations, a constrained generic, an
+    // `as` assertion — runs end-to-end because the runtime strips the types first.
+    let source = r"
+interface Deal { value: number; label: string }
+function bump<T extends { value: number }>(d: T): number {
+    return d.value + 1;
+}
+export default async (deal: Deal): Promise<{ result: number; label: string }> => {
+    const next: number = bump(deal);
+    return { result: next, label: deal.label as string };
+};
+"
+    .to_string();
+
+    let module =
+        FunctionModule::from_source("test_ts_annotations".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = EventPayload {
+        data: serde_json::json!({"value": 42, "label": "acme"}),
+        ..test_event()
+    };
+    let result = runtime
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
+        .await;
+
+    assert!(result.is_ok(), "annotated TypeScript should run: {result:?}");
+    if let Some(serde_json::Value::Object(obj)) = result.unwrap().value {
+        assert_eq!(obj["result"], 43);
+        assert_eq!(obj["label"], "acme");
+    } else {
+        panic!("Expected object result");
+    }
+}
+
+#[tokio::test]
+async fn test_deno_typescript_disabled_rejects_annotations() {
+    // With type-stripping off, the same annotated source reaches V8 verbatim and is
+    // a SyntaxError — proving `enable_typescript` actually gates the pass.
+    let source = "export default async (deal: { value: number }): Promise<number> => deal.value;"
+        .to_string();
+
+    let module =
+        FunctionModule::from_source("test_ts_disabled".to_string(), source, RuntimeType::Deno);
+    let config = super::DenoConfig {
+        enable_typescript: false,
+        v8_flags:          vec![],
+    };
+    let runtime = super::DenoRuntime::new(&config).expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let result = runtime
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
+        .await;
+
+    assert!(result.is_err(), "annotated TS must fail when type-stripping is disabled");
+}
+
+#[tokio::test]
 async fn test_deno_syntax_error_returns_validation() {
     // Invalid JavaScript
     let source = "export default async (event) => { broken syntax here }".to_string();

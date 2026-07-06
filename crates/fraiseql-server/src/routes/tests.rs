@@ -265,7 +265,7 @@ mod auth_tests {
     #[tokio::test]
     async fn test_auth_start_oversized_redirect_uri_returns_400() {
         let app = auth_router();
-        let long_uri = "https://example.com/".to_string() + &"a".repeat(2100);
+        let long_uri = "https://example.com/".to_string() + "a".repeat(2100).as_str();
         let encoded = urlencoding::encode(&long_uri);
         let req = Request::builder()
             .uri(format!("/auth/start?redirect_uri={encoded}"))

@@ -326,6 +326,21 @@ name = "miniz_oxide"
 reason = "v8/deno_core pins 0.7.4; backtrace/dhat uses 0.8.9; both are optional feature paths"
 version = "=0.7.4"
 
+[[bans.skip]]
+name = "phf"
+reason = "swc (via deno_ast, runtime-deno) → phf 0.13; workspace on 0.11"
+version = "=0.13.1"
+
+[[bans.skip]]
+name = "phf_shared"
+reason = "swc (via deno_ast, runtime-deno) → phf_shared 0.13; workspace on 0.11"
+version = "=0.13.1"
+
+[[bans.skip]]
+name = "siphasher"
+reason = "swc (via deno_ast, runtime-deno) → phf 0.13 → siphasher 1.0; workspace on 0.3"
+version = "=1.0.2"
+
 [[bans.skip-tree]]
 name = "hyper"
 reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"

@@ -14,9 +14,9 @@
 //
 // The function receives the mutated Deal row as its argument.
 //
-// NOTE: the runtime executes JavaScript. This file is written in the
-// type-annotation-free subset of TypeScript (valid JS *and* valid TS); full TS
-// type-stripping transpilation is a tracked follow-up.
+// NOTE: this file uses the type-annotation-free TypeScript subset for brevity. The
+// runtime strips TypeScript types before execution — see deal-scoring.ts for an
+// annotated example and fraiseql-host.d.ts for the host-op types.
 export default async (deal) => {
   // Only act when the scorer recommended a follow-up.
   if (deal.next_action !== "send_follow_up") {

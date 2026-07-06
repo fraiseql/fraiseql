@@ -2506,7 +2506,7 @@ mod query_validator_tests {
     // ============================================================================
 
     fn large_query(size: usize) -> String {
-        "{ ".to_string() + &"field ".repeat(size) + "}"
+        "{ ".to_string() + "field ".repeat(size).as_str() + "}"
     }
 
     #[test]
