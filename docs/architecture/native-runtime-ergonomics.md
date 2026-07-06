@@ -45,6 +45,14 @@ compiled when `functions-runtime-deno` is enabled — but the feature surface is
 stable, not experimental. Every gap the beta migration surfaced (below) is
 **delivered**; this section is retained as the delivery record.
 
+> **Scope note (delivery-feedback).** The delivery-feedback surfaces — per-send VERP
+> Return-Path correlation, the suppression-store schema, the
+> `POST /api/email/suppress[ion]` admin API, and the send-status lifecycle — landed
+> immediately before the promotion and have not yet met a real bounce, a provider's
+> actual plus-addressing, or a live challenge-response. They are stable-*tracked* but
+> may evolve through v2.12 as the first beta feedback lands; treat their exact shapes
+> as provisional-within-stable until then.
+
 1. **TypeScript type-stripping — DELIVERED.** The runtime strips `TypeScript`
    types to executable JavaScript before execution (`deno_ast` / swc, a real AST
    transpile — interfaces, `: Type`, generics, `as`, and `enum`s are all handled),

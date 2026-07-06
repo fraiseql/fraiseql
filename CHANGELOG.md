@@ -411,7 +411,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the feature is enabled. This closes the native-runtime hardening train: real
   TypeScript type-stripping, the `send_email` host op, a verified sending address,
   a host-provided idempotency token, the delivery-feedback loop, and permanent-error
-  tagging are all delivered. See `docs/architecture/native-runtime-ergonomics.md`.
+  tagging are all delivered. **Scope note:** the delivery-feedback surfaces (per-send
+  VERP Return-Path correlation, the suppression-store schema, the
+  `POST /api/email/suppress[ion]` admin API, and the send-status lifecycle) landed
+  immediately before this release and have not yet met a real bounce, a provider's
+  actual plus-addressing, or a live challenge-response; they are stable-*tracked* but
+  may evolve through v2.12 as beta feedback lands. See
+  `docs/architecture/native-runtime-ergonomics.md`.
 
 ### Removed
 
