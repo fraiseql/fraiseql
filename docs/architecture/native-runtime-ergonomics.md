@@ -71,12 +71,29 @@ promoted from opt-in to stable.
    (a missing module fails startup, fail-loud). **Not yet closed:** the DB-backed
    `SendCounter` over the application's mailbox table (the remaining warming piece).
 
-3. **Verified sending address vs. authenticated email.** Today the per-user
-   `from` is taken from the authenticated identity's `email`. An outreach tool's
-   *sending* mailbox (the connected IMAP/SMTP account, cf. `[mailbox.<name>]`) can
-   differ from the JWT subject's email. **Planned: a distinct, verified
-   `sending_address` on the security/auth context**, resolved from the connected
-   mailbox rather than assumed equal to the login email.
+3. **Verified sending address vs. authenticated email — DELIVERED.** An outreach
+   tool's *sending* mailbox (the connected IMAP/SMTP account, cf.
+   `[mailbox.<name>]`) can differ from the JWT subject's email, so the `send_email`
+   `from` is **not** assumed equal to the login email. It is resolved at send time
+   by the `SenderIdentityResolver` seam — the send-side arm of the shared
+   `sub → DB → identity` primitive (sibling of the enriched-identity read scoping,
+   #539): `DbSenderIdentityResolver` maps `sub → verified from-address` from the
+   application's DB, **fail-closed** (a denied subject or a NULL address refuses the
+   send; a momentarily-down store is a transient 503, never a fall-back to a shared
+   mailbox). `LoginEmailSender` is the degenerate default where the two provably
+   coincide (no `[identity.sender]` configured). Ownership is two-sided: the SMTP
+   transport only relays for an address with a configured per-account
+   `[mailbox.<name>.smtp]`, so a resolved address that no account owns cannot send.
+
+   Resolved **at send time**, not eagerly surfaced on every `auth_context`: the
+   `from` is host-owned and a guest cannot set it (a guest-supplied `from` is
+   dropped at the type level), so there is nothing for a guest to do with a
+   `sending_address` field — and eager resolution would add a per-invocation DB hit
+   to functions that never send. `auth_context` still carries the login `email` /
+   `display_name` unchanged. **Non-PostgreSQL note:** the DB-backed resolver runs on
+   the PostgreSQL-only identity primitive; MySQL/SQLite deployments dispatch
+   functions with the `LoginEmailSender` default (`from` = the authenticated
+   `email`).
 
 4. **Host-provided idempotency token — DELIVERED.** The guest no longer has to
    hand-derive a deterministic key. The host exposes a per-dispatch idempotency
