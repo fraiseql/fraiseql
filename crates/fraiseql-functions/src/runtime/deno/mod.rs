@@ -20,9 +20,12 @@
 pub mod executor;
 pub mod ops;
 pub mod tests;
+pub mod transpile;
 
 #[cfg(test)]
 mod follow_up_tests;
+#[cfg(test)]
+mod transpile_tests;
 // Uses the real `LiveHostContext` (host-live) to prove the op end-to-end, so it is
 // gated on host-live as well — the `runtime-deno`-only clippy combo has no live host.
 #[cfg(all(test, feature = "host-live"))]
