@@ -27,7 +27,7 @@ futures = "0.3"
 reqwest = {workspace = true}
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "10"
-parquet = {version = "57", optional = true}
+parquet = {version = "59", optional = true}
 prost = "0.14"
 # Serialization
 serde = {version = "1", features = ["derive"]}
