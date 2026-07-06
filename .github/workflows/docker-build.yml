@@ -72,7 +72,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437de2166  # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.image-suffix }}
           tags: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: Extract metadata for Docker Hub
         id: meta
-        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437de2166  # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v5
         with:
           images: ${{ matrix.service.docker-hub-image }}
           tags: |
