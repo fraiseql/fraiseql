@@ -48,76 +48,62 @@ use crate::{
     types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits},
 };
 
-/// `TypeScript` type declarations for FraiseQL host operations.
+/// `TypeScript` ambient declarations for the FraiseQL native-functions host surface.
 ///
-/// This is embedded as a constant string for Deno's type checker to understand
-/// the available operations and their signatures. Guest developers using `TypeScript`
-/// will get type checking and IDE autocomplete for these operations.
+/// The host operations are reached as `Deno.core.ops.fraiseql_*`, with
+/// `Deno.core.encode` / `Deno.core.decode` bridging strings and byte buffers. This
+/// is the canonical shape shipped to authors as `examples/native-functions/fraiseql-host.d.ts`
+/// (kept in sync with this constant); reference it from a function to get
+/// type-checking and editor autocomplete.
 pub const FRAISEQL_HOST_TYPES: &str = r"
-// FraiseQL host operations type definitions for TypeScript
-// These are available on Deno.core.ops
+// FraiseQL native-functions host surface (Deno.core.ops.fraiseql_*).
 
-interface HttpResponse {
+interface FraiseqlHttpResponse {
   status: number;
   headers: Array<[string, string]>;
   body: Uint8Array;
 }
 
-// Execute a GraphQL query
-async function fraiseql_query(
-  graphql: string,
-  variables: string, // JSON string
-): Promise<string>; // JSON string
+interface FraiseqlHostOps {
+  // Execute a GraphQL query/mutation. `variables` is a JSON string; returns a JSON string.
+  fraiseql_query(graphql: string, variables: string): Promise<string>;
+  // Execute a raw SQL query. `params` is a JSON array string; returns a JSON array string.
+  fraiseql_sql_query(sql: string, params: string): Promise<string>;
+  // Make an outbound HTTP request (SSRF-allowlisted by the host).
+  fraiseql_http_request(
+    method: string,
+    url: string,
+    headers: Array<[string, string]>,
+    body: Uint8Array | null,
+  ): Promise<FraiseqlHttpResponse>;
+  // Object storage.
+  fraiseql_storage_get(bucket: string, key: string): Promise<Uint8Array>;
+  fraiseql_storage_put(
+    bucket: string,
+    key: string,
+    body: Uint8Array,
+    contentType: string,
+  ): Promise<void>;
+  // Send an email. `from` is host-owned; the request JSON carries only
+  // { to, subject, text?, html?, reply_to? }.
+  fraiseql_send_email(request: string): Promise<string>;
+  // The authenticated caller's context, as a JSON string.
+  fraiseql_auth_context(): string;
+  // Read a host-allowlisted environment variable, or null.
+  fraiseql_env_var(name: string): string | null;
+  // Per-dispatch idempotency token, or null on a non-durably-dispatched invocation.
+  fraiseql_idempotency_token(): string | null;
+  // Structured log. Levels: 0=debug, 1=info, 2=warn, 3=error.
+  fraiseql_log(level: number, message: string): void;
+}
 
-// Execute a raw SQL query
-async function fraiseql_sql_query(
-  sql: string,
-  params: string, // JSON array string
-): Promise<string>; // JSON array string
-
-// Make an HTTP request
-async function fraiseql_http_request(
-  method: string,
-  url: string,
-  headers: Array<[string, string]>,
-  body: Uint8Array | null,
-): Promise<HttpResponse>;
-
-// Retrieve an object from storage
-async function fraiseql_storage_get(
-  bucket: string,
-  key: string,
-): Promise<Uint8Array>;
-
-// Store an object to storage
-async function fraiseql_storage_put(
-  bucket: string,
-  key: string,
-  body: Uint8Array,
-  content_type: string,
-): Promise<void>;
-
-// Send an email. The `from` is host-owned (resolved from the auth context),
-// never supplied by the guest. The request carries only to/subject/body.
-async function fraiseql_send_email(
-  request: string, // JSON: { to, subject, text?, html?, reply_to? }
-): Promise<string>; // JSON: { message_id?, accepted }
-
-// Get the current authenticated user's context
-function fraiseql_auth_context(): string; // JSON string
-
-// Get an environment variable
-function fraiseql_env_var(name: string): string | null;
-
-// Get the per-dispatch idempotency token, or null when this invocation was not
-// durably dispatched. Stable across retries of the same dispatch and distinct
-// per dispatch; pass it to a downstream money/mail idempotency header so an
-// at-least-once retry stays at-most-once.
-function fraiseql_idempotency_token(): string | null;
-
-// Log a message
-function fraiseql_log(level: number, message: string): void;
-// Levels: 0=debug, 1=info, 2=warn, 3=error
+declare namespace Deno {
+  namespace core {
+    const ops: FraiseqlHostOps;
+    function encode(text: string): Uint8Array;
+    function decode(bytes: Uint8Array): string;
+  }
+}
 ";
 
 /// Configuration for the Deno runtime.

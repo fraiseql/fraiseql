@@ -7,7 +7,14 @@ Python sidecar, no separate deployment.
 These are the workloads migrated off an adjacent Python/FastAPI sidecar onto the
 native runtime. Each function is a single `export default`
 handler that receives the event payload and reaches the host through
-`Deno.core.ops.fraiseql_*` (typed by the runtime's `FRAISEQL_HOST_TYPES`).
+`Deno.core.ops.fraiseql_*`.
+
+Write ordinary TypeScript: the runtime strips type annotations to JavaScript
+before execution (a real `deno_ast`/swc transpile — interfaces, `: Type`,
+generics, `as`, `enum`), so a `.ts` handler with types runs as-is. Reference
+[`fraiseql-host.d.ts`](./fraiseql-host.d.ts) for host-op type-checking and
+autocomplete — `deal-scoring.ts` is the annotated reference; the other three use
+the type-annotation-free subset for brevity.
 
 ## `deal-scoring.ts`
 

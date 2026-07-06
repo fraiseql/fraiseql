@@ -43,12 +43,14 @@ workload above runs today; each item below is an ergonomics or reach improvement
 slated for a follow-up hardening train, at the end of which the features are
 promoted from opt-in to stable.
 
-1. **TypeScript is transpiled-in-name-only (the biggest papercut).** The runtime
-   executes JavaScript; a `.ts` file with type annotations is a `SyntaxError`. All
-   four examples are written in the type-annotation-free subset of TypeScript
-   (valid JS *and* valid TS). This is liveable but surprising, and it blocks
-   sharing types with the rest of a TS codebase. **Planned: wire real
-   type-stripping** (`deno_ast` / swc) so authors write ordinary TypeScript.
+1. **TypeScript type-stripping — DELIVERED.** The runtime strips `TypeScript`
+   types to executable JavaScript before execution (`deno_ast` / swc, a real AST
+   transpile — interfaces, `: Type`, generics, `as`, and `enum`s are all handled),
+   gated by `DenoConfig.enable_typescript` (on by default). Authors write ordinary
+   `.ts` and can share types with the rest of a TS codebase; a host-op `.d.ts`
+   (`examples/native-functions/fraiseql-host.d.ts`) types the `Deno.core.ops.fraiseql_*`
+   surface, and `examples/native-functions/deal-scoring.ts` is the annotated
+   reference. A parse/transpile failure surfaces as a located `SyntaxError`.
 
 2. **Per-user send — DELIVERED as a host op.** The banked constraint — a paired
    outbound email is sent *from the connected user's verified address, never a

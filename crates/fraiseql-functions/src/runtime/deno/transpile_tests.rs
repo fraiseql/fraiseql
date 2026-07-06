@@ -64,6 +64,19 @@ fn plain_javascript_round_trips() {
 }
 
 #[test]
+fn flagship_annotated_example_transpiles() {
+    // The shipped annotated example must stay valid strippable TypeScript — this
+    // guards it (triple-slash reference directive, interfaces, union type, `as`)
+    // against rotting into something the runtime would reject.
+    let path =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/native-functions/deal-scoring.ts");
+    let src = std::fs::read_to_string(path).expect("read deal-scoring.ts example");
+    let js = transpile_typescript(&src).expect("annotated example transpiles");
+    assert!(js.contains("export default"), "entry point preserved: {js}");
+    assert!(!js.contains("interface Deal"), "types stripped: {js}");
+}
+
+#[test]
 fn syntax_error_is_reported_with_location() {
     // A genuine parse failure must surface as a located SyntaxError so the
     // executor classifies it as a permanent 4xx (dead-letter, never retry).
