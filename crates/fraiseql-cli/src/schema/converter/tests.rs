@@ -2086,6 +2086,150 @@ mod tenancy_tests {
         assert!(!post.implements.iter().any(|i| i == "CascadeNode"));
     }
 
+    // ── Node `id: ID!` conformance enforcement (Option B: hard error) ──────
+
+    /// A view-backed entity with a chosen `id` field type — for conformance tests.
+    fn entity_with_id(name: &str, id_ty: &str) -> IntermediateType {
+        IntermediateType {
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            ..make_type(name, vec![make_field("id", id_ty)])
+        }
+    }
+
+    /// A cascade mutation returning `entity` — the opt-in that triggers synthesis.
+    fn cascade_mut(name: &str, entity: &str) -> IntermediateMutation {
+        IntermediateMutation {
+            cascade: true,
+            sql_source: Some(format!("fn_{}", name.to_lowercase())),
+            ..make_mutation(name, entity)
+        }
+    }
+
+    /// The regression: a cascade entity whose `id` is `UUID` (not `ID`) must fail
+    /// with a legible, actionable error at synthesis — not a swallowed validator
+    /// bail. The message names the type, its actual id type, and the remedy.
+    #[test]
+    fn cascade_uuid_id_entity_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "UUID")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let err = SchemaConverter::convert(schema).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("Order"), "names the offending type: {msg}");
+        assert!(msg.contains("UUID"), "names the actual id type (not just 'missing'): {msg}");
+        assert!(msg.contains("id: ID!"), "states the required shape: {msg}");
+        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+    }
+
+    /// A cascade entity with no `id` field at all (e.g. keyed on another column)
+    /// fails the same way, with the "no `id` field" wording.
+    #[test]
+    fn cascade_missing_id_entity_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let order = IntermediateType {
+            sql_source: Some("v_order".to_string()),
+            ..make_type("Order", vec![make_field("orderNumber", "String")])
+        };
+        let schema = make_schema(vec![order], vec![], vec![cascade_mut("createOrder", "Order")]);
+        let err = SchemaConverter::convert(schema).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("Order") && msg.contains("no `id` field"), "{msg}");
+        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+    }
+
+    /// One error lists *every* offender, so a developer fixes them in one pass
+    /// rather than whack-a-mole.
+    #[test]
+    fn cascade_conformance_error_aggregates_all_offenders() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![
+                entity_with_id("Order", "UUID"),
+                entity_with_id("Invoice", "Int"),
+            ],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(msg.contains("Order") && msg.contains("Invoice"), "lists both offenders: {msg}");
+    }
+
+    /// Happy-path guard: a conformant `id: ID!` cascade entity still synthesizes
+    /// and implements `CascadeNode` (the fix must not over-correct).
+    #[test]
+    fn cascade_conformant_id_entity_still_implements_cascade_node() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "ID")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let compiled =
+            SchemaConverter::convert(schema).expect("conformant cascade schema compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "CascadeNode"));
+    }
+
+    /// The identical latent defect in Relay `Node` injection is now a legible error
+    /// too (previously a swallowed validator bail).
+    #[test]
+    fn relay_uuid_id_type_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let mut order = entity_with_id("Order", "UUID");
+        order.relay = true;
+        let schema = make_schema(vec![order], vec![make_query("orders", "Order")], vec![]);
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(msg.contains("Order") && msg.contains("relay"), "{msg}");
+        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+    }
+
+    /// Phase-2 soundness invariant: no synthesis pass may emit IR that `validate()`
+    /// rejects with a swallowed bail. Across id types × interface-forcing features,
+    /// `convert()` must either succeed or fail with a *legible* synthesis error
+    /// (a `Fix:` remedy) — never leak the raw validator "…is missing field 'id'".
+    #[test]
+    fn synthesis_never_leaks_a_raw_validator_bail() {
+        use crate::schema::SchemaConverter;
+
+        let mut cases: Vec<(String, bool, IntermediateSchema)> = Vec::new();
+        for (id_ty, expect_ok) in [("ID", true), ("UUID", false), ("Int", false)] {
+            cases.push((
+                format!("cascade+{id_ty}"),
+                expect_ok,
+                make_schema(
+                    vec![entity_with_id("Order", id_ty)],
+                    vec![],
+                    vec![cascade_mut("createOrder", "Order")],
+                ),
+            ));
+            let mut order = entity_with_id("Order", id_ty);
+            order.relay = true;
+            cases.push((
+                format!("relay+{id_ty}"),
+                expect_ok,
+                make_schema(vec![order], vec![make_query("orders", "Order")], vec![]),
+            ));
+        }
+
+        for (label, expect_ok, schema) in cases {
+            match SchemaConverter::convert(schema) {
+                Ok(_) => assert!(expect_ok, "{label} unexpectedly compiled"),
+                Err(e) => {
+                    let msg = format!("{e:#}");
+                    assert!(!expect_ok, "{label} unexpectedly failed: {msg}");
+                    assert!(msg.contains("Fix:"), "{label} error is not legible: {msg}");
+                    assert!(
+                        !msg.contains("but is missing field"),
+                        "{label} leaked the raw validator bail: {msg}"
+                    );
+                },
+            }
+        }
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(

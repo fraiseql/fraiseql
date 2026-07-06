@@ -64,7 +64,7 @@ const INVALIDATION_SCOPE: &str = "InvalidationScope";
 /// payload wrappers, then rewrite cascade mutations to return their payloads.
 ///
 /// Inert unless a mutation has `cascade = true`.
-pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
+pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::Result<()> {
     let cascade_mutation_indices: Vec<usize> = schema
         .mutations
         .iter()
@@ -73,8 +73,19 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
         .map(|(idx, _)| idx)
         .collect();
     if cascade_mutation_indices.is_empty() {
-        return;
+        return Ok(());
     }
+
+    // Enforce the graphql-cascade Node contract *before* forcing `implements
+    // CascadeNode`: an entity that cannot back `id: ID!` would otherwise yield a
+    // compiled schema that `validate()` rejects with a swallowed "missing field
+    // 'id'". Fail fast with one aggregated, actionable error instead.
+    super::interface_conformance::enforce_node_id_conformance(
+        schema.types.iter().filter(|t| is_queryable_entity(t)),
+        "cascade requires `id: ID!` on every cascade entity (the graphql-cascade CascadeNode \
+         interface requires it)",
+        "remove `cascade` from the mutations that return them",
+    )?;
 
     let existing_type_names: HashSet<String> =
         schema.types.iter().map(|t| t.name.to_string()).collect();
@@ -88,11 +99,7 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
         schema.interfaces.push(cascade_node_interface());
     }
     for ty in &mut schema.types {
-        // Queryable entity types only: view-backed and non-error. Synthetic types
-        // (the cascade envelope, payloads, MutationError) have an empty sql_source
-        // and are skipped, as are relay connection/edge wrappers.
-        let is_queryable_entity = !ty.is_error && !ty.sql_source.as_str().is_empty();
-        if is_queryable_entity && !ty.implements.iter().any(|i| i == CASCADE_NODE) {
+        if is_queryable_entity(ty) && !ty.implements.iter().any(|i| i == CASCADE_NODE) {
             ty.implements.push(CASCADE_NODE.to_string());
         }
     }
@@ -152,6 +159,16 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) {
         }
         schema.mutations[idx].return_type = payload_name;
     }
+
+    Ok(())
+}
+
+/// A queryable entity type: view-backed and non-error. The `CascadeNode` interface
+/// is auto-implemented on exactly these. Synthetic types (the cascade envelope,
+/// payloads, `MutationError`) have an empty `sql_source` and are excluded, as are
+/// relay connection/edge wrappers.
+fn is_queryable_entity(ty: &TypeDefinition) -> bool {
+    !ty.is_error && !ty.sql_source.as_str().is_empty()
 }
 
 /// `createUser` → `CreateUserPayload`. Uppercases the first character (mutation

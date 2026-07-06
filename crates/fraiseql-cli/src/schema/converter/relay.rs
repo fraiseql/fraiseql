@@ -14,14 +14,23 @@ use fraiseql_core::schema::{
 /// - `PageInfo` type (once): `{ hasNextPage: Boolean!, hasPreviousPage: Boolean!, startCursor:
 ///   String, endCursor: String }`
 /// - `Node` interface (once): `{ id: ID! }`
-pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
+pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<()> {
     // Collect relay type names (those with relay=true).
     let relay_types: Vec<String> =
         schema.types.iter().filter(|t| t.relay).map(|t| t.name.to_string()).collect();
 
     if relay_types.is_empty() {
-        return;
+        return Ok(());
     }
+
+    // Enforce the Relay Node contract before forcing `implements Node`: a relay
+    // type that cannot back `id: ID!` would otherwise yield a compiled schema that
+    // `validate()` rejects with a swallowed "missing field 'id'".
+    super::interface_conformance::enforce_node_id_conformance(
+        schema.types.iter().filter(|t| t.relay),
+        "relay = true requires `id: ID!` on every Relay type (the Relay Node interface requires it)",
+        "remove `relay = true` from them",
+    )?;
 
     // --- Node interface (inject once if not already present) ---
     let has_node_interface = schema.interfaces.iter().any(|i| i.name == "Node");
@@ -210,4 +219,6 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
     }
 
     schema.types.extend(new_types);
+
+    Ok(())
 }

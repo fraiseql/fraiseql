@@ -4,6 +4,7 @@
 
 mod cascade_types;
 mod directives;
+mod interface_conformance;
 mod mutation_error_union;
 mod mutations;
 mod queries;
@@ -264,7 +265,7 @@ impl SchemaConverter {
         }
 
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
-        relay::inject_relay_types(&mut compiled);
+        relay::inject_relay_types(&mut compiled)?;
 
         // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
         let rich_filter_config = RichFilterConfig::default();
@@ -281,7 +282,7 @@ impl SchemaConverter {
         // payload becomes the success member of the result union
         // (`<Name>Result = <Name>Payload | MutationError`). Inert with no cascade
         // mutations.
-        cascade_types::synthesize_cascade_types(&mut compiled);
+        cascade_types::synthesize_cascade_types(&mut compiled)?;
 
         // Auto-synthesize a shared MutationError type + per-mutation result unions
         // when opted in (`[fraiseql.mutations] auto_error_union`), so the runtime's
