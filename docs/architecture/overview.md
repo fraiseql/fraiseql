@@ -2,7 +2,7 @@
 
 **Last Updated**: June 22, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.8.0 released · v2.9.0 in development (core production-ready; some enterprise features experimental — see notes)
+**Status**: v2.10.0 released · v2.11.0 in preparation (core production-ready; some enterprise features experimental — see notes)
 
 ---
 
