@@ -70,6 +70,11 @@ optional = true
 version = "0.290"
 optional = true
 
+# Real TypeScript type-stripping (runtime-deno). NOTE: deno_ast pulls swc, which
+# pulls `smartstring`. smartstring adds `impl Add<SmartString> for String`, so under
+# any `--all-features` build the `String + &String` idiom stops compiling (the extra
+# Add impl suppresses the &String→&str deref coercion). Write `s + t.as_str()` /
+# `format!(...)` instead of `s + &t` when both sides are String.
 [dependencies.deno_ast]
 version = "0.53"
 optional = true

@@ -96,7 +96,7 @@ fn test_query_exceeding_size_limit_rejected() {
         max_aliases:    30,
     });
 
-    let large_query = "{ ".to_string() + &"a ".repeat(100) + "}";
+    let large_query = "{ ".to_string() + "a ".repeat(100).as_str() + "}";
     let result = validator.validate(&large_query);
     assert!(result.is_err(), "query exceeding size limit should be rejected");
 }

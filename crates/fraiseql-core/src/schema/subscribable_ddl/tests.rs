@@ -123,7 +123,7 @@ fn entity_type_with_a_quote_is_escaped() {
 
 #[test]
 fn long_table_name_trigger_stays_within_the_63_byte_cap() {
-    let long = "tb_".to_string() + &"a".repeat(80);
+    let long = "tb_".to_string() + "a".repeat(80).as_str();
     let ddl = generate_capture_trigger_ddl(&schema_with(vec![one("Post", &[&long])]));
     for line in ddl.lines().filter(|l| l.contains("CREATE TRIGGER")) {
         // Extract the quoted trigger name and assert its byte length.
@@ -136,8 +136,8 @@ fn long_table_name_trigger_stays_within_the_63_byte_cap() {
 
 #[test]
 fn distinct_long_tables_get_distinct_trigger_names() {
-    let a = "tb_".to_string() + &"x".repeat(80) + "_alpha";
-    let b = "tb_".to_string() + &"x".repeat(80) + "_beta";
+    let a = "tb_".to_string() + "x".repeat(80).as_str() + "_alpha";
+    let b = "tb_".to_string() + "x".repeat(80).as_str() + "_beta";
     let ddl = generate_capture_trigger_ddl(&schema_with(vec![one("A", &[&a]), one("B", &[&b])]));
     let names: Vec<&str> = ddl
         .lines()

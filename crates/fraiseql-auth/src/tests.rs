@@ -4737,7 +4737,7 @@ mod multi_provider_tests {
         let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
-        let long_uri = "https://example.com/".to_string() + &"a".repeat(2100);
+        let long_uri = "https://example.com/".to_string() + "a".repeat(2100).as_str();
         let encoded = urlencoding::encode(&long_uri);
         let req = Request::builder()
             .uri(format!("/auth/v1/authorize?provider=github&redirect_uri={encoded}"))
