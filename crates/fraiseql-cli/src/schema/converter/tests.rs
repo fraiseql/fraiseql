@@ -2230,6 +2230,37 @@ mod tenancy_tests {
         }
     }
 
+    // ── validate(): interfaces are valid return types (latent-gap fix) ─────
+
+    /// An interface named `Node` with a single `id: ID!` field, for return-type tests.
+    fn node_interface() -> crate::schema::intermediate::IntermediateInterface {
+        crate::schema::intermediate::IntermediateInterface {
+            name:        "Node".to_string(),
+            fields:      vec![make_field("id", "ID")],
+            description: None,
+        }
+    }
+
+    /// A query may return an interface (narrowed via inline fragments). Previously
+    /// interfaces weren't in the return-type registry, so this failed the reference
+    /// check (with a `warn!`); now it converts.
+    #[test]
+    fn query_returning_an_interface_is_valid() {
+        use crate::schema::SchemaConverter;
+        let mut schema = make_schema(vec![], vec![make_query("node", "Node")], vec![]);
+        schema.interfaces = vec![node_interface()];
+        SchemaConverter::convert(schema).expect("a query may return an interface type");
+    }
+
+    /// Same for a mutation return type — previously a *silent* bail (no `warn!`).
+    #[test]
+    fn mutation_returning_an_interface_is_valid() {
+        use crate::schema::SchemaConverter;
+        let mut schema = make_schema(vec![], vec![], vec![make_mutation("promote", "Node")]);
+        schema.interfaces = vec![node_interface()];
+        SchemaConverter::convert(schema).expect("a mutation may return an interface type");
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(
