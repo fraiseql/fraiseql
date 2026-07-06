@@ -227,16 +227,17 @@ The compiler then rewrites the mutation to return a **payload wrapper**
 not on the entity, so normalized client caches never store a `cascade` key against
 an entity. A non-cascade mutation is unchanged and never surfaces cascade.
 
-> **Eligibility: every cascade entity must expose `id: ID!`.** Cascade entities
-> ride the `CascadeUpdates` envelope as the `CascadeNode` interface (`id: ID!`, per
-> the graphql-cascade spec), auto-implemented on every queryable entity so it is
-> selectable via an inline fragment. An entity whose GraphQL `id` is `UUID`/`Int`
-> or absent cannot satisfy that interface, so `fraiseql compile` **fails fast** with
-> one aggregated error naming each offending type — rather than emitting a schema
-> the runtime would reject. Expose the identifier as GraphQL `ID` (FraiseQL
-> serializes a UUID surrogate key as `ID`) to make a type cascade-eligible, or drop
-> `cascade` from the mutations that return it. The identical `id: ID!` contract
-> applies to Relay `Node` for `relay = true` types.
+> **Eligibility: every cascade entity has a global `id: ID!`** (the entity-identity
+> contract, ADR-0017). Cascade entities ride the `CascadeUpdates` envelope as the
+> `CascadeNode` interface (`id: ID!`, per the graphql-cascade spec), auto-implemented
+> on every queryable entity so it is selectable via an inline fragment. The **Trinity
+> external id `id: UUID` is canonicalized to `id: ID` at compile time** — wire-transparent,
+> so the common case is cascade-eligible with no action. Only an entity whose `id` is
+> a non-identity type (e.g. a serial `Int`) or absent cannot satisfy the interface:
+> `fraiseql compile` then **fails fast** with one aggregated error naming each
+> offending type, rather than emitting a schema the runtime would reject. Give such a
+> type a UUID surrogate `id` (Trinity), or drop `cascade` from the mutations that
+> return it. The identical contract applies to Relay `Node` for `relay = true` types.
 
 The function fills the `cascade` column with the spec-nested shape (see the
 graphql-cascade spec): `{ updated: [{__typename, id, operation, entity}],

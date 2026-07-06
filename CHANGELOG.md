@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`[UpdatedEntity!]!`), `deleted` (`[DeletedEntity!]!`), `metadata`
   (`CascadeMetadata!`), and `invalidations` (`[QueryInvalidation!]!`) — a
   `CascadeNode` interface (`id: ID!`) is auto-implemented on every queryable entity
-  (which must therefore expose `id: ID!`; the compiler fails fast with an
-  aggregated, actionable error otherwise) so cascade entities are selectable via
-  inline fragments. At runtime every cascade entity is
+  (the Trinity `id: UUID` canonicalizes to `id: ID` per the entity-identity contract,
+  ADR-0017; a non-identity id fails fast with an aggregated, actionable error) so
+  cascade entities are selectable via inline fragments. At runtime every cascade
+  entity is
   projected to camelCase and run through the field-level authorizer (#423) exactly
   like a queried entity; cascade is selection-gated (never injected unrequested);
   the response is bounded by `RuntimeConfig.cascade_limits` (max affected entities →
@@ -381,6 +382,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Entity-identity contract: `id: UUID` is canonicalized to `id: ID` (ADR-0017).**
+  FraiseQL now treats a global `id: ID!` as a first-class invariant consumed
+  uniformly by cascade, Relay `Node`, and federation `@key(fields: "id")` — rather
+  than each subsystem re-deriving identity from heterogeneous id types. The compiler
+  rewrites the Trinity external id (`id: UUID`) to `id: ID` on every output object
+  type. This is **wire-transparent** — a UUID and an `ID` serialize to the same JSON
+  string — so clients are unaffected; only introspection/SDL now reports `id: ID`
+  where it previously reported `id: UUID`. Non-identity ids (a serial `id: Int`, or
+  no `id`) are left as-is and must expose `id: ID` (a UUID surrogate) to use
+  cascade/Relay. See ADR-0017 and `docs/architecture/mutation-response.md`.
 - **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
   A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
   poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
@@ -449,9 +460,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compiled-schema validator then rejected with a swallowed "missing field 'id'"
   bail — so a schema that compiled under 2.10 could fail under 2.11 (which began
   honoring the previously-dropped SDK `cascade` flag) with the real reason hidden.
-  The conformance check now runs *before* the `implements` push and fails fast with
-  one aggregated, actionable error naming every offending type, its actual id type,
-  and the remedy.
+  Resolved by the entity-identity contract (see *Changed*): the Trinity `id: UUID`
+  now canonicalizes to `id: ID` and satisfies the interface automatically, and any
+  residual non-identity id (`Int`, absent) fails fast — *before* the `implements`
+  push — with one aggregated, actionable error naming every offending type and the
+  remedy, instead of a swallowed bail.
 - **The compiled-schema validator recognizes interfaces as valid return types.** A
   query or mutation returning an interface type (narrowed via inline fragments) is
   now accepted instead of silently failing the type-reference check; every

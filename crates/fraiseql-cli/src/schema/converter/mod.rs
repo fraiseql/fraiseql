@@ -4,6 +4,7 @@
 
 mod cascade_types;
 mod directives;
+mod identity;
 mod interface_conformance;
 mod mutation_error_union;
 mod mutations;
@@ -263,6 +264,11 @@ impl SchemaConverter {
                 );
             }
         }
+
+        // Canonicalize the Trinity external identity (`id: UUID` → `id: ID`, ADR-0017)
+        // before the interface-forcing passes, so Relay `Node` / `CascadeNode` see a
+        // conformant `id: ID` on every entity. Wire-transparent (a UUID is an `ID`).
+        identity::normalize_entity_identity(&mut compiled);
 
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
         relay::inject_relay_types(&mut compiled)?;

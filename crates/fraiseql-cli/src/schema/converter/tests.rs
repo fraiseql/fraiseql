@@ -2086,9 +2086,9 @@ mod tenancy_tests {
         assert!(!post.implements.iter().any(|i| i == "CascadeNode"));
     }
 
-    // ── Node `id: ID!` conformance enforcement (Option B: hard error) ──────
+    // ── Entity-identity contract (ADR-0017) + Node conformance backstop ────
 
-    /// A view-backed entity with a chosen `id` field type — for conformance tests.
+    /// A view-backed entity with a chosen `id` field type — for identity tests.
     fn entity_with_id(name: &str, id_ty: &str) -> IntermediateType {
         IntermediateType {
             sql_source: Some(format!("v_{}", name.to_lowercase())),
@@ -2105,27 +2105,43 @@ mod tenancy_tests {
         }
     }
 
-    /// The regression: a cascade entity whose `id` is `UUID` (not `ID`) must fail
-    /// with a legible, actionable error at synthesis — not a swallowed validator
-    /// bail. The message names the type, its actual id type, and the remedy.
+    /// The identity contract: the Trinity external id `id: UUID` is canonicalized to
+    /// `id: ID` (wire-transparent), independent of any interface. This is what makes
+    /// every Trinity entity uniformly identity-bearing.
     #[test]
-    fn cascade_uuid_id_entity_fails_with_actionable_error() {
+    fn entity_uuid_id_is_canonicalized_to_id() {
+        use fraiseql_core::schema::FieldType;
+
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "UUID")],
+            vec![make_query("orders", "Order")],
+            vec![],
+        );
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        let id = order.find_field("id").expect("id field");
+        assert_eq!(id.field_type, FieldType::Id, "id: UUID canonicalizes to id: ID");
+    }
+
+    /// The reporter's case, resolved: a cascade entity with the Trinity `id: UUID`
+    /// now canonicalizes to `id: ID`, satisfies `CascadeNode`, and compiles — no
+    /// hand-editing 64 entities.
+    #[test]
+    fn cascade_uuid_id_entity_canonicalizes_and_compiles() {
         use crate::schema::SchemaConverter;
         let schema = make_schema(
             vec![entity_with_id("Order", "UUID")],
             vec![],
             vec![cascade_mut("createOrder", "Order")],
         );
-        let err = SchemaConverter::convert(schema).unwrap_err();
-        let msg = format!("{err:#}");
-        assert!(msg.contains("Order"), "names the offending type: {msg}");
-        assert!(msg.contains("UUID"), "names the actual id type (not just 'missing'): {msg}");
-        assert!(msg.contains("id: ID!"), "states the required shape: {msg}");
-        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+        let compiled = SchemaConverter::convert(schema).expect("Trinity UUID cascade compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "CascadeNode"));
     }
 
     /// A cascade entity with no `id` field at all (e.g. keyed on another column)
-    /// fails the same way, with the "no `id` field" wording.
+    /// cannot be identity-bearing — a legible, actionable hard error (the backstop).
     #[test]
     fn cascade_missing_id_entity_fails_with_actionable_error() {
         use crate::schema::SchemaConverter;
@@ -2140,6 +2156,25 @@ mod tenancy_tests {
         assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
     }
 
+    /// An `id: Int` (a serial pk exposed directly — not the Trinity external id) is
+    /// not canonicalized and cannot back `id: ID!`; a cascade over it fails fast with
+    /// the actual id type and the remedy (adopt a UUID/ID identity).
+    #[test]
+    fn cascade_int_id_entity_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "Int")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(
+            msg.contains("Order") && msg.contains("Int"),
+            "names type + actual id type: {msg}"
+        );
+        assert!(msg.contains("id: ID!") && msg.contains("Fix:"), "{msg}");
+    }
+
     /// One error lists *every* offender, so a developer fixes them in one pass
     /// rather than whack-a-mole.
     #[test]
@@ -2147,7 +2182,7 @@ mod tenancy_tests {
         use crate::schema::SchemaConverter;
         let schema = make_schema(
             vec![
-                entity_with_id("Order", "UUID"),
+                entity_with_id("Order", "Int"),
                 entity_with_id("Invoice", "Int"),
             ],
             vec![],
@@ -2157,8 +2192,8 @@ mod tenancy_tests {
         assert!(msg.contains("Order") && msg.contains("Invoice"), "lists both offenders: {msg}");
     }
 
-    /// Happy-path guard: a conformant `id: ID!` cascade entity still synthesizes
-    /// and implements `CascadeNode` (the fix must not over-correct).
+    /// Happy-path guard: an explicit `id: ID!` cascade entity still synthesizes and
+    /// implements `CascadeNode` (the contract must not over-correct).
     #[test]
     fn cascade_conformant_id_entity_still_implements_cascade_node() {
         use crate::schema::SchemaConverter;
@@ -2173,12 +2208,24 @@ mod tenancy_tests {
         assert!(order.implements.iter().any(|i| i == "CascadeNode"));
     }
 
-    /// The identical latent defect in Relay `Node` injection is now a legible error
-    /// too (previously a swallowed validator bail).
+    /// Relay `Node` shares the identity contract: a `relay = true` type with the
+    /// Trinity `id: UUID` canonicalizes and compiles.
     #[test]
-    fn relay_uuid_id_type_fails_with_actionable_error() {
+    fn relay_uuid_id_type_canonicalizes_and_compiles() {
         use crate::schema::SchemaConverter;
         let mut order = entity_with_id("Order", "UUID");
+        order.relay = true;
+        let schema = make_schema(vec![order], vec![make_query("orders", "Order")], vec![]);
+        let compiled = SchemaConverter::convert(schema).expect("Trinity UUID relay type compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "Node"));
+    }
+
+    /// A `relay = true` type with a non-identity `id: Int` still fails legibly.
+    #[test]
+    fn relay_int_id_type_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let mut order = entity_with_id("Order", "Int");
         order.relay = true;
         let schema = make_schema(vec![order], vec![make_query("orders", "Order")], vec![]);
         let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
@@ -2195,7 +2242,9 @@ mod tenancy_tests {
         use crate::schema::SchemaConverter;
 
         let mut cases: Vec<(String, bool, IntermediateSchema)> = Vec::new();
-        for (id_ty, expect_ok) in [("ID", true), ("UUID", false), ("Int", false)] {
+        // `ID` and the Trinity `UUID` (canonicalized to `ID`) conform; a non-identity
+        // `Int` id does not and must fail *legibly*.
+        for (id_ty, expect_ok) in [("ID", true), ("UUID", true), ("Int", false)] {
             cases.push((
                 format!("cascade+{id_ty}"),
                 expect_ok,
