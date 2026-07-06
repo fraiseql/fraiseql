@@ -189,10 +189,11 @@ federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
 # Edge functions HTTP endpoint (POST /functions/v1/{name})
 functions = []
 # After-mutation function-trigger dispatch with a full I/O-capable host context
-# (outbound HTTP with an SSRF allowlist, secrets). Pulls in the WASM runtime and
-# the live host context, which are opt-in (#460), so the stock binary stays lean.
-# Enable this to actually run `after:mutation` functions after a committed
-# mutation; without it the dispatch step is compiled out.
+# (outbound HTTP with an SSRF allowlist, secrets). Stable and semver-covered; kept
+# opt-in (not a default feature) so the stock binary stays lean — it pulls in the
+# WASM runtime and the live host context. Enable this to run `after:mutation`
+# functions after a committed mutation (the stock binary mounts the dispatch hooks
+# at serve time when enabled); without it the dispatch step is compiled out.
 functions-runtime = [
     "functions",
     # Durable dispatch (retry + dead-letter) reuses the fraiseql-observers DLQ
@@ -205,10 +206,11 @@ functions-runtime = [
 ]
 # TypeScript/JavaScript function runtime (Deno/V8), additive to `functions-runtime`.
 # Lets `after:mutation` (and future `after:ingest`) functions be authored in
-# TypeScript with the same I/O-capable host surface as WASM. Kept a separate
-# opt-in because it pulls in V8 (~30 MB) and lengthens compile time; a
-# batteries-included default build is a planned follow-up. The embedder still
-# registers the runtime on the observer (`observer.register_runtime(RuntimeType::Deno, ...)`).
+# TypeScript — with real type-stripping (types → JS before execution) and the same
+# I/O-capable host surface as WASM. Stable and semver-covered; kept opt-in (not a
+# default feature) because it pulls in V8 (~30 MB) and lengthens compile time, so
+# the stock binary stays lean. The stock server binary mounts the runtime and the
+# after:mutation dispatch hooks at serve time when this feature is enabled.
 functions-runtime-deno = [
     "functions-runtime",
     "fraiseql-functions/runtime-deno",

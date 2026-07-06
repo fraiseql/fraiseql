@@ -36,12 +36,14 @@ design-in-the-open output of the beta migration. The workloads migrated:
   already did the hard part (MIME, threading, bounce/OOO/challenge detection).
   That gate is simultaneously the reply signal and the mail-loop guard.
 
-## Friction and gaps → hardening backlog
+## Friction and gaps → hardening backlog (all DELIVERED)
 
-These are **known limitations of the opt-in native runtime, not blockers.** Every
-workload above runs today; each item below is an ergonomics or reach improvement
-slated for a follow-up hardening train, at the end of which the features are
-promoted from opt-in to stable.
+The native runtime is now **stable and semver-covered.** It remains **opt-in**
+behind its Cargo features (`functions-runtime`, `functions-runtime-deno`,
+`inbound`, `inbound-email`) so the default binary stays lean — V8 (~30 MB) is only
+compiled when `functions-runtime-deno` is enabled — but the feature surface is
+stable, not experimental. Every gap the beta migration surfaced (below) is
+**delivered**; this section is retained as the delivery record.
 
 1. **TypeScript type-stripping — DELIVERED.** The runtime strips `TypeScript`
    types to executable JavaScript before execution (`deno_ast` / swc, a real AST
