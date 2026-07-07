@@ -91,6 +91,10 @@ defmodule FraiseQL.SchemaExporter do
   # ---------------------------------------------------------------------------
 
   defp assert_fraiseql_schema!(module) do
+    # `function_exported?/3` does not load the module; ensure it is loaded first so a
+    # not-yet-referenced schema module (e.g. a `test/support` fixture) is recognized.
+    Code.ensure_loaded(module)
+
     unless function_exported?(module, :__fraiseql_types__, 0) do
       raise ArgumentError,
             "#{inspect(module)} is not a FraiseQL.Schema module. " <>

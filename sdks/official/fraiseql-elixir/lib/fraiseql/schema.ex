@@ -54,9 +54,25 @@ defmodule FraiseQL.Schema do
     quote do
       import FraiseQL.Schema,
         only: [
+          # arity 2: `fraiseql_type "X", opts` (no block) and `fraiseql_type "X" do…end`.
+          # arity 3: `fraiseql_type "X", opts do…end` — Elixir passes the do-block as a
+          # separate 3rd argument once explicit keyword opts precede it.
           fraiseql_type: 2,
+          fraiseql_type: 3,
           fraiseql_query: 2,
-          fraiseql_mutation: 2
+          fraiseql_query: 3,
+          fraiseql_mutation: 2,
+          fraiseql_mutation: 3,
+          # `field`/`argument` are used inside the type/query/mutation blocks. Import
+          # them here (module-wide) rather than per-block: a per-block
+          # `import …, only: [field: …]` *replaces* this module's import set for the
+          # rest of the caller, dropping `fraiseql_type` and breaking any subsequent
+          # type declaration. They still only work inside a block (the field/arg
+          # buffer is registered there); outside one they simply have nothing to append to.
+          field: 2,
+          field: 3,
+          argument: 2,
+          argument: 3
         ]
 
       Module.register_attribute(__MODULE__, :fraiseql_types, accumulate: true)
@@ -98,7 +114,15 @@ defmodule FraiseQL.Schema do
         field :name, :string, nullable: false
       end
   """
+  defmacro fraiseql_type(name, opts, do: block) do
+    fraiseql_type_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_type(name, opts) do
+    fraiseql_type_ast(name, opts)
+  end
+
+  defp fraiseql_type_ast(name, opts) do
     {block, type_opts} = Keyword.pop(opts, :do)
 
     if block do
@@ -107,7 +131,6 @@ defmodule FraiseQL.Schema do
 
         Module.register_attribute(__MODULE__, :__fraiseql_field_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [field: 3, field: 2]
         unquote(block)
 
         @fraiseql_types %FraiseQL.TypeDefinition{
@@ -179,7 +202,15 @@ defmodule FraiseQL.Schema do
         argument :id, :id, nullable: false
       end
   """
+  defmacro fraiseql_query(name, opts, do: block) do
+    fraiseql_query_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_query(name, opts) do
+    fraiseql_query_ast(name, opts)
+  end
+
+  defp fraiseql_query_ast(name, opts) do
     {block, query_opts} = Keyword.pop(opts, :do)
     query_name = Atom.to_string(name)
 
@@ -187,7 +218,6 @@ defmodule FraiseQL.Schema do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [argument: 3, argument: 2]
         unquote(block)
 
         @fraiseql_queries %FraiseQL.QueryDefinition{
@@ -261,7 +291,15 @@ defmodule FraiseQL.Schema do
         argument :bio,  :string, nullable: true
       end
   """
+  defmacro fraiseql_mutation(name, opts, do: block) do
+    fraiseql_mutation_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_mutation(name, opts) do
+    fraiseql_mutation_ast(name, opts)
+  end
+
+  defp fraiseql_mutation_ast(name, opts) do
     {block, mutation_opts} = Keyword.pop(opts, :do)
     mutation_name = FraiseQL.TypeMapper.to_camel_case(name)
 
@@ -269,7 +307,6 @@ defmodule FraiseQL.Schema do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [argument: 3, argument: 2]
         unquote(block)
 
         @fraiseql_mutations %FraiseQL.MutationDefinition{
