@@ -101,8 +101,10 @@ and `--json` output, so any residual rejection is self-diagnosing.
   to GraphQL `ID` at authoring time, so the emitted schema is honest at the source and
   the compiler canonicalization is a backstop for older/hand-authored schemas. All 9
   authoring SDKs were audited and fixed — **Python, TypeScript, Go, C#, F#, Java, PHP**
-  (fix + regression tests green in-repo) and **Elixir, Scala** (fix applied; to be
-  confirmed under `mix`/`sbt`). The 9 client/runtime SDKs don't emit schemas and are
+  (fix + regression tests green in-repo), **Elixir** (fix + tests, verified by the
+  existing `elixir-sdk.yml` CI on the PR), and **Scala** (fix + tests; a new
+  `scala-sdk.yml` CI workflow was added to gate it — the community SDK previously had
+  no CI at all). The 9 client/runtime SDKs don't emit schemas and are
   unaffected. Confirmed against a real 64-entity schema whose SDK emitted `id: String`
   on every type. Notably, several SDKs' existing tests *encoded* the bug (C#/F#/Java
   asserted `id → "String"`) and were corrected.
