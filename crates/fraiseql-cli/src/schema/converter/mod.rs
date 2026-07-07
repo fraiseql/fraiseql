@@ -4,6 +4,8 @@
 
 mod cascade_types;
 mod directives;
+mod identity;
+mod interface_conformance;
 mod mutation_error_union;
 mod mutations;
 mod queries;
@@ -263,8 +265,13 @@ impl SchemaConverter {
             }
         }
 
+        // Canonicalize the Trinity external identity (`id: UUID` → `id: ID`, ADR-0017)
+        // before the interface-forcing passes, so Relay `Node` / `CascadeNode` see a
+        // conformant `id: ID` on every entity. Wire-transparent (a UUID is an `ID`).
+        identity::normalize_entity_identity(&mut compiled);
+
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
-        relay::inject_relay_types(&mut compiled);
+        relay::inject_relay_types(&mut compiled)?;
 
         // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
         let rich_filter_config = RichFilterConfig::default();
@@ -281,7 +288,7 @@ impl SchemaConverter {
         // payload becomes the success member of the result union
         // (`<Name>Result = <Name>Payload | MutationError`). Inert with no cascade
         // mutations.
-        cascade_types::synthesize_cascade_types(&mut compiled);
+        cascade_types::synthesize_cascade_types(&mut compiled)?;
 
         // Auto-synthesize a shared MutationError type + per-mutation result unions
         // when opted in (`[fraiseql.mutations] auto_error_union`), so the runtime's
@@ -351,10 +358,15 @@ impl SchemaConverter {
             type_names.insert(type_def.name.to_string());
         }
 
-        // Build interface registry
+        // Build interface registry. Interfaces are *also* valid query/mutation
+        // return types (a field may return an interface, narrowed via inline
+        // fragments), so register them in `type_names` too — previously omitted,
+        // which made a query/mutation returning an interface silently fail the
+        // reference check below.
         let mut interface_names = HashSet::new();
         for interface_def in &schema.interfaces {
             interface_names.insert(interface_def.name.clone());
+            type_names.insert(interface_def.name.clone());
         }
 
         // Add input types — valid as mutation argument types (fraiseql/fraiseql#190)
@@ -396,6 +408,10 @@ impl SchemaConverter {
             for arg in &query.arguments {
                 let type_name = Self::extract_type_name(&arg.arg_type);
                 if !type_names.contains(&type_name) {
+                    warn!(
+                        "Query '{}' argument '{}' references unknown type: {}",
+                        query.name, arg.name, type_name
+                    );
                     anyhow::bail!(
                         "Query '{}' argument '{}' references unknown type '{}'",
                         query.name,
@@ -409,6 +425,10 @@ impl SchemaConverter {
         // Validate mutations
         for mutation in &schema.mutations {
             if !type_names.contains(&mutation.return_type) {
+                warn!(
+                    "Mutation '{}' references unknown type: {}",
+                    mutation.name, mutation.return_type
+                );
                 anyhow::bail!(
                     "Mutation '{}' references unknown type '{}'",
                     mutation.name,
@@ -420,6 +440,10 @@ impl SchemaConverter {
             for arg in &mutation.arguments {
                 let type_name = Self::extract_type_name(&arg.arg_type);
                 if !type_names.contains(&type_name) {
+                    warn!(
+                        "Mutation '{}' argument '{}' references unknown type: {}",
+                        mutation.name, arg.name, type_name
+                    );
                     anyhow::bail!(
                         "Mutation '{}' argument '{}' references unknown type '{}'",
                         mutation.name,
@@ -434,6 +458,10 @@ impl SchemaConverter {
         for type_def in &schema.types {
             for interface_name in &type_def.implements {
                 if !interface_names.contains(interface_name) {
+                    warn!(
+                        "Type '{}' implements unknown interface: {}",
+                        type_def.name, interface_name
+                    );
                     anyhow::bail!(
                         "Type '{}' implements unknown interface '{}'",
                         type_def.name,
@@ -449,6 +477,10 @@ impl SchemaConverter {
                                 && f.field_type == interface_field.field_type
                         });
                         if !type_has_field {
+                            warn!(
+                                "Type '{}' implements interface '{}' but is missing field: {}",
+                                type_def.name, interface_name, interface_field.name
+                            );
                             anyhow::bail!(
                                 "Type '{}' implements interface '{}' but is missing field '{}'",
                                 type_def.name,

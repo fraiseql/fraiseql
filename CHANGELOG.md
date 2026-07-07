@@ -19,8 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   updatedFields }` whose `cascade: CascadeUpdates` carries `updated`
   (`[UpdatedEntity!]!`), `deleted` (`[DeletedEntity!]!`), `metadata`
   (`CascadeMetadata!`), and `invalidations` (`[QueryInvalidation!]!`) — a
-  `CascadeNode` interface is auto-implemented on every queryable entity so cascade
-  entities are selectable via inline fragments. At runtime every cascade entity is
+  `CascadeNode` interface (`id: ID!`) is auto-implemented on every queryable entity
+  (the Trinity `id: UUID` canonicalizes to `id: ID` per the entity-identity contract,
+  ADR-0017; a non-identity id fails fast with an aggregated, actionable error) so
+  cascade entities are selectable via inline fragments. At runtime every cascade
+  entity is
   projected to camelCase and run through the field-level authorizer (#423) exactly
   like a queried entity; cascade is selection-gated (never injected unrequested);
   the response is bounded by `RuntimeConfig.cascade_limits` (max affected entities →
@@ -379,6 +382,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Entity-identity contract: `id: UUID` is canonicalized to `id: ID` (ADR-0017).**
+  FraiseQL now treats a global `id: ID!` as a first-class invariant consumed
+  uniformly by cascade, Relay `Node`, and federation `@key(fields: "id")` — rather
+  than each subsystem re-deriving identity from heterogeneous id types. The compiler
+  rewrites the Trinity external id (`id: UUID`) to `id: ID` on every output object
+  type. This is **wire-transparent** — a UUID and an `ID` serialize to the same JSON
+  string — so clients are unaffected; only introspection/SDL now reports `id: ID`
+  where it previously reported `id: UUID`. Non-identity ids (a serial `id: Int`, or
+  no `id`) are left as-is and must expose `id: ID` (a UUID surrogate) to use
+  cascade/Relay. See ADR-0017 and `docs/architecture/mutation-response.md`.
 - **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
   A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
   poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
@@ -433,6 +446,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`fraiseql compile` now surfaces the full error cause chain.** Converter
+  failures printed only the top-level context (e.g. `Failed to convert schema to
+  compiled format`) with the underlying reason swallowed at every log level and in
+  `--json` — the cause was reachable only via the undocumented `--debug` flag, and
+  never in JSON. The CLI now renders the whole `anyhow` source chain in both modes:
+  `  caused by: …` lines in human output and a `"causes": [...]` array in `--json`
+  (additive; `message`/`code` unchanged). Applies to every command, not just
+  `compile`.
+- **Cascade/Relay type synthesis no longer emits a schema that fails its own
+  validator.** Auto-implementing `CascadeNode` (cascade) or `Node` (`relay = true`)
+  on an entity whose `id` was `UUID`/`Int` or absent produced IR that the
+  compiled-schema validator then rejected with a swallowed "missing field 'id'"
+  bail — so a schema that compiled under 2.10 could fail under 2.11 (which began
+  honoring the previously-dropped SDK `cascade` flag) with the real reason hidden.
+  Resolved by the entity-identity contract (see *Changed*): the Trinity `id: UUID`
+  now canonicalizes to `id: ID` and satisfies the interface automatically, and any
+  residual non-identity id (`Int`, absent) fails fast — *before* the `implements`
+  push — with one aggregated, actionable error naming every offending type and the
+  remedy, instead of a swallowed bail.
+- **The compiled-schema validator recognizes interfaces as valid return types.** A
+  query or mutation returning an interface type (narrowed via inline fragments) is
+  now accepted instead of silently failing the type-reference check; every
+  validator rejection also logs a `warn!`, not just the query-return case.
 - **Native-column `WHERE` filters no longer 500 on a camelCase argument (#540).**
   A filter argument on a native (real-column) field emitted the camelCase argument
   name verbatim as the SQL column — `comments(postId: …)` became `WHERE postId = …`,

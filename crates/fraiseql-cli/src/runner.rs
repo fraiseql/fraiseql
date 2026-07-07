@@ -599,7 +599,11 @@ pub async fn run() {
         } else {
             None
         };
-        eprintln!("{}", format_cli_error(&e.to_string(), debug_info.as_deref(), json_output, 1));
+        let causes = error_causes(&e);
+        eprintln!(
+            "{}",
+            format_cli_error(&e.to_string(), &causes, debug_info.as_deref(), json_output, 1)
+        );
         process::exit(1);
     }
 }
@@ -624,19 +628,37 @@ fn enforce_exit_code(result: &crate::output::CommandResult) {
     }
 }
 
+/// Extract an `anyhow` error's source chain — every cause **below** the top-level
+/// message — as display strings, outermost first.
+///
+/// The top-level context (rendered as the error `message`) is skipped, so a
+/// `.context("outer")` over a `bail!("root")` yields `["root"]`. Surfacing this
+/// chain is what turns an opaque `Failed to convert schema to compiled format`
+/// into an actionable `… caused by: Type 'Order' … is missing field 'id'`.
+pub(crate) fn error_causes(err: &anyhow::Error) -> Vec<String> {
+    err.chain().skip(1).map(ToString::to_string).collect()
+}
+
 /// Format a CLI error as either plain text or a JSON object for machine-readable output.
+///
+/// `causes` is the error's source chain below `message` (see [`error_causes`]); it is
+/// surfaced in **both** output modes so a failure is never reduced to its top-level
+/// context alone.
 ///
 /// When `json` is `true`, produces a JSON object:
 /// ```json
-/// { "error": { "message": "...", "code": 1 } }
+/// { "error": { "message": "...", "causes": ["..."], "code": 1 } }
 /// ```
 /// When `json` is `false`, produces a human-readable string:
 /// ```text
 /// Error: <message>
+///   caused by: <cause 1>
+///   caused by: <cause 2>
 /// ```
 /// If `debug_info` is provided and `json` is `false`, a debug section is appended.
 pub(crate) fn format_cli_error(
     message: &str,
+    causes: &[String],
     debug_info: Option<&str>,
     json: bool,
     code: i32,
@@ -645,12 +667,16 @@ pub(crate) fn format_cli_error(
         serde_json::json!({
             "error": {
                 "message": message,
+                "causes": causes,
                 "code": code
             }
         })
         .to_string()
     } else {
         let mut out = format!("Error: {message}");
+        for cause in causes {
+            out.push_str(&format!("\n  caused by: {cause}"));
+        }
         if let Some(debug) = debug_info {
             out.push_str("\n\nDebug info:\n");
             out.push_str(debug);

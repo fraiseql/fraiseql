@@ -2086,6 +2086,230 @@ mod tenancy_tests {
         assert!(!post.implements.iter().any(|i| i == "CascadeNode"));
     }
 
+    // ── Entity-identity contract (ADR-0017) + Node conformance backstop ────
+
+    /// A view-backed entity with a chosen `id` field type — for identity tests.
+    fn entity_with_id(name: &str, id_ty: &str) -> IntermediateType {
+        IntermediateType {
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            ..make_type(name, vec![make_field("id", id_ty)])
+        }
+    }
+
+    /// A cascade mutation returning `entity` — the opt-in that triggers synthesis.
+    fn cascade_mut(name: &str, entity: &str) -> IntermediateMutation {
+        IntermediateMutation {
+            cascade: true,
+            sql_source: Some(format!("fn_{}", name.to_lowercase())),
+            ..make_mutation(name, entity)
+        }
+    }
+
+    /// The identity contract: the Trinity external id `id: UUID` is canonicalized to
+    /// `id: ID` (wire-transparent), independent of any interface. This is what makes
+    /// every Trinity entity uniformly identity-bearing.
+    #[test]
+    fn entity_uuid_id_is_canonicalized_to_id() {
+        use fraiseql_core::schema::FieldType;
+
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "UUID")],
+            vec![make_query("orders", "Order")],
+            vec![],
+        );
+        let compiled = SchemaConverter::convert(schema).expect("convert");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        let id = order.find_field("id").expect("id field");
+        assert_eq!(id.field_type, FieldType::Id, "id: UUID canonicalizes to id: ID");
+    }
+
+    /// The reporter's case, resolved: a cascade entity with the Trinity `id: UUID`
+    /// now canonicalizes to `id: ID`, satisfies `CascadeNode`, and compiles — no
+    /// hand-editing 64 entities.
+    #[test]
+    fn cascade_uuid_id_entity_canonicalizes_and_compiles() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "UUID")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let compiled = SchemaConverter::convert(schema).expect("Trinity UUID cascade compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "CascadeNode"));
+    }
+
+    /// A cascade entity with no `id` field at all (e.g. keyed on another column)
+    /// cannot be identity-bearing — a legible, actionable hard error (the backstop).
+    #[test]
+    fn cascade_missing_id_entity_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let order = IntermediateType {
+            sql_source: Some("v_order".to_string()),
+            ..make_type("Order", vec![make_field("orderNumber", "String")])
+        };
+        let schema = make_schema(vec![order], vec![], vec![cascade_mut("createOrder", "Order")]);
+        let err = SchemaConverter::convert(schema).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("Order") && msg.contains("no `id` field"), "{msg}");
+        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+    }
+
+    /// An `id: Int` (a serial pk exposed directly — not the Trinity external id) is
+    /// not canonicalized and cannot back `id: ID!`; a cascade over it fails fast with
+    /// the actual id type and the remedy (adopt a UUID/ID identity).
+    #[test]
+    fn cascade_int_id_entity_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "Int")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(
+            msg.contains("Order") && msg.contains("Int"),
+            "names type + actual id type: {msg}"
+        );
+        assert!(msg.contains("id: ID!") && msg.contains("Fix:"), "{msg}");
+    }
+
+    /// One error lists *every* offender, so a developer fixes them in one pass
+    /// rather than whack-a-mole.
+    #[test]
+    fn cascade_conformance_error_aggregates_all_offenders() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![
+                entity_with_id("Order", "Int"),
+                entity_with_id("Invoice", "Int"),
+            ],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(msg.contains("Order") && msg.contains("Invoice"), "lists both offenders: {msg}");
+    }
+
+    /// Happy-path guard: an explicit `id: ID!` cascade entity still synthesizes and
+    /// implements `CascadeNode` (the contract must not over-correct).
+    #[test]
+    fn cascade_conformant_id_entity_still_implements_cascade_node() {
+        use crate::schema::SchemaConverter;
+        let schema = make_schema(
+            vec![entity_with_id("Order", "ID")],
+            vec![],
+            vec![cascade_mut("createOrder", "Order")],
+        );
+        let compiled =
+            SchemaConverter::convert(schema).expect("conformant cascade schema compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "CascadeNode"));
+    }
+
+    /// Relay `Node` shares the identity contract: a `relay = true` type with the
+    /// Trinity `id: UUID` canonicalizes and compiles.
+    #[test]
+    fn relay_uuid_id_type_canonicalizes_and_compiles() {
+        use crate::schema::SchemaConverter;
+        let mut order = entity_with_id("Order", "UUID");
+        order.relay = true;
+        let schema = make_schema(vec![order], vec![make_query("orders", "Order")], vec![]);
+        let compiled = SchemaConverter::convert(schema).expect("Trinity UUID relay type compiles");
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(order.implements.iter().any(|i| i == "Node"));
+    }
+
+    /// A `relay = true` type with a non-identity `id: Int` still fails legibly.
+    #[test]
+    fn relay_int_id_type_fails_with_actionable_error() {
+        use crate::schema::SchemaConverter;
+        let mut order = entity_with_id("Order", "Int");
+        order.relay = true;
+        let schema = make_schema(vec![order], vec![make_query("orders", "Order")], vec![]);
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+        assert!(msg.contains("Order") && msg.contains("relay"), "{msg}");
+        assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
+    }
+
+    /// Phase-2 soundness invariant: no synthesis pass may emit IR that `validate()`
+    /// rejects with a swallowed bail. Across id types × interface-forcing features,
+    /// `convert()` must either succeed or fail with a *legible* synthesis error
+    /// (a `Fix:` remedy) — never leak the raw validator "…is missing field 'id'".
+    #[test]
+    fn synthesis_never_leaks_a_raw_validator_bail() {
+        use crate::schema::SchemaConverter;
+
+        let mut cases: Vec<(String, bool, IntermediateSchema)> = Vec::new();
+        // `ID` and the Trinity `UUID` (canonicalized to `ID`) conform; a non-identity
+        // `Int` id does not and must fail *legibly*.
+        for (id_ty, expect_ok) in [("ID", true), ("UUID", true), ("Int", false)] {
+            cases.push((
+                format!("cascade+{id_ty}"),
+                expect_ok,
+                make_schema(
+                    vec![entity_with_id("Order", id_ty)],
+                    vec![],
+                    vec![cascade_mut("createOrder", "Order")],
+                ),
+            ));
+            let mut order = entity_with_id("Order", id_ty);
+            order.relay = true;
+            cases.push((
+                format!("relay+{id_ty}"),
+                expect_ok,
+                make_schema(vec![order], vec![make_query("orders", "Order")], vec![]),
+            ));
+        }
+
+        for (label, expect_ok, schema) in cases {
+            match SchemaConverter::convert(schema) {
+                Ok(_) => assert!(expect_ok, "{label} unexpectedly compiled"),
+                Err(e) => {
+                    let msg = format!("{e:#}");
+                    assert!(!expect_ok, "{label} unexpectedly failed: {msg}");
+                    assert!(msg.contains("Fix:"), "{label} error is not legible: {msg}");
+                    assert!(
+                        !msg.contains("but is missing field"),
+                        "{label} leaked the raw validator bail: {msg}"
+                    );
+                },
+            }
+        }
+    }
+
+    // ── validate(): interfaces are valid return types (latent-gap fix) ─────
+
+    /// An interface named `Node` with a single `id: ID!` field, for return-type tests.
+    fn node_interface() -> crate::schema::intermediate::IntermediateInterface {
+        crate::schema::intermediate::IntermediateInterface {
+            name:        "Node".to_string(),
+            fields:      vec![make_field("id", "ID")],
+            description: None,
+        }
+    }
+
+    /// A query may return an interface (narrowed via inline fragments). Previously
+    /// interfaces weren't in the return-type registry, so this failed the reference
+    /// check (with a `warn!`); now it converts.
+    #[test]
+    fn query_returning_an_interface_is_valid() {
+        use crate::schema::SchemaConverter;
+        let mut schema = make_schema(vec![], vec![make_query("node", "Node")], vec![]);
+        schema.interfaces = vec![node_interface()];
+        SchemaConverter::convert(schema).expect("a query may return an interface type");
+    }
+
+    /// Same for a mutation return type — previously a *silent* bail (no `warn!`).
+    #[test]
+    fn mutation_returning_an_interface_is_valid() {
+        use crate::schema::SchemaConverter;
+        let mut schema = make_schema(vec![], vec![], vec![make_mutation("promote", "Node")]);
+        schema.interfaces = vec![node_interface()];
+        SchemaConverter::convert(schema).expect("a mutation may return an interface type");
+    }
+
     #[test]
     fn auto_inject_uses_custom_claim() {
         let mut schema = make_schema(
