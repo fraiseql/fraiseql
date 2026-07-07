@@ -26,7 +26,11 @@ ignore = [
   # quick-xml DoS pair (published 2026-07-02); transitive via samael 0.0.21 (auth-saml opt-in
   # only, NOT default build); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01.
   "RUSTSEC-2026-0194",
-  "RUSTSEC-2026-0195"
+  "RUSTSEC-2026-0195",
+  # crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer deref; only on Debug-formatting an
+  # invalid Atomic/Shared pointer (never done). Transitive via rayon (criterion dev-deps).
+  # Deadline 2026-10-01.
+  "RUSTSEC-2026-0204"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

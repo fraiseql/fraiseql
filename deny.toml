@@ -64,7 +64,8 @@ ignore = [
   # deadline: 2026-10-01 — re-check samael release cadence; consider a [patch] to a patched
   # quick-xml (validating SAML parsing) or dropping samael.
   {id = "RUSTSEC-2026-0194", reason = "quick-xml quadratic duplicate-attribute-name check (DoS); transitive via samael (auth-saml opt-in only); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01."},
-  {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-01."}
+  {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-01."},
+  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which FraiseQL never does. Transitive via rayon (criterion dev-deps). Deadline 2026-10-01."}
 ]
 unmaintained = "workspace"
 
