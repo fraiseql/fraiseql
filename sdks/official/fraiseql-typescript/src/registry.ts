@@ -410,6 +410,20 @@ export class SchemaRegistry {
    * @param description - Optional type description
    * @param options - Additional type options
    */
+  /**
+   * Enforce the entity-identity convention (ADR-0017): a field named `id` typed as a
+   * wire-transparent string scalar (`String`/`UUID`) is emitted as `ID`, so the
+   * `schema.json` satisfies the compiler's global-`id: ID` contract (Node /
+   * CascadeNode / federation `@key(fields: "id")`) at the source. A numeric `id`
+   * (`Int`) is left as-is; the compiler flags it if the type opts into a Node-style
+   * interface. Applied to every type / interface / input registration sink.
+   */
+  private static canonicalizeIdFields<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) =>
+      f.name === "id" && (f.type === "String" || f.type === "UUID") ? { ...f, type: "ID" } : f
+    );
+  }
+
   static registerType(
     name: string,
     fields: Field[],
@@ -428,6 +442,7 @@ export class SchemaRegistry {
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
+    fields = this.canonicalizeIdFields(fields);
     const typeDef: TypeDefinition = { name, fields, description };
     if (options?.relay) typeDef.relay = true;
     if (options?.sqlSource) typeDef.sql_source = options.sqlSource;
@@ -714,7 +729,7 @@ export class SchemaRegistry {
     }
     this.interfaces.set(name, {
       name,
-      fields,
+      fields: this.canonicalizeIdFields(fields),
       description,
     });
   }
@@ -738,7 +753,7 @@ export class SchemaRegistry {
     }
     this.inputTypes.set(name, {
       name,
-      fields,
+      fields: this.canonicalizeIdFields(fields),
       description,
     });
   }

@@ -89,6 +89,65 @@ final class TypeConverterTest extends TestCase
         $this->assertSame('User full name', $typeInfo->description);
     }
 
+    public function testPlainStringIdCanonicalizedToId(): void
+    {
+        // A field named `id` typed `string` (no explicit #[GraphQLField(type: ID)])
+        // must be emitted as GraphQL `ID`, not `String` (entity-identity contract,
+        // ADR-0017).
+        $class = new ReflectionClass(TestEntityWithStringId::class);
+        $property = $class->getProperty('id');
+
+        $typeInfo = TypeConverter::fromReflectionProperty($property);
+
+        $this->assertSame('ID', $typeInfo->graphQLType);
+        $this->assertFalse($typeInfo->isNullable);
+    }
+
+    public function testNullableStringIdCanonicalizedToIdPreservingNullability(): void
+    {
+        $class = new ReflectionClass(TestEntityWithNullableStringId::class);
+        $property = $class->getProperty('id');
+
+        $typeInfo = TypeConverter::fromReflectionProperty($property);
+
+        $this->assertSame('ID', $typeInfo->graphQLType);
+        $this->assertTrue($typeInfo->isNullable);
+    }
+
+    public function testIntIdStaysInt(): void
+    {
+        // A numeric `id: int` is NOT wire-compatible with ID and must stay `Int`.
+        $class = new ReflectionClass(TestEntityWithIntId::class);
+        $property = $class->getProperty('id');
+
+        $typeInfo = TypeConverter::fromReflectionProperty($property);
+
+        $this->assertSame('Int', $typeInfo->graphQLType);
+    }
+
+    public function testNonIdStringStaysString(): void
+    {
+        // A non-`id` string field must remain `String`.
+        $class = new ReflectionClass(TestEntityWithStringId::class);
+        $property = $class->getProperty('name');
+
+        $typeInfo = TypeConverter::fromReflectionProperty($property);
+
+        $this->assertSame('String', $typeInfo->graphQLType);
+    }
+
+    public function testUuidIdCanonicalizedToId(): void
+    {
+        // An `id` explicitly typed with the UUID scalar is wire-identical to ID
+        // and must be emitted as `ID`.
+        $class = new ReflectionClass(TestEntityWithUuidId::class);
+        $property = $class->getProperty('id');
+
+        $typeInfo = TypeConverter::fromReflectionProperty($property);
+
+        $this->assertSame('ID', $typeInfo->graphQLType);
+    }
+
     public function testMultipleTypeConversions(): void
     {
         $conversions = [
@@ -122,4 +181,26 @@ class TestUserWithAttributes
 {
     #[\FraiseQL\Attributes\GraphQLField(description: 'User full name')]
     public string $name;
+}
+
+class TestEntityWithStringId
+{
+    public string $id;
+    public string $name;
+}
+
+class TestEntityWithNullableStringId
+{
+    public ?string $id;
+}
+
+class TestEntityWithIntId
+{
+    public int $id;
+}
+
+class TestEntityWithUuidId
+{
+    #[\FraiseQL\Attributes\GraphQLField(type: 'UUID', nullable: false)]
+    public string $id;
 }

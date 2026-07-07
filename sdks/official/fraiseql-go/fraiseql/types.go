@@ -82,6 +82,27 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 	}
 }
 
+// canonicalizeIdType enforces the entity-identity convention: a field named
+// "id" is emitted as GraphQL "ID".
+//
+// A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+// (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+// ADR-0017). `string` and the explicit `UUID` scalar are wire-identical string
+// representations of an identity, so an `id` typed either way is canonicalized
+// to "ID" at authoring time — keeping the emitted schema.json honest instead of
+// leaking `id: String`, which the compiler would then reject. A numeric `id`
+// (GraphQL "Int") is left unchanged.
+//
+// The field-name match is case-insensitive because Go exported struct fields
+// (`ID`, `Id`) and tag-overridden names (`id`) all denote the same GraphQL
+// identity field.
+func canonicalizeIdType(fieldName, graphqlType string) string {
+	if strings.EqualFold(fieldName, "id") && (graphqlType == "String" || graphqlType == "UUID") {
+		return "ID"
+	}
+	return graphqlType
+}
+
 // ExtractFields extracts field information from a struct using reflection and struct tags
 // Tag format: `fraiseql:"field_name,type=GraphQLType,nullable=true"`
 // Returns map of field name -> FieldInfo
@@ -118,6 +139,7 @@ func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
 			if err != nil {
 				return nil, fmt.Errorf("cannot infer type for field %s: %w", field.Name, err)
 			}
+			graphQLType = canonicalizeIdType(field.Name, graphQLType)
 			fields[field.Name] = FieldInfo{
 				Name:     field.Name,
 				Type:     graphQLType,
@@ -229,6 +251,11 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 	if fieldInfo.Type == "" {
 		return FieldInfo{}, fmt.Errorf("type not specified in tag")
 	}
+
+	// Enforce the entity-identity convention on the final emitted type: an `id`
+	// field typed String/UUID becomes GraphQL "ID" whether the type was inferred
+	// or set via an explicit `type=` tag override.
+	fieldInfo.Type = canonicalizeIdType(fieldInfo.Name, fieldInfo.Type)
 
 	return fieldInfo, nil
 }

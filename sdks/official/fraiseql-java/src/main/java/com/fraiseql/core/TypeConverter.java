@@ -80,6 +80,35 @@ public class TypeConverter {
     }
 
     /**
+     * Wire-transparent string representations of an identity: Java {@code String} maps to
+     * GraphQL {@code "String"}, and the explicit {@code UUID} scalar both serialize as a
+     * JSON string, identical to GraphQL {@code ID}.
+     */
+    private static final Set<String> STRING_SHAPED_ID_TYPES = Set.of("String", "UUID");
+
+    /**
+     * Enforce the entity-identity convention: a field named {@code id} is emitted as {@code ID}.
+     *
+     * <p>A global {@code id: ID!} is the identity contract the FraiseQL compiler enforces
+     * (Node / CascadeNode / federation {@code @key(fields: "id")} — see fraiseql-core
+     * ADR-0017). {@code String} and the explicit {@code UUID} scalar are wire-identical string
+     * representations of an identity, so an {@code id} typed either way is canonicalized to
+     * {@code ID} at authoring time — keeping the emitted {@code schema.json} honest instead
+     * of leaking {@code id: String} that the compiler would then reject. A numeric
+     * {@code id: int} is left as {@code Int} (not wire-compatible with {@code ID}).
+     *
+     * @param fieldName   the emitted GraphQL field name
+     * @param graphQLType the GraphQL type string resolved for the field
+     * @return {@code "ID"} for a string-shaped {@code id} field, otherwise {@code graphQLType}
+     */
+    static String canonicalizeIdType(String fieldName, String graphQLType) {
+        if ("id".equals(fieldName) && STRING_SHAPED_ID_TYPES.contains(graphQLType)) {
+            return "ID";
+        }
+        return graphQLType;
+    }
+
+    /**
      * Extracts field information from a class annotated with @GraphQLType.
      *
      * @param type the class to analyze
@@ -106,7 +135,7 @@ public class TypeConverter {
             // For @Measure / @Dimension without @GraphQLField, synthesise a basic field info
             if (!hasGraphQLField) {
                 String fieldName = field.getName();
-                String graphQLType = javaToGraphQL(field.getType());
+                String graphQLType = canonicalizeIdType(fieldName, javaToGraphQL(field.getType()));
                 String description = hasMeasure
                     ? field.getAnnotation(Measure.class).description()
                     : field.getAnnotation(Dimension.class).description();
@@ -120,6 +149,7 @@ public class TypeConverter {
                 || Collection.class.isAssignableFrom(field.getType());
             String graphQLType = annotation.type().isEmpty() ?
                 javaToGraphQL(field.getType()) : annotation.type();
+            graphQLType = canonicalizeIdType(fieldName, graphQLType);
             boolean nullable = annotation.nullable();
 
             // Extract scope information.

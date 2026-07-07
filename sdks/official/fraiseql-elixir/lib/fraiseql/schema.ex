@@ -54,9 +54,25 @@ defmodule FraiseQL.Schema do
     quote do
       import FraiseQL.Schema,
         only: [
+          # arity 2: `fraiseql_type "X", opts` (no block) and `fraiseql_type "X" do…end`.
+          # arity 3: `fraiseql_type "X", opts do…end` — Elixir passes the do-block as a
+          # separate 3rd argument once explicit keyword opts precede it.
           fraiseql_type: 2,
+          fraiseql_type: 3,
           fraiseql_query: 2,
-          fraiseql_mutation: 2
+          fraiseql_query: 3,
+          fraiseql_mutation: 2,
+          fraiseql_mutation: 3,
+          # `field`/`argument` are used inside the type/query/mutation blocks. Import
+          # them here (module-wide) rather than per-block: a per-block
+          # `import …, only: [field: …]` *replaces* this module's import set for the
+          # rest of the caller, dropping `fraiseql_type` and breaking any subsequent
+          # type declaration. They still only work inside a block (the field/arg
+          # buffer is registered there); outside one they simply have nothing to append to.
+          field: 2,
+          field: 3,
+          argument: 2,
+          argument: 3
         ]
 
       Module.register_attribute(__MODULE__, :fraiseql_types, accumulate: true)
@@ -98,7 +114,15 @@ defmodule FraiseQL.Schema do
         field :name, :string, nullable: false
       end
   """
+  defmacro fraiseql_type(name, opts, do: block) do
+    fraiseql_type_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_type(name, opts) do
+    fraiseql_type_ast(name, opts)
+  end
+
+  defp fraiseql_type_ast(name, opts) do
     {block, type_opts} = Keyword.pop(opts, :do)
 
     if block do
@@ -107,7 +131,6 @@ defmodule FraiseQL.Schema do
 
         Module.register_attribute(__MODULE__, :__fraiseql_field_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [field: 3, field: 2]
         unquote(block)
 
         @fraiseql_types %FraiseQL.TypeDefinition{
@@ -179,7 +202,15 @@ defmodule FraiseQL.Schema do
         argument :id, :id, nullable: false
       end
   """
+  defmacro fraiseql_query(name, opts, do: block) do
+    fraiseql_query_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_query(name, opts) do
+    fraiseql_query_ast(name, opts)
+  end
+
+  defp fraiseql_query_ast(name, opts) do
     {block, query_opts} = Keyword.pop(opts, :do)
     query_name = Atom.to_string(name)
 
@@ -187,7 +218,6 @@ defmodule FraiseQL.Schema do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [argument: 3, argument: 2]
         unquote(block)
 
         @fraiseql_queries %FraiseQL.QueryDefinition{
@@ -261,7 +291,15 @@ defmodule FraiseQL.Schema do
         argument :bio,  :string, nullable: true
       end
   """
+  defmacro fraiseql_mutation(name, opts, do: block) do
+    fraiseql_mutation_ast(name, Keyword.put(opts, :do, block))
+  end
+
   defmacro fraiseql_mutation(name, opts) do
+    fraiseql_mutation_ast(name, opts)
+  end
+
+  defp fraiseql_mutation_ast(name, opts) do
     {block, mutation_opts} = Keyword.pop(opts, :do)
     mutation_name = FraiseQL.TypeMapper.to_camel_case(name)
 
@@ -269,7 +307,6 @@ defmodule FraiseQL.Schema do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
-        import FraiseQL.Schema, only: [argument: 3, argument: 2]
         unquote(block)
 
         @fraiseql_mutations %FraiseQL.MutationDefinition{
@@ -323,7 +360,7 @@ defmodule FraiseQL.Schema do
   """
   defmacro field(name, type, opts \\ []) do
     field_name = Atom.to_string(name)
-    field_type = FraiseQL.TypeMapper.to_graphql_type(type)
+    field_type = canonicalize_id_type(field_name, FraiseQL.TypeMapper.to_graphql_type(type))
 
     quote do
       @__fraiseql_field_buffer %FraiseQL.FieldDefinition{
@@ -363,6 +400,31 @@ defmodule FraiseQL.Schema do
       }
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Identity canonicalization (called at compile time from field/3 expansion)
+  # ---------------------------------------------------------------------------
+
+  # Wire-transparent string representations of an identity: `:string` → "String"
+  # and the explicit "UUID" scalar both serialize as a JSON string, identical to
+  # GraphQL `ID`.
+  @string_shaped_id_types ["String", "UUID"]
+
+  # Enforces the entity-identity convention: a field named `id` is emitted as `ID`.
+  #
+  # A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+  # (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+  # ADR-0017). `:string` and the explicit "UUID" scalar are wire-identical string
+  # representations of an identity, so an `id` typed either way is canonicalized to
+  # `ID` at authoring time — keeping the emitted schema.json honest instead of
+  # leaking `id: String`, which the compiler would then reject. A numeric
+  # `id: :integer` is left as `Int` (not wire-compatible with `ID`).
+  @spec canonicalize_id_type(String.t(), String.t()) :: String.t()
+  defp canonicalize_id_type("id", graphql_type) when graphql_type in @string_shaped_id_types do
+    "ID"
+  end
+
+  defp canonicalize_id_type(_field_name, graphql_type), do: graphql_type
 
   # ---------------------------------------------------------------------------
   # Validation helpers (called at compile time from macro expansions)

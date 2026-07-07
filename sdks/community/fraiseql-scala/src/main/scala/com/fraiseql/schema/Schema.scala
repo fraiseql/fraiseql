@@ -1,9 +1,9 @@
 package com.fraiseql.schema
 
-import ujson.*
+import ujson._
 import scala.io.Source
 import java.nio.file.{Files, Paths}
-import scala.jdk.CollectionConverters.*
+import scala.jdk.CollectionConverters._
 import scala.util.matching.Regex
 
 /**
@@ -40,7 +40,10 @@ case class FieldDefinition(
  */
 object ScopeValidator {
   private val actionPattern: Regex = "^[a-zA-Z_][a-zA-Z0-9_]*$".r
-  private val resourcePattern: Regex = "^([a-zA-Z_][a-zA-Z0-9_.]*|\\*)$".r
+  // A resource is a dotted name, optionally ending in a `.*` wildcard
+  // (e.g. `User`, `User.email`, `User.*`), or a bare `*`. The docstring examples
+  // (`write:Post.*`) and tests require the trailing-wildcard form.
+  private val resourcePattern: Regex = "^([a-zA-Z_][a-zA-Z0-9_.]*(\\.\\*)?|\\*)$".r
 
   /**
    * Validates scope format: action:resource
@@ -76,7 +79,7 @@ object ScopeValidator {
 
 case class TypeInfo(
   name: String,
-  fields: Map[String, Map[String, Any]],
+  fields: Map[String, Any],
   description: Option[String] = None
 )
 
@@ -103,6 +106,27 @@ object SchemaRegistry {
  * Schema API for type registration and export
  */
 object Schema {
+  /**
+   * Wire-transparent string representations of an identity. Both `String` and the
+   * explicit `UUID` scalar serialize as a JSON string, identical to GraphQL `ID`.
+   */
+  private val StringShapedIdTypes: Set[String] = Set("String", "UUID")
+
+  /**
+   * Enforce the entity-identity convention: a field named `id` is emitted as `ID`.
+   *
+   * A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+   * (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+   * ADR-0017). `String` and the explicit `UUID` scalar are wire-identical string
+   * representations of an identity, so an `id` typed either way is canonicalized to
+   * `ID` at authoring time — keeping the emitted types.json honest instead of
+   * leaking `id: String` that the compiler would then reject. A numeric `id: Int`
+   * is left as `Int` (not wire-compatible with `ID`).
+   */
+  private def canonicalizeIdType(fieldName: String, graphqlType: String): String =
+    if (fieldName == "id" && StringShapedIdTypes.contains(graphqlType)) "ID"
+    else graphqlType
+
   /**
    * Register a type definition
    * @param name The type name
@@ -132,9 +156,10 @@ object Schema {
       SchemaRegistry.getType(typeName).map { typeInfo =>
         val fieldsArray = typeInfo.fields.map { case (fieldName, fieldConfig) =>
           val fieldMap = fieldConfig.asInstanceOf[Map[String, Any]]
+          val rawType = fieldMap.getOrElse("type", "String").asInstanceOf[String]
           val field = Obj(
             "name" -> fieldName,
-            "type" -> fieldMap.getOrElse("type", "String").asInstanceOf[String],
+            "type" -> canonicalizeIdType(fieldName, rawType),
             "nullable" -> fieldMap.getOrElse("nullable", false).asInstanceOf[Boolean]
           )
 

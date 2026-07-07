@@ -50,6 +50,27 @@ public sealed class SchemaExporterTests : IDisposable
         public string Slug { get; set; } = string.Empty;
     }
 
+    // Entity-identity fixtures (ADR-0017): id fields carry NO explicit [GraphQLField(Type=...)]
+    // so the type is inferred purely from the C# property type.
+    [GraphQLType(Name = "StringIdEntity", SqlSource = "v_string_id")]
+    private class StringIdEntityFixture
+    {
+        [GraphQLField] public string Id { get; set; } = string.Empty;
+        [GraphQLField] public string? Nickname { get; set; }
+    }
+
+    [GraphQLType(Name = "NullableStringIdEntity", SqlSource = "v_nullable_string_id")]
+    private class NullableStringIdEntityFixture
+    {
+        [GraphQLField] public string? Id { get; set; }
+    }
+
+    [GraphQLType(Name = "IntIdEntity", SqlSource = "v_int_id")]
+    private class IntIdEntityFixture
+    {
+        [GraphQLField] public int Id { get; set; }
+    }
+
     // --- Version field ---
 
     [Fact]
@@ -418,5 +439,55 @@ public sealed class SchemaExporterTests : IDisposable
             if (el.GetProperty("name").GetString() == name)
                 return el;
         throw new KeyNotFoundException($"element with name '{name}' not found in array");
+    }
+
+    // --- Entity-identity contract (ADR-0017) ---
+
+    [Fact]
+    public void TestStringIdCanonicalizedToIdInExport()
+    {
+        // A plain `string Id` with NO explicit [GraphQLField(Type = "ID")] must still
+        // export GraphQL type "ID", per the entity-identity contract.
+        SchemaRegistry.Instance.Register(typeof(StringIdEntityFixture));
+
+        var json = SchemaExporter.Export(pretty: false);
+        var doc = JsonDocument.Parse(json);
+        var fields = doc.RootElement.GetProperty("types")[0].GetProperty("fields");
+
+        var idField = FindByName(fields, "id");
+        Assert.Equal("ID", idField.GetProperty("type").GetString());
+        Assert.False(idField.GetProperty("nullable").GetBoolean());
+
+        // A non-`id` string field is unaffected.
+        var nickname = FindByName(fields, "nickname");
+        Assert.Equal("String", nickname.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void TestNullableStringIdCanonicalizedToIdPreservesNullability()
+    {
+        SchemaRegistry.Instance.Register(typeof(NullableStringIdEntityFixture));
+
+        var json = SchemaExporter.Export(pretty: false);
+        var doc = JsonDocument.Parse(json);
+        var idField = FindByName(
+            doc.RootElement.GetProperty("types")[0].GetProperty("fields"), "id");
+
+        Assert.Equal("ID", idField.GetProperty("type").GetString());
+        Assert.True(idField.GetProperty("nullable").GetBoolean());
+    }
+
+    [Fact]
+    public void TestIntIdStaysIntInExport()
+    {
+        // A numeric id is not wire-compatible with ID; it must be left as "Int".
+        SchemaRegistry.Instance.Register(typeof(IntIdEntityFixture));
+
+        var json = SchemaExporter.Export(pretty: false);
+        var doc = JsonDocument.Parse(json);
+        var idField = FindByName(
+            doc.RootElement.GetProperty("types")[0].GetProperty("fields"), "id");
+
+        Assert.Equal("Int", idField.GetProperty("type").GetString());
     }
 }

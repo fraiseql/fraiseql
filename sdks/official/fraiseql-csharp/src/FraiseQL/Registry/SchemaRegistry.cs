@@ -256,6 +256,9 @@ public sealed class SchemaRegistry
 
             var fieldName = MapPropertyName(prop.Name);
             var (graphqlType, nullable) = TypeMapper.Detect(prop, fieldAttr);
+            // Enforce the entity-identity contract (ADR-0017): a field named `id` typed
+            // as a wire-string identity (`String`/`UUID`) is emitted as `ID`.
+            graphqlType = TypeMapper.CanonicalizeIdType(fieldName, graphqlType);
 
             fields.Add(new FieldDefinition(
                 Name: fieldName,

@@ -122,8 +122,56 @@ public class TypeSystemTest {
     void testFieldNullabilityRespected() {
         var fields = TypeConverter.extractFields(UserWithNullable.class);
 
-        assertEquals("String!", fields.get("id").getGraphQLType());
+        // A field named "id" typed String is canonicalized to the ID scalar
+        // (entity-identity contract, ADR-0017).
+        assertEquals("ID!", fields.get("id").getGraphQLType());
         assertEquals("String", fields.get("nickname").getGraphQLType());
+    }
+
+    // =========================================================================
+    // ENTITY-IDENTITY CANONICALIZATION TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("A plain String id field is canonicalized to ID")
+    void testStringIdCanonicalizedToId() {
+        var fields = TypeConverter.extractFields(StringIdEntity.class);
+
+        // Non-null String id → "ID!", untyped non-id String stays "String".
+        assertEquals("ID!", fields.get("id").getGraphQLType());
+        assertEquals("String!", fields.get("name").getGraphQLType());
+    }
+
+    @Test
+    @DisplayName("A nullable String id field is canonicalized to ID")
+    void testNullableStringIdCanonicalizedToId() {
+        var fields = TypeConverter.extractFields(NullableStringIdEntity.class);
+
+        assertEquals("ID", fields.get("id").getGraphQLType());
+    }
+
+    @Test
+    @DisplayName("A UUID id field is canonicalized to ID")
+    void testUuidIdCanonicalizedToId() {
+        var fields = TypeConverter.extractFields(UuidIdEntity.class);
+
+        assertEquals("ID!", fields.get("id").getGraphQLType());
+    }
+
+    @Test
+    @DisplayName("A numeric int id field is left as Int")
+    void testIntIdNotCanonicalized() {
+        var fields = TypeConverter.extractFields(User.class);
+
+        assertEquals("Int!", fields.get("id").getGraphQLType());
+    }
+
+    @Test
+    @DisplayName("A non-id String field is left as String")
+    void testNonIdStringNotCanonicalized() {
+        var fields = TypeConverter.extractFields(StringIdEntity.class);
+
+        assertEquals("String!", fields.get("name").getGraphQLType());
     }
 
     @Test
@@ -380,6 +428,27 @@ public class TypeSystemTest {
 
         @GraphQLField(nullable = true)
         public String nickname;
+    }
+
+    @GraphQLType
+    public static class StringIdEntity {
+        @GraphQLField
+        public String id;
+
+        @GraphQLField
+        public String name;
+    }
+
+    @GraphQLType
+    public static class NullableStringIdEntity {
+        @GraphQLField(nullable = true)
+        public String id;
+    }
+
+    @GraphQLType
+    public static class UuidIdEntity {
+        @GraphQLField
+        public java.util.UUID id;
     }
 
     @GraphQLType

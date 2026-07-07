@@ -65,7 +65,8 @@ public class FieldMetadataTest {
     void testNonNullableFieldType() {
         var fields = TypeConverter.extractFields(StrictUser.class);
 
-        assertEquals("String!", fields.get("id").getGraphQLType());
+        // A field named "id" typed String is canonicalized to the ID scalar (ADR-0017).
+        assertEquals("ID!", fields.get("id").getGraphQLType());
         assertEquals("String!", fields.get("email").getGraphQLType());
     }
 
@@ -74,7 +75,8 @@ public class FieldMetadataTest {
     void testNullableFieldType() {
         var fields = TypeConverter.extractFields(OptionalUser.class);
 
-        assertEquals("String!", fields.get("id").getGraphQLType());
+        // A field named "id" typed String is canonicalized to the ID scalar (ADR-0017).
+        assertEquals("ID!", fields.get("id").getGraphQLType());
         assertEquals("String", fields.get("nickname").getGraphQLType());
     }
 
@@ -89,8 +91,8 @@ public class FieldMetadataTest {
         assertTrue(typeInfo.isPresent());
         var fields = typeInfo.get().fields;
 
-        // Required fields
-        assertEquals("String!", fields.get("id").getGraphQLType());
+        // Required fields ("id" typed String is canonicalized to the ID scalar, ADR-0017)
+        assertEquals("ID!", fields.get("id").getGraphQLType());
         assertEquals("String!", fields.get("name").getGraphQLType());
 
         // Optional fields

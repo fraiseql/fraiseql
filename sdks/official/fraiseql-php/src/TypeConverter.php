@@ -84,31 +84,87 @@ final class TypeConverter
 
         // If explicit type is provided in attribute, use it
         if ($graphQLFieldAttribute !== null && $graphQLFieldAttribute->type !== null) {
-            return new TypeInfo(
-                phpType: $property->getName(),
-                graphQLType: $graphQLFieldAttribute->type,
-                isNullable: $graphQLFieldAttribute->nullable,
-                description: $graphQLFieldAttribute->description,
-                customResolver: $graphQLFieldAttribute->resolver,
-                scope: $graphQLFieldAttribute->scope,
-                scopes: $graphQLFieldAttribute->scopes,
+            return self::canonicalizeIdField(
+                new TypeInfo(
+                    phpType: $property->getName(),
+                    graphQLType: $graphQLFieldAttribute->type,
+                    isNullable: $graphQLFieldAttribute->nullable,
+                    description: $graphQLFieldAttribute->description,
+                    customResolver: $graphQLFieldAttribute->resolver,
+                    scope: $graphQLFieldAttribute->scope,
+                    scopes: $graphQLFieldAttribute->scopes,
+                ),
+                $property->getName(),
             );
         }
 
         // Otherwise, extract from reflection
         if ($type !== null) {
-            return self::fromReflectionType($type, $graphQLFieldAttribute);
+            return self::canonicalizeIdField(
+                self::fromReflectionType($type, $graphQLFieldAttribute),
+                $property->getName(),
+            );
         }
 
         // Fallback for untyped properties
+        return self::canonicalizeIdField(
+            new TypeInfo(
+                phpType: 'mixed',
+                graphQLType: 'String',
+                isNullable: true,
+                description: $graphQLFieldAttribute?->description,
+                customResolver: $graphQLFieldAttribute?->resolver,
+                scope: $graphQLFieldAttribute?->scope,
+                scopes: $graphQLFieldAttribute?->scopes,
+            ),
+            $property->getName(),
+        );
+    }
+
+    /**
+     * Wire-transparent string representations of an identity: PHP `string` maps to
+     * GraphQL `String`, and the explicit `UUID` scalar both serialize as a JSON
+     * string, identical to GraphQL `ID`.
+     */
+    private const STRING_SHAPED_ID_TYPES = ['String', 'UUID'];
+
+    /**
+     * Enforce the entity-identity convention: a field named `id` is emitted as `ID`.
+     *
+     * A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+     * (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+     * ADR-0017). `string` and the explicit `UUID` scalar are wire-identical string
+     * representations of an identity, so an `id` typed either way is canonicalized to
+     * `ID` at authoring time — keeping the emitted schema.json honest instead of
+     * leaking `id: String` that the compiler would then reject. A numeric `id: int`
+     * is left as `Int` (not wire-compatible with `ID`); the compiler flags it if the
+     * type opts into a Node-style interface, prompting a real `ID` identity.
+     *
+     * Nullability and all other metadata are preserved.
+     *
+     * @param TypeInfo $typeInfo The type information to canonicalize
+     * @param string $fieldName The emitted GraphQL field name
+     * @return TypeInfo The canonicalized type information
+     */
+    private static function canonicalizeIdField(TypeInfo $typeInfo, string $fieldName): TypeInfo
+    {
+        if ($fieldName !== 'id') {
+            return $typeInfo;
+        }
+
+        if (!in_array($typeInfo->graphQLType, self::STRING_SHAPED_ID_TYPES, true)) {
+            return $typeInfo;
+        }
+
         return new TypeInfo(
-            phpType: 'mixed',
-            graphQLType: 'String',
-            isNullable: true,
-            description: $graphQLFieldAttribute?->description,
-            customResolver: $graphQLFieldAttribute?->resolver,
-            scope: $graphQLFieldAttribute?->scope,
-            scopes: $graphQLFieldAttribute?->scopes,
+            phpType: $typeInfo->phpType,
+            graphQLType: 'ID',
+            isNullable: $typeInfo->isNullable,
+            isList: $typeInfo->isList,
+            description: $typeInfo->description,
+            customResolver: $typeInfo->customResolver,
+            scope: $typeInfo->scope,
+            scopes: $typeInfo->scopes,
         );
     }
 

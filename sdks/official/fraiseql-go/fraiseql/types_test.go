@@ -315,6 +315,157 @@ func TestParseFieldTag(t *testing.T) {
 	}
 }
 
+// --- Entity-identity contract (ADR-0017): a field named "id" is emitted as "ID" ---
+
+// testIdStringType exercises the untagged reflection path: an exported Go `ID`
+// field (which is emitted verbatim as the GraphQL field name) typed `string`
+// must be canonicalized to GraphQL "ID", while a non-id string field stays
+// "String" and a numeric id stays "Int".
+type testIdStringType struct {
+	ID       string  // untagged string id -> "ID"
+	Nickname *string // nullable non-id string -> "String", nullable preserved
+	Name     string  // non-id string -> "String"
+}
+
+type testIdNullableStringType struct {
+	ID *string // untagged nullable string id -> "ID", nullable preserved
+}
+
+type testIdIntType struct {
+	ID int // numeric id stays "Int"
+}
+
+func TestCanonicalizeIdType(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		inputType string
+		expected  string
+	}{
+		{name: "lowercase id string -> ID", fieldName: "id", inputType: "String", expected: "ID"},
+		{name: "lowercase id UUID -> ID", fieldName: "id", inputType: "UUID", expected: "ID"},
+		{name: "go-cased ID string -> ID", fieldName: "ID", inputType: "String", expected: "ID"},
+		{name: "mixed-case Id string -> ID", fieldName: "Id", inputType: "String", expected: "ID"},
+		{name: "id Int stays Int", fieldName: "id", inputType: "Int", expected: "Int"},
+		{name: "non-id string stays String", fieldName: "name", inputType: "String", expected: "String"},
+		{name: "authorId string stays String", fieldName: "authorId", inputType: "String", expected: "String"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := canonicalizeIdType(tt.fieldName, tt.inputType); got != tt.expected {
+				t.Errorf("canonicalizeIdType(%q, %q) = %q, want %q", tt.fieldName, tt.inputType, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractFieldsEntityIdentityUntagged(t *testing.T) {
+	fields, err := ExtractFields(reflect.TypeOf(testIdStringType{}))
+	if err != nil {
+		t.Fatalf("ExtractFields failed: %v", err)
+	}
+
+	if fields["ID"].Type != "ID" {
+		t.Errorf("expected untagged string id to be canonicalized to ID, got %q", fields["ID"].Type)
+	}
+	if fields["ID"].Nullable {
+		t.Error("expected non-pointer id to be non-nullable")
+	}
+	if fields["Name"].Type != "String" {
+		t.Errorf("expected non-id string field to stay String, got %q", fields["Name"].Type)
+	}
+	if fields["Nickname"].Type != "String" {
+		t.Errorf("expected non-id nullable string to stay String, got %q", fields["Nickname"].Type)
+	}
+	if !fields["Nickname"].Nullable {
+		t.Error("expected nullable non-id field to stay nullable")
+	}
+}
+
+func TestExtractFieldsEntityIdentityNullableId(t *testing.T) {
+	fields, err := ExtractFields(reflect.TypeOf(testIdNullableStringType{}))
+	if err != nil {
+		t.Fatalf("ExtractFields failed: %v", err)
+	}
+
+	if fields["ID"].Type != "ID" {
+		t.Errorf("expected nullable string id to be canonicalized to ID, got %q", fields["ID"].Type)
+	}
+	if !fields["ID"].Nullable {
+		t.Error("expected nullability to be preserved on a *string id")
+	}
+}
+
+func TestExtractFieldsEntityIdentityNumericId(t *testing.T) {
+	fields, err := ExtractFields(reflect.TypeOf(testIdIntType{}))
+	if err != nil {
+		t.Fatalf("ExtractFields failed: %v", err)
+	}
+
+	if fields["ID"].Type != "Int" {
+		t.Errorf("expected numeric id to stay Int, got %q", fields["ID"].Type)
+	}
+}
+
+func TestParseFieldTagEntityIdentity(t *testing.T) {
+	tests := []struct {
+		name         string
+		tag          string
+		fieldName    string
+		fieldType    reflect.Type
+		expectedType string
+	}{
+		{
+			name:         "tagged id inferred string -> ID",
+			tag:          "id",
+			fieldName:    "ID",
+			fieldType:    reflect.TypeOf(""),
+			expectedType: "ID",
+		},
+		{
+			name:         "tagged id explicit String -> ID",
+			tag:          "id,type=String",
+			fieldName:    "ID",
+			fieldType:    reflect.TypeOf(""),
+			expectedType: "ID",
+		},
+		{
+			name:         "tagged id explicit UUID -> ID",
+			tag:          "id,type=UUID",
+			fieldName:    "ID",
+			fieldType:    reflect.TypeOf(""),
+			expectedType: "ID",
+		},
+		{
+			name:         "tagged id explicit Int stays Int",
+			tag:          "id,type=Int",
+			fieldName:    "ID",
+			fieldType:    reflect.TypeOf(0),
+			expectedType: "Int",
+		},
+		{
+			name:         "tagged non-id string stays String",
+			tag:          "authorId,type=String",
+			fieldName:    "AuthorID",
+			fieldType:    reflect.TypeOf(""),
+			expectedType: "String",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseFieldTag(tt.tag, tt.fieldName, tt.fieldType)
+			if err != nil {
+				t.Fatalf("parseFieldTag failed: %v", err)
+			}
+			if result.Type != tt.expectedType {
+				t.Errorf("expected type %q, got %q", tt.expectedType, result.Type)
+			}
+		})
+	}
+}
+
 func TestExtractFieldsNonStruct(t *testing.T) {
 	// Should return error for non-struct types
 	structType := reflect.TypeOf(123)
