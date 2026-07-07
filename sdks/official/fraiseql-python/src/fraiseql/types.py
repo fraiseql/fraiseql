@@ -162,6 +162,29 @@ def _get_class_annotations(cls: type) -> dict[str, Any]:
         return dict(getattr(cls, "__annotations__", {}))
 
 
+# Wire-transparent string representations of an identity: `str` → "String",
+# and the explicit `UUID` scalar both serialize as a JSON string, identical to
+# GraphQL `ID`.
+_STRING_SHAPED_ID_TYPES = frozenset({"String", "UUID"})
+
+
+def _canonicalize_id_type(field_name: str, graphql_type: str) -> str:
+    """Enforce the entity-identity convention: a field named ``id`` is emitted as ``ID``.
+
+    A global ``id: ID!`` is the identity contract the FraiseQL compiler enforces
+    (Node / CascadeNode / federation ``@key(fields: "id")`` — see fraiseql-core
+    ADR-0017). ``str`` and the explicit ``UUID`` scalar are wire-identical string
+    representations of an identity, so an ``id`` typed either way is canonicalized to
+    ``ID`` **at authoring time** — keeping the emitted ``schema.json`` honest instead
+    of leaking ``id: String`` that the compiler would then reject. A numeric ``id:
+    int`` is left as ``Int`` (not wire-compatible with ``ID``); the compiler flags it
+    if the type opts into a Node-style interface, prompting a real ``ID`` identity.
+    """
+    if field_name == "id" and graphql_type in _STRING_SHAPED_ID_TYPES:
+        return "ID"
+    return graphql_type
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -202,6 +225,7 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     fields = {}
     for field_name, field_type in annotations.items():
         graphql_type, nullable = python_type_to_graphql(field_type)
+        graphql_type = _canonicalize_id_type(field_name, graphql_type)
         field_info: dict[str, Any] = {
             "type": graphql_type,
             "nullable": nullable,

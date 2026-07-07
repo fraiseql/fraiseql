@@ -96,10 +96,13 @@ and `--json` output, so any residual rejection is self-diagnosing.
   literally will see `ID`. Documented in the CHANGELOG.
 - Entities with a non-identity `id` (`Int`, none) that use cascade/relay must expose
   `id: ID` (Trinity: a UUID surrogate). This is a clear compile error, not silent.
-- **Follow-up (authoring SDK):** the SDK should emit `id: ID` for a Trinity surrogate
-  directly, so the compiled schema is honest at the source and the compiler
-  canonicalization becomes a backstop for older/hand-authored schemas rather than the
-  primary mechanism.
+- **Authoring SDK (done for Python):** the `fraiseql` Python SDK now emits `id: ID`
+  for an identity field authored as `id: str`/`id: UUID` (`types.extract_field_info`),
+  so the compiled schema is honest at the source and the compiler canonicalization
+  becomes a backstop for older/hand-authored schemas. Confirmed against a real
+  64-entity schema whose SDK emitted `id: String` on every type. **Still pending:**
+  the SpecQL schema generator (a separate authoring source) should apply the same
+  `id → ID` convention.
 - **Future (graphql-cascade#5):** if a genuine need for heterogeneous-identity
   cascades emerges, the union model can relax this contract without breaking anyone
   (error → working is non-breaking).

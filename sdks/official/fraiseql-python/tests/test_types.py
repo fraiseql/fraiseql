@@ -157,6 +157,76 @@ def test_extract_field_info() -> None:
     assert fields["age"]["nullable"] is False
 
 
+def test_extract_field_info_canonicalizes_str_id_to_id() -> None:
+    """A field named `id` typed `str` is emitted as `ID` (identity convention)."""
+
+    class Document:
+        """A type whose Trinity surrogate id is authored as a plain `str`."""
+
+        id: str
+        title: str
+
+    fields = extract_field_info(Document)
+    # The identity field canonicalizes to `ID`; a non-identity `str` stays `String`.
+    assert fields["id"]["type"] == "ID"
+    assert fields["title"]["type"] == "String"
+
+
+def test_extract_field_info_canonicalizes_uuid_id_to_id() -> None:
+    """A field named `id` typed with the explicit `UUID` scalar is emitted as `ID`."""
+
+    class Order:
+        """An entity keyed by an explicit `UUID` id."""
+
+        id: UUID
+        amount: int
+
+    fields = extract_field_info(Order)
+    assert fields["id"]["type"] == "ID"
+    # A non-`id` field keeps the explicit `UUID` scalar.
+
+
+def test_extract_field_info_nullable_str_id_canonicalizes() -> None:
+    """Nullability is preserved when an `id: str | None` canonicalizes to `ID`."""
+
+    class Draft:
+        """A type with an optional string id."""
+
+        id: str | None
+
+    fields = extract_field_info(Draft)
+    assert fields["id"]["type"] == "ID"
+    assert fields["id"]["nullable"] is True
+
+
+def test_extract_field_info_int_id_left_as_is() -> None:
+    """A numeric `id: int` is NOT canonicalized (not wire-compatible with `ID`)."""
+
+    class Legacy:
+        """A type exposing a serial int id."""
+
+        id: int
+
+    fields = extract_field_info(Legacy)
+    assert fields["id"]["type"] == "Int"
+
+
+def test_extract_field_info_only_id_field_is_canonicalized() -> None:
+    """Only the field named `id` is special-cased; other `str` fields are untouched."""
+
+    class Account:
+        """A type with a non-`id` string identifier-like field."""
+
+        id: str
+        identifier: str
+        slug: str
+
+    fields = extract_field_info(Account)
+    assert fields["id"]["type"] == "ID"
+    assert fields["identifier"]["type"] == "String"
+    assert fields["slug"]["type"] == "String"
+
+
 def test_extract_function_signature_simple() -> None:
     """Test function signature extraction."""
 

@@ -392,6 +392,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where it previously reported `id: UUID`. Non-identity ids (a serial `id: Int`, or
   no `id`) are left as-is and must expose `id: ID` (a UUID surrogate) to use
   cascade/Relay. See ADR-0017 and `docs/architecture/mutation-response.md`.
+- **Python SDK emits `id: ID` for identity fields (honest at source).** The
+  `fraiseql` authoring SDK now canonicalizes a field named `id` typed `str`/`UUID`
+  to GraphQL `ID` when emitting `schema.json` (`extract_field_info`), enforcing its
+  own documented convention. Previously a Trinity surrogate authored as `id: str`
+  leaked `id: String`, which the compiler's identity contract then rejected; the
+  emitted schema is now conformant at the source, so the compiler canonicalization
+  is a backstop rather than the primary mechanism.
 - **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
   A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
   poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
