@@ -31,6 +31,44 @@ describe("SchemaRegistry", () => {
     });
   });
 
+  describe("id identity convention (ADR-0017)", () => {
+    it("canonicalizes an `id: String` field to ID on a type", () => {
+      SchemaRegistry.registerType("Document", [
+        { name: "id", type: "String", nullable: false },
+        { name: "title", type: "String", nullable: false },
+      ]);
+      const type = SchemaRegistry.getSchema().types[0];
+      expect(type.fields.find((f) => f.name === "id")?.type).toBe("ID");
+      // A non-identity string field is untouched.
+      expect(type.fields.find((f) => f.name === "title")?.type).toBe("String");
+    });
+
+    it("canonicalizes an `id: UUID` field to ID", () => {
+      SchemaRegistry.registerType("Order", [{ name: "id", type: "UUID", nullable: false }]);
+      expect(SchemaRegistry.getSchema().types[0].fields[0].type).toBe("ID");
+    });
+
+    it("preserves nullability when canonicalizing", () => {
+      SchemaRegistry.registerType("Draft", [{ name: "id", type: "String", nullable: true }]);
+      const id = SchemaRegistry.getSchema().types[0].fields[0];
+      expect(id.type).toBe("ID");
+      expect(id.nullable).toBe(true);
+    });
+
+    it("leaves a numeric `id: Int` unchanged (not wire-compatible with ID)", () => {
+      SchemaRegistry.registerType("Legacy", [{ name: "id", type: "Int", nullable: false }]);
+      expect(SchemaRegistry.getSchema().types[0].fields[0].type).toBe("Int");
+    });
+
+    it("applies to interface and input registration sinks too", () => {
+      SchemaRegistry.registerInterface("Node", [{ name: "id", type: "String", nullable: false }]);
+      SchemaRegistry.registerInputType("RefInput", [{ name: "id", type: "UUID", nullable: false }]);
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.interfaces?.[0].fields[0].type).toBe("ID");
+      expect(schema.input_types?.[0].fields[0].type).toBe("ID");
+    });
+  });
+
   describe("registerQuery", () => {
     it("should register a simple query", () => {
       SchemaRegistry.registerQuery(
