@@ -29,6 +29,14 @@ jobs:
           distribution: temurin
           cache: sbt
 
-      # sbt is provided by the GitHub-hosted ubuntu runner image.
+      # sbt is no longer preinstalled on the ubuntu runner image — fetch the
+      # launcher directly (same tarball-install style as the cargo-deny step).
+      - name: Install sbt
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/sbt/sbt/releases/download/v1.10.7/sbt-1.10.7.tgz -o /tmp/sbt.tgz
+          tar -xzf /tmp/sbt.tgz -C /tmp
+          echo "/tmp/sbt/bin" >> "$GITHUB_PATH"
+
       - name: Test
         run: sbt test
