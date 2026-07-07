@@ -182,4 +182,44 @@ public sealed class TypeMapperTests
         var (type, _) = Detect(nameof(AllTypesFixture.ExplicitCustomProp));
         Assert.Equal("CustomType", type);
     }
+
+    // --- Entity-identity canonicalization (ADR-0017) ---
+
+    [Fact]
+    public void TestCanonicalizeStringIdToId()
+    {
+        Assert.Equal("ID", TypeMapper.CanonicalizeIdType("id", "String"));
+    }
+
+    [Fact]
+    public void TestCanonicalizeUuidIdToId()
+    {
+        Assert.Equal("ID", TypeMapper.CanonicalizeIdType("id", "UUID"));
+    }
+
+    [Fact]
+    public void TestCanonicalizeIntIdStaysInt()
+    {
+        // A numeric id is not wire-compatible with ID; leave it unchanged.
+        Assert.Equal("Int", TypeMapper.CanonicalizeIdType("id", "Int"));
+    }
+
+    [Fact]
+    public void TestCanonicalizeIdAlreadyIdStaysId()
+    {
+        Assert.Equal("ID", TypeMapper.CanonicalizeIdType("id", "ID"));
+    }
+
+    [Fact]
+    public void TestCanonicalizeNonIdStringFieldStaysString()
+    {
+        // Only a field literally named "id" is canonicalized.
+        Assert.Equal("String", TypeMapper.CanonicalizeIdType("name", "String"));
+    }
+
+    [Fact]
+    public void TestCanonicalizeNonIdUuidFieldStaysUuid()
+    {
+        Assert.Equal("UUID", TypeMapper.CanonicalizeIdType("externalRef", "UUID"));
+    }
 }

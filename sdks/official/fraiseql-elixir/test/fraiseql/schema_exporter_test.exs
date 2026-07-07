@@ -55,6 +55,26 @@ defmodule FraiseQL.SchemaExporterTest do
     end
   end
 
+  # Schemas exercising the entity-identity canonicalization: a field named `id`
+  # typed `:string` must be emitted as GraphQL `ID` (ADR-0017), while a numeric
+  # `:integer` id and a non-`id` `:string` field are left untouched.
+  defmodule StringIdSchema do
+    use FraiseQL.Schema
+
+    fraiseql_type "Widget", sql_source: "v_widget" do
+      field :id, :string, nullable: false
+      field :name, :string, nullable: false
+    end
+  end
+
+  defmodule IntIdSchema do
+    use FraiseQL.Schema
+
+    fraiseql_type "Counter", sql_source: "v_counter" do
+      field :id, :integer, nullable: false
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # to_intermediate_schema/1
   # ---------------------------------------------------------------------------
@@ -85,6 +105,27 @@ defmodule FraiseQL.SchemaExporterTest do
     assert id_field.nullable == false
     bio_field = Enum.find(type.fields, &(&1.name == "bio"))
     assert bio_field.nullable == true
+  end
+
+  test "field named id typed :string is canonicalized to ID" do
+    schema = SchemaExporter.to_intermediate_schema(StringIdSchema)
+    [type] = schema.types
+    id_field = Enum.find(type.fields, &(&1.name == "id"))
+    assert id_field.type == "ID"
+  end
+
+  test "non-id field typed :string stays String" do
+    schema = SchemaExporter.to_intermediate_schema(StringIdSchema)
+    [type] = schema.types
+    name_field = Enum.find(type.fields, &(&1.name == "name"))
+    assert name_field.type == "String"
+  end
+
+  test "field named id typed :integer stays Int" do
+    schema = SchemaExporter.to_intermediate_schema(IntIdSchema)
+    [type] = schema.types
+    id_field = Enum.find(type.fields, &(&1.name == "id"))
+    assert id_field.type == "Int"
   end
 
   test "raises ArgumentError when module is not a FraiseQL schema" do

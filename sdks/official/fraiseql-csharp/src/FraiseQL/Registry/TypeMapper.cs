@@ -46,6 +46,38 @@ public static class TypeMapper
         return (graphqlType, nullable);
     }
 
+    /// <summary>
+    /// Wire-transparent string representations of an identity: C# <c>string</c> maps to
+    /// <c>"String"</c>, and the explicit <c>"UUID"</c> scalar both serialize as a JSON string,
+    /// identical to GraphQL <c>ID</c>.
+    /// </summary>
+    private static readonly HashSet<string> StringShapedIdTypes = new(StringComparer.Ordinal)
+    {
+        "String",
+        "UUID",
+    };
+
+    /// <summary>
+    /// Enforces the entity-identity convention: a field named <c>id</c> is emitted as <c>ID</c>.
+    /// </summary>
+    /// <remarks>
+    /// A global <c>id: ID!</c> is the identity contract the FraiseQL compiler enforces
+    /// (Node / CascadeNode / federation <c>@key(fields: "id")</c> — see fraiseql-core ADR-0017).
+    /// <c>string</c> and the explicit <c>UUID</c> scalar are wire-identical string representations
+    /// of an identity, so an <c>id</c> typed either way is canonicalized to <c>ID</c> at authoring
+    /// time — keeping the emitted <c>schema.json</c> honest instead of leaking <c>id: String</c>
+    /// that the compiler would then reject. A numeric <c>id</c> (<c>"Int"</c>) is left unchanged
+    /// (not wire-compatible with <c>ID</c>); the compiler flags it if the type opts into a
+    /// Node-style interface, prompting a real <c>ID</c> identity.
+    /// </remarks>
+    /// <param name="fieldName">The GraphQL field name (camelCase).</param>
+    /// <param name="graphqlType">The GraphQL type name detected for the field.</param>
+    /// <returns><c>"ID"</c> when the field is a string-shaped <c>id</c>; otherwise the input type.</returns>
+    public static string CanonicalizeIdType(string fieldName, string graphqlType) =>
+        fieldName == "id" && StringShapedIdTypes.Contains(graphqlType)
+            ? "ID"
+            : graphqlType;
+
     /// <summary>Maps a non-nullable C# base type to its GraphQL scalar equivalent.</summary>
     /// <param name="baseType">The C# type to map.</param>
     /// <returns>The GraphQL scalar name. Defaults to <c>"String"</c> for unknown types.</returns>

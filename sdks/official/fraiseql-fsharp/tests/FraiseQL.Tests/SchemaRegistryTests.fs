@@ -41,6 +41,27 @@ type RelayPostEntity() =
 type NoAttributeClass() =
     member val Id: int = 0 with get, set
 
+// Entity-identity contract (ADR-0017): a field named `id` must be emitted as
+// GraphQL `ID`, even when the .NET property is `string` rather than `Guid`.
+[<GraphQLType(Name = "StringIdEntity", SqlSource = "v_string_id")>]
+type StringIdEntity() =
+    [<GraphQLField(Nullable = false)>]
+    member val Id: string = "" with get, set
+
+    // A non-`id` string field must stay `String`.
+    [<GraphQLField(Nullable = false)>]
+    member val Slug: string = "" with get, set
+
+[<GraphQLType(Name = "NullableStringId", SqlSource = "v_nullable_string_id")>]
+type NullableStringIdEntity() =
+    [<GraphQLField>]
+    member val Id: string option = None with get, set
+
+[<GraphQLType(Name = "IntIdEntity", SqlSource = "v_int_id")>]
+type IntIdEntity() =
+    [<GraphQLField(Nullable = false)>]
+    member val Id: int = 0 with get, set
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -101,6 +122,39 @@ let ``register infers field type from .NET type`` () =
     let td = SchemaRegistry.getTypeDefinition "Post"
     let idField = td.Value.fields |> List.find (fun f -> f.name = "id")
     idField.type_ |> should equal "ID"
+
+[<Fact>]
+let ``register canonicalizes string id to ID`` () =
+    cleanup ()
+    SchemaRegistry.register typeof<StringIdEntity>
+    let td = SchemaRegistry.getTypeDefinition "StringIdEntity"
+    let idField = td.Value.fields |> List.find (fun f -> f.name = "id")
+    idField.type_ |> should equal "ID"
+
+[<Fact>]
+let ``register preserves nullability when canonicalizing string id to ID`` () =
+    cleanup ()
+    SchemaRegistry.register typeof<NullableStringIdEntity>
+    let td = SchemaRegistry.getTypeDefinition "NullableStringId"
+    let idField = td.Value.fields |> List.find (fun f -> f.name = "id")
+    idField.type_ |> should equal "ID"
+    idField.nullable |> should equal true
+
+[<Fact>]
+let ``register leaves numeric id as Int`` () =
+    cleanup ()
+    SchemaRegistry.register typeof<IntIdEntity>
+    let td = SchemaRegistry.getTypeDefinition "IntIdEntity"
+    let idField = td.Value.fields |> List.find (fun f -> f.name = "id")
+    idField.type_ |> should equal "Int"
+
+[<Fact>]
+let ``register leaves non-id string field as String`` () =
+    cleanup ()
+    SchemaRegistry.register typeof<StringIdEntity>
+    let td = SchemaRegistry.getTypeDefinition "StringIdEntity"
+    let slugField = td.Value.fields |> List.find (fun f -> f.name = "slug")
+    slugField.type_ |> should equal "String"
 
 [<Fact>]
 let ``register respects explicit Type override on field`` () =

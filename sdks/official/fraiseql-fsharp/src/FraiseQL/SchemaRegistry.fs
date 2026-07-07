@@ -40,7 +40,25 @@ module SchemaRegistry =
                 let gqlType, autoNullable =
                     TypeMapper.toGraphQLTypeWithNullability prop.PropertyType
 
-                let resolvedType = if fieldAttr.Type <> "" then fieldAttr.Type else gqlType
+                let fieldName = TypeMapper.toSnakeCase prop.Name
+
+                // An explicit attribute Type override wins over the inferred .NET type.
+                let resolvedTypeRaw = if fieldAttr.Type <> "" then fieldAttr.Type else gqlType
+
+                // Entity-identity contract (ADR-0017): a field named `id` is emitted as
+                // `ID`. Both `string` (→ "String") and the explicit `UUID` scalar are
+                // wire-transparent string representations of an identity, so an `id`
+                // typed either way is canonicalized to `ID` at authoring time — keeping
+                // the emitted schema honest instead of leaking `id: String`, which the
+                // compiler would reject. A numeric `id: Int` is left unchanged.
+                // Canonicalization runs *after* any explicit Type override, so an
+                // inferred string id and `[<GraphQLField(Type = "String")>]` both end at
+                // `ID`, matching the Python SDK's `_canonicalize_id_type`.
+                let resolvedType =
+                    if fieldName = "id" && (resolvedTypeRaw = "String" || resolvedTypeRaw = "UUID") then
+                        "ID"
+                    else
+                        resolvedTypeRaw
 
                 // When an explicit Nullable value was set on the attribute, honour it.
                 // Fall back to the .NET type analysis only when no attribute-level type
@@ -62,7 +80,7 @@ module SchemaRegistry =
                     if fieldAttr.Scope <> "" then Some fieldAttr.Scope else None
 
                 {
-                    name = TypeMapper.toSnakeCase prop.Name
+                    name = fieldName
                     type_ = resolvedType
                     nullable = resolvedNullable
                     description =

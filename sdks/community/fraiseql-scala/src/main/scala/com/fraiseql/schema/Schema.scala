@@ -104,6 +104,27 @@ object SchemaRegistry {
  */
 object Schema {
   /**
+   * Wire-transparent string representations of an identity. Both `String` and the
+   * explicit `UUID` scalar serialize as a JSON string, identical to GraphQL `ID`.
+   */
+  private val StringShapedIdTypes: Set[String] = Set("String", "UUID")
+
+  /**
+   * Enforce the entity-identity convention: a field named `id` is emitted as `ID`.
+   *
+   * A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+   * (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+   * ADR-0017). `String` and the explicit `UUID` scalar are wire-identical string
+   * representations of an identity, so an `id` typed either way is canonicalized to
+   * `ID` at authoring time — keeping the emitted types.json honest instead of
+   * leaking `id: String` that the compiler would then reject. A numeric `id: Int`
+   * is left as `Int` (not wire-compatible with `ID`).
+   */
+  private def canonicalizeIdType(fieldName: String, graphqlType: String): String =
+    if (fieldName == "id" && StringShapedIdTypes.contains(graphqlType)) "ID"
+    else graphqlType
+
+  /**
    * Register a type definition
    * @param name The type name
    * @param fields Map of field name to field definition
@@ -132,9 +153,10 @@ object Schema {
       SchemaRegistry.getType(typeName).map { typeInfo =>
         val fieldsArray = typeInfo.fields.map { case (fieldName, fieldConfig) =>
           val fieldMap = fieldConfig.asInstanceOf[Map[String, Any]]
+          val rawType = fieldMap.getOrElse("type", "String").asInstanceOf[String]
           val field = Obj(
             "name" -> fieldName,
-            "type" -> fieldMap.getOrElse("type", "String").asInstanceOf[String],
+            "type" -> canonicalizeIdType(fieldName, rawType),
             "nullable" -> fieldMap.getOrElse("nullable", false).asInstanceOf[Boolean]
           )
 

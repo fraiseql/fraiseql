@@ -96,11 +96,16 @@ and `--json` output, so any residual rejection is self-diagnosing.
   literally will see `ID`. Documented in the CHANGELOG.
 - Entities with a non-identity `id` (`Int`, none) that use cascade/relay must expose
   `id: ID` (Trinity: a UUID surrogate). This is a clear compile error, not silent.
-- **Authoring SDK (done for Python):** the `fraiseql` Python SDK now emits `id: ID`
-  for an identity field authored as `id: str`/`id: UUID` (`types.extract_field_info`),
-  so the compiled schema is honest at the source and the compiler canonicalization
-  becomes a backstop for older/hand-authored schemas. Confirmed against a real
-  64-entity schema whose SDK emitted `id: String` on every type.
+- **Authoring SDKs (done across the board):** every FraiseQL SDK that emits
+  `schema.json` now canonicalizes an identity field (`id` typed `string`/`str`/`UUID`)
+  to GraphQL `ID` at authoring time, so the emitted schema is honest at the source and
+  the compiler canonicalization is a backstop for older/hand-authored schemas. All 9
+  authoring SDKs were audited and fixed — **Python, TypeScript, Go, C#, F#, Java, PHP**
+  (fix + regression tests green in-repo) and **Elixir, Scala** (fix applied; to be
+  confirmed under `mix`/`sbt`). The 9 client/runtime SDKs don't emit schemas and are
+  unaffected. Confirmed against a real 64-entity schema whose SDK emitted `id: String`
+  on every type. Notably, several SDKs' existing tests *encoded* the bug (C#/F#/Java
+  asserted `id → "String"`) and were corrected.
 - **SpecQL (a separate authoring source) already works via the backstop.** SpecQL
   maps a `uuid` column to GraphQL `UUID` (`gql_type_mapper`), and the Trinity id is
   `uuid`-typed — so it emits `id: UUID`, which the compiler's `UUID → ID`

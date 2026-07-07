@@ -323,7 +323,7 @@ defmodule FraiseQL.Schema do
   """
   defmacro field(name, type, opts \\ []) do
     field_name = Atom.to_string(name)
-    field_type = FraiseQL.TypeMapper.to_graphql_type(type)
+    field_type = canonicalize_id_type(field_name, FraiseQL.TypeMapper.to_graphql_type(type))
 
     quote do
       @__fraiseql_field_buffer %FraiseQL.FieldDefinition{
@@ -363,6 +363,31 @@ defmodule FraiseQL.Schema do
       }
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Identity canonicalization (called at compile time from field/3 expansion)
+  # ---------------------------------------------------------------------------
+
+  # Wire-transparent string representations of an identity: `:string` → "String"
+  # and the explicit "UUID" scalar both serialize as a JSON string, identical to
+  # GraphQL `ID`.
+  @string_shaped_id_types ["String", "UUID"]
+
+  # Enforces the entity-identity convention: a field named `id` is emitted as `ID`.
+  #
+  # A global `id: ID!` is the identity contract the FraiseQL compiler enforces
+  # (Node / CascadeNode / federation `@key(fields: "id")` — see fraiseql-core
+  # ADR-0017). `:string` and the explicit "UUID" scalar are wire-identical string
+  # representations of an identity, so an `id` typed either way is canonicalized to
+  # `ID` at authoring time — keeping the emitted schema.json honest instead of
+  # leaking `id: String`, which the compiler would then reject. A numeric
+  # `id: :integer` is left as `Int` (not wire-compatible with `ID`).
+  @spec canonicalize_id_type(String.t(), String.t()) :: String.t()
+  defp canonicalize_id_type("id", graphql_type) when graphql_type in @string_shaped_id_types do
+    "ID"
+  end
+
+  defp canonicalize_id_type(_field_name, graphql_type), do: graphql_type
 
   # ---------------------------------------------------------------------------
   # Validation helpers (called at compile time from macro expansions)

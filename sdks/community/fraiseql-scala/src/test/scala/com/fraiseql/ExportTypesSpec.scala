@@ -159,6 +159,51 @@ class ExportTypesSpec extends AnyFlatSpec with Matchers with BeforeAndAfterEach 
     Files.delete(Paths.get(tmpFile))
   }
 
+  it should "canonicalize a String id field to ID (entity-identity contract)" in {
+    // A field named `id` registered as "String" must export as "ID"
+    // (ADR-0017: the compiler requires every entity's id to be GraphQL ID).
+    Schema.registerType("User", Map(
+      "id" -> Map("type" -> "String", "nullable" -> false),
+      "name" -> Map("type" -> "String", "nullable" -> false),
+    ))
+
+    val json = Schema.exportTypes(pretty = true)
+    val parsed = ujson.read(json)
+
+    val fields = parsed("types")(0)("fields").arr
+    val idField = fields.find(f => f("name").str == "id").get
+    val nameField = fields.find(f => f("name").str == "name").get
+
+    // id: String -> ID
+    assert(idField("type").str == "ID")
+    // non-id String field stays String
+    assert(nameField("type").str == "String")
+  }
+
+  it should "canonicalize a UUID id field to ID" in {
+    Schema.registerType("User", Map(
+      "id" -> Map("type" -> "UUID", "nullable" -> false),
+    ))
+
+    val json = Schema.exportTypes(pretty = true)
+    val parsed = ujson.read(json)
+
+    val idField = parsed("types")(0)("fields").arr.find(f => f("name").str == "id").get
+    assert(idField("type").str == "ID")
+  }
+
+  it should "leave a numeric Int id unchanged" in {
+    Schema.registerType("User", Map(
+      "id" -> Map("type" -> "Int", "nullable" -> false),
+    ))
+
+    val json = Schema.exportTypes(pretty = true)
+    val parsed = ujson.read(json)
+
+    val idField = parsed("types")(0)("fields").arr.find(f => f("name").str == "id").get
+    assert(idField("type").str == "Int")
+  }
+
   it should "handle empty schema gracefully" in {
     // Export with no types registered
     val json = Schema.exportTypes(true)
