@@ -4,7 +4,6 @@ import com.fraiseql.schema.Schema
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import upickle.default.*
 import java.nio.file.Files
 import java.nio.file.Paths
 

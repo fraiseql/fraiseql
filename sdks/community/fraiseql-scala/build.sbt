@@ -28,5 +28,8 @@ lazy val root = (project in file("."))
       "-unchecked",
       "-Xfatal-warnings"
     ),
-    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
+    // The suites share the global `SchemaRegistry` singleton (cleared per test via
+    // beforeEach), so they must not run concurrently or they clobber each other.
+    Test / parallelExecution := false
   )
