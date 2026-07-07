@@ -100,9 +100,12 @@ and `--json` output, so any residual rejection is self-diagnosing.
   for an identity field authored as `id: str`/`id: UUID` (`types.extract_field_info`),
   so the compiled schema is honest at the source and the compiler canonicalization
   becomes a backstop for older/hand-authored schemas. Confirmed against a real
-  64-entity schema whose SDK emitted `id: String` on every type. **Still pending:**
-  the SpecQL schema generator (a separate authoring source) should apply the same
-  `id → ID` convention.
+  64-entity schema whose SDK emitted `id: String` on every type.
+- **SpecQL (a separate authoring source) already works via the backstop.** SpecQL
+  maps a `uuid` column to GraphQL `UUID` (`gql_type_mapper`), and the Trinity id is
+  `uuid`-typed — so it emits `id: UUID`, which the compiler's `UUID → ID`
+  canonicalization handles. No SpecQL change is required for conformance; emitting
+  `id: ID` directly for the identity column would be an optional honesty improvement.
 - **Future (graphql-cascade#5):** if a genuine need for heterogeneous-identity
   cascades emerges, the union model can relax this contract without breaking anyone
   (error → working is non-breaking).
