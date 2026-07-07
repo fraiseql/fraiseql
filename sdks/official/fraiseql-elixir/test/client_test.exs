@@ -51,7 +51,7 @@ defmodule FraiseQL.ClientTest do
   # Helper that mirrors the internal parse logic for unit testing
   defp parse_graphql_response(body) do
     case Jason.decode(body) do
-      {:ok, %{"errors" => errors}} when is_list(errors) and length(errors) > 0 ->
+      {:ok, %{"errors" => errors}} when is_list(errors) and errors != [] ->
         graphql_errors = Enum.map(errors, &%{message: Map.get(&1, "message", "")})
         {:error, FraiseQL.GraphQLError.new(graphql_errors)}
 

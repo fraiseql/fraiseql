@@ -127,8 +127,7 @@ defmodule FraiseQL.ExportTypesTest do
     parsed = Jason.decode!(json)
 
     assert parsed["types"] != nil
-    assert is_list(parsed["types"])
-    assert length(parsed["types"]) == 0
+    assert parsed["types"] == []
 
     FraiseQL.Schema.Legacy.reset()
   end

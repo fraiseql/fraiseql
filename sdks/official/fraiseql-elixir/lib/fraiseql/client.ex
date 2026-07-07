@@ -146,7 +146,7 @@ defmodule FraiseQL.Client do
 
   defp parse_response(body) do
     case Jason.decode(to_string(body)) do
-      {:ok, %{"errors" => errors}} when is_list(errors) and length(errors) > 0 ->
+      {:ok, %{"errors" => errors}} when is_list(errors) and errors != [] ->
         graphql_errors =
           Enum.map(errors, fn e ->
             %{message: Map.get(e, "message", "Unknown error")}
