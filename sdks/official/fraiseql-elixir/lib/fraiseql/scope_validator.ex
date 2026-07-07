@@ -20,21 +20,13 @@ defmodule FraiseQL.ScopeValidator do
   end
 
   defp validate_format(scope) do
-    case String.split(scope, ":", parts: 2) do
-      [action, resource] ->
-        case validate_action(action) do
-          :ok ->
-            case validate_resource(resource) do
-              :ok -> :ok
-              error -> error
-            end
-
-          error ->
-            error
-        end
-
-      _ ->
-        {:error, "Scope must contain exactly one colon"}
+    with [action, resource] <- String.split(scope, ":", parts: 2),
+         :ok <- validate_action(action),
+         :ok <- validate_resource(resource) do
+      :ok
+    else
+      {:error, _} = error -> error
+      _ -> {:error, "Scope must contain exactly one colon"}
     end
   end
 

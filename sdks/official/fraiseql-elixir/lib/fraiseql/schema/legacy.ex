@@ -43,40 +43,7 @@ defmodule FraiseQL.Schema.Legacy do
     types = Agent.get(__MODULE__, & &1)
 
     types_array =
-      Enum.map(types, fn {name, {fields, description}} ->
-        fields_array =
-          Enum.map(fields, fn {field_name, field_config} ->
-            field = %{
-              "name" => field_name,
-              "type" => Map.get(field_config, :type, "String"),
-              "nullable" => Map.get(field_config, :nullable, false)
-            }
-
-            field =
-              if Map.has_key?(field_config, :requires_scope) do
-                Map.put(field, "requires_scope", Map.get(field_config, :requires_scope))
-              else
-                field
-              end
-
-            if Map.has_key?(field_config, :requires_scopes) do
-              Map.put(field, "requires_scopes", Map.get(field_config, :requires_scopes))
-            else
-              field
-            end
-          end)
-
-        type_obj = %{
-          "name" => name,
-          "fields" => fields_array
-        }
-
-        if description do
-          Map.put(type_obj, "description", description)
-        else
-          type_obj
-        end
-      end)
+      Enum.map(types, fn {name, {fields, description}} -> build_type(name, fields, description) end)
 
     schema = %{"types" => types_array}
 
@@ -84,6 +51,33 @@ defmodule FraiseQL.Schema.Legacy do
       Jason.encode!(schema, pretty: true)
     else
       Jason.encode!(schema)
+    end
+  end
+
+  defp build_type(name, fields, description) do
+    type_obj = %{
+      "name" => name,
+      "fields" => Enum.map(fields, fn {field_name, config} -> build_field(field_name, config) end)
+    }
+
+    if description, do: Map.put(type_obj, "description", description), else: type_obj
+  end
+
+  defp build_field(field_name, field_config) do
+    %{
+      "name" => field_name,
+      "type" => Map.get(field_config, :type, "String"),
+      "nullable" => Map.get(field_config, :nullable, false)
+    }
+    |> maybe_put_scope(field_config, :requires_scope, "requires_scope")
+    |> maybe_put_scope(field_config, :requires_scopes, "requires_scopes")
+  end
+
+  defp maybe_put_scope(field, field_config, key, out_key) do
+    if Map.has_key?(field_config, key) do
+      Map.put(field, out_key, Map.get(field_config, key))
+    else
+      field
     end
   end
 
@@ -104,7 +98,7 @@ defmodule FraiseQL.Schema.Legacy do
 
     IO.puts("Exported #{types_count} type(s) to #{output_path}")
   rescue
-    _e -> raise "Failed to write types file: #{output_path}"
+    _e -> reraise "Failed to write types file: #{output_path}", __STACKTRACE__
   end
 
   @doc """
@@ -135,48 +129,42 @@ defmodule FraiseQL.Schema.Legacy do
 
   defp validate_field_scopes(fields, _type_name) do
     Enum.each(fields, fn {field_name, field_config} ->
-      has_scope = Map.has_key?(field_config, :requires_scope)
-      has_scopes = Map.has_key?(field_config, :requires_scopes)
-
-      if has_scope and has_scopes do
-        raise FraiseQL.ScopeValidationError.exception({:conflict, field_name})
-      end
-
-      if has_scope do
-        scope = Map.get(field_config, :requires_scope)
-
-        unless is_binary(scope) do
-          raise FraiseQL.ScopeValidationError.exception({:invalid_format, field_name})
-        end
-
-        case FraiseQL.ScopeValidator.validate(scope) do
-          :ok -> :ok
-          {:error, msg} -> raise FraiseQL.ScopeValidationError.exception(msg)
-        end
-      end
-
-      if has_scopes do
-        scopes = Map.get(field_config, :requires_scopes)
-
-        unless is_list(scopes) do
-          raise FraiseQL.ScopeValidationError.exception({:invalid_format, field_name})
-        end
-
-        if Enum.empty?(scopes) do
-          raise FraiseQL.ScopeValidationError.exception(:empty_scope)
-        end
-
-        Enum.each(scopes, fn scope ->
-          unless is_binary(scope) do
-            raise FraiseQL.ScopeValidationError.exception({:invalid_format, field_name})
-          end
-
-          case FraiseQL.ScopeValidator.validate(scope) do
-            :ok -> :ok
-            {:error, msg} -> raise FraiseQL.ScopeValidationError.exception(msg)
-          end
-        end)
-      end
+      validate_field_scope(field_name, field_config)
     end)
+  end
+
+  defp validate_field_scope(field_name, field_config) do
+    has_scope = Map.has_key?(field_config, :requires_scope)
+    has_scopes = Map.has_key?(field_config, :requires_scopes)
+
+    if has_scope and has_scopes do
+      raise FraiseQL.ScopeValidationError.exception({:conflict, field_name})
+    end
+
+    if has_scope, do: validate_single_scope(field_name, Map.get(field_config, :requires_scope))
+    if has_scopes, do: validate_scope_list(field_name, Map.get(field_config, :requires_scopes))
+  end
+
+  defp validate_single_scope(field_name, scope) do
+    unless is_binary(scope) do
+      raise FraiseQL.ScopeValidationError.exception({:invalid_format, field_name})
+    end
+
+    case FraiseQL.ScopeValidator.validate(scope) do
+      :ok -> :ok
+      {:error, msg} -> raise FraiseQL.ScopeValidationError.exception(msg)
+    end
+  end
+
+  defp validate_scope_list(field_name, scopes) do
+    unless is_list(scopes) do
+      raise FraiseQL.ScopeValidationError.exception({:invalid_format, field_name})
+    end
+
+    if Enum.empty?(scopes) do
+      raise FraiseQL.ScopeValidationError.exception(:empty_scope)
+    end
+
+    Enum.each(scopes, fn scope -> validate_single_scope(field_name, scope) end)
   end
 end

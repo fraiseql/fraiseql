@@ -38,48 +38,41 @@ defmodule FraiseQL.Config do
   @doc false
   @spec parse_inject_defaults(String.t()) :: {map(), map(), map()}
   def parse_inject_defaults(content) do
-    lines = String.split(content, "\n")
-
     {base, queries, mutations, _section} =
-      Enum.reduce(lines, {%{}, %{}, %{}, :root}, fn line, {base, queries, mutations, section} ->
-        line = String.trim(line)
-
-        cond do
-          line == "" or String.starts_with?(line, "#") ->
-            {base, queries, mutations, section}
-
-          line == "[inject_defaults]" ->
-            {base, queries, mutations, :base}
-
-          line == "[inject_defaults.queries]" ->
-            {base, queries, mutations, :queries}
-
-          line == "[inject_defaults.mutations]" ->
-            {base, queries, mutations, :mutations}
-
-          String.starts_with?(line, "[") ->
-            {base, queries, mutations, :other}
-
-          section in [:base, :queries, :mutations] ->
-            case parse_kv(line) do
-              {key, value} ->
-                case section do
-                  :base -> {Map.put(base, key, value), queries, mutations, section}
-                  :queries -> {base, Map.put(queries, key, value), mutations, section}
-                  :mutations -> {base, queries, Map.put(mutations, key, value), section}
-                end
-
-              nil ->
-                {base, queries, mutations, section}
-            end
-
-          true ->
-            {base, queries, mutations, section}
-        end
-      end)
+      content
+      |> String.split("\n")
+      |> Enum.reduce({%{}, %{}, %{}, :root}, &reduce_inject_line/2)
 
     {base, queries, mutations}
   end
+
+  # Fold one config line into the {base, queries, mutations, section} accumulator.
+  defp reduce_inject_line(line, {base, queries, mutations, _section} = acc) do
+    case String.trim(line) do
+      "" -> acc
+      "#" <> _ -> acc
+      "[inject_defaults]" -> {base, queries, mutations, :base}
+      "[inject_defaults.queries]" -> {base, queries, mutations, :queries}
+      "[inject_defaults.mutations]" -> {base, queries, mutations, :mutations}
+      "[" <> _ -> {base, queries, mutations, :other}
+      trimmed -> put_inject_kv(trimmed, acc)
+    end
+  end
+
+  # Parse and store a `key = value` line, but only inside a recognized section.
+  defp put_inject_kv(line, {base, queries, mutations, section} = acc)
+       when section in [:base, :queries, :mutations] do
+    case parse_kv(line) do
+      {key, value} -> put_section_kv(section, key, value, base, queries, mutations)
+      nil -> acc
+    end
+  end
+
+  defp put_inject_kv(_line, acc), do: acc
+
+  defp put_section_kv(:base, k, v, base, q, m), do: {Map.put(base, k, v), q, m, :base}
+  defp put_section_kv(:queries, k, v, base, q, m), do: {base, Map.put(q, k, v), m, :queries}
+  defp put_section_kv(:mutations, k, v, base, q, m), do: {base, q, Map.put(m, k, v), :mutations}
 
   defp parse_kv(line) do
     case String.split(line, "=", parts: 2) do
