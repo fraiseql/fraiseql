@@ -1498,6 +1498,14 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// superuser DATABASE_URL would mask the policy). The test creates its own
 		// tenant/consumer roles off the superuser connection — no extra env needed.
 		"cargo test -p fraiseql-observers --features postgres --test rls_isolation -- --ignored --test-threads=1",
+		// #573 source coordination primitives: the advisory-lease mutual-exclusion
+		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
+		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner
+		// (Phase 01), all vs the bound Postgres. Self-skip on no DATABASE_URL (not
+		// #[ignore]d) → run WITHOUT --ignored, as separate binaries so they never
+		// pull in the SSRF-guard unit tests this suite disables.
+		"cargo test -p fraiseql-observers --features postgres --test advisory_lease_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features postgres --test source_cursor_pg -- --test-threads=1",
 		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres
 		// (stub sink, no broker) + the NATS JetStream sink end-to-end vs the bound
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).

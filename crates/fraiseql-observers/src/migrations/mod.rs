@@ -87,6 +87,30 @@ pub const fn entity_change_log_rls_sql() -> &'static str {
     include_str!("../../migrations/12_enable_change_log_rls.sql")
 }
 
+/// SQL DDL that installs the `_fraiseql_source_cursor` table and its
+/// deny-by-default Row-Level Security (#573 scheduled ingress `Source`s).
+///
+/// One row per source holds the opaque JSONB watermark the source advances between
+/// runs, plus a monotonic `version` generation counter used as the compare-and-swap
+/// guard so a stale writer cannot regress the cursor. RLS + `REVOKE ALL FROM PUBLIC`
+/// make it fail-closed exactly like the change-log (migration 12): a non-owner,
+/// non-`BYPASSRLS` role without the `fraiseql.tenant_id` GUC reads zero rows.
+///
+/// PostgreSQL only; idempotent (`CREATE TABLE IF NOT EXISTS`; `ENABLE` no-ops when
+/// already on; `DROP POLICY IF EXISTS` + `CREATE POLICY` replaces cleanly).
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_observers::migrations::source_cursor_sql();
+/// assert!(sql.contains("_fraiseql_source_cursor"));
+/// assert!(sql.contains("ENABLE ROW LEVEL SECURITY"));
+/// ```
+#[must_use]
+pub const fn source_cursor_sql() -> &'static str {
+    include_str!("../../migrations/13_create_source_cursor.sql")
+}
+
 /// One column of the `core.tb_entity_change_log` contract: its name and the
 /// canonical PostgreSQL base type the migration installs it as.
 ///

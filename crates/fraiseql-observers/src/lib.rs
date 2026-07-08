@@ -79,6 +79,7 @@ pub mod queued_executor;
 pub mod resilience;
 #[cfg(feature = "search")]
 pub mod search;
+pub mod source;
 pub(crate) mod ssrf;
 pub mod storage;
 pub mod traits;
@@ -160,6 +161,10 @@ pub use resilience::{
 pub use search::http::HttpSearchBackend;
 #[cfg(feature = "search")]
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
+pub use source::{
+    CursorSnapshot, LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome, SourceCursorStore,
+    lock_id,
+};
 pub use storage::EventStorage;
 #[cfg(feature = "postgres")]
 pub use storage::postgres::PostgresEventStorage;
