@@ -93,6 +93,24 @@ pub trait DynHostContext: Send + Sync {
     fn idempotency_token(&self) -> Option<String> {
         None
     }
+
+    /// Read this source's opaque cursor (see
+    /// [`HostContext::cursor`](crate::HostContext::cursor)). Defaults to `None`.
+    fn cursor(&self) -> BoxFuture<'_, Result<Option<serde_json::Value>>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    /// Advance this source's opaque cursor (see
+    /// [`HostContext::advance_cursor`](crate::HostContext::advance_cursor)).
+    /// Defaults to failing on a host not bound to a source.
+    fn advance_cursor(&self, value: serde_json::Value) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move {
+            let _ = value;
+            Err(fraiseql_error::FraiseQLError::validation(
+                "advance_cursor: this function is not a scheduled source (no cursor binding)",
+            ))
+        })
+    }
 }
 
 /// Blanket implementation: any `T: HostContext + Send + Sync` can be used as `DynHostContext`.
@@ -181,5 +199,13 @@ impl<T: crate::HostContext + Send + Sync> DynHostContext for T {
 
     fn idempotency_token(&self) -> Option<String> {
         crate::HostContext::idempotency_token(self)
+    }
+
+    fn cursor(&self) -> BoxFuture<'_, Result<Option<serde_json::Value>>> {
+        Box::pin(async move { crate::HostContext::cursor(self).await })
+    }
+
+    fn advance_cursor(&self, value: serde_json::Value) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move { crate::HostContext::advance_cursor(self, value).await })
     }
 }

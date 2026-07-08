@@ -30,6 +30,10 @@ mod transpile_tests;
 // gated on host-live as well — the `runtime-deno`-only clippy combo has no live host.
 #[cfg(all(test, feature = "host-live"))]
 mod idempotency_tests;
+// Model B cursor ops end-to-end on a source-bound `LiveHostContext` (host-live) +
+// real Postgres; local-only like every deno test (V8 SIGSEGVs in the CI sandbox).
+#[cfg(all(test, feature = "host-live"))]
+mod cursor_tests;
 #[cfg(test)]
 mod qonto_tests;
 #[cfg(test)]
@@ -93,6 +97,11 @@ interface FraiseqlHostOps {
   fraiseql_env_var(name: string): string | null;
   // Per-dispatch idempotency token, or null on a non-durably-dispatched invocation.
   fraiseql_idempotency_token(): string | null;
+  // Scheduled-source cursor (Model B). `fraiseql_cursor_get` returns the JSON string
+  // the source last advanced to, or the string 'null'; `fraiseql_cursor_advance`
+  // persists any JSON value as the new cursor. Both fail on a non-source invocation.
+  fraiseql_cursor_get(): Promise<string>;
+  fraiseql_cursor_advance(valueJson: string): Promise<void>;
   // Structured log. Levels: 0=debug, 1=info, 2=warn, 3=error.
   fraiseql_log(level: number, message: string): void;
 }
