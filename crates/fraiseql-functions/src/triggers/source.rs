@@ -68,11 +68,14 @@ pub trait IngestSink {
 pub enum SourceOutcome {
     /// Another replica held the lease; this tick did not poll.
     SkippedNotLeader,
-    /// Polled, but the source returned nothing new; the cursor did not move.
+    /// Polled, but the source returned nothing new and left the cursor where it
+    /// was; nothing to do.
     NoData,
-    /// Ingested `messages` messages and advanced the cursor.
+    /// Advanced the cursor and ingested `messages` messages. `messages` is `0` when
+    /// the source advanced the watermark without emitting — e.g. it skipped a poison
+    /// message and moved past it.
     Ingested {
-        /// How many messages the poll returned (before spine dedup).
+        /// How many messages the poll returned (before spine dedup); may be `0`.
         messages: usize,
     },
     /// The cursor advance was rejected — another replica had already moved it on
@@ -82,9 +85,12 @@ pub enum SourceOutcome {
 
 /// Run one tick of a native [`PullSource`] under its single-firing lease.
 ///
-/// `runner` and `store` — and the sink's own spine/cursor handles — must all
-/// target the same PostgreSQL database, through which the advisory lease, the
-/// cursor watermark, and the ingest writes coordinate.
+/// The cursor and lease are keyed on [`runner.source_name()`](LeaseGuardedRunner::source_name)
+/// — the unique per-instance name (e.g. the mailbox name), **not** the source's
+/// [`IngestSource`](super::ingest::IngestSource) routing discriminant, so two
+/// mailboxes of the same kind get distinct cursors and never coordinate on one
+/// lease. `runner`, `store`, and the sink's own spine/cursor handles must all
+/// target the same PostgreSQL database.
 ///
 /// # Errors
 ///
@@ -106,10 +112,10 @@ where
     P: PullSource,
     K: IngestSink,
 {
-    let name = source.source().as_key();
+    let name = runner.source_name();
 
     let outcome = runner
-        .run(|| ingest_tick(store, source, sink, &name))
+        .run(|| ingest_tick(store, source, sink, name))
         .await
         .map_err(|e| obs_err(&e))?;
 
@@ -139,8 +145,14 @@ where
             FraiseQLError::internal(format!("source '{name}' poll failed: {error}"))
         })?;
 
-    if batch.messages.is_empty() {
-        // An empty poll never moves the watermark.
+    // Advance the cursor whenever the source made progress — either it fetched
+    // messages, or it moved the watermark past input it consumed without emitting
+    // (e.g. a source that skips a poison message must still advance past it, or the
+    // next poll re-fetches it forever). A poll that returns nothing *and* leaves the
+    // cursor where it was is genuinely idle.
+    let current = cursor.value.clone().unwrap_or(serde_json::Value::Null);
+    let progressed = batch.next_cursor != current;
+    if batch.messages.is_empty() && !progressed {
         return Ok(SourceOutcome::NoData);
     }
     let message_count = batch.messages.len();

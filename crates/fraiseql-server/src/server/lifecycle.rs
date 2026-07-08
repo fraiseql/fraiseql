@@ -209,7 +209,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
 
                 let hooks = app_state.before_mutation_hooks.clone();
-                let workers = email::build_workers(
+                let pollers = email::build_pollers(
                     &self.config.mailbox,
                     db_pool,
                     hooks.as_ref(),
@@ -219,11 +219,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     self.config.send.challenge_suppress_after,
                     |name| std::env::var(name).ok(),
                 );
-                let started = workers.len();
-                for (worker, interval) in workers {
-                    self.tasks.spawn(async move { worker.poll_forever(interval).await });
+                let started = pollers.len();
+                for (poller, interval) in pollers {
+                    self.tasks.spawn(async move { poller.poll_forever(interval).await });
                 }
-                info!(mailboxes = started, "poll-IMAP email workers started");
+                info!(mailboxes = started, "poll-IMAP email sources started");
             }
         }
 

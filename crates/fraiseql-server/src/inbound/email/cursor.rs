@@ -9,11 +9,17 @@
 //! `Message-ID` dedup makes the re-scan harmless.
 //!
 //! This module is the pure, unit-tested arithmetic of that scheme; the
-//! [`store`](super::store) module persists it and the [`worker`](super::worker)
-//! module drives it.
+//! [`source`](super::source) serializes it into the generic
+//! [`SourceCursorStore`](fraiseql_observers::SourceCursorStore) as opaque JSONB and
+//! the [`poller`](super::poller) drives it.
 
 /// A UID watermark for one mailbox.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Serializes to the opaque JSONB cursor the generic
+/// [`SourceCursorStore`](fraiseql_observers::SourceCursorStore) persists
+/// (`{"uid_validity": N, "last_uid": M}`); the framework never inspects it — the
+/// shape is owned entirely by the email source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Cursor {
     /// The IMAP `UIDVALIDITY` this watermark was taken under.
     pub uid_validity: u32,

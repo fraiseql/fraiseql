@@ -3,7 +3,7 @@
 //! This is the *only* impure, network-facing part of the email adapter — the
 //! normalization above it ([`fraiseql_functions::normalize_email`]) and the
 //! cursor arithmetic below it ([`super::cursor`]) are pure. The transport is
-//! modelled behind [`MailboxFetcher`] so the [`worker`](super::worker) can be
+//! modelled behind [`MailboxFetcher`] so the [`source`](super::source) can be
 //! driven by a fake in tests without a live server.
 //!
 //! Connections are short-lived: each poll opens an IMAPS (implicit-TLS)

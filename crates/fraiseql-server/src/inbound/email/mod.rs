@@ -13,16 +13,24 @@
 //!
 //! ```text
 //!   IMAP mailbox ─poll─► fetch(uid > cursor) ─► normalize ─► spine ─► after:ingest:email
-//!   (imap.rs)            (cursor.rs watermark)   (functions)  (emit)   (worker.rs dispatch)
+//!   (imap.rs)            (cursor.rs watermark)   (functions)  (emit)   (sink.rs dispatch)
 //! ```
+//!
+//! Since #573 the poll loop is the generic source envelope
+//! ([`fraiseql_functions::run_source_once`]): the [`source`] is the reference
+//! native `PullSource`, the [`sink`] is its durable transactional half, and the
+//! [`poller`] drives them under a single-firing lease.
 //!
 //! ## Modules
 //!
 //! - [`config`] — the `[imap.<name>]` mailbox configuration.
-//! - [`cursor`] — the pure UID-watermark arithmetic.
+//! - [`cursor`] — the pure UID-watermark arithmetic (serialized as the opaque source cursor).
 //! - [`imap`] — the TLS IMAP transport ([`MailboxFetcher`]).
-//! - [`store`] — the durable per-mailbox cursor store.
-//! - [`worker`] — the poll loop that drives it all.
+//! - [`source`] — the reference native [`PullSource`](fraiseql_functions::PullSource)
+//!   (`ImapSource`).
+//! - [`sink`] — the durable [`IngestSink`](fraiseql_functions::IngestSink) (emit + advance +
+//!   dispatch).
+//! - [`poller`] — the per-mailbox poll loop over the generic envelope.
 
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, time::Duration};
 
@@ -34,12 +42,13 @@ pub mod config;
 pub mod correlation;
 pub mod cursor;
 pub mod imap;
+pub mod poller;
 pub mod probe;
+pub mod sink;
 pub mod smtp;
-pub mod store;
+pub mod source;
 pub mod tracking;
 pub mod warming;
-pub mod worker;
 
 pub use admin::{SuppressionAdminState, suppression_admin_router};
 pub use config::{
@@ -49,49 +58,60 @@ pub use config::{
 pub use correlation::correlate;
 pub use cursor::Cursor;
 pub use imap::{FetchBatch, FetchedMessage, ImapMailboxFetcher, MailboxFetcher};
+pub use poller::MailboxPoller;
 pub use probe::{ProbeOutcome, probe_recipient, run_return_path_probe};
+pub use sink::EmailIngestSink;
 pub use smtp::{SmtpMailboxTransport, build_email_transport};
-pub use store::PostgresEmailCursorStore;
+pub use source::ImapSource;
 pub use tracking::{
     CorrelatedSend, PgSendTracker, RecordedSend, SendCorrelator, SendTracker, SentRecord,
     SuppressionReason,
 };
 pub use warming::{SendCounter, WarmingState, warming_daily_limit};
-pub use worker::EmailPollWorker;
 
 use crate::subsystems::BeforeMutationHooks;
 
-/// Create the email cursor table (idempotent). Call once on startup.
+/// Create the durable source cursor table (idempotent). Call once on startup.
+///
+/// #573 unified the bespoke per-mailbox email cursor onto the generic
+/// [`PostgresSourceCursorStore`](fraiseql_observers::PostgresSourceCursorStore), so
+/// email now shares the `_fraiseql_source_cursor` table with every other source.
 ///
 /// # Errors
 ///
 /// Returns [`FraiseQLError::Database`](fraiseql_error::FraiseQLError::Database) if
 /// the DDL fails.
 pub async fn init_cursor_store(pool: &sqlx::PgPool) -> fraiseql_error::Result<()> {
-    PostgresEmailCursorStore::new(pool.clone()).init().await
+    fraiseql_observers::PostgresSourceCursorStore::new(pool.clone())
+        .init()
+        .await
+        .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))
 }
 
-/// Build a poll worker (and its interval) for each mailbox with an IMAP half.
+/// Build a poll loop (and its interval) for each mailbox with an IMAP half.
 ///
 /// A mailbox with no `[mailbox.<name>.imap]` half is skipped (send-only). A mailbox
 /// whose `password_env` is unset, or whose TLS connector cannot be built, is
 /// skipped with a warning rather than started without credentials. `get_env`
-/// resolves the password env (in production, [`std::env::var`]); `sink` is the
-/// storage backend attachments stream into (`None` drops attachments); `hooks`
-/// fire `after:ingest:email` (`None` ingests without dispatch).
+/// resolves the password env (in production, [`std::env::var`]); `attachment_sink`
+/// is the storage backend attachments stream into (`None` drops attachments);
+/// `hooks` fire `after:ingest:email` (`None` ingests without dispatch).
+///
+/// Each poller is keyed on the mailbox name, so its advisory lease and cursor row
+/// are per-mailbox — multiple replicas poll each mailbox exactly once between them.
 #[must_use]
-#[allow(clippy::too_many_arguments)] // Reason: worker assembly wires several independent collaborators.
-pub fn build_workers<S: std::hash::BuildHasher>(
+#[allow(clippy::too_many_arguments)] // Reason: poller assembly wires several independent collaborators.
+pub fn build_pollers<S: std::hash::BuildHasher>(
     mailboxes: &HashMap<String, MailboxConfig, S>,
     pool: &sqlx::PgPool,
     hooks: Option<&Arc<BeforeMutationHooks>>,
-    sink: Option<&Arc<dyn StorageBackend>>,
+    attachment_sink: Option<&Arc<dyn StorageBackend>>,
     correlator: Option<&Arc<dyn SendCorrelator>>,
     address_hash_key: Option<&Arc<[u8]>>,
     challenge_suppress_after: u32,
     get_env: impl Fn(&str) -> Option<String>,
-) -> Vec<(EmailPollWorker, Duration)> {
-    let mut workers = Vec::new();
+) -> Vec<(MailboxPoller, Duration)> {
+    let mut pollers = Vec::new();
     for (name, mailbox) in mailboxes {
         // Send-only mailboxes have no IMAP half — nothing to poll.
         let Some(imap) = mailbox.imap.as_ref() else {
@@ -119,19 +139,26 @@ pub fn build_workers<S: std::hash::BuildHasher>(
             },
         };
         let routing_rules = imap.routing.iter().map(RoutingRuleConfig::to_rule).collect();
-        let worker = EmailPollWorker::new(
+        let source = ImapSource::new(
             name.clone(),
             fetcher,
-            pool.clone(),
             routing_rules,
             imap.batch_size,
             imap.attachment_bucket.clone(),
-            sink.cloned(),
+            attachment_sink.cloned(),
+        );
+        let ingest_sink = EmailIngestSink::new(
+            name.clone(),
+            pool.clone(),
             hooks.cloned(),
             correlator.cloned(),
             address_hash_key.cloned(),
             challenge_suppress_after,
         );
+        let store = fraiseql_observers::PostgresSourceCursorStore::new(pool.clone());
+        // Lease + cursor are keyed on the mailbox name (single-firing per mailbox).
+        let runner = fraiseql_observers::LeaseGuardedRunner::postgres(pool.clone(), name.clone());
+        let poller = MailboxPoller::new(source, ingest_sink, store, runner);
         let interval = Duration::from_secs(imap.poll_interval_secs.max(1));
         info!(
             mailbox = %name,
@@ -139,9 +166,9 @@ pub fn build_workers<S: std::hash::BuildHasher>(
             folder = %imap.mailbox,
             "poll-IMAP mailbox configured"
         );
-        workers.push((worker, interval));
+        pollers.push((poller, interval));
     }
-    workers
+    pollers
 }
 
 /// How long to wait for a startup Return-Path probe to land before warning.

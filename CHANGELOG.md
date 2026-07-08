@@ -367,6 +367,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Poll-IMAP email cursor storage removed; email now uses the generic source
+  cursor (#573).** The bespoke `_fraiseql_inbound_email_cursor` table and its
+  `PostgresEmailCursorStore` are deleted with no migration or backfill (there are no
+  IMAP users). The email adapter is reimplemented as the reference native
+  `PullSource` (`ImapSource`) driven by the generic source envelope, and its
+  per-mailbox UID watermark now lives — as opaque JSONB — in the shared
+  `_fraiseql_source_cursor` table (created by the same `init_cursor_store`). This
+  also **fixes a multi-replica double-poll**: each mailbox is now polled under a
+  single-firing advisory lease, so several server replicas poll each mailbox exactly
+  once between them instead of all polling it. Cursor advance is now transactional
+  with the spine emit (all-or-nothing per poll batch) rather than per-message.
+  `fraiseql_functions::migrations::inbound_email_cursor_migration_sql` is removed.
+
 - **Cascade is now typed, selection-gated, and enforced (cascade hardening).**
   Cascade was previously injected verbatim into *every* mutation response, unrequested
   and undeclared. Now: (1) only mutations with `cascade=True` expose it, and they
