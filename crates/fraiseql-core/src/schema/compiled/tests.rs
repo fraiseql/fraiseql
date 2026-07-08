@@ -1089,6 +1089,64 @@ fn raw_schema_includes_root_query_and_mutation() {
     assert!(sdl.contains("createUser(name: String!): User"), "mutation field:\n{sdl}");
 }
 
+#[test]
+fn raw_schema_renders_auto_params_as_arguments() {
+    // `auto_params` are runtime flags, never stored in `arguments`; the rendered SDL
+    // must still surface them as real GraphQL arguments so a federated gateway (and a
+    // generated client) can paginate/filter. Regression test for #499.
+    use crate::schema::AutoParams;
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(make_type_def("Event"));
+
+    let mut events = QueryDefinition::new("events", "Event").returning_list();
+    events.auto_params = AutoParams {
+        has_where:    true,
+        has_order_by: true,
+        has_limit:    true,
+        has_offset:   false,
+    };
+    schema.queries.push(events);
+
+    let sdl = schema.raw_schema();
+
+    assert!(
+        sdl.contains("events(where: JSON, orderBy: JSON, limit: Int): [Event!]!"),
+        "auto_params must render as arguments:\n{sdl}"
+    );
+    // `where`/`orderBy` are typed as the `JSON` scalar, which must be declared so the
+    // SDL is type-complete for gateway composition.
+    assert!(sdl.contains("scalar JSON"), "JSON scalar must be declared:\n{sdl}");
+    // `has_offset` is false → no `offset` argument leaks in.
+    assert!(!sdl.contains("offset"), "disabled auto_param must not appear:\n{sdl}");
+    // A scalar that only the synthesized arg references must still be flagged as a
+    // FieldType, not a list/non-null marker (sanity on the scalar walk).
+    assert!(!sdl.contains("scalar Int"), "Int is a builtin, never declared:\n{sdl}");
+}
+
+#[test]
+fn graphql_arguments_synthesizes_and_dedups_auto_params() {
+    use crate::schema::{ArgumentDefinition, AutoParams, FieldType};
+
+    // No auto_params → arguments unchanged.
+    let plain = QueryDefinition::new("user", "User");
+    assert!(plain.graphql_arguments().is_empty());
+
+    // Explicit arg of the same name wins — no duplicate synthesized.
+    let mut q = QueryDefinition::new("users", "User").returning_list();
+    q.arguments = vec![ArgumentDefinition::optional("limit", FieldType::Int)];
+    q.auto_params = AutoParams::all();
+    let args = q.graphql_arguments();
+    let names: Vec<&str> = args.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, vec!["limit", "where", "orderBy", "offset"], "no duplicate `limit`");
+
+    // Relay queries keep their explicit args verbatim (pagination handled elsewhere).
+    let mut relay = QueryDefinition::new("posts", "Post").returning_list();
+    relay.relay = true;
+    relay.auto_params = AutoParams::all();
+    assert!(relay.graphql_arguments().is_empty(), "relay queries are untouched");
+}
+
 #[cfg(feature = "federation")]
 #[test]
 fn service_sdl_advertises_root_query_fields() {

@@ -40,7 +40,7 @@ type TransportCheckpoint {
 
 type Query {
   reviews: [Review!]!
-  entityChangeLogs: [EntityChangeLog!]!
+  entityChangeLogs(where: JSON, orderBy: JSON, limit: Int): [EntityChangeLog!]!
   transportCheckpoint(transportName: String!): TransportCheckpoint
 }
 

@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::argument::{ArgumentDefinition, AutoParams};
 use crate::schema::{
-    field_type::DeprecationInfo, graphql_type_defs::default_jsonb_column,
+    field_type::{DeprecationInfo, FieldType},
+    graphql_type_defs::default_jsonb_column,
     security_config::InjectedParamSource,
 };
 
@@ -261,6 +262,65 @@ impl QueryDefinition {
     #[must_use]
     pub fn deprecation_reason(&self) -> Option<&str> {
         self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
+    }
+
+    /// The full set of GraphQL arguments this query accepts, for rendering into
+    /// the federation `_service` SDL, generated clients, and introspection.
+    ///
+    /// The auto-wired `where`/`orderBy`/`limit`/`offset` arguments are gated by
+    /// [`auto_params`](Self::auto_params) and read directly from the argument map
+    /// at runtime, so they are deliberately *not* stored in
+    /// [`arguments`](Self::arguments) (where the runtime would otherwise mistake a
+    /// synthesized `limit`/`offset` for an explicit column filter). This method
+    /// materialises them so every consumer that renders from the argument list can
+    /// surface — and a generated client can actually pass — them.
+    ///
+    /// `where`/`orderBy` carry dynamic, per-field shapes, so they are typed as the
+    /// `JSON` scalar; the runtime parses the raw value via
+    /// `WhereClause::from_graphql_json` / `OrderByClause::from_graphql_json`.
+    ///
+    /// An explicit argument always wins: if the query already declares an argument
+    /// of the same name it is left untouched and no duplicate is synthesized.
+    ///
+    /// Relay connection queries are returned unchanged — their pagination surface
+    /// (`first`/`after`/`last`/`before`) is owned by each renderer's dedicated
+    /// relay path, not by `auto_params`.
+    #[must_use]
+    pub fn graphql_arguments(&self) -> Vec<ArgumentDefinition> {
+        let mut args = self.arguments.clone();
+        if self.relay {
+            return args;
+        }
+
+        let declared = |name: &str| self.arguments.iter().any(|a| a.name == name);
+        let ap = &self.auto_params;
+
+        if ap.has_where && !declared("where") {
+            args.push(ArgumentDefinition::optional("where", FieldType::Json).with_description(
+                "Filter predicate: a nested object of `{ field: { operator: value } }`, \
+                 combined with `_and`/`_or`/`_not`.",
+            ));
+        }
+        if ap.has_order_by && !declared("orderBy") {
+            args.push(ArgumentDefinition::optional("orderBy", FieldType::Json).with_description(
+                "Sort order: `{ field: \"ASC\" | \"DESC\" }` or \
+                     `[{ field, direction }]`.",
+            ));
+        }
+        if ap.has_limit && !declared("limit") {
+            args.push(
+                ArgumentDefinition::optional("limit", FieldType::Int)
+                    .with_description("Maximum number of items to return."),
+            );
+        }
+        if ap.has_offset && !declared("offset") {
+            args.push(
+                ArgumentDefinition::optional("offset", FieldType::Int)
+                    .with_description("Number of items to skip before returning results."),
+            );
+        }
+
+        args
     }
 }
 
