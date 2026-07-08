@@ -47,6 +47,7 @@ pub mod http;
 pub mod ingest;
 pub mod mutation;
 pub mod registry;
+pub mod source;
 pub mod storage;
 #[cfg(test)]
 mod tests;
@@ -55,10 +56,12 @@ pub use cron::{CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHan
 pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use ingest::{
     Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSource,
-    IngestTrigger, PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef, Transport,
+    IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery, Recipient,
+    RoutingRule, Source, StorageRef, Transport,
     email::{ParsedEmail, PendingAttachment, classify, derive_thread_key, normalize_email},
     parse_recipient, resolve_routing,
 };
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
 pub use registry::{ParsedTrigger, RegistryError, TriggerRegistry};
+pub use source::{IngestSink, SourceOutcome, run_source_once};
 pub use storage::{StorageEventPayload, StorageOperation, StorageTrigger};

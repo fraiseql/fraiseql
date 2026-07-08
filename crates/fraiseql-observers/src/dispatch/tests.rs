@@ -127,6 +127,7 @@ fn dispatch_source_label_is_stable() {
     // from `Debug`, so a token stays constant across refactors of the enum.
     assert_eq!(DispatchSource::AfterMutation.label(), "after:mutation");
     assert_eq!(DispatchSource::AfterIngest.label(), "after:ingest");
+    assert_eq!(DispatchSource::Source.label(), "source");
 }
 
 #[test]

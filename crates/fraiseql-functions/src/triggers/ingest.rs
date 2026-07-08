@@ -329,6 +329,72 @@ pub trait PushSource: Source {
     fn normalize(&self, delivery: &RawDelivery<'_>) -> Result<InboundMessage, IngestError>;
 }
 
+/// The cursor state handed to a [`PullSource::poll`]: the opaque watermark the
+/// source advanced on its previous run, or `None` on the first run.
+///
+/// The value is **owned end to end by the source** — the framework carries it as
+/// opaque JSON and never interprets it. A poll-IMAP source encodes
+/// `{uid_validity, last_uid}` here; an API source might carry a page token.
+#[derive(Debug, Clone, Default)]
+pub struct PullContext {
+    /// The cursor the source last returned via [`PullBatch::next_cursor`], or
+    /// `None` if it has never run.
+    pub cursor: Option<serde_json::Value>,
+}
+
+/// The result of one [`PullSource::poll`]: the messages fetched since the incoming
+/// cursor, and the advanced cursor to persist once they are durably ingested.
+#[derive(Debug, Clone)]
+pub struct PullBatch {
+    /// Normalized messages fetched since the incoming cursor, in ingest order.
+    pub messages:    Vec<InboundMessage>,
+    /// The opaque cursor to persist **after** the messages commit. Ignored on an
+    /// empty batch — the watermark does not move on a poll that fetched nothing.
+    pub next_cursor: serde_json::Value,
+}
+
+impl PullBatch {
+    /// An empty batch that leaves the cursor where it was (`next_cursor` echoes the
+    /// incoming cursor, or `null` on the first run).
+    #[must_use]
+    pub fn empty(current_cursor: Option<serde_json::Value>) -> Self {
+        Self {
+            messages:    Vec::new(),
+            next_cursor: current_cursor.unwrap_or(serde_json::Value::Null),
+        }
+    }
+}
+
+/// A poll-delivered source (the dual of [`PushSource`]).
+///
+/// Where a [`PushSource`] receives deliveries and normalizes them synchronously, a
+/// `PullSource` is polled on a schedule: given the cursor from its last run it
+/// fetches everything new from the remote and returns the normalized messages plus
+/// the advanced cursor. The framework owns scheduling, single-firing, the durable
+/// cursor, and idempotent ingest; the source owns only the transport edge and the
+/// (opaque) cursor shape.
+///
+/// Native `async fn` in trait (no `async_trait`); the source envelope uses a
+/// concrete `PullSource`, so the missing `Send` bound on the returned future is not
+/// a constraint here.
+#[allow(async_fn_in_trait)] // Reason: concrete-type use in the source envelope; no dyn dispatch.
+pub trait PullSource: Source {
+    /// Fetch everything new since `ctx.cursor` and return it plus the advanced
+    /// cursor.
+    ///
+    /// Must be idempotent with respect to the cursor: re-polling from the same
+    /// cursor after a crash re-fetches the same window, and the durable spine
+    /// deduplicates the overlap by idempotency key — that is what makes at-least-once
+    /// delivery safe.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngestError`] if the remote fetch or normalization fails; the
+    /// framework then leaves the cursor unmoved so the next run retries the same
+    /// window.
+    async fn poll(&self, ctx: &PullContext) -> Result<PullBatch, IngestError>;
+}
+
 /// A trigger that fires after an inbound message is ingested.
 ///
 /// Mirrors [`AfterMutationTrigger`](crate::AfterMutationTrigger): it matches a
