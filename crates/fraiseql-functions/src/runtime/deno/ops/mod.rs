@@ -230,6 +230,35 @@ pub(crate) fn fraiseql_idempotency_token(state: &OpState) -> Result<Option<Strin
     Ok(host.idempotency_token())
 }
 
+/// Read this scheduled source's durable opaque cursor (Model B, #573).
+///
+/// `Deno.core.ops.fraiseql_cursor_get() -> string` — a JSON string: the cursor
+/// value the source last advanced to, or `"null"` if it has never advanced (or the
+/// host is not a source). The guest owns the shape of the value.
+#[op2(async)]
+#[string]
+pub(crate) async fn fraiseql_cursor_get(state: Rc<RefCell<OpState>>) -> Result<String, AnyError> {
+    let host = require_host_rc(&state)?;
+    let value = host.cursor().await.map_err(op_error)?;
+    serde_json::to_string(&value)
+        .map_err(|e| deno_core::anyhow::anyhow!("failed to serialise cursor: {e}"))
+}
+
+/// Advance this scheduled source's durable cursor (Model B, #573).
+///
+/// `Deno.core.ops.fraiseql_cursor_advance(valueJson)` — persist `valueJson` (any
+/// JSON) as the new cursor. Fails loud when the host is not a source or the write
+/// lost a concurrent race.
+#[op2(async)]
+pub(crate) async fn fraiseql_cursor_advance(
+    state: Rc<RefCell<OpState>>,
+    #[string] value: String,
+) -> Result<(), AnyError> {
+    let host = require_host_rc(&state)?;
+    let parsed = parse_json_arg(&value, "cursor")?;
+    host.advance_cursor(parsed).await.map_err(op_error)
+}
+
 /// Parse a JSON-string op argument, treating an empty string as an empty object.
 fn parse_json_arg(raw: &str, what: &str) -> Result<serde_json::Value, AnyError> {
     if raw.trim().is_empty() {

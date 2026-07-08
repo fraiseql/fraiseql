@@ -83,6 +83,8 @@ fn make_fraiseql_extension(
             ops::fraiseql_auth_context(),
             ops::fraiseql_env_var(),
             ops::fraiseql_idempotency_token(),
+            ops::fraiseql_cursor_get(),
+            ops::fraiseql_cursor_advance(),
         ]),
         op_state_fn: Some(Box::new(move |state: &mut OpState| {
             state.put(collector);

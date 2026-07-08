@@ -111,6 +111,22 @@ pub struct LiveHostContext {
     /// dispatch and distinct per dispatch — see
     /// [`derive_idempotency_token`](fraiseql_observers::derive_idempotency_token).
     idempotency_token: Option<String>,
+
+    /// Durable-cursor binding for a Model B scheduled source (#573). `None` on every
+    /// non-source invocation, so `cursor()` / `advance_cursor()` are inert there.
+    source_cursor: Option<SourceCursorBinding>,
+}
+
+/// Binds a [`LiveHostContext`] to exactly one source's durable cursor (Model B).
+///
+/// The guest can only read/advance *its own* source's cursor — the source name is
+/// fixed by the host at construction, never supplied by the guest, so a source
+/// cannot touch another's watermark.
+struct SourceCursorBinding {
+    /// The source this host is bound to (the cursor row + isolation key).
+    source_name: String,
+    /// The durable cursor store.
+    store:       fraiseql_observers::PostgresSourceCursorStore,
 }
 
 impl LiveHostContext {
@@ -128,6 +144,7 @@ impl LiveHostContext {
             sender_resolver: None,
             email_transport: None,
             idempotency_token: None,
+            source_cursor: None,
         }
     }
 
@@ -148,6 +165,7 @@ impl LiveHostContext {
             sender_resolver: None,
             email_transport: None,
             idempotency_token: None,
+            source_cursor: None,
         }
     }
 
@@ -169,6 +187,7 @@ impl LiveHostContext {
             sender_resolver: None,
             email_transport: None,
             idempotency_token: None,
+            source_cursor: None,
         }
     }
 
@@ -232,6 +251,22 @@ impl LiveHostContext {
     #[must_use]
     pub fn with_idempotency_token(mut self, token: impl Into<String>) -> Self {
         self.idempotency_token = Some(token.into());
+        self
+    }
+
+    /// Bind this host to a Model B source's durable cursor (#573). `source_name`
+    /// fixes which cursor row the guest's `fraiseql_cursor_get` /
+    /// `fraiseql_cursor_advance` ops read and write; the guest cannot name another.
+    #[must_use]
+    pub fn with_source_cursor(
+        mut self,
+        source_name: impl Into<String>,
+        store: fraiseql_observers::PostgresSourceCursorStore,
+    ) -> Self {
+        self.source_cursor = Some(SourceCursorBinding {
+            source_name: source_name.into(),
+            store,
+        });
         self
     }
 }
@@ -520,5 +555,48 @@ impl HostContext for LiveHostContext {
 
     fn idempotency_token(&self) -> Option<String> {
         self.idempotency_token.clone()
+    }
+
+    async fn cursor(&self) -> Result<Option<serde_json::Value>> {
+        use fraiseql_observers::SourceCursorStore;
+        match &self.source_cursor {
+            Some(binding) => {
+                let snapshot =
+                    binding.store.load(&binding.source_name).await.map_err(|error| {
+                        fraiseql_error::FraiseQLError::database(error.to_string())
+                    })?;
+                Ok(snapshot.value)
+            },
+            None => Ok(None),
+        }
+    }
+
+    async fn advance_cursor(&self, value: serde_json::Value) -> Result<()> {
+        use fraiseql_observers::SourceCursorStore;
+        let Some(binding) = &self.source_cursor else {
+            return Err(fraiseql_error::FraiseQLError::validation(
+                "advance_cursor: this function is not a scheduled source (no cursor binding)",
+            ));
+        };
+        // Model B advances after its writes commit; load the current snapshot for the
+        // compare-and-swap `from` version, then advance. Under single-firing there is
+        // no concurrent writer, so a failed CAS means the source overlapped itself.
+        let snapshot = binding
+            .store
+            .load(&binding.source_name)
+            .await
+            .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))?;
+        let applied = binding
+            .store
+            .advance(&binding.source_name, &snapshot, value)
+            .await
+            .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))?;
+        if applied {
+            Ok(())
+        } else {
+            Err(fraiseql_error::FraiseQLError::database(
+                "advance_cursor: the cursor moved concurrently (lost the compare-and-swap)",
+            ))
+        }
     }
 }

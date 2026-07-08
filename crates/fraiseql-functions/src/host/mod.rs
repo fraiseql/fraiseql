@@ -141,6 +141,39 @@ pub trait HostContext: Send + Sync {
     fn idempotency_token(&self) -> Option<String> {
         None
     }
+
+    /// Read this source's durable opaque cursor (Model B pull sources, #573).
+    ///
+    /// Returns the JSON value the source last advanced to via
+    /// [`advance_cursor`](Self::advance_cursor), or `None` if it has never advanced.
+    /// Defaults to `None` on every host not bound to a source — a non-source
+    /// invocation has no cursor — so only source-bound hosts override it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the cursor load fails on a source-bound host.
+    fn cursor(&self) -> impl Future<Output = Result<Option<serde_json::Value>>> + Send {
+        async { Ok(None) }
+    }
+
+    /// Advance this source's durable cursor to `value` (Model B pull sources, #573).
+    ///
+    /// The value is opaque and owned by the source. Defaults to failing on a host
+    /// not bound to a source, so a guest that is not a scheduled source cannot move
+    /// a cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` on a host not bound to a source (the default), or if the write
+    /// fails / lost a concurrent race on a source-bound host.
+    fn advance_cursor(&self, value: serde_json::Value) -> impl Future<Output = Result<()>> + Send {
+        async move {
+            let _ = value;
+            Err(fraiseql_error::FraiseQLError::validation(
+                "advance_cursor: this function is not a scheduled source (no cursor binding)",
+            ))
+        }
+    }
 }
 
 /// A no-op host context for testing WASM execution without real backends.
