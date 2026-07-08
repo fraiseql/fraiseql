@@ -190,6 +190,8 @@ impl SchemaConverter {
             fact_tables, // Analytics metadata
             observers: Vec::new(), /* Observer definitions (populated from
                           * IntermediateSchema) */
+            sources: intermediate.sources.clone().unwrap_or_default(), /* #573 scheduled ingress
+                                                                        * sources */
             subscribable, // @subscribable capture-trigger declarations (#366)
             federation: intermediate
                 .federation_config

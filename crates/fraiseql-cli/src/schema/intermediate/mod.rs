@@ -98,6 +98,13 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers: Option<Vec<IntermediateObserver>>,
 
+    /// Scheduled ingress source definitions (#573) — the dual of `observers`.
+    /// Reuses the compiled [`SourceDefinition`](fraiseql_core::schema::SourceDefinition)
+    /// shape directly (it already carries serde defaults); the converter copies them
+    /// into the compiled schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<fraiseql_core::schema::SourceDefinition>>,
+
     /// Custom scalar type definitions
     ///
     /// Defines custom GraphQL scalar types with validation rules.
