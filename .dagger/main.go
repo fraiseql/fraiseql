@@ -629,6 +629,12 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
 		// #431 inbound webhook pipeline (atomic idempotency claim + transactional handoff + RLS vs real PG).
 		"cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1",
+		// #573 email reshaped as the reference native PullSource: ImapSource + EmailIngestSink
+		// driven by the generic source envelope. Pure poll() tests (fetch/normalize/reset/
+		// poison-skip) + PG e2e (ingest-once / re-poll dedup / UIDVALIDITY reset / two-poller
+		// single-firing — the double-poll bug fix). The email test suite otherwise runs nowhere,
+		// so this is also its first Dagger coverage.
+		"cargo test -p fraiseql-server --features inbound-email --lib inbound::email::source inbound::email::sink -- --test-threads=1",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the

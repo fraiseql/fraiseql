@@ -7,8 +7,6 @@
 //! - `_fraiseql_inbound_message` — the durable inbound spine that normalized
 //!   [`InboundMessage`](crate::InboundMessage)s land on before `after:ingest` dispatch
 //!   ([`inbound_migration_sql`]).
-//! - `_fraiseql_inbound_email_cursor` — the per-mailbox UID watermark the poll-IMAP email adapter
-//!   advances between polls ([`inbound_email_cursor_migration_sql`]).
 //! - `_fraiseql_send_status` + `_fraiseql_suppression` — the delivery-feedback stores that
 //!   correlate an inbound bounce/challenge/reply back to a tracked send and hold the do-not-contact
 //!   list checked before every send ([`send_tracking_migration_sql`]).
@@ -113,49 +111,6 @@ CREATE INDEX IF NOT EXISTS idx_inbound_message_thread
 
 CREATE INDEX IF NOT EXISTS idx_inbound_message_received
     ON _fraiseql_inbound_message (received_at);
-"
-}
-
-/// Returns the SQL DDL to create the poll-IMAP email cursor table.
-///
-/// The poll-IMAP adapter is *stateless with a cursor*: the only thing it persists
-/// between polls is, per mailbox, the IMAP `UIDVALIDITY` it last saw and the
-/// highest message `UID` it has already ingested. On the next poll it fetches
-/// everything above that watermark; a changed `UIDVALIDITY` means the UID space
-/// was reset, so the watermark is discarded and the mailbox is re-scanned
-/// (deduplicated on the spine by `Message-ID`). The DDL uses `IF NOT EXISTS` for
-/// idempotency.
-///
-/// # Table Schema
-///
-/// | Column | Type | Notes |
-/// |--------|------|-------|
-/// | `pk_inbound_email_cursor` | `BIGINT GENERATED ALWAYS AS IDENTITY` | Trinity-style PK |
-/// | `mailbox_key` | `TEXT NOT NULL` | Configured mailbox name (unique) |
-/// | `uid_validity` | `BIGINT NOT NULL` | IMAP `UIDVALIDITY` the watermark was taken under |
-/// | `last_uid` | `BIGINT NOT NULL` | Highest ingested `UID` |
-/// | `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Last advance |
-///
-/// `uid_validity` / `last_uid` are `BIGINT` because IMAP UIDs are unsigned 32-bit
-/// and would overflow a signed `INTEGER`.
-///
-/// # Example
-///
-/// ```
-/// let sql = fraiseql_functions::migrations::inbound_email_cursor_migration_sql();
-/// assert!(sql.contains("_fraiseql_inbound_email_cursor"));
-/// ```
-#[must_use]
-pub const fn inbound_email_cursor_migration_sql() -> &'static str {
-    "\
-CREATE TABLE IF NOT EXISTS _fraiseql_inbound_email_cursor (
-    pk_inbound_email_cursor BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    mailbox_key             TEXT        NOT NULL,
-    uid_validity            BIGINT      NOT NULL,
-    last_uid                BIGINT      NOT NULL,
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (mailbox_key)
-);
 "
 }
 

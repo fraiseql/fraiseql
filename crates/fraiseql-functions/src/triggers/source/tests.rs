@@ -150,6 +150,26 @@ async fn empty_batch_never_reaches_the_sink() {
 }
 
 #[tokio::test]
+async fn empty_batch_that_advances_the_cursor_reaches_the_sink() {
+    // A poison-only poll: no messages, but the watermark moved past the skipped
+    // input. The sink must be called so the cursor advances (no re-fetch wedge).
+    let store = empty_store();
+    let source = StubPullSource {
+        poll_result: Ok(PullBatch {
+            messages:    Vec::new(),
+            next_cursor: json!({"uid": 9}),
+        }),
+    };
+    let sink = StubIngestSink::new(Ok(true));
+    let runner = LeaseGuardedRunner::in_process("email");
+
+    let outcome = run_source_once(&runner, &store, &source, &sink).await.unwrap();
+
+    assert_eq!(outcome, SourceOutcome::Ingested { messages: 0 });
+    assert_eq!(sink.call_count(), 1, "a cursor-advancing empty batch reaches the sink");
+}
+
+#[tokio::test]
 async fn poll_error_propagates_and_skips_the_sink() {
     let store = empty_store();
     let source = StubPullSource {
