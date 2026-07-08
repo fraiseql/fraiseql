@@ -31,8 +31,8 @@ pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
     ingest::{
         Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSource,
-        IngestTrigger, PushSource, RawDelivery, Recipient, RoutingRule, Source, StorageRef,
-        Transport,
+        IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery, Recipient,
+        RoutingRule, Source, StorageRef, Transport,
         email::{ParsedEmail, PendingAttachment, classify, derive_thread_key, normalize_email},
         parse_recipient, resolve_routing,
     },
@@ -41,6 +41,7 @@ pub use triggers::{
         EntityEvent, EventKind, TriggerMatcher,
     },
     registry::TriggerRegistry,
+    source::{IngestSink, SourceOutcome, run_source_once},
 };
 pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,

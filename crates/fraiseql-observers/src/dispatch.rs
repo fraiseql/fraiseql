@@ -69,6 +69,9 @@ pub enum DispatchSource {
     AfterMutation,
     /// An `after:ingest` function trigger (inbound-message ingestion).
     AfterIngest,
+    /// A scheduled ingress `Source` poll (#573) — the poll/fetch step itself, as
+    /// distinct from the `after:ingest` handlers its messages then fire.
+    Source,
 }
 
 impl DispatchSource {
@@ -82,6 +85,7 @@ impl DispatchSource {
         match self {
             Self::AfterMutation => "after:mutation",
             Self::AfterIngest => "after:ingest",
+            Self::Source => "source",
         }
     }
 }
