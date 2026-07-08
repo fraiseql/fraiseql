@@ -160,21 +160,23 @@ fn convert_threads_type_level_sql_source_into_compiled() {
 #[test]
 fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -311,9 +313,9 @@ fn convert_field_list_type_compiles_to_list() {
 #[test]
 fn test_convert_type_with_fields() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -348,18 +350,20 @@ fn test_convert_type_with_fields() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -386,14 +390,14 @@ fn test_convert_type_with_fields() {
 #[test]
 fn test_validate_unknown_type_reference() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
             returns_list:      true,
@@ -411,13 +415,15 @@ fn test_validate_unknown_type_reference() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -441,9 +447,9 @@ fn test_validate_unknown_type_reference() {
 #[test]
 fn test_convert_query_with_arguments() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -455,11 +461,11 @@ fn test_convert_query_with_arguments() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -488,13 +494,15 @@ fn test_convert_query_with_arguments() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -520,9 +528,9 @@ fn test_convert_query_with_arguments() {
 #[test]
 fn test_list_query_without_auto_params_defaults_to_all() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "Item".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -534,11 +542,11 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "items".to_string(),
             return_type:       "Item".to_string(),
             returns_list:      true,
@@ -556,13 +564,15 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -589,9 +599,9 @@ fn test_list_query_without_auto_params_defaults_to_all() {
 #[test]
 fn test_single_item_query_without_auto_params_defaults_to_none() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "Item".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -603,11 +613,11 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "item".to_string(),
             return_type:       "Item".to_string(),
             returns_list:      false,
@@ -625,13 +635,15 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -660,9 +672,9 @@ fn test_convert_field_with_deprecated_directive() {
     use crate::schema::intermediate::IntermediateAppliedDirective;
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -700,18 +712,20 @@ fn test_convert_field_with_deprecated_directive() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -751,10 +765,10 @@ fn test_convert_enum() {
     };
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![IntermediateEnum {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![IntermediateEnum {
             name:        "OrderStatus".to_string(),
             values:      vec![
                 IntermediateEnumValue {
@@ -777,17 +791,19 @@ fn test_convert_enum() {
             ],
             description: Some("Order status enum".to_string()),
         }],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -831,11 +847,11 @@ fn test_convert_input_object() {
     };
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![IntermediateInputObject {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![IntermediateInputObject {
             name:        "UserFilter".to_string(),
             fields:      vec![
                 IntermediateInputField {
@@ -867,16 +883,18 @@ fn test_convert_input_object() {
             ],
             description: Some("User filter input".to_string()),
         }],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -931,21 +949,23 @@ fn test_convert_input_object() {
 #[test]
 fn test_rich_filter_types_generated() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -994,21 +1014,23 @@ fn test_rich_filter_types_generated() {
 #[test]
 fn test_rich_filter_types_have_sql_templates() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1069,21 +1091,23 @@ fn test_rich_filter_types_have_sql_templates() {
 #[test]
 fn test_lookup_data_embedded_in_schema() {
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1155,12 +1179,12 @@ fn test_convert_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![IntermediateInterface {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
                 name:           "id".to_string(),
@@ -1175,15 +1199,17 @@ fn test_convert_interface() {
             }],
             description: Some("An object with a globally unique ID".to_string()),
         }],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1215,9 +1241,9 @@ fn test_convert_type_implements_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface, IntermediateType};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1252,9 +1278,9 @@ fn test_convert_type_implements_interface() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![IntermediateInterface {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
                 name:           "id".to_string(),
@@ -1269,15 +1295,17 @@ fn test_convert_type_implements_interface() {
             }],
             description: None,
         }],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1309,9 +1337,9 @@ fn test_validate_unknown_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![IntermediateField {
@@ -1333,18 +1361,20 @@ fn test_validate_unknown_interface() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![], // No interface defined!
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![], // No interface defined!
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1370,9 +1400,9 @@ fn test_validate_missing_interface_field() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface, IntermediateType};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1397,9 +1427,9 @@ fn test_validate_missing_interface_field() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![IntermediateInterface {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
                 name:           "id".to_string(),
@@ -1414,15 +1444,17 @@ fn test_validate_missing_interface_field() {
             }],
             description: None,
         }],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1448,9 +1480,9 @@ fn test_convert_union() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType, IntermediateUnion};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![
             IntermediateType {
                 name:                   "User".to_string(),
                 sql_source:             None,
@@ -1496,22 +1528,24 @@ fn test_convert_union() {
                 subscribable_pre_image: false,
             },
         ],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![IntermediateUnion {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![IntermediateUnion {
             name:         "SearchResult".to_string(),
             member_types: vec!["User".to_string(), "Post".to_string()],
             description:  Some("Result from a search query".to_string()),
         }],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1542,9 +1576,9 @@ fn test_convert_field_requires_scope() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
     let intermediate = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "Employee".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -1601,18 +1635,20 @@ fn test_convert_field_requires_scope() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -2561,4 +2597,27 @@ mod changelog_validation_tests {
         assert!(compiled.federation.as_ref().unwrap().enabled);
         assert!(compiled.types.iter().any(|t| t.name == "EntityChangeLog"));
     }
+}
+
+// ── #573 scheduled ingress sources ───────────────────────────────────────────
+
+#[test]
+fn converts_sources_into_the_compiled_schema() {
+    use fraiseql_core::schema::SourceDefinition;
+    let intermediate = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_cursor("orders-hwm"),
+        ]),
+        ..Default::default()
+    };
+    let compiled = SchemaConverter::convert(intermediate).unwrap();
+    assert_eq!(compiled.sources.len(), 1);
+    assert_eq!(compiled.sources[0].name, "orders");
+    assert_eq!(compiled.sources[0].cursor_name(), "orders-hwm");
+}
+
+#[test]
+fn absent_sources_convert_to_an_empty_list() {
+    let compiled = SchemaConverter::convert(IntermediateSchema::default()).unwrap();
+    assert!(compiled.sources.is_empty());
 }

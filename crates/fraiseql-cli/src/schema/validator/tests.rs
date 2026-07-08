@@ -10,21 +10,23 @@ use crate::schema::{
 #[test]
 fn test_validate_empty_schema() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -47,14 +49,14 @@ fn test_validate_empty_schema() {
 #[test]
 fn test_detect_unknown_return_type() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
             returns_list:      true,
@@ -72,13 +74,15 @@ fn test_detect_unknown_return_type() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -103,9 +107,9 @@ fn test_detect_unknown_return_type() {
 #[test]
 fn test_detect_duplicate_query_names() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -117,11 +121,11 @@ fn test_detect_duplicate_query_names() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![
             IntermediateQuery {
                 name:              "users".to_string(),
                 return_type:       "User".to_string(),
@@ -159,13 +163,15 @@ fn test_detect_duplicate_query_names() {
                 relay_cursor_type: None,
             },
         ],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -189,9 +195,9 @@ fn test_detect_duplicate_query_names() {
 #[test]
 fn test_warning_for_query_without_sql_source() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -203,11 +209,11 @@ fn test_warning_for_query_without_sql_source() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -225,13 +231,15 @@ fn test_warning_for_query_without_sql_source() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -260,6 +268,7 @@ fn test_valid_observer() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
@@ -328,6 +337,7 @@ fn test_observer_with_unknown_entity() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![],
@@ -382,6 +392,7 @@ fn test_observer_with_invalid_event() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
@@ -447,6 +458,7 @@ fn test_observer_with_invalid_action_type() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
@@ -512,6 +524,7 @@ fn test_observer_with_invalid_retry_config() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
         types:                vec![IntermediateType {
@@ -573,9 +586,9 @@ fn test_observer_with_invalid_retry_config() {
 #[test]
 fn test_query_injection_in_sql_source_rejected() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -587,11 +600,11 @@ fn test_query_injection_in_sql_source_rejected() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -609,13 +622,15 @@ fn test_query_injection_in_sql_source_rejected() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -639,9 +654,9 @@ fn test_query_injection_in_sql_source_rejected() {
 #[test]
 fn test_query_schema_qualified_sql_source_passes() {
     let schema = IntermediateSchema {
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -653,11 +668,11 @@ fn test_query_schema_qualified_sql_source_passes() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -675,13 +690,15 @@ fn test_query_schema_qualified_sql_source_passes() {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -961,4 +978,66 @@ mod sql_identifier_tests {
             .unwrap_err();
         assert!(err.message.contains("is not a valid SQL identifier"));
     }
+}
+
+// ── #573 scheduled ingress source validation ────────────────────────────────
+
+#[test]
+fn valid_source_passes_validation() {
+    use fraiseql_core::schema::SourceDefinition;
+    let schema = IntermediateSchema {
+        sources: Some(vec![SourceDefinition::new("orders", "*/5 * * * *", "pollOrders")]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(report.is_valid(), "a well-formed source validates: {:?}", report.errors);
+}
+
+#[test]
+fn invalid_cron_schedule_is_rejected() {
+    use fraiseql_core::schema::SourceDefinition;
+    let schema = IntermediateSchema {
+        sources: Some(vec![SourceDefinition::new("orders", "not-a-cron", "pollOrders")]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(!report.is_valid());
+    assert!(
+        report.errors.iter().any(|e| e.path.contains("schedule")),
+        "the bad cron schedule is reported"
+    );
+}
+
+#[test]
+fn duplicate_source_cursor_is_rejected() {
+    use fraiseql_core::schema::SourceDefinition;
+    // Two sources sharing a cursor name would clobber each other's watermark.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("a", "*/5 * * * *", "pollA").with_cursor("shared"),
+            SourceDefinition::new("b", "*/5 * * * *", "pollB").with_cursor("shared"),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(!report.is_valid());
+    assert!(
+        report.errors.iter().any(|e| e.path.contains("cursor")),
+        "the shared cursor is reported"
+    );
+}
+
+#[test]
+fn duplicate_source_name_is_rejected() {
+    use fraiseql_core::schema::SourceDefinition;
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollA"),
+            SourceDefinition::new("orders", "0 * * * *", "pollB"),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(!report.is_valid());
+    assert!(report.errors.iter().any(|e| e.message.contains("Duplicate source name")));
 }

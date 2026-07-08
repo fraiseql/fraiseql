@@ -47,6 +47,8 @@ fn base_schema_with_query(
         fact_tables: None,
         aggregate_queries: None,
         observers: None,
+
+        sources: None,
         custom_scalars: None,
         security: None,
         observers_config: None,

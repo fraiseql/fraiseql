@@ -33,6 +33,7 @@ use crate::{
         hierarchy::HierarchiesConfig,
         observer_types::ObserverDefinition,
         security_config::SecurityConfig,
+        source_types::SourceDefinition,
         subscription_types::SubscriptionDefinition,
     },
     validation::CustomTypeRegistry,
@@ -150,6 +151,15 @@ pub struct CompiledSchema {
     /// Observer definitions (database change event listeners).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observers: Vec<ObserverDefinition>,
+
+    /// Scheduled ingress source definitions (#573) — the dual of `observers`.
+    ///
+    /// Each runs its `function` on a cron schedule, pulling from an external system
+    /// into the database via mutations with a durable cursor. Empty (and omitted
+    /// from the compiled JSON) when no source is declared, so a schema that predates
+    /// this field deserializes and re-serializes byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<SourceDefinition>,
 
     /// `@subscribable` declarations (#366): GraphQL types whose underlying
     /// table(s) get the shipped external-write capture trigger.
@@ -318,6 +328,7 @@ impl PartialEq for CompiledSchema {
             && self.directives == other.directives
             && self.fact_tables == other.fact_tables
             && self.observers == other.observers
+            && self.sources == other.sources
             && self.subscribable == other.subscribable
             && self.federation == other.federation
             && self.security == other.security

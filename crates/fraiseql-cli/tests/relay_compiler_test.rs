@@ -22,8 +22,8 @@ use fraiseql_core::schema::NamingConvention;
 
 fn relay_intermediate_schema() -> IntermediateSchema {
     IntermediateSchema {
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        version:           "2.0.0".to_string(),
+        types:             vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![
@@ -58,11 +58,11 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![IntermediateQuery {
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -80,13 +80,15 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             requires_role:     None,
             relay_cursor_type: None,
         }],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            None,
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
+        aggregate_queries: None,
+        observers:         None,
+
+        sources:              None,
         custom_scalars:       None,
         security:             None,
         observers_config:     None,

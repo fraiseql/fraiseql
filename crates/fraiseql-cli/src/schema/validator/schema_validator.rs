@@ -458,6 +458,67 @@ impl SchemaValidator {
             }
         }
 
+        // Validate sources (#573 scheduled ingress — the dual of observers).
+        if let Some(sources) = &schema.sources {
+            let mut source_names = HashSet::new();
+            let mut cursor_names = HashSet::new();
+            for (idx, source) in sources.iter().enumerate() {
+                // Names key the durable cursor and the advisory lease — they must be unique.
+                if !source_names.insert(source.name.clone()) {
+                    report.errors.push(ValidationError {
+                        message:    format!("Duplicate source name: '{}'", source.name),
+                        path:       format!("sources[{idx}].name"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Source names must be unique".to_string()),
+                    });
+                }
+
+                // A shared cursor name would let two sources clobber each other's watermark.
+                let cursor = source.cursor_name().to_string();
+                if !cursor_names.insert(cursor.clone()) {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Source '{}' reuses cursor '{cursor}' already claimed by another source",
+                            source.name
+                        ),
+                        path:       format!("sources[{idx}].cursor"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some(
+                            "Give each source a distinct cursor (it defaults to the source name)"
+                                .to_string(),
+                        ),
+                    });
+                }
+
+                // The schedule must be a 5-field POSIX cron expression (the runtime parses it
+                // fully).
+                if source.schedule.split_whitespace().count() != 5 {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Source '{}' has an invalid cron schedule '{}': expected 5 \
+                             whitespace-separated fields",
+                            source.name, source.schedule
+                        ),
+                        path:       format!("sources[{idx}].schedule"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some(
+                            "Use a 5-field cron expression, e.g. '*/5 * * * *'".to_string(),
+                        ),
+                    });
+                }
+
+                // The bound handler must be named.
+                if source.function.trim().is_empty() {
+                    report.errors.push(ValidationError {
+                        message:    format!("Source '{}' has no function", source.name),
+                        path:       format!("sources[{idx}].function"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Set the handler function name".to_string()),
+                    });
+                }
+            }
+        }
+
         info!(
             "Validation complete: {} errors, {} warnings",
             report.error_count(),
