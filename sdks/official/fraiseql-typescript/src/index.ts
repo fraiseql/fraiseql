@@ -53,6 +53,8 @@ export type {
   InterfaceDefinition,
   InputTypeDefinition,
   UnionDefinition,
+  SourceDefinition,
+  SourceRunAs,
   Schema,
 } from "./registry";
 
@@ -176,6 +178,7 @@ export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from
 // Export observer authoring API
 export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
 export type { RetryConfig } from "./observers";
+export { Source } from "./sources";
 
 // Export HTTP client
 export { FraiseQLClient } from "./client";

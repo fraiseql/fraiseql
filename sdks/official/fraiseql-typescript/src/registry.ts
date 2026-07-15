@@ -227,6 +227,33 @@ export interface UnionDefinition {
 }
 
 /**
+ * The `run_as` authority ceiling a scheduled source's background mutations run
+ * under (#573 D6). Absent ⇒ the source runs fail-closed (no roles/scopes/tenant →
+ * RLS/authz deny). `tenant` scopes a single-tenant or global source; a multi-tenant
+ * source leaves it unset and re-scopes each write per message at runtime.
+ */
+export interface SourceRunAs {
+  roles?: string[];
+  scopes?: string[];
+  tenant?: string;
+}
+
+/**
+ * A scheduled ingress `Source` (#573) — the dual of an observer. On its cron
+ * `schedule` it fires `function` (a Deno connector) under a durable cursor and its
+ * `run_as` identity. Authoring metadata only; the runtime is Rust.
+ */
+export interface SourceDefinition {
+  name: string;
+  schedule: string;
+  function: string;
+  cursor?: string;
+  enabled: boolean;
+  options?: Record<string, unknown>;
+  run_as?: SourceRunAs;
+}
+
+/**
  * Complete schema definition.
  */
 export interface Schema {
@@ -241,6 +268,7 @@ export interface Schema {
   fact_tables?: FactTableDefinition[];
   aggregate_queries?: AggregateQueryDefinition[];
   observers?: ObserverDefinition[];
+  sources?: SourceDefinition[];
   /** Apollo Federation v2 metadata, included when generateSchemaJson() is used. */
   federation?: { enabled: boolean; version: string; [key: string]: unknown };
   /** Custom scalar definitions, included when scalars are registered. */
@@ -400,6 +428,7 @@ export class SchemaRegistry {
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
+  private static sources: Map<string, SourceDefinition> = new Map();
   private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> = new Map();
 
   /**
@@ -695,6 +724,39 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register a scheduled ingress source (#573).
+   *
+   * @param name - Source name (unique) — the durable-cursor row and advisory-lease key.
+   * @param schedule - POSIX cron expression (e.g. "*\/5 * * * *").
+   * @param fn - The bound Deno connector function name.
+   * @param cursor - Optional distinct cursor name (defaults to the source name).
+   * @param enabled - Whether the source is scheduled (default true).
+   * @param runAs - Optional least-privilege authority ceiling (#573 D6).
+   * @param options - Optional connector-specific options, opaque to the framework.
+   */
+  static registerSource(
+    name: string,
+    schedule: string,
+    fn: string,
+    cursor?: string,
+    enabled: boolean = true,
+    runAs?: SourceRunAs,
+    options?: Record<string, unknown>
+  ): void {
+    const definition: SourceDefinition = { name, schedule, function: fn, enabled };
+    if (cursor !== undefined) {
+      definition.cursor = cursor;
+    }
+    if (runAs !== undefined) {
+      definition.run_as = runAs;
+    }
+    if (options !== undefined) {
+      definition.options = options;
+    }
+    this.sources.set(name, definition);
+  }
+
+  /**
    * Register a GraphQL enum type.
    *
    * @param name - Enum name (e.g., "OrderStatus")
@@ -850,6 +912,10 @@ export class SchemaRegistry {
       schema.observers = Array.from(this.observers.values());
     }
 
+    if (this.sources.size > 0) {
+      schema.sources = Array.from(this.sources.values());
+    }
+
     if (this.customScalars.size > 0) {
       const customScalars: Record<string, { name: string; description: string; validate: boolean }> = {};
       for (const [name, { class: scalarClass, description }] of this.customScalars) {
@@ -882,6 +948,7 @@ export class SchemaRegistry {
     this.factTables.clear();
     this.aggregateQueries.clear();
     this.observers.clear();
+    this.sources.clear();
     this.customScalars.clear();
   }
 }
