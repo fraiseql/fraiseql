@@ -148,25 +148,16 @@ impl LiveHostContext {
         }
     }
 
-    /// Create a new live host context with a query executor.
-    pub fn with_executor(
-        event_payload: EventPayload,
-        config: HostContextConfig,
-        executor: Arc<dyn QueryExecutor>,
-    ) -> Self {
-        Self {
-            event_payload,
-            config,
-            logs: Arc::new(std::sync::Mutex::new(Vec::new())),
-            query_executor: Some(executor),
-            http_client: None,
-            storage_backend: None,
-            security_context: Self::default_security_context(),
-            sender_resolver: None,
-            email_transport: None,
-            idempotency_token: None,
-            source_cursor: None,
-        }
+    /// Attach a query executor, enabling [`query`](HostContext::query) — the
+    /// `fraiseql_query` guest bridge.
+    ///
+    /// A chainable builder (like [`with_source_cursor`](Self::with_source_cursor)
+    /// and [`with_email`](Self::with_email)), so a scheduled Model B source can bind
+    /// both its executor and its cursor onto one [`new`](Self::new) host.
+    #[must_use]
+    pub fn with_executor(mut self, executor: Arc<dyn QueryExecutor>) -> Self {
+        self.query_executor = Some(executor);
+        self
     }
 
     /// Create a new live host context with an HTTP client.

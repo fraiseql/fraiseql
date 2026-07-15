@@ -65,7 +65,7 @@ async fn test_host_query_executes_graphql() {
     });
     let executor = MockQueryExecutor::new(response.clone());
 
-    let ctx = LiveHostContext::with_executor(payload, HostContextConfig::default(), executor);
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default()).with_executor(executor);
 
     let result = ctx.query("{ users { id name } }", serde_json::json!({})).await;
 
@@ -90,7 +90,7 @@ async fn test_host_query_passes_variables() {
     });
     let executor = MockQueryExecutor::new(response.clone());
 
-    let ctx = LiveHostContext::with_executor(payload, HostContextConfig::default(), executor);
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default()).with_executor(executor);
 
     let result = ctx
         .query("query($id: Int!) { user(id: $id) { name } }", serde_json::json!({"id": 1}))
@@ -111,7 +111,7 @@ async fn test_host_query_rejects_mutations() {
     };
 
     let executor = MockQueryExecutor::error();
-    let ctx = LiveHostContext::with_executor(payload, HostContextConfig::default(), executor);
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default()).with_executor(executor);
 
     let result = ctx
         .query("mutation { createUser(name: \"Alice\") { id } }", serde_json::json!({}))
@@ -133,7 +133,7 @@ async fn test_host_query_invalid_graphql_returns_validation_error() {
     };
 
     let executor = MockQueryExecutor::error();
-    let ctx = LiveHostContext::with_executor(payload, HostContextConfig::default(), executor);
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default()).with_executor(executor);
 
     let result = ctx.query("{ invalid syntax }", serde_json::json!({})).await;
 
