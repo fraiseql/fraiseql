@@ -6,7 +6,7 @@ path = "src/main.rs"
 # Error handling
 anyhow = "1.0"
 # SQL Server connection pool (optional, for sqlserver feature)
-bb8 = {version = "0.8", optional = true}
+bb8 = {version = "0.9", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
 # CLI framework
 clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}

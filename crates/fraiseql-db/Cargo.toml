@@ -2,7 +2,7 @@
 # Async runtime
 async-trait = {workspace = true}
 # Database — SQL Server (optional)
-bb8 = {version = "0.8", optional = true}
+bb8 = {version = "0.9", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
 bytes = {workspace = true}
 chrono = {workspace = true}
