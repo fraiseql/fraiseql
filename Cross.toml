@@ -1,5 +1,15 @@
-[target.aarch64-unknown-linux-gnu]
-pre-build = [
-  "dpkg --add-architecture arm64",
-  "apt-get update && apt-get install -y libssl-dev:arm64 pkg-config"
-]
+# Cross-compilation configuration for release binaries (see .github/workflows/release.yml).
+#
+# The `fraiseql` binary is pure-Rust and links no external system libraries:
+# TLS is rustls (reqwest -> hyper-rustls -> rustls; no OpenSSL / native-tls) and
+# Postgres is sqlx-postgres / tokio-postgres / deadpool-postgres (no libpq).
+# The only `*-sys` crates are syscall bindings (dirs-sys, inotify-sys,
+# linux-raw-sys) or vendor their own C source (zstd-sys, ring), all built with
+# the aarch64 cross-toolchain already baked into the cross image.
+#
+# Therefore NO target-specific `pre-build` is needed. A previous
+# `apt-get install libssl-dev:arm64 pkg-config` step was vestigial (nothing links
+# libssl) and broke the aarch64 build permanently once the cross image's EOL
+# Ubuntu Xenial apt repos (ports.ubuntu.com) went offline. Do not re-add an apt
+# step unless a genuine system-library dependency is actually introduced — if one
+# is, prefer a vendored/rustls alternative to keep the build apt-free.
