@@ -47,7 +47,7 @@ from fraiseql.client import (
     FraiseQLRateLimitError,
     FraiseQLUnsupportedError,
 )
-from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, subscription
+from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, source, subscription
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import error as error_decorator
 from fraiseql.decorators import input as input_decorator
@@ -122,6 +122,7 @@ __all__ = [
     "mutation",
     "query",
     "scalar",
+    "source",
     "subscription",
     "type",
     "union",
