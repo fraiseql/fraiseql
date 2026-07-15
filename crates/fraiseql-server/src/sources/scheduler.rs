@@ -115,6 +115,9 @@ fn schedulable<'a>(
 /// returned poller's [`run_forever`](SourcePoller::run_forever) on the server's
 /// `JoinSet`; the shared `_fraiseql_source_cursor` table must already be
 /// initialized.
+// Reason: a wiring seam whose args are each a distinct runtime collaborator; a
+// params struct would relocate the same fields without reducing coupling.
+#[allow(clippy::too_many_arguments)]
 pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
     sources: &[SourceDefinition],
     db_pool: &sqlx::PgPool,
@@ -122,6 +125,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,
+    log_payloads: bool,
 ) -> Vec<SourcePoller> {
     schedulable(sources, &hooks.module_registry)
         .into_iter()
@@ -141,6 +145,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
                 LeaseGuardedRunner::postgres(db_pool.clone(), source.name.clone()),
                 host_config.clone(),
                 limits.clone(),
+                log_payloads,
             )
         })
         .collect()

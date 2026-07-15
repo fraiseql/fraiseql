@@ -17,6 +17,7 @@ This directory contains the authoritative architecture documentation for FraiseQ
 | Understand analytics fact table design and caching | [../modules/fact-table.md](../modules/fact-table.md) |
 | Understand the streaming wire protocol engine | [wire-protocol.md](wire-protocol.md) |
 | Understand inbound webhooks vs. outbound observers | [webhooks.md](webhooks.md) |
+| Understand scheduled ingress sources (the dual of observers) | [sources.md](sources.md) |
 | Resolve identity from your own DB for RLS (not token claims) | [enriched-identity-rls.md](enriched-identity-rls.md) |
 | Understand operational concerns (schema lifecycle, idempotency) | [../operations/](../operations/) |
 | See which features each database supports | [../database-compatibility.md](../database-compatibility.md) |

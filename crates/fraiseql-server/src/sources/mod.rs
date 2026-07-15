@@ -16,6 +16,7 @@
 //! spawning a poller per enabled source) lands in Phase 06 Step 4.
 
 mod executor;
+mod metrics;
 mod poller;
 mod scheduler;
 

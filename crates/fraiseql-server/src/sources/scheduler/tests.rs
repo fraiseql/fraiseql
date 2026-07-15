@@ -50,10 +50,12 @@ fn enabled_resolves_env_over_config() {
     let on = SourcesConfig {
         enabled:         true,
         allowed_domains: vec![],
+        log_payloads:    false,
     };
     let off = SourcesConfig {
         enabled:         false,
         allowed_domains: vec![],
+        log_payloads:    false,
     };
 
     // No env → the config value.
@@ -72,6 +74,7 @@ fn host_config_allowlist_resolves_env_over_config() {
     let config = SourcesConfig {
         enabled:         true,
         allowed_domains: vec!["from-toml.example".to_string()],
+        log_payloads:    false,
     };
 
     // No env → the config allowlist.

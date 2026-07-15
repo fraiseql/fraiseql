@@ -76,11 +76,12 @@ ipnet = {version = "2", features = ["serde"]}
 # Authentication (JWT, OAuth, OIDC)
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 # Metrics (optional). The server emits its own metrics via hand-rolled atomics
-# (see metrics_server.rs); the `metrics` *facade* crate is only needed to install
-# a recorder so transitive crates' (e.g. fraiseql-wire) facade emissions are
-# captured — that recorder is installed via metrics-exporter-prometheus, which
-# pulls a matching `metrics` 0.24 transitively. The previous direct `metrics` 0.22
-# pin was unreferenced and conflicted with the exporter's 0.24 (audit H45).
+# (see metrics_server.rs). The `metrics` *facade* crate is a direct dep so the
+# server can emit its own facade metrics (the scheduled-source metrics, #573 Phase
+# 08) alongside transitive crates' (e.g. fraiseql-wire) emissions; all are captured
+# by the recorder installed via metrics-exporter-prometheus (which pulls a matching
+# `metrics` 0.24) and appended to `/metrics` under the `metrics` feature (audit H45).
+metrics = "0.24"
 metrics-exporter-prometheus = {version = "0.18", optional = true}
 # OpenTelemetry (optional) — versions must match tracing-opentelemetry 0.33
 opentelemetry = {version = "0.32", optional = true}
@@ -149,9 +150,6 @@ criterion = {version = "0.5", features = ["async_tokio"]}
 # Test-only: construct an AuthenticatedUser (expires_at) for the introspection
 # gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
 chrono = {workspace = true}
-# `metrics` facade, test-only: lets the recorder-scrape test emit a facade metric
-# and assert it renders (the production server does not emit facade metrics — H45).
-metrics = "0.24"
 fraiseql-auth = {workspace = true}
 fraiseql-cli = {workspace = true}
 fraiseql-federation = {workspace = true, features = ["test-utils"]}

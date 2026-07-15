@@ -730,6 +730,35 @@ EXAMPLES:
         #[command(subcommand)]
         command: PerfCommands,
     },
+
+    /// List scheduled ingress sources and their durable cursor state (#573)
+    ///
+    /// Reads the compiled schema for each source's schedule and `run_as` ceiling,
+    /// and — when a database is reachable — its cursor value, version, and staleness
+    /// (seconds since the last advance). Leadership and last-fire are not reported
+    /// here (an advisory lock has no visible holder, and the lease is released
+    /// between ticks): watch `fraiseql_source_*` metrics and the poller logs for
+    /// those. Always exits 0 — it is a report.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql sources
+    fraiseql sources --schema schema.compiled.json
+    fraiseql sources --db-url postgres://user:pass@host:5432/db
+    fraiseql sources --json")]
+    Sources {
+        /// Path to schema.compiled.json.
+        #[arg(long, default_value = "schema.compiled.json")]
+        schema: std::path::PathBuf,
+
+        /// PostgreSQL URL for cursor reads (defaults to `fraiseql.toml` /
+        /// `DATABASE_URL`). Without one, definitions are listed with no cursor state.
+        #[arg(long)]
+        db_url: Option<String>,
+
+        /// Output machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// `fraiseql perf` subcommands.

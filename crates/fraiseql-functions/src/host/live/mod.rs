@@ -583,6 +583,10 @@ impl HostContext for LiveHostContext {
             .await
             .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))?;
         if applied {
+            // Value-free by design: the opaque cursor can carry external-influenced
+            // data, so the watermark movement is logged without its contents (#573
+            // Phase 08 observability).
+            tracing::debug!(source = %binding.source_name, "source cursor advanced");
             Ok(())
         } else {
             Err(fraiseql_error::FraiseQLError::database(

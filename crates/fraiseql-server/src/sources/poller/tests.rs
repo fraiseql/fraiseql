@@ -86,6 +86,7 @@ fn poller(pool: &PgPool, source: &str, executor: Arc<dyn QueryExecutor>) -> Sour
         LeaseGuardedRunner::in_process(source),
         HostContextConfig::default(),
         ResourceLimits::default(),
+        false,
     )
 }
 
@@ -106,7 +107,7 @@ async fn build_host_binds_both_the_cursor_and_the_executor() {
 
     let executor = StubExecutor::new(json!({ "data": { "createOrder": { "status": "ok" } } }));
     let poller = poller(&pool, source, executor.clone());
-    let host = poller.build_host(build_source_payload(source, "*/5 * * * *", Utc::now()));
+    let host = poller.build_host(build_source_payload(source, "*/5 * * * *", Utc::now()), "tok");
 
     // The cursor is bound: it round-trips through the host against real Postgres.
     assert!(host.cursor().await.unwrap().is_none(), "a fresh source has no cursor");
@@ -188,6 +189,7 @@ async fn fires_a_model_b_connector_end_to_end() {
         LeaseGuardedRunner::in_process(source),
         HostContextConfig::default(),
         ResourceLimits::default(),
+        false,
     );
 
     let outcome = poller.fire_once(chrono::Utc::now()).await;
