@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-07-15
+
 ### Added
 
 - **Scheduled ingress `Source`s — the dual of `Observer` (#573).** A `Source` pulls
@@ -54,6 +56,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     CAS version, and staleness.
 
   Opt-in and STABLE-tracked (may evolve). See `docs/architecture/sources.md`.
+
+### Breaking
+
+- **Poll-IMAP email cursor storage removed; email now uses the generic source
+  cursor (#573).** The bespoke `_fraiseql_inbound_email_cursor` table and its
+  `PostgresEmailCursorStore` are deleted with no migration or backfill (there are no
+  IMAP users). The email adapter is reimplemented as the reference native
+  `PullSource` (`ImapSource`) driven by the generic source envelope, and its
+  per-mailbox UID watermark now lives — as opaque JSONB — in the shared
+  `_fraiseql_source_cursor` table (created by the same `init_cursor_store`). This
+  also **fixes a multi-replica double-poll**: each mailbox is now polled under a
+  single-firing advisory lease, so several server replicas poll each mailbox exactly
+  once between them instead of all polling it. Cursor advance is now transactional
+  with the spine emit (all-or-nothing per poll batch) rather than per-message.
+  `fraiseql_functions::migrations::inbound_email_cursor_migration_sql` is removed.
+
+### Changed
+
+- **Entity-identity contract: `id: UUID` is canonicalized to `id: ID` (ADR-0017).**
+  FraiseQL now treats a global `id: ID!` as a first-class invariant consumed
+  uniformly by cascade, Relay `Node`, and federation `@key(fields: "id")` — rather
+  than each subsystem re-deriving identity from heterogeneous id types. The compiler
+  rewrites the Trinity external id (`id: UUID`) to `id: ID` on every output object
+  type. This is **wire-transparent** — a UUID and an `ID` serialize to the same JSON
+  string — so clients are unaffected; only introspection/SDL now reports `id: ID`
+  where it previously reported `id: UUID`. Non-identity ids (a serial `id: Int`, or
+  no `id`) are left as-is and must expose `id: ID` (a UUID surrogate) to use
+  cascade/Relay. See ADR-0017 and `docs/architecture/mutation-response.md`.
+- **All authoring SDKs emit `id: ID` for identity fields (honest at source).** Every
+  FraiseQL SDK that emits `schema.json` now canonicalizes a field named `id` typed as
+  a wire-transparent string (`string`/`str`/`UUID`) to GraphQL `ID`, enforcing the
+  documented convention each SDK already stated. Previously a Trinity surrogate
+  authored as `id: string` leaked `id: String`, which the compiler's identity contract
+  then rejected; the emitted schema is now conformant at the source, so the compiler's
+  `UUID → ID` canonicalization is a backstop rather than the primary mechanism.
+  Covered: **Python, TypeScript, Go, C#, F#, Java, PHP** (fixed + tests green),
+  **Elixir** (fixed + tests, gated by `elixir-sdk.yml` CI), and **Scala** (fixed +
+  tests, gated by a new `scala-sdk.yml` CI workflow — the community SDK previously had
+  none). A numeric `id: Int` is left unchanged. Client/runtime SDKs (Dart, Ruby, Rust,
+  Kotlin, Swift, Node.js, Clojure, Groovy) are unaffected — they consume the API, they
+  don't emit schemas.
+
+### Fixed
+
+- **`fraiseql compile` now surfaces the full error cause chain.** Converter
+  failures printed only the top-level context (e.g. `Failed to convert schema to
+  compiled format`) with the underlying reason swallowed at every log level and in
+  `--json` — the cause was reachable only via the undocumented `--debug` flag, and
+  never in JSON. The CLI now renders the whole `anyhow` source chain in both modes:
+  `  caused by: …` lines in human output and a `"causes": [...]` array in `--json`
+  (additive; `message`/`code` unchanged). Applies to every command, not just
+  `compile`.
+- **Cascade/Relay type synthesis no longer emits a schema that fails its own
+  validator.** Auto-implementing `CascadeNode` (cascade) or `Node` (`relay = true`)
+  on an entity whose `id` was `UUID`/`Int` or absent produced IR that the
+  compiled-schema validator then rejected with a swallowed "missing field 'id'"
+  bail — so a schema that compiled under 2.10 could fail under 2.11 (which began
+  honoring the previously-dropped SDK `cascade` flag) with the real reason hidden.
+  Resolved by the entity-identity contract (see *Changed*): the Trinity `id: UUID`
+  now canonicalizes to `id: ID` and satisfies the interface automatically, and any
+  residual non-identity id (`Int`, absent) fails fast — *before* the `implements`
+  push — with one aggregated, actionable error naming every offending type and the
+  remedy, instead of a swallowed bail.
+- **The compiled-schema validator recognizes interfaces as valid return types.** A
+  query or mutation returning an interface type (narrowed via inline fragments) is
+  now accepted instead of silently failing the type-reference check; every
+  validator rejection also logs a `warn!`, not just the query-return case.
+- **Built-in change-log fields now follow the SDK's camelCase convention by default
+  (#500).** The Python SDK recases every field, operation, and argument it emits to
+  camelCase, but it did not record that convention in the exported schema. The
+  compiler's change-log injection (the #149 audit log) renders its identifiers via the
+  schema's `naming_convention`, which defaulted to `Preserve` — so an exposed
+  `EntityChangeLog` / `TransportCheckpoint` came out in snake_case
+  (`pk_entity_change_log`, `object_type`, `created_at`), the only snake_case corner of
+  an otherwise camelCase API. The camelCase change-log support added in #498 was
+  therefore inert unless the caller hand-injected `naming_convention` into the schema
+  JSON. `get_schema_dict()` (and the registry's `get_schema()`) now emit
+  `naming_convention: "camelCase"`, so a change-log exposed from an SDK-authored schema
+  compiles to camelCase fields with no manual intervention. The SQL contract is
+  unchanged — the runtime still recovers the snake_case JSONB keys via `to_snake_case`.
+- **`auto_params` queries now expose their `where`/`orderBy`/`limit`/`offset` as real
+  GraphQL arguments.** A list query configured with `auto_params` carried those
+  parameters only as compile-time flags — the runtime read them straight from the
+  argument map, but they were never materialised as field arguments. Every consumer
+  that renders from the argument list therefore emitted the query without them:
+  `generate-client typescript` produced a bare, argument-less query and function, and
+  the federation `_service { sdl }` (and `/schema` endpoint) advertised the field with
+  no arguments — so a generated client or a federated gateway could fetch the first
+  page of a collection but could not paginate or filter it (the built-in change-log
+  being the clearest case: its own description documents `where`/`orderBy`/`limit`).
+  `QueryDefinition::graphql_arguments()` now synthesizes those arguments from the
+  `auto_params` flags (`where`/`orderBy` typed as the `JSON` scalar, `limit`/`offset`
+  as `Int`), and the SDL renderer, the TypeScript client generator, and GraphQL
+  introspection all render through it — so the three stay consistent and a generated
+  client can paginate and filter. An explicit argument of the same name still wins
+  (no duplicates), and Relay connection queries are unchanged (their `first`/`after`/
+  `last`/`before` surface is owned by the Relay path).
+
+## [2.11.0] - 2026-07-06
+
+### Added
+
 - **Typed, enforced GraphQL cascade (cascade hardening).** The `cascade`
   feature — a mutation returning every entity it affected, per the graphql-cascade
   spec — is rebuilt from a verbatim JSONB passthrough into a first-class, enforced
@@ -64,11 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   updatedFields }` whose `cascade: CascadeUpdates` carries `updated`
   (`[UpdatedEntity!]!`), `deleted` (`[DeletedEntity!]!`), `metadata`
   (`CascadeMetadata!`), and `invalidations` (`[QueryInvalidation!]!`) — a
-  `CascadeNode` interface (`id: ID!`) is auto-implemented on every queryable entity
-  (the Trinity `id: UUID` canonicalizes to `id: ID` per the entity-identity contract,
-  ADR-0017; a non-identity id fails fast with an aggregated, actionable error) so
-  cascade entities are selectable via inline fragments. At runtime every cascade
-  entity is
+  `CascadeNode` interface is auto-implemented on every queryable entity so cascade
+  entities are selectable via inline fragments. At runtime every cascade entity is
   projected to camelCase and run through the field-level authorizer (#423) exactly
   like a queried entity; cascade is selection-gated (never injected unrequested);
   the response is bounded by `RuntimeConfig.cascade_limits` (max affected entities →
@@ -412,19 +513,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **Poll-IMAP email cursor storage removed; email now uses the generic source
-  cursor (#573).** The bespoke `_fraiseql_inbound_email_cursor` table and its
-  `PostgresEmailCursorStore` are deleted with no migration or backfill (there are no
-  IMAP users). The email adapter is reimplemented as the reference native
-  `PullSource` (`ImapSource`) driven by the generic source envelope, and its
-  per-mailbox UID watermark now lives — as opaque JSONB — in the shared
-  `_fraiseql_source_cursor` table (created by the same `init_cursor_store`). This
-  also **fixes a multi-replica double-poll**: each mailbox is now polled under a
-  single-firing advisory lease, so several server replicas poll each mailbox exactly
-  once between them instead of all polling it. Cursor advance is now transactional
-  with the spine emit (all-or-nothing per poll batch) rather than per-message.
-  `fraiseql_functions::migrations::inbound_email_cursor_migration_sql` is removed.
-
 - **Cascade is now typed, selection-gated, and enforced (cascade hardening).**
   Cascade was previously injected verbatim into *every* mutation response, unrequested
   and undeclared. Now: (1) only mutations with `cascade=True` expose it, and they
@@ -440,29 +528,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Entity-identity contract: `id: UUID` is canonicalized to `id: ID` (ADR-0017).**
-  FraiseQL now treats a global `id: ID!` as a first-class invariant consumed
-  uniformly by cascade, Relay `Node`, and federation `@key(fields: "id")` — rather
-  than each subsystem re-deriving identity from heterogeneous id types. The compiler
-  rewrites the Trinity external id (`id: UUID`) to `id: ID` on every output object
-  type. This is **wire-transparent** — a UUID and an `ID` serialize to the same JSON
-  string — so clients are unaffected; only introspection/SDL now reports `id: ID`
-  where it previously reported `id: UUID`. Non-identity ids (a serial `id: Int`, or
-  no `id`) are left as-is and must expose `id: ID` (a UUID surrogate) to use
-  cascade/Relay. See ADR-0017 and `docs/architecture/mutation-response.md`.
-- **All authoring SDKs emit `id: ID` for identity fields (honest at source).** Every
-  FraiseQL SDK that emits `schema.json` now canonicalizes a field named `id` typed as
-  a wire-transparent string (`string`/`str`/`UUID`) to GraphQL `ID`, enforcing the
-  documented convention each SDK already stated. Previously a Trinity surrogate
-  authored as `id: string` leaked `id: String`, which the compiler's identity contract
-  then rejected; the emitted schema is now conformant at the source, so the compiler's
-  `UUID → ID` canonicalization is a backstop rather than the primary mechanism.
-  Covered: **Python, TypeScript, Go, C#, F#, Java, PHP** (fixed + tests green),
-  **Elixir** (fixed + tests, gated by `elixir-sdk.yml` CI), and **Scala** (fixed +
-  tests, gated by a new `scala-sdk.yml` CI workflow — the community SDK previously had
-  none). A numeric `id: Int` is left unchanged. Client/runtime SDKs (Dart, Ruby, Rust,
-  Kotlin, Swift, Node.js, Clojure, Groovy) are unaffected — they consume the API, they
-  don't emit schemas.
 - **Inbound email config renamed: `[imap.<name>]` → `[mailbox.<name>.imap]` (breaking).**
   A connected mail account now has one section, `[mailbox.<name>]`, carrying both its
   poll-IMAP *receive* half (`[mailbox.<name>.imap]`) and its SMTP *send* half
@@ -517,29 +582,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`fraiseql compile` now surfaces the full error cause chain.** Converter
-  failures printed only the top-level context (e.g. `Failed to convert schema to
-  compiled format`) with the underlying reason swallowed at every log level and in
-  `--json` — the cause was reachable only via the undocumented `--debug` flag, and
-  never in JSON. The CLI now renders the whole `anyhow` source chain in both modes:
-  `  caused by: …` lines in human output and a `"causes": [...]` array in `--json`
-  (additive; `message`/`code` unchanged). Applies to every command, not just
-  `compile`.
-- **Cascade/Relay type synthesis no longer emits a schema that fails its own
-  validator.** Auto-implementing `CascadeNode` (cascade) or `Node` (`relay = true`)
-  on an entity whose `id` was `UUID`/`Int` or absent produced IR that the
-  compiled-schema validator then rejected with a swallowed "missing field 'id'"
-  bail — so a schema that compiled under 2.10 could fail under 2.11 (which began
-  honoring the previously-dropped SDK `cascade` flag) with the real reason hidden.
-  Resolved by the entity-identity contract (see *Changed*): the Trinity `id: UUID`
-  now canonicalizes to `id: ID` and satisfies the interface automatically, and any
-  residual non-identity id (`Int`, absent) fails fast — *before* the `implements`
-  push — with one aggregated, actionable error naming every offending type and the
-  remedy, instead of a swallowed bail.
-- **The compiled-schema validator recognizes interfaces as valid return types.** A
-  query or mutation returning an interface type (narrowed via inline fragments) is
-  now accepted instead of silently failing the type-reference check; every
-  validator rejection also logs a `warn!`, not just the query-return case.
 - **Native-column `WHERE` filters no longer 500 on a camelCase argument (#540).**
   A filter argument on a native (real-column) field emitted the camelCase argument
   name verbatim as the SQL column — `comments(postId: …)` became `WHERE postId = …`,
@@ -620,36 +662,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   de-duplicated, matching the claim names already honoured by the observer-admin RBAC
   engine. The claims continue to be forwarded into `attributes` for RLS / session-var
   injection — the two surfaces are independent. (#503)
-- **Built-in change-log fields now follow the SDK's camelCase convention by default
-  (#500).** The Python SDK recases every field, operation, and argument it emits to
-  camelCase, but it did not record that convention in the exported schema. The
-  compiler's change-log injection (the #149 audit log) renders its identifiers via the
-  schema's `naming_convention`, which defaulted to `Preserve` — so an exposed
-  `EntityChangeLog` / `TransportCheckpoint` came out in snake_case
-  (`pk_entity_change_log`, `object_type`, `created_at`), the only snake_case corner of
-  an otherwise camelCase API. The camelCase change-log support added in #498 was
-  therefore inert unless the caller hand-injected `naming_convention` into the schema
-  JSON. `get_schema_dict()` (and the registry's `get_schema()`) now emit
-  `naming_convention: "camelCase"`, so a change-log exposed from an SDK-authored schema
-  compiles to camelCase fields with no manual intervention. The SQL contract is
-  unchanged — the runtime still recovers the snake_case JSONB keys via `to_snake_case`.
-- **`auto_params` queries now expose their `where`/`orderBy`/`limit`/`offset` as real
-  GraphQL arguments.** A list query configured with `auto_params` carried those
-  parameters only as compile-time flags — the runtime read them straight from the
-  argument map, but they were never materialised as field arguments. Every consumer
-  that renders from the argument list therefore emitted the query without them:
-  `generate-client typescript` produced a bare, argument-less query and function, and
-  the federation `_service { sdl }` (and `/schema` endpoint) advertised the field with
-  no arguments — so a generated client or a federated gateway could fetch the first
-  page of a collection but could not paginate or filter it (the built-in change-log
-  being the clearest case: its own description documents `where`/`orderBy`/`limit`).
-  `QueryDefinition::graphql_arguments()` now synthesizes those arguments from the
-  `auto_params` flags (`where`/`orderBy` typed as the `JSON` scalar, `limit`/`offset`
-  as `Int`), and the SDL renderer, the TypeScript client generator, and GraphQL
-  introspection all render through it — so the three stay consistent and a generated
-  client can paginate and filter. An explicit argument of the same name still wins
-  (no duplicates), and Relay connection queries are unchanged (their `first`/`after`/
-  `last`/`before` surface is owned by the Relay path).
 - **Federation SDL: scalar names are consistent and `*WhereInput` types are valid.**
   Two residual `_service` SDL gaps that the type-closure fix exposed: (1) the `scalar`
   declaration walk canonicalised names (`DateTime`) while fields rendered them verbatim
