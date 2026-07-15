@@ -227,6 +227,57 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Start the scheduled-ingress source scheduler (#573): one poller per
+        // enabled Model B (Deno) source in the compiled schema, each firing its
+        // connector on its cron schedule under a single-firing lease with a host
+        // bound to the source's durable cursor and its `run_as` executor. Runs on
+        // the server's JoinSet so graceful shutdown drains it. Native pull sources
+        // (poll-IMAP email) run via their own pollers above. Must run here (async,
+        // after `build_router` supplies the function-dispatch hooks).
+        #[cfg(feature = "sources")]
+        if let Some(ref db_pool) = self.db_pool {
+            let sources = app_state.executor().schema().sources.clone();
+            if !sources.is_empty() {
+                let sources_config = self.config.sources.clone().unwrap_or_default();
+                if !crate::sources::sources_enabled(&sources_config) {
+                    info!(
+                        count = sources.len(),
+                        "source scheduler disabled by config — sources not started"
+                    );
+                } else if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
+                    // The shared durable source-cursor table (idempotent DDL).
+                    fraiseql_observers::PostgresSourceCursorStore::new(db_pool.clone())
+                        .init()
+                        .await
+                        .map_err(|e| {
+                            ServerError::ConfigError(format!(
+                                "Failed to initialize source cursor schema: {e}"
+                            ))
+                        })?;
+                    let host_config = crate::sources::source_host_config(&sources_config);
+                    let pollers = crate::sources::build_source_pollers(
+                        &sources,
+                        db_pool,
+                        &app_state.executor,
+                        hooks.as_ref(),
+                        &host_config,
+                        &fraiseql_functions::ResourceLimits::default(),
+                    );
+                    let started = pollers.len();
+                    for poller in pollers {
+                        self.tasks.spawn(async move { poller.run_forever().await });
+                    }
+                    info!(sources = started, "source scheduler started");
+                } else {
+                    warn!(
+                        count = sources.len(),
+                        "compiled schema declares sources but the functions subsystem is not \
+                         configured — no source scheduler started"
+                    );
+                }
+            }
+        }
+
         // Spawn SIGUSR1 schema reload handler when running on Unix.
         // The handler loops forever, reloading on each signal, until the
         // server process exits — tracked on the server's JoinSet so graceful
