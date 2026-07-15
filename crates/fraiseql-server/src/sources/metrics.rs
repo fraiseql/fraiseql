@@ -1,4 +1,4 @@
-//! Prometheus metrics for scheduled ingress sources (#573 Phase 08).
+//! Prometheus metrics for scheduled ingress sources (#573).
 //!
 //! Emitted through the lightweight [`metrics`] facade — the same mechanism
 //! `fraiseql-wire` uses for its per-entity counters and histograms, and the only

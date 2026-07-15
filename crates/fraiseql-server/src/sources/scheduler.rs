@@ -1,4 +1,4 @@
-//! Assembling the source scheduler from the compiled schema (#573 Phase 06 Step 4).
+//! Assembling the source scheduler from the compiled schema (#573).
 //!
 //! [`build_source_pollers`] turns the compiled `sources` array into one
 //! [`SourcePoller`] per enabled Model B source, resolving each source's function
@@ -130,7 +130,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
     schedulable(sources, &hooks.module_registry)
         .into_iter()
         .map(|(source, module, schedule)| {
-            // The source's mutations run under its run_as ceiling (D6); the
+            // The source's mutations run under its run_as ceiling; the
             // request-id correlates the source in the audit envelope.
             let identity = source.identity(source.name.as_str());
             let query_executor: Arc<dyn QueryExecutor> =
@@ -145,6 +145,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
                 LeaseGuardedRunner::postgres(db_pool.clone(), source.name.clone()),
                 host_config.clone(),
                 limits.clone(),
+                hooks.idempotency_key.clone(),
                 log_payloads,
             )
         })

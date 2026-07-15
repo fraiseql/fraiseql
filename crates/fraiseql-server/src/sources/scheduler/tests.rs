@@ -1,6 +1,6 @@
 //! Tests for the source-scheduler assembly: the pure `schedulable` filter and the
 //! env-overridable config resolution. The full poller-wiring (`build_source_pollers`)
-//! is exercised by the lifecycle integration and Step 3's `build_host` composition.
+//! is exercised by the lifecycle integration and the poller's `build_host` composition.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
 use std::collections::HashMap;

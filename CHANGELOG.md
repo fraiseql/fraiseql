@@ -9,18 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Least-privilege identity for scheduled sources (#573, in progress).** A
-  scheduled `Source` runs its background mutations under an explicit, configured
-  authority *ceiling*, not an anonymous or unbounded identity. A source's compiled
-  definition gains an optional `run_as` (`{ roles, scopes, tenant? }`); at runtime
-  its mutations execute under a new `SecurityContext::system_job(...)` — the first
-  use of the `ActorType::SystemJob` principal — carrying exactly those roles/scopes.
-  **Fail-closed:** a source with no `run_as` runs with no authority, so RLS/field
-  authorization deny its writes until an operator grants a ceiling. `run_as.tenant`
-  scopes a single-tenant or global source; multi-tenant sources leave it unset and
-  re-scope each write per message. The compiler validates `run_as` (blank
-  role/scope/tenant → error; a ceiling granting nothing → fail-closed warning). See
-  `.phases/573-source-ingress/DESIGN.md` §7 (D6).
+- **Scheduled ingress `Source`s — the dual of `Observer` (#573).** A `Source` pulls
+  from an external system on a schedule and drives the results into the database via
+  mutations, resuming from a durable cursor with at-least-once delivery — the ingress
+  counterpart to an observer's egress. The primitive ships end to end:
+  - **Coordination.** A durable opaque cursor store (`_fraiseql_source_cursor`, one
+    row per source) advanced by a monotonic **compare-and-swap** so a stale writer can
+    never regress the watermark; deny-by-default RLS + `REVOKE … FROM PUBLIC`, the
+    cursor value stored as opaque JSONB (written only via parameterized binds, never
+    assembled into SQL text). A single-firing **advisory-lease runner** (lock key = a
+    stable `SHA-256` of the source name) so a source scheduled on N replicas fires on
+    exactly one.
+  - **Two execution models, one envelope.** *Model A* — a native Rust `PullSource`
+    (`poll() → batch`): the framework spine-dedups each message and advances the
+    cursor **in the same transaction** as the ingest writes (atomic, no reprocess
+    window). *Model B* — a handler-driven **Deno connector** (`ctx.cursor` → fetch →
+    `ctx.query` mutate → `ctx.advance`); the envelope supplies single-firing, the
+    cursor, and observability. The poll-IMAP email adapter is reimplemented as the
+    reference Model A source (see Breaking).
+  - **Least-privilege identity, fail-closed.** A source's mutations run under an
+    explicit authority *ceiling* — `run_as` (`{ roles, scopes, tenant? }`) on the
+    compiled definition — carried at runtime by a new
+    `SecurityContext::system_job(...)` (the first use of the `ActorType::SystemJob`
+    principal, recorded for audit, never an authorization input). A source with no
+    `run_as` runs with no authority: RLS and field authorization deny its writes until
+    an operator grants a ceiling. `run_as.tenant` scopes a single-tenant or global
+    source; a multi-tenant source leaves it unset and re-scopes each write to a
+    per-message tenant, and a source already pinned to a tenant cannot forge writes for
+    another. Outbound fetches inherit the deny-by-default SSRF allowlist (no bypass).
+  - **Authoring.** `@Source({ schedule, cursor, runAs })` (TypeScript) and
+    `@fraiseql.source(...)` (Python) compile to a `sources` array in the schema; the
+    compiler validates the cron expression, unique source/cursor names, and `run_as`.
+  - **Server.** An opt-in `sources` cargo feature spawns one poller per enabled source
+    on the functions-subsystem lifecycle (`[sources]` TOML + `FRAISEQL_SOURCES_*` env
+    overrides, env > TOML > default), drains gracefully on shutdown, and warns loudly
+    if `[sources]` is configured while the feature is off.
+  - **Observability.** Prometheus metrics `fraiseql_source_fires_total{source,result}`,
+    `fraiseql_source_skips_not_leader_total{source}`, and
+    `fraiseql_source_run_duration_seconds{source}` (under the `metrics` feature);
+    structured fire/skip/error logs carrying the source and a per-firing idempotency
+    token (HMAC-signed when a server secret is configured; payload logging opt-in via
+    `[sources] log_payloads`); and a read-only `fraiseql sources` CLI that lists each
+    source's schedule, `run_as` ceiling, and — with a database URL — its cursor value,
+    CAS version, and staleness.
+
+  Opt-in and STABLE-tracked (may evolve). See `docs/architecture/sources.md`.
 - **Typed, enforced GraphQL cascade (cascade hardening).** The `cascade`
   feature — a mutation returning every entity it affected, per the graphql-cascade
   spec — is rebuilt from a verbatim JSONB passthrough into a first-class, enforced

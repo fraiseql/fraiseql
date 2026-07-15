@@ -1,4 +1,4 @@
-//! The thin PostgreSQL projection behind `fraiseql sources` (#573 Phase 08).
+//! The thin PostgreSQL projection behind `fraiseql sources` (#573).
 //!
 //! Reads the durable `_fraiseql_source_cursor` watermark table — the same table the
 //! runtime poller advances — so an operator can see, per source, where its cursor

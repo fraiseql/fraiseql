@@ -53,7 +53,7 @@ pub struct SourceDefinition {
     #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
     pub options: serde_json::Value,
 
-    /// The authority this source's background mutations run under (#573 D6) — its
+    /// The authority this source's background mutations run under (#573) — its
     /// `run_as` *ceiling*. Absent ⇒ **fail-closed**: the source runs with no
     /// roles/scopes/tenant and can write nothing. See [`identity`](Self::identity).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -61,7 +61,7 @@ pub struct SourceDefinition {
 }
 
 /// The least-privilege authority ceiling a scheduled source's background mutations
-/// run under (#573 D6) — the source's `run_as`.
+/// run under (#573) — the source's `run_as`.
 ///
 /// This is a *ceiling*: the source can never exceed these `roles`/`scopes`. It is
 /// authored on `@source`/`@fraiseql.source` and compiled into
@@ -135,7 +135,7 @@ impl SourceDefinition {
         self
     }
 
-    /// Set the [`run_as`](Self::run_as) authority ceiling (#573 D6).
+    /// Set the [`run_as`](Self::run_as) authority ceiling (#573).
     #[must_use]
     pub fn with_run_as(mut self, run_as: RunAs) -> Self {
         self.run_as = Some(run_as);
@@ -143,7 +143,7 @@ impl SourceDefinition {
     }
 
     /// The background [`SecurityContext`](crate::security::SecurityContext) this
-    /// source's mutations run under (#573 D6).
+    /// source's mutations run under (#573).
     ///
     /// Built from [`run_as`](Self::run_as) via
     /// [`SecurityContext::system_job`](crate::security::SecurityContext::system_job);
@@ -177,7 +177,7 @@ impl SourceDefinition {
     }
 
     /// The `cron:<schedule>` trigger type this source desugars to — the sugar-over-
-    /// cron binding (decision D1). The runtime schedules [`function`](Self::function)
+    /// cron binding. The runtime schedules [`function`](Self::function)
     /// on it.
     #[must_use]
     pub fn cron_trigger(&self) -> String {

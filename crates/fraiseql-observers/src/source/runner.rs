@@ -3,7 +3,7 @@
 //! Wraps the (previously unwired) [`CheckpointLease`] advisory lease so a source
 //! scheduled on N replicas fires on one. The runner acquires the lease keyed on
 //! the source name, runs the closure while holding it, then **releases
-//! explicitly** — Phase 00 characterization proved that dropping the lease does
+//! explicitly** — characterization tests proved that dropping the lease does
 //! *not* free a PostgreSQL session advisory lock (its pooled connection stays
 //! alive), so drop-based RAII is not enough on the happy path; only a dead
 //! connection (a real crash) releases via the session ending, which is the

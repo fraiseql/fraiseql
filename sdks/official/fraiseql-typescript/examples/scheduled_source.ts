@@ -35,7 +35,7 @@ class OrderSources {
    * Every 5 minutes, run the `pollOrders` connector to ingest new orders.
    *
    * `runAs` is the least-privilege ceiling the connector's mutations execute under
-   * (#573 D6): here it may only write orders. Omit `runAs` and the source is
+   * (#573): here it may only write orders. Omit `runAs` and the source is
    * fail-closed (its mutations are RLS/authz-denied) until you grant one.
    *
    * `function` defaults to the method name (`pollOrders`) — the Deno connector.

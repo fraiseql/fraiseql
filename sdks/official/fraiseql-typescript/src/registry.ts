@@ -228,7 +228,7 @@ export interface UnionDefinition {
 
 /**
  * The `run_as` authority ceiling a scheduled source's background mutations run
- * under (#573 D6). Absent ⇒ the source runs fail-closed (no roles/scopes/tenant →
+ * under (#573). Absent ⇒ the source runs fail-closed (no roles/scopes/tenant →
  * RLS/authz deny). `tenant` scopes a single-tenant or global source; a multi-tenant
  * source leaves it unset and re-scopes each write per message at runtime.
  */
@@ -731,7 +731,7 @@ export class SchemaRegistry {
    * @param fn - The bound Deno connector function name.
    * @param cursor - Optional distinct cursor name (defaults to the source name).
    * @param enabled - Whether the source is scheduled (default true).
-   * @param runAs - Optional least-privilege authority ceiling (#573 D6).
+   * @param runAs - Optional least-privilege authority ceiling (#573).
    * @param options - Optional connector-specific options, opaque to the framework.
    */
   static registerSource(

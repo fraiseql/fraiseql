@@ -3,7 +3,7 @@
 //!
 //! The live `execute_query` round-trip (a connector actually mutating through the
 //! server `Executor`) is exercised end-to-end by the scheduler integration test
-//! against real PostgreSQL (Phase 06 Step 3); here we pin the identity/variable
+//! against real PostgreSQL; here we pin the identity/variable
 //! logic that has no database dependency.
 #![allow(clippy::unwrap_used)] // Reason: test module
 

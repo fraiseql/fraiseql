@@ -1278,7 +1278,7 @@ def source(
         function: The bound Deno connector name; defaults to the source name.
         cursor: Optional distinct cursor name (defaults to the source name).
         enabled: Whether the source is scheduled (default ``True``).
-        run_as: Optional least-privilege authority ceiling (#573 D6):
+        run_as: Optional least-privilege authority ceiling (#573):
             ``{"roles": [...], "scopes": [...], "tenant": "..."}``. Absent ⇒
             fail-closed (the source's mutations are RLS/authz-denied).
         **options: Connector-specific options, opaque to the framework.

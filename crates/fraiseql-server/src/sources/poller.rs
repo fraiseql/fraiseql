@@ -1,9 +1,9 @@
-//! The per-source scheduler loop (#573 D6, Phase 06 Step 3).
+//! The per-source scheduler loop (#573).
 //!
 //! One [`SourcePoller`] drives one Model B (Deno) source: on its cron schedule it
 //! fires the connector, single-firing across replicas via the advisory lease, under
-//! a host bound to both the source's durable cursor (Phase 04) and its `run_as`
-//! query executor (Step 2). It is the Model B analogue of the poll-IMAP
+//! a host bound to both the source's durable cursor and its `run_as`
+//! query executor. It is the Model B analogue of the poll-IMAP
 //! `MailboxPoller` — cron-tick instead of a fixed interval, and a Deno guest with a
 //! cursor + executor host instead of a native `PullSource`.
 //!
@@ -38,34 +38,39 @@ use super::metrics;
 /// a compiled [`SourceDefinition`](fraiseql_core::schema::SourceDefinition).
 pub struct SourcePoller {
     /// The source name — the cursor row and advisory-lease key.
-    source_name:  String,
+    source_name:     String,
     /// The parsed cron schedule the source fires on.
-    schedule:     CronSchedule,
+    schedule:        CronSchedule,
     /// The Deno connector module to invoke.
-    module:       FunctionModule,
+    module:          FunctionModule,
     /// The runtime-agnostic function observer that dispatches the module.
-    observer:     Arc<FunctionObserver>,
+    observer:        Arc<FunctionObserver>,
     /// The durable cursor store, bound onto each firing's host.
-    cursor_store: PostgresSourceCursorStore,
+    cursor_store:    PostgresSourceCursorStore,
     /// The query-executor bridge (the source's `run_as` identity), bound onto each
     /// firing's host. A trait object so the lifecycle passes a `SourceQueryExecutor`
     /// while tests pass a stub.
-    executor:     Arc<dyn QueryExecutor>,
+    executor:        Arc<dyn QueryExecutor>,
     /// The single-firing runner (advisory lease keyed on the source name).
-    runner:       LeaseGuardedRunner,
+    runner:          LeaseGuardedRunner,
     /// Host config (SSRF allowlist, timeouts) for the connector's outbound I/O.
-    host_config:  HostContextConfig,
+    host_config:     HostContextConfig,
     /// Guest resource limits.
-    limits:       ResourceLimits,
+    limits:          ResourceLimits,
+    /// The HMAC subkey that signs each firing's idempotency token, from the server
+    /// HMAC secret. `Some` ⇒ the token is unforgeable, matching every other dispatch
+    /// path (`after:mutation` / `after:ingest`); `None` ⇒ an unsigned digest (the
+    /// zero-config default).
+    idempotency_key: Option<Arc<[u8]>>,
     /// Whether to log the trigger payload on each firing (default off). Off-by-default
     /// mirrors the observer `log_payloads` gate: even though a source's trigger
     /// payload carries only schedule context — the external data the connector fetches
     /// never reaches the poller — payload logging stays opt-in for a uniform PII stance.
-    log_payloads: bool,
+    log_payloads:    bool,
     /// In-memory fire-window state (the durable cursor is the real resume point, so
     /// missed-fire catch-up across restarts is unnecessary — the next fire resumes
     /// from the cursor).
-    state:        CronExecutionState,
+    state:           CronExecutionState,
 }
 
 impl SourcePoller {
@@ -85,6 +90,7 @@ impl SourcePoller {
         runner: LeaseGuardedRunner,
         host_config: HostContextConfig,
         limits: ResourceLimits,
+        idempotency_key: Option<Arc<[u8]>>,
         log_payloads: bool,
     ) -> Self {
         Self {
@@ -97,6 +103,7 @@ impl SourcePoller {
             runner,
             host_config,
             limits,
+            idempotency_key,
             log_payloads,
             state: CronExecutionState::new(),
         }
@@ -107,10 +114,12 @@ impl SourcePoller {
     /// scheduled tick has its own correlation id threaded through the metrics-adjacent
     /// logs and made available to the connector via `ctx.idempotencyToken` for
     /// idempotent writes. Never wall-clock/random *at the token site* — derived from
-    /// the already-built payload so a resume re-derives the same value.
+    /// the already-built payload so a resume re-derives the same value. Signed with
+    /// the server HMAC subkey when one is configured (matching `after:mutation` /
+    /// `after:ingest`), otherwise an unsigned digest.
     fn idempotency_token(&self, payload: &EventPayload) -> String {
         derive_idempotency_token(
-            None,
+            self.idempotency_key.as_deref(),
             DispatchSource::Source,
             &self.module.name,
             &payload.trigger_type,
@@ -139,7 +148,7 @@ impl SourcePoller {
     /// replica leads), or ran with the guest's own result. An acquire failure is
     /// logged and reported as a skip (the guest did not run this tick).
     ///
-    /// This is the observability seam (#573 Phase 08): it meters every firing
+    /// This is the observability seam (#573): it meters every firing
     /// (`fraiseql_source_fires_total` / `_run_duration_seconds` / `_skips_not_leader_total`)
     /// and emits the structured fire/skip/error logs — all with the `source` and the
     /// per-firing `idempotency_token` — so the whole per-outcome record lives here
