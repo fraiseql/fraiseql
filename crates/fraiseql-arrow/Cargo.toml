@@ -9,7 +9,7 @@ name = "arrow_vs_json_serialization"
 [dependencies]
 # Arrow ecosystem (with CSV and Parquet support)
 arrow = {version = "57", features = ["csv", "json"]}
-arrow-flight = "57"
+arrow-flight = "59"
 arrow-schema = "57"
 # Async utilities
 async-stream = "0.3"
