@@ -28,10 +28,12 @@ use fraiseql_functions::host::live::QueryExecutor;
 use serde_json::Value;
 
 /// Reserved GraphQL variable a multi-tenant source sets to scope one write to a
-/// tenant (#573 D6). It is stripped from the variables before the query runs, so it
-/// never reaches the mutation itself. The Phase 07 SDK surfaces it ergonomically
-/// (e.g. `ctx.query(mutation, vars, { tenant })`); this constant is the wire
-/// contract both sides agree on.
+/// tenant (#573 D6).
+///
+/// It is stripped from the variables before the query runs, so it never reaches the
+/// mutation itself. The Phase 07 SDK surfaces it ergonomically (e.g.
+/// `ctx.query(mutation, vars, { tenant })`); this constant is the wire contract both
+/// sides agree on.
 pub const SOURCE_TENANT_VAR: &str = "__source_tenant";
 
 /// Adapts the server's [`Executor`] to the functions

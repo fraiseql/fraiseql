@@ -473,9 +473,14 @@ pub struct ServerConfig {
     /// `sources` feature). The source *definitions* live in the compiled schema;
     /// this `[sources]` section tunes the runtime (global on/off, connector SSRF
     /// allowlist).
+    ///
+    /// Boxed to keep `ServerConfig` small: this section is rarely set and read once
+    /// at startup, so it does not belong inline in a struct that sits on the
+    /// request-handling futures (an inline copy tips borderline futures past
+    /// clippy's `large_futures` stack budget).
     #[cfg(feature = "sources")]
     #[serde(default)]
-    pub sources: Option<SourcesConfig>,
+    pub sources: Option<Box<SourcesConfig>>,
 
     /// Connection pool pressure monitoring configuration.
     ///
@@ -732,8 +737,9 @@ impl Default for SourcesConfig {
     }
 }
 
-/// The connection fields mirror [`fraiseql_storage::config::StorageConfig`]; the
-/// policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
+/// The connection fields mirror [`fraiseql_storage::config::StorageConfig`].
+///
+/// The policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
 /// `serve_inline`) are optional and default to a private, force-download bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSectionConfig {

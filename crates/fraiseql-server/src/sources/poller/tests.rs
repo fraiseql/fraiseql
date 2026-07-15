@@ -8,6 +8,8 @@
 //!   `fraiseql_query`, advancing) is a local-only V8 test landing with the runnable example in
 //!   Phase 07.
 #![allow(clippy::unwrap_used)] // Reason: test module
+#![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres
+#![allow(clippy::large_futures)] // Reason: a test future holds a poller + runtime; stack size is irrelevant in a #[tokio::test]
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -194,11 +196,11 @@ async fn fires_a_model_b_connector_end_to_end() {
         "the connector fired and ran to completion under the lease"
     );
 
-    // The connector's fraiseql_query reached the bound executor.
-    let seen = executor.seen.lock().unwrap();
+    // The connector's fraiseql_query reached the bound executor. Clone out of the
+    // lock so no guard is held across the later await.
+    let seen = executor.seen.lock().unwrap().clone();
     assert_eq!(seen.len(), 1, "the guest issued exactly one query");
     assert!(seen[0].contains("createOrder"), "it was the connector's mutation: {}", seen[0]);
-    drop(seen);
 
     // The connector advanced its durable cursor from null → { page: 1 }.
     let snapshot = PostgresSourceCursorStore::new(pool.clone()).load(source).await.unwrap();
