@@ -516,6 +516,48 @@ impl SchemaValidator {
                         suggestion: Some("Set the handler function name".to_string()),
                     });
                 }
+
+                // The `run_as` authority ceiling (#573 D6): a blank grant is a config
+                // error, and an empty ceiling is fail-closed (the source can write
+                // nothing) — valid, but almost always a mistake, so warn.
+                if let Some(run_as) = &source.run_as {
+                    let has_blank = run_as
+                        .roles
+                        .iter()
+                        .chain(run_as.scopes.iter())
+                        .any(|grant| grant.trim().is_empty())
+                        || run_as.tenant.as_ref().is_some_and(|t| t.trim().is_empty());
+                    if has_blank {
+                        report.errors.push(ValidationError {
+                            message:    format!(
+                                "Source '{}' has a blank role, scope, or tenant in run_as",
+                                source.name
+                            ),
+                            path:       format!("sources[{idx}].run_as"),
+                            severity:   ErrorSeverity::Error,
+                            suggestion: Some(
+                                "Remove empty entries; each role/scope/tenant must be non-blank"
+                                    .to_string(),
+                            ),
+                        });
+                    }
+                    if run_as.roles.is_empty() && run_as.scopes.is_empty() {
+                        report.errors.push(ValidationError {
+                            message:    format!(
+                                "Source '{}' declares run_as with no authority (no roles or \
+                                 scopes): its mutations will be denied (fail-closed)",
+                                source.name
+                            ),
+                            path:       format!("sources[{idx}].run_as"),
+                            severity:   ErrorSeverity::Warning,
+                            suggestion: Some(
+                                "Grant the source the least-privilege roles/scopes its mutations \
+                                 need, or drop run_as if it never mutates"
+                                    .to_string(),
+                            ),
+                        });
+                    }
+                }
             }
         }
 

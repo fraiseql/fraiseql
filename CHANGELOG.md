@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Least-privilege identity for scheduled sources (#573, in progress).** A
+  scheduled `Source` runs its background mutations under an explicit, configured
+  authority *ceiling*, not an anonymous or unbounded identity. A source's compiled
+  definition gains an optional `run_as` (`{ roles, scopes, tenant? }`); at runtime
+  its mutations execute under a new `SecurityContext::system_job(...)` — the first
+  use of the `ActorType::SystemJob` principal — carrying exactly those roles/scopes.
+  **Fail-closed:** a source with no `run_as` runs with no authority, so RLS/field
+  authorization deny its writes until an operator grants a ceiling. `run_as.tenant`
+  scopes a single-tenant or global source; multi-tenant sources leave it unset and
+  re-scope each write per message. The compiler validates `run_as` (blank
+  role/scope/tenant → error; a ceiling granting nothing → fail-closed warning). See
+  `.phases/573-source-ingress/DESIGN.md` §7 (D6).
 - **Typed, enforced GraphQL cascade (cascade hardening).** The `cascade`
   feature — a mutation returning every entity it affected, per the graphql-cascade
   spec — is rebuilt from a verbatim JSONB passthrough into a first-class, enforced

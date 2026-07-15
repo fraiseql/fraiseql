@@ -218,6 +218,58 @@ impl SecurityContext {
         .with_acting_for(acting_for)
     }
 
+    /// Construct the context for an internal scheduled / system job (#573 D6).
+    ///
+    /// Unlike [`from_user`](Self::from_user), this carries **no JWT and no request**
+    /// — it is the server acting *as itself* for background work: a scheduled
+    /// [`Source`](crate::schema::SourceDefinition), and (in future) `after:ingest`
+    /// handlers and saga steps. It is the first and, at introduction, only
+    /// construction of [`ActorType::SystemJob`].
+    ///
+    /// Its authority is **exactly** the `roles` + `scopes` the caller grants (the
+    /// source's `run_as` ceiling). With neither, it is **fail-closed**: no roles and
+    /// no scopes mean every RBAC / field-authz check denies and — with no `tenant` —
+    /// tenant-scoped RLS admits nothing. A source therefore cannot write until an
+    /// operator grants it a ceiling.
+    ///
+    /// `tenant` scopes writes for a single-tenant or global source (`None` = global
+    /// / NULL tenant); a multi-tenant source leaves it `None` and re-scopes each
+    /// write per message via [`with_tenant`](Self::with_tenant). `job_id` names the
+    /// job (the source name) and becomes the `system_job:<id>` principal for the
+    /// audit envelope; `request_id` correlates a single firing.
+    ///
+    /// The [`ActorType`] is *recorded* for audit, never an authorization input — the
+    /// authority comes solely from `roles`/`scopes`.
+    #[must_use]
+    pub fn system_job(
+        job_id: impl Into<String>,
+        request_id: impl Into<String>,
+        roles: Vec<String>,
+        scopes: Vec<String>,
+        tenant: Option<TenantId>,
+    ) -> Self {
+        let now = Utc::now();
+        SecurityContext {
+            user_id: UserId(format!("system_job:{}", job_id.into())),
+            roles,
+            tenant_id: tenant,
+            scopes,
+            attributes: HashMap::new(),
+            request_id: request_id.into(),
+            ip_address: None,
+            authenticated_at: now,
+            // A background job's identity is minted fresh per firing and does not
+            // outlive the run; a generous window keeps any TTL check from tripping
+            // mid-poll (mirrors the live host's default context).
+            expires_at: now + chrono::Duration::hours(24),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
+        }
+        .with_actor_type(ActorType::SystemJob)
+    }
+
     /// Check if the user has a specific role.
     ///
     /// # Arguments
