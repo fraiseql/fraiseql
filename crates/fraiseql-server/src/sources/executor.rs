@@ -1,4 +1,4 @@
-//! The query-executor bridge for scheduled sources (#573 D6, Phase 06 Step 2).
+//! The query-executor bridge for scheduled sources (#573).
 //!
 //! A Model B source's Deno connector issues mutations via `fraiseql_query`, which
 //! reaches the host as [`HostContext::query`](fraiseql_functions::HostContext::query)
@@ -6,7 +6,7 @@
 //! Production dispatch never wired one, so a connector's `host.query()` failed with
 //! "query executor not configured". [`SourceQueryExecutor`] is that missing bridge:
 //! it wraps the server's [`Executor`] and runs each query/mutation under the
-//! source's **`run_as` identity** (a `SystemJob` [`SecurityContext`], D6).
+//! source's **`run_as` identity** (a `SystemJob` [`SecurityContext`]).
 //!
 //! Two properties matter:
 //!
@@ -28,17 +28,17 @@ use fraiseql_functions::host::live::QueryExecutor;
 use serde_json::Value;
 
 /// Reserved GraphQL variable a multi-tenant source sets to scope one write to a
-/// tenant (#573 D6).
+/// tenant (#573).
 ///
 /// It is stripped from the variables before the query runs, so it never reaches the
-/// mutation itself. The Phase 07 SDK surfaces it ergonomically (e.g.
+/// mutation itself. The SDK surfaces it ergonomically (e.g.
 /// `ctx.query(mutation, vars, { tenant })`); this constant is the wire contract both
 /// sides agree on.
 pub const SOURCE_TENANT_VAR: &str = "__source_tenant";
 
 /// Adapts the server's [`Executor`] to the functions
 /// [`QueryExecutor`](fraiseql_functions::host::live::QueryExecutor) so a scheduled
-/// source's mutations run under its `run_as` identity (#573 D6).
+/// source's mutations run under its `run_as` identity (#573).
 pub struct SourceQueryExecutor<A: DatabaseAdapter> {
     /// The hot-reloadable executor — the exact handle the request path uses, so a
     /// schema swap is reflected on the next firing (loaded per call).

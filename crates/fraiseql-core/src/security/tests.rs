@@ -3843,7 +3843,7 @@ mod actor_context_tests {
 }
 
 /// `SecurityContext::system_job` — the background/system identity for scheduled
-/// sources and other server-initiated work (#573 D6). The first (and, at
+/// sources and other server-initiated work (#573). The first (and, at
 /// introduction, only) construction of [`ActorType::SystemJob`].
 mod system_job_tests {
     use crate::{

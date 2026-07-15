@@ -32,7 +32,7 @@ interface SourceConfig {
   cursor?: string;
   /** Whether the source is scheduled. Default `true`. */
   enabled?: boolean;
-  /** Least-privilege authority ceiling for the source's mutations (#573 D6). */
+  /** Least-privilege authority ceiling for the source's mutations (#573). */
   runAs?: SourceRunAs;
   /** Connector-specific options, opaque to the framework. */
   options?: Record<string, unknown>;

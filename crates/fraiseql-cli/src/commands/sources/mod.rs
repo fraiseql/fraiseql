@@ -1,5 +1,5 @@
 //! `fraiseql sources` — a read-only status view over scheduled ingress sources
-//! (#573 Phase 08).
+//! (#573).
 //!
 //! Lists each compiled source with its schedule, `run_as` authority ceiling, and —
 //! when a database is reachable — its durable cursor: the value, the compare-and-swap

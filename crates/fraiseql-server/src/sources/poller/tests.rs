@@ -5,8 +5,7 @@
 //!   that one firing's host reaches *both* the durable cursor (vs real PostgreSQL) *and* the
 //!   `run_as` executor — without a V8 guest, so it runs in the PG integration leg. The full Model B
 //!   guest-through-poller round-trip (a Deno connector reading its cursor, mutating via
-//!   `fraiseql_query`, advancing) is a local-only V8 test landing with the runnable example in
-//!   Phase 07.
+//!   `fraiseql_query`, advancing) is a local-only V8 test that ships with the runnable example.
 #![allow(clippy::unwrap_used)] // Reason: test module
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres
 #![allow(clippy::large_futures)] // Reason: a test future holds a poller + runtime; stack size is irrelevant in a #[tokio::test]
@@ -36,6 +35,50 @@ fn source_payload_carries_the_trigger_context() {
     assert_eq!(payload.event_kind, "scheduled");
     assert_eq!(payload.data["source"], "orders");
     assert_eq!(payload.data["schedule"], "*/5 * * * *");
+}
+
+/// The per-firing idempotency token is signed with the server HMAC subkey when one
+/// is configured — the poller threads `idempotency_key` through rather than
+/// hard-coding the unsigned digest, so a source's token is as unforgeable as every
+/// other dispatch path's. A lazy pool never connects (this derives tokens, it does
+/// not query) — `#[tokio::test]` only because `connect_lazy` needs a runtime handle.
+#[tokio::test]
+async fn idempotency_token_is_signed_when_a_key_is_configured() {
+    let pool = PgPool::connect_lazy("postgres://localhost/unused").unwrap();
+    let build = |key: Option<Arc<[u8]>>| {
+        SourcePoller::new(
+            "orders",
+            CronSchedule::parse("*/5 * * * *").unwrap(),
+            FunctionModule::from_source("connector".to_string(), String::new(), RuntimeType::Deno),
+            Arc::new(FunctionObserver::new()),
+            PostgresSourceCursorStore::new(pool.clone()),
+            StubExecutor::new(json!(null)),
+            LeaseGuardedRunner::in_process("orders"),
+            HostContextConfig::default(),
+            ResourceLimits::default(),
+            key,
+            false,
+        )
+    };
+    let payload = build_source_payload("orders", "*/5 * * * *", Utc::now());
+
+    let unsigned = build(None).idempotency_token(&payload);
+    let secret: Arc<[u8]> = Arc::from(b"server-hmac-secret".as_slice());
+    let signed = build(Some(Arc::clone(&secret))).idempotency_token(&payload);
+
+    // The key changes the token: it is threaded through, not ignored.
+    assert_ne!(unsigned, signed);
+    // The signed form is exactly the keyed HMAC over the firing's stable identity.
+    let expected = fraiseql_observers::derive_idempotency_token(
+        Some(&secret),
+        fraiseql_observers::DispatchSource::Source,
+        "connector",
+        &payload.trigger_type,
+        &payload.data,
+    );
+    assert_eq!(signed, expected);
+    // Both forms honour the 32-hex-char (128-bit) token contract.
+    assert_eq!(unsigned.len(), 32);
 }
 
 /// A query executor that returns a canned response and records the query it saw, so
@@ -86,6 +129,7 @@ fn poller(pool: &PgPool, source: &str, executor: Arc<dyn QueryExecutor>) -> Sour
         LeaseGuardedRunner::in_process(source),
         HostContextConfig::default(),
         ResourceLimits::default(),
+        None,
         false,
     )
 }
@@ -189,6 +233,7 @@ async fn fires_a_model_b_connector_end_to_end() {
         LeaseGuardedRunner::in_process(source),
         HostContextConfig::default(),
         ResourceLimits::default(),
+        None,
         false,
     );
 

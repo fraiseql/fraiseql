@@ -7,13 +7,13 @@
 //!
 //! - [`SourceQueryExecutor`] — the [`QueryExecutor`](fraiseql_functions::host::live::QueryExecutor)
 //!   bridge that lets a source's `fraiseql_query` mutations execute against the server's
-//!   [`Executor`](fraiseql_core::runtime::Executor) under the source's `run_as` identity (#573 D6).
+//!   [`Executor`](fraiseql_core::runtime::Executor) under the source's `run_as` identity.
 //! - [`SourcePoller`] — the per-source scheduler loop: cron-tick → single-firing lease → a cursor +
 //!   executor host → invoke the Deno connector.
 //!
 //! Native pull sources (poll-IMAP email) run under the `inbound-email` feature
-//! independently; lifecycle wiring (reading `sources` from the compiled schema and
-//! spawning a poller per enabled source) lands in Phase 06 Step 4.
+//! independently. Lifecycle wiring — reading `sources` from the compiled schema and
+//! spawning a poller per enabled source — is assembled by [`build_source_pollers`].
 
 mod executor;
 mod metrics;

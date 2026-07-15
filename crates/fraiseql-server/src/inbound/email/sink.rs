@@ -3,7 +3,7 @@
 //! The generic source envelope ([`fraiseql_functions::run_source_once`]) hands each
 //! polled batch here. In one transaction this emits every message onto the durable
 //! spine (dedup by `Message-ID`) and advances the cursor — atomically, so a crash
-//! leaves writes and watermark consistent (decision D3). Once committed, it runs
+//! leaves writes and watermark consistent. Once committed, it runs
 //! the email-specific post-ingest work for each *genuinely new* message: delivery
 //! correlation (bounces / challenges → send-status / suppression) first — it is not
 //! idempotent, so a redelivery must not re-run it — then the `after:ingest:email`

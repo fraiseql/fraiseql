@@ -1,7 +1,7 @@
 //! Pure (no-database) unit tests for the source scheduling envelope, using an
 //! in-memory cursor store, a canned pull source, and a recording ingest sink. The
 //! transactional emit+advance atomicity and cross-replica single-firing are proven
-//! against real Postgres where the server sink lives (Phase 03).
+//! against real Postgres where the server sink lives.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
 use std::sync::{Arc, Mutex};
