@@ -112,6 +112,11 @@ pub fn plan_after_mutation_dispatch(
 /// message as JSON). Like [`plan_after_mutation_dispatch`] this is pure,
 /// always-compiled, and unit-tested: it needs no function runtime and returns an
 /// empty vector when no trigger matches (the common fast path).
+// Reason: the after:ingest planner is inbound-only (its callers live behind
+// `inbound`/`inbound-email`), yet stays always-compiled so its pure logic is
+// unit-tested without the runtime. A functions-runtime build without `inbound`
+// (e.g. `sources`) therefore legitimately has no caller.
+#[cfg_attr(not(feature = "inbound"), allow(dead_code))]
 pub fn plan_after_ingest_dispatch(
     hooks: &BeforeMutationHooks,
     message: &fraiseql_functions::InboundMessage,
@@ -449,7 +454,11 @@ pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutatio
 /// [`DispatchSource::AfterIngest`](fraiseql_observers::DispatchSource::AfterIngest).
 ///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
-#[cfg(feature = "functions-runtime")]
+// Gated on `inbound` (not merely `functions-runtime`): the after:ingest dispatcher
+// is only ever called from the inbound path (webhook + poll-IMAP email sinks), so a
+// functions-runtime build without `inbound` (e.g. `sources`) must not compile it
+// uncalled.
+#[cfg(feature = "inbound")]
 pub fn spawn_after_ingest(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
     spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterIngest);
 }
