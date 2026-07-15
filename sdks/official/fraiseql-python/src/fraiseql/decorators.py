@@ -1254,6 +1254,59 @@ def subscription(
     return decorator(func)
 
 
+def source(
+    *,
+    schedule: str,
+    function: str | None = None,
+    cursor: str | None = None,
+    enabled: bool = True,
+    run_as: dict[str, Any] | None = None,
+    **options: Any,
+) -> Callable[[F], F]:
+    """Decorator to register a scheduled ingress source (#573).
+
+    A source is the dual of an observer: on a cron ``schedule`` it fires a Deno
+    connector that pulls from an external system and drives results into the
+    database via mutations, resuming from a durable cursor. NO runtime behavior —
+    only used for schema compilation.
+
+    The decorated function's name is the source name (the durable-cursor row and
+    advisory-lease key); the bound ``function`` defaults to the same name.
+
+    Args:
+        schedule: POSIX cron expression the source polls on (e.g. ``"*/5 * * * *"``).
+        function: The bound Deno connector name; defaults to the source name.
+        cursor: Optional distinct cursor name (defaults to the source name).
+        enabled: Whether the source is scheduled (default ``True``).
+        run_as: Optional least-privilege authority ceiling (#573 D6):
+            ``{"roles": [...], "scopes": [...], "tenant": "..."}``. Absent ⇒
+            fail-closed (the source's mutations are RLS/authz-denied).
+        **options: Connector-specific options, opaque to the framework.
+
+    Returns:
+        The original function (unmodified).
+
+    Examples:
+        >>> @fraiseql.source(schedule="*/5 * * * *", run_as={"roles": ["ingest_writer"]})
+        ... def poll_orders() -> None:
+        ...     '''Every 5 minutes, ingest new orders.'''
+    """
+
+    def decorator(f: F) -> F:
+        SchemaRegistry.register_source(
+            name=f.__name__,
+            schedule=schedule,
+            function=function,
+            cursor=cursor,
+            enabled=enabled,
+            run_as=run_as,
+            options=options or None,
+        )
+        return f
+
+    return decorator
+
+
 def union(
     name: str | None = None,
     members: list[type] | None = None,

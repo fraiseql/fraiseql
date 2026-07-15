@@ -55,6 +55,8 @@ class SchemaRegistry:
     _queries: ClassVar[dict[str, SchemaElement]] = {}
     _mutations: ClassVar[dict[str, SchemaElement]] = {}
     _subscriptions: ClassVar[dict[str, SchemaElement]] = {}
+    # Scheduled ingress sources (#573) — the dual of observers.
+    _sources: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
     _custom_scalars: ClassVar[dict[str, tuple[type, str | None]]] = {}
     # Inject defaults: base applies to all operations; queries/mutations are per-operation-type
@@ -401,6 +403,52 @@ class SchemaRegistry:
         }
 
     @classmethod
+    def register_source(  # noqa: PLR0913 — public API; all parameters are meaningful
+        cls,
+        name: str,
+        schedule: str,
+        function: str | None = None,
+        cursor: str | None = None,
+        enabled: bool = True,
+        run_as: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> None:
+        """Register a scheduled ingress source (#573) — the dual of an observer.
+
+        Metadata only; the runtime is Rust. Emits a `sources` entry matching the
+        compiled ``SourceDefinition``.
+
+        Args:
+            name: Source name (unique); camelCased like other SDK names.
+            schedule: POSIX cron expression (e.g. ``"*/5 * * * *"``).
+            function: The bound Deno connector name; defaults to the source name.
+            cursor: Optional distinct cursor name (defaults to the source name).
+            enabled: Whether the source is scheduled (default ``True``).
+            run_as: Optional least-privilege authority ceiling (#573 D6):
+                ``{"roles": [...], "scopes": [...], "tenant": "..."}``.
+            options: Optional connector-specific options, opaque to the framework.
+        """
+        camel_name = _snake_to_camel(name)
+        if camel_name in cls._sources:
+            raise ValueError(
+                f"Source {camel_name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
+        definition: dict[str, Any] = {
+            "name": camel_name,
+            "schedule": schedule,
+            "function": function or camel_name,
+            "enabled": enabled,
+        }
+        if cursor is not None:
+            definition["cursor"] = cursor
+        if run_as is not None:
+            definition["run_as"] = run_as
+        if options:
+            definition["options"] = options
+        cls._sources[camel_name] = definition
+
+    @classmethod
     def register_scalar(
         cls,
         name: str,
@@ -474,6 +522,11 @@ class SchemaRegistry:
             "naming_convention": _NAMING_CONVENTION,
         }
 
+        # Include sources only when present (matches the Rust skip-if-empty and the
+        # TypeScript SDK; the source *definitions* live here, the runtime is Rust).
+        if cls._sources:
+            schema["sources"] = list(cls._sources.values())
+
         # Include inject_defaults if any are set
         if cls._inject_defaults:
             schema["inject_defaults"] = cls._inject_defaults
@@ -502,6 +555,7 @@ class SchemaRegistry:
         cls._queries.clear()
         cls._mutations.clear()
         cls._subscriptions.clear()
+        cls._sources.clear()
         cls._custom_scalars.clear()
         cls._inject_defaults.clear()
 
