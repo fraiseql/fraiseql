@@ -1041,3 +1041,54 @@ fn duplicate_source_name_is_rejected() {
     assert!(!report.is_valid());
     assert!(report.errors.iter().any(|e| e.message.contains("Duplicate source name")));
 }
+
+#[test]
+fn run_as_without_authority_warns_but_is_valid() {
+    use fraiseql_core::schema::{RunAs, SourceDefinition};
+    // A run_as that grants neither roles nor scopes is fail-closed: the source can
+    // write nothing. That is a valid (deny-by-default) configuration, but almost
+    // always a mistake — surface it as a warning, not an error.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders")
+                .with_run_as(RunAs::default()),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(report.is_valid(), "a fail-closed run_as is valid, only warned");
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.path.contains("run_as") && e.message.contains("no authority")),
+        "the no-authority run_as is warned"
+    );
+}
+
+#[test]
+fn run_as_with_blank_grant_is_rejected() {
+    use fraiseql_core::schema::{RunAs, SourceDefinition};
+
+    use crate::schema::validator::types::ErrorSeverity;
+    // A blank role/scope/tenant string is a config error, not a silent no-op.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+                roles:  vec!["  ".to_string()],
+                scopes: vec![],
+                tenant: None,
+            }),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(!report.is_valid());
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.path.contains("run_as") && e.severity == ErrorSeverity::Error),
+        "the blank role is rejected"
+    );
+}

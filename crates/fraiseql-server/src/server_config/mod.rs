@@ -469,6 +469,19 @@ pub struct ServerConfig {
     #[serde(default)]
     pub observers: Option<ObserverConfig>,
 
+    /// Scheduled-ingress source scheduler configuration (optional, requires the
+    /// `sources` feature). The source *definitions* live in the compiled schema;
+    /// this `[sources]` section tunes the runtime (global on/off, connector SSRF
+    /// allowlist).
+    ///
+    /// Boxed to keep `ServerConfig` small: this section is rarely set and read once
+    /// at startup, so it does not belong inline in a struct that sits on the
+    /// request-handling futures (an inline copy tips borderline futures past
+    /// clippy's `large_futures` stack budget).
+    #[cfg(feature = "sources")]
+    #[serde(default)]
+    pub sources: Option<Box<SourcesConfig>>,
+
     /// Connection pool pressure monitoring configuration.
     ///
     /// When `enabled = true`, the server spawns a background task that monitors
@@ -689,8 +702,44 @@ pub struct ServerConfig {
 /// policy (mapped to `fraiseql_storage::config::BucketConfig`). The section name
 /// becomes the logical bucket name in the URL path.
 ///
-/// The connection fields mirror [`fraiseql_storage::config::StorageConfig`]; the
-/// policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
+/// `[sources]` — runtime configuration for the scheduled-ingress source scheduler
+/// (#573, requires the `sources` feature).
+///
+/// The source *definitions* (name, schedule, function, `run_as`) come from the
+/// compiled schema; this section is operator-facing runtime tuning. Both fields are
+/// overridable by environment variables (env > TOML > default) so production can
+/// tune without recompiling:
+///
+/// - `FRAISEQL_SOURCES_ENABLED` — global on/off (`false`/`0`/`no`/`off` disables).
+/// - `FRAISEQL_SOURCES_ALLOWED_DOMAINS` — comma-separated SSRF allowlist.
+#[cfg(feature = "sources")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcesConfig {
+    /// Global on/off for the source scheduler. Per-source `enabled` in the compiled
+    /// schema still applies; this disables the whole scheduler without recompiling.
+    /// Default: `true`.
+    #[serde(default = "defaults::default_true")]
+    pub enabled: bool,
+
+    /// SSRF allowlist (glob patterns) for source connectors' outbound fetches.
+    /// Deny-by-default: empty permits no outbound host.
+    #[serde(default)]
+    pub allowed_domains: Vec<String>,
+}
+
+#[cfg(feature = "sources")]
+impl Default for SourcesConfig {
+    fn default() -> Self {
+        Self {
+            enabled:         true,
+            allowed_domains: Vec::new(),
+        }
+    }
+}
+
+/// The connection fields mirror [`fraiseql_storage::config::StorageConfig`].
+///
+/// The policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
 /// `serve_inline`) are optional and default to a private, force-download bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSectionConfig {
@@ -840,10 +889,13 @@ impl Default for ServerConfig {
             rate_limiting: None,             // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
-            pool_tuning: None,               // Pool pressure monitoring disabled by default
-            admission_control: None,         // Admission control disabled by default
-            security_contact: None,          // No security.txt by default
-            validation: None,                // Use compiled schema defaults
+            #[cfg(feature = "sources")]
+            sources: None, /* Source scheduler configured from the compiled
+                                              * schema by default */
+            pool_tuning: None,       // Pool pressure monitoring disabled by default
+            admission_control: None, // Admission control disabled by default
+            security_contact: None,  // No security.txt by default
+            validation: None,        // Use compiled schema defaults
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),

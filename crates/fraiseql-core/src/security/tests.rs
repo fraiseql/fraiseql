@@ -3841,3 +3841,44 @@ mod actor_context_tests {
         assert!(ctx.roles.is_empty());
     }
 }
+
+/// `SecurityContext::system_job` — the background/system identity for scheduled
+/// sources and other server-initiated work (#573 D6). The first (and, at
+/// introduction, only) construction of [`ActorType::SystemJob`].
+mod system_job_tests {
+    use crate::{
+        security::{ActorType, SecurityContext},
+        types::TenantId,
+    };
+
+    #[test]
+    fn system_job_carries_granted_authority_and_actor_type() {
+        let ctx = SecurityContext::system_job(
+            "orders",
+            "fire-1",
+            vec!["ingest_writer".to_string()],
+            vec!["write:order".to_string()],
+            Some(TenantId::from("acme")),
+        );
+        assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+        assert!(ctx.has_role("ingest_writer"));
+        assert!(ctx.has_scope("write:order"));
+        assert_eq!(ctx.tenant_id.as_ref().map(TenantId::as_str), Some("acme"));
+        assert!(ctx.is_multi_tenant());
+        assert!(!ctx.is_expired(), "a fresh system-job context is not expired");
+        // The principal reads as an internal job, mirroring the `apikey:` convention.
+        assert_eq!(ctx.user_id.as_str(), "system_job:orders");
+    }
+
+    #[test]
+    fn system_job_without_grants_is_fail_closed() {
+        // No roles, no scopes, no tenant → the identity grants nothing: every
+        // authz/RLS decision denies. This is the fail-closed default a source with
+        // no `run_as` runs under.
+        let ctx = SecurityContext::system_job("orders", "fire-1", vec![], vec![], None);
+        assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+        assert!(!ctx.has_role("admin"));
+        assert!(!ctx.has_scope("write:order"));
+        assert!(!ctx.is_multi_tenant(), "no tenant → scoped to nothing");
+    }
+}

@@ -236,6 +236,15 @@ inbound-email = [
     "dep:webpki-roots",
     "dep:lettre",
 ]
+# Scheduled ingress sources (#573) — the dual of observers. A `Source` fires a
+# Deno function (Model B) on a cron schedule under a single-firing lease, resuming
+# from a durable cursor, and drives results into the database via mutations. Pulls
+# `functions-runtime-deno` (the guest runtime + the I/O-capable host that runs the
+# connector, incl. the `fraiseql_query` mutation bridge) and `observers` (the
+# cursor store + advisory-lease runner the scheduler coordinates on). Opt-in:
+# without it the whole source scheduler is compiled out. Native pull sources (the
+# poll-IMAP email adapter) run under `inbound-email` independently.
+sources = ["functions-runtime-deno", "observers"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]

@@ -2,7 +2,10 @@
 //! the compiled schema.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
-use crate::schema::{CompiledSchema, SourceDefinition};
+use crate::{
+    schema::{CompiledSchema, RunAs, SourceDefinition},
+    security::ActorType,
+};
 
 #[test]
 fn cursor_name_defaults_to_the_source_name() {
@@ -44,6 +47,51 @@ fn enabled_defaults_to_true_when_absent() {
     .unwrap();
     assert!(source.enabled);
     assert_eq!(source.cursor_name(), "orders");
+}
+
+#[test]
+fn run_as_round_trips_and_is_omitted_when_absent() {
+    // A source with no run_as omits the field entirely (byte-stable pass-through).
+    let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    let json = serde_json::to_value(&source).unwrap();
+    assert!(json.get("run_as").is_none(), "an absent run_as is omitted");
+    assert!(source.run_as.is_none());
+
+    // A populated run_as survives a serde round-trip.
+    let with = source.with_run_as(RunAs {
+        roles:  vec!["ingest_writer".to_string()],
+        scopes: vec!["write:order".to_string()],
+        tenant: Some("acme".to_string()),
+    });
+    let round_tripped: SourceDefinition =
+        serde_json::from_value(serde_json::to_value(&with).unwrap()).unwrap();
+    assert_eq!(round_tripped, with);
+}
+
+#[test]
+fn identity_maps_run_as_to_a_system_job_context() {
+    let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+        roles:  vec!["ingest_writer".to_string()],
+        scopes: vec!["write:order".to_string()],
+        tenant: Some("acme".to_string()),
+    });
+    let ctx = source.identity("fire-1");
+    assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+    assert!(ctx.has_role("ingest_writer"));
+    assert!(ctx.has_scope("write:order"));
+    assert_eq!(ctx.tenant_id.as_ref().map(|t| t.as_str()), Some("acme"));
+}
+
+#[test]
+fn identity_is_fail_closed_without_run_as() {
+    // No run_as ⇒ an authority-less identity: the source can write nothing until an
+    // operator grants it a run_as ceiling.
+    let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders");
+    let ctx = source.identity("fire-1");
+    assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+    assert!(ctx.roles.is_empty(), "no roles → RBAC grants nothing");
+    assert!(ctx.scopes.is_empty(), "no scopes → grants nothing");
+    assert!(ctx.tenant_id.is_none(), "no tenant → global/deny");
 }
 
 #[test]

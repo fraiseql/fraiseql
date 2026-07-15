@@ -635,6 +635,14 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// single-firing — the double-poll bug fix). The email test suite otherwise runs nowhere,
 		// so this is also its first Dagger coverage.
 		"cargo test -p fraiseql-server --features inbound-email --lib inbound::email::source inbound::email::sink -- --test-threads=1",
+		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
+		// seam, the SourcePoller build_host composition (cursor round-trip vs PG +
+		// executor reachable via host.query), and the scheduler's schedulable/config
+		// resolution. `--features sources` pulls the Deno path (compiled only). The
+		// one V8 end-to-end (fires_a_model_b_connector_end_to_end — a real connector)
+		// is local-only, excluded here by name (embedded V8 SIGSEGVs in the exec
+		// sandbox), like the functions runtime-deno tests.
+		"cargo test -p fraiseql-server --features sources --lib sources:: -- --skip fires_a_model_b_connector_end_to_end --test-threads=1",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the

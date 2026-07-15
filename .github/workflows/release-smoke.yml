@@ -188,37 +188,44 @@ jobs:
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
 
       - name: Build fraiseql-server with the native runtime mounted
-        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email
+        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email,sources
 
-      - name: Boot with the native runtime mounted
+      # Boot against a schema that declares a scheduled source (#573). With the
+      # `sources` feature compiled in, this reaches the feature-gated source-scheduler
+      # startup block a sources-less schema never touches (reading the compiled
+      # `sources` and — when the functions subsystem is present — initializing the
+      # cursor table and building the pollers). It is the "compiles but panics on
+      # boot" guard for that startup code; the full poller wiring is covered
+      # functionally by the Dagger source suite.
+      - name: Boot with the native runtime mounted (+ a scheduled source)
         run: |
           ./target/release/fraiseql-server &
           echo $! > /tmp/fraiseql-server.pid
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.with-source.compiled.json
           FRAISEQL_BIND_ADDR: 127.0.0.1:8817
           FRAISEQL_INTROSPECTION_ENABLED: "true"
           FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
           FRAISEQL_ENV: development
           RUST_LOG: info
 
-      - name: Wait for /health (native runtime mounted)
+      - name: Wait for /health (native runtime mounted + source scheduler)
         run: |
           set -eu
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:8817/health; then
               echo
-              echo "Server booted healthy with functions-runtime-deno + inbound-email after ~$((i * 1))s."
+              echo "Server booted healthy with functions-runtime-deno + inbound-email + sources after ~$((i * 1))s."
               exit 0
             fi
             if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
-              echo "::error::server exited before /health with the native runtime mounted — a panic in the runtime/inbound startup path." >&2
+              echo "::error::server exited before /health with the native runtime + source scheduler mounted — a panic in the runtime/inbound/source startup path." >&2
               exit 1
             fi
             sleep 1
           done
-          echo "::error::Timed out waiting for /health (native runtime mounted) after 30s." >&2
+          echo "::error::Timed out waiting for /health (native runtime + source scheduler) after 30s." >&2
           exit 1
 
       - name: Stop server
