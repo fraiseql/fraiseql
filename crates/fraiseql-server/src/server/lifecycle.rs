@@ -262,6 +262,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         hooks.as_ref(),
                         &host_config,
                         &fraiseql_functions::ResourceLimits::default(),
+                        sources_config.log_payloads,
                     );
                     let started = pollers.len();
                     for poller in pollers {

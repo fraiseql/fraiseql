@@ -23,6 +23,7 @@ pub mod run;
 pub mod sbom;
 pub mod schema;
 pub mod setup;
+pub mod sources;
 pub mod validate;
 pub mod validate_documents;
 pub mod validate_facts;

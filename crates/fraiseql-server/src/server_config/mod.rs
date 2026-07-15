@@ -725,6 +725,15 @@ pub struct SourcesConfig {
     /// Deny-by-default: empty permits no outbound host.
     #[serde(default)]
     pub allowed_domains: Vec<String>,
+
+    /// Log each firing's trigger payload at debug (default: `false`).
+    ///
+    /// Off-by-default mirrors the observer `log_payloads` gate. A source's trigger
+    /// payload carries only schedule context (the external data the connector fetches
+    /// never reaches the poller), so the risk is low — but payload logging stays an
+    /// operator opt-in for a uniform PII stance.
+    #[serde(default)]
+    pub log_payloads: bool,
 }
 
 #[cfg(feature = "sources")]
@@ -733,6 +742,7 @@ impl Default for SourcesConfig {
         Self {
             enabled:         true,
             allowed_domains: Vec::new(),
+            log_payloads:    false,
         }
     }
 }

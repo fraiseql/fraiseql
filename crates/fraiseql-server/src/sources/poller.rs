@@ -12,7 +12,10 @@
 //! fire-and-forget `NoopHostContext` path with the leased, cursor+executor host a
 //! source needs to read its watermark and mutate.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use chrono::{DateTime, Utc};
 use fraiseql_functions::{
@@ -23,8 +26,13 @@ use fraiseql_functions::{
     },
     triggers::{CronExecutionState, CronSchedule},
 };
-use fraiseql_observers::{LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome};
+use fraiseql_observers::{
+    DispatchSource, LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome,
+    derive_idempotency_token,
+};
 use tracing::{debug, info, warn};
+
+use super::metrics;
 
 /// The collaborators one [`SourcePoller`] drives — assembled by the lifecycle from
 /// a compiled [`SourceDefinition`](fraiseql_core::schema::SourceDefinition).
@@ -49,6 +57,11 @@ pub struct SourcePoller {
     host_config:  HostContextConfig,
     /// Guest resource limits.
     limits:       ResourceLimits,
+    /// Whether to log the trigger payload on each firing (default off). Off-by-default
+    /// mirrors the observer `log_payloads` gate: even though a source's trigger
+    /// payload carries only schedule context — the external data the connector fetches
+    /// never reaches the poller — payload logging stays opt-in for a uniform PII stance.
+    log_payloads: bool,
     /// In-memory fire-window state (the durable cursor is the real resume point, so
     /// missed-fire catch-up across restarts is unnecessary — the next fire resumes
     /// from the cursor).
@@ -72,6 +85,7 @@ impl SourcePoller {
         runner: LeaseGuardedRunner,
         host_config: HostContextConfig,
         limits: ResourceLimits,
+        log_payloads: bool,
     ) -> Self {
         Self {
             source_name: source_name.into(),
@@ -83,42 +97,121 @@ impl SourcePoller {
             runner,
             host_config,
             limits,
+            log_payloads,
             state: CronExecutionState::new(),
         }
     }
 
+    /// The per-firing idempotency token: a stable hash of the source's identity and
+    /// this firing's trigger payload (which carries the scheduled instant), so each
+    /// scheduled tick has its own correlation id threaded through the metrics-adjacent
+    /// logs and made available to the connector via `ctx.idempotencyToken` for
+    /// idempotent writes. Never wall-clock/random *at the token site* — derived from
+    /// the already-built payload so a resume re-derives the same value.
+    fn idempotency_token(&self, payload: &EventPayload) -> String {
+        derive_idempotency_token(
+            None,
+            DispatchSource::Source,
+            &self.module.name,
+            &payload.trigger_type,
+            &payload.data,
+        )
+    }
+
     /// Build the Model B host for one firing: a live host bound to the source's
-    /// durable cursor *and* its `run_as` executor, so the guest can read/advance its
-    /// watermark and issue `fraiseql_query` mutations.
-    fn build_host(&self, payload: EventPayload) -> Arc<dyn DynHostContext> {
+    /// durable cursor, its `run_as` executor, and this firing's idempotency token, so
+    /// the guest can read/advance its watermark, issue `fraiseql_query` mutations, and
+    /// key idempotent writes.
+    fn build_host(
+        &self,
+        payload: EventPayload,
+        idempotency_token: &str,
+    ) -> Arc<dyn DynHostContext> {
         Arc::new(
             LiveHostContext::new(payload, self.host_config.clone())
                 .with_source_cursor(self.source_name.clone(), self.cursor_store.clone())
-                .with_executor(Arc::clone(&self.executor)),
+                .with_executor(Arc::clone(&self.executor))
+                .with_idempotency_token(idempotency_token.to_string()),
         )
     }
 
     /// Fire the source once, under the lease. Returns the outcome: skipped (another
     /// replica leads), or ran with the guest's own result. An acquire failure is
     /// logged and reported as a skip (the guest did not run this tick).
+    ///
+    /// This is the observability seam (#573 Phase 08): it meters every firing
+    /// (`fraiseql_source_fires_total` / `_run_duration_seconds` / `_skips_not_leader_total`)
+    /// and emits the structured fire/skip/error logs — all with the `source` and the
+    /// per-firing `idempotency_token` — so the whole per-outcome record lives here
+    /// rather than being split with the caller.
     async fn fire_once(
         &self,
         now: DateTime<Utc>,
     ) -> RunOutcome<fraiseql_error::Result<FunctionResult>> {
         let payload = build_source_payload(&self.source_name, &self.schedule.expression, now);
+        let token = self.idempotency_token(&payload);
+        if self.log_payloads {
+            debug!(
+                source = %self.source_name,
+                idempotency_token = %token,
+                payload = %payload.data,
+                "source firing (payload logging enabled)"
+            );
+        }
+        let started = Instant::now();
         let attempt = self
             .runner
             .run(|| async {
-                let host = self.build_host(payload.clone());
+                let host = self.build_host(payload.clone(), &token);
                 self.observer
                     .invoke_with_context(&self.module, payload.clone(), host, self.limits.clone())
                     .await
             })
             .await;
+        let elapsed = started.elapsed().as_secs_f64();
         match attempt {
-            Ok(outcome) => outcome,
+            Ok(RunOutcome::Ran(result)) => {
+                let label = match &result {
+                    Ok(_) => metrics::RESULT_OK,
+                    Err(_) => metrics::RESULT_ERROR,
+                };
+                metrics::record_fire(&self.source_name, label, elapsed);
+                match &result {
+                    Ok(_) => info!(
+                        source = %self.source_name,
+                        idempotency_token = %token,
+                        duration_ms = elapsed * 1000.0,
+                        "source fired"
+                    ),
+                    Err(error) => warn!(
+                        source = %self.source_name,
+                        idempotency_token = %token,
+                        duration_ms = elapsed * 1000.0,
+                        %error,
+                        "source invocation failed — re-runs from the last cursor next tick"
+                    ),
+                }
+                RunOutcome::Ran(result)
+            },
+            Ok(RunOutcome::SkippedNotLeader) => {
+                metrics::record_skip_not_leader(&self.source_name);
+                debug!(
+                    source = %self.source_name,
+                    idempotency_token = %token,
+                    "source skipped — another replica leads"
+                );
+                RunOutcome::SkippedNotLeader
+            },
             Err(error) => {
-                warn!(source = %self.source_name, %error, "source lease acquire failed — skipping tick");
+                // A lease *acquire* error is a DB fault, not "another replica leads",
+                // so it is not counted in skips_not_leader (which would then spike
+                // misleadingly during a database outage) — the warn log carries it.
+                warn!(
+                    source = %self.source_name,
+                    idempotency_token = %token,
+                    %error,
+                    "source lease acquire failed — skipping tick"
+                );
                 RunOutcome::SkippedNotLeader
             },
         }
@@ -144,17 +237,8 @@ impl SourcePoller {
                 continue;
             }
             self.state.record_execution(now);
-            match self.fire_once(now).await {
-                RunOutcome::Ran(Ok(_)) => {
-                    info!(source = %self.source_name, "source fired");
-                },
-                RunOutcome::Ran(Err(error)) => {
-                    warn!(source = %self.source_name, %error, "source invocation failed");
-                },
-                RunOutcome::SkippedNotLeader => {
-                    debug!(source = %self.source_name, "source skipped — another replica leads");
-                },
-            }
+            // `fire_once` owns the per-outcome metrics and structured logs.
+            let _ = self.fire_once(now).await;
         }
     }
 }

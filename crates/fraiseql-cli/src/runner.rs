@@ -591,6 +591,19 @@ pub async fn run() {
                 },
             },
         },
+
+        Commands::Sources {
+            schema,
+            db_url,
+            json,
+        } => {
+            commands::sources::run(commands::sources::SourcesArgs {
+                schema,
+                database: db_url,
+                json,
+            })
+            .await
+        },
     };
 
     if let Err(e) = result {

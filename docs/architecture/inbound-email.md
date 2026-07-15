@@ -1,10 +1,11 @@
 # Inbound Email (Poll-IMAP) Architecture
 
-The poll-IMAP email adapter is the first **pull** inbound source. It rides the
-inbound-ingestion primitive (see [webhooks.md](webhooks.md) for the push side and
-the shared spine): an external message becomes a normalized `InboundMessage` on a
-durable spine that `after:ingest:email` functions consume — the same path the
-webhook adapter uses, with a different transport at the edge.
+The poll-IMAP email adapter is the reference **Model A** native `PullSource` — the
+first pull inbound source. It rides the scheduled-ingress `Source` primitive (see
+[sources.md](sources.md) for the generic envelope and [webhooks.md](webhooks.md) for
+the push side and the shared spine): an external message becomes a normalized
+`InboundMessage` on a durable spine that `after:ingest:email` functions consume — the
+same path the webhook adapter uses, with a different transport at the edge.
 
 It is opt-in behind the `inbound-email` Cargo feature.
 
@@ -106,7 +107,11 @@ that could form a mail loop.
 ## Cursor semantics (at-least-once)
 
 The only state kept between polls is, per mailbox, the IMAP `UIDVALIDITY` last
-seen and the highest `UID` already ingested (`_fraiseql_inbound_email_cursor`).
+seen and the highest `UID` already ingested. Since the email adapter was reshaped as
+the reference Model A `PullSource`, that `{uid_validity, last_uid}` state is serialized
+as the opaque JSONB cursor value in the generic `_fraiseql_source_cursor` table (keyed
+on the mailbox name), so the framework treats it as opaque and the email adapter no
+longer keeps a bespoke cursor table.
 
 - Each poll fetches `UID (last_uid + 1):*` under the mailbox's *current*
   `UIDVALIDITY`.
