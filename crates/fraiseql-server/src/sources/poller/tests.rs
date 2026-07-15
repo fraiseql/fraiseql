@@ -15,9 +15,12 @@ use chrono::Utc;
 use fraiseql_functions::{
     FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
     host::live::{HostContextConfig, QueryExecutor},
+    runtime::deno::{DenoConfig, DenoRuntime},
     triggers::CronSchedule,
 };
-use fraiseql_observers::{LeaseGuardedRunner, PostgresSourceCursorStore, SourceCursorStore};
+use fraiseql_observers::{
+    LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome, SourceCursorStore,
+};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -125,4 +128,79 @@ async fn build_host_binds_both_the_cursor_and_the_executor() {
     // Durability: the advance persisted beyond the host.
     let snapshot = PostgresSourceCursorStore::new(pool.clone()).load(source).await.unwrap();
     assert_eq!(snapshot.value, Some(json!({ "page": 3 })));
+}
+
+/// A minimal Model B connector: read the cursor, mutate via `fraiseql_query`,
+/// advance the cursor — the exact loop the #573 issue shows.
+const CONNECTOR_TS: &str = r#"
+export default async () => {
+  const before = JSON.parse(await Deno.core.ops.fraiseql_cursor_get());
+  const page = (before && before.page ? before.page : 0) + 1;
+  await Deno.core.ops.fraiseql_query(
+    "mutation { createOrder(page: " + page + ") { id } }",
+    "{}"
+  );
+  await Deno.core.ops.fraiseql_cursor_advance(JSON.stringify({ page: page }));
+  return { page: page };
+};
+"#;
+
+/// The whole Model B slice end-to-end through the poller: a real Deno connector,
+/// fired once under the lease, reads its (null) cursor, issues a `fraiseql_query`
+/// mutation (reaching the bound executor), and advances the durable cursor.
+///
+/// LOCAL-ONLY: this invokes a real Deno guest (one V8 isolate), so — like every
+/// `runtime-deno` test — it is excluded from CI (embedded V8 SIGSEGVs in the Dagger
+/// exec sandbox); the `.dagger` source suite skips it by name. Run locally with
+/// `DATABASE_URL` set, one isolate per process.
+#[tokio::test]
+async fn fires_a_model_b_connector_end_to_end() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP fires_a_model_b_connector_end_to_end: no postgres");
+        return;
+    };
+    let source = "test-poller-e2e";
+    PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
+    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+        .bind(source)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let executor = StubExecutor::new(json!({ "data": { "createOrder": { "id": "1" } } }));
+    let mut observer = FunctionObserver::new();
+    observer.register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::default()).unwrap());
+    let module = FunctionModule::from_source(
+        "connector".to_string(),
+        CONNECTOR_TS.to_string(),
+        RuntimeType::Deno,
+    );
+
+    let poller = SourcePoller::new(
+        source,
+        CronSchedule::parse("*/5 * * * *").unwrap(),
+        module,
+        Arc::new(observer),
+        PostgresSourceCursorStore::new(pool.clone()),
+        executor.clone(),
+        LeaseGuardedRunner::in_process(source),
+        HostContextConfig::default(),
+        ResourceLimits::default(),
+    );
+
+    let outcome = poller.fire_once(chrono::Utc::now()).await;
+    assert!(
+        matches!(outcome, RunOutcome::Ran(Ok(_))),
+        "the connector fired and ran to completion under the lease"
+    );
+
+    // The connector's fraiseql_query reached the bound executor.
+    let seen = executor.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1, "the guest issued exactly one query");
+    assert!(seen[0].contains("createOrder"), "it was the connector's mutation: {}", seen[0]);
+    drop(seen);
+
+    // The connector advanced its durable cursor from null → { page: 1 }.
+    let snapshot = PostgresSourceCursorStore::new(pool.clone()).load(source).await.unwrap();
+    assert_eq!(snapshot.value, Some(json!({ "page": 1 })));
 }
