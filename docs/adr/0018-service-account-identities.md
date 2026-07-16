@@ -228,5 +228,4 @@ minted through the shared `RunAs::identity` path with `ActorType::ServiceAccount
 conformance test — a service principal reads via a policy-scoped subscription (phase 06)
 and writes under its ceiling, with audit rows carrying the `service_account:<name>`
 identity, plus the fail-closed cases (unknown account / bad secret → 401; no ceiling →
-anonymous). A public issue (generic framing + evidence + this shape) is filed for
-visibility ahead of the work.
+anonymous). Public issue #602 (generic framing + evidence + this shape) tracks the work.
