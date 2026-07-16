@@ -177,7 +177,9 @@ jobs:
     name: Build Binary (${{ matrix.target }})
     needs: create-github-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # Native targets build BOTH the lean and the `-full` (V8) variant in one job;
+    # V8 release compilation is heavy, so allow more headroom than the lean-only 60m.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -258,6 +260,47 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           files: fraiseql-${{ matrix.target }}.${{ matrix.archive_ext }}
+          fail_on_unmatched_files: true
+
+      # ── Feature-complete "-full" variant (phase 01, option a) ──────────────────
+      # A SECOND artifact per native target — `fraiseql-full-<target>` — carrying the
+      # stable opt-in platform features (Deno functions, sources, observers, /mcp,
+      # inbound, metrics) via the umbrella `release-full` bundle. The lean default
+      # artifact above is UNCHANGED. Adopters of the platform features download the
+      # `-full` binary instead of rebuilding cli+server from source at the same
+      # revision (the #507 jsonb_column same-revision contract makes mixing a stock
+      # cli with a custom server dangerous).
+      #
+      # Native targets only: `functions-runtime-deno` compiles V8, which does not
+      # build under the `cross` Docker images used for aarch64-linux. That target
+      # therefore ships the lean artifact only — a documented gap (docs/releases.md),
+      # never a silent one.
+      - name: Build full binary (cargo)
+        if: '!matrix.use_cross'
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features release-full
+
+      - name: Strip full binary (Linux/macOS native)
+        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      - name: Create full archive (tar.gz)
+        if: matrix.archive_ext == 'tar.gz' && !matrix.use_cross
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql
+          tar czf fraiseql-full-${{ matrix.target }}.tar.gz fraiseql
+
+      - name: Create full archive (zip)
+        if: matrix.archive_ext == 'zip' && !matrix.use_cross
+        shell: bash
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql.exe
+          7z a fraiseql-full-${{ matrix.target }}.zip fraiseql.exe
+
+      - name: Upload full archive to release
+        if: '!matrix.use_cross'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        with:
+          files: fraiseql-full-${{ matrix.target }}.${{ matrix.archive_ext }}
           fail_on_unmatched_files: true
 
   # SBOM generation handled by sbom-generation.yml (Cosign-signed, validated)

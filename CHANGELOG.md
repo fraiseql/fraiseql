@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.12.0] - 2026-07-15
+### Added
+
+- **Feature-complete `-full` release binaries.** The published release now includes a
+  second artifact per native target, `fraiseql-full-<target>`, carrying the stable
+  opt-in platform features that were previously reachable only from a source build:
+  Deno/TypeScript functions (`functions-runtime-deno`), scheduled `sources`, `mcp`,
+  `inbound` + `inbound-email`, `observers`, and Prometheus `metrics`. It also enables
+  `run-server`, so the `-full` binary is a self-contained server (`fraiseql run`), not
+  a CLI with dead server code. Adopters of the platform features download this binary
+  instead of rebuilding cli+server at the same revision themselves — the
+  same-revision `jsonb_column` contract (#507) makes mixing a stock cli with a custom
+  server dangerous, so a matched pair matters. **The lean default artifact
+  (`fraiseql-<target>`, `cli,server,postgres`) is unchanged** — use the cli from the
+  same release. See `docs/releases.md` for the artifact matrix and the
+  native-target-only caveat (V8 does not cross-compile to `aarch64-unknown-linux-gnu`,
+  which ships lean; use the Docker image or a source build for ARM-Linux platform
+  features). The umbrella `fraiseql` crate gains pass-through features
+  (`functions-runtime`, `functions-runtime-deno`, `sources`, `mcp`, `inbound`,
+  `inbound-email`, `metrics`, `run-server`) mirroring the `observers` precedent, plus
+  a `release-full` bundle.
 
 ### Added
 
