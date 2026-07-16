@@ -124,6 +124,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
+        let service_account_authenticator =
+            crate::service_account::service_account_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema)?;
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
         let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
@@ -153,6 +155,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             oidc_server_client,
             schema_rate_limiter,
             api_key_authenticator,
+            service_account_authenticator,
             revocation_manager,
             trusted_docs,
             db_pool,
@@ -252,6 +255,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let _oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
+        let service_account_authenticator =
+            crate::service_account::service_account_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema)?;
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
         let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
@@ -348,6 +353,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             mfa_state: None,
             api_key_authenticator,
+            service_account_authenticator,
             revocation_manager,
             apq_store: if apq_enabled {
                 Some(Arc::new(fraiseql_core::apq::InMemoryApqStorage::default())

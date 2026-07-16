@@ -33,6 +33,14 @@ pub async fn enrich_security_context(
     resolver: &IdentityResolver,
     ctx: &mut SecurityContext,
 ) -> EnrichmentOutcome {
+    // ADR-0018 decision 5: a principal that already carries server-injected
+    // `fraiseql.enriched.*` fields (a service account's `static_enriched`) is enriched
+    // **in lieu of** the DB resolve — skip re-resolution. Inbound `fraiseql.*` claims are
+    // stripped by the request extractor, so a human principal never reaches here with
+    // enriched attributes present; only a server-injected set does.
+    if ctx.attributes.keys().any(|k| k.starts_with(ENRICHED_NAMESPACE_PREFIX)) {
+        return EnrichmentOutcome::Proceed;
+    }
     let sub = ctx.user_id.0.clone();
     let claims = claims_for_binding(ctx);
     match resolver.resolve(&sub, &claims).await {

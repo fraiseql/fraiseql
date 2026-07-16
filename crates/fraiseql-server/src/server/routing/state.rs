@@ -82,6 +82,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("API key authenticator attached to AppState");
         }
 
+        // Attach service-account authenticator if configured
+        if let Some(ref sa_auth) = self.service_account_authenticator {
+            state = state.with_service_account_authenticator(sa_auth.clone());
+            info!("Service-account authenticator attached to AppState");
+        }
+
         // Attach the functions-runtime before-mutation hooks prepared at serve time
         // (modules loaded, runtimes registered, send_email wiring attached), so
         // after:mutation functions fire on the I/O-capable live host.

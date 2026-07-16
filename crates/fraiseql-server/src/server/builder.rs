@@ -133,6 +133,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         if api_key_authenticator.is_some() {
             info!("API key authentication enabled");
         }
+        let service_account_authenticator =
+            crate::service_account::service_account_authenticator_from_schema(&schema);
+        if service_account_authenticator.is_some() {
+            info!("Service-account authentication enabled");
+        }
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema)?;
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
@@ -210,6 +215,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             oidc_server_client,
             schema_rate_limiter,
             api_key_authenticator,
+            service_account_authenticator,
             revocation_manager,
             trusted_docs,
             db_pool,
@@ -289,6 +295,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
         schema_rate_limiter: Option<Arc<RateLimiter>>,
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+        service_account_authenticator: Option<
+            Arc<crate::service_account::ServiceAccountAuthenticator>,
+        >,
         revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
         trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
         // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
@@ -402,6 +411,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             anon_signup_state: None,
             api_key_authenticator,
+            service_account_authenticator,
             revocation_manager,
             apq_store: None,
             trusted_docs,

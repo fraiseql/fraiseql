@@ -49,7 +49,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscription rather than widening it. (Public API change; no in-tree callers relied
   on the fail-open behavior.)
 
+- **Ambiguous-credential requests are rejected (401) when service accounts are enabled
+  (ADR-0018).** In a deployment with `[security.service_accounts]` configured, a single
+  request carrying **both** a valid JWT **and** an `x-api-key` secret is rejected as
+  ambiguous rather than silently resolving to the JWT principal. Deployments without
+  service accounts are unaffected (existing API-key behavior is unchanged).
+
 ### Added
+
+- **Service-account identities — named, auditable, ceiling-bound external principals
+  (ADR-0018, #602).** A `[security.service_accounts.<name>]` block grants an external
+  daemon a first-class identity: an **env-indirected** static secret + a `run_as` ceiling
+  (`roles` / `scopes` / `tenant`). It reuses — and supersedes — the scopes-only static
+  API key: same header, same SHA-256 + constant-time compare, but the secret lives only
+  in the env var named by `secret_env` (the config holds only the *name*, never an inline
+  hash) and the principal carries a full ceiling minted through
+  `SecurityContext::service_account` (`ActorType::ServiceAccount`,
+  `user_id = service_account:<name>` in audit rows — no new actor type, no new column).
+  - **Multi-entry-point:** the authenticator runs on the GraphQL handler, the `/ws`
+    subscription upgrade (so a service principal can hold a **policy-scoped subscription**,
+    #596), and REST — the same seam everywhere, no auth-middleware change.
+  - **Fail-closed:** an unknown account / bad secret is a 401 **indistinguishable** from
+    each other (no account-existence oracle); an account with no ceiling authenticates but
+    has no authority (RLS / field-authz deny its writes); a secret whose env var is unset
+    is skipped (unusable, never anonymous).
+  - **`static_enriched`** (opt-in, per account) server-injects `fraiseql.enriched.*` fields
+    for a daemon with no actor row — the only sanctioned deviation from uniform enrichment
+    (ADR-0016 decision 6), server-injected and never token-asserted.
+  - **Credential presentation** is the `x-api-key` header, not `Authorization: Bearer`
+    (which the JWT middleware consumes first) — an amendment to ADR-0018 decision 2.
+  See `docs/adr/0018-service-account-identities.md`.
 
 - **`fraiseql functions invoke` — a local V8 test harness for function authors.**
   Runs a compiled function in a **real V8 isolate** against a fixture payload, with

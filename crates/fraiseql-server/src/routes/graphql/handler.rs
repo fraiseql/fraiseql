@@ -300,6 +300,30 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     headers: &HeaderMap,
     peer_ip: &str,
 ) -> Result<GraphQLResponse, ErrorResponse> {
+    // Service-account auth (ADR-0018): a service account's `run_as` ceiling takes
+    // precedence over the scopes-only static API key on the same header. A JWT principal
+    // presented alongside a secret header is rejected as ambiguous (#602), never silently
+    // resolved to one identity.
+    if let Some(ref sa_auth) = state.service_account_authenticator {
+        match sa_auth.resolve(headers, security_context.is_some()) {
+            crate::service_account::SaAuth::Authenticated(ctx) => {
+                debug!("Authenticated via service account");
+                security_context = Some(*ctx);
+            },
+            crate::service_account::SaAuth::Ambiguous => {
+                return Err(ErrorResponse::from_error(GraphQLError::new(
+                    "Ambiguous credentials: a bearer token and an API-key / service-account \
+                     secret were presented on the same request",
+                    crate::error::ErrorCode::Unauthenticated,
+                )));
+            },
+            // No secret header, or present-but-unmatched — fall through to the static
+            // API-key check (which 401s if it also fails to match).
+            crate::service_account::SaAuth::NoSecret
+            | crate::service_account::SaAuth::Unmatched => {},
+        }
+    }
+
     // API key auth: if configured, try it before falling through to JWT/OIDC.
     if security_context.is_none() {
         if let Some(ref api_key_auth) = state.api_key_authenticator {
