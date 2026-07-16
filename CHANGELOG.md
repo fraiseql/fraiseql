@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Subscription row-level visibility on the live `/ws` path — fail-closed (#596).**
+  Previously any principal authorized to subscribe to an entity over `/ws`
+  (`graphql-transport-ws` / legacy `graphql-ws`) received **every** row's after-images:
+  the subscribe path passed empty RLS conditions, so the push path enforced no row
+  boundary the pull path (GraphQL queries) already did. An entity may now declare a
+  `subscription_policy` (`owner_path` / `identity_field` / `bypass_roles`) in the
+  compiled schema; at subscribe time the server derives a **server-owned** owner
+  condition from the connection's server-resolved enriched identity (#539, the
+  forge-proof `fraiseql.enriched.*` namespace — a client-supplied claim cannot widen
+  it) and enforces it on every delivered event. **Fail-closed:** a policy-declaring
+  subscription whose identity is unresolvable (no enrichment, denial, resolver outage,
+  or anonymous) is **refused at subscribe time**, never delivered unfiltered; a
+  `bypass_roles` role keeps full visibility; an entity with no policy is unchanged. The
+  legacy `graphql-ws` subprotocol routes through the same enforcement and cannot bypass
+  it. The single policy→condition derivation lives in `fraiseql-core` so the pull and
+  push paths consume the same semantics. See
+  `docs/architecture/enriched-identity-rls.md` ("The push path: subscription row
+  visibility").
+
+### Changed
+
+- **`fraiseql_core::runtime::extract_rls_conditions` is now fail-closed (`Result`).**
+  It previously silently dropped any clause shape it could not represent as a flat
+  `field = value` equality ("delivers more events, never fewer") — a deliver-all hole
+  when the conditions gate row visibility (#596). It now returns
+  `Result<Vec<(String, Value)>, String>` and **errors** on a non-`Eq` operator, `Or`,
+  `Not`, or native-column shape, so a caller deriving visibility conditions refuses the
+  subscription rather than widening it. (Public API change; no in-tree callers relied
+  on the fail-open behavior.)
+
 ### Added
 
 - **`fraiseql functions invoke` — a local V8 test harness for function authors.**

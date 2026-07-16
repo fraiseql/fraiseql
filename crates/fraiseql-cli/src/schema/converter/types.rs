@@ -56,6 +56,7 @@ impl SchemaConverter {
             is_error: intermediate.is_error,
             relay: intermediate.relay,
             relationships: Vec::new(),
+            subscription_policy: None,
         })
     }
 

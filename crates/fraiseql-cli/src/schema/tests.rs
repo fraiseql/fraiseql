@@ -175,6 +175,7 @@ mod database_validator_tests {
             is_error:            false,
             relay:               false,
             relationships:       Vec::new(),
+            subscription_policy: None,
         }
     }
 
@@ -1812,6 +1813,7 @@ mod optimizer_tests {
                 is_error:            false,
                 relay:               false,
                 relationships:       Vec::new(),
+                subscription_policy: None,
             }],
             enums: vec![],
             input_types: vec![],
@@ -1871,6 +1873,7 @@ mod optimizer_tests {
                 is_error:            false,
                 relay:               false,
                 relationships:       Vec::new(),
+                subscription_policy: None,
             }],
             enums: vec![],
             input_types: vec![],
@@ -1940,6 +1943,7 @@ mod optimizer_tests {
                 is_error:            false,
                 relay:               false,
                 relationships:       Vec::new(),
+                subscription_policy: None,
             }],
             enums: vec![],
             input_types: vec![],

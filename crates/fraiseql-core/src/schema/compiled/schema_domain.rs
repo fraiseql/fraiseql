@@ -592,6 +592,15 @@ impl CompiledSchema {
             if !type_names.insert(type_def.name.as_str()) {
                 errors.push(format!("Duplicate type name: {}", type_def.name));
             }
+
+            // Validate a declared subscription row-visibility policy (#596): a malformed
+            // `owner_path`/`identity_field` is a load-time error, not a silent
+            // deliver-all at subscribe time.
+            if let Some(policy) = &type_def.subscription_policy {
+                if let Err(e) = policy.validate() {
+                    errors.push(format!("Type '{}': {e}", type_def.name));
+                }
+            }
         }
 
         // Check for duplicate query names

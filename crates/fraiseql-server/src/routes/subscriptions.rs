@@ -48,6 +48,7 @@ use fraiseql_core::{
             SubscribePayload,
         },
     },
+    schema::{CompiledSchema, OwnerCondition, SubscriptionPolicy},
     security::{Authorizer, OperationKind, SecurityContext, authorizer::enforce_authz},
 };
 use futures::{SinkExt, StreamExt};
@@ -142,6 +143,19 @@ pub struct SubscriptionState {
     /// delivery to a connection whose tenant is suspended is paused. `None` until
     /// a host binary installs a multi-tenant registry.
     pub tenant_status_source: Option<Arc<dyn TenantStatusSource>>,
+    /// Per-subscription-field row-visibility policies (#596), keyed by subscription
+    /// field name, resolved at mount time from the target entity's compiled
+    /// `subscription_policy`. A subscription named here derives a **server-owned** owner
+    /// condition from the connection's enriched identity at subscribe time — fail-closed
+    /// when the identity is unresolvable. A subscription with no policy keeps today's
+    /// behavior (no back-compat break).
+    pub subscription_policies: Arc<HashMap<String, SubscriptionPolicy>>,
+    /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
+    /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
+    /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted.
+    /// `None` disables enrichment — a policy-declaring subscription then fails closed.
+    #[cfg(feature = "auth")]
+    pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
 }
 
 impl SubscriptionState {
@@ -156,7 +170,34 @@ impl SubscriptionState {
             strict_tenant_validation: false,
             authorizer: None,
             tenant_status_source: None,
+            subscription_policies: Arc::new(HashMap::new()),
+            #[cfg(feature = "auth")]
+            identity_resolver: None,
         }
+    }
+
+    /// Install the per-subscription row-visibility policies (#596). Typically built by
+    /// [`build_subscription_policies`] from the compiled schema at mount time.
+    #[must_use]
+    pub fn with_subscription_policies(
+        mut self,
+        policies: Arc<HashMap<String, SubscriptionPolicy>>,
+    ) -> Self {
+        self.subscription_policies = policies;
+        self
+    }
+
+    /// Install the enriched-identity resolver (#539) used to derive row-visibility owner
+    /// boundaries at subscribe time. `None` leaves policy-declaring subscriptions
+    /// fail-closed (refused).
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_identity_resolver(
+        mut self,
+        resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    ) -> Self {
+        self.identity_resolver = resolver;
+        self
     }
 
     /// Install the tenant-status source (M-tenant-ws-suspended). When set, new
@@ -219,6 +260,89 @@ impl SubscriptionState {
     pub fn with_remote_subscription_fields(mut self, fields: HashMap<String, String>) -> Self {
         self.remote_subscription_fields = Arc::new(fields);
         self
+    }
+}
+
+/// Build the per-subscription row-visibility policy map (#596) from the compiled schema.
+///
+/// For each subscription field, resolve its target entity's `subscription_policy` (if
+/// any) and key it by the subscription field name. The `/ws` handler consults this map
+/// at subscribe time; an entry means "derive a server-owned owner condition and refuse
+/// if the identity is unresolvable", absence means "unchanged behavior".
+#[must_use]
+pub fn build_subscription_policies(schema: &CompiledSchema) -> HashMap<String, SubscriptionPolicy> {
+    let mut policies = HashMap::new();
+    for sub in &schema.subscriptions {
+        if let Some(type_def) = schema.types.iter().find(|t| t.name.as_str() == sub.return_type) {
+            if let Some(policy) = &type_def.subscription_policy {
+                policies.insert(sub.name.clone(), policy.clone());
+            }
+        }
+    }
+    policies
+}
+
+/// Resolve the server-owned RLS conditions to enforce for a subscribe request (#596).
+///
+/// - `Ok(vec![])` — the subscription declares no policy (back-compat) **or** the principal holds a
+///   bypass role (full visibility);
+/// - `Ok(vec![(owner_field, identity_value)])` — a scoped subscriber sees only its rows;
+/// - `Err(reason)` — the policy applies but the identity is unresolvable; the caller **refuses**
+///   the subscription (fail-closed, never deliver-all).
+async fn resolve_subscription_rls(
+    state: &SubscriptionState,
+    subscription_name: &str,
+    principal: Option<&SecurityContext>,
+) -> Result<Vec<(String, serde_json::Value)>, String> {
+    let Some(policy) = state.subscription_policies.get(subscription_name) else {
+        return Ok(Vec::new());
+    };
+
+    // Enrich a copy of the principal so the owner boundary derives from the
+    // server-resolved `fraiseql.enriched.*` namespace, never a client claim. A failed
+    // or absent enrichment leaves the enriched field unresolvable → the derivation
+    // refuses below (fail-closed). Enrichment runs only for policy-declaring
+    // subscriptions, so unscoped streams pay nothing.
+    #[cfg(feature = "auth")]
+    let enriched = enrich_principal(state, principal).await;
+    #[cfg(feature = "auth")]
+    let effective = enriched.as_ref().or(principal);
+    #[cfg(not(feature = "auth"))]
+    let effective = principal;
+
+    derive_policy_conditions(policy, effective)
+}
+
+/// Enrich a clone of the principal's `SecurityContext` (#539). Best-effort: on a denial
+/// or resolver outage the enriched fields are simply absent, so a policy-declaring
+/// subscription fails closed at derivation. Returns `None` when there is no principal
+/// or no resolver configured.
+#[cfg(feature = "auth")]
+async fn enrich_principal(
+    state: &SubscriptionState,
+    principal: Option<&SecurityContext>,
+) -> Option<SecurityContext> {
+    let resolver = state.identity_resolver.as_ref()?;
+    let mut ctx = principal?.clone();
+    let _ = crate::identity::enrich_security_context(resolver, &mut ctx).await;
+    Some(ctx)
+}
+
+/// Adapt a policy's seam-neutral [`OwnerCondition`] to the `/ws` seam's `(field, value)`
+/// condition channel (#596). Fail-closed: `Refuse` → `Err`. A `None` principal (or one
+/// lacking the enriched field) derives to `Refuse`, so anonymous subscribers cannot see
+/// a policy-scoped entity's rows.
+fn derive_policy_conditions(
+    policy: &SubscriptionPolicy,
+    principal: Option<&SecurityContext>,
+) -> Result<Vec<(String, serde_json::Value)>, String> {
+    let empty = HashMap::new();
+    let attributes = principal.map_or(&empty, |ctx| &ctx.attributes);
+    let roles: &[String] = principal.map_or(&[], |ctx| ctx.roles.as_slice());
+    match policy.derive(attributes, roles) {
+        OwnerCondition::Bypass => Ok(Vec::new()),
+        OwnerCondition::Eq { field, value } => Ok(vec![(field, value)]),
+        OwnerCondition::Refuse(reason) => Err(reason),
     }
 }
 
@@ -816,18 +940,51 @@ async fn handle_client_message(
                 }
             }
 
+            // #596: derive the server-owned row-visibility condition for this
+            // subscription from the target entity's `subscription_policy`. Fail-closed —
+            // a policy that applies but whose identity is unresolvable refuses the
+            // subscription rather than falling back to delivering every row.
+            let rls_conditions = match resolve_subscription_rls(
+                state,
+                &subscription_name,
+                principal,
+            )
+            .await
+            {
+                Ok(conditions) => conditions,
+                Err(reason) => {
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        connection_id = %connection_id,
+                        subscription = %subscription_name,
+                        "Row-visibility policy refused the subscription (fail-closed)"
+                    );
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(reason, "SUBSCRIPTION_REFUSED")],
+                    );
+                    if let Err(send_err) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %send_err, "Could not send row-visibility refusal to client");
+                    }
+                    return Ok(());
+                },
+            };
+
             // Build context with server-resolved tenant_id
             let mut context = serde_json::json!({});
             if let Some(tid) = tenant_id {
                 context["tenant_id"] = serde_json::Value::String(tid.to_string());
             }
 
-            // Subscribe locally (field is owned by this subgraph)
-            match state.manager.subscribe(
+            // Subscribe locally (field is owned by this subgraph). The server-owned
+            // `rls_conditions` (#596) are enforced on every delivered event (AND
+            // semantics) and cannot be overridden by client-supplied variables/filters.
+            match state.manager.subscribe_with_rls(
                 &subscription_name,
                 context,
                 variables_value,
                 connection_id,
+                rls_conditions,
             ) {
                 Ok(sub_id) => {
                     active_operations.insert(op_id.clone(), sub_id);

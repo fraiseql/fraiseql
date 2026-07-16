@@ -141,6 +141,57 @@ an existence oracle over the actor table.
 
 ---
 
+## The push path: subscription row visibility (#596)
+
+The pull path (GraphQL queries) enforces per-row RLS. The **push path** — live
+subscriptions over `/ws` (`graphql-transport-ws` / legacy `graphql-ws`) — historically
+did not: any principal authorized to subscribe to an entity received **every** row's
+after-images. It now consumes the *same* enriched identity fields, so the two paths
+share one boundary.
+
+An entity declares a row policy in the compiled schema:
+
+```jsonc
+"subscription_policy": {
+  "owner_path": "$.owner_id",     // single-level path into the after-image
+  "identity_field": "user_id",    // the fraiseql.enriched.* field resolved here
+  "bypass_roles": ["admin"]       // roles that get full visibility
+}
+```
+
+At subscribe time the server derives a **server-owned** owner condition from the
+connection's enriched identity and enforces it on every delivered event (AND semantics
+with any tenant gate and client filters — a client filter can only *narrow*):
+
+- **Resolvable identity** → the subscription is scoped to `owner_path == <enriched
+  identity_field>`. The value is read **only** from the `fraiseql.enriched.*`
+  namespace, so a client-supplied claim or subscribe variable cannot widen it.
+- **`bypass_roles` role** → full visibility, no added condition.
+- **Unresolvable identity** (no enrichment configured, a denial, a resolver outage, a
+  NULL field, or an anonymous connection) → the subscription is **refused at subscribe
+  time** — fail-closed, never delivered unfiltered.
+- **No policy** on the entity → unchanged behavior (no back-compat break).
+
+The single policy→condition derivation lives in `fraiseql-core`
+(`schema::SubscriptionPolicy::derive` → `OwnerCondition`), so the push seam and any
+future seam consume identical semantics; a divergence — e.g. `bypass_roles` honored on
+one path but not the other — would itself be a bypass. `extract_rls_conditions` is
+fail-closed for the same reason: a clause shape it cannot enforce as equality refuses
+the subscription rather than silently widening it.
+
+> **DELETE events / pre-images.** The policy evaluates on whichever image the event
+> carries; a scoped subscriber only learns of a delete when the change stream includes
+> the row's owning image (i.e. `pre_image` is enabled for the entity). This is the
+> fail-closed default — a scoped client is never shown a row it does not own, even a
+> deleted one.
+
+> **Realtime `/realtime/v1` entity stream.** A second (opt-in, not assembled by the
+> stock server) push subsystem carries entity after-images too; its policy hardening is
+> tracked separately. The `POST /realtime/v1/broadcast` app-channel pubsub carries no
+> entity after-images and has no row policy.
+
+---
+
 ## Operational notes
 
 - **Provision actors out-of-band.** Under `enabled = true`, every authenticated

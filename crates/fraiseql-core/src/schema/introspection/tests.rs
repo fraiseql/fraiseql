@@ -227,6 +227,7 @@ fn test_deprecated_field_introspection() {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition {
@@ -482,6 +483,7 @@ fn test_interface_introspection() {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition::new("name", FieldType::String),
@@ -499,6 +501,7 @@ fn test_interface_introspection() {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition::new("title", FieldType::String),
@@ -564,6 +567,7 @@ fn test_type_implements_interface() {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition::new("createdAt", FieldType::DateTime),
