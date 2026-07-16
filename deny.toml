@@ -353,11 +353,6 @@ reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no u
 version = "=0.21.12"
 
 [[bans.skip-tree]]
-name = "p256"
-reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
-version = "=0.11.1"
-
-[[bans.skip-tree]]
 name = "wasmtime"
 reason = "wasmtime v44 pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat; upgrade tracked for 2026-12-01"
 version = "=44.0.3"

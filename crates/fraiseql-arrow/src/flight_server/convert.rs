@@ -26,12 +26,12 @@ use tracing::warn;
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub fn record_batch_to_flight_data(batch: &RecordBatch) -> std::result::Result<FlightData, Status> {
-    use arrow::ipc::writer::CompressionContext;
+    use arrow::ipc::writer::IpcWriteContext;
 
     let options = IpcWriteOptions::default();
     let data_gen = IpcDataGenerator::default();
     let mut dict_tracker = DictionaryTracker::new(false);
-    let mut compression = CompressionContext::default();
+    let mut compression = IpcWriteContext::default();
 
     let (_, encoded_data) =
         data_gen
