@@ -1,10 +1,10 @@
-//! Unit tests for the source query-executor bridge's pure logic: identity
-//! resolution (the per-message tenant seam) and reserved-variable splitting.
+//! Unit tests for the shared query-bridge's pure logic: identity resolution (the
+//! per-message tenant seam) and reserved-variable splitting.
 //!
-//! The live `execute_query` round-trip (a connector actually mutating through the
+//! The live `execute_query` round-trip (a guest actually mutating through the
 //! server `Executor`) is exercised end-to-end by the scheduler integration test
-//! against real PostgreSQL; here we pin the identity/variable
-//! logic that has no database dependency.
+//! against real PostgreSQL; here we pin the identity/variable logic that has no
+//! database dependency.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
 use fraiseql_core::{security::SecurityContext, types::TenantId};

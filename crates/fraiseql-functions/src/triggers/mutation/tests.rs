@@ -14,6 +14,7 @@ fn test_after_mutation_trigger_matches() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     assert!(trigger.matches("User", EventKind::Insert));
@@ -27,6 +28,7 @@ fn test_after_mutation_trigger_matches_all_kinds() {
         function_name: "onUserChanged".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  None,
+        predicates:    Vec::new(),
     };
 
     assert!(trigger.matches("User", EventKind::Insert));
@@ -41,6 +43,7 @@ fn test_after_mutation_trigger_builds_payload() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -85,6 +88,7 @@ fn test_trigger_matcher_specific_event_kind() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     matcher.add(trigger);
@@ -104,6 +108,7 @@ fn test_trigger_matcher_all_kinds() {
         function_name: "onUserChanged".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  None,
+        predicates:    Vec::new(),
     };
 
     matcher.add(trigger);
@@ -121,6 +126,7 @@ fn test_trigger_matcher_mixed_specific_and_all() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     // Add all-kinds trigger
@@ -128,6 +134,7 @@ fn test_trigger_matcher_mixed_specific_and_all() {
         function_name: "onUserChanged".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  None,
+        predicates:    Vec::new(),
     });
 
     // Insert should return both
@@ -148,12 +155,14 @@ fn test_trigger_matcher_multiple_entities() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onPostCreated".to_string(),
         entity_type:   "Post".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     let user_results = matcher.find("User", EventKind::Insert);
@@ -173,6 +182,7 @@ fn test_trigger_matcher_no_cross_entity_match() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     let post_results = matcher.find("Post", EventKind::Insert);
@@ -455,4 +465,154 @@ async fn test_before_mutation_chain_execute_missing_module_returns_error() {
         .await;
 
     assert!(result.is_err(), "Expected error for missing module");
+}
+
+// ── #597: TriggerPredicate (declarative `when`) ─────────────────────────────
+
+mod trigger_predicates {
+    use serde_json::json;
+
+    use super::super::{
+        AfterMutationTrigger, EntityEvent, EventKind, TriggerPredicate, predicates_match,
+    };
+
+    fn eq(field: &str, value: serde_json::Value) -> TriggerPredicate {
+        TriggerPredicate {
+            field:      field.to_string(),
+            eq:         Some(value),
+            changed_to: None,
+        }
+    }
+    fn changed_to(field: &str, value: serde_json::Value) -> TriggerPredicate {
+        TriggerPredicate {
+            field:      field.to_string(),
+            eq:         None,
+            changed_to: Some(value),
+        }
+    }
+
+    #[test]
+    fn eq_matches_current_image_and_fails_on_missing_or_mismatch() {
+        let new = json!({ "status": "approved", "kind": "standard" });
+        // Match on the after-image.
+        assert!(eq("status", json!("approved")).matches(None, Some(&new)));
+        // Mismatch.
+        assert!(!eq("status", json!("pending")).matches(None, Some(&new)));
+        // Missing field ⇒ false (eq against absent field never matches).
+        assert!(!eq("missing", json!("x")).matches(None, Some(&new)));
+    }
+
+    #[test]
+    fn eq_on_delete_evaluates_the_pre_image() {
+        // A DELETE has no after-image; eq falls back to the pre-image.
+        let old = json!({ "status": "archived" });
+        assert!(eq("status", json!("archived")).matches(Some(&old), None));
+    }
+
+    #[test]
+    fn changed_to_matches_only_a_real_transition() {
+        let old = json!({ "status": "pending" });
+        let new = json!({ "status": "approved" });
+        // pending → approved: a transition to the target.
+        assert!(changed_to("status", json!("approved")).matches(Some(&old), Some(&new)));
+        // Already approved (approved → approved): not a transition.
+        let already = json!({ "status": "approved" });
+        assert!(!changed_to("status", json!("approved")).matches(Some(&already), Some(&already)));
+        // Transitioned to a different value.
+        let rejected = json!({ "status": "rejected" });
+        assert!(!changed_to("status", json!("approved")).matches(Some(&old), Some(&rejected)));
+    }
+
+    #[test]
+    fn changed_to_never_matches_a_delete() {
+        // A DELETE has no after-image → no field can have "changed to" a value.
+        let old = json!({ "status": "pending" });
+        assert!(!changed_to("status", json!("approved")).matches(Some(&old), None));
+    }
+
+    #[test]
+    fn conjunction_requires_all_predicates_and_empty_always_holds() {
+        let new = json!({ "status": "approved", "kind": "standard" });
+        let old = json!({ "status": "pending", "kind": "standard" });
+        let all = [
+            changed_to("status", json!("approved")),
+            eq("kind", json!("standard")),
+        ];
+        assert!(predicates_match(&all, Some(&old), Some(&new)), "both hold");
+
+        let one_fails = [
+            changed_to("status", json!("approved")),
+            eq("kind", json!("premium")),
+        ];
+        assert!(!predicates_match(&one_fails, Some(&old), Some(&new)), "one fails ⇒ no match");
+
+        // Empty conjunction always fires (back-compat).
+        assert!(predicates_match(&[], Some(&old), Some(&new)));
+    }
+
+    #[test]
+    fn validate_rejects_bad_operator_combinations() {
+        // Neither operator.
+        assert!(
+            TriggerPredicate {
+                field:      "s".into(),
+                eq:         None,
+                changed_to: None,
+            }
+            .validate(Some("update"))
+            .is_err()
+        );
+        // Both operators.
+        assert!(
+            TriggerPredicate {
+                field:      "s".into(),
+                eq:         Some(json!(1)),
+                changed_to: Some(json!(1)),
+            }
+            .validate(Some("update"))
+            .is_err()
+        );
+        // changed_to on a non-update trigger.
+        assert!(changed_to("s", json!("x")).validate(Some("insert")).is_err());
+        assert!(changed_to("s", json!("x")).validate(None).is_err());
+        // changed_to on update is fine; eq on any operation is fine.
+        assert!(changed_to("s", json!("x")).validate(Some("update")).is_ok());
+        assert!(eq("s", json!("x")).validate(Some("delete")).is_ok());
+    }
+
+    #[test]
+    fn unknown_predicate_keys_are_rejected() {
+        // `deny_unknown_fields` rejects a typo'd operator at deserialization.
+        let bad = serde_json::from_value::<TriggerPredicate>(json!({
+            "field": "status", "equals": "approved"
+        }));
+        assert!(bad.is_err(), "unknown key `equals` is a load error");
+    }
+
+    #[test]
+    fn trigger_predicates_hold_flows_through_the_event() {
+        let trigger = AfterMutationTrigger {
+            function_name: "notify_approved".to_string(),
+            entity_type:   "Order".to_string(),
+            event_filter:  Some(EventKind::Update),
+            predicates:    vec![changed_to("status", json!("approved"))],
+        };
+        let now = chrono::Utc::now();
+        let fires = EntityEvent {
+            entity:     "Order".to_string(),
+            event_kind: EventKind::Update,
+            old:        Some(json!({ "status": "pending" })),
+            new:        Some(json!({ "status": "approved" })),
+            timestamp:  now,
+        };
+        let noop = EntityEvent {
+            entity:     "Order".to_string(),
+            event_kind: EventKind::Update,
+            old:        Some(json!({ "status": "approved" })),
+            new:        Some(json!({ "status": "approved" })),
+            timestamp:  now,
+        };
+        assert!(trigger.predicates_hold(&fires), "fires on the pending→approved transition");
+        assert!(!trigger.predicates_hold(&noop), "does not fire on approved→approved");
+    }
 }

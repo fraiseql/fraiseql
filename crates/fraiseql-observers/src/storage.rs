@@ -194,6 +194,7 @@ pub mod postgres {
                         actor_type: None,
                         acting_for: None,
                         schema_version: None,
+                        cdc_source: None,
                     }
                 })
                 .collect();

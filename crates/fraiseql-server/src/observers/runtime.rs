@@ -265,7 +265,18 @@ pub struct ObserverRuntime {
     dlq:                 Arc<InMemoryDlq>,
     /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
     event_bridge_sender: Option<mpsc::Sender<BridgeEntityEvent>>,
+    /// Optional after:capture dispatch hook (#366). When set (the functions
+    /// subsystem is configured), each change-log event is passed to it; the hook
+    /// dispatches `after:capture` functions for genuinely-captured writes
+    /// (`cdc_source == "fallback_trigger"`). `None` compiles the capture path out.
+    capture_dispatch:    Option<CaptureDispatchFn>,
 }
+
+/// A hook the observer runtime calls for each change-log event (#366).
+///
+/// Dispatches `after:capture` functions; it owns the function hooks + the `run_as`
+/// query-executor factory, and is a no-op for non-captured (executor-written) rows.
+pub type CaptureDispatchFn = Arc<dyn Fn(&ObserverEntityEvent) + Send + Sync>;
 
 impl ObserverRuntime {
     /// Create a new observer runtime
@@ -289,12 +300,19 @@ impl ObserverRuntime {
             entity_type_index: Arc::new(ArcSwap::from_pointee(HashMap::new())),
             dlq: Arc::new(InMemoryDlq::new_with_max(max_dlq_size)),
             event_bridge_sender: None,
+            capture_dispatch: None,
         }
     }
 
     /// Set the `EventBridge` sender so CDC events are forwarded to GraphQL subscriptions.
     pub fn set_event_bridge_sender(&mut self, sender: mpsc::Sender<BridgeEntityEvent>) {
         self.event_bridge_sender = Some(sender);
+    }
+
+    /// Set the after:capture dispatch hook (#366) — called for each change-log event
+    /// so `after:capture` functions fire on externally-captured writes.
+    pub fn set_capture_dispatch(&mut self, hook: CaptureDispatchFn) {
+        self.capture_dispatch = Some(hook);
     }
 
     /// Load observers from the database and convert to `ObserverDefinitions`.
@@ -466,6 +484,8 @@ impl ObserverRuntime {
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         let pool = self.config.pool.clone();
         let log_payloads = self.config.log_payloads;
+        // #366: the after:capture dispatch hook, if the functions subsystem wired one.
+        let capture_dispatch = self.capture_dispatch.clone();
 
         // Clone Arc references for hot reload
         let matcher_ref = Arc::clone(&self.matcher);
@@ -573,6 +593,14 @@ impl ObserverRuntime {
                                         log_payloads,
                                     )
                                     .await;
+
+                                    // #366: after:capture — drive functions on
+                                    // externally-captured writes. The hook is a
+                                    // no-op for executor-written (non-captured)
+                                    // rows, so mediated writes never loop back.
+                                    if let Some(ref dispatch) = capture_dispatch {
+                                        dispatch(&event);
+                                    }
                                 }
 
                                 // Update checkpoint (in-memory and database)
@@ -1394,12 +1422,17 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
                     "DLQ full; dropping failed function dispatch entry"
                 );
                 self.overflow_count.fetch_add(1, Ordering::Relaxed);
+                // The internal overflow counter now also reaches `/metrics` — an
+                // eviction must never be Prometheus-invisible (#598).
+                crate::function_metrics::record_dlq_eviction();
+                crate::function_metrics::set_dlq_size(items.len());
                 // Drop the newest entry: it is intentionally not stored.
                 return Ok(id);
             }
         }
 
         items.push(record);
+        crate::function_metrics::set_dlq_size(items.len());
         Ok(id)
     }
 

@@ -759,6 +759,66 @@ EXAMPLES:
         #[arg(long)]
         json: bool,
     },
+
+    /// Author-side function tooling (local test harness).
+    #[cfg(feature = "functions-invoke")]
+    #[command(subcommand)]
+    Functions(FunctionsCommands),
+}
+
+/// `fraiseql functions` subcommands.
+#[cfg(feature = "functions-invoke")]
+#[derive(Subcommand)]
+pub(crate) enum FunctionsCommands {
+    /// Run a compiled function in a real V8 isolate against a fixture payload,
+    /// with mocked host ops — the author's inner test loop.
+    ///
+    /// Exit codes: 0 = ran; 3 = the `when` predicate did not match (nothing would
+    /// fire); 4 = the guest errored; 1 = a config/harness error.
+    #[command(long_about = "\
+Run a compiled function against a fixture payload in a real V8 isolate.
+
+The module is loaded exactly as the server loads it (from the compiled schema's
+module_dir); host ops are mocked so no live server, database, or network is needed.
+Every host-op call the function makes is printed.
+
+EXAMPLES:
+    fraiseql functions invoke notifyApproved --payload event.json
+    fraiseql functions invoke notifyApproved --payload event.json --explain
+    fraiseql functions invoke syncDeal --payload deal.json \\
+        --mock-http http.json --mock-query query.json")]
+    Invoke {
+        /// The function name (matches a definition in the compiled schema).
+        name: String,
+
+        /// Path to the fixture payload JSON. For after:mutation / after:capture:
+        /// `{ \"event_kind\": \"update\", \"old\": {…}, \"new\": {…} }` (a bare
+        /// object is treated as an insert's `new` image).
+        #[arg(long)]
+        payload: std::path::PathBuf,
+
+        /// Path to schema.compiled.json.
+        #[arg(long, default_value = "schema.compiled.json")]
+        schema: std::path::PathBuf,
+
+        /// Canned HTTP responses (JSON array of `{url_contains, method?, status?, body?}`);
+        /// a request matching none fails loud.
+        #[arg(long)]
+        mock_http: Option<std::path::PathBuf>,
+
+        /// Canned query responses (JSON array of `{query_contains?, response}`) for the
+        /// `fraiseql_query` bridge; a query matching none fails loud.
+        #[arg(long)]
+        mock_query: Option<std::path::PathBuf>,
+
+        /// Inject a fixed idempotency token the guest reads via the host op.
+        #[arg(long)]
+        idempotency_token: Option<String>,
+
+        /// Print why the `when` predicates did or did not match this payload.
+        #[arg(long)]
+        explain: bool,
+    },
 }
 
 /// `fraiseql perf` subcommands.

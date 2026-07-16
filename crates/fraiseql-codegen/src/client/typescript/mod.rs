@@ -6,6 +6,7 @@
 //! helpers, while `emit` owns the per-file rendering.
 
 mod emit;
+mod functions_dts;
 mod render;
 mod runtime;
 
@@ -19,6 +20,7 @@ use fraiseql_core::schema::{
     CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition, TypeDefinition,
     UnionDefinition,
 };
+pub use functions_dts::{FunctionPayloadShape, FunctionTypeSpec, generate_functions_dts};
 
 use crate::{Generated, Result};
 

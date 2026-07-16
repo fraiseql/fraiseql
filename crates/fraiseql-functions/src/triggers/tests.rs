@@ -15,6 +15,7 @@ fn test_after_mutation_fires_on_insert() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -41,6 +42,7 @@ fn test_after_mutation_fires_on_update() {
         function_name: "onUserUpdated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Update),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -67,6 +69,7 @@ fn test_after_mutation_fires_on_delete() {
         function_name: "onUserDeleted".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Delete),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -93,6 +96,7 @@ fn test_after_mutation_receives_entity_type() {
         function_name: "onPostCreated".to_string(),
         entity_type:   "Post".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -116,12 +120,14 @@ fn test_after_mutation_trigger_matching() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let trigger_all = AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  None,
+        predicates:    Vec::new(),
     };
 
     // Insert-only trigger matches insert
@@ -179,6 +185,7 @@ fn test_after_mutation_payload_serialization() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -208,12 +215,14 @@ fn test_trigger_dispatch_finds_matching_triggers() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  None, // Matches all events
+        predicates:    Vec::new(),
     });
 
     // When User is inserted, both specific and all-kinds triggers match
@@ -236,6 +245,7 @@ async fn test_after_mutation_async_dispatch_nonblocking() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     };
 
     let event = EntityEvent {
@@ -264,18 +274,21 @@ fn test_trigger_dispatch_multiple_mutations() {
         function_name: "onUserCreated".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserDeleted".to_string(),
         entity_type:   "User".to_string(),
         event_filter:  Some(EventKind::Delete),
+        predicates:    Vec::new(),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onPostCreated".to_string(),
         entity_type:   "Post".to_string(),
         event_filter:  Some(EventKind::Insert),
+        predicates:    Vec::new(),
     });
 
     // User insert triggers only user create trigger

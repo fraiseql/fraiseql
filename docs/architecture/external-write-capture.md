@@ -181,3 +181,27 @@ CDC view).
   `crates/fraiseql-cli/src/commands/generate_capture_triggers.rs`.
 - Reader / poller: `crates/fraiseql-observers/src/listener/change_log.rs`.
 - Related: [`change-log-contract.md`](./change-log-contract.md).
+
+## Driving functions — `after:capture` (#366)
+
+An externally-captured write can drive a **function**, not just observers and
+subscriptions — event-driven reconciliation instead of cron-polling. Declare an
+`after:capture:<Entity>[:<operation>]` trigger; the change-log reader dispatches it
+on the same durable / `re_runnable` / DLQ machinery as `after:mutation`, on the
+phase-02 I/O host (so the function can `fraiseql_query` back under its `run_as`
+ceiling).
+
+- **Loop safety.** Dispatch keys on the captured-row discriminator
+  `extra_metadata.cdc_source = "fallback_trigger"`: only genuinely-external writes
+  drive functions. A FraiseQL executor / bridge write carries no marker, so a
+  capture-dispatched function that writes back (via `fraiseql_query`) never
+  re-enters the capture path — no capture→function→write→capture loop. (Distinct
+  from `cdc_mediated`, which suppresses the capture *trigger*; this filter is the
+  reader-side half.) A genuinely-external loop — function → HTTP → external daemon →
+  writes the captured table — is the operator's topology to bound, not the
+  framework's.
+- **Payload.** `new` = the captured after-image; a DELETE reports the removed row as
+  `old`. The full pre-image for an UPDATE is not carried on this path, so `old` is
+  `None` there (`changed_to` predicates gate on the after-value — same limitation as
+  the after:mutation route path). Actor fields may be NULL ("degraded but valid").
+- **Predicates.** `when` (#597) evaluates identically on the capture payload.

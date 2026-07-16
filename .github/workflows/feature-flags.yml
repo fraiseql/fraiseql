@@ -31,6 +31,7 @@ jobs:
           - "azure-blob"                                                               # Azure Blob storage standalone
           - "gcs"                                                                    # Google Cloud Storage standalone
           - "metrics,observers"                                                          # metrics + observers combo
+          - "functions-runtime-deno,sources,mcp,inbound-email,metrics"                   # the full platform stack (phase 01 release-full)
           - "webhooks,auth"                                                                # webhooks triggered from auth events
           - "tracing-opentelemetry"                                                        # OpenTelemetry standalone
           - "functions,rest,testing"                                                        # empty features compile-only sanity check
@@ -140,3 +141,25 @@ jobs:
         run: cargo check -p fraiseql-functions --no-default-features --features "${{ matrix.features }}"
       - name: cargo clippy
         run: cargo clippy -p fraiseql-functions --no-default-features --features "${{ matrix.features }}" --all-targets -- -D warnings
+
+  # Umbrella `fraiseql` crate — the published release artifact (phase 01). Proves
+  # the umbrella feature pass-throughs express the lean default AND the `-full`
+  # release variant, so a future feature rename in fraiseql-server that breaks the
+  # pass-through is caught here rather than at tag time.
+  umbrella-matrix:
+    name: "check umbrella (${{ matrix.features }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "cli,server,postgres"                      # the lean default release artifact
+          - "release-full"                             # the -full release variant (V8 + mcp + sources + inbound + metrics)
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
+      - name: cargo check
+        run: cargo check -p fraiseql --no-default-features --features "${{ matrix.features }}"

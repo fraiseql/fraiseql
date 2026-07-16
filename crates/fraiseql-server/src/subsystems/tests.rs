@@ -78,6 +78,7 @@ fn minimal_schema_storage_config() -> SchemaStorageConfig {
 fn minimal_functions_config() -> FunctionsConfig {
     FunctionsConfig {
         module_dir:  "/functions".into(),
+        dlq_store:   None,
         definitions: vec![FunctionDefinition::new(
             "on_create_user",
             "after:mutation:createUser",
@@ -153,6 +154,7 @@ fn into_before_mutation_hooks_resolves_dispatch_settings() {
     // from the compiled schema and stands up the shared dead-letter queue.
     let config = FunctionsConfig {
         module_dir:  "/functions".into(),
+        dlq_store:   None,
         definitions: vec![
             FunctionDefinition::new("chargeCard", "after:mutation:Order:insert", RuntimeType::Wasm),
             FunctionDefinition::new("scoreDeal", "after:mutation:Deal:insert", RuntimeType::Wasm)
@@ -298,6 +300,7 @@ fn test_server_state_validates_deps_functions_need_storage() {
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
         module_dir:  "/functions".into(),
+        dlq_store:   None,
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -335,6 +338,7 @@ async fn test_server_state_validates_deps_storage_triggers_ok_with_storage() {
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
         module_dir:  "/functions".into(),
+        dlq_store:   None,
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -478,6 +482,7 @@ fn test_validate_empty_functions_registry_warns() {
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
         module_dir:  "/functions".into(),
+        dlq_store:   None,
         definitions: vec![], // no definitions
     };
     let trigger_registry = TriggerRegistry::new();

@@ -78,6 +78,106 @@ pub struct EntityEvent {
     pub timestamp:  chrono::DateTime<chrono::Utc>,
 }
 
+/// A single declarative field/transition predicate on an after:mutation trigger
+/// (#597).
+///
+/// The `when` condition that decides whether a function fires, evaluated by the
+/// dispatcher against the built payload **before** any runtime spins.
+///
+/// Deliberately small: a `field` plus exactly one operator — `eq` (state) or
+/// `changed_to` (transition). Anything richer stays guest code; this is a dispatch
+/// filter, not a rules engine. A list of predicates is a **conjunction** (all must
+/// hold); an empty list always fires (back-compat).
+///
+/// ```jsonc
+/// { "field": "status", "changed_to": "approved" }  // UPDATE-only transition test
+/// { "field": "kind",   "eq": "standard" }           // state test (INSERT + UPDATE)
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TriggerPredicate {
+    /// The field (a JSON key in the row image) to test.
+    pub field: String,
+
+    /// **State test**: the field currently equals this value. Evaluated on the
+    /// after-image (INSERT/UPDATE) or, for a DELETE, the pre-image. An absent field
+    /// never equals a value (missing ⇒ `false`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eq: Option<serde_json::Value>,
+
+    /// **Transition test** (UPDATE-only): the field *changed to* this value —
+    /// `old.field != v && new.field == v`. A DELETE (no after-image) never matches;
+    /// `changed_to` on a non-`update` trigger is a load error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changed_to: Option<serde_json::Value>,
+}
+
+impl TriggerPredicate {
+    /// Evaluate this predicate against a row's `old`/`new` images.
+    ///
+    /// - `eq`: the current image (`new`, or `old` on a DELETE) has `field == v`. Missing field ⇒
+    ///   `false`.
+    /// - `changed_to`: `old.field != v && new.field == v`.
+    ///
+    /// A predicate with neither operator set (rejected at load) never matches.
+    #[must_use]
+    pub fn matches(
+        &self,
+        old: Option<&serde_json::Value>,
+        new: Option<&serde_json::Value>,
+    ) -> bool {
+        if let Some(value) = &self.eq {
+            // Prefer the after-image; fall back to the pre-image for a DELETE.
+            let image = new.or(old);
+            return image.and_then(|row| row.get(&self.field)) == Some(value);
+        }
+        if let Some(value) = &self.changed_to {
+            let before = old.and_then(|row| row.get(&self.field));
+            let after = new.and_then(|row| row.get(&self.field));
+            return before != Some(value) && after == Some(value);
+        }
+        false
+    }
+
+    /// Validate the predicate at load time against the trigger's `operation`
+    /// (`insert`/`update`/`delete`, or `None` for all).
+    ///
+    /// # Errors
+    ///
+    /// - Neither `eq` nor `changed_to` set, or both set (exactly one operator).
+    /// - `changed_to` on a non-`update` trigger (a transition needs a before + after).
+    pub fn validate(&self, operation: Option<&str>) -> Result<(), String> {
+        match (&self.eq, &self.changed_to) {
+            (Some(_), Some(_)) => Err(format!(
+                "predicate on field `{}` sets both `eq` and `changed_to` — use exactly one",
+                self.field
+            )),
+            (None, None) => Err(format!(
+                "predicate on field `{}` sets neither `eq` nor `changed_to`",
+                self.field
+            )),
+            (None, Some(_)) if operation != Some("update") => Err(format!(
+                "predicate on field `{}` uses `changed_to`, which is UPDATE-only, but the \
+                 trigger operation is `{}`",
+                self.field,
+                operation.unwrap_or("all")
+            )),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// Whether *all* predicates in a conjunction hold for a row's `old`/`new` images.
+/// An empty conjunction always holds (back-compat: no `when` ⇒ always fire).
+#[must_use]
+pub fn predicates_match(
+    predicates: &[TriggerPredicate],
+    old: Option<&serde_json::Value>,
+    new: Option<&serde_json::Value>,
+) -> bool {
+    predicates.iter().all(|predicate| predicate.matches(old, new))
+}
+
 /// Trigger that fires after a mutation completes.
 ///
 /// When a mutation completes, the observer pipeline emits an `EntityEvent`.
@@ -90,6 +190,7 @@ pub struct EntityEvent {
 /// - Must match `entity_type` exactly
 /// - If `event_filter` is `None`, matches all event kinds (Insert/Update/Delete)
 /// - If `event_filter` is `Some`, matches only that specific event kind
+/// - `predicates` (the `when` clause) must all hold on the row images (#597)
 ///
 /// # Dispatch
 ///
@@ -105,13 +206,25 @@ pub struct AfterMutationTrigger {
     pub entity_type:   String,
     /// Optional filter on event kind (None = all).
     pub event_filter:  Option<EventKind>,
+    /// The `when` conjunction (#597); empty ⇒ always fire (back-compat).
+    pub predicates:    Vec<TriggerPredicate>,
 }
 
 impl AfterMutationTrigger {
-    /// Check if this trigger matches the given entity and event.
+    /// Check if this trigger matches the given entity and event kind. Does **not**
+    /// evaluate the `when` predicates — the dispatcher applies
+    /// [`predicates_hold`](Self::predicates_hold) against the payload afterwards.
     #[must_use]
     pub fn matches(&self, entity: &str, event_kind: EventKind) -> bool {
         self.entity_type == entity && self.event_filter.is_none_or(|filter| filter == event_kind)
+    }
+
+    /// Whether this trigger's `when` predicates all hold for the event's row images
+    /// (#597). Evaluated by the dispatcher before spawning the runtime — a `false`
+    /// result means the function does not fire (no dispatch record at all).
+    #[must_use]
+    pub fn predicates_hold(&self, event: &EntityEvent) -> bool {
+        predicates_match(&self.predicates, event.old.as_ref(), event.new.as_ref())
     }
 
     /// Build an `EventPayload` from an entity event.

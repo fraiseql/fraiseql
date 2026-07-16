@@ -23,6 +23,11 @@ pub struct McpConfig {
     /// Blacklist of query/mutation names to hide.
     #[serde(default)]
     pub exclude:      Vec<String>,
+    /// Read-only exposure: when `true`, no mutation is ever exposed as an MCP tool,
+    /// regardless of `include`/`exclude` (fail-closed for AI callers). Recommended
+    /// unless you deliberately expose mutations.
+    #[serde(default)]
+    pub read_only:    bool,
 }
 
 impl Default for McpConfig {
@@ -34,6 +39,7 @@ impl Default for McpConfig {
             require_auth: true,
             include:      Vec::new(),
             exclude:      Vec::new(),
+            read_only:    false,
         }
     }
 }

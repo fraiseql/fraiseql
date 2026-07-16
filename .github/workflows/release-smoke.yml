@@ -187,8 +187,18 @@ jobs:
       - name: Stop server (sql_source-ON run)
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
 
-      - name: Build fraiseql-server with the native runtime mounted
-        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email,sources
+      - name: Build fraiseql-server with the full platform feature surface mounted
+        # The shipped `-full` release variant (phase 01) compiles the whole stable
+        # platform surface: functions-runtime-deno + sources + inbound-email +
+        # observers + mcp + metrics. Boot the server binary with the SAME surface so
+        # a panic in any feature-gated startup path (V8/Deno + WASM registration,
+        # after:mutation dispatch mounts, inbound source wiring, the /mcp nest, the
+        # /metrics recorder) is caught here — the "compiles but panics on boot" guard,
+        # now covering everything the `-full` artifact ships. The /mcp route itself
+        # only nests when the compiled schema declares mcp config, so this fixture
+        # (no mcp block) proves the feature compiles + does not panic at boot; the
+        # functional /mcp + Deno-fires + source-ticks checks live in the Dagger suites.
+        run: cargo build --release -p fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers
 
       # Boot against a schema that declares a scheduled source (#573). With the
       # `sources` feature compiled in, this reaches the feature-gated source-scheduler
@@ -216,18 +226,30 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:8817/health; then
               echo
-              echo "Server booted healthy with functions-runtime-deno + inbound-email + sources after ~$((i * 1))s."
+              echo "Server booted healthy with the full platform surface (functions-runtime-deno + inbound-email + sources + mcp + metrics) after ~$((i * 1))s."
               exit 0
             fi
             if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
-              echo "::error::server exited before /health with the native runtime + source scheduler mounted — a panic in the runtime/inbound/source startup path." >&2
+              echo "::error::server exited before /health with the full platform surface mounted — a panic in the runtime/inbound/source/mcp/metrics startup path." >&2
               exit 1
             fi
             sleep 1
           done
-          echo "::error::Timed out waiting for /health (native runtime + source scheduler) after 30s." >&2
+          echo "::error::Timed out waiting for /health (full platform surface) after 30s." >&2
           exit 1
 
       - name: Stop server
         if: always()
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
+
+      # Link-check the ACTUAL published `-full` download artifact (phase 01): the
+      # umbrella `fraiseql` binary built with `release-full` (adds `run-server` so it
+      # is a self-contained server, plus every platform feature). release.yml ships
+      # this exact `--package fraiseql --features release-full` binary as
+      # `fraiseql-full-<target>`; building it here proves the shipped artifact links
+      # (V8 + rmcp + metrics-exporter + the CLI serve path) at release time, not just
+      # the fraiseql-server crate. This replaces the previous divergent
+      # `-p fraiseql-server` throwaway build's role: the smoke now exercises the real
+      # published artifact's feature graph.
+      - name: Build the published -full release artifact (link check)
+        run: cargo build --release --package fraiseql --features release-full

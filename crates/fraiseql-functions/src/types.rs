@@ -94,6 +94,66 @@ pub struct EventPayload {
     pub timestamp:    chrono::DateTime<chrono::Utc>,
 }
 
+/// The least-privilege authority ceiling a function's `fraiseql_query` bridge
+/// writes run under (#594) — the function's `run_as`.
+///
+/// This is the same authority model scheduled sources use
+/// ([`fraiseql_core::schema::RunAs`], `docs/architecture/sources.md:88-109`), applied
+/// to event-dispatched functions: a *ceiling* the function can never exceed. A
+/// [`FunctionDefinition`] with no `run_as` runs **fail-closed** — its host's
+/// `fraiseql_query` executes under an anonymous [`system_job`] identity with no
+/// roles/scopes/tenant, so RLS and field-authorization deny every write until an
+/// operator grants a ceiling. Granting authority is a deliberate act, never a
+/// default.
+///
+/// It is a distinct type from the core `RunAs` so the base `fraiseql-functions`
+/// crate (used by the CLI, codegen, and authoring) need not depend on
+/// `fraiseql-core`; the two share an identical JSON shape and the wiring layer
+/// (`host-live`) converts to a `SecurityContext` via [`FunctionDefinition::identity`].
+///
+/// [`system_job`]: fraiseql_core::security::SecurityContext::system_job
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunAs {
+    /// Roles granted to the function's background write identity (the RBAC ceiling).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
+
+    /// Scopes granted to the function's background write identity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+
+    /// The single tenant this function's bridge writes are scoped to, if any. Unset
+    /// ⇒ global/system (NULL tenant).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<String>,
+}
+
+#[cfg(feature = "host-live")]
+impl RunAs {
+    /// Build the background [`SecurityContext`](fraiseql_core::security::SecurityContext)
+    /// this ceiling grants, identified as `system_job:<job_id>` and correlated by
+    /// `request_id`. Mirrors
+    /// [`SourceDefinition::identity`](fraiseql_core::schema::SourceDefinition::identity):
+    /// the roles/scopes/tenant are the ceiling, the [`ActorType::SystemJob`] is
+    /// recorded for audit, never an authorization input.
+    ///
+    /// [`ActorType::SystemJob`]: fraiseql_core::security::ActorType::SystemJob
+    #[must_use]
+    pub fn identity(
+        &self,
+        job_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> fraiseql_core::security::SecurityContext {
+        fraiseql_core::security::SecurityContext::system_job(
+            job_id,
+            request_id,
+            self.roles.clone(),
+            self.scopes.clone(),
+            self.tenant.clone().map(fraiseql_core::types::TenantId::from),
+        )
+    }
+}
+
 /// Definition of a serverless function for deployment and execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionDefinition {
@@ -108,6 +168,20 @@ pub struct FunctionDefinition {
     /// - For `before:mutation` triggers: defaults to 500ms
     /// - For other triggers: defaults to 5s
     pub timeout_ms: Option<u64>,
+
+    /// The authority ceiling this function's `fraiseql_query` bridge writes run
+    /// under (#594). Absent ⇒ **fail-closed**: the bridge runs under an anonymous
+    /// identity and RLS/field-authz deny writes. See [`RunAs`] and
+    /// [`identity`](Self::identity).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_as: Option<RunAs>,
+
+    /// Declarative `when` predicates (#597) — a conjunction the dispatcher evaluates
+    /// on the row images before firing an `after:mutation`/`after:capture` function.
+    /// Empty ⇒ always fire (back-compat). See
+    /// [`TriggerPredicate`](crate::triggers::mutation::TriggerPredicate).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub when: Vec<crate::triggers::mutation::TriggerPredicate>,
 
     /// Fire-and-forget opt-out for durable dispatch.
     ///
@@ -141,9 +215,40 @@ impl FunctionDefinition {
             trigger: trigger.to_string(),
             runtime,
             timeout_ms: None,
+            run_as: None,
+            when: Vec::new(),
             re_runnable: false,
             retry: None,
         }
+    }
+
+    /// Set the [`run_as`](Self::run_as) authority ceiling (#594).
+    #[must_use]
+    pub fn with_run_as(mut self, run_as: RunAs) -> Self {
+        self.run_as = Some(run_as);
+        self
+    }
+
+    /// The background [`SecurityContext`] this function's `fraiseql_query` bridge
+    /// writes run under (#594).
+    ///
+    /// Built from [`run_as`](Self::run_as) via [`SecurityContext::system_job`], so a
+    /// function write is audited as `system_job:<function-name>` under
+    /// [`ActorType::SystemJob`] — the same envelope a source write carries. **Absent
+    /// `run_as` yields a fail-closed identity** (no roles, no scopes, no tenant →
+    /// every authz/RLS decision denies). `request_id` correlates one dispatch
+    /// (typically its per-dispatch idempotency token).
+    ///
+    /// [`SecurityContext`]: fraiseql_core::security::SecurityContext
+    /// [`SecurityContext::system_job`]: fraiseql_core::security::SecurityContext::system_job
+    /// [`ActorType::SystemJob`]: fraiseql_core::security::ActorType::SystemJob
+    #[cfg(feature = "host-live")]
+    #[must_use]
+    pub fn identity(
+        &self,
+        request_id: impl Into<String>,
+    ) -> fraiseql_core::security::SecurityContext {
+        self.run_as.clone().unwrap_or_default().identity(&self.name, request_id)
     }
 
     /// Mark this function as re-runnable (fire-and-forget) dispatch.

@@ -39,6 +39,16 @@ pub enum ParsedTrigger {
         /// Operation kind: "insert", "update", "delete", or None for all.
         operation:   Option<String>,
     },
+    /// After capture: `after:capture:<entity_type>[:<operation>]` (#366) — fires on
+    /// an **externally-captured** write to a `@subscribable` table (a third-party
+    /// daemon / `psql` INSERT), driven from the change-log reader, distinct from
+    /// `after:mutation` (which fires on FraiseQL's own committed mutations).
+    AfterCapture {
+        /// Entity type name (must be a `@subscribable`/captured entity).
+        entity_type: String,
+        /// Operation kind: "insert", "update", "delete", or None for all.
+        operation:   Option<String>,
+    },
     /// Before mutation: `before:mutation:<mutation_name>`
     BeforeMutation {
         /// Mutation name (e.g., "createUser").
@@ -93,6 +103,18 @@ impl ParsedTrigger {
                     operation,
                 })
             },
+            Some("after") if parts.len() >= 3 && parts[1] == "capture" => {
+                let entity_type = parts[2].to_string();
+                let operation = if parts.len() > 3 {
+                    Some(parts[3].to_string())
+                } else {
+                    None
+                };
+                Ok(ParsedTrigger::AfterCapture {
+                    entity_type,
+                    operation,
+                })
+            },
             Some("before") if parts.len() >= 3 && parts[1] == "mutation" => {
                 let mutation_name = parts[2].to_string();
                 Ok(ParsedTrigger::BeforeMutation { mutation_name })
@@ -134,6 +156,7 @@ impl ParsedTrigger {
     pub const fn trigger_type(&self) -> &'static str {
         match self {
             ParsedTrigger::AfterMutation { .. } => "after:mutation",
+            ParsedTrigger::AfterCapture { .. } => "after:capture",
             ParsedTrigger::BeforeMutation { .. } => "before:mutation",
             ParsedTrigger::AfterStorage { .. } => "after:storage",
             ParsedTrigger::AfterIngest { .. } => "after:ingest",
@@ -184,6 +207,11 @@ impl ParsedTrigger {
 pub struct TriggerRegistry {
     /// After-mutation triggers indexed by entity and operation.
     pub after_mutation_triggers:  TriggerMatcher,
+    /// After-capture triggers (#366) — fire on externally-captured writes, indexed
+    /// by entity and operation. Structurally identical to after:mutation triggers
+    /// (entity + operation + `when` predicates), kept in a separate matcher because
+    /// they fire from the change-log reader, not the mutation route.
+    pub after_capture_triggers:   TriggerMatcher,
     /// Before-mutation triggers indexed by mutation name.
     pub before_mutation_triggers: Vec<BeforeMutationTrigger>,
     /// HTTP trigger routes indexed by method and path.
@@ -221,6 +249,20 @@ impl TriggerRegistry {
                     entity_type,
                     operation,
                 } => {
+                    // #597: validate each `when` predicate against the trigger's
+                    // operation at load — `changed_to` is UPDATE-only, exactly one
+                    // operator per predicate, unknown keys already rejected by
+                    // `deny_unknown_fields` on `TriggerPredicate`.
+                    for predicate in &func.when {
+                        predicate.validate(operation.as_deref()).map_err(|message| {
+                            RegistryError {
+                                message: format!(
+                                    "function `{}` trigger `{}`: {message}",
+                                    func.name, func.trigger
+                                ),
+                            }
+                        })?;
+                    }
                     let trigger = AfterMutationTrigger {
                         function_name: func.name.clone(),
                         entity_type,
@@ -230,8 +272,37 @@ impl TriggerRegistry {
                             "delete" => Some(crate::EventKind::Delete),
                             _ => None,
                         }),
+                        predicates: func.when.clone(),
                     };
                     registry.after_mutation_triggers.add(trigger);
+                },
+                ParsedTrigger::AfterCapture {
+                    entity_type,
+                    operation,
+                } => {
+                    // #366: same `when` validation as after:mutation.
+                    for predicate in &func.when {
+                        predicate.validate(operation.as_deref()).map_err(|message| {
+                            RegistryError {
+                                message: format!(
+                                    "function `{}` trigger `{}`: {message}",
+                                    func.name, func.trigger
+                                ),
+                            }
+                        })?;
+                    }
+                    let trigger = AfterMutationTrigger {
+                        function_name: func.name.clone(),
+                        entity_type,
+                        event_filter: operation.as_ref().and_then(|op| match op.as_str() {
+                            "insert" => Some(crate::EventKind::Insert),
+                            "update" => Some(crate::EventKind::Update),
+                            "delete" => Some(crate::EventKind::Delete),
+                            _ => None,
+                        }),
+                        predicates: func.when.clone(),
+                    };
+                    registry.after_capture_triggers.add(trigger);
                 },
                 ParsedTrigger::BeforeMutation { mutation_name } => {
                     let trigger = BeforeMutationTrigger {

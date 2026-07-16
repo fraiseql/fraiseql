@@ -727,6 +727,7 @@ mod elasticsearch_sink_tests {
             actor_type:     None,
             acting_for:     None,
             schema_version: None,
+            cdc_source:     None,
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");

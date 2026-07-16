@@ -127,7 +127,23 @@ fn dispatch_source_label_is_stable() {
     // from `Debug`, so a token stays constant across refactors of the enum.
     assert_eq!(DispatchSource::AfterMutation.label(), "after:mutation");
     assert_eq!(DispatchSource::AfterIngest.label(), "after:ingest");
+    assert_eq!(DispatchSource::AfterCapture.label(), "after:capture");
     assert_eq!(DispatchSource::Source.label(), "source");
+}
+
+#[test]
+fn dispatch_source_label_round_trips_through_from_label() {
+    // A durable DLQ store persists the label and reloads the variant; every label
+    // must reconstruct its source, and an unknown label must be `None` (not guessed).
+    for source in [
+        DispatchSource::AfterMutation,
+        DispatchSource::AfterIngest,
+        DispatchSource::AfterCapture,
+        DispatchSource::Source,
+    ] {
+        assert_eq!(DispatchSource::from_label(source.label()), Some(source));
+    }
+    assert_eq!(DispatchSource::from_label("nonesuch"), None);
 }
 
 #[test]

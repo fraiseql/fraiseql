@@ -7,7 +7,134 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.12.0] - 2026-07-15
+### Added
+
+- **`fraiseql functions invoke` — a local V8 test harness for function authors.**
+  Runs a compiled function in a **real V8 isolate** against a fixture payload, with
+  **mocked host ops**, printing the guest's result and every host-op call it made —
+  the author's inner loop, no server/database/network required. The module loads
+  exactly as the server loads it (from the compiled schema's `module_dir`).
+  `--mock-http` / `--mock-query` supply canned responses (a request matching no
+  configured mock fails loud); `--idempotency-token` injects the per-dispatch token;
+  `--explain` shows why the `when` predicates (#597) did or did not match (evaluated
+  before any isolate spins). Exit codes are CI-scriptable: `0` ran, `3` predicate
+  no-match, `4` guest error, `1` config error. Built behind the opt-in
+  `functions-invoke` CLI feature (V8 is ~30 MB, so the stock CLI stays lean). See
+  `docs/architecture/functions.md`. Tracked follow-ups: `cron`/`after:ingest`
+  payload synthesis in `invoke`, and a `--record` mode.
+
+- **Typed guest payloads — `functions.d.ts` from `fraiseql generate-client`.** When the
+  compiled schema declares functions, the TypeScript client generator now emits a
+  `functions.d.ts` giving function authors editor type-checking for the host surface
+  (`Deno.core.ops.fraiseql_*` via an ambient `FraiseqlHostOps`) and a typed event
+  payload per function, derived from its trigger: `after:mutation`/`after:capture` on
+  entity `E` → `{ event_kind, old: E|null, new: E|null }` (with `E` imported from the
+  generated `./types`), `cron` → schedule context, `after:ingest` → the inbound-message
+  shape (an undefined entity falls back to `unknown`). See `docs/architecture/functions.md`.
+
+- **Function dispatch metrics + durable dead-letter queue (#598).** Function-trigger
+  dispatch is now observable on `/metrics` and its failure record can survive a
+  restart.
+  - **Metrics** (Prometheus facade, `metrics` feature — the sibling of the source
+    metrics): `fraiseql_function_dispatches_total{function, trigger_kind, result}`
+    (`trigger_kind` ∈ after:mutation / after:ingest / after:capture / cron; `result` ∈
+    ok / error / dead_lettered), `fraiseql_function_run_duration_seconds{function}`,
+    `fraiseql_function_predicate_skips_total{function}` (a #597 `when` that evaluated
+    false — the zero-cost-skip made visible), `fraiseql_function_dlq_size`, and
+    `fraiseql_function_dlq_evictions_total`. `before:mutation` (sync), `http` (edge),
+    and `after:storage` (no dispatch path yet) are metered elsewhere or not applicable
+    — documented, not silently omitted.
+  - **Durable DLQ:** `[functions] dlq_store = "memory" | "postgres"` (env override
+    `FRAISEQL_FUNCTIONS_DLQ_STORE`). `"postgres"` persists dead-lettered dispatches to
+    `_fraiseql_function_dlq` so they survive a restart and stay listable/replayable;
+    `"memory"` (the default) is unchanged. The durable store honors the same
+    `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` drop-newest cap.
+  - The per-dispatch `idempotency_token` is now in the dead-letter error log line so
+    an alert traces to the exact dispatch (and a manual replay dedupes on it).
+  - A dedicated `DispatchSource::AfterCapture` now tags capture-driven dispatches, so
+    they are separable from `after:mutation` in the DLQ and on `/metrics`.
+  See `docs/architecture/functions.md` (Observability).
+
+- **`[mcp] read_only = true` — fail-closed MCP tool exposure.** When set, no mutation
+  is ever exposed as an MCP tool regardless of `include`/`exclude`, so a mutation added
+  to the schema later is not silently exposed to AI callers (the regression `exclude`
+  alone cannot prevent). `read_only` wins over `include` (fail-closed precedence; a
+  load-time warning is logged if `include` names a mutation under `read_only`). The docs
+  now recommend `read_only = true` unless you deliberately expose writes. See
+  `docs/mcp.md`.
+
+- **Functions fire on externally-captured writes — `after:capture` (#366).** A
+  third-party daemon (or `psql`) INSERTing into a `@subscribable` table can now drive
+  a function, not just observers/subscriptions — event-driven reconciliation instead
+  of cron-polling. A new `after:capture:<Entity>[:<operation>]` trigger dispatches from
+  the change-log reader on the same durable/`re_runnable`/DLQ machinery and phase-02
+  `run_as` host as `after:mutation` (so the function can `fraiseql_query` back). **Loop
+  safety:** dispatch keys on the captured-row discriminator
+  `extra_metadata.cdc_source = "fallback_trigger"` — a FraiseQL executor/bridge write
+  carries no marker, so a capture-dispatched function writing back never re-enters the
+  capture path. Phase-04 `when` predicates evaluate identically on capture payloads.
+  See `docs/architecture/external-write-capture.md`.
+
+- **Declarative `when` predicates on after:mutation triggers (#597).** A function can
+  now declare *when* it fires — `{ "field": "status", "changed_to": "approved" }` or
+  `{ "field": "kind", "eq": "standard" }` — evaluated by the dispatcher on the row
+  images **before** any runtime spins; a false predicate produces no dispatch record
+  at all. The condition, previously invisible guard code inside the guest, is now
+  auditable from the schema. Deliberately small: `eq` (state) + `changed_to`
+  (UPDATE-only transition), a conjunction list, exactly one operator per predicate,
+  unknown keys and `changed_to` on a non-`update` trigger are load errors — a dispatch
+  filter, not a rules engine. Note: the after:mutation route path has no pre-image, so
+  `changed_to` there gates on the after-value; full transition detection needs the
+  after:capture path (`pre_image=True`). See `docs/architecture/functions.md`.
+
+- **`cron:` functions fire from a running server, single-firing across replicas
+  (#595).** Scheduled functions previously never fired from a stock server — the
+  `CronScheduler` existed but nothing wired it at startup, and it had no leader
+  election despite the docs claiming it. The server now builds one leased `CronPoller`
+  per cron function at startup (a cron function is "a scheduled source without a
+  cursor"): it ticks on the schedule, single-fires across replicas via the sources'
+  PostgreSQL advisory lease (`LeaseGuardedRunner`, keyed `cron:<function>`), runs on
+  the phase-02 I/O host (so `fraiseql_query` works under the function's `run_as`
+  ceiling), and records each firing to `_fraiseql_cron_state`. Missed-tick policy is
+  **skip** (a server down over a scheduled instant does not replay on boot). Requires a
+  DB pool (the lease + state table). Metrics land in a later minor. See
+  `docs/architecture/functions.md`.
+
+- **`after:mutation` functions can write back — the `fraiseql_query` bridge under a
+  `run_as` ceiling (#594).** An event-dispatched function's `fraiseql_query` host op
+  now executes against the engine, closing the trigger → side-effect → **record** loop
+  (previously only scheduled sources had the bridge; every other path failed with
+  "query executor not configured"). Authority is the same fail-closed model sources
+  use: an optional `run_as` (`{ roles, scopes, tenant? }`) ceiling on the function
+  definition, carried at runtime by a `system_job:<function-name>` identity. A
+  function with **no `run_as`** runs the bridge anonymously — RLS and field-authz deny
+  its writes until an operator grants a ceiling. Function-authored writes are audited
+  as `ActorType::SystemJob`, attributable to the issuing function. The
+  `SourceQueryExecutor` was extracted into a shared `RunAsQueryExecutor`
+  (`crate::query_bridge`) so sources and functions run through one authority +
+  hot-reload seam. **Deliberate asymmetry:** a bridge write does not itself fire
+  `after:mutation` (dispatch is route-layer only; there is no recursion to guard). See
+  `docs/architecture/functions.md`. (`after:ingest` bridge wiring is a tracked
+  follow-up.)
+
+- **Feature-complete `-full` release binaries.** The published release now includes a
+  second artifact per native target, `fraiseql-full-<target>`, carrying the stable
+  opt-in platform features that were previously reachable only from a source build:
+  Deno/TypeScript functions (`functions-runtime-deno`), scheduled `sources`, `mcp`,
+  `inbound` + `inbound-email`, `observers`, and Prometheus `metrics`. It also enables
+  `run-server`, so the `-full` binary is a self-contained server (`fraiseql run`), not
+  a CLI with dead server code. Adopters of the platform features download this binary
+  instead of rebuilding cli+server at the same revision themselves — the
+  same-revision `jsonb_column` contract (#507) makes mixing a stock cli with a custom
+  server dangerous, so a matched pair matters. **The lean default artifact
+  (`fraiseql-<target>`, `cli,server,postgres`) is unchanged** — use the cli from the
+  same release. See `docs/releases.md` for the artifact matrix and the
+  native-target-only caveat (V8 does not cross-compile to `aarch64-unknown-linux-gnu`,
+  which ships lean; use the Docker image or a source build for ARM-Linux platform
+  features). The umbrella `fraiseql` crate gains pass-through features
+  (`functions-runtime`, `functions-runtime-deno`, `sources`, `mcp`, `inbound`,
+  `inbound-email`, `metrics`, `run-server`) mirroring the `observers` precedent, plus
+  a `release-full` bundle.
 
 ### Added
 

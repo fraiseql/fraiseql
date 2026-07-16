@@ -103,7 +103,7 @@ fn imap_source(mailbox: &str, fetcher: impl MailboxFetcher + 'static) -> ImapSou
 }
 
 fn sink(mailbox: &str, pool: &PgPool) -> EmailIngestSink {
-    EmailIngestSink::new(mailbox.to_string(), pool.clone(), None, None, None, 2)
+    EmailIngestSink::new(mailbox.to_string(), pool.clone(), None, None, None, None, 2)
 }
 
 async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
@@ -289,4 +289,63 @@ async fn two_pollers_on_one_mailbox_poll_once() {
         SourceOutcome::Ingested { messages: 0 },
         "A polled the empty mailbox, recorded the baseline cursor, and released"
     );
+}
+
+mod after_ingest_bridge {
+    //! #594: the after:ingest `fraiseql_query` bridge factory is threaded onto the
+    //! email sink so an after:ingest function can write back under its `run_as`
+    //! ceiling. The `run_as`→bridge mechanism itself is proven in
+    //! `routes::after_mutation::tests::query_bridge_wiring` (same `spawn_dispatch`
+    //! path); this proves the sink carries + would pass the factory rather than the
+    //! pre-#594 `None`. `connect_lazy` opens no connection, so this needs no database.
+    use std::{future::Future, pin::Pin, sync::Arc};
+
+    use fraiseql_functions::host::live::QueryExecutor;
+    use serde_json::Value;
+    use sqlx::PgPool;
+
+    use super::EmailIngestSink;
+    use crate::routes::after_mutation::QueryExecutorFactory;
+
+    struct MockExec;
+    impl QueryExecutor for MockExec {
+        fn execute_query(
+            &self,
+            _query: &str,
+            _variables: Option<&Value>,
+        ) -> Pin<Box<dyn Future<Output = fraiseql_error::Result<Value>> + Send + '_>> {
+            Box::pin(async { Ok(Value::Null) })
+        }
+    }
+
+    fn factory() -> QueryExecutorFactory {
+        Arc::new(|_identity| Arc::new(MockExec) as Arc<dyn QueryExecutor>)
+    }
+
+    fn lazy_pool() -> PgPool {
+        PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap()
+    }
+
+    #[tokio::test] // `connect_lazy` needs a Tokio context (it spawns the pool's keeper).
+    async fn without_a_factory_the_bridge_is_unwired() {
+        let sink = EmailIngestSink::new("m".to_string(), lazy_pool(), None, None, None, None, 2);
+        assert!(sink.query_executor_factory().is_none());
+    }
+
+    #[tokio::test]
+    async fn with_a_factory_the_sink_carries_the_after_ingest_bridge() {
+        let sink = EmailIngestSink::new(
+            "m".to_string(),
+            lazy_pool(),
+            None,
+            Some(factory()),
+            None,
+            None,
+            2,
+        );
+        assert!(
+            sink.query_executor_factory().is_some(),
+            "#594: the sink must carry the query bridge so after:ingest can write back"
+        );
+    }
 }

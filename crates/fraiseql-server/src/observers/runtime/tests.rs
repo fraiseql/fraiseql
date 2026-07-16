@@ -203,6 +203,34 @@ mod function_dlq {
         assert_eq!(dlq.function_count(), 1, "function entries counted separately");
     }
 
+    // #598: the *in-memory* function DLQ is non-durable by design — a dead-lettered
+    // dispatch does not survive a restart (constructing a fresh store models a
+    // process restart; there is no persistence layer to reload from). This remains a
+    // true characterization of the memory store and documents *why* the durable
+    // option exists. The Postgres-backed store is the durable counterpart, and its
+    // survival is proven in
+    // `observers::pg_function_dlq::tests::dead_lettered_dispatch_survives_a_restart`
+    // (the #598 flip). `[functions] dlq_store = "postgres"` selects it in production.
+    #[tokio::test]
+    async fn in_memory_dlq_loses_function_entries_on_restart() {
+        // Dead-letter one dispatch.
+        let dlq = InMemoryDlq::new_with_max(None);
+        dlq.push_function(record("upstream 503")).await.unwrap();
+        assert_eq!(dlq.function_count(), 1, "entry present before restart");
+
+        // "Restart": the old store is dropped, a new one is constructed. The only
+        // store implementation is in-memory, so the entry is gone — there is no
+        // durable table to reload from.
+        drop(dlq);
+        let after_restart = InMemoryDlq::new_with_max(None);
+        assert_eq!(
+            after_restart.function_count(),
+            0,
+            "M-598: the in-memory DLQ loses dead-lettered function dispatches on restart — \
+             phase 07's Postgres-backed store must make this survive."
+        );
+    }
+
     #[tokio::test]
     async fn capped_function_dlq_drops_newest() {
         let dlq = InMemoryDlq::new_with_max(Some(2));

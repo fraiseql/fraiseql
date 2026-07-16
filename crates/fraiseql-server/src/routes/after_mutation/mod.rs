@@ -95,6 +95,17 @@ pub fn plan_after_mutation_dispatch(
         .observer
         .find_after_mutation_triggers(&hooks.trigger_registry, &event)
         .into_iter()
+        // #597: evaluate the trigger's `when` predicates on the row images BEFORE
+        // resolving the module or building a payload — a false predicate produces no
+        // dispatch record at all (not a skipped/failed dispatch), and no runtime spins.
+        // A false predicate is metered (#598) so the zero-cost-skip is observable.
+        .filter(|trigger| {
+            let held = trigger.predicates_hold(&event);
+            if !held {
+                crate::function_metrics::record_predicate_skip(&trigger.function_name);
+            }
+            held
+        })
         .filter_map(|trigger| {
             // A trigger whose module never loaded is silently skipped: dispatch
             // is best-effort and must not block the response.
@@ -132,6 +143,106 @@ pub fn plan_after_ingest_dispatch(
             Some(AfterMutationDispatch { module, payload })
         })
         .collect()
+}
+
+/// The captured-write discriminator (#366): a row written by the shipped
+/// external-write capture trigger carries this `cdc_source` marker; FraiseQL's own
+/// executor-written rows do not. `after:capture` dispatch keys on it so a
+/// mediated/executor write never re-enters the capture path (loop safety).
+pub const CAPTURED_WRITE_MARKER: &str = "fallback_trigger";
+
+/// Plan the `after:capture` dispatch for an externally-captured change (#366).
+///
+/// Mirrors [`plan_after_mutation_dispatch`] but resolves `after:capture` triggers
+/// (from the change-log reader, not the mutation route) and builds an
+/// `after:capture:<fn>` payload. **Loop safety:** returns an empty plan unless the
+/// event is a genuinely-captured write (`cdc_source == "fallback_trigger"`) — an
+/// executor/mediated write (no marker) never dispatches, so a Phase-02 bridge write
+/// from a capture-dispatched function cannot re-enter the capture path.
+///
+/// The [`when`](fraiseql_functions::FunctionDefinition::when) predicates (Phase 04)
+/// are evaluated identically to the mutation path. Payload contract: `new` = the
+/// after-image, `old` = the pre-image when the event carried one (else `None` —
+/// "degraded but valid"); no mutation name, no input echo.
+#[must_use]
+pub fn plan_after_capture_dispatch(
+    hooks: &BeforeMutationHooks,
+    event: &EntityEvent,
+    cdc_source: Option<&str>,
+) -> Vec<AfterMutationDispatch> {
+    // Only genuinely-captured writes drive after:capture — the loop-safety gate.
+    if cdc_source != Some(CAPTURED_WRITE_MARKER) {
+        return Vec::new();
+    }
+
+    hooks
+        .observer
+        .find_after_capture_triggers(&hooks.trigger_registry, event)
+        .into_iter()
+        // Phase 04 predicates evaluate identically on the capture payload; a false
+        // predicate is metered (#598) so the zero-cost-skip is observable.
+        .filter(|trigger| {
+            let held = trigger.predicates_hold(event);
+            if !held {
+                crate::function_metrics::record_predicate_skip(&trigger.function_name);
+            }
+            held
+        })
+        .filter_map(|trigger| {
+            let module = hooks.module_registry.get(&trigger.function_name)?.clone();
+            // Capture payload: `after:capture:<fn>` with {event_kind, old, new}.
+            let payload = EventPayload {
+                trigger_type: format!("after:capture:{}", trigger.function_name),
+                entity:       event.entity.clone(),
+                event_kind:   event.event_kind.to_string(),
+                data:         serde_json::json!({
+                    "event_kind": event.event_kind.as_str(),
+                    "old": event.old,
+                    "new": event.new,
+                }),
+                timestamp:    event.timestamp,
+            };
+            Some(AfterMutationDispatch { module, payload })
+        })
+        .collect()
+}
+
+/// Convert a change-log reader [`EntityEvent`](fraiseql_observers::EntityEvent) to
+/// the functions [`EntityEvent`] used by after:capture dispatch, plus its
+/// `cdc_source` (#366).
+///
+/// `new` = the after-image (`data`) for INSERT/UPDATE; a DELETE reports the removed
+/// row as `old`. A `Custom` event has no entity-event semantics and yields `None`.
+/// The full pre-image for an UPDATE is not carried on this path, so `old` stays
+/// `None` there (the same pre-image limitation the after:mutation route path has —
+/// see `functions.md`); `changed_to` on capture-updates therefore gates on the
+/// after-value.
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+pub fn observer_event_to_capture(
+    event: &fraiseql_observers::EntityEvent,
+) -> Option<(EntityEvent, Option<String>)> {
+    use fraiseql_observers::EventKind as ObserverEventKind;
+    let event_kind = match event.event_type {
+        ObserverEventKind::Created => EventKind::Insert,
+        ObserverEventKind::Updated => EventKind::Update,
+        ObserverEventKind::Deleted => EventKind::Delete,
+        // A non-DML custom event (or any future kind) has no insert/update/delete
+        // semantics — no after:capture entity event.
+        _ => return None,
+    };
+    let (old, new) = match event_kind {
+        EventKind::Delete => (Some(event.data.clone()), None),
+        _ => (None, Some(event.data.clone())),
+    };
+    let fn_event = EntityEvent {
+        entity: event.entity_type.clone(),
+        event_kind,
+        old,
+        new,
+        timestamp: event.timestamp,
+    };
+    Some((fn_event, event.cdc_source.clone()))
 }
 
 /// Per-function dispatch settings resolved from the compiled schema.
@@ -224,6 +335,51 @@ impl DispatchDefaults {
     }
 }
 
+/// Which dead-letter store backs function dispatch (#598).
+///
+/// Selected via `[functions] dlq_store` in the compiled schema, overridable by
+/// `FRAISEQL_FUNCTIONS_DLQ_STORE` for production (env wins, per the config-flow
+/// principle). Memory is the dev default; Postgres is the durable option that
+/// survives a restart.
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DlqStoreKind {
+    /// In-memory store — fast, dependency-free, but dead-lettered dispatches vanish
+    /// when the process restarts. The zero-config development default.
+    #[default]
+    Memory,
+    /// Postgres-backed store (`_fraiseql_function_dlq`) — a dead-lettered dispatch
+    /// survives a restart and stays listable/replayable. Requires a database pool.
+    Postgres,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl DlqStoreKind {
+    /// Resolve the store from the compiled `[functions] dlq_store` value, with the
+    /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var overriding it (env wins). Case- and
+    /// whitespace-insensitive; an unrecognised value warns and falls back to
+    /// [`Memory`](Self::Memory) rather than failing startup.
+    #[must_use]
+    pub fn resolve(compiled: Option<&str>, get_env: impl Fn(&str) -> Option<String>) -> Self {
+        let Some(raw) =
+            get_env("FRAISEQL_FUNCTIONS_DLQ_STORE").or_else(|| compiled.map(str::to_owned))
+        else {
+            return Self::Memory;
+        };
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "postgres" | "pg" => Self::Postgres,
+            "memory" | "" => Self::Memory,
+            other => {
+                tracing::warn!(
+                    value = other,
+                    "unknown [functions] dlq_store — using the in-memory DLQ (\"memory\" | \"postgres\")"
+                );
+                Self::Memory
+            },
+        }
+    }
+}
+
 /// Resolve per-function [`FunctionDispatchSetting`]s from the compiled schema.
 ///
 /// Each function's `re_runnable` flag and optional `retry` policy come from its
@@ -252,30 +408,111 @@ pub fn resolve_dispatch_settings(
         .collect()
 }
 
+/// A `run_as`-parameterized `fraiseql_query` executor builder (#594).
+///
+/// Given a per-dispatch [`SecurityContext`](fraiseql_core::security::SecurityContext)
+/// (the function's `run_as` identity), produces the
+/// [`QueryExecutor`](fraiseql_functions::host::live::QueryExecutor) the dispatched
+/// host's `fraiseql_query` runs through. Type-erased over the database adapter so the
+/// non-generic dispatcher can hold it; built at the route layer where the adapter is
+/// known via [`make_query_executor_factory`].
+#[cfg(feature = "functions-runtime")]
+pub type QueryExecutorFactory = std::sync::Arc<
+    dyn Fn(
+            fraiseql_core::security::SecurityContext,
+        ) -> std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
+        + Send
+        + Sync,
+>;
+
+/// Build a [`QueryExecutorFactory`] over the request-path executor handle (#594).
+///
+/// Captures the hot-reloadable `Arc<ArcSwap<Executor<A>>>` so each dispatched
+/// function's `fraiseql_query` runs against the current schema snapshot under its own
+/// `run_as` identity — the same [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor)
+/// scheduled sources use. Called from the route handlers (which know the adapter `A`)
+/// and passed into [`spawn_after_mutation`] / [`spawn_after_ingest`].
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+pub fn make_query_executor_factory<A>(
+    executor: std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor<A>>>,
+) -> QueryExecutorFactory
+where
+    A: fraiseql_core::db::traits::DatabaseAdapter + 'static,
+{
+    std::sync::Arc::new(move |identity| {
+        std::sync::Arc::new(crate::query_bridge::RunAsQueryExecutor::new(
+            std::sync::Arc::clone(&executor),
+            identity,
+        )) as std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
+    })
+}
+
+/// Derive a dispatch's idempotency token from its **stable identity** — never
+/// wall-clock or random.
+///
+/// The token is `derive_idempotency_token(source, function, trigger_identity,
+/// payload.data)` where `trigger_identity = "<trigger_type>:<entity>:<event_kind>"`.
+/// It deliberately excludes the event *timestamp*, so:
+///
+/// - every retry of one dispatch shares the token (at-most-once across retries), and
+/// - for **after:capture** it is the **crash-redelivery key**: the same change-log row, re-read
+///   after a crash, carries the same entity + event kind + row image (`payload.data = {event_kind,
+///   old, new}`) and so re-derives the **same** token — a money/mail side effect behind an
+///   after:capture function stays at-most-once even though the reader may re-process the row with a
+///   fresh processing timestamp.
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+fn dispatch_idempotency_token(
+    key: Option<&[u8]>,
+    source: fraiseql_observers::DispatchSource,
+    function_name: &str,
+    payload: &EventPayload,
+) -> String {
+    let trigger_identity =
+        format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
+    fraiseql_observers::derive_idempotency_token(
+        key,
+        source,
+        function_name,
+        &trigger_identity,
+        &payload.data,
+    )
+}
+
 /// Runs after:mutation function plans durably: retry transient failures with
 /// backoff and dead-letter what exhausts its retries, unless the function is
 /// marked re-runnable (then a single fire-and-forget attempt).
 #[cfg(feature = "functions-runtime")]
 #[derive(Clone)]
 struct DurableDispatcher {
-    observer:        std::sync::Arc<fraiseql_functions::FunctionObserver>,
-    host_config:     fraiseql_functions::host::live::HostContextConfig,
-    limits:          fraiseql_functions::ResourceLimits,
-    dlq:             std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+    observer:               std::sync::Arc<fraiseql_functions::FunctionObserver>,
+    host_config:            fraiseql_functions::host::live::HostContextConfig,
+    limits:                 fraiseql_functions::ResourceLimits,
+    dlq:                    std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
     /// Which trigger subsystem this dispatcher serves — tags dead-letter records
     /// so `after:mutation` and `after:ingest` failures are distinguishable.
-    source:          fraiseql_observers::DispatchSource,
+    source:                 fraiseql_observers::DispatchSource,
     /// Host-owned sender-identity resolver + email transport for the `send_email`
     /// op. `None` → the op fails loud on the built host. Threaded from the hooks so
     /// every dispatched function's fresh host can send from the connected user's
     /// verified address.
-    sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
-    email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
+    sender_resolver:        Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
+    email_transport:        Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
     /// HMAC subkey for the per-dispatch idempotency token. `Some` → the token is
     /// signed (unforgeable, required before it is exposed in a VERP Return-Path);
     /// `None` → an unsigned digest (the zero-config default). Derived once from the
     /// server HMAC secret and shared across every dispatch.
-    idempotency_key: Option<std::sync::Arc<[u8]>>,
+    idempotency_key:        Option<std::sync::Arc<[u8]>>,
+    /// The `fraiseql_query` bridge builder (#594). `Some` → the dispatched host can
+    /// issue queries/mutations under this function's `run_as` ceiling; `None` → no
+    /// executor is wired (`fraiseql_query` fails "query executor not configured", the
+    /// pre-#594 behavior for a server with no request-path executor).
+    query_executor_factory: Option<QueryExecutorFactory>,
+    /// This function's `run_as` ceiling (#594). Absent ⇒ fail-closed: the bridge runs
+    /// under an anonymous `system_job` identity and RLS/field-authz deny writes.
+    /// Resolved per-plan from the function definition at spawn time.
+    run_as:                 Option<fraiseql_functions::RunAs>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -294,11 +531,36 @@ impl DurableDispatcher {
         // Shared, runtime-agnostic host bridge: the observer dispatches the plan
         // to the WASM or Deno backend by the module's runtime, so the host type
         // must not be tied to either.
-        let mut live = fraiseql_functions::host::live::LiveHostContext::new(
-            payload.clone(),
-            self.host_config.clone(),
-        )
-        .with_idempotency_token(idempotency_token);
+        let live = self.build_host(&module.name, payload.clone(), idempotency_token);
+        let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
+            std::sync::Arc::new(live);
+        self.observer
+            .invoke_with_context(module, payload, host, self.limits.clone())
+            .await
+    }
+
+    /// Build the fresh live host for one dispatch of `function_name`.
+    ///
+    /// Wires the per-dispatch idempotency token, the `send_email` op (when
+    /// configured), and — the #594 change — the `fraiseql_query` bridge under the
+    /// function's `run_as` ceiling when a [`QueryExecutorFactory`] is present. The
+    /// identity is built from [`run_as`](Self::run_as) via
+    /// [`RunAs::identity`](fraiseql_functions::RunAs::identity), so an absent ceiling
+    /// yields a fail-closed anonymous `system_job` identity (reads/writes denied by
+    /// RLS/field-authz) and the write is audited as `system_job:<function_name>`.
+    ///
+    /// Extracted from [`invoke_once`](Self::invoke_once) so the host-wiring is unit
+    /// testable without spinning a V8/WASM isolate (mirrors the sources poller's
+    /// `build_host`).
+    fn build_host(
+        &self,
+        function_name: &str,
+        payload: EventPayload,
+        idempotency_token: &str,
+    ) -> fraiseql_functions::host::live::LiveHostContext {
+        let mut live =
+            fraiseql_functions::host::live::LiveHostContext::new(payload, self.host_config.clone())
+                .with_idempotency_token(idempotency_token);
         // Enable `send_email` (host-owned `from` + transport) when both are wired.
         if let (Some(resolver), Some(transport)) =
             (self.sender_resolver.as_ref(), self.email_transport.as_ref())
@@ -306,11 +568,18 @@ impl DurableDispatcher {
             live =
                 live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
         }
-        let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
-            std::sync::Arc::new(live);
-        self.observer
-            .invoke_with_context(module, payload, host, self.limits.clone())
-            .await
+        // #594: wire the `fraiseql_query` bridge under this function's `run_as`
+        // ceiling. The request-path `run_as` executor is the same seam scheduled
+        // sources use; an absent ceiling is fail-closed (anonymous system_job).
+        if let Some(factory) = self.query_executor_factory.as_ref() {
+            let identity = self
+                .run_as
+                .clone()
+                .unwrap_or_default()
+                .identity(function_name, idempotency_token);
+            live = live.with_executor(factory(identity));
+        }
+        live
     }
 
     /// Dispatch a single plan under its [`FunctionDispatchSetting`].
@@ -325,36 +594,46 @@ impl DurableDispatcher {
         setting: &FunctionDispatchSetting,
     ) {
         let function_name = module.name.clone();
+        // Wall-clock for the dispatch (all retry attempts included), reported on the
+        // run-duration histogram under whichever outcome branch is taken below.
+        let started = std::time::Instant::now();
+        // Coarse trigger-kind label for `/metrics` — the facade owns the mapping.
+        let trigger_kind = crate::function_metrics::trigger_kind(self.source);
 
         // Derive the per-dispatch idempotency token ONCE, from the dispatch's
         // stable identity (never wall-clock/random), so every retry attempt below
         // sees the same token and a durable retry of a money/mail call stays
-        // at-most-once. The trigger identity folds in entity + event_kind; the
-        // payload data (which excludes the event timestamp) makes it resume-stable.
-        let trigger_identity =
-            format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
-        let idempotency_token = fraiseql_observers::derive_idempotency_token(
+        // at-most-once. For after:capture this is also the *crash-redelivery* key:
+        // the same change-log row re-derives the same token (see
+        // [`dispatch_idempotency_token`]).
+        let idempotency_token = dispatch_idempotency_token(
             self.idempotency_key.as_deref(),
             self.source,
             &function_name,
-            &trigger_identity,
-            &payload.data,
+            &payload,
         );
 
         if setting.re_runnable {
             // Fire-and-forget: a single attempt; a failure is re-runnable later
             // by design, so it is logged but never retried or dead-lettered.
-            match self.invoke_once(&module, payload, &idempotency_token).await {
-                Ok(_) => tracing::debug!(
-                    function = %function_name,
-                    "re-runnable function dispatched"
-                ),
-                Err(error) => tracing::warn!(
-                    error = %error,
-                    function = %function_name,
-                    "re-runnable function failed (not retried)"
-                ),
-            }
+            let (result, elapsed) = match self
+                .invoke_once(&module, payload, &idempotency_token)
+                .await
+            {
+                Ok(_) => {
+                    tracing::debug!(function = %function_name, "re-runnable function dispatched");
+                    (crate::function_metrics::RESULT_OK, started.elapsed().as_secs_f64())
+                },
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        function = %function_name,
+                        "re-runnable function failed (not retried)"
+                    );
+                    (crate::function_metrics::RESULT_ERROR, started.elapsed().as_secs_f64())
+                },
+            };
+            crate::function_metrics::record_dispatch(&function_name, trigger_kind, result, elapsed);
             return;
         }
 
@@ -394,11 +673,26 @@ impl DurableDispatcher {
 
         let Err(error) = result else {
             tracing::debug!(function = %function_name, "function dispatched");
+            crate::function_metrics::record_dispatch(
+                &function_name,
+                trigger_kind,
+                crate::function_metrics::RESULT_OK,
+                started.elapsed().as_secs_f64(),
+            );
             return;
         };
 
         // Exhausted (or permanently failed): dead-letter for inspection/replay.
         let attempts = attempts.load(std::sync::atomic::Ordering::Relaxed);
+        crate::function_metrics::record_dispatch(
+            &function_name,
+            trigger_kind,
+            crate::function_metrics::RESULT_DEAD_LETTERED,
+            started.elapsed().as_secs_f64(),
+        );
+        // Kept for the structured error log so an alert traces to the exact dispatch
+        // (the token is moved into the record below).
+        let dead_letter_token = idempotency_token.clone();
         let record = fraiseql_observers::FunctionDispatchRecord::new(
             self.source,
             function_name.clone(),
@@ -412,6 +706,7 @@ impl DurableDispatcher {
             Ok(_) => tracing::error!(
                 error = %error,
                 function = %function_name,
+                idempotency_token = %dead_letter_token,
                 attempts,
                 "function dead-lettered after exhausting retries"
             ),
@@ -419,6 +714,7 @@ impl DurableDispatcher {
                 error = %error,
                 dlq_error = %dlq_error,
                 function = %function_name,
+                idempotency_token = %dead_letter_token,
                 "function failed and could not be dead-lettered"
             ),
         }
@@ -440,8 +736,17 @@ impl DurableDispatcher {
 ///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 #[cfg(feature = "functions-runtime")]
-pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
-    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterMutation);
+pub fn spawn_after_mutation(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterMutation,
+        query_executor_factory,
+    );
 }
 
 /// Spawn each planned `after:ingest` invocation as a background task.
@@ -459,16 +764,53 @@ pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutatio
 // functions-runtime build without `inbound` (e.g. `sources`) must not compile it
 // uncalled.
 #[cfg(feature = "inbound")]
-pub fn spawn_after_ingest(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
-    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterIngest);
+pub fn spawn_after_ingest(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterIngest,
+        query_executor_factory,
+    );
+}
+
+/// Spawn each planned `after:capture` invocation as a background task (#366).
+///
+/// The externally-captured-write analogue of [`spawn_after_mutation`]: same durable
+/// dispatcher and host, but tagged
+/// [`DispatchSource::AfterCapture`](fraiseql_observers::DispatchSource::AfterCapture)
+/// so a capture-driven dispatch is separable from a mutation-driven one in the DLQ
+/// and on `/metrics` (`trigger_kind="after:capture"`). Driven from the change-log
+/// reader via the lifecycle capture-dispatch hook.
+#[cfg(feature = "functions-runtime")]
+pub fn spawn_after_capture(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterCapture,
+        query_executor_factory,
+    );
 }
 
 /// Spawn each plan on a durable dispatcher tagged with `source`.
+///
+/// Each plan's dispatcher is resolved with the function's own `run_as` ceiling from
+/// `hooks.run_as` (#594), so its `fraiseql_query` bridge — built via
+/// `query_executor_factory` — writes under that function's identity (or fail-closed
+/// anonymous when the function declares none).
 #[cfg(feature = "functions-runtime")]
 fn spawn_dispatch(
     hooks: &BeforeMutationHooks,
     plans: Vec<AfterMutationDispatch>,
     source: fraiseql_observers::DispatchSource,
+    query_executor_factory: Option<QueryExecutorFactory>,
 ) {
     let dispatcher = DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
@@ -479,11 +821,15 @@ fn spawn_dispatch(
         sender_resolver: hooks.sender_resolver.clone(),
         email_transport: hooks.email_transport.clone(),
         idempotency_key: hooks.idempotency_key.clone(),
+        query_executor_factory,
+        // Set per-plan below from the function's definition.
+        run_as: None,
     };
 
     for plan in plans {
         let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
-        let dispatcher = dispatcher.clone();
+        let mut dispatcher = dispatcher.clone();
+        dispatcher.run_as = hooks.run_as.get(&plan.module.name).cloned();
         tokio::spawn(async move {
             dispatcher.dispatch(plan.module, plan.payload, &setting).await;
         });
@@ -496,7 +842,7 @@ fn spawn_dispatch(
 /// comma-separated `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` environment variable so
 /// production can grant outbound access without recompiling the schema.
 #[cfg(feature = "functions-runtime")]
-fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
+pub fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
     let mut config = fraiseql_functions::host::live::HostContextConfig::default();
     if let Ok(domains) = std::env::var("FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS") {
         config.allowed_domains = domains

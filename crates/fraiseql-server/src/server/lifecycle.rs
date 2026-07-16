@@ -209,10 +209,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
 
                 let hooks = app_state.before_mutation_hooks.clone();
+                // #594: the after:ingest `fraiseql_query` bridge factory, built over the
+                // app's hot-reloadable executor (same one the route handlers use); only
+                // meaningful when function-dispatch hooks are present.
+                let query_executor_factory = hooks.as_ref().map(|_| {
+                    crate::routes::after_mutation::make_query_executor_factory(
+                        app_state.executor.clone(),
+                    )
+                });
                 let pollers = email::build_pollers(
                     &self.config.mailbox,
                     db_pool,
                     hooks.as_ref(),
+                    query_executor_factory.as_ref(),
                     sink.as_ref(),
                     Some(&correlator),
                     address_hash_key.as_ref(),
@@ -275,6 +284,39 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "compiled schema declares sources but the functions subsystem is not \
                          configured — no source scheduler started"
                     );
+                }
+            }
+        }
+
+        // Start the `cron:` function scheduler (#595): one leased poller per cron
+        // function in the compiled schema, each firing on its schedule under a
+        // single-firing advisory lease with the phase-02 `run_as` host. A cron
+        // function is a scheduled source without a cursor. Runs on the server's
+        // JoinSet so graceful shutdown drains it; requires a DB pool (the advisory
+        // lease + `_fraiseql_cron_state`) and the function-dispatch hooks.
+        #[cfg(feature = "functions-runtime")]
+        if let Some(ref db_pool) = self.db_pool {
+            if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
+                if !hooks.trigger_registry.cron_triggers.is_empty() {
+                    let cron_state = crate::cron::PgCronState::new(db_pool.clone());
+                    cron_state.init().await.map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize cron state schema: {e}"
+                        ))
+                    })?;
+                    let host_config = crate::routes::after_mutation::host_context_config();
+                    let pollers = crate::cron::build_cron_pollers(
+                        db_pool,
+                        &app_state.executor,
+                        hooks.as_ref(),
+                        &host_config,
+                        &fraiseql_functions::ResourceLimits::default(),
+                    );
+                    let started = pollers.len();
+                    for poller in pollers {
+                        self.tasks.spawn(async move { poller.run_forever().await });
+                    }
+                    info!(cron_functions = started, "cron scheduler started");
                 }
             }
         }
@@ -374,6 +416,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
                 let mut guard = runtime.write().await;
                 guard.set_event_bridge_sender(sender);
+
+                // #366: wire after:capture dispatch — externally-captured writes
+                // (from the change-log reader) drive `after:capture` functions on
+                // the phase-02 `run_as` host. The hook is a cheap no-op for
+                // FraiseQL's own (non-captured) rows, so mediated writes never loop.
+                #[cfg(feature = "functions-runtime")]
+                if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
+                    let hooks = std::sync::Arc::clone(hooks);
+                    let factory = crate::routes::after_mutation::make_query_executor_factory(
+                        app_state.executor.clone(),
+                    );
+                    guard.set_capture_dispatch(std::sync::Arc::new(move |event| {
+                        if let Some((fn_event, cdc)) =
+                            crate::routes::after_mutation::observer_event_to_capture(event)
+                        {
+                            let plans = crate::routes::after_mutation::plan_after_capture_dispatch(
+                                &hooks,
+                                &fn_event,
+                                cdc.as_deref(),
+                            );
+                            if !plans.is_empty() {
+                                crate::routes::after_mutation::spawn_after_capture(
+                                    &hooks,
+                                    plans,
+                                    Some(factory.clone()),
+                                );
+                            }
+                        }
+                    }));
+                }
 
                 match guard.start().await {
                     Ok(()) => {

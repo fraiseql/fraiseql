@@ -69,6 +69,12 @@ pub enum DispatchSource {
     AfterMutation,
     /// An `after:ingest` function trigger (inbound-message ingestion).
     AfterIngest,
+    /// An `after:capture` function trigger (#366) — an externally-captured write
+    /// to a `@subscribable` table, driven from the change-log reader, distinct from
+    /// `after:mutation` (which fires on FraiseQL's own committed mutations). Tagged
+    /// distinctly so a capture-driven dispatch is separable in the DLQ and on
+    /// `/metrics` from a mutation-driven one.
+    AfterCapture,
     /// A scheduled ingress `Source` poll (#573) — the poll/fetch step itself, as
     /// distinct from the `after:ingest` handlers its messages then fire.
     Source,
@@ -85,7 +91,25 @@ impl DispatchSource {
         match self {
             Self::AfterMutation => "after:mutation",
             Self::AfterIngest => "after:ingest",
+            Self::AfterCapture => "after:capture",
             Self::Source => "source",
+        }
+    }
+
+    /// Reconstruct a [`DispatchSource`] from its [`label`](Self::label).
+    ///
+    /// The inverse of [`label`](Self::label), for a durable DLQ store that persists
+    /// the label string and reloads records after a restart. Returns `None` for an
+    /// unrecognised label (a store written by a newer server, or corruption) so the
+    /// caller decides how to handle it rather than guessing a variant.
+    #[must_use]
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "after:mutation" => Some(Self::AfterMutation),
+            "after:ingest" => Some(Self::AfterIngest),
+            "after:capture" => Some(Self::AfterCapture),
+            "source" => Some(Self::Source),
+            _ => None,
         }
     }
 }

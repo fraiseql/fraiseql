@@ -31,6 +31,53 @@ mod router_construction {
     }
 }
 
+mod after_ingest_bridge {
+    //! #594: the after:ingest `fraiseql_query` bridge factory is threaded onto the
+    //! webhook inbound state so an after:ingest function can write back under its
+    //! `run_as` ceiling. The `run_as`→bridge mechanism itself is proven in
+    //! `routes::after_mutation::tests::query_bridge_wiring` (same `spawn_dispatch`
+    //! path); this proves the state carries + would pass the factory rather than the
+    //! pre-#594 `None`.
+    use std::{future::Future, pin::Pin, sync::Arc};
+
+    use fraiseql_functions::host::live::QueryExecutor;
+    use serde_json::Value;
+
+    use super::{HashMap, WebhookInboundState, lazy_pool};
+    use crate::routes::after_mutation::QueryExecutorFactory;
+
+    struct MockExec;
+    impl QueryExecutor for MockExec {
+        fn execute_query(
+            &self,
+            _query: &str,
+            _variables: Option<&Value>,
+        ) -> Pin<Box<dyn Future<Output = fraiseql_error::Result<Value>> + Send + '_>> {
+            Box::pin(async { Ok(Value::Null) })
+        }
+    }
+
+    fn factory() -> QueryExecutorFactory {
+        Arc::new(|_identity| Arc::new(MockExec) as Arc<dyn QueryExecutor>)
+    }
+
+    #[tokio::test] // `connect_lazy` needs a Tokio context (it spawns the pool's keeper).
+    async fn without_a_factory_the_bridge_is_unwired() {
+        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None);
+        assert!(state.query_executor_factory().is_none());
+    }
+
+    #[tokio::test]
+    async fn with_a_factory_the_state_carries_the_after_ingest_bridge() {
+        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
+            .with_query_executor_factory(factory());
+        assert!(
+            state.query_executor_factory().is_some(),
+            "#594: the webhook state must carry the query bridge so after:ingest can write back"
+        );
+    }
+}
+
 #[test]
 fn webhook_source_declares_push_transport() {
     let source = WebhookSource::new("stripe");

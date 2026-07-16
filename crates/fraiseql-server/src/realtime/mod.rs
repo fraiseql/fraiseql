@@ -32,6 +32,7 @@ pub mod observer;
 pub mod protocol;
 pub mod routes;
 pub mod server;
+pub mod subscription_policy;
 pub mod subscriptions;
 
 #[cfg(test)]

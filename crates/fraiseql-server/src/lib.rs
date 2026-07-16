@@ -33,12 +33,31 @@ pub mod token_revocation;
 
 // Original fraiseql-server modules
 pub mod api;
+/// Server-side `cron:` function scheduling (#595): one leased poller per cron
+/// function, firing on the phase-02 `run_as` host.
+#[cfg(feature = "functions-runtime")]
+pub mod cron;
 pub mod error;
 pub mod extractors;
 #[cfg(feature = "federation")]
 pub mod federation;
+/// Prometheus metrics for function-trigger dispatch (#598) — the sibling of
+/// [`sources::metrics`](crate::sources).
+///
+/// Always compiled so the always-compiled dispatch planners
+/// ([`routes::after_mutation`](crate::routes)) can record predicate skips; its
+/// dispatch/DLQ emitters are only reached under `functions-runtime`/`observers`,
+/// so the dead-code allowance mirrors `routes::after_mutation`.
+#[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
+mod function_metrics;
 pub mod logging;
 pub mod middleware;
+/// The shared `fraiseql_query` bridge (`RunAsQueryExecutor`).
+///
+/// Used by every background dispatch path — scheduled sources and event-dispatched
+/// functions — to run guest mutations under a `run_as` identity (#573, #594).
+#[cfg(feature = "functions-runtime")]
+pub mod query_bridge;
 pub mod routes;
 pub mod schema;
 pub mod server;

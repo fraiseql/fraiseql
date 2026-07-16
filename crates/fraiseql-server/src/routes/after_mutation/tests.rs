@@ -25,6 +25,8 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
             trigger:     (*trigger).to_string(),
             runtime:     RuntimeType::Wasm,
             timeout_ms:  None,
+            run_as:      None,
+            when:        Vec::new(),
             re_runnable: false,
             retry:       None,
         })
@@ -269,6 +271,8 @@ mod durable_dispatch {
             sender_resolver: None,
             email_transport: None,
             idempotency_key,
+            query_executor_factory: None,
+            run_as: None,
         }
     }
 
@@ -416,7 +420,31 @@ mod dispatch_config {
     use fraiseql_functions::{FunctionDefinition, RuntimeType};
     use fraiseql_observers::RetryConfig;
 
-    use super::super::{DispatchDefaults, resolve_dispatch_settings};
+    use super::super::{DispatchDefaults, DlqStoreKind, resolve_dispatch_settings};
+
+    #[test]
+    fn dlq_store_resolves_from_compiled_value_and_env_override() {
+        let no_env = |_: &str| None;
+
+        // Compiled value, no env: honoured (case/space-insensitive).
+        assert_eq!(DlqStoreKind::resolve(Some("postgres"), no_env), DlqStoreKind::Postgres);
+        assert_eq!(DlqStoreKind::resolve(Some("  Postgres "), no_env), DlqStoreKind::Postgres);
+        assert_eq!(DlqStoreKind::resolve(Some("memory"), no_env), DlqStoreKind::Memory);
+
+        // Absent everywhere → the in-memory default.
+        assert_eq!(DlqStoreKind::resolve(None, no_env), DlqStoreKind::Memory);
+
+        // Env overrides the compiled value (production tuning without recompiling).
+        let env_pg =
+            |key: &str| (key == "FRAISEQL_FUNCTIONS_DLQ_STORE").then(|| "postgres".to_string());
+        assert_eq!(DlqStoreKind::resolve(Some("memory"), env_pg), DlqStoreKind::Postgres);
+        let env_mem =
+            |key: &str| (key == "FRAISEQL_FUNCTIONS_DLQ_STORE").then(|| "memory".to_string());
+        assert_eq!(DlqStoreKind::resolve(Some("postgres"), env_mem), DlqStoreKind::Memory);
+
+        // Unknown value → fail-safe to memory (never a startup failure).
+        assert_eq!(DlqStoreKind::resolve(Some("redis"), no_env), DlqStoreKind::Memory);
+    }
 
     fn definition(name: &str, re_runnable: bool, retry: Option<RetryConfig>) -> FunctionDefinition {
         FunctionDefinition {
@@ -424,6 +452,8 @@ mod dispatch_config {
             trigger: format!("after:mutation:Entity:insert@{name}"),
             runtime: RuntimeType::Wasm,
             timeout_ms: None,
+            run_as: None,
+            when: Vec::new(),
             re_runnable,
             retry,
         }
@@ -479,5 +509,348 @@ mod dispatch_config {
             settings["sendEmail"].policy.retry.max_attempts, defaults.retry.max_attempts,
             "a function with no retry inherits the default"
         );
+    }
+}
+
+// ── #594: the fraiseql_query bridge wiring on the dispatched host ────────────
+
+#[cfg(feature = "functions-runtime")]
+mod query_bridge_wiring {
+    #![allow(clippy::unwrap_used)] // Reason: test module — mutex locks are infallible here
+
+    use std::sync::{Arc, Mutex};
+
+    use fraiseql_core::security::SecurityContext;
+    use fraiseql_functions::{
+        EventPayload, FunctionObserver, HostContext, ResourceLimits, RunAs,
+        host::live::QueryExecutor,
+    };
+
+    use super::super::{DurableDispatcher, QueryExecutorFactory, host_context_config};
+    use crate::observers::runtime::InMemoryDlq;
+
+    /// A mock executor returning a canned result. The identity it runs under is
+    /// captured by the factory closure below (that is where the `run_as` identity is
+    /// resolved), so this executor itself is stateless.
+    struct RecordingExecutor;
+
+    impl QueryExecutor for RecordingExecutor {
+        fn execute_query(
+            &self,
+            _query: &str,
+            _variables: Option<&serde_json::Value>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async { Ok(serde_json::json!({ "data": { "ok": true } })) })
+        }
+    }
+
+    /// Build a factory that records the identity each dispatched host runs under.
+    fn recording_factory() -> (QueryExecutorFactory, Arc<Mutex<Option<SecurityContext>>>) {
+        let captured: Arc<Mutex<Option<SecurityContext>>> = Arc::new(Mutex::new(None));
+        let sink = Arc::clone(&captured);
+        let factory: QueryExecutorFactory = Arc::new(move |identity: SecurityContext| {
+            *sink.lock().unwrap() = Some(identity);
+            Arc::new(RecordingExecutor) as Arc<dyn QueryExecutor>
+        });
+        (factory, captured)
+    }
+
+    fn dispatcher(
+        query_executor_factory: Option<QueryExecutorFactory>,
+        run_as: Option<RunAs>,
+    ) -> DurableDispatcher {
+        DurableDispatcher {
+            observer: Arc::new(FunctionObserver::new()),
+            host_config: host_context_config(),
+            limits: ResourceLimits::default(),
+            dlq: Arc::new(InMemoryDlq::new_with_max(None)),
+            source: fraiseql_observers::DispatchSource::AfterMutation,
+            sender_resolver: None,
+            email_transport: None,
+            idempotency_key: None,
+            query_executor_factory,
+            run_as,
+        }
+    }
+
+    fn payload() -> EventPayload {
+        EventPayload {
+            trigger_type: "after:mutation:recordApproval".to_string(),
+            entity:       "Order".to_string(),
+            event_kind:   "update".to_string(),
+            data:         serde_json::json!({ "new": { "id": 1 } }),
+            timestamp:    chrono::Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn without_a_factory_the_bridge_is_unconfigured() {
+        // No factory ⇒ the dispatched host has no query executor, so a function's
+        // `fraiseql_query` fails "query executor not configured" — the pre-#594
+        // behavior, preserved for a server with no request-path executor.
+        let host = dispatcher(None, None).build_host("notify", payload(), "tok-1");
+        let err = host
+            .query("mutation { x }", serde_json::json!({}))
+            .await
+            .expect_err("no executor");
+        assert!(err.to_string().contains("query executor not configured"));
+    }
+
+    #[tokio::test]
+    async fn a_factory_wires_the_bridge_under_the_run_as_ceiling() {
+        // #594: with a factory, the dispatched host CAN issue `fraiseql_query`, and
+        // it runs under this function's `run_as` identity (audited as
+        // `system_job:<function-name>`).
+        let (factory, captured) = recording_factory();
+        let run_as = RunAs {
+            roles:  vec!["order_writer".to_string()],
+            scopes: vec!["write:order".to_string()],
+            tenant: Some("acme".to_string()),
+        };
+        let host = dispatcher(Some(factory), Some(run_as)).build_host(
+            "recordApproval",
+            payload(),
+            "tok-2",
+        );
+
+        let value = host
+            .query("mutation { recordApproval(id: 1) { id } }", serde_json::json!({}))
+            .await
+            .expect("the bridge is wired");
+        assert_eq!(value, serde_json::json!({ "data": { "ok": true } }));
+
+        // The write ran under the function's ceiling, audited as its system job.
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:recordApproval");
+        assert!(identity.has_role("order_writer"));
+        assert!(identity.has_scope("write:order"));
+        assert_eq!(identity.request_id, "tok-2", "identity correlates the dispatch token");
+    }
+
+    #[tokio::test]
+    async fn a_function_without_run_as_is_fail_closed() {
+        // A factory but no `run_as` ⇒ the bridge is wired but runs under an anonymous
+        // system_job with no authority: RLS/field-authz deny writes.
+        let (factory, captured) = recording_factory();
+        let host = dispatcher(Some(factory), None).build_host("purge", payload(), "tok-3");
+        let _ = host.query("query { me { id } }", serde_json::json!({})).await;
+
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:purge");
+        assert!(identity.roles.is_empty(), "fail-closed: no roles");
+        assert!(identity.scopes.is_empty(), "fail-closed: no scopes");
+        assert!(identity.tenant_id.is_none(), "fail-closed: no tenant");
+    }
+}
+
+// ── #597: `when` predicates gate the planner (no dispatch on non-match) ──────
+
+#[test]
+fn when_predicate_produces_no_dispatch_on_non_matching_update() {
+    use fraiseql_functions::{RuntimeType, triggers::TriggerPredicate};
+
+    // A function that only fires when `status` transitions to "approved".
+    let mut def = FunctionDefinition::new(
+        "notify_approved",
+        "after:mutation:Order:update",
+        RuntimeType::Wasm,
+    );
+    def.when = vec![TriggerPredicate {
+        field:      "status".to_string(),
+        eq:         None,
+        changed_to: Some(json!("approved")),
+    }];
+
+    let registry = TriggerRegistry::load_from_definitions(&[def]).expect("valid when");
+    let module_registry: HashMap<String, FunctionModule> =
+        HashMap::from([("notify_approved".to_string(), module("notify_approved"))]);
+    let hooks =
+        BeforeMutationHooks::new(registry, module_registry, Arc::new(FunctionObserver::new()));
+
+    let schema = schema_with(
+        "updateOrder",
+        "Order",
+        MutationOperation::Update {
+            table: "tb_order".to_string(),
+        },
+    );
+
+    // The after:mutation ROUTE path carries only the after-image (no pre-image), so
+    // `changed_to` gates on `new.status == v`. An update whose result is NOT the
+    // target value produces no dispatch record at all (predicate false).
+    let other_value = json!({ "data": { "updateOrder": { "id": "o1", "status": "rejected" } } });
+    assert!(
+        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &other_value).is_empty(),
+        "a predicate-false update produces no dispatch (no record, not a skipped dispatch)"
+    );
+
+    // An update to the target value fires. (On the route path the pre-image is
+    // absent, so `changed_to` cannot distinguish a transition from a re-save — full
+    // transition detection needs the pre-image, i.e. the after:capture path with
+    // `pre_image=True`. Documented in functions.md.)
+    let to_target = json!({ "data": { "updateOrder": { "id": "o1", "status": "approved" } } });
+    assert_eq!(
+        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &to_target).len(),
+        1,
+        "an update to the target value fires the predicate function"
+    );
+}
+
+// ── #366: after:capture dispatch (loop-safe, predicate-aware) ───────────────
+
+#[cfg(feature = "functions-runtime")]
+mod after_capture {
+    #![allow(clippy::unwrap_used)] // Reason: test module
+
+    use fraiseql_functions::RuntimeType;
+    use fraiseql_observers::{
+        DispatchSource, EntityEvent as ObserverEntityEvent, EventKind as ObserverEventKind,
+    };
+
+    use super::{
+        super::{
+            CAPTURED_WRITE_MARKER, dispatch_idempotency_token, observer_event_to_capture,
+            plan_after_capture_dispatch,
+        },
+        *,
+    };
+
+    fn capture_hooks(name: &str, trigger: &str) -> BeforeMutationHooks {
+        let def = FunctionDefinition::new(name, trigger, RuntimeType::Wasm);
+        let registry =
+            TriggerRegistry::load_from_definitions(&[def]).expect("valid capture trigger");
+        let modules: HashMap<String, FunctionModule> =
+            HashMap::from([(name.to_string(), module(name))]);
+        BeforeMutationHooks::new(registry, modules, Arc::new(FunctionObserver::new()))
+    }
+
+    fn captured_insert(
+        entity: &str,
+        data: serde_json::Value,
+        cdc: Option<&str>,
+    ) -> ObserverEntityEvent {
+        let mut e = ObserverEntityEvent::new(
+            ObserverEventKind::Created,
+            entity.to_string(),
+            uuid::Uuid::new_v4(),
+            data,
+        );
+        e.cdc_source = cdc.map(String::from);
+        e
+    }
+
+    #[test]
+    fn dispatches_only_genuinely_captured_writes() {
+        let hooks = capture_hooks("onCapture", "after:capture:Order:insert");
+        let data = json!({ "id": "o1", "status": "new" });
+
+        // A captured write (cdc_source = fallback_trigger) → one after:capture plan.
+        let captured = captured_insert("Order", data.clone(), Some(CAPTURED_WRITE_MARKER));
+        let (event, cdc) = observer_event_to_capture(&captured).expect("insert converts");
+        let plans = plan_after_capture_dispatch(&hooks, &event, cdc.as_deref());
+        assert_eq!(plans.len(), 1, "a captured write drives after:capture");
+        assert_eq!(plans[0].payload.trigger_type, "after:capture:onCapture");
+        assert_eq!(plans[0].payload.data["new"]["id"], "o1");
+
+        // An executor/mediated write (no marker) → NO dispatch (loop safety).
+        let executor_write = captured_insert("Order", data, None);
+        let (event, cdc) = observer_event_to_capture(&executor_write).expect("insert converts");
+        assert!(
+            plan_after_capture_dispatch(&hooks, &event, cdc.as_deref()).is_empty(),
+            "a non-captured (executor) write never dispatches after:capture — loop safety"
+        );
+    }
+
+    #[test]
+    fn delete_reports_removed_row_as_old() {
+        let hooks = capture_hooks("onDelete", "after:capture:Order:delete");
+        let mut ev = ObserverEntityEvent::new(
+            ObserverEventKind::Deleted,
+            "Order".to_string(),
+            uuid::Uuid::new_v4(),
+            json!({ "id": "o9" }),
+        );
+        ev.cdc_source = Some(CAPTURED_WRITE_MARKER.to_string());
+
+        let (event, cdc) = observer_event_to_capture(&ev).expect("delete converts");
+        let plans = plan_after_capture_dispatch(&hooks, &event, cdc.as_deref());
+        assert_eq!(plans.len(), 1);
+        assert_eq!(
+            plans[0].payload.data["old"]["id"], "o9",
+            "delete reports the removed row as old"
+        );
+        assert!(plans[0].payload.data["new"].is_null());
+    }
+
+    #[test]
+    fn predicates_compose_on_capture_payloads() {
+        use fraiseql_functions::triggers::TriggerPredicate;
+        // A capture function that only fires when status == "shipped".
+        let mut def =
+            FunctionDefinition::new("onShipped", "after:capture:Order:insert", RuntimeType::Wasm);
+        def.when = vec![TriggerPredicate {
+            field:      "status".to_string(),
+            eq:         Some(json!("shipped")),
+            changed_to: None,
+        }];
+        let registry = TriggerRegistry::load_from_definitions(&[def]).expect("valid");
+        let modules: HashMap<String, FunctionModule> =
+            HashMap::from([("onShipped".to_string(), module("onShipped"))]);
+        let hooks = BeforeMutationHooks::new(registry, modules, Arc::new(FunctionObserver::new()));
+
+        // status=new → predicate false → no dispatch.
+        let e = captured_insert("Order", json!({ "status": "new" }), Some(CAPTURED_WRITE_MARKER));
+        let (ev, cdc) = observer_event_to_capture(&e).unwrap();
+        assert!(plan_after_capture_dispatch(&hooks, &ev, cdc.as_deref()).is_empty());
+
+        // status=shipped → predicate true → dispatch.
+        let e =
+            captured_insert("Order", json!({ "status": "shipped" }), Some(CAPTURED_WRITE_MARKER));
+        let (ev, cdc) = observer_event_to_capture(&e).unwrap();
+        assert_eq!(plan_after_capture_dispatch(&hooks, &ev, cdc.as_deref()).len(), 1);
+    }
+
+    // #366: a capture dispatch's idempotency token is stable per change-log row, so a
+    // redelivery after a crash (the reader re-processing the same row) re-derives the
+    // same token — the at-most-once guarantee for a money/mail after:capture side
+    // effect. The token keys on the row image (entity + event kind + old/new), never
+    // the processing timestamp or the event id.
+    #[test]
+    fn capture_dispatch_token_is_stable_per_change_log_row() {
+        let hooks = capture_hooks("reconcile", "after:capture:Order:insert");
+
+        // Derive the dispatch token for a captured row via the real capture path.
+        // Each call mints a fresh event id + timestamp (as a redelivery would), so an
+        // equal token proves the derivation ignores them.
+        let token = |data: serde_json::Value| -> String {
+            let event = captured_insert("Order", data, Some(CAPTURED_WRITE_MARKER));
+            let (fn_event, cdc) = observer_event_to_capture(&event).expect("capture event");
+            let plans = plan_after_capture_dispatch(&hooks, &fn_event, cdc.as_deref());
+            let plan = plans.first().expect("one capture plan");
+            dispatch_idempotency_token(
+                None,
+                DispatchSource::AfterCapture,
+                "reconcile",
+                &plan.payload,
+            )
+        };
+
+        let row = json!({ "id": "o-1", "status": "approved" });
+        let first = token(row.clone());
+        let redelivery = token(row); // same row image, fresh event id + timestamp
+        assert_eq!(
+            first, redelivery,
+            "redelivery of the same captured row re-derives the same token (at-most-once)"
+        );
+
+        // A genuinely different row image derives a different token.
+        let other = token(json!({ "id": "o-2", "status": "approved" }));
+        assert_ne!(first, other, "a different captured row derives a different token");
     }
 }

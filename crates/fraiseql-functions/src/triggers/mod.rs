@@ -61,7 +61,9 @@ pub use ingest::{
     email::{ParsedEmail, PendingAttachment, classify, derive_thread_key, normalize_email},
     parse_recipient, resolve_routing,
 };
-pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
+pub use mutation::{
+    AfterMutationTrigger, BeforeMutationTrigger, TriggerPredicate, predicates_match,
+};
 pub use registry::{ParsedTrigger, RegistryError, TriggerRegistry};
 pub use source::{IngestSink, SourceOutcome, run_source_once};
 pub use storage::{StorageEventPayload, StorageOperation, StorageTrigger};

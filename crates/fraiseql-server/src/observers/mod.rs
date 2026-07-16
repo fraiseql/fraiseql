@@ -29,6 +29,13 @@ pub mod changelog_handlers;
 pub mod config;
 pub mod dlq_handlers;
 pub mod handlers;
+/// Postgres-backed durable function-dispatch dead-letter store (#598).
+///
+/// Only meaningful when function dispatch is compiled in, so gated on
+/// `functions-runtime` (which brings the `fraiseql-functions` migration + the
+/// dispatcher that writes to it).
+#[cfg(feature = "functions-runtime")]
+pub mod pg_function_dlq;
 pub mod repository;
 pub mod routes;
 pub mod runtime;

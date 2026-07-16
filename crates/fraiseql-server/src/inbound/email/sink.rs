@@ -37,6 +37,10 @@ pub struct EmailIngestSink {
     cursor_store:             PostgresSourceCursorStore,
     /// Function-dispatch hooks; `None` ingests without firing `after:ingest`.
     hooks:                    Option<Arc<BeforeMutationHooks>>,
+    /// The `fraiseql_query` bridge builder (#594) for `after:ingest` functions —
+    /// the request-path executor factory. `None` → an after:ingest function's
+    /// `fraiseql_query` fails loud (pre-#594 behavior).
+    query_executor_factory:   Option<crate::routes::after_mutation::QueryExecutorFactory>,
     /// Delivery-feedback correlator; `None` ingests without correlating inbound
     /// bounces / challenges / replies to their send.
     correlator:               Option<Arc<dyn SendCorrelator>>,
@@ -50,10 +54,14 @@ pub struct EmailIngestSink {
 impl EmailIngestSink {
     /// Assemble a sink from a pool and its resolved collaborators.
     #[must_use]
+    // Reason: a sink's fixed collaborators; a params struct would relocate them without
+    // reducing coupling (mirrors the poller/cron constructors).
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox_key: impl Into<String>,
         pool: PgPool,
         hooks: Option<Arc<BeforeMutationHooks>>,
+        query_executor_factory: Option<crate::routes::after_mutation::QueryExecutorFactory>,
         correlator: Option<Arc<dyn SendCorrelator>>,
         address_hash_key: Option<Arc<[u8]>>,
         challenge_suppress_after: u32,
@@ -63,10 +71,21 @@ impl EmailIngestSink {
             cursor_store: PostgresSourceCursorStore::new(pool.clone()),
             pool,
             hooks,
+            query_executor_factory,
             correlator,
             address_hash_key,
             challenge_suppress_after,
         }
+    }
+
+    /// The attached `fraiseql_query` bridge factory, if any (test observability for
+    /// the #594 after:ingest wiring; the dispatch path reads the field directly).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn query_executor_factory(
+        &self,
+    ) -> Option<&crate::routes::after_mutation::QueryExecutorFactory> {
+        self.query_executor_factory.as_ref()
     }
 
     /// Correlate an inbound bounce / challenge / reply back to its send.
@@ -102,7 +121,9 @@ impl EmailIngestSink {
         };
         let plans = plan_after_ingest_dispatch(hooks, message);
         if !plans.is_empty() {
-            spawn_after_ingest(hooks, plans);
+            // #594: after:ingest functions write back under their `run_as` ceiling via
+            // the request-path executor factory threaded onto the sink at mount time.
+            spawn_after_ingest(hooks, plans, self.query_executor_factory.clone());
         }
     }
 }

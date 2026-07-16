@@ -42,6 +42,7 @@ fn build_subsystem_loads_all_declared_modules() {
 
     let config = FunctionsConfig {
         module_dir:  dir.path().to_path_buf(),
+        dlq_store:   None,
         definitions: vec![wasm_def("scoreDeal"), wasm_def("chargeCard")],
     };
 
@@ -57,6 +58,7 @@ fn build_subsystem_fails_loud_on_a_missing_module() {
     // Declared but no file on disk.
     let config = FunctionsConfig {
         module_dir:  dir.path().to_path_buf(),
+        dlq_store:   None,
         definitions: vec![wasm_def("missing")],
     };
     assert!(build_functions_subsystem(config).is_err());

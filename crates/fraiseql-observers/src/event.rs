@@ -98,6 +98,14 @@ pub struct EntityEvent {
     /// not stamp it.
     #[serde(default)]
     pub schema_version: Option<String>,
+    /// The change-data-capture *origin* of this row (`extra_metadata.cdc_source`,
+    /// #366). `Some("fallback_trigger")` marks an **externally-captured** write (a
+    /// third-party daemon / `psql` INSERT caught by the shipped capture trigger);
+    /// FraiseQL's own executor-written rows carry no such marker. `after:capture`
+    /// function dispatch keys on this so a mediated/executor write never re-enters
+    /// the capture path (loop safety). `None` when the row is not a captured write.
+    #[serde(default)]
+    pub cdc_source:     Option<String>,
 }
 
 impl EntityEvent {
@@ -124,6 +132,7 @@ impl EntityEvent {
             actor_type: None,
             acting_for: None,
             schema_version: None,
+            cdc_source: None,
         }
     }
 

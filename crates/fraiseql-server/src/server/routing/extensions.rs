@@ -175,6 +175,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         );
         if let Some(ref hooks) = state.before_mutation_hooks {
             inbound_state = inbound_state.with_hooks(std::sync::Arc::clone(hooks));
+            // #594: thread the request-path executor factory so after:ingest
+            // functions can `fraiseql_query` write back under their `run_as` ceiling
+            // — the same factory the after:mutation route handlers use.
+            inbound_state = inbound_state.with_query_executor_factory(
+                crate::routes::after_mutation::make_query_executor_factory(state.executor.clone()),
+            );
         }
         info!(
             routes = self.config.webhooks.len(),

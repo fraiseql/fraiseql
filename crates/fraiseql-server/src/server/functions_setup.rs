@@ -41,6 +41,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return Ok(());
         }
 
+        // Resolve the DLQ store choice (#598) before the config is consumed —
+        // `FRAISEQL_FUNCTIONS_DLQ_STORE` overrides the compiled `[functions] dlq_store`.
+        let dlq_store_kind = crate::routes::after_mutation::DlqStoreKind::resolve(
+            functions_config.dlq_store.as_deref(),
+            |key| std::env::var(key).ok(),
+        );
+
         let subsystem = build_functions_subsystem(functions_config).map_err(|error| {
             ServerError::ConfigError(format!("functions-runtime setup failed: {error}"))
         })?;
@@ -54,6 +61,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut hooks =
             subsystem.into_before_mutation_hooks().with_idempotency_key(idempotency_key);
 
+        // Select the durable Postgres-backed DLQ when requested and a pool exists;
+        // otherwise the in-memory store (the default) stays. A postgres request
+        // without a pool is a loud fallback, not a startup failure.
+        hooks = self.select_function_dlq(hooks, dlq_store_kind).await?;
+
         if let Some((resolver, transport)) = self.build_send_email_wiring().await? {
             hooks = hooks.with_email(resolver, transport);
             tracing::info!(
@@ -65,6 +77,42 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self.functions_hooks = Some(Arc::new(hooks));
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
         Ok(())
+    }
+
+    /// Swap in the Postgres-backed function DLQ when selected and a pool exists (#598).
+    ///
+    /// `dlq_store = "postgres"` makes a dead-lettered dispatch survive a restart; the
+    /// `_fraiseql_function_dlq` table is created here (async, fail-loud on DDL error).
+    /// A postgres request with no database pool is a loud fallback to the in-memory
+    /// store, not a startup failure — the same posture as the send-tracking store.
+    /// `dlq_store = "memory"` (the default) returns the hooks unchanged.
+    async fn select_function_dlq(
+        &self,
+        hooks: crate::subsystems::BeforeMutationHooks,
+        kind: crate::routes::after_mutation::DlqStoreKind,
+    ) -> Result<crate::subsystems::BeforeMutationHooks, ServerError> {
+        use crate::routes::after_mutation::{DispatchDefaults, DlqStoreKind};
+
+        if kind != DlqStoreKind::Postgres {
+            return Ok(hooks);
+        }
+        let Some(pool) = self.db_pool.as_ref() else {
+            tracing::warn!(
+                "[functions] dlq_store = \"postgres\" but no database pool is available — \
+                 dead-lettered dispatches use the in-memory store and will not survive a restart"
+            );
+            return Ok(hooks);
+        };
+
+        // Same retention cap the in-memory store honors, so `dlq_store` only changes
+        // durability, not the drop-newest policy.
+        let max_size = DispatchDefaults::from_env().dlq_max_size;
+        let store = crate::observers::pg_function_dlq::PgFunctionDlq::new(pool.clone(), max_size);
+        store.init().await.map_err(|error| {
+            ServerError::ConfigError(format!("failed to initialize function DLQ schema: {error}"))
+        })?;
+        tracing::info!("function DLQ: postgres-backed (dead-letters survive restarts)");
+        Ok(hooks.with_dlq(Arc::new(store)))
     }
 
     /// Derive the idempotency-token HMAC subkey from the configured server HMAC
