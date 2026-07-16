@@ -8,9 +8,9 @@ name = "arrow_vs_json_serialization"
 
 [dependencies]
 # Arrow ecosystem (with CSV and Parquet support)
-arrow = {version = "57", features = ["csv", "json"]}
-arrow-flight = "57"
-arrow-schema = "57"
+arrow = {version = "59", features = ["csv", "json"]}
+arrow-flight = "59"
+arrow-schema = "59"
 # Async utilities
 async-stream = "0.3"
 async-trait = "0.1"
@@ -27,7 +27,7 @@ futures = "0.3"
 reqwest = {workspace = true}
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "10"
-parquet = {version = "57", optional = true}
+parquet = {version = "59", optional = true}
 prost = "0.14"
 # Serialization
 serde = {version = "1", features = ["derive"]}
@@ -59,8 +59,8 @@ uuid = {workspace = true}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
-# Reason: parquet pulls thrift 0.17 (CVE-2026-43868 — unmaintained upstream
-# since 2022). Off by default; opt in if you need Parquet export.
+# Off by default; opt in if you need Parquet export. (parquet 59 dropped the
+# unmaintained thrift 0.17 dependency that originally forced this off-by-default.)
 parquet = ["dep:parquet"]
 testing = []
 

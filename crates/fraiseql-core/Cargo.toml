@@ -49,8 +49,8 @@ ahash = {workspace = true}
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server
 # and concrete Arrow conversion implementations.
-arrow = {version = "57", optional = true}
-arrow-array = {version = "57", optional = true}
+arrow = {version = "59", optional = true}
+arrow-array = {version = "59", optional = true}
 base64 = {workspace = true}
 # Utilities
 bytes = {workspace = true}

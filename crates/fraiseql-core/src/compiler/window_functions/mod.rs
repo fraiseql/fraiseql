@@ -109,7 +109,7 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```text
 /// let request = WindowRequest {
 ///     table_name: "tf_sales".to_string(),
 ///     select: vec![
