@@ -248,9 +248,58 @@ impl SecurityContext {
         scopes: Vec<String>,
         tenant: Option<TenantId>,
     ) -> Self {
+        Self::principal_from_ceiling(
+            format!("system_job:{}", job_id.into()),
+            request_id,
+            roles,
+            scopes,
+            tenant,
+            ActorType::SystemJob,
+        )
+    }
+
+    /// Mint a **service-account** context from a `run_as` ceiling (ADR-0018).
+    ///
+    /// A service account is an *external* credentialed caller — a daemon or service
+    /// authenticated by a static secret — as opposed to an internal
+    /// [`system_job`](Self::system_job) firing. Authority is **exactly** the `run_as`
+    /// ceiling (`roles`/`scopes`/`tenant`); an absent/empty ceiling ⇒ no authority (RLS
+    /// and field-authz deny its writes). The identity is `service_account:<name>` and the
+    /// [`ActorType`] is [`ServiceAccount`](ActorType::ServiceAccount) — recorded for audit
+    /// (`tb_entity_change_log.actor_type`), never an authorization input.
+    #[must_use]
+    pub fn service_account(
+        name: impl Into<String>,
+        request_id: impl Into<String>,
+        roles: Vec<String>,
+        scopes: Vec<String>,
+        tenant: Option<TenantId>,
+    ) -> Self {
+        Self::principal_from_ceiling(
+            format!("service_account:{}", name.into()),
+            request_id,
+            roles,
+            scopes,
+            tenant,
+            ActorType::ServiceAccount,
+        )
+    }
+
+    /// Shared body for a machine principal minted from a `run_as` ceiling. The authority
+    /// is exactly `roles`/`scopes`/`tenant`; `user_id` + `actor_type` carry the
+    /// provenance (audit-only). Wrapped by [`system_job`](Self::system_job) and
+    /// [`service_account`](Self::service_account).
+    fn principal_from_ceiling(
+        user_id: String,
+        request_id: impl Into<String>,
+        roles: Vec<String>,
+        scopes: Vec<String>,
+        tenant: Option<TenantId>,
+        actor_type: ActorType,
+    ) -> Self {
         let now = Utc::now();
         SecurityContext {
-            user_id: UserId(format!("system_job:{}", job_id.into())),
+            user_id: UserId(user_id),
             roles,
             tenant_id: tenant,
             scopes,
@@ -258,16 +307,16 @@ impl SecurityContext {
             request_id: request_id.into(),
             ip_address: None,
             authenticated_at: now,
-            // A background job's identity is minted fresh per firing and does not
-            // outlive the run; a generous window keeps any TTL check from tripping
-            // mid-poll (mirrors the live host's default context).
+            // A machine principal's identity is minted fresh per request/firing and does
+            // not outlive it; a generous window keeps any TTL check from tripping
+            // mid-run (mirrors the live host's default context).
             expires_at: now + chrono::Duration::hours(24),
             issuer: None,
             audience: None,
             email: None,
             display_name: None,
         }
-        .with_actor_type(ActorType::SystemJob)
+        .with_actor_type(actor_type)
     }
 
     /// Check if the user has a specific role.

@@ -68,10 +68,26 @@ Authentication yields the principal's `SecurityContext` via the same
 account's `roles`/`scopes`/`tenant`), so a service account "can never exceed its
 ceiling" is true by construction and by reuse, not by a second implementation.
 
-### 2. Credential = a hashed static bearer secret behind an env indirection
+### 2. Credential = a hashed static secret behind an env indirection
 
-- The credential is a **static bearer secret** (`Authorization: Bearer <secret>`), the
-  form a daemon can present without an OIDC flow. Exactly what lives where:
+> **Amendment (2026-07-16, implementation).** This decision originally specified the
+> secret on `Authorization: Bearer <secret>`. That is **wrong for this codebase** and is
+> superseded: the `Authorization: Bearer` header is consumed by the JWT auth middleware
+> (`oidc_auth_middleware` / `hs256_auth_middleware`) *before* any api-key seam runs, so
+> whenever OIDC/HS256 is configured a bearer secret is validated as a JWT and **401'd as
+> an invalid token** — the seam never sees it. Honoring the literal would have required
+> putting a static-secret comparison inside the highest-blast-radius auth middleware,
+> which contradicts decision 3's load-bearing intent (*reuse the api-key seam, no
+> parallel plane, no middleware change*). **The secret is therefore presented on the
+> `x-api-key` header** (optionally `ApiKey <secret>` / `Bearer <secret>` in the *value*),
+> the same header the static API key uses — no middleware change. A daemon pays nothing
+> for this (the "no OIDC flow" rationale applies to `x-api-key` equally). A future
+> `sub → service account` JWT mapping (below) restores a bearer-token option additively.
+> Status remains **Accepted**.
+
+- The credential is a **static secret** (presented on the `x-api-key` header per the
+  amendment above), the form a daemon can present without an OIDC flow. Exactly what
+  lives where:
   - **The environment variable named by `secret_env` holds the plaintext secret.** It
     is read once at startup (mirroring the SMTP `password_env` / webhook `secret_env`
     precedent).
@@ -93,14 +109,26 @@ ceiling" is true by construction and by reuse, not by a second implementation.
   can present a short-lived JWT instead of a static secret; this ADR fixes the
   identity + ceiling + audit model so that extension is additive.
 
-### 3. Authenticated on the standard bearer path; no parallel plane
+### 3. Authenticated on the existing api-key seam; no parallel plane
 
 Service-account authentication slots into the existing request auth seam alongside the
-static-API-key check (`ApiKeyResult::{Authenticated, NotPresent, Invalid}` →
-fall-through to JWT). A matched service account produces a `SecurityContext` exactly
-like any other authenticated principal; every downstream consumer (RLS, field-authz,
-the change log, subscriptions) sees a normal context and needs no service-account
-special-casing. This ADR **supersedes the scopes-only static API key** as the
+static-API-key check (a matched secret → a `SecurityContext`; header absent or
+unmatched → fall-through to the api-key check, then JWT). A matched service account
+produces a `SecurityContext` exactly like any other authenticated principal; every
+downstream consumer (RLS, field-authz, the change log, subscriptions) sees a normal
+context and needs no service-account special-casing.
+
+**Multi-entry-point (implementation, 2026-07-16).** The seam is a *reusable* authenticator
+invoked from **every** point a principal authenticates — the GraphQL handler, the `/ws`
+subscription upgrade (`OptionalSecurityContext`), and REST — not just the GraphQL handler.
+This is required, not optional: the ADR's own conformance test has a service principal
+**read via a policy-scoped subscription**, which is the `/ws` path; a handler-local seam
+could never authenticate it.
+
+**Header collision → reject-as-ambiguous (fail-closed).** A single request that carries
+**both** a valid JWT *and* an `x-api-key` secret has two candidate principals. Rather than
+silently pick one, every entry point **rejects it (401)** — identity confusion between two
+valid principals on one request is never resolved silently. This ADR **supersedes the scopes-only static API key** as the
 *recommended* service-principal mechanism: a service account is the general case (full
 ceiling + env-indirected secret), a static API key the degenerate one (`scopes` only,
 in-schema hash).

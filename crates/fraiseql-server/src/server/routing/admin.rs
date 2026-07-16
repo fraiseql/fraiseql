@@ -315,6 +315,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_authorizer(self.executor.config().authorizer.clone())
             // #596: server-owned row-visibility policies (fail-closed at subscribe time).
             .with_subscription_policies(subscription_policies)
+            // ADR-0018: let a service account authenticate the /ws upgrade with its secret.
+            .with_service_account_authenticator(state.service_account_authenticator.clone())
             // M-tenant-ws-suspended: reject subscribes / pause delivery for a
             // suspended tenant, mirroring the GraphQL data plane's 503.
             .with_tenant_status_source(

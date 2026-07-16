@@ -28,6 +28,7 @@
 pub mod cli;
 // API key authentication
 pub mod api_key;
+pub mod service_account;
 // Token revocation
 pub mod token_revocation;
 

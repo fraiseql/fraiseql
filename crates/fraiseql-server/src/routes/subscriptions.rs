@@ -156,6 +156,11 @@ pub struct SubscriptionState {
     /// `None` disables enrichment — a policy-declaring subscription then fails closed.
     #[cfg(feature = "auth")]
     pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+    /// Service-account authenticator (ADR-0018). Lets a daemon authenticate the `/ws`
+    /// upgrade with its secret on the api-key header — the same seam the GraphQL path
+    /// uses — so a service principal can hold a policy-scoped subscription.
+    pub service_account_authenticator:
+        Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
 }
 
 impl SubscriptionState {
@@ -173,6 +178,7 @@ impl SubscriptionState {
             subscription_policies: Arc::new(HashMap::new()),
             #[cfg(feature = "auth")]
             identity_resolver: None,
+            service_account_authenticator: None,
         }
     }
 
@@ -184,6 +190,17 @@ impl SubscriptionState {
         policies: Arc<HashMap<String, SubscriptionPolicy>>,
     ) -> Self {
         self.subscription_policies = policies;
+        self
+    }
+
+    /// Install the service-account authenticator (ADR-0018) so a daemon can authenticate
+    /// the `/ws` upgrade with its secret on the api-key header.
+    #[must_use]
+    pub fn with_service_account_authenticator(
+        mut self,
+        authenticator: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    ) -> Self {
+        self.service_account_authenticator = authenticator;
         self
     }
 
@@ -371,6 +388,26 @@ pub async fn subscription_handler(
             }
         },
     };
+
+    // ADR-0018: authenticate a service account presenting its secret on the api-key
+    // header — the same seam the GraphQL path uses — so a service principal can hold a
+    // policy-scoped subscription. A JWT principal AND a secret on one upgrade is
+    // ambiguous (#602) → 401; a present-but-unmatched secret → 401 (indistinguishable
+    // from an unknown account, no oracle).
+    let mut security_context = security_context;
+    if let Some(sa_auth) = state.service_account_authenticator.as_ref() {
+        match sa_auth.resolve(&headers, security_context.is_some()) {
+            crate::service_account::SaAuth::NoSecret => {},
+            crate::service_account::SaAuth::Authenticated(ctx) => security_context = Some(*ctx),
+            crate::service_account::SaAuth::Ambiguous
+            | crate::service_account::SaAuth::Unmatched => {
+                warn!(
+                    "Subscription upgrade rejected: ambiguous or unmatched service-account secret"
+                );
+                return axum::http::StatusCode::UNAUTHORIZED.into_response();
+            },
+        }
+    }
 
     // Resolve the tenant key exactly as the GraphQL handler does: the JWT
     // `tenant_id` (trusted) takes precedence over the `X-Tenant-ID` header and

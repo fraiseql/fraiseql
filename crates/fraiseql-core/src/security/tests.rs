@@ -1,6 +1,49 @@
 //! Tests for `security/` modules.
 
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
+
+/// Service-account principals (ADR-0018): identity, actor type, and fail-closed ceiling.
+mod service_account_tests {
+    use crate::{
+        security::{ActorType, SecurityContext},
+        types::TenantId,
+    };
+
+    #[test]
+    fn service_account_carries_name_identity_and_actor_type() {
+        let ctx = SecurityContext::service_account(
+            "reconciler",
+            "req-1",
+            vec!["ledger:read".to_string()],
+            vec![],
+            Some(TenantId::new("acme")),
+        );
+        assert_eq!(ctx.user_id.as_str(), "service_account:reconciler");
+        assert_eq!(ctx.actor_type(), ActorType::ServiceAccount);
+        assert!(ctx.has_role("ledger:read"));
+        assert_eq!(ctx.tenant_id.as_ref().map(|t| t.as_str()), Some("acme"));
+    }
+
+    #[test]
+    fn a_service_account_without_a_ceiling_has_no_authority() {
+        // ADR-0018 decision 6 / decision 1: an account declared without roles/scopes/
+        // tenant is anonymous authority — RLS/field-authz deny its writes.
+        let ctx = SecurityContext::service_account("bare", "req-2", vec![], vec![], None);
+        assert_eq!(ctx.user_id.as_str(), "service_account:bare");
+        assert_eq!(ctx.actor_type(), ActorType::ServiceAccount);
+        assert!(ctx.roles.is_empty(), "no roles granted");
+        assert!(ctx.scopes.is_empty(), "no scopes granted");
+        assert!(ctx.tenant_id.is_none(), "no tenant pin");
+    }
+
+    #[test]
+    fn service_account_actor_type_serializes_for_audit() {
+        // The audit column takes `actor_type().as_str()` — must be "service_account".
+        let ctx = SecurityContext::service_account("auditee", "req-3", vec![], vec![], None);
+        assert_eq!(ctx.actor_type().as_str(), "service_account");
+    }
+}
+
 mod audit_tests {
     use chrono::Utc;
 

@@ -112,6 +112,8 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "auth")]
     pub(super) mfa_state: Option<Arc<crate::auth::MfaRouteState>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    pub(super) service_account_authenticator:
+        Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
     // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
     #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
     pub(super) revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
