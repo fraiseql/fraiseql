@@ -45,7 +45,7 @@ pub use triggers::{
 };
 pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
-    ResourceLimits, RuntimeType,
+    ResourceLimits, RunAs, RuntimeType,
 };
 
 #[cfg(test)]

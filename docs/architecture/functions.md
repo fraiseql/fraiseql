@@ -79,11 +79,45 @@ The host surface (`HostContext`) exposes:
 
 - `http_request` — outbound HTTP, **deny-by-default SSRF allowlist**
   (`FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS`), redirects disabled, DNS-rebind checks.
-- `query` — execute a GraphQL query back into the engine.
+- `query` (`fraiseql_query`) — execute a GraphQL query or mutation back into the
+  engine, under the function's **`run_as`** ceiling (see below). Wired for
+  `after:mutation` and scheduled sources; `after:ingest` is a tracked follow-up.
+  A function with no `run_as` can *read* only what an anonymous principal can and
+  can *write* nothing (fail-closed).
 - `storage_get` / `storage_put` — object storage.
 - `env_var` — read allowlisted secrets/config.
 - `auth_context` — the caller's authenticated context (RLS-aware execution).
 - `log` — structured logging captured into the function result.
+
+### Function authority — `run_as` (#594)
+
+A function's `fraiseql_query` writes run under an explicit least-privilege
+**ceiling**, exactly the model scheduled sources use (see
+[sources.md](./sources.md)). It is declared on the function definition in the
+compiled schema:
+
+```jsonc
+{
+  "name": "recordApproval",
+  "trigger": "after:mutation:Order:update",
+  "runtime": "Deno",
+  "run_as": { "roles": ["order_writer"], "scopes": ["write:order"], "tenant": "acme" }
+}
+```
+
+- **Fail-closed.** A function with **no `run_as`** runs its bridge under an
+  anonymous `system_job` identity — no roles, no scopes, no tenant — so RLS and
+  field-authorization deny every write until an operator grants a ceiling. Granting
+  authority is a deliberate act, never a default (same words as the sources docs).
+- **Audited.** A function-authored write is stamped `system_job:<function-name>`
+  under `ActorType::SystemJob` in the change log — the same audit envelope a source
+  write carries — so a bridge write is attributable to the function that issued it.
+- **Bridge-write asymmetry (deliberate).** A write a function issues through
+  `fraiseql_query` does **not** itself fire `after:mutation` functions: after-mutation
+  dispatch is invoked only from the GraphQL/REST route handlers, and the bridge wraps
+  the core executor, bypassing them. So a bridge-written `Order` update does **not**
+  fire `notify_approved`. This is an invariant, not a race — there is no
+  bridge→after:mutation loop to guard against.
 
 From a TypeScript guest these are `Deno.core.ops.fraiseql_*` (typed via the
 `FRAISEQL_HOST_TYPES` declarations); from a WASM guest they are the

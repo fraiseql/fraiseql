@@ -826,7 +826,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 &response_json,
             );
             if !plans.is_empty() {
-                crate::routes::after_mutation::spawn_after_mutation(hooks, plans);
+                // #594: give each dispatched function the `fraiseql_query` bridge
+                // over the request-path executor, run under its own `run_as` ceiling.
+                let query_executor_factory =
+                    crate::routes::after_mutation::make_query_executor_factory(
+                        state.executor.clone(),
+                    );
+                crate::routes::after_mutation::spawn_after_mutation(
+                    hooks,
+                    plans,
+                    Some(query_executor_factory),
+                );
             }
         }
     }

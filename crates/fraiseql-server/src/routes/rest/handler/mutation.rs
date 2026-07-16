@@ -50,7 +50,21 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 result,
             );
             if !plans.is_empty() {
-                crate::routes::after_mutation::spawn_after_mutation(hooks, plans);
+                // #594: wire the `fraiseql_query` bridge under each function's
+                // `run_as` ceiling. The REST handler holds a per-request executor
+                // snapshot; wrap it in an `ArcSwap` for the bridge (the dispatch is
+                // request-scoped, so the snapshot is the current schema).
+                let query_executor_factory =
+                    crate::routes::after_mutation::make_query_executor_factory(
+                        std::sync::Arc::new(arc_swap::ArcSwap::from(std::sync::Arc::clone(
+                            self.executor,
+                        ))),
+                    );
+                crate::routes::after_mutation::spawn_after_mutation(
+                    hooks,
+                    plans,
+                    Some(query_executor_factory),
+                );
             }
         }
     }

@@ -354,7 +354,12 @@ fn dispatch_after_ingest(state: &WebhookInboundState, message: &InboundMessage) 
     };
     let plans = crate::routes::after_mutation::plan_after_ingest_dispatch(hooks, message);
     if !plans.is_empty() {
-        crate::routes::after_mutation::spawn_after_ingest(hooks, plans);
+        // #594 follow-up: the after:ingest `fraiseql_query` bridge needs the
+        // request-path executor threaded onto `WebhookInboundState`; until then an
+        // after:ingest function's `fraiseql_query` stays unwired (fail-loud "query
+        // executor not configured"), unchanged from before #594. after:mutation
+        // (the #594 core) is wired at the GraphQL/REST route sites.
+        crate::routes::after_mutation::spawn_after_ingest(hooks, plans, None);
     }
 }
 

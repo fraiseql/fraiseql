@@ -1,21 +1,19 @@
-//! Baseline pin for #594: the `fraiseql_query` host bridge is wired for sources
-//! but NOT for after:mutation dispatch (phase 00).
+//! #594 — the `fraiseql_query` host bridge contract (was a phase-00 pin, now fixed).
 //!
-//! Two hosts, one seam, documenting the asymmetry:
-//! - the host an after:mutation dispatch builds today (`LiveHostContext::new`, exactly as
-//!   `DurableDispatcher::invoke_once` constructs it) has no query executor, so a function calling
-//!   `fraiseql_query` fails with "query executor not configured";
-//! - a sources-style host (`.with_executor(..)`, as `SourceQueryExecutor` wires it) runs the same
-//!   call successfully.
+//! Phase 02 wired the bridge onto the after:mutation / after:ingest dispatch host
+//! under a per-function `run_as` ceiling (the shared `RunAsQueryExecutor`, the same
+//! seam scheduled sources use). The dispatch-level fix — that
+//! `DurableDispatcher::build_host` wires an executor when a factory + `run_as` are
+//! present, fail-closed otherwise — is verified in-crate at
+//! `routes::after_mutation::tests::query_bridge_wiring`.
 //!
-//! Phase 02 extracts the shared executor and wires it onto the after:mutation /
-//! after:ingest host contexts under a `run_as` ceiling; when it lands, the first
-//! assertion flips (the after:mutation host gains an executor).
+//! These tests pin the underlying `LiveHostContext` *contract* the dispatcher builds
+//! on: a bare host has no executor; `.with_executor(..)` supplies one. That contract
+//! is permanent (it is how both sources and functions attach their bridge), so this
+//! is a regression test, not a gap marker.
 //!
 //! Gated on `functions-runtime` because `LiveHostContext` lives behind
-//! `fraiseql-functions/host-live`. No V8 isolate is spun (the mock executor
-//! returns a canned value), so the test is safe under plain `cargo test
-//! --features functions-runtime`.
+//! `fraiseql-functions/host-live`.
 
 #![cfg(feature = "functions-runtime")]
 #![allow(clippy::unwrap_used)] // Reason: test code
@@ -29,8 +27,8 @@ use fraiseql_functions::{
 };
 use serde_json::Value;
 
-/// A stand-in for the real query executor: records the call and returns a canned
-/// result. Mirrors what `SourceQueryExecutor` provides for sources.
+/// A stand-in for the real query executor: returns a canned result. Mirrors what
+/// `RunAsQueryExecutor` provides for a dispatched host under its `run_as` identity.
 struct MockQueryExecutor;
 
 impl QueryExecutor for MockQueryExecutor {
@@ -43,8 +41,7 @@ impl QueryExecutor for MockQueryExecutor {
     }
 }
 
-/// The event payload an after:mutation dispatch hands to the host.
-fn after_mutation_payload() -> EventPayload {
+fn payload() -> EventPayload {
     EventPayload {
         trigger_type: "after:mutation:notify_approved".to_string(),
         entity:       "Order".to_string(),
@@ -55,36 +52,32 @@ fn after_mutation_payload() -> EventPayload {
 }
 
 #[tokio::test]
-async fn pin_594_after_mutation_host_has_no_query_executor() {
-    // Built exactly as `DurableDispatcher::invoke_once` builds it: `new(..)` with
-    // no `.with_executor(..)`. This is the #594 gap.
-    let host = LiveHostContext::new(after_mutation_payload(), HostContextConfig::default());
+async fn bare_live_host_has_no_query_executor() {
+    // A host with no executor attached fails loud — this is the fail-closed contract
+    // the dispatcher relies on: it only attaches an executor when a `run_as` factory
+    // is configured (verified in-crate). A bare `invoke` (no dispatch) stays inert.
+    let host = LiveHostContext::new(payload(), HostContextConfig::default());
 
-    let result = host
+    let err = host
         .query("mutation { recordApproval(id: 1) { id } }", serde_json::json!({}))
-        .await;
-
-    let err = result.expect_err(
-        "M-594: an after:mutation function's `fraiseql_query` must fail today — no executor is \
-         wired onto the dispatch host. Phase 02 wires it; flip this to `expect(..)` then.",
-    );
+        .await
+        .expect_err("a bare host has no query executor");
     assert!(
         err.to_string().contains("query executor not configured"),
-        "M-594: expected the unconfigured-executor error, got: {err}"
+        "expected the unconfigured-executor error, got: {err}"
     );
 }
 
 #[tokio::test]
-async fn pin_594_sources_style_host_with_executor_succeeds() {
-    // The sources path DOES wire an executor. The same guest call succeeds — proof
-    // the bridge is release-grade and merely unwired on the after:mutation path.
-    let host = LiveHostContext::new(after_mutation_payload(), HostContextConfig::default())
+async fn live_host_with_executor_runs_the_query_bridge() {
+    // `.with_executor(..)` supplies the bridge — the mechanism the dispatcher and the
+    // sources poller both use to give a guest a working `fraiseql_query`.
+    let host = LiveHostContext::new(payload(), HostContextConfig::default())
         .with_executor(Arc::new(MockQueryExecutor));
 
-    let result = host
+    let value = host
         .query("mutation { recordApproval(id: 1) { id } }", serde_json::json!({}))
-        .await;
-
-    let value = result.expect("a host with an executor runs the query bridge");
+        .await
+        .expect("a host with an executor runs the query bridge");
     assert_eq!(value, serde_json::json!({ "data": { "ok": true } }));
 }

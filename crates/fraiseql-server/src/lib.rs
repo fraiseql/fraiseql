@@ -39,6 +39,12 @@ pub mod extractors;
 pub mod federation;
 pub mod logging;
 pub mod middleware;
+/// The shared `fraiseql_query` bridge (`RunAsQueryExecutor`).
+///
+/// Used by every background dispatch path — scheduled sources and event-dispatched
+/// functions — to run guest mutations under a `run_as` identity (#573, #594).
+#[cfg(feature = "functions-runtime")]
+pub mod query_bridge;
 pub mod routes;
 pub mod schema;
 pub mod server;

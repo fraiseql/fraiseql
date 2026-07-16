@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`after:mutation` functions can write back — the `fraiseql_query` bridge under a
+  `run_as` ceiling (#594).** An event-dispatched function's `fraiseql_query` host op
+  now executes against the engine, closing the trigger → side-effect → **record** loop
+  (previously only scheduled sources had the bridge; every other path failed with
+  "query executor not configured"). Authority is the same fail-closed model sources
+  use: an optional `run_as` (`{ roles, scopes, tenant? }`) ceiling on the function
+  definition, carried at runtime by a `system_job:<function-name>` identity. A
+  function with **no `run_as`** runs the bridge anonymously — RLS and field-authz deny
+  its writes until an operator grants a ceiling. Function-authored writes are audited
+  as `ActorType::SystemJob`, attributable to the issuing function. The
+  `SourceQueryExecutor` was extracted into a shared `RunAsQueryExecutor`
+  (`crate::query_bridge`) so sources and functions run through one authority +
+  hot-reload seam. **Deliberate asymmetry:** a bridge write does not itself fire
+  `after:mutation` (dispatch is route-layer only; there is no recursion to guard). See
+  `docs/architecture/functions.md`. (`after:ingest` bridge wiring is a tracked
+  follow-up.)
+
 - **Feature-complete `-full` release binaries.** The published release now includes a
   second artifact per native target, `fraiseql-full-<target>`, carrying the stable
   opt-in platform features that were previously reachable only from a source build:

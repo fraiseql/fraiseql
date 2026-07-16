@@ -252,30 +252,79 @@ pub fn resolve_dispatch_settings(
         .collect()
 }
 
+/// A `run_as`-parameterized `fraiseql_query` executor builder (#594).
+///
+/// Given a per-dispatch [`SecurityContext`](fraiseql_core::security::SecurityContext)
+/// (the function's `run_as` identity), produces the
+/// [`QueryExecutor`](fraiseql_functions::host::live::QueryExecutor) the dispatched
+/// host's `fraiseql_query` runs through. Type-erased over the database adapter so the
+/// non-generic dispatcher can hold it; built at the route layer where the adapter is
+/// known via [`make_query_executor_factory`].
+#[cfg(feature = "functions-runtime")]
+pub type QueryExecutorFactory = std::sync::Arc<
+    dyn Fn(
+            fraiseql_core::security::SecurityContext,
+        ) -> std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
+        + Send
+        + Sync,
+>;
+
+/// Build a [`QueryExecutorFactory`] over the request-path executor handle (#594).
+///
+/// Captures the hot-reloadable `Arc<ArcSwap<Executor<A>>>` so each dispatched
+/// function's `fraiseql_query` runs against the current schema snapshot under its own
+/// `run_as` identity — the same [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor)
+/// scheduled sources use. Called from the route handlers (which know the adapter `A`)
+/// and passed into [`spawn_after_mutation`] / [`spawn_after_ingest`].
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+pub fn make_query_executor_factory<A>(
+    executor: std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor<A>>>,
+) -> QueryExecutorFactory
+where
+    A: fraiseql_core::db::traits::DatabaseAdapter + 'static,
+{
+    std::sync::Arc::new(move |identity| {
+        std::sync::Arc::new(crate::query_bridge::RunAsQueryExecutor::new(
+            std::sync::Arc::clone(&executor),
+            identity,
+        )) as std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
+    })
+}
+
 /// Runs after:mutation function plans durably: retry transient failures with
 /// backoff and dead-letter what exhausts its retries, unless the function is
 /// marked re-runnable (then a single fire-and-forget attempt).
 #[cfg(feature = "functions-runtime")]
 #[derive(Clone)]
 struct DurableDispatcher {
-    observer:        std::sync::Arc<fraiseql_functions::FunctionObserver>,
-    host_config:     fraiseql_functions::host::live::HostContextConfig,
-    limits:          fraiseql_functions::ResourceLimits,
-    dlq:             std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
+    observer:               std::sync::Arc<fraiseql_functions::FunctionObserver>,
+    host_config:            fraiseql_functions::host::live::HostContextConfig,
+    limits:                 fraiseql_functions::ResourceLimits,
+    dlq:                    std::sync::Arc<dyn fraiseql_observers::DeadLetterQueue>,
     /// Which trigger subsystem this dispatcher serves — tags dead-letter records
     /// so `after:mutation` and `after:ingest` failures are distinguishable.
-    source:          fraiseql_observers::DispatchSource,
+    source:                 fraiseql_observers::DispatchSource,
     /// Host-owned sender-identity resolver + email transport for the `send_email`
     /// op. `None` → the op fails loud on the built host. Threaded from the hooks so
     /// every dispatched function's fresh host can send from the connected user's
     /// verified address.
-    sender_resolver: Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
-    email_transport: Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
+    sender_resolver:        Option<std::sync::Arc<dyn fraiseql_functions::SenderIdentityResolver>>,
+    email_transport:        Option<std::sync::Arc<dyn fraiseql_functions::EmailTransport>>,
     /// HMAC subkey for the per-dispatch idempotency token. `Some` → the token is
     /// signed (unforgeable, required before it is exposed in a VERP Return-Path);
     /// `None` → an unsigned digest (the zero-config default). Derived once from the
     /// server HMAC secret and shared across every dispatch.
-    idempotency_key: Option<std::sync::Arc<[u8]>>,
+    idempotency_key:        Option<std::sync::Arc<[u8]>>,
+    /// The `fraiseql_query` bridge builder (#594). `Some` → the dispatched host can
+    /// issue queries/mutations under this function's `run_as` ceiling; `None` → no
+    /// executor is wired (`fraiseql_query` fails "query executor not configured", the
+    /// pre-#594 behavior for a server with no request-path executor).
+    query_executor_factory: Option<QueryExecutorFactory>,
+    /// This function's `run_as` ceiling (#594). Absent ⇒ fail-closed: the bridge runs
+    /// under an anonymous `system_job` identity and RLS/field-authz deny writes.
+    /// Resolved per-plan from the function definition at spawn time.
+    run_as:                 Option<fraiseql_functions::RunAs>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -294,11 +343,36 @@ impl DurableDispatcher {
         // Shared, runtime-agnostic host bridge: the observer dispatches the plan
         // to the WASM or Deno backend by the module's runtime, so the host type
         // must not be tied to either.
-        let mut live = fraiseql_functions::host::live::LiveHostContext::new(
-            payload.clone(),
-            self.host_config.clone(),
-        )
-        .with_idempotency_token(idempotency_token);
+        let live = self.build_host(&module.name, payload.clone(), idempotency_token);
+        let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
+            std::sync::Arc::new(live);
+        self.observer
+            .invoke_with_context(module, payload, host, self.limits.clone())
+            .await
+    }
+
+    /// Build the fresh live host for one dispatch of `function_name`.
+    ///
+    /// Wires the per-dispatch idempotency token, the `send_email` op (when
+    /// configured), and — the #594 change — the `fraiseql_query` bridge under the
+    /// function's `run_as` ceiling when a [`QueryExecutorFactory`] is present. The
+    /// identity is built from [`run_as`](Self::run_as) via
+    /// [`RunAs::identity`](fraiseql_functions::RunAs::identity), so an absent ceiling
+    /// yields a fail-closed anonymous `system_job` identity (reads/writes denied by
+    /// RLS/field-authz) and the write is audited as `system_job:<function_name>`.
+    ///
+    /// Extracted from [`invoke_once`](Self::invoke_once) so the host-wiring is unit
+    /// testable without spinning a V8/WASM isolate (mirrors the sources poller's
+    /// `build_host`).
+    fn build_host(
+        &self,
+        function_name: &str,
+        payload: EventPayload,
+        idempotency_token: &str,
+    ) -> fraiseql_functions::host::live::LiveHostContext {
+        let mut live =
+            fraiseql_functions::host::live::LiveHostContext::new(payload, self.host_config.clone())
+                .with_idempotency_token(idempotency_token);
         // Enable `send_email` (host-owned `from` + transport) when both are wired.
         if let (Some(resolver), Some(transport)) =
             (self.sender_resolver.as_ref(), self.email_transport.as_ref())
@@ -306,11 +380,18 @@ impl DurableDispatcher {
             live =
                 live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
         }
-        let host: std::sync::Arc<dyn fraiseql_functions::host::dyn_context::DynHostContext> =
-            std::sync::Arc::new(live);
-        self.observer
-            .invoke_with_context(module, payload, host, self.limits.clone())
-            .await
+        // #594: wire the `fraiseql_query` bridge under this function's `run_as`
+        // ceiling. The request-path `run_as` executor is the same seam scheduled
+        // sources use; an absent ceiling is fail-closed (anonymous system_job).
+        if let Some(factory) = self.query_executor_factory.as_ref() {
+            let identity = self
+                .run_as
+                .clone()
+                .unwrap_or_default()
+                .identity(function_name, idempotency_token);
+            live = live.with_executor(factory(identity));
+        }
+        live
     }
 
     /// Dispatch a single plan under its [`FunctionDispatchSetting`].
@@ -440,8 +521,17 @@ impl DurableDispatcher {
 ///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 #[cfg(feature = "functions-runtime")]
-pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
-    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterMutation);
+pub fn spawn_after_mutation(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterMutation,
+        query_executor_factory,
+    );
 }
 
 /// Spawn each planned `after:ingest` invocation as a background task.
@@ -459,16 +549,31 @@ pub fn spawn_after_mutation(hooks: &BeforeMutationHooks, plans: Vec<AfterMutatio
 // functions-runtime build without `inbound` (e.g. `sources`) must not compile it
 // uncalled.
 #[cfg(feature = "inbound")]
-pub fn spawn_after_ingest(hooks: &BeforeMutationHooks, plans: Vec<AfterMutationDispatch>) {
-    spawn_dispatch(hooks, plans, fraiseql_observers::DispatchSource::AfterIngest);
+pub fn spawn_after_ingest(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterIngest,
+        query_executor_factory,
+    );
 }
 
 /// Spawn each plan on a durable dispatcher tagged with `source`.
+///
+/// Each plan's dispatcher is resolved with the function's own `run_as` ceiling from
+/// `hooks.run_as` (#594), so its `fraiseql_query` bridge — built via
+/// `query_executor_factory` — writes under that function's identity (or fail-closed
+/// anonymous when the function declares none).
 #[cfg(feature = "functions-runtime")]
 fn spawn_dispatch(
     hooks: &BeforeMutationHooks,
     plans: Vec<AfterMutationDispatch>,
     source: fraiseql_observers::DispatchSource,
+    query_executor_factory: Option<QueryExecutorFactory>,
 ) {
     let dispatcher = DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
@@ -479,11 +584,15 @@ fn spawn_dispatch(
         sender_resolver: hooks.sender_resolver.clone(),
         email_transport: hooks.email_transport.clone(),
         idempotency_key: hooks.idempotency_key.clone(),
+        query_executor_factory,
+        // Set per-plan below from the function's definition.
+        run_as: None,
     };
 
     for plan in plans {
         let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
-        let dispatcher = dispatcher.clone();
+        let mut dispatcher = dispatcher.clone();
+        dispatcher.run_as = hooks.run_as.get(&plan.module.name).cloned();
         tokio::spawn(async move {
             dispatcher.dispatch(plan.module, plan.payload, &setting).await;
         });

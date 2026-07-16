@@ -25,6 +25,7 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
             trigger:     (*trigger).to_string(),
             runtime:     RuntimeType::Wasm,
             timeout_ms:  None,
+            run_as:      None,
             re_runnable: false,
             retry:       None,
         })
@@ -269,6 +270,8 @@ mod durable_dispatch {
             sender_resolver: None,
             email_transport: None,
             idempotency_key,
+            query_executor_factory: None,
+            run_as: None,
         }
     }
 
@@ -424,6 +427,7 @@ mod dispatch_config {
             trigger: format!("after:mutation:Entity:insert@{name}"),
             runtime: RuntimeType::Wasm,
             timeout_ms: None,
+            run_as: None,
             re_runnable,
             retry,
         }
@@ -479,5 +483,142 @@ mod dispatch_config {
             settings["sendEmail"].policy.retry.max_attempts, defaults.retry.max_attempts,
             "a function with no retry inherits the default"
         );
+    }
+}
+
+// ── #594: the fraiseql_query bridge wiring on the dispatched host ────────────
+
+#[cfg(feature = "functions-runtime")]
+mod query_bridge_wiring {
+    #![allow(clippy::unwrap_used)] // Reason: test module — mutex locks are infallible here
+
+    use std::sync::{Arc, Mutex};
+
+    use fraiseql_core::security::SecurityContext;
+    use fraiseql_functions::{
+        EventPayload, FunctionObserver, HostContext, ResourceLimits, RunAs,
+        host::live::QueryExecutor,
+    };
+
+    use super::super::{DurableDispatcher, QueryExecutorFactory, host_context_config};
+    use crate::observers::runtime::InMemoryDlq;
+
+    /// A mock executor returning a canned result. The identity it runs under is
+    /// captured by the factory closure below (that is where the `run_as` identity is
+    /// resolved), so this executor itself is stateless.
+    struct RecordingExecutor;
+
+    impl QueryExecutor for RecordingExecutor {
+        fn execute_query(
+            &self,
+            _query: &str,
+            _variables: Option<&serde_json::Value>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async { Ok(serde_json::json!({ "data": { "ok": true } })) })
+        }
+    }
+
+    /// Build a factory that records the identity each dispatched host runs under.
+    fn recording_factory() -> (QueryExecutorFactory, Arc<Mutex<Option<SecurityContext>>>) {
+        let captured: Arc<Mutex<Option<SecurityContext>>> = Arc::new(Mutex::new(None));
+        let sink = Arc::clone(&captured);
+        let factory: QueryExecutorFactory = Arc::new(move |identity: SecurityContext| {
+            *sink.lock().unwrap() = Some(identity);
+            Arc::new(RecordingExecutor) as Arc<dyn QueryExecutor>
+        });
+        (factory, captured)
+    }
+
+    fn dispatcher(
+        query_executor_factory: Option<QueryExecutorFactory>,
+        run_as: Option<RunAs>,
+    ) -> DurableDispatcher {
+        DurableDispatcher {
+            observer: Arc::new(FunctionObserver::new()),
+            host_config: host_context_config(),
+            limits: ResourceLimits::default(),
+            dlq: Arc::new(InMemoryDlq::new_with_max(None)),
+            source: fraiseql_observers::DispatchSource::AfterMutation,
+            sender_resolver: None,
+            email_transport: None,
+            idempotency_key: None,
+            query_executor_factory,
+            run_as,
+        }
+    }
+
+    fn payload() -> EventPayload {
+        EventPayload {
+            trigger_type: "after:mutation:recordApproval".to_string(),
+            entity:       "Order".to_string(),
+            event_kind:   "update".to_string(),
+            data:         serde_json::json!({ "new": { "id": 1 } }),
+            timestamp:    chrono::Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn without_a_factory_the_bridge_is_unconfigured() {
+        // No factory ⇒ the dispatched host has no query executor, so a function's
+        // `fraiseql_query` fails "query executor not configured" — the pre-#594
+        // behavior, preserved for a server with no request-path executor.
+        let host = dispatcher(None, None).build_host("notify", payload(), "tok-1");
+        let err = host
+            .query("mutation { x }", serde_json::json!({}))
+            .await
+            .expect_err("no executor");
+        assert!(err.to_string().contains("query executor not configured"));
+    }
+
+    #[tokio::test]
+    async fn a_factory_wires_the_bridge_under_the_run_as_ceiling() {
+        // #594: with a factory, the dispatched host CAN issue `fraiseql_query`, and
+        // it runs under this function's `run_as` identity (audited as
+        // `system_job:<function-name>`).
+        let (factory, captured) = recording_factory();
+        let run_as = RunAs {
+            roles:  vec!["order_writer".to_string()],
+            scopes: vec!["write:order".to_string()],
+            tenant: Some("acme".to_string()),
+        };
+        let host = dispatcher(Some(factory), Some(run_as)).build_host(
+            "recordApproval",
+            payload(),
+            "tok-2",
+        );
+
+        let value = host
+            .query("mutation { recordApproval(id: 1) { id } }", serde_json::json!({}))
+            .await
+            .expect("the bridge is wired");
+        assert_eq!(value, serde_json::json!({ "data": { "ok": true } }));
+
+        // The write ran under the function's ceiling, audited as its system job.
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:recordApproval");
+        assert!(identity.has_role("order_writer"));
+        assert!(identity.has_scope("write:order"));
+        assert_eq!(identity.request_id, "tok-2", "identity correlates the dispatch token");
+    }
+
+    #[tokio::test]
+    async fn a_function_without_run_as_is_fail_closed() {
+        // A factory but no `run_as` ⇒ the bridge is wired but runs under an anonymous
+        // system_job with no authority: RLS/field-authz deny writes.
+        let (factory, captured) = recording_factory();
+        let host = dispatcher(Some(factory), None).build_host("purge", payload(), "tok-3");
+        let _ = host.query("query { me { id } }", serde_json::json!({})).await;
+
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:purge");
+        assert!(identity.roles.is_empty(), "fail-closed: no roles");
+        assert!(identity.scopes.is_empty(), "fail-closed: no scopes");
+        assert!(identity.tenant_id.is_none(), "fail-closed: no tenant");
     }
 }

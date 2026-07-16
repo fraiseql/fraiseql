@@ -102,7 +102,9 @@ impl EmailIngestSink {
         };
         let plans = plan_after_ingest_dispatch(hooks, message);
         if !plans.is_empty() {
-            spawn_after_ingest(hooks, plans);
+            // #594 follow-up: after:ingest bridge needs the request-path executor
+            // threaded onto the sink; unwired for now (unchanged from pre-#594).
+            spawn_after_ingest(hooks, plans, None);
         }
     }
 }

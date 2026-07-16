@@ -19,7 +19,12 @@
 //! - #598 metrics pin        → phase 07 (dispatch metrics)
 //! - #597 predicate pin      → phase 04 (trigger predicates)
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)] // Reason: test code — fail-loud helpers
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)] // Reason: test code — fail-loud helpers
 
 use std::path::{Path, PathBuf};
 

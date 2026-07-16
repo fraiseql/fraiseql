@@ -205,6 +205,13 @@ pub struct BeforeMutationHooks {
     /// default). Set via [`with_idempotency_key`](Self::with_idempotency_key).
     #[cfg(feature = "functions-runtime")]
     pub idempotency_key: Option<std::sync::Arc<[u8]>>,
+
+    /// Per-function `run_as` authority ceilings (#594), keyed by function name.
+    /// A function absent from the map has no ceiling ⇒ its `fraiseql_query` bridge
+    /// runs fail-closed (anonymous `system_job`; RLS/field-authz deny writes).
+    /// Populated from the compiled schema's function definitions.
+    #[cfg(feature = "functions-runtime")]
+    pub run_as: std::collections::HashMap<String, fraiseql_functions::RunAs>,
 }
 
 impl BeforeMutationHooks {
@@ -235,6 +242,8 @@ impl BeforeMutationHooks {
             email_transport: None,
             #[cfg(feature = "functions-runtime")]
             idempotency_key: None,
+            #[cfg(feature = "functions-runtime")]
+            run_as: std::collections::HashMap::new(),
         }
     }
 
@@ -292,6 +301,15 @@ impl FunctionsSubsystem {
             defaults.dlq_max_size,
         ));
 
+        // #594: collect each function's `run_as` ceiling, keyed by name. A function
+        // with no `run_as` is simply absent (fail-closed at dispatch time).
+        let run_as = self
+            .config
+            .definitions
+            .iter()
+            .filter_map(|def| def.run_as.clone().map(|ceiling| (def.name.clone(), ceiling)))
+            .collect();
+
         BeforeMutationHooks {
             trigger_registry: self.trigger_registry,
             module_registry: self.module_registry,
@@ -301,6 +319,7 @@ impl FunctionsSubsystem {
             sender_resolver: None,
             email_transport: None,
             idempotency_key: None,
+            run_as,
         }
     }
 }
