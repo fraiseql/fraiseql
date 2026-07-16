@@ -346,6 +346,7 @@ mod compile_tests {
                 is_error:            false,
                 relay:               false,
                 relationships:       Vec::new(),
+                subscription_policy: None,
             }],
             queries: vec![QueryDefinition {
                 name:                "users".to_string(),
@@ -704,6 +705,7 @@ mod compile_tests {
                 is_error:            false,
                 relay:               false,
                 relationships:       vec![],
+                subscription_policy: None,
             }],
             ..Default::default()
         };

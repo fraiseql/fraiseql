@@ -99,6 +99,16 @@ pub struct TypeDefinition {
     /// Relationships to other types (used by REST resource embedding).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relationships: Vec<super::config_types::Relationship>,
+
+    /// Row-level visibility policy for subscription delivery (#596).
+    ///
+    /// When set, a subscription whose events carry this type's after-images derives a
+    /// server-owned owner condition from the connection's enriched identity at subscribe
+    /// time (see [`SubscriptionPolicy`](super::SubscriptionPolicy)). Fail-closed:
+    /// declaring the policy but being unable to resolve the identity refuses the
+    /// subscription rather than delivering every row. `None` keeps today's behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscription_policy: Option<super::SubscriptionPolicy>,
 }
 
 pub(super) fn default_jsonb_column() -> String {
@@ -121,7 +131,15 @@ impl TypeDefinition {
             is_error:            false,
             relay:               false,
             relationships:       Vec::new(),
+            subscription_policy: None,
         }
+    }
+
+    /// Set the subscription row-visibility policy (#596).
+    #[must_use]
+    pub fn with_subscription_policy(mut self, policy: super::SubscriptionPolicy) -> Self {
+        self.subscription_policy = Some(policy);
+        self
     }
 
     /// Add a field to this type.

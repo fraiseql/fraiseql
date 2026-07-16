@@ -1090,18 +1090,20 @@ fn test_extract_rls_conditions_from_where_clause() {
         },
     ]);
 
-    let conditions = extract_rls_conditions(&clause);
+    let conditions = extract_rls_conditions(&clause).expect("an all-Eq And tree extracts cleanly");
     assert_eq!(conditions.len(), 2);
     assert_eq!(conditions[0], ("tenant_id".to_string(), serde_json::json!("abc")));
     assert_eq!(conditions[1], ("author_id".to_string(), serde_json::json!("user-1")));
 }
 
 #[test]
-fn test_extract_rls_conditions_ignores_non_eq() {
+fn test_extract_rls_conditions_refuses_non_eq_fail_closed() {
     use super::super::extract_rls_conditions;
     use crate::db::{WhereClause, WhereOperator};
 
-    // Only Eq conditions are extracted; Gt is skipped.
+    // A non-Eq operator cannot be enforced on the event stream. Fail-closed (#596):
+    // refuse rather than silently dropping the `score > 100` bound and delivering rows
+    // it was meant to hide.
     let clause = WhereClause::And(vec![
         WhereClause::Field {
             path:     vec!["tenant_id".to_string()],
@@ -1115,9 +1117,17 @@ fn test_extract_rls_conditions_ignores_non_eq() {
         },
     ]);
 
-    let conditions = extract_rls_conditions(&clause);
-    assert_eq!(conditions.len(), 1, "only Eq conditions should be extracted");
-    assert_eq!(conditions[0].0, "tenant_id");
+    let err = extract_rls_conditions(&clause)
+        .expect_err("a non-Eq condition must refuse, not silently widen");
+    assert!(err.contains("score"), "the error names the offending field: {err}");
+
+    // `Or` is likewise unenforceable as flat equality → refuse.
+    let or_clause = WhereClause::Or(vec![WhereClause::Field {
+        path:     vec!["tenant_id".to_string()],
+        operator: WhereOperator::Eq,
+        value:    serde_json::json!("abc"),
+    }]);
+    assert!(extract_rls_conditions(&or_clause).is_err(), "Or shape must refuse");
 }
 
 // ── C20: Subscription RBAC error variants ────────────────────────────────

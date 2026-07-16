@@ -142,6 +142,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
     }
 }
 

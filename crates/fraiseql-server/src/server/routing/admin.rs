@@ -300,13 +300,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // validation from the schema's RLS configuration (#331).
         let strict_tenant_validation = self.executor.schema().has_rls_configured();
 
-        #[allow(unused_mut)] // Reason: `mut` is needed when the federation feature is enabled
+        // #596: row-level visibility policies, resolved once from the compiled schema.
+        let subscription_policies = Arc::new(
+            crate::routes::subscriptions::build_subscription_policies(self.executor.schema()),
+        );
+
+        #[allow(unused_mut)]
+        // Reason: `mut` is needed when the federation/auth features are enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
             .with_max_subscriptions(self.max_subscriptions_per_connection)
             .with_tenant_context(state.domain_registry().clone(), strict_tenant_validation)
             // #422: enforce the operation-level authorizer (if any) at subscribe-time.
             .with_authorizer(self.executor.config().authorizer.clone())
+            // #596: server-owned row-visibility policies (fail-closed at subscribe time).
+            .with_subscription_policies(subscription_policies)
             // M-tenant-ws-suspended: reject subscribes / pause delivery for a
             // suspended tenant, mirroring the GraphQL data plane's 503.
             .with_tenant_status_source(
@@ -314,6 +322,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .tenant_registry()
                     .map(|r| Arc::clone(r) as Arc<dyn crate::routes::graphql::TenantStatusSource>),
             );
+
+        // #596/#539: hand the subscription path the enriched-identity resolver so a
+        // policy-declaring subscription derives its owner boundary server-side. Mirrors
+        // the GraphQL handler's `AppState.identity_resolver`.
+        #[cfg(feature = "auth")]
+        {
+            subscription_state =
+                subscription_state.with_identity_resolver(state.identity_resolver.clone());
+        }
 
         #[cfg(feature = "federation")]
         if !remote_sub_fields.is_empty() {

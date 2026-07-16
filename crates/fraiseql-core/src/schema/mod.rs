@@ -59,6 +59,7 @@ pub mod security_config;
 mod source_probe;
 mod source_types;
 mod subscribable_ddl;
+mod subscription_policy;
 mod subscription_types;
 
 pub use changelog::inject_changelog;
@@ -99,6 +100,7 @@ pub use security_config::{
 pub use source_probe::{SourceKind, SourceProbe, sql_source_probes};
 pub use source_types::{RunAs, SourceDefinition};
 pub use subscribable_ddl::generate_capture_trigger_ddl;
+pub use subscription_policy::{OwnerCondition, SubscriptionPolicy};
 pub use subscription_types::{
     FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
 };

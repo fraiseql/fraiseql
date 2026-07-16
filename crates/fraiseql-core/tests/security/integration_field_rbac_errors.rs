@@ -132,6 +132,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
     };
 
     let mut security_config = SecurityConfig::new();

@@ -23,6 +23,7 @@ fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         is_error:            false,
         relay:               false,
         relationships:       vec![],
+        subscription_policy: None,
     }
 }
 
@@ -432,6 +433,7 @@ fn test_interface_dependencies() {
             is_error:            false,
             relay:               false,
             relationships:       vec![],
+            subscription_policy: None,
         }],
         interfaces: vec![InterfaceDefinition {
             name:        "Node".to_string(),

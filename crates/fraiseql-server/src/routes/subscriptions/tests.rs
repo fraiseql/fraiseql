@@ -103,6 +103,124 @@ fn no_tenant_sources_resolves_to_none() {
     assert!(resolved.is_none());
 }
 
+/// Row-level visibility policy derivation on the `/ws` seam (#596). Exercises the
+/// security-critical adapter (`derive_policy_conditions`) and the mount-time policy-map
+/// builder (`build_subscription_policies`) directly — the same enforcement point both
+/// WS subprotocols route through in `handle_client_message`.
+mod row_visibility_596 {
+    use fraiseql_core::{
+        schema::{SubscriptionDefinition, SubscriptionPolicy, TypeDefinition},
+        security::ENRICHED_NAMESPACE_PREFIX,
+    };
+
+    use super::{
+        super::{build_subscription_policies, derive_policy_conditions},
+        *,
+    };
+
+    fn policy() -> SubscriptionPolicy {
+        SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_string(),
+            identity_field: "user_id".to_string(),
+            bypass_roles:   vec!["admin".to_string()],
+        }
+    }
+
+    /// A `SecurityContext` for user `sub`, with optional server-resolved enriched fields
+    /// and roles.
+    fn principal(sub: &str, enriched: &[(&str, &str)], roles: &[&str]) -> SecurityContext {
+        let mut attributes = HashMap::new();
+        for (field, value) in enriched {
+            attributes.insert(
+                format!("{ENRICHED_NAMESPACE_PREFIX}{field}"),
+                serde_json::Value::String((*value).to_string()),
+            );
+        }
+        SecurityContext {
+            user_id: UserId::new(sub),
+            roles: roles.iter().map(|r| (*r).to_string()).collect(),
+            tenant_id: None,
+            scopes: vec![],
+            attributes,
+            request_id: "req-596".to_string(),
+            ip_address: None,
+            authenticated_at: Utc::now(),
+            expires_at: Utc::now(),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
+        }
+    }
+
+    #[test]
+    fn resolvable_identity_yields_a_server_owned_owner_condition() {
+        let ctx = principal("alice", &[("user_id", "alice")], &[]);
+        let conds =
+            derive_policy_conditions(&policy(), Some(&ctx)).expect("resolvable → conditions");
+        assert_eq!(conds, vec![("owner_id".to_string(), serde_json::json!("alice"))]);
+    }
+
+    #[test]
+    fn bypass_role_gets_full_visibility_no_condition() {
+        let ctx = principal("root", &[("user_id", "root")], &["admin"]);
+        let conds = derive_policy_conditions(&policy(), Some(&ctx)).expect("bypass → ok");
+        assert!(conds.is_empty(), "a bypass role adds no owner condition (full visibility)");
+    }
+
+    #[test]
+    fn anonymous_subscriber_is_refused_fail_closed() {
+        // No principal at all → cannot resolve the owner → refuse (never deliver-all).
+        assert!(
+            derive_policy_conditions(&policy(), None).is_err(),
+            "an anonymous subscriber must be refused for a policy-declaring entity"
+        );
+    }
+
+    #[test]
+    fn enrichment_outage_or_missing_field_is_refused_fail_closed() {
+        // Authenticated principal, but enrichment produced no `user_id` field (outage,
+        // denial, or NULL) → refuse rather than deliver every row.
+        let ctx = principal("alice", &[], &[]);
+        assert!(
+            derive_policy_conditions(&policy(), Some(&ctx)).is_err(),
+            "an unresolvable enriched identity must refuse the subscription"
+        );
+    }
+
+    #[test]
+    fn forged_plain_attribute_cannot_widen_visibility() {
+        // A client that smuggles a plain (non-enriched) `user_id` attribute must not
+        // resolve the owner — the derivation reads ONLY the server-resolved
+        // `fraiseql.enriched.*` namespace.
+        let mut ctx = principal("mallory", &[], &[]);
+        ctx.attributes.insert("user_id".to_string(), serde_json::json!("victim"));
+        assert!(
+            derive_policy_conditions(&policy(), Some(&ctx)).is_err(),
+            "a forgeable plain attribute must not resolve the owner identity"
+        );
+    }
+
+    #[test]
+    fn build_map_keys_policies_by_subscription_field() {
+        let schema = CompiledSchema {
+            types: vec![
+                TypeDefinition::new("Order", "v_order").with_subscription_policy(policy()),
+                TypeDefinition::new("Ping", "v_ping"), // no policy
+            ],
+            subscriptions: vec![
+                SubscriptionDefinition::new("orderUpdated", "Order"),
+                SubscriptionDefinition::new("pinged", "Ping"),
+            ],
+            ..Default::default()
+        };
+        let map = build_subscription_policies(&schema);
+        assert!(map.contains_key("orderUpdated"), "policy-declaring entity is mapped");
+        assert!(!map.contains_key("pinged"), "an entity without a policy is not mapped");
+        assert_eq!(map.len(), 1);
+    }
+}
+
 /// `create_next_message` wire-contract (#425): the Change-Spine envelope rides in
 /// the graphql-transport-ws `extensions.changeSpine` slot, leaving `data` untouched;
 /// events without an envelope keep the plain payload.

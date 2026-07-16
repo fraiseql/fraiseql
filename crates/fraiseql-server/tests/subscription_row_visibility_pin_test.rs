@@ -1,18 +1,23 @@
-//! Baseline pin for #596: `/ws` fan-out ignores row-level visibility (phase 00).
+//! Baseline pin for #596 on the **realtime `/realtime/v1` entity-change stream**
+//! (phase 00). NOTE: this is the *dormant* push path — `RealtimeServer`/`RealtimeState`
+//! are never assembled by any production binary (all `.with_realtime(...)` call sites
+//! are tests; there is no production `TokenValidator`). The *live* graphql `/ws` path is
+//! pinned separately in `graphql_ws_row_visibility_pin_test.rs` (`// M-596-WS`).
 //!
 //! Two principals subscribe to the same entity. A row owned by principal B is
-//! delivered to principal A because the push path enforces no row boundary:
+//! delivered to principal A because this pipeline enforces no row boundary:
 //! subscriptions carry client-supplied field filters (cooperative, not a
 //! security boundary) and there is no server-derived owner policy. The
-//! production `RlsEvaluator` has no non-test implementor, so the delivery
-//! pipeline's RLS hook is effectively permissive by default.
+//! `RlsEvaluator` (`realtime/delivery.rs`) has no non-test implementor, so the delivery
+//! pipeline's RLS hook is permissive by default.
 //!
-//! `// M-596` marks the assertion phase 06 flips: once an entity declares a
-//! `subscription_policy`, principal A must NOT receive principal B's row.
+//! `// M-596` marks the assertion phase 06a flips: once an entity declares a
+//! `subscription_policy`, principal A must NOT receive principal B's row — and, the
+//! 06a fail-closed deliverable, an *unconfigured* evaluator must deny for a
+//! policy-declaring entity rather than deliver-all.
 //!
-//! This is the focused, infra-free characterization (subscription manager +
-//! field-filter delivery). The full two-principal WS+DB conformance test lands
-//! in phase 06 next to the cascade two-tenant test.
+//! This is the focused, infra-free characterization (the realtime subscription manager +
+//! field-filter delivery), not the graphql `/ws` path.
 
 #![allow(clippy::unwrap_used)] // Reason: test code
 
