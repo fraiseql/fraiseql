@@ -1422,12 +1422,17 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
                     "DLQ full; dropping failed function dispatch entry"
                 );
                 self.overflow_count.fetch_add(1, Ordering::Relaxed);
+                // The internal overflow counter now also reaches `/metrics` — an
+                // eviction must never be Prometheus-invisible (#598).
+                crate::function_metrics::record_dlq_eviction();
+                crate::function_metrics::set_dlq_size(items.len());
                 // Drop the newest entry: it is intentionally not stored.
                 return Ok(id);
             }
         }
 
         items.push(record);
+        crate::function_metrics::set_dlq_size(items.len());
         Ok(id)
     }
 

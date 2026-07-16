@@ -279,6 +279,20 @@ impl BeforeMutationHooks {
         self.email_transport = Some(email_transport);
         self
     }
+
+    /// Replace the dead-letter store (#598).
+    ///
+    /// The default from [`FunctionsSubsystem::into_before_mutation_hooks`] is the
+    /// in-memory store; the serve path swaps in the Postgres-backed
+    /// [`PgFunctionDlq`](crate::observers::pg_function_dlq::PgFunctionDlq) when
+    /// `[functions] dlq_store = "postgres"` and a database pool is available, so a
+    /// dead-lettered dispatch survives a restart.
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn with_dlq(mut self, dlq: Arc<dyn fraiseql_observers::DeadLetterQueue>) -> Self {
+        self.dlq = dlq;
+        self
+    }
 }
 
 #[cfg(feature = "functions-runtime")]

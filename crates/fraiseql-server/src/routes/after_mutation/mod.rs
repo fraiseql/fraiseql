@@ -98,7 +98,14 @@ pub fn plan_after_mutation_dispatch(
         // #597: evaluate the trigger's `when` predicates on the row images BEFORE
         // resolving the module or building a payload — a false predicate produces no
         // dispatch record at all (not a skipped/failed dispatch), and no runtime spins.
-        .filter(|trigger| trigger.predicates_hold(&event))
+        // A false predicate is metered (#598) so the zero-cost-skip is observable.
+        .filter(|trigger| {
+            let held = trigger.predicates_hold(&event);
+            if !held {
+                crate::function_metrics::record_predicate_skip(&trigger.function_name);
+            }
+            held
+        })
         .filter_map(|trigger| {
             // A trigger whose module never loaded is silently skipped: dispatch
             // is best-effort and must not block the response.
@@ -172,8 +179,15 @@ pub fn plan_after_capture_dispatch(
         .observer
         .find_after_capture_triggers(&hooks.trigger_registry, event)
         .into_iter()
-        // Phase 04 predicates evaluate identically on the capture payload.
-        .filter(|trigger| trigger.predicates_hold(event))
+        // Phase 04 predicates evaluate identically on the capture payload; a false
+        // predicate is metered (#598) so the zero-cost-skip is observable.
+        .filter(|trigger| {
+            let held = trigger.predicates_hold(event);
+            if !held {
+                crate::function_metrics::record_predicate_skip(&trigger.function_name);
+            }
+            held
+        })
         .filter_map(|trigger| {
             let module = hooks.module_registry.get(&trigger.function_name)?.clone();
             // Capture payload: `after:capture:<fn>` with {event_kind, old, new}.
@@ -317,6 +331,51 @@ impl DispatchDefaults {
         Self {
             retry,
             dlq_max_size,
+        }
+    }
+}
+
+/// Which dead-letter store backs function dispatch (#598).
+///
+/// Selected via `[functions] dlq_store` in the compiled schema, overridable by
+/// `FRAISEQL_FUNCTIONS_DLQ_STORE` for production (env wins, per the config-flow
+/// principle). Memory is the dev default; Postgres is the durable option that
+/// survives a restart.
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DlqStoreKind {
+    /// In-memory store — fast, dependency-free, but dead-lettered dispatches vanish
+    /// when the process restarts. The zero-config development default.
+    #[default]
+    Memory,
+    /// Postgres-backed store (`_fraiseql_function_dlq`) — a dead-lettered dispatch
+    /// survives a restart and stays listable/replayable. Requires a database pool.
+    Postgres,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl DlqStoreKind {
+    /// Resolve the store from the compiled `[functions] dlq_store` value, with the
+    /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var overriding it (env wins). Case- and
+    /// whitespace-insensitive; an unrecognised value warns and falls back to
+    /// [`Memory`](Self::Memory) rather than failing startup.
+    #[must_use]
+    pub fn resolve(compiled: Option<&str>, get_env: impl Fn(&str) -> Option<String>) -> Self {
+        let Some(raw) =
+            get_env("FRAISEQL_FUNCTIONS_DLQ_STORE").or_else(|| compiled.map(str::to_owned))
+        else {
+            return Self::Memory;
+        };
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "postgres" | "pg" => Self::Postgres,
+            "memory" | "" => Self::Memory,
+            other => {
+                tracing::warn!(
+                    value = other,
+                    "unknown [functions] dlq_store — using the in-memory DLQ (\"memory\" | \"postgres\")"
+                );
+                Self::Memory
+            },
         }
     }
 }
@@ -503,6 +562,11 @@ impl DurableDispatcher {
         setting: &FunctionDispatchSetting,
     ) {
         let function_name = module.name.clone();
+        // Wall-clock for the dispatch (all retry attempts included), reported on the
+        // run-duration histogram under whichever outcome branch is taken below.
+        let started = std::time::Instant::now();
+        // Coarse trigger-kind label for `/metrics` — the facade owns the mapping.
+        let trigger_kind = crate::function_metrics::trigger_kind(self.source);
 
         // Derive the per-dispatch idempotency token ONCE, from the dispatch's
         // stable identity (never wall-clock/random), so every retry attempt below
@@ -522,17 +586,24 @@ impl DurableDispatcher {
         if setting.re_runnable {
             // Fire-and-forget: a single attempt; a failure is re-runnable later
             // by design, so it is logged but never retried or dead-lettered.
-            match self.invoke_once(&module, payload, &idempotency_token).await {
-                Ok(_) => tracing::debug!(
-                    function = %function_name,
-                    "re-runnable function dispatched"
-                ),
-                Err(error) => tracing::warn!(
-                    error = %error,
-                    function = %function_name,
-                    "re-runnable function failed (not retried)"
-                ),
-            }
+            let (result, elapsed) = match self
+                .invoke_once(&module, payload, &idempotency_token)
+                .await
+            {
+                Ok(_) => {
+                    tracing::debug!(function = %function_name, "re-runnable function dispatched");
+                    (crate::function_metrics::RESULT_OK, started.elapsed().as_secs_f64())
+                },
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        function = %function_name,
+                        "re-runnable function failed (not retried)"
+                    );
+                    (crate::function_metrics::RESULT_ERROR, started.elapsed().as_secs_f64())
+                },
+            };
+            crate::function_metrics::record_dispatch(&function_name, trigger_kind, result, elapsed);
             return;
         }
 
@@ -572,11 +643,26 @@ impl DurableDispatcher {
 
         let Err(error) = result else {
             tracing::debug!(function = %function_name, "function dispatched");
+            crate::function_metrics::record_dispatch(
+                &function_name,
+                trigger_kind,
+                crate::function_metrics::RESULT_OK,
+                started.elapsed().as_secs_f64(),
+            );
             return;
         };
 
         // Exhausted (or permanently failed): dead-letter for inspection/replay.
         let attempts = attempts.load(std::sync::atomic::Ordering::Relaxed);
+        crate::function_metrics::record_dispatch(
+            &function_name,
+            trigger_kind,
+            crate::function_metrics::RESULT_DEAD_LETTERED,
+            started.elapsed().as_secs_f64(),
+        );
+        // Kept for the structured error log so an alert traces to the exact dispatch
+        // (the token is moved into the record below).
+        let dead_letter_token = idempotency_token.clone();
         let record = fraiseql_observers::FunctionDispatchRecord::new(
             self.source,
             function_name.clone(),
@@ -590,6 +676,7 @@ impl DurableDispatcher {
             Ok(_) => tracing::error!(
                 error = %error,
                 function = %function_name,
+                idempotency_token = %dead_letter_token,
                 attempts,
                 "function dead-lettered after exhausting retries"
             ),
@@ -597,6 +684,7 @@ impl DurableDispatcher {
                 error = %error,
                 dlq_error = %dlq_error,
                 function = %function_name,
+                idempotency_token = %dead_letter_token,
                 "function failed and could not be dead-lettered"
             ),
         }
@@ -655,6 +743,28 @@ pub fn spawn_after_ingest(
         hooks,
         plans,
         fraiseql_observers::DispatchSource::AfterIngest,
+        query_executor_factory,
+    );
+}
+
+/// Spawn each planned `after:capture` invocation as a background task (#366).
+///
+/// The externally-captured-write analogue of [`spawn_after_mutation`]: same durable
+/// dispatcher and host, but tagged
+/// [`DispatchSource::AfterCapture`](fraiseql_observers::DispatchSource::AfterCapture)
+/// so a capture-driven dispatch is separable from a mutation-driven one in the DLQ
+/// and on `/metrics` (`trigger_kind="after:capture"`). Driven from the change-log
+/// reader via the lifecycle capture-dispatch hook.
+#[cfg(feature = "functions-runtime")]
+pub fn spawn_after_capture(
+    hooks: &BeforeMutationHooks,
+    plans: Vec<AfterMutationDispatch>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+) {
+    spawn_dispatch(
+        hooks,
+        plans,
+        fraiseql_observers::DispatchSource::AfterCapture,
         query_executor_factory,
     );
 }

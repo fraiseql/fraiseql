@@ -212,6 +212,18 @@ impl CronPoller {
         let elapsed = started.elapsed().as_secs_f64();
         match attempt {
             Ok(RunOutcome::Ran(result)) => {
+                let metric_result = match &result {
+                    Ok(_) => crate::function_metrics::RESULT_OK,
+                    // A failed cron firing is re-runnable (the next window retries,
+                    // like a source) — never dead-lettered, so it is `error`.
+                    Err(_) => crate::function_metrics::RESULT_ERROR,
+                };
+                crate::function_metrics::record_dispatch(
+                    &self.function_name,
+                    crate::function_metrics::KIND_CRON,
+                    metric_result,
+                    elapsed,
+                );
                 match &result {
                     Ok(_) => {
                         info!(

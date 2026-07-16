@@ -5,7 +5,9 @@
 
 use sqlx::PgPool;
 
-use super::{cron_migration_sql, inbound_migration_sql, send_tracking_migration_sql};
+use super::{
+    cron_migration_sql, dlq_migration_sql, inbound_migration_sql, send_tracking_migration_sql,
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -230,6 +232,70 @@ async fn test_send_tracking_migration_creates_tables_idempotently() {
                 .unwrap();
         assert!(exists, "table {table} must exist after migration");
     }
+}
+
+/// Verify the function-DLQ DDL is syntactically complete and contains the columns,
+/// the stable-id unique key, and the Trinity PK. Runs without a database.
+#[test]
+fn test_dlq_migration_ddl_is_valid_sql() {
+    let ddl = dlq_migration_sql();
+
+    assert!(
+        ddl.contains("_fraiseql_function_dlq"),
+        "DDL must create _fraiseql_function_dlq table"
+    );
+    assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
+
+    for col in [
+        "pk_function_dlq",
+        "id",
+        "source",
+        "function_name",
+        "trigger_type",
+        "idempotency_token",
+        "payload",
+        "error_message",
+        "attempts",
+        "created_at",
+    ] {
+        assert!(ddl.contains(col), "DDL must contain column: {col}");
+    }
+
+    // The dead-letter id is the stable handle for inspect/replay — must be unique.
+    assert!(
+        ddl.contains("uq_function_dlq_id"),
+        "DDL must create a unique index on the dead-letter id"
+    );
+    assert!(ddl.contains("idx_function_dlq_created"), "DDL must create a created_at index");
+    assert!(
+        ddl.contains("GENERATED ALWAYS AS IDENTITY"),
+        "pk must use GENERATED ALWAYS AS IDENTITY (Trinity pattern)"
+    );
+}
+
+/// Verify the function-DLQ migration creates the table in a real PostgreSQL
+/// database and is idempotent (re-running does not error).
+#[tokio::test]
+async fn test_dlq_migration_creates_table_idempotently() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP test_dlq_migration_creates_table_idempotently: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+
+    let ddl = dlq_migration_sql();
+    // Run twice — the second run must not error (IF NOT EXISTS idempotency).
+    execute_ddl(&pool, ddl).await;
+    execute_ddl(&pool, ddl).await;
+
+    let (exists,): (bool,) =
+        sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = $1)")
+            .bind("_fraiseql_function_dlq")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(exists, "table _fraiseql_function_dlq must exist after migration");
 }
 
 /// Verify the migration is idempotent — running it twice does not error.

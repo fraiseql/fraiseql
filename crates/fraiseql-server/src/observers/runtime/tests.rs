@@ -203,13 +203,16 @@ mod function_dlq {
         assert_eq!(dlq.function_count(), 1, "function entries counted separately");
     }
 
-    // Baseline pin for #598 (phase 00): the function DLQ is in-memory only, so a
-    // dead-lettered dispatch does not survive a restart. Constructing a fresh
-    // store models a process restart — there is no persistence layer to reload
-    // from. Phase 07 adds a Postgres-backed store; when it lands, the restart
-    // test moves to the PG store and asserts the entry is STILL listable.
+    // #598: the *in-memory* function DLQ is non-durable by design — a dead-lettered
+    // dispatch does not survive a restart (constructing a fresh store models a
+    // process restart; there is no persistence layer to reload from). This remains a
+    // true characterization of the memory store and documents *why* the durable
+    // option exists. The Postgres-backed store is the durable counterpart, and its
+    // survival is proven in
+    // `observers::pg_function_dlq::tests::dead_lettered_dispatch_survives_a_restart`
+    // (the #598 flip). `[functions] dlq_store = "postgres"` selects it in production.
     #[tokio::test]
-    async fn pin_598_in_memory_dlq_loses_function_entries_on_restart() {
+    async fn in_memory_dlq_loses_function_entries_on_restart() {
         // Dead-letter one dispatch.
         let dlq = InMemoryDlq::new_with_max(None);
         dlq.push_function(record("upstream 503")).await.unwrap();

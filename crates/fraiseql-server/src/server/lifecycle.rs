@@ -428,7 +428,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                 cdc.as_deref(),
                             );
                             if !plans.is_empty() {
-                                crate::routes::after_mutation::spawn_after_mutation(
+                                crate::routes::after_mutation::spawn_after_capture(
                                     &hooks,
                                     plans,
                                     Some(factory.clone()),

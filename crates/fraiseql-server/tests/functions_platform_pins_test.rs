@@ -157,28 +157,51 @@ fn pin_after_mutation_dispatch_lives_only_in_route_handlers() {
     );
 }
 
-// ── #598: function dispatch is unobservable — no metrics on the dispatch path ─
+// ── #598: function dispatch is observable — metrics on every dispatch path ────
 //
-// Sources got a full metric set (`sources/metrics.rs`); function dispatch has
-// none. Nothing about a fired / failed / dead-lettered function reaches
-// `/metrics`.
+// Flipped by phase 07. Sources got a full metric set (`sources/metrics.rs`);
+// function dispatch now has its sibling (`function_metrics.rs`), and every
+// background dispatch path records through it. The facade owns the `counter!`/
+// `histogram!`/`gauge!` macros; the dispatch paths call the facade — so this pin
+// guards the *wiring* (each path records) rather than macro placement.
 
 #[test]
-fn pin_598_no_metrics_in_function_dispatch_path() {
-    let dispatch = read_ws("crates/fraiseql-server/src/routes/after_mutation/mod.rs");
+fn function_dispatch_paths_are_instrumented_with_function_metrics() {
+    // The facade module owns the metric macros (sibling of `sources::metrics`).
+    let facade = read_ws("crates/fraiseql-server/src/function_metrics.rs");
     for macro_name in ["counter!", "histogram!", "gauge!"] {
-        assert_eq!(
-            code_occurrences(&dispatch, macro_name),
-            0,
-            "M-598: the after:mutation dispatch path has no `{macro_name}` at baseline — \
-             function dispatch is unobservable. Phase 07 instruments it; flip this pin then."
+        assert!(
+            code_occurrences(&facade, macro_name) > 0,
+            "M-598: the function-metrics facade must emit `{macro_name}` — it is the \
+             sibling of sources::metrics."
         );
     }
-    // Contrast: sources ARE instrumented (proof the pattern exists and is unused here).
-    let sources_metrics = read_ws("crates/fraiseql-server/src/sources/metrics.rs");
+
+    // The after:mutation / after:ingest / after:capture dispatcher records an
+    // outcome per dispatch, and a predicate skip per false `when`.
+    let dispatch = read_ws("crates/fraiseql-server/src/routes/after_mutation/mod.rs");
     assert!(
-        code_occurrences(&sources_metrics, "counter!") > 0 || sources_metrics.contains("counter"),
-        "sources metrics module should demonstrate the metric pattern functions lack"
+        code_occurrences(&dispatch, "function_metrics::record_dispatch") > 0,
+        "M-598: the durable dispatcher must record a dispatch outcome (#598)."
+    );
+    assert!(
+        code_occurrences(&dispatch, "function_metrics::record_predicate_skip") > 0,
+        "M-598: a false `when` predicate must be metered (#598)."
+    );
+
+    // Cron firings are metered too (its own path, not the durable dispatcher).
+    let cron = read_ws("crates/fraiseql-server/src/cron/mod.rs");
+    assert!(
+        code_occurrences(&cron, "function_metrics::record_dispatch") > 0,
+        "M-598: cron firings must record a dispatch outcome (#598)."
+    );
+
+    // The DLQ store meters eviction + current depth (no Prometheus-invisible drop).
+    let runtime = read_ws("crates/fraiseql-server/src/observers/runtime.rs");
+    assert!(
+        code_occurrences(&runtime, "function_metrics::record_dlq_eviction") > 0
+            && code_occurrences(&runtime, "function_metrics::set_dlq_size") > 0,
+        "M-598: the function DLQ must meter evictions and current depth (#598)."
     );
 }
 

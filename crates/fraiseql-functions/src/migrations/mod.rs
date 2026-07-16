@@ -209,3 +209,69 @@ CREATE POLICY p_suppression_tenant ON _fraiseql_suppression
     USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
 "
 }
+
+/// Returns the SQL DDL to create the durable function-dispatch dead-letter table (#598).
+///
+/// The Postgres-backed counterpart to the server's in-memory function DLQ: a
+/// function-trigger dispatch (after:mutation / after:ingest / after:capture) that
+/// exhausts its retries lands here rather than in a store that vanishes on restart,
+/// so an operator can inspect and replay it. The DDL uses `IF NOT EXISTS` for
+/// idempotency — running it multiple times is safe.
+///
+/// # Table Schema
+///
+/// | Column | Type | Notes |
+/// |--------|------|-------|
+/// | `pk_function_dlq` | `BIGINT GENERATED ALWAYS AS IDENTITY` | Trinity-style PK |
+/// | `id` | `UUID NOT NULL` | Stable dead-letter id (`FunctionDispatchRecord::id`) |
+/// | `source` | `TEXT NOT NULL` | `DispatchSource` label (`after:mutation`, …) |
+/// | `function_name` | `TEXT NOT NULL` | Function whose dispatch failed |
+/// | `trigger_type` | `TEXT NOT NULL` | e.g. `after:mutation:onUserCreated` |
+/// | `idempotency_token` | `TEXT NOT NULL` | The per-dispatch token every attempt saw |
+/// | `payload` | `JSONB NOT NULL` | The event payload, for inspection/replay |
+/// | `error_message` | `TEXT NOT NULL` | Final error from the exhausted dispatch |
+/// | `attempts` | `BIGINT NOT NULL` | Attempts made before dead-lettering |
+/// | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | When it was dead-lettered |
+///
+/// **Sensitivity.** A dead-lettered `payload` can contain row data (the after-image
+/// that a money/mail function was dispatched with). The table is a server-owned
+/// operational table in the reserved `_fraiseql_*` namespace — accessed only through
+/// the connecting role, like `_fraiseql_cron_state` — and carries no RLS policy
+/// (a dispatch record has no single tenant boundary). Treat it as sensitive: it is
+/// never logged at default level, and its retention is bounded by the same
+/// `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` cap the in-memory store honors.
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_functions::migrations::dlq_migration_sql();
+/// assert!(sql.contains("_fraiseql_function_dlq"));
+/// ```
+#[must_use]
+pub const fn dlq_migration_sql() -> &'static str {
+    "\
+CREATE TABLE IF NOT EXISTS _fraiseql_function_dlq (
+    pk_function_dlq   BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id                UUID        NOT NULL,
+    source            TEXT        NOT NULL,
+    function_name     TEXT        NOT NULL,
+    trigger_type      TEXT        NOT NULL,
+    idempotency_token TEXT        NOT NULL,
+    payload           JSONB       NOT NULL,
+    error_message     TEXT        NOT NULL,
+    attempts          BIGINT      NOT NULL DEFAULT 0,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The dead-letter id is the stable handle an operator inspects / replays by.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_function_dlq_id
+    ON _fraiseql_function_dlq (id);
+
+-- Oldest-first draining for the inspection/replay list.
+CREATE INDEX IF NOT EXISTS idx_function_dlq_created
+    ON _fraiseql_function_dlq (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_function_dlq_function
+    ON _fraiseql_function_dlq (function_name);
+"
+}

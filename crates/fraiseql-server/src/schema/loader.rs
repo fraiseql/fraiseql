@@ -93,6 +93,13 @@ pub struct FunctionsConfig {
 
     /// Function definitions loaded from the compiled schema.
     pub definitions: Vec<FunctionDefinition>,
+
+    /// Which dead-letter store backs function dispatch (#598): `"memory"` (the
+    /// default — dead-letters vanish on restart) or `"postgres"` (durable, survives
+    /// a restart; requires a database pool). Overridable by the
+    /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var. Absent ⇒ memory.
+    #[serde(default)]
+    pub dlq_store: Option<String>,
 }
 
 /// A compiled schema with all optional platform extensions parsed out.

@@ -44,8 +44,16 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
 - **Dead-letter queue.** An exhausted or permanently-failed dispatch is pushed to
   the shared dead-letter queue (`DeadLetterQueue::push_function`), tagged with a
   `DispatchSource` discriminator, under the same size-cap / drop-newest policy as
-  observer-action failures. Inspect it via `function_dlq_count` on the observer
-  delivery-health endpoint.
+  observer-action failures. Inspect the count via `function_dlq_count` on the
+  observer delivery-health endpoint.
+- **Durable DLQ (#598).** The store is selectable via `[functions] dlq_store`:
+  `"memory"` (the default — fast, but dead-letters vanish on restart) or
+  `"postgres"` (persisted to `_fraiseql_function_dlq`, so a dead-lettered dispatch
+  survives a restart and stays listable/replayable). `FRAISEQL_FUNCTIONS_DLQ_STORE`
+  overrides the compiled value for production. The Postgres table is a server-owned
+  operational table (no RLS; a dead-letter has no single tenant) whose `payload` can
+  contain row data — treat it as sensitive: it is never logged at default level and
+  is retention-bounded by `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`.
 - **Fire-and-forget opt-out.** Set `re_runnable = true` on a function definition
   for re-runnable/idempotent work (e.g. LLM scoring): such dispatch stays
   fire-and-forget with no retry or dead-letter overhead.
@@ -178,6 +186,35 @@ From a TypeScript guest these are `Deno.core.ops.fraiseql_*` (typed via the
 SSRF/validation policy is defined once, not per runtime. A host op invoked on a
 path that has no live host context (the sync `invoke` path) **fails loud** rather
 than silently returning empty data.
+
+## Observability (#598)
+
+Function dispatch is observable on `/metrics` (Prometheus facade; exported when the
+server is built with the `metrics` feature, like the source and wire metrics) and in
+the structured logs. Emitted per background dispatch:
+
+| Metric | Type | Labels | Meaning |
+|--------|------|--------|---------|
+| `fraiseql_function_dispatches_total` | counter | `function`, `trigger_kind`, `result` | One background dispatch that ran. `trigger_kind` ∈ {`after:mutation`, `after:ingest`, `after:capture`, `cron`}; `result` ∈ {`ok`, `error`, `dead_lettered`}. A fire-and-forget (`re_runnable`) single-attempt failure is `error`; a durable dispatch that exhausted its retries is `dead_lettered`. |
+| `fraiseql_function_run_duration_seconds` | histogram | `function` | Wall-clock of a dispatch that ran (all retry attempts included). |
+| `fraiseql_function_predicate_skips_total` | counter | `function` | A `when` predicate (#597) evaluated false, so **no isolate spun** — the zero-cost-skip made visible. |
+| `fraiseql_function_dlq_size` | gauge | — | Current function-dispatch DLQ depth (this replica's store view). |
+| `fraiseql_function_dlq_evictions_total` | counter | — | Function dead-letters dropped because the DLQ was at capacity (drop-newest). |
+
+**Trigger kinds not metered here.** `before:mutation` runs synchronously in the
+request (its outcome is the mutation's own success/failure, already on the GraphQL/HTTP
+metrics); `http` edge functions return to their caller and are metered by the HTTP
+layer; `after:storage` has no runtime dispatch path yet. None is a background dispatch,
+so none is a `fraiseql_function_dispatches_total` row.
+
+**Structured logs** — a dead-letter logs at `error` with the `function`, `attempts`,
+and the per-dispatch `idempotency_token`, so an alert traces to the exact dispatch
+(and the operator can dedupe a manual replay with the same token). The dead-lettered
+`payload` is never logged at default level.
+
+The full platform metric set (sources + functions) is listed in one table in
+[sources.md](sources.md#observability) and here; a dashboard consuming both keys off
+`fraiseql_source_*` and `fraiseql_function_*`.
 
 ## Configuration
 

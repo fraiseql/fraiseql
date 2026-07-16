@@ -420,7 +420,31 @@ mod dispatch_config {
     use fraiseql_functions::{FunctionDefinition, RuntimeType};
     use fraiseql_observers::RetryConfig;
 
-    use super::super::{DispatchDefaults, resolve_dispatch_settings};
+    use super::super::{DispatchDefaults, DlqStoreKind, resolve_dispatch_settings};
+
+    #[test]
+    fn dlq_store_resolves_from_compiled_value_and_env_override() {
+        let no_env = |_: &str| None;
+
+        // Compiled value, no env: honoured (case/space-insensitive).
+        assert_eq!(DlqStoreKind::resolve(Some("postgres"), no_env), DlqStoreKind::Postgres);
+        assert_eq!(DlqStoreKind::resolve(Some("  Postgres "), no_env), DlqStoreKind::Postgres);
+        assert_eq!(DlqStoreKind::resolve(Some("memory"), no_env), DlqStoreKind::Memory);
+
+        // Absent everywhere → the in-memory default.
+        assert_eq!(DlqStoreKind::resolve(None, no_env), DlqStoreKind::Memory);
+
+        // Env overrides the compiled value (production tuning without recompiling).
+        let env_pg =
+            |key: &str| (key == "FRAISEQL_FUNCTIONS_DLQ_STORE").then(|| "postgres".to_string());
+        assert_eq!(DlqStoreKind::resolve(Some("memory"), env_pg), DlqStoreKind::Postgres);
+        let env_mem =
+            |key: &str| (key == "FRAISEQL_FUNCTIONS_DLQ_STORE").then(|| "memory".to_string());
+        assert_eq!(DlqStoreKind::resolve(Some("postgres"), env_mem), DlqStoreKind::Memory);
+
+        // Unknown value → fail-safe to memory (never a startup failure).
+        assert_eq!(DlqStoreKind::resolve(Some("redis"), no_env), DlqStoreKind::Memory);
+    }
 
     fn definition(name: &str, re_runnable: bool, retry: Option<RetryConfig>) -> FunctionDefinition {
         FunctionDefinition {

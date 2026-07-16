@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Function dispatch metrics + durable dead-letter queue (#598).** Function-trigger
+  dispatch is now observable on `/metrics` and its failure record can survive a
+  restart.
+  - **Metrics** (Prometheus facade, `metrics` feature — the sibling of the source
+    metrics): `fraiseql_function_dispatches_total{function, trigger_kind, result}`
+    (`trigger_kind` ∈ after:mutation / after:ingest / after:capture / cron; `result` ∈
+    ok / error / dead_lettered), `fraiseql_function_run_duration_seconds{function}`,
+    `fraiseql_function_predicate_skips_total{function}` (a #597 `when` that evaluated
+    false — the zero-cost-skip made visible), `fraiseql_function_dlq_size`, and
+    `fraiseql_function_dlq_evictions_total`. `before:mutation` (sync), `http` (edge),
+    and `after:storage` (no dispatch path yet) are metered elsewhere or not applicable
+    — documented, not silently omitted.
+  - **Durable DLQ:** `[functions] dlq_store = "memory" | "postgres"` (env override
+    `FRAISEQL_FUNCTIONS_DLQ_STORE`). `"postgres"` persists dead-lettered dispatches to
+    `_fraiseql_function_dlq` so they survive a restart and stay listable/replayable;
+    `"memory"` (the default) is unchanged. The durable store honors the same
+    `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` drop-newest cap.
+  - The per-dispatch `idempotency_token` is now in the dead-letter error log line so
+    an alert traces to the exact dispatch (and a manual replay dedupes on it).
+  - A dedicated `DispatchSource::AfterCapture` now tags capture-driven dispatches, so
+    they are separable from `after:mutation` in the DLQ and on `/metrics`.
+  See `docs/architecture/functions.md` (Observability).
+
 - **`[mcp] read_only = true` — fail-closed MCP tool exposure.** When set, no mutation
   is ever exposed as an MCP tool regardless of `include`/`exclude`, so a mutation added
   to the schema later is not silently exposed to AI callers (the regression `exclude`

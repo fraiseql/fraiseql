@@ -41,6 +41,15 @@ pub mod error;
 pub mod extractors;
 #[cfg(feature = "federation")]
 pub mod federation;
+/// Prometheus metrics for function-trigger dispatch (#598) — the sibling of
+/// [`sources::metrics`](crate::sources).
+///
+/// Always compiled so the always-compiled dispatch planners
+/// ([`routes::after_mutation`](crate::routes)) can record predicate skips; its
+/// dispatch/DLQ emitters are only reached under `functions-runtime`/`observers`,
+/// so the dead-code allowance mirrors `routes::after_mutation`.
+#[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
+mod function_metrics;
 pub mod logging;
 pub mod middleware;
 /// The shared `fraiseql_query` bridge (`RunAsQueryExecutor`).
