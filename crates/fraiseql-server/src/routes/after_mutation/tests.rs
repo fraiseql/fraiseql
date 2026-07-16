@@ -709,10 +709,15 @@ mod after_capture {
     #![allow(clippy::unwrap_used)] // Reason: test module
 
     use fraiseql_functions::RuntimeType;
-    use fraiseql_observers::{EntityEvent as ObserverEntityEvent, EventKind as ObserverEventKind};
+    use fraiseql_observers::{
+        DispatchSource, EntityEvent as ObserverEntityEvent, EventKind as ObserverEventKind,
+    };
 
     use super::{
-        super::{CAPTURED_WRITE_MARKER, observer_event_to_capture, plan_after_capture_dispatch},
+        super::{
+            CAPTURED_WRITE_MARKER, dispatch_idempotency_token, observer_event_to_capture,
+            plan_after_capture_dispatch,
+        },
         *,
     };
 
@@ -809,5 +814,43 @@ mod after_capture {
             captured_insert("Order", json!({ "status": "shipped" }), Some(CAPTURED_WRITE_MARKER));
         let (ev, cdc) = observer_event_to_capture(&e).unwrap();
         assert_eq!(plan_after_capture_dispatch(&hooks, &ev, cdc.as_deref()).len(), 1);
+    }
+
+    // #366: a capture dispatch's idempotency token is stable per change-log row, so a
+    // redelivery after a crash (the reader re-processing the same row) re-derives the
+    // same token — the at-most-once guarantee for a money/mail after:capture side
+    // effect. The token keys on the row image (entity + event kind + old/new), never
+    // the processing timestamp or the event id.
+    #[test]
+    fn capture_dispatch_token_is_stable_per_change_log_row() {
+        let hooks = capture_hooks("reconcile", "after:capture:Order:insert");
+
+        // Derive the dispatch token for a captured row via the real capture path.
+        // Each call mints a fresh event id + timestamp (as a redelivery would), so an
+        // equal token proves the derivation ignores them.
+        let token = |data: serde_json::Value| -> String {
+            let event = captured_insert("Order", data, Some(CAPTURED_WRITE_MARKER));
+            let (fn_event, cdc) = observer_event_to_capture(&event).expect("capture event");
+            let plans = plan_after_capture_dispatch(&hooks, &fn_event, cdc.as_deref());
+            let plan = plans.first().expect("one capture plan");
+            dispatch_idempotency_token(
+                None,
+                DispatchSource::AfterCapture,
+                "reconcile",
+                &plan.payload,
+            )
+        };
+
+        let row = json!({ "id": "o-1", "status": "approved" });
+        let first = token(row.clone());
+        let redelivery = token(row); // same row image, fresh event id + timestamp
+        assert_eq!(
+            first, redelivery,
+            "redelivery of the same captured row re-derives the same token (at-most-once)"
+        );
+
+        // A genuinely different row image derives a different token.
+        let other = token(json!({ "id": "o-2", "status": "approved" }));
+        assert_ne!(first, other, "a different captured row derives a different token");
     }
 }

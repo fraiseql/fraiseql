@@ -28,6 +28,10 @@ federation = ["fraiseql-core/federation"]
 # `-p fraiseql-server`. Each is a no-op unless `server` is also enabled.
 functions-runtime = ["server", "fraiseql-server?/functions-runtime"]
 functions-runtime-deno = ["server", "fraiseql-server?/functions-runtime-deno"]
+# `fraiseql functions invoke` — the CLI's local V8 test harness for function authors.
+# Pass-through so the published `-full` binary ships the author inner-loop instead of
+# forcing a from-source build (the same adopter dead-end `-full` exists to close).
+functions-invoke = ["cli", "fraiseql-cli?/functions-invoke"]
 inbound = ["server", "fraiseql-server?/inbound"]
 inbound-email = ["server", "fraiseql-server?/inbound-email"]
 mcp = ["server", "fraiseql-server?/mcp"]
@@ -55,6 +59,7 @@ release-full = [
     "postgres",
     "observers",
     "functions-runtime-deno",
+    "functions-invoke",
     "sources",
     "mcp",
     "inbound",

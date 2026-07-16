@@ -209,10 +209,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
 
                 let hooks = app_state.before_mutation_hooks.clone();
+                // #594: the after:ingest `fraiseql_query` bridge factory, built over the
+                // app's hot-reloadable executor (same one the route handlers use); only
+                // meaningful when function-dispatch hooks are present.
+                let query_executor_factory = hooks.as_ref().map(|_| {
+                    crate::routes::after_mutation::make_query_executor_factory(
+                        app_state.executor.clone(),
+                    )
+                });
                 let pollers = email::build_pollers(
                     &self.config.mailbox,
                     db_pool,
                     hooks.as_ref(),
+                    query_executor_factory.as_ref(),
                     sink.as_ref(),
                     Some(&correlator),
                     address_hash_key.as_ref(),

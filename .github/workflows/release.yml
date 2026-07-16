@@ -279,6 +279,18 @@ jobs:
         if: '!matrix.use_cross'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features release-full
 
+      - name: Smoke the full binary's function-invoke harness (phase 08)
+        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        # `fraiseql functions invoke` exists only when `functions-invoke` is compiled
+        # in. Assert the -full artifact ships the author test loop rather than leaving
+        # it from-source-only — the same adopter dead-end this -full variant closes for
+        # the other platform features.
+        run: |
+          bin="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          "$bin" functions invoke --help | grep -q -- "--payload" \
+            || { echo "::error::the -full binary is missing 'functions invoke' — functions-invoke is not compiled in"; exit 1; }
+          echo "✅ -full binary ships 'fraiseql functions invoke' (functions-invoke compiled in)."
+
       - name: Strip full binary (Linux/macOS native)
         if: matrix.os != 'windows-latest' && !matrix.use_cross
         run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}

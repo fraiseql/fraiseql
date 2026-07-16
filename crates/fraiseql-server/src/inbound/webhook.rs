@@ -12,8 +12,9 @@
 //! layer above it. The verified delivery is normalized into an [`InboundMessage`]
 //! and persisted onto the spine ([`emit_in_tx`]) *inside the delivery
 //! transaction*, so the spine write and the idempotency claim commit or roll back
-//! together. Firing `after:ingest` functions on the persisted message is wired in
-//! the next cycle.
+//! together. A persisted message then fires its `after:ingest` functions on the
+//! I/O-capable host, including the `fraiseql_query` bridge under each function's
+//! `run_as` ceiling (#594).
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -126,14 +127,20 @@ type InboundPipeline =
 /// Shared state for the inbound webhook route.
 #[derive(Clone)]
 pub struct WebhookInboundState {
-    pipeline: Arc<InboundPipeline>,
-    registry: Arc<ProviderRegistry>,
+    pipeline:               Arc<InboundPipeline>,
+    registry:               Arc<ProviderRegistry>,
     /// Path segment (`/webhooks/{segment}`) → resolved route.
-    routes:   Arc<BTreeMap<String, ResolvedRoute>>,
+    routes:                 Arc<BTreeMap<String, ResolvedRoute>>,
     /// Function-dispatch hooks used to fire `after:ingest` on a persisted
     /// message. `None` (no function runtime configured) persists the message but
     /// dispatches nothing.
-    hooks:    Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+    hooks:                  Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+    /// The `fraiseql_query` bridge builder (#594) for `after:ingest` functions —
+    /// the same request-path executor factory the route handlers thread into
+    /// after:mutation. `None` → an after:ingest function's `fraiseql_query` fails
+    /// loud ("query executor not configured"), the pre-#594 behavior. Set together
+    /// with [`hooks`](Self::hooks) at mount time (both need the app's executor).
+    query_executor_factory: Option<crate::routes::after_mutation::QueryExecutorFactory>,
 }
 
 impl WebhookInboundState {
@@ -178,10 +185,11 @@ impl WebhookInboundState {
         let pipeline = WebhookPipeline::new(pool, secrets, store, SpineEventHandler);
 
         Self {
-            pipeline: Arc::new(pipeline),
-            registry: Arc::new(ProviderRegistry::new()),
-            routes:   Arc::new(resolved),
-            hooks:    None,
+            pipeline:               Arc::new(pipeline),
+            registry:               Arc::new(ProviderRegistry::new()),
+            routes:                 Arc::new(resolved),
+            hooks:                  None,
+            query_executor_factory: None,
         }
     }
 
@@ -191,6 +199,30 @@ impl WebhookInboundState {
     pub fn with_hooks(mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) -> Self {
         self.hooks = Some(hooks);
         self
+    }
+
+    /// Attach the `fraiseql_query` bridge factory (#594) so an `after:ingest`
+    /// function can write back under its `run_as` ceiling — the same executor
+    /// factory the after:mutation route handlers use. Built with
+    /// [`make_query_executor_factory`](crate::routes::after_mutation::make_query_executor_factory)
+    /// at mount time (it needs the app's hot-reloadable executor).
+    #[must_use]
+    pub fn with_query_executor_factory(
+        mut self,
+        factory: crate::routes::after_mutation::QueryExecutorFactory,
+    ) -> Self {
+        self.query_executor_factory = Some(factory);
+        self
+    }
+
+    /// The attached `fraiseql_query` bridge factory, if any (test observability for
+    /// the #594 after:ingest wiring; the dispatch path reads the field directly).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn query_executor_factory(
+        &self,
+    ) -> Option<&crate::routes::after_mutation::QueryExecutorFactory> {
+        self.query_executor_factory.as_ref()
     }
 
     /// Create the spine table the adapter writes to (idempotent).
@@ -354,12 +386,15 @@ fn dispatch_after_ingest(state: &WebhookInboundState, message: &InboundMessage) 
     };
     let plans = crate::routes::after_mutation::plan_after_ingest_dispatch(hooks, message);
     if !plans.is_empty() {
-        // #594 follow-up: the after:ingest `fraiseql_query` bridge needs the
-        // request-path executor threaded onto `WebhookInboundState`; until then an
-        // after:ingest function's `fraiseql_query` stays unwired (fail-loud "query
-        // executor not configured"), unchanged from before #594. after:mutation
-        // (the #594 core) is wired at the GraphQL/REST route sites.
-        crate::routes::after_mutation::spawn_after_ingest(hooks, plans, None);
+        // #594: an after:ingest function's `fraiseql_query` runs under its own
+        // `run_as` ceiling via the request-path executor factory threaded onto the
+        // state at mount time (`None` only when no executor was available — then the
+        // bridge fails loud, the pre-#594 behavior).
+        crate::routes::after_mutation::spawn_after_ingest(
+            hooks,
+            plans,
+            state.query_executor_factory.clone(),
+        );
     }
 }
 

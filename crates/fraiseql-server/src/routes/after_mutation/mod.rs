@@ -448,6 +448,38 @@ where
     })
 }
 
+/// Derive a dispatch's idempotency token from its **stable identity** — never
+/// wall-clock or random.
+///
+/// The token is `derive_idempotency_token(source, function, trigger_identity,
+/// payload.data)` where `trigger_identity = "<trigger_type>:<entity>:<event_kind>"`.
+/// It deliberately excludes the event *timestamp*, so:
+///
+/// - every retry of one dispatch shares the token (at-most-once across retries), and
+/// - for **after:capture** it is the **crash-redelivery key**: the same change-log row, re-read
+///   after a crash, carries the same entity + event kind + row image (`payload.data = {event_kind,
+///   old, new}`) and so re-derives the **same** token — a money/mail side effect behind an
+///   after:capture function stays at-most-once even though the reader may re-process the row with a
+///   fresh processing timestamp.
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+fn dispatch_idempotency_token(
+    key: Option<&[u8]>,
+    source: fraiseql_observers::DispatchSource,
+    function_name: &str,
+    payload: &EventPayload,
+) -> String {
+    let trigger_identity =
+        format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
+    fraiseql_observers::derive_idempotency_token(
+        key,
+        source,
+        function_name,
+        &trigger_identity,
+        &payload.data,
+    )
+}
+
 /// Runs after:mutation function plans durably: retry transient failures with
 /// backoff and dead-letter what exhausts its retries, unless the function is
 /// marked re-runnable (then a single fire-and-forget attempt).
@@ -571,16 +603,14 @@ impl DurableDispatcher {
         // Derive the per-dispatch idempotency token ONCE, from the dispatch's
         // stable identity (never wall-clock/random), so every retry attempt below
         // sees the same token and a durable retry of a money/mail call stays
-        // at-most-once. The trigger identity folds in entity + event_kind; the
-        // payload data (which excludes the event timestamp) makes it resume-stable.
-        let trigger_identity =
-            format!("{}:{}:{}", payload.trigger_type, payload.entity, payload.event_kind);
-        let idempotency_token = fraiseql_observers::derive_idempotency_token(
+        // at-most-once. For after:capture this is also the *crash-redelivery* key:
+        // the same change-log row re-derives the same token (see
+        // [`dispatch_idempotency_token`]).
+        let idempotency_token = dispatch_idempotency_token(
             self.idempotency_key.as_deref(),
             self.source,
             &function_name,
-            &trigger_identity,
-            &payload.data,
+            &payload,
         );
 
         if setting.re_runnable {
