@@ -279,6 +279,39 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Start the `cron:` function scheduler (#595): one leased poller per cron
+        // function in the compiled schema, each firing on its schedule under a
+        // single-firing advisory lease with the phase-02 `run_as` host. A cron
+        // function is a scheduled source without a cursor. Runs on the server's
+        // JoinSet so graceful shutdown drains it; requires a DB pool (the advisory
+        // lease + `_fraiseql_cron_state`) and the function-dispatch hooks.
+        #[cfg(feature = "functions-runtime")]
+        if let Some(ref db_pool) = self.db_pool {
+            if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
+                if !hooks.trigger_registry.cron_triggers.is_empty() {
+                    let cron_state = crate::cron::PgCronState::new(db_pool.clone());
+                    cron_state.init().await.map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize cron state schema: {e}"
+                        ))
+                    })?;
+                    let host_config = crate::routes::after_mutation::host_context_config();
+                    let pollers = crate::cron::build_cron_pollers(
+                        db_pool,
+                        &app_state.executor,
+                        hooks.as_ref(),
+                        &host_config,
+                        &fraiseql_functions::ResourceLimits::default(),
+                    );
+                    let started = pollers.len();
+                    for poller in pollers {
+                        self.tasks.spawn(async move { poller.run_forever().await });
+                    }
+                    info!(cron_functions = started, "cron scheduler started");
+                }
+            }
+        }
+
         // Spawn SIGUSR1 schema reload handler when running on Unix.
         // The handler loops forever, reloading on each signal, until the
         // server process exits — tracked on the server's JoinSet so graceful

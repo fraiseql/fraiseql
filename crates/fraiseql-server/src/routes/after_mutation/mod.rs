@@ -605,7 +605,7 @@ fn spawn_dispatch(
 /// comma-separated `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` environment variable so
 /// production can grant outbound access without recompiling the schema.
 #[cfg(feature = "functions-runtime")]
-fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
+pub fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
     let mut config = fraiseql_functions::host::live::HostContextConfig::default();
     if let Ok(domains) = std::env::var("FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS") {
         config.allowed_domains = domains

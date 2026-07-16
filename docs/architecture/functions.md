@@ -55,13 +55,33 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
 Durable dispatch requires the `functions-runtime` feature, which enables the
 `observers` subsystem (whose dead-letter-queue store is reused).
 
-### Cron Scheduler
+### Cron Scheduler (#595)
 
-The `CronScheduler` manages periodic function execution:
+A `cron:` function fires from a running server: at startup the lifecycle builds one
+leased `CronPoller` per cron function (server-side, `crate::cron`) and spawns it on
+the server's task set. A cron function is **"a scheduled source without a cursor"** —
+the poller reuses the sources' machinery:
 
-- Cron expressions parsed at startup
-- State persisted in PostgreSQL (`cron_state` migration)
-- Leader election prevents duplicate execution in multi-instance deployments
+- **Cron expressions parsed at startup**; each poller ticks once a minute.
+- **Single-firing across replicas** via the sources' PostgreSQL advisory lease
+  (`LeaseGuardedRunner`, keyed `cron:<function>`): N replicas → exactly one firing per
+  scheduled window. This is the "leader election" the docs previously claimed but did
+  not implement.
+- **State persisted** to `_fraiseql_cron_state` (`last_fired_at`, `fire_count`) — a
+  durable fire record + a cross-restart "already fired this window" guard.
+- **Authority:** the function runs on the phase-02 I/O host, so `fraiseql_query` works
+  under the function's `run_as` ceiling (fail-closed when absent) — a purge/report job
+  can query and mutate.
+- **Missed-tick policy: skip.** A server down over a scheduled instant does not replay
+  on next boot; the next matching window fires normally (cron has no cursor/backlog to
+  resume, unlike a source).
+
+> **Design note (A vs B).** We *implemented* `cron:` (variant A) rather than retiring it
+> in favor of cron-scheduled sources (variant B): the `_fraiseql_cron_state` migration
+> and the sources' lease were already in place, so the delta was small and the "a
+> scheduled job is just a `cron:` function" authoring story is cleaner. The requires
+> a DB pool (the lease + state table). The legacy in-process `CronScheduler` firing
+> path (`NoopHostContext`, no lease) is superseded by `CronPoller` for production.
 
 ### Function runtimes
 

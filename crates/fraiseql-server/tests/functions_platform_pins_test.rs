@@ -59,37 +59,26 @@ fn code_occurrences(src: &str, needle: &str) -> usize {
         .sum()
 }
 
-// ── #595: a `cron:` function never fires from a stock server boot ────────────
+// ── #595: `cron:` functions are wired into server startup (phase 03) ─────────
 //
-// The functions `CronScheduler` is fully implemented and unit-tested in
-// `fraiseql-functions` (see `platform_e2e_test.rs`), but nothing in the server's
-// startup wiring ever constructs one from the compiled schema — the only mention
-// in server `src/` is a doc-comment cross-reference in `sources/poller.rs`.
+// Phase 03 wired a leased `CronPoller` per cron function into the server lifecycle
+// (a cron function is "a scheduled source without a cursor"). The functional
+// single-firing + `_fraiseql_cron_state` persistence are verified in-crate at
+// `cron::tests`; this pin guards the *wiring* — that server startup builds the cron
+// pollers — so a refactor that drops the lifecycle block is caught.
 
 #[test]
-fn pin_595_cron_scheduler_is_never_constructed_in_server_startup() {
-    // `registry.cron_scheduler()` is the single call site that would wire the
-    // scheduler at boot. It appears only in tests today.
-    let dirs = ["crates/fraiseql-server/src"];
-    let mut hits: Vec<String> = Vec::new();
-    for dir in dirs {
-        for entry in walk_rs_files(&workspace_root().join(dir)) {
-            // Skip test modules — the scheduler is exercised there directly.
-            let name = entry.to_string_lossy().to_string();
-            if name.contains("tests.rs") || name.contains("/tests/") {
-                continue;
-            }
-            let src = std::fs::read_to_string(&entry).unwrap();
-            if code_occurrences(&src, ".cron_scheduler(") > 0 {
-                hits.push(name);
-            }
-        }
-    }
+fn cron_pollers_are_built_at_server_startup() {
+    let lifecycle = read_ws("crates/fraiseql-server/src/server/lifecycle.rs");
     assert!(
-        hits.is_empty(),
-        "M-595: expected NO server-startup construction of the cron scheduler at baseline, \
-         but `.cron_scheduler()` is called in: {hits:?}. Phase 03 wires it — when it does, \
-         flip this pin to assert the startup path DOES build the scheduler."
+        code_occurrences(&lifecycle, "build_cron_pollers") > 0,
+        "expected the server lifecycle to construct cron pollers at startup (#595). If the \
+         wiring moved, update this invariant to the new construction site."
+    );
+    // And the pollers must be spawned (fired), not merely built.
+    assert!(
+        code_occurrences(&lifecycle, "run_forever") > 0,
+        "expected each cron poller to be spawned (run_forever) on the server JoinSet."
     );
 }
 
@@ -224,21 +213,4 @@ fn pin_597_after_mutation_matches_ignore_field_values() {
     );
     // A different entity never matches (sanity: the matcher is not degenerate).
     assert!(!trigger.matches("Invoice", EventKind::Update));
-}
-
-/// Recursively collect `.rs` files under `dir`.
-fn walk_rs_files(dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return out;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            out.extend(walk_rs_files(&path));
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
-        }
-    }
-    out
 }

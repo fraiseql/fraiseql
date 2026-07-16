@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`cron:` functions fire from a running server, single-firing across replicas
+  (#595).** Scheduled functions previously never fired from a stock server — the
+  `CronScheduler` existed but nothing wired it at startup, and it had no leader
+  election despite the docs claiming it. The server now builds one leased `CronPoller`
+  per cron function at startup (a cron function is "a scheduled source without a
+  cursor"): it ticks on the schedule, single-fires across replicas via the sources'
+  PostgreSQL advisory lease (`LeaseGuardedRunner`, keyed `cron:<function>`), runs on
+  the phase-02 I/O host (so `fraiseql_query` works under the function's `run_as`
+  ceiling), and records each firing to `_fraiseql_cron_state`. Missed-tick policy is
+  **skip** (a server down over a scheduled instant does not replay on boot). Requires a
+  DB pool (the lease + state table). Metrics land in a later minor. See
+  `docs/architecture/functions.md`.
+
 - **`after:mutation` functions can write back — the `fraiseql_query` bridge under a
   `run_as` ceiling (#594).** An event-dispatched function's `fraiseql_query` host op
   now executes against the engine, closing the trigger → side-effect → **record** loop
