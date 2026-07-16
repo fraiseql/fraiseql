@@ -15,7 +15,7 @@ use super::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```text
 /// let request = WindowRequest { ... };
 /// let metadata = FactTableMetadata { ... };
 /// let plan = WindowPlanner::plan(request, &metadata)?;

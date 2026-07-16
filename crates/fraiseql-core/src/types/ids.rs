@@ -3,7 +3,7 @@
 //! Using newtypes for identifiers prevents accidental transposition with other string-typed IDs
 //! at compile time. For example:
 //!
-//! ```ignore
+//! ```text
 //! // ❌ This compiles and is a silent bug:
 //! fn create_session(user_id: String, tenant_id: String) -> Result<()>
 //! create_session(tenant_id, user_id)  // Arguments transposed!

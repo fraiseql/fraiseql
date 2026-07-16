@@ -118,13 +118,13 @@ test-full: db-up federation-up
 	@echo "[3/9] Database integration tests (PostgreSQL, MySQL, SQL Server)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
+		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
 	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
+		cargo test --features test-mysql -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
+		cargo test --features test-sqlserver -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	@echo ""
 	@echo "[4/9] Cross-database parity tests..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -177,17 +177,17 @@ test-integration: db-up
 	@echo "=== PostgreSQL integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
+		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
 	@echo ""
 	@echo "=== MySQL integration tests ==="
 	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
+		cargo test --features test-mysql -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	@echo ""
 	@echo "=== SQL Server integration tests ==="
 	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
+		cargo test --features test-sqlserver -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	@echo ""
 	@echo "=== fraiseql-observers integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -196,7 +196,7 @@ test-integration: db-up
 	@echo ""
 	@echo "=== fraiseql-server integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test -p fraiseql-server -- --ignored
+		cargo test -p fraiseql-server --lib --tests -- --ignored
 	@echo ""
 	@echo "All integration tests passed."
 
@@ -669,7 +669,7 @@ federation-down:
 test-federation: federation-up
 	@echo ""
 	@echo "=== Federation integration tests ==="
-	@cargo test -p fraiseql-core federation -- --ignored --test-threads=4; \
+	@cargo test -p fraiseql-core --lib --tests federation -- --ignored --test-threads=4; \
 		EXIT=$$?; \
 		$(MAKE) federation-down; \
 		exit $$EXIT
