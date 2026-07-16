@@ -272,6 +272,44 @@ cargo test -p fraiseql-server --test platform_e2e_test  # E2E tests
 > harness can `SIGSEGV` when several isolates are created in one process. Nextest
 > runs each test in its own process (fresh V8 platform), which is how CI runs them.
 
+## Authoring: the local invoke harness (`fraiseql functions invoke`)
+
+A function author does not need a running server, a database, or the network to
+test a function — `fraiseql functions invoke` runs a compiled function in a **real
+V8 isolate** against a fixture payload, with **mocked host ops**, and prints the
+result plus every host-op call the guest made. It is the author's inner loop:
+fixture → run → observe. Built into the CLI behind the opt-in `functions-invoke`
+feature (V8 is ~30 MB, so the stock CLI stays lean).
+
+```bash
+# A matching payload runs; --explain shows why the `when` predicate did/didn't fire.
+fraiseql functions invoke notifyApproved --payload event.json --explain
+
+# Mock the host ops the function calls (a request matching no mock fails loud).
+fraiseql functions invoke syncDeal --payload deal.json \
+    --mock-http http.json --mock-query query.json --idempotency-token abc123
+```
+
+The module is loaded exactly as the server loads it (from the compiled schema's
+`module_dir`). Host ops are answered by a recording mock: `fraiseql_query` /
+`fraiseql_http_request` from `--mock-query` / `--mock-http` (a matched entry → its
+canned response; a miss against a configured mock **fails loud**, surfacing as a
+guest error); other ops return benign defaults so a first run reveals which ops a
+function calls before its mocks are written. `--idempotency-token` injects the token
+the guest reads via the host op.
+
+**Payload fixtures** are validated against the trigger kind — an `after:mutation` /
+`after:capture` fixture is `{ "event_kind": "update", "old": {…}, "new": {…} }` (a
+bare object is treated as an insert's `new` image). The `when` predicates (#597) are
+evaluated *before* any isolate spins, so a non-matching payload costs nothing.
+
+**Exit codes** are scriptable in CI: `0` = ran; `3` = the `when` predicate did not
+match (nothing would fire); `4` = the guest errored; `1` = a config/harness error.
+
+> Tracked follow-ups: `cron` / `after:ingest` payload synthesis, a `--record` mode
+> that captures real host-op traffic into the mock files for golden replay, and the
+> generated `functions.d.ts` typings for guest payloads.
+
 ## See Also
 
 - [Storage Architecture](storage.md) -- Object storage backends

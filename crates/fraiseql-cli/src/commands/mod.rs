@@ -8,6 +8,8 @@ pub mod doctor;
 pub mod explain;
 pub mod extract;
 pub mod federation;
+#[cfg(feature = "functions-invoke")]
+pub mod functions;
 pub mod generate;
 pub mod generate_capture_triggers;
 pub mod generate_client;

@@ -604,6 +604,35 @@ pub async fn run() {
             })
             .await
         },
+
+        #[cfg(feature = "functions-invoke")]
+        Commands::Functions(command) => match command {
+            crate::cli::FunctionsCommands::Invoke {
+                name,
+                payload,
+                schema,
+                mock_http,
+                mock_query,
+                idempotency_token,
+                explain,
+            } => match commands::functions::invoke(
+                &name,
+                &payload,
+                &schema,
+                mock_http.as_deref(),
+                mock_query.as_deref(),
+                idempotency_token,
+                explain,
+                cli.json,
+            )
+            .await
+            {
+                // The harness printed its own output; exit with the outcome code.
+                Ok(code) => process::exit(code),
+                // A config/harness error goes through the normal error report (exit 1).
+                Err(error) => Err(error),
+            },
+        },
     };
 
     if let Err(e) = result {

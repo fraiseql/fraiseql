@@ -27,6 +27,15 @@ fraiseql-db = {workspace = true}
 # `changelog-contract` drift check compares a live table against — only the
 # const `migrations` module is used here, not the observer runtime).
 fraiseql-observers = {workspace = true}
+# The local function-invoke harness (`fraiseql functions invoke`) — runs a compiled
+# function in a real V8 isolate against a fixture payload with mocked host ops. Pulls
+# the Deno runtime + live host context; opt-in (V8 is ~30 MB) so the stock CLI stays
+# lean, mirroring the server's `functions-runtime-deno` posture.
+fraiseql-functions = {workspace = true, optional = true, features = ["runtime-deno", "host-live"]}
+# The harness names `fraiseql_error::Result` (the HostContext trait's return) and
+# `chrono` (the event payload timestamp) directly — pulled in with the harness.
+fraiseql-error = {workspace = true, optional = true}
+chrono = {workspace = true, optional = true}
 fraiseql-server = {workspace = true, optional = true, features = ["cli"]}
 axum = {workspace = true, optional = true}
 glob = "0.3"
@@ -78,6 +87,8 @@ sqlserver = [
     "fraiseql-server?/sqlserver",
 ]
 run-server = ["dep:fraiseql-server", "dep:axum"]
+# `fraiseql functions invoke` — the local V8 test harness for function authors.
+functions-invoke = ["dep:fraiseql-functions", "dep:fraiseql-error", "dep:chrono"]
 # Gate for the `--against-db` integration tests (#397/#409). The tests self-skip
 # when no `DATABASE_URL` is set, so enabling this under `--all-features` in a
 # DB-free leg is safe; it only marks the live-PostgreSQL test surface.
@@ -100,6 +111,10 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[[test]]
+name = "functions_invoke"
+required-features = ["functions-invoke"]
 
 [[test]]
 name = "cli_federation_validation"

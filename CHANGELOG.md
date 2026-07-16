@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`fraiseql functions invoke` — a local V8 test harness for function authors.**
+  Runs a compiled function in a **real V8 isolate** against a fixture payload, with
+  **mocked host ops**, printing the guest's result and every host-op call it made —
+  the author's inner loop, no server/database/network required. The module loads
+  exactly as the server loads it (from the compiled schema's `module_dir`).
+  `--mock-http` / `--mock-query` supply canned responses (a request matching no
+  configured mock fails loud); `--idempotency-token` injects the per-dispatch token;
+  `--explain` shows why the `when` predicates (#597) did or did not match (evaluated
+  before any isolate spins). Exit codes are CI-scriptable: `0` ran, `3` predicate
+  no-match, `4` guest error, `1` config error. Built behind the opt-in
+  `functions-invoke` CLI feature (V8 is ~30 MB, so the stock CLI stays lean). See
+  `docs/architecture/functions.md`. Tracked follow-ups: `cron`/`after:ingest`
+  payload synthesis, a `--record` mode, and generated `functions.d.ts` typings.
+
 - **Function dispatch metrics + durable dead-letter queue (#598).** Function-trigger
   dispatch is now observable on `/metrics` and its failure record can survive a
   restart.
