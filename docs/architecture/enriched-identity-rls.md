@@ -190,6 +190,11 @@ the subscription rather than silently widening it.
 > tracked separately. The `POST /realtime/v1/broadcast` app-channel pubsub carries no
 > entity after-images and has no row policy.
 
+> **Hot-reload.** Subscription policies are resolved at server start; a policy added or
+> changed via a schema **hot-reload** takes effect on **restart**, not immediately (the
+> subscription subsystem is not yet re-mounted on reload). Change subscription
+> row-visibility policies with a restart. Tracked as a follow-up.
+
 ---
 
 ## Operational notes

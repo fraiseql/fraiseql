@@ -634,6 +634,69 @@ mod query_bridge_wiring {
     }
 
     #[tokio::test]
+    async fn after_ingest_bridge_runs_under_the_run_as_ceiling() {
+        // #594 (ingest half): the same `run_as`→bridge wiring proven above for
+        // after:mutation, but driven by an inbound-message-shaped payload — the
+        // normalized `InboundMessage` a Source adapter puts on the durable spine and
+        // that `spawn_after_ingest` hands to the dispatcher. This bypasses the
+        // Postgres spine (`inbound::spine`, tested separately) and drives `build_host`
+        // directly, exactly as the after:mutation case bypasses the HTTP route: the
+        // dispatched host's `fraiseql_query` write must run under the after:ingest
+        // function's `run_as` ceiling, audited as `system_job:<function-name>`.
+        use fraiseql_functions::{InboundMessage, IngestSource, IngestTrigger};
+
+        let (factory, captured) = recording_factory();
+        let run_as = RunAs {
+            roles:  vec!["ticket_writer".to_string()],
+            scopes: vec!["write:ticket".to_string()],
+            tenant: Some("acme".to_string()),
+        };
+
+        // The event payload an after:ingest function receives: the whole normalized
+        // message rendered by the real `IngestTrigger::build_payload`, so its shape
+        // (`after:ingest:<source>` trigger type, `event_kind = "ingest"`) matches what
+        // the spine dispatches — not a hand-built mutation payload.
+        let message = InboundMessage::new(
+            IngestSource::Webhook {
+                provider: "stripe".to_string(),
+            },
+            "evt_9f8",
+            chrono::Utc::now(),
+        );
+        let payload = IngestTrigger {
+            function_name: "ingestPayment".to_string(),
+            source:        None,
+        }
+        .build_payload(&message);
+        assert_eq!(payload.trigger_type, "after:ingest:webhook:stripe");
+        assert_eq!(payload.event_kind, "ingest");
+
+        // Tag the dispatcher AfterIngest (its DLQ/metrics identity) and drive it.
+        let mut dispatcher = dispatcher(Some(factory), Some(run_as));
+        dispatcher.source = fraiseql_observers::DispatchSource::AfterIngest;
+        let host = dispatcher.build_host("ingestPayment", payload, "ingest-tok-1");
+
+        let value = host
+            .query("mutation { recordPayment(event: \"evt_9f8\") { id } }", serde_json::json!({}))
+            .await
+            .expect("the after:ingest bridge is wired");
+        assert_eq!(value, serde_json::json!({ "data": { "ok": true } }));
+
+        // The write ran under the after:ingest function's ceiling, audited as its
+        // system job — identity carries the granted roles/scopes and the tenant.
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:ingestPayment");
+        assert!(identity.has_role("ticket_writer"));
+        assert!(identity.has_scope("write:ticket"));
+        assert_eq!(
+            identity.tenant_id.as_ref().map(|tenant| tenant.0.as_str()),
+            Some("acme"),
+            "the ceiling's tenant scopes the ingest write"
+        );
+        assert_eq!(identity.request_id, "ingest-tok-1", "identity correlates the dispatch token");
+    }
+
+    #[tokio::test]
     async fn a_function_without_run_as_is_fail_closed() {
         // A factory but no `run_as` ⇒ the bridge is wired but runs under an anonymous
         // system_job with no authority: RLS/field-authz deny writes.
