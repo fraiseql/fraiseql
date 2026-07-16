@@ -46,10 +46,22 @@ pub fn run(
         format!("Failed to parse {} as a compiled schema", schema_path.display())
     })?;
 
-    let files = match language {
+    let mut files = match language {
         ClientLanguage::TypeScript => fraiseql_codegen::client::typescript::generate(&schema)
             .map_err(|e| anyhow::anyhow!("client generation failed: {e}"))?,
     };
+
+    // `functions.d.ts` (phase 08): typed guest payloads + host-op declarations, when
+    // the compiled schema declares functions. Parsed from the same raw JSON — the
+    // `functions` section is not part of `CompiledSchema`.
+    if matches!(language, ClientLanguage::TypeScript) {
+        let specs = functions_type_specs(&raw, &schema);
+        if !specs.is_empty() {
+            let dts = fraiseql_codegen::client::typescript::generate_functions_dts(&schema, &specs)
+                .map_err(|e| anyhow::anyhow!("functions.d.ts generation failed: {e}"))?;
+            files.insert(std::path::PathBuf::from("functions.d.ts"), dts);
+        }
+    }
 
     if out_dir.exists() && !force && contains_generated_client(out_dir) {
         anyhow::bail!(
@@ -76,6 +88,68 @@ pub fn run(
         out_dir.display(),
     );
     Ok(())
+}
+
+/// Resolve the `functions.d.ts` type specs from the compiled schema's `functions`
+/// section (parsed from the raw JSON — it is not part of [`CompiledSchema`]).
+///
+/// Each function's trigger determines its payload shape: `after:mutation` /
+/// `after:capture` on entity `E` → `{ event_kind, old: E|null, new: E|null }` (typed
+/// to `E` when it names a schema type, else `unknown`); `cron` → schedule context;
+/// `after:ingest` → the inbound-message shape. Triggers with no author-facing payload
+/// yet (`http`, `before:mutation`, `after:storage`) are skipped.
+fn functions_type_specs(
+    raw: &str,
+    schema: &CompiledSchema,
+) -> Vec<fraiseql_codegen::client::typescript::FunctionTypeSpec> {
+    use fraiseql_codegen::client::typescript::{FunctionPayloadShape, FunctionTypeSpec};
+
+    /// The subset of the `functions` section we need.
+    #[derive(serde::Deserialize)]
+    struct FunctionsLite {
+        #[serde(default)]
+        definitions: Vec<FunctionDefLite>,
+    }
+    #[derive(serde::Deserialize)]
+    struct FunctionDefLite {
+        name:    String,
+        trigger: String,
+    }
+
+    let Some(functions) = serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .and_then(|value| value.get("functions").cloned())
+        .filter(|value| !value.is_null())
+        .and_then(|value| serde_json::from_value::<FunctionsLite>(value).ok())
+    else {
+        return Vec::new();
+    };
+
+    let is_type = |name: &str| schema.types.iter().any(|ty| ty.name == name);
+    let entity_shape = |parts: &[&str]| {
+        // `after:{mutation,capture}:<Entity>[:op]` — the 3rd segment is the entity type.
+        let entity = parts.get(2).filter(|name| is_type(name)).map(|name| (*name).to_string());
+        FunctionPayloadShape::Entity { entity }
+    };
+
+    functions
+        .definitions
+        .into_iter()
+        .filter_map(|def| {
+            let parts: Vec<&str> = def.trigger.split(':').collect();
+            let shape = match (parts.first().copied(), parts.get(1).copied()) {
+                (Some("after"), Some("mutation" | "capture")) => entity_shape(&parts),
+                (Some("cron"), _) => FunctionPayloadShape::Cron,
+                (Some("after"), Some("ingest")) => FunctionPayloadShape::Ingest,
+                // http / before:mutation / after:storage: no author-facing payload yet.
+                _ => return None,
+            };
+            Some(FunctionTypeSpec {
+                name: def.name,
+                shape,
+            })
+        })
+        .collect()
 }
 
 /// Whether a directory already holds a generated client (detected via the

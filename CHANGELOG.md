@@ -21,7 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no-match, `4` guest error, `1` config error. Built behind the opt-in
   `functions-invoke` CLI feature (V8 is ~30 MB, so the stock CLI stays lean). See
   `docs/architecture/functions.md`. Tracked follow-ups: `cron`/`after:ingest`
-  payload synthesis, a `--record` mode, and generated `functions.d.ts` typings.
+  payload synthesis in `invoke`, and a `--record` mode.
+
+- **Typed guest payloads — `functions.d.ts` from `fraiseql generate-client`.** When the
+  compiled schema declares functions, the TypeScript client generator now emits a
+  `functions.d.ts` giving function authors editor type-checking for the host surface
+  (`Deno.core.ops.fraiseql_*` via an ambient `FraiseqlHostOps`) and a typed event
+  payload per function, derived from its trigger: `after:mutation`/`after:capture` on
+  entity `E` → `{ event_kind, old: E|null, new: E|null }` (with `E` imported from the
+  generated `./types`), `cron` → schedule context, `after:ingest` → the inbound-message
+  shape (an undefined entity falls back to `unknown`). See `docs/architecture/functions.md`.
 
 - **Function dispatch metrics + durable dead-letter queue (#598).** Function-trigger
   dispatch is now observable on `/metrics` and its failure record can survive a

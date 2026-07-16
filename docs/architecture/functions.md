@@ -306,9 +306,32 @@ evaluated *before* any isolate spins, so a non-matching payload costs nothing.
 **Exit codes** are scriptable in CI: `0` = ran; `3` = the `when` predicate did not
 match (nothing would fire); `4` = the guest errored; `1` = a config/harness error.
 
-> Tracked follow-ups: `cron` / `after:ingest` payload synthesis, a `--record` mode
-> that captures real host-op traffic into the mock files for golden replay, and the
-> generated `functions.d.ts` typings for guest payloads.
+### Typed guest payloads (`functions.d.ts`)
+
+`fraiseql generate-client typescript` emits a `functions.d.ts` alongside the client
+whenever the compiled schema declares functions. It gives a function author editor
+type-checking for both halves of a function:
+
+- **The host surface** — an ambient `Deno.core.ops.fraiseql_*` declaration
+  (`FraiseqlHostOps`), so `fraiseql_query` / `fraiseql_http_request` / … are typed.
+- **The event payload** — one interface per function, derived from its trigger. An
+  `after:mutation` / `after:capture` function on entity `E` gets
+  `{ event_kind, old: E | null, new: E | null }` (with `E` imported from the generated
+  `./types`); `cron` gets its schedule context; `after:ingest` gets the inbound-message
+  shape. An entity the schema does not define falls back to `unknown` rather than a
+  dangling reference.
+
+```typescript
+import type { NotifyUserEvent } from "./functions";
+// `import type` is erased by the runtime's type-stripper; it is authoring-only.
+export default async (event: NotifyUserEvent) => {
+  if (event.new?.status !== "approved") return;
+  await Deno.core.ops.fraiseql_query(/* … typed host op … */);
+};
+```
+
+> Tracked follow-ups: `cron` / `after:ingest` payload *synthesis* in `invoke`, and a
+> `--record` mode that captures real host-op traffic into the mock files for golden replay.
 
 ## See Also
 
