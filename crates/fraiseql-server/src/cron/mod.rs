@@ -1,15 +1,16 @@
 //! Server-side `cron:` function scheduling (#595).
 //!
 //! Wires the compiled schema's `cron:` functions into a running server: one
-//! [`CronPoller`] per cron function ticks on its schedule and — single-firing across
-//! replicas via the sources' advisory lease — invokes the function on the phase-02
-//! I/O-capable host (`fraiseql_query` under the function's `run_as` ceiling).
+//! [`CronPoller`](crate::cron::CronPoller) per cron function ticks on its schedule and —
+//! single-firing across replicas via the sources' advisory lease — invokes the function on the
+//! phase-02 I/O-capable host (`fraiseql_query` under the function's `run_as` ceiling).
 //!
 //! A cron function is "a scheduled [`Source`](crate::sources) without a cursor": the
 //! poller mirrors [`SourcePoller`](crate::sources) but drops the durable-cursor
 //! binding and instead records each firing to `_fraiseql_cron_state` (observability +
 //! a cross-restart "already fired this window" guard). It reuses `CronSchedule` /
-//! `CronExecutionState` (schedule logic), [`LeaseGuardedRunner`] (the lease), and the
+//! `CronExecutionState` (schedule logic),
+//! [`LeaseGuardedRunner`](fraiseql_observers::LeaseGuardedRunner) (the lease), and the
 //! shared [`RunAsQueryExecutor`](crate::query_bridge) (the bridge).
 //!
 //! **Missed-tick policy: skip.** A server down over a scheduled instant does not

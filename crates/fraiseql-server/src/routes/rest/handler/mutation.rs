@@ -32,7 +32,10 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
     }
 }
 
-impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
+// `A: 'static` is required by the #594 query-bridge factory
+// (`make_query_executor_factory` captures the adapter in a `'static` closure); every
+// real `DatabaseAdapter` is an owned `'static` type, so this is a no-op in practice.
+impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
     /// Fire-and-forget dispatch of `after:mutation` function triggers for a
     /// committed REST mutation (#460).
     ///

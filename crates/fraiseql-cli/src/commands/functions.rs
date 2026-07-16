@@ -9,7 +9,7 @@
 //! compiled schema's `module_dir`, dispatched through a `FunctionObserver` with the
 //! Deno runtime registered (mirroring
 //! `fraiseql-server::subsystems::loader::build_functions_subsystem`). The host is a
-//! recording mock ([`RecordingHost`]): each op is logged, HTTP/query responses come
+//! recording mock (`RecordingHost`): each op is logged, HTTP/query responses come
 //! from `--mock-http` / `--mock-query` (a matched entry → canned response; a miss
 //! against a configured mock fails loud), and other ops return benign defaults so a
 //! smoke-run surfaces which ops a function calls before its mocks are written.

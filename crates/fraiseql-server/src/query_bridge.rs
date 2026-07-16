@@ -8,10 +8,12 @@
 //! path (after:mutation, after:ingest, cron, after:capture) failed with "query
 //! executor not configured".
 //!
-//! [`RunAsQueryExecutor`] is that bridge, shared across all of them: it wraps the
-//! server's [`Executor`] and runs each query/mutation under a **`run_as` identity**
-//! (a `SystemJob` [`SecurityContext`] built from the source's or function's
-//! `run_as` ceiling — fail-closed when absent). It was extracted from the
+//! [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor) is that bridge,
+//! shared across all of them: it wraps the server's
+//! [`Executor`](fraiseql_core::runtime::Executor) and runs each query/mutation under a
+//! **`run_as` identity** (a `SystemJob`
+//! [`SecurityContext`](fraiseql_core::security::SecurityContext) built from the source's or
+//! function's `run_as` ceiling — fail-closed when absent). It was extracted from the
 //! sources-only `SourceQueryExecutor` (#573) so after:mutation / after:ingest
 //! dispatch reuses the exact same authority + hot-reload seam (#594): one authority
 //! model, every dispatch path.
@@ -22,11 +24,12 @@
 //!   `load`s a fresh snapshot per call, so a schema reload is picked up by the next firing rather
 //!   than pinned at construction.
 //! - **Per-message tenant seam.** The identity is not a frozen field. A single `execute_query`
-//!   re-scopes to a per-message tenant carried in the reserved [`SOURCE_TENANT_VAR`] variable — the
-//!   runtime half of the multi-tenant source path (only the connector knows which tenant a fetched
-//!   record belongs to). An identity already pinned to a tenant by `run_as` ignores the override
-//!   and cannot forge writes for another tenant. (Event-dispatched functions never set the
-//!   variable, so the override is inert for them — their identity is exactly their `run_as`.)
+//!   re-scopes to a per-message tenant carried in the reserved
+//!   [`SOURCE_TENANT_VAR`](crate::query_bridge::SOURCE_TENANT_VAR) variable — the runtime half of
+//!   the multi-tenant source path (only the connector knows which tenant a fetched record belongs
+//!   to). An identity already pinned to a tenant by `run_as` ignores the override and cannot forge
+//!   writes for another tenant. (Event-dispatched functions never set the variable, so the override
+//!   is inert for them — their identity is exactly their `run_as`.)
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -45,8 +48,7 @@ use serde_json::Value;
 /// sides agree on. Event-dispatched functions do not set it.
 pub const SOURCE_TENANT_VAR: &str = "__source_tenant";
 
-/// Adapts the server's [`Executor`] to the functions
-/// [`QueryExecutor`](fraiseql_functions::host::live::QueryExecutor) so a background
+/// Adapts the server's [`Executor`] to the functions [`QueryExecutor`] so a background
 /// dispatch's mutations run under a `run_as` identity (#573, #594).
 ///
 /// Shared by scheduled sources and event-dispatched functions (after:mutation /

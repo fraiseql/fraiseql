@@ -204,8 +204,8 @@ impl WebhookInboundState {
     /// Attach the `fraiseql_query` bridge factory (#594) so an `after:ingest`
     /// function can write back under its `run_as` ceiling — the same executor
     /// factory the after:mutation route handlers use. Built with
-    /// [`make_query_executor_factory`](crate::routes::after_mutation::make_query_executor_factory)
-    /// at mount time (it needs the app's hot-reloadable executor).
+    /// `make_query_executor_factory` at mount time (it needs the app's
+    /// hot-reloadable executor).
     #[must_use]
     pub fn with_query_executor_factory(
         mut self,
