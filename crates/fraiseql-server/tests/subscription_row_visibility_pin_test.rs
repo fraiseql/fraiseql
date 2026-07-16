@@ -1,5 +1,5 @@
 //! Row-level visibility regression for the realtime `/realtime/v1` entity-change stream
-//! (#596, phase 06a — the FLIP of the phase-00 characterization).
+//! (#596) — the passing counterpart to the deliver-all characterization it replaced.
 //!
 //! NOTE: this is the *dormant* push path — `RealtimeServer`/`RealtimeState` are never
 //! assembled by any production binary (#605). The *live* graphql `/ws` path is covered by

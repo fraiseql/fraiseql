@@ -1,8 +1,8 @@
-//! Row-level visibility conformance for the **live** graphql `/ws` path (#596, phase 06b).
+//! Row-level visibility conformance for the **live** graphql `/ws` path (#596).
 //!
 //! Drives the production `subscription_handler` over a real TCP `WebSocket` (the same
 //! harness as `subscription_ws_e2e_test.rs`). Proves the fix that closed the deliver-all
-//! gap the phase-00 characterization pinned:
+//! gap on the live path:
 //!
 //! - a subscription to a **policy-declaring** entity whose owner identity is **unresolvable**
 //!   (here: an anonymous connection, no enriched `fraiseql.enriched.*` field) is **refused at
