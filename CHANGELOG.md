@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/architecture/enriched-identity-rls.md` ("The push path: subscription row
   visibility").
 
+- **Realtime `/realtime/v1` entity-stream seam is fail-closed for policy entities
+  (#596).** This second push subsystem carries entity after-images too but is **not
+  assembled by any production binary** (#605). It now consumes the *same* `fraiseql-core`
+  policy derivation as the `/ws` path, and — the property that matters on a dormant
+  seam — its delivery is fail-closed for a policy-declaring entity: a subscription that
+  reaches delivery without a resolved owner enforcement (`Bypass`/`Scoped`) is **dropped**,
+  and a subscription whose identity is unresolvable is **refused** at subscribe time. So
+  whoever eventually productionizes the subsystem cannot bring it up deliver-all by
+  accident. Issue #605 tracks the productionize-or-remove decision.
+
 ### Changed
 
 - **`fraiseql_core::runtime::extract_rls_conditions` is now fail-closed (`Result`).**

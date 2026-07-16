@@ -49,13 +49,7 @@ struct AlwaysOkValidator;
 
 impl TokenValidator for AlwaysOkValidator {
     fn validate<'a>(&'a self, _token: &'a str) -> BoxFuture<'a, Result<TokenInfo, String>> {
-        Box::pin(async move {
-            Ok(TokenInfo {
-                user_id:      "test-user".to_string(),
-                context_hash: 0,
-                expires_at:   i64::MAX,
-            })
-        })
+        Box::pin(async move { Ok(TokenInfo::new("test-user".to_string(), 0, i64::MAX)) })
     }
 }
 
