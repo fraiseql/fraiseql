@@ -181,36 +181,57 @@ fn pin_598_no_metrics_in_function_dispatch_path() {
     );
 }
 
-// ── #597: an after:mutation:X:update trigger fires on EVERY update ───────────
+// ── #597: declarative `when` predicates gate after:mutation firing (phase 04) ─
 //
-// `AfterMutationTrigger::matches` keys on entity + event kind only. There is no
-// way to say "only when new.status == 'approved'"; the condition lives as
-// invisible guard code inside the guest. Phase 04 adds declarative `when`.
+// A trigger with a `when` conjunction no longer fires on *every* update: the
+// dispatcher evaluates the predicates on the row images before spawning any
+// runtime. `matches` still keys on entity + event kind; `predicates_hold` is the
+// new gate. The pure-predicate table is exercised in
+// `fraiseql-functions::triggers::mutation::tests::trigger_predicates`; this pin
+// guards that a schema-declared `when` is honored end to end through the trigger.
 
 #[test]
-fn pin_597_after_mutation_matches_ignore_field_values() {
-    use fraiseql_functions::triggers::mutation::{AfterMutationTrigger, EventKind};
+fn after_mutation_when_predicates_gate_firing() {
+    use fraiseql_functions::triggers::mutation::{
+        AfterMutationTrigger, EntityEvent, EventKind, TriggerPredicate,
+    };
 
     let trigger = AfterMutationTrigger {
         function_name: "notify_approved".to_string(),
         entity_type:   "Order".to_string(),
         event_filter:  Some(EventKind::Update),
+        predicates:    vec![TriggerPredicate {
+            field:      "status".to_string(),
+            eq:         None,
+            changed_to: Some(serde_json::json!("approved")),
+        }],
     };
 
-    // Two updates to the same entity with DIFFERENT field values both match —
-    // there is no field/transition predicate at baseline.
+    let now = chrono::Utc::now();
+    let event = |old: serde_json::Value, new: serde_json::Value| EntityEvent {
+        entity:     "Order".to_string(),
+        event_kind: EventKind::Update,
+        old:        Some(old),
+        new:        Some(new),
+        timestamp:  now,
+    };
+
+    // The entity+operation still matches every Order update...
+    assert!(trigger.matches("Order", EventKind::Update));
+
+    // ...but the `when` predicate fires ONLY on the pending→approved transition.
     assert!(
-        trigger.matches("Order", EventKind::Update),
-        "M-597: baseline matches entity+operation only"
+        trigger.predicates_hold(&event(
+            serde_json::json!({ "status": "pending" }),
+            serde_json::json!({ "status": "approved" }),
+        )),
+        "fires on the approving transition"
     );
-    // The trigger cannot distinguish an approving update from any other update:
-    // `matches` takes no payload, so field values cannot influence the decision.
-    // Phase 04 introduces a `when` predicate evaluated on `old`/`new` before
-    // dispatch; when it lands, this pin is replaced by predicate-match tests.
     assert!(
-        trigger.matches("Order", EventKind::Update),
-        "M-597: a second, unrelated update also matches — the fire-on-every-update gap"
+        !trigger.predicates_hold(&event(
+            serde_json::json!({ "status": "approved" }),
+            serde_json::json!({ "status": "approved" }),
+        )),
+        "does NOT fire on an unrelated re-save (approved→approved) — the #597 fix"
     );
-    // A different entity never matches (sanity: the matcher is not degenerate).
-    assert!(!trigger.matches("Invoice", EventKind::Update));
 }

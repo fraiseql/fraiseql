@@ -106,3 +106,29 @@ fn identity_carries_the_granted_ceiling() {
     assert_eq!(identity.tenant_id.as_ref().map(|t| t.0.as_str()), Some("acme"));
     assert_eq!(identity.user_id.0, "system_job:recordApproval");
 }
+
+#[test]
+fn function_definition_round_trips_when_predicates() {
+    // The `when` conjunction round-trips from the compiled schema (#597).
+    let json = serde_json::json!({
+        "name": "notify_approved",
+        "trigger": "after:mutation:Order:update",
+        "runtime": "Deno",
+        "when": [
+            { "field": "status", "changed_to": "approved" },
+            { "field": "kind", "eq": "standard" }
+        ]
+    });
+    let def: FunctionDefinition = serde_json::from_value(json).expect("valid when");
+    assert_eq!(def.when.len(), 2);
+    assert_eq!(def.when[0].field, "status");
+    assert_eq!(def.when[0].changed_to, Some(serde_json::json!("approved")));
+    assert_eq!(def.when[1].eq, Some(serde_json::json!("standard")));
+
+    // Absent `when` deserializes to an empty conjunction (always fires) and is
+    // omitted from the compact wire form.
+    let bare = FunctionDefinition::new("f", "after:mutation:X:insert", RuntimeType::Deno);
+    assert!(bare.when.is_empty());
+    let value = serde_json::to_value(&bare).expect("serialize");
+    assert!(value.get("when").is_none(), "empty when is omitted from the wire form");
+}

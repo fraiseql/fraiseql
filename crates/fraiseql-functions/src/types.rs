@@ -176,6 +176,13 @@ pub struct FunctionDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_as: Option<RunAs>,
 
+    /// Declarative `when` predicates (#597) — a conjunction the dispatcher evaluates
+    /// on the row images before firing an `after:mutation`/`after:capture` function.
+    /// Empty ⇒ always fire (back-compat). See
+    /// [`TriggerPredicate`](crate::triggers::mutation::TriggerPredicate).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub when: Vec<crate::triggers::mutation::TriggerPredicate>,
+
     /// Fire-and-forget opt-out for durable dispatch.
     ///
     /// After-mutation function dispatch is durable by default: a transient
@@ -209,6 +216,7 @@ impl FunctionDefinition {
             runtime,
             timeout_ms: None,
             run_as: None,
+            when: Vec::new(),
             re_runnable: false,
             retry: None,
         }

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Declarative `when` predicates on after:mutation triggers (#597).** A function can
+  now declare *when* it fires — `{ "field": "status", "changed_to": "approved" }` or
+  `{ "field": "kind", "eq": "standard" }` — evaluated by the dispatcher on the row
+  images **before** any runtime spins; a false predicate produces no dispatch record
+  at all. The condition, previously invisible guard code inside the guest, is now
+  auditable from the schema. Deliberately small: `eq` (state) + `changed_to`
+  (UPDATE-only transition), a conjunction list, exactly one operator per predicate,
+  unknown keys and `changed_to` on a non-`update` trigger are load errors — a dispatch
+  filter, not a rules engine. Note: the after:mutation route path has no pre-image, so
+  `changed_to` there gates on the after-value; full transition detection needs the
+  after:capture path (`pre_image=True`). See `docs/architecture/functions.md`.
+
 - **`cron:` functions fire from a running server, single-firing across replicas
   (#595).** Scheduled functions previously never fired from a stock server — the
   `CronScheduler` existed but nothing wired it at startup, and it had no leader

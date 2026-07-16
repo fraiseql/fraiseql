@@ -26,6 +26,7 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
             runtime:     RuntimeType::Wasm,
             timeout_ms:  None,
             run_as:      None,
+            when:        Vec::new(),
             re_runnable: false,
             retry:       None,
         })
@@ -428,6 +429,7 @@ mod dispatch_config {
             runtime: RuntimeType::Wasm,
             timeout_ms: None,
             run_as: None,
+            when: Vec::new(),
             re_runnable,
             retry,
         }
@@ -621,4 +623,57 @@ mod query_bridge_wiring {
         assert!(identity.scopes.is_empty(), "fail-closed: no scopes");
         assert!(identity.tenant_id.is_none(), "fail-closed: no tenant");
     }
+}
+
+// ── #597: `when` predicates gate the planner (no dispatch on non-match) ──────
+
+#[test]
+fn when_predicate_produces_no_dispatch_on_non_matching_update() {
+    use fraiseql_functions::{RuntimeType, triggers::TriggerPredicate};
+
+    // A function that only fires when `status` transitions to "approved".
+    let mut def = FunctionDefinition::new(
+        "notify_approved",
+        "after:mutation:Order:update",
+        RuntimeType::Wasm,
+    );
+    def.when = vec![TriggerPredicate {
+        field:      "status".to_string(),
+        eq:         None,
+        changed_to: Some(json!("approved")),
+    }];
+
+    let registry = TriggerRegistry::load_from_definitions(&[def]).expect("valid when");
+    let module_registry: HashMap<String, FunctionModule> =
+        HashMap::from([("notify_approved".to_string(), module("notify_approved"))]);
+    let hooks =
+        BeforeMutationHooks::new(registry, module_registry, Arc::new(FunctionObserver::new()));
+
+    let schema = schema_with(
+        "updateOrder",
+        "Order",
+        MutationOperation::Update {
+            table: "tb_order".to_string(),
+        },
+    );
+
+    // The after:mutation ROUTE path carries only the after-image (no pre-image), so
+    // `changed_to` gates on `new.status == v`. An update whose result is NOT the
+    // target value produces no dispatch record at all (predicate false).
+    let other_value = json!({ "data": { "updateOrder": { "id": "o1", "status": "rejected" } } });
+    assert!(
+        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &other_value).is_empty(),
+        "a predicate-false update produces no dispatch (no record, not a skipped dispatch)"
+    );
+
+    // An update to the target value fires. (On the route path the pre-image is
+    // absent, so `changed_to` cannot distinguish a transition from a re-save — full
+    // transition detection needs the pre-image, i.e. the after:capture path with
+    // `pre_image=True`. Documented in functions.md.)
+    let to_target = json!({ "data": { "updateOrder": { "id": "o1", "status": "approved" } } });
+    assert_eq!(
+        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &to_target).len(),
+        1,
+        "an update to the target value fires the predicate function"
+    );
 }

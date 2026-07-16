@@ -109,6 +109,36 @@ The host surface (`HostContext`) exposes:
 - `auth_context` — the caller's authenticated context (RLS-aware execution).
 - `log` — structured logging captured into the function result.
 
+### Declarative `when` predicates (#597)
+
+An `after:mutation` (or `after:capture`, #TBD) function can declare *when* it fires,
+evaluated by the dispatcher on the row images **before** any runtime spins — a false
+predicate produces no dispatch record at all (not a skipped/failed dispatch):
+
+```jsonc
+{
+  "name": "notify_approved",
+  "trigger": "after:mutation:Order:update",
+  "when": [                                             // conjunction; omitted = always
+    { "field": "status", "changed_to": "approved" },    // transition test (UPDATE-only)
+    { "field": "kind",   "eq": "standard" }             // state test (INSERT + UPDATE)
+  ]
+}
+```
+
+- **`eq`** — the field currently equals the value, evaluated on the after-image
+  (INSERT/UPDATE) or the pre-image (DELETE). A missing field never equals a value.
+- **`changed_to`** — `old.field != v && new.field == v`. UPDATE-only (`changed_to` on
+  a non-`update` trigger is a **load error**). A DELETE never matches.
+- The list is a **conjunction** (all must hold); an empty/absent `when` always fires
+  (back-compat). Exactly one operator per predicate; unknown keys are a load error.
+  This is a dispatch filter, not a rules engine — anything richer stays guest code.
+
+> **Pre-image caveat.** The after:mutation **route** path carries only the after-image
+> (the mutation response), so `changed_to` there gates on `new.field == v` and cannot
+> distinguish a real transition from a re-save. Full transition detection needs the
+> pre-image — the `after:capture` path (backed by the change log) with `pre_image=True`.
+
 ### Function authority — `run_as` (#594)
 
 A function's `fraiseql_query` writes run under an explicit least-privilege

@@ -221,6 +221,20 @@ impl TriggerRegistry {
                     entity_type,
                     operation,
                 } => {
+                    // #597: validate each `when` predicate against the trigger's
+                    // operation at load — `changed_to` is UPDATE-only, exactly one
+                    // operator per predicate, unknown keys already rejected by
+                    // `deny_unknown_fields` on `TriggerPredicate`.
+                    for predicate in &func.when {
+                        predicate.validate(operation.as_deref()).map_err(|message| {
+                            RegistryError {
+                                message: format!(
+                                    "function `{}` trigger `{}`: {message}",
+                                    func.name, func.trigger
+                                ),
+                            }
+                        })?;
+                    }
                     let trigger = AfterMutationTrigger {
                         function_name: func.name.clone(),
                         entity_type,
@@ -230,6 +244,7 @@ impl TriggerRegistry {
                             "delete" => Some(crate::EventKind::Delete),
                             _ => None,
                         }),
+                        predicates: func.when.clone(),
                     };
                     registry.after_mutation_triggers.add(trigger);
                 },

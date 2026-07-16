@@ -95,6 +95,10 @@ pub fn plan_after_mutation_dispatch(
         .observer
         .find_after_mutation_triggers(&hooks.trigger_registry, &event)
         .into_iter()
+        // #597: evaluate the trigger's `when` predicates on the row images BEFORE
+        // resolving the module or building a payload — a false predicate produces no
+        // dispatch record at all (not a skipped/failed dispatch), and no runtime spins.
+        .filter(|trigger| trigger.predicates_hold(&event))
         .filter_map(|trigger| {
             // A trigger whose module never loaded is silently skipped: dispatch
             // is best-effort and must not block the response.
