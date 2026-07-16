@@ -174,7 +174,14 @@ This is useful for hiding administrative mutations from AI clients while still e
 ## Limitations
 
 - **Stdio transport only.** The current implementation supports the MCP stdio transport. The `FRAISEQL_MCP_STDIO` environment variable switches the server from HTTP to stdio mode; they cannot run simultaneously in a single process.
-- **Read-only by default.** While mutations are technically available as MCP tools, it is strongly recommended to use `exclude` to hide write operations unless you have a specific use case and appropriate access controls in place. RLS and authentication still apply, but AI-initiated writes carry inherent risk.
+- **Prefer `read_only = true`.** Set `[mcp] read_only = true` unless you deliberately
+  expose write operations — it guarantees **no mutation is ever exposed as an MCP tool**,
+  regardless of `include`/`exclude`, and (critically) a mutation added to the schema later
+  is not silently exposed to AI callers. `read_only` wins over `include` (fail-closed;
+  a load-time warning is logged if `include` names a mutation under `read_only`). Using
+  `exclude` alone is a footgun: every future write op must be remembered, and a forgotten
+  one is exposed. RLS and authentication still apply, but AI-initiated writes carry
+  inherent risk, so default to read-only.
 - **No streaming.** MCP tool results are returned as a single JSON text block. Large result sets should be paginated using query arguments (`limit`/`offset`).
 - **Feature flag required.** MCP support is not compiled by default. You must build with `--features mcp` to include it. This keeps the binary size minimal for deployments that do not need MCP.
 - **Single session.** The stdio transport serves one MCP client at a time. For multi-client scenarios, run separate server processes.

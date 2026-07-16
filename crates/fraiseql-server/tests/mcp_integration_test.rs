@@ -79,6 +79,7 @@ fn make_mcp_config() -> McpConfig {
         require_auth: false,
         include:      vec![],
         exclude:      vec![],
+        read_only:    false,
     }
 }
 

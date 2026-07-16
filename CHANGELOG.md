@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`[mcp] read_only = true` — fail-closed MCP tool exposure.** When set, no mutation
+  is ever exposed as an MCP tool regardless of `include`/`exclude`, so a mutation added
+  to the schema later is not silently exposed to AI callers (the regression `exclude`
+  alone cannot prevent). `read_only` wins over `include` (fail-closed precedence; a
+  load-time warning is logged if `include` names a mutation under `read_only`). The docs
+  now recommend `read_only = true` unless you deliberately expose writes. See
+  `docs/mcp.md`.
+
 - **Functions fire on externally-captured writes — `after:capture` (#366).** A
   third-party daemon (or `psql`) INSERTing into a `@subscribable` table can now drive
   a function, not just observers/subscriptions — event-driven reconciliation instead

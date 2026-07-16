@@ -23,10 +23,32 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
         }
     }
 
-    for mutation in &schema.mutations {
-        let display = schema.display_name(&mutation.name);
-        if should_include(&display, config) {
-            tools.push(mutation_to_tool(mutation, &display));
+    // Read-only exposure (fail-closed): no mutation is ever a tool when `read_only`
+    // is set — this wins over `include` and guarantees a mutation added to the
+    // schema later is not silently exposed to AI callers.
+    if config.read_only {
+        // Surface a self-contradiction loudly: `read_only` + an `include` naming a
+        // mutation means that mutation is deliberately NOT exposed despite the
+        // include. `read_only` wins (fail-closed).
+        let contradicts: Vec<&String> = config
+            .include
+            .iter()
+            .filter(|name| schema.mutations.iter().any(|m| &schema.display_name(&m.name) == *name))
+            .collect();
+        if !contradicts.is_empty() {
+            tracing::warn!(
+                mutations = ?contradicts,
+                "[mcp] read_only = true overrides `include` listing these mutations — they are \
+                 NOT exposed as tools (read_only wins, fail-closed)"
+            );
+        }
+    }
+    if !config.read_only {
+        for mutation in &schema.mutations {
+            let display = schema.display_name(&mutation.name);
+            if should_include(&display, config) {
+                tools.push(mutation_to_tool(mutation, &display));
+            }
         }
     }
 

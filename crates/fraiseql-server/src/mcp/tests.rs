@@ -83,7 +83,56 @@ mod tools_tests {
             require_auth: true,
             include,
             exclude,
+            read_only: false,
         }
+    }
+
+    /// `[mcp] read_only`: with `read_only`, no mutation is ever a tool, regardless of
+    /// `include`/`exclude`, and adding a mutation to the schema changes nothing — the
+    /// regression the flag exists to prevent.
+    #[test]
+    fn read_only_exposes_no_mutations_regardless_of_include() {
+        use fraiseql_core::schema::{CompiledSchema, MutationDefinition, QueryDefinition};
+
+        use super::super::tools::schema_to_tools;
+
+        let mut schema = CompiledSchema::default();
+        schema.queries.push(QueryDefinition::new("users", "User"));
+        schema.mutations.push(MutationDefinition::new("createUser", "User"));
+        schema.mutations.push(MutationDefinition::new("deleteUser", "User"));
+
+        // Baseline (not read_only): the query + both mutations are exposed.
+        let open = make_config(vec![], vec![]);
+        assert_eq!(schema_to_tools(&schema, &open).len(), 3, "1 query + 2 mutations exposed");
+
+        // read_only with no include → only the query survives (no mutation is a tool).
+        let mut read_only = make_config(vec![], vec![]);
+        read_only.read_only = true;
+        assert_eq!(
+            schema_to_tools(&schema, &read_only).len(),
+            1,
+            "read_only exposes only the query"
+        );
+
+        // read_only WINS over `include`: an include naming a mutation would expose it,
+        // but read_only excludes every mutation → the mutation is not a tool. (The
+        // query is also gated out by the non-empty include, so zero tools remain,
+        // proving the mutation named in `include` was excluded by read_only.)
+        let mut with_include = make_config(vec!["createUser".to_string()], vec![]);
+        with_include.read_only = true;
+        assert_eq!(
+            schema_to_tools(&schema, &with_include).len(),
+            0,
+            "read_only wins over include listing a mutation"
+        );
+
+        // Adding another mutation to the schema changes nothing under read_only.
+        schema.mutations.push(MutationDefinition::new("wipeAll", "User"));
+        assert_eq!(
+            schema_to_tools(&schema, &read_only).len(),
+            1,
+            "new mutation not silently exposed"
+        );
     }
 
     #[test]
