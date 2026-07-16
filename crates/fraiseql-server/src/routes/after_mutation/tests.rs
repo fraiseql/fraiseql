@@ -677,3 +677,113 @@ fn when_predicate_produces_no_dispatch_on_non_matching_update() {
         "an update to the target value fires the predicate function"
     );
 }
+
+// ── #366: after:capture dispatch (loop-safe, predicate-aware) ───────────────
+
+#[cfg(feature = "functions-runtime")]
+mod after_capture {
+    #![allow(clippy::unwrap_used)] // Reason: test module
+
+    use fraiseql_functions::RuntimeType;
+    use fraiseql_observers::{EntityEvent as ObserverEntityEvent, EventKind as ObserverEventKind};
+
+    use super::{
+        super::{CAPTURED_WRITE_MARKER, observer_event_to_capture, plan_after_capture_dispatch},
+        *,
+    };
+
+    fn capture_hooks(name: &str, trigger: &str) -> BeforeMutationHooks {
+        let def = FunctionDefinition::new(name, trigger, RuntimeType::Wasm);
+        let registry =
+            TriggerRegistry::load_from_definitions(&[def]).expect("valid capture trigger");
+        let modules: HashMap<String, FunctionModule> =
+            HashMap::from([(name.to_string(), module(name))]);
+        BeforeMutationHooks::new(registry, modules, Arc::new(FunctionObserver::new()))
+    }
+
+    fn captured_insert(
+        entity: &str,
+        data: serde_json::Value,
+        cdc: Option<&str>,
+    ) -> ObserverEntityEvent {
+        let mut e = ObserverEntityEvent::new(
+            ObserverEventKind::Created,
+            entity.to_string(),
+            uuid::Uuid::new_v4(),
+            data,
+        );
+        e.cdc_source = cdc.map(String::from);
+        e
+    }
+
+    #[test]
+    fn dispatches_only_genuinely_captured_writes() {
+        let hooks = capture_hooks("onCapture", "after:capture:Order:insert");
+        let data = json!({ "id": "o1", "status": "new" });
+
+        // A captured write (cdc_source = fallback_trigger) → one after:capture plan.
+        let captured = captured_insert("Order", data.clone(), Some(CAPTURED_WRITE_MARKER));
+        let (event, cdc) = observer_event_to_capture(&captured).expect("insert converts");
+        let plans = plan_after_capture_dispatch(&hooks, &event, cdc.as_deref());
+        assert_eq!(plans.len(), 1, "a captured write drives after:capture");
+        assert_eq!(plans[0].payload.trigger_type, "after:capture:onCapture");
+        assert_eq!(plans[0].payload.data["new"]["id"], "o1");
+
+        // An executor/mediated write (no marker) → NO dispatch (loop safety).
+        let executor_write = captured_insert("Order", data, None);
+        let (event, cdc) = observer_event_to_capture(&executor_write).expect("insert converts");
+        assert!(
+            plan_after_capture_dispatch(&hooks, &event, cdc.as_deref()).is_empty(),
+            "a non-captured (executor) write never dispatches after:capture — loop safety"
+        );
+    }
+
+    #[test]
+    fn delete_reports_removed_row_as_old() {
+        let hooks = capture_hooks("onDelete", "after:capture:Order:delete");
+        let mut ev = ObserverEntityEvent::new(
+            ObserverEventKind::Deleted,
+            "Order".to_string(),
+            uuid::Uuid::new_v4(),
+            json!({ "id": "o9" }),
+        );
+        ev.cdc_source = Some(CAPTURED_WRITE_MARKER.to_string());
+
+        let (event, cdc) = observer_event_to_capture(&ev).expect("delete converts");
+        let plans = plan_after_capture_dispatch(&hooks, &event, cdc.as_deref());
+        assert_eq!(plans.len(), 1);
+        assert_eq!(
+            plans[0].payload.data["old"]["id"], "o9",
+            "delete reports the removed row as old"
+        );
+        assert!(plans[0].payload.data["new"].is_null());
+    }
+
+    #[test]
+    fn predicates_compose_on_capture_payloads() {
+        use fraiseql_functions::triggers::TriggerPredicate;
+        // A capture function that only fires when status == "shipped".
+        let mut def =
+            FunctionDefinition::new("onShipped", "after:capture:Order:insert", RuntimeType::Wasm);
+        def.when = vec![TriggerPredicate {
+            field:      "status".to_string(),
+            eq:         Some(json!("shipped")),
+            changed_to: None,
+        }];
+        let registry = TriggerRegistry::load_from_definitions(&[def]).expect("valid");
+        let modules: HashMap<String, FunctionModule> =
+            HashMap::from([("onShipped".to_string(), module("onShipped"))]);
+        let hooks = BeforeMutationHooks::new(registry, modules, Arc::new(FunctionObserver::new()));
+
+        // status=new → predicate false → no dispatch.
+        let e = captured_insert("Order", json!({ "status": "new" }), Some(CAPTURED_WRITE_MARKER));
+        let (ev, cdc) = observer_event_to_capture(&e).unwrap();
+        assert!(plan_after_capture_dispatch(&hooks, &ev, cdc.as_deref()).is_empty());
+
+        // status=shipped → predicate true → dispatch.
+        let e =
+            captured_insert("Order", json!({ "status": "shipped" }), Some(CAPTURED_WRITE_MARKER));
+        let (ev, cdc) = observer_event_to_capture(&e).unwrap();
+        assert_eq!(plan_after_capture_dispatch(&hooks, &ev, cdc.as_deref()).len(), 1);
+    }
+}

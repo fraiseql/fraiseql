@@ -138,6 +138,99 @@ pub fn plan_after_ingest_dispatch(
         .collect()
 }
 
+/// The captured-write discriminator (#366): a row written by the shipped
+/// external-write capture trigger carries this `cdc_source` marker; FraiseQL's own
+/// executor-written rows do not. `after:capture` dispatch keys on it so a
+/// mediated/executor write never re-enters the capture path (loop safety).
+pub const CAPTURED_WRITE_MARKER: &str = "fallback_trigger";
+
+/// Plan the `after:capture` dispatch for an externally-captured change (#366).
+///
+/// Mirrors [`plan_after_mutation_dispatch`] but resolves `after:capture` triggers
+/// (from the change-log reader, not the mutation route) and builds an
+/// `after:capture:<fn>` payload. **Loop safety:** returns an empty plan unless the
+/// event is a genuinely-captured write (`cdc_source == "fallback_trigger"`) — an
+/// executor/mediated write (no marker) never dispatches, so a Phase-02 bridge write
+/// from a capture-dispatched function cannot re-enter the capture path.
+///
+/// The [`when`](fraiseql_functions::FunctionDefinition::when) predicates (Phase 04)
+/// are evaluated identically to the mutation path. Payload contract: `new` = the
+/// after-image, `old` = the pre-image when the event carried one (else `None` —
+/// "degraded but valid"); no mutation name, no input echo.
+#[must_use]
+pub fn plan_after_capture_dispatch(
+    hooks: &BeforeMutationHooks,
+    event: &EntityEvent,
+    cdc_source: Option<&str>,
+) -> Vec<AfterMutationDispatch> {
+    // Only genuinely-captured writes drive after:capture — the loop-safety gate.
+    if cdc_source != Some(CAPTURED_WRITE_MARKER) {
+        return Vec::new();
+    }
+
+    hooks
+        .observer
+        .find_after_capture_triggers(&hooks.trigger_registry, event)
+        .into_iter()
+        // Phase 04 predicates evaluate identically on the capture payload.
+        .filter(|trigger| trigger.predicates_hold(event))
+        .filter_map(|trigger| {
+            let module = hooks.module_registry.get(&trigger.function_name)?.clone();
+            // Capture payload: `after:capture:<fn>` with {event_kind, old, new}.
+            let payload = EventPayload {
+                trigger_type: format!("after:capture:{}", trigger.function_name),
+                entity:       event.entity.clone(),
+                event_kind:   event.event_kind.to_string(),
+                data:         serde_json::json!({
+                    "event_kind": event.event_kind.as_str(),
+                    "old": event.old,
+                    "new": event.new,
+                }),
+                timestamp:    event.timestamp,
+            };
+            Some(AfterMutationDispatch { module, payload })
+        })
+        .collect()
+}
+
+/// Convert a change-log reader [`EntityEvent`](fraiseql_observers::EntityEvent) to
+/// the functions [`EntityEvent`] used by after:capture dispatch, plus its
+/// `cdc_source` (#366).
+///
+/// `new` = the after-image (`data`) for INSERT/UPDATE; a DELETE reports the removed
+/// row as `old`. A `Custom` event has no entity-event semantics and yields `None`.
+/// The full pre-image for an UPDATE is not carried on this path, so `old` stays
+/// `None` there (the same pre-image limitation the after:mutation route path has —
+/// see `functions.md`); `changed_to` on capture-updates therefore gates on the
+/// after-value.
+#[cfg(feature = "functions-runtime")]
+#[must_use]
+pub fn observer_event_to_capture(
+    event: &fraiseql_observers::EntityEvent,
+) -> Option<(EntityEvent, Option<String>)> {
+    use fraiseql_observers::EventKind as ObserverEventKind;
+    let event_kind = match event.event_type {
+        ObserverEventKind::Created => EventKind::Insert,
+        ObserverEventKind::Updated => EventKind::Update,
+        ObserverEventKind::Deleted => EventKind::Delete,
+        // A non-DML custom event (or any future kind) has no insert/update/delete
+        // semantics — no after:capture entity event.
+        _ => return None,
+    };
+    let (old, new) = match event_kind {
+        EventKind::Delete => (Some(event.data.clone()), None),
+        _ => (None, Some(event.data.clone())),
+    };
+    let fn_event = EntityEvent {
+        entity: event.entity_type.clone(),
+        event_kind,
+        old,
+        new,
+        timestamp: event.timestamp,
+    };
+    Some((fn_event, event.cdc_source.clone()))
+}
+
 /// Per-function dispatch settings resolved from the compiled schema.
 ///
 /// Durable dispatch is the default (see ADR 0015): a transient failure is

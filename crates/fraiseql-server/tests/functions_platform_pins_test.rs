@@ -82,40 +82,41 @@ fn cron_pollers_are_built_at_server_startup() {
     );
 }
 
-// ── capture→functions: externally-captured writes never dispatch a function ──
+// ── #366: externally-captured writes drive after:capture functions (phase 05) ─
 //
-// The change-log listener converts `tb_entity_change_log` rows to `EntityEvent`s
-// for the observer/subscription fan-out, but has no path to function dispatch.
-// A `generate-capture-triggers`-captured external INSERT therefore reaches
-// observers + subscriptions and dispatches zero functions.
+// The change-log reader (server observer runtime) now dispatches `after:capture`
+// functions for genuinely-captured writes. The loop-safe planner + conversion are
+// unit-tested in `routes::after_mutation::tests::after_capture`; this pin guards
+// that the reader is *wired* to the dispatch hook.
 
 #[test]
-fn pin_capture_change_log_listener_has_no_function_dispatch() {
-    let src = read_ws("crates/fraiseql-observers/src/listener/change_log.rs");
-    for marker in [
-        "plan_after_mutation_dispatch",
-        "spawn_after_mutation",
-        "invoke_with_context",
-    ] {
-        assert_eq!(
-            code_occurrences(&src, marker),
-            0,
-            "M-capture: change_log listener unexpectedly references `{marker}`. At baseline the \
-             reader has no function-dispatch fan-out; phase 05 adds `after:capture` dispatch here."
-        );
-    }
+fn after_capture_dispatch_is_wired_into_the_change_log_reader() {
+    let runtime = read_ws("crates/fraiseql-server/src/observers/runtime.rs");
+    assert!(
+        code_occurrences(&runtime, "capture_dispatch") > 0,
+        "expected the observer runtime to call the after:capture dispatch hook per event (#366)."
+    );
+    let dispatch = read_ws("crates/fraiseql-server/src/routes/after_mutation/mod.rs");
+    assert!(
+        code_occurrences(&dispatch, "plan_after_capture_dispatch") > 0,
+        "expected the after:capture planner to exist (#366)."
+    );
 }
 
 #[test]
-fn pin_capture_discriminator_marker_is_documented() {
-    // Phase 05's reader-side filter keys on this marker to dispatch `after:capture`
-    // only for captured rows (executor-written rows never carry it). Pin the
-    // contract so phase 05 keys on the right string.
+fn capture_dispatch_keys_on_the_documented_discriminator() {
+    // after:capture dispatch fires only for captured rows (executor-written rows
+    // never carry the marker) — the loop-safety gate. The marker must stay
+    // documented and match the planner's constant.
     let doc = read_ws("docs/architecture/external-write-capture.md");
     assert!(
         doc.contains("fallback_trigger"),
-        "M-capture: the captured-row discriminator `cdc_source = \"fallback_trigger\"` must be \
-         documented in external-write-capture.md — phase 05 keys after:capture dispatch on it."
+        "the captured-row discriminator `cdc_source = \"fallback_trigger\"` must stay documented."
+    );
+    let dispatch = read_ws("crates/fraiseql-server/src/routes/after_mutation/mod.rs");
+    assert!(
+        dispatch.contains("fallback_trigger"),
+        "the after:capture planner must key on the documented `fallback_trigger` marker."
     );
 }
 

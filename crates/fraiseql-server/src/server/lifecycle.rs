@@ -408,6 +408,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let mut guard = runtime.write().await;
                 guard.set_event_bridge_sender(sender);
 
+                // #366: wire after:capture dispatch — externally-captured writes
+                // (from the change-log reader) drive `after:capture` functions on
+                // the phase-02 `run_as` host. The hook is a cheap no-op for
+                // FraiseQL's own (non-captured) rows, so mediated writes never loop.
+                #[cfg(feature = "functions-runtime")]
+                if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
+                    let hooks = std::sync::Arc::clone(hooks);
+                    let factory = crate::routes::after_mutation::make_query_executor_factory(
+                        app_state.executor.clone(),
+                    );
+                    guard.set_capture_dispatch(std::sync::Arc::new(move |event| {
+                        if let Some((fn_event, cdc)) =
+                            crate::routes::after_mutation::observer_event_to_capture(event)
+                        {
+                            let plans = crate::routes::after_mutation::plan_after_capture_dispatch(
+                                &hooks,
+                                &fn_event,
+                                cdc.as_deref(),
+                            );
+                            if !plans.is_empty() {
+                                crate::routes::after_mutation::spawn_after_mutation(
+                                    &hooks,
+                                    plans,
+                                    Some(factory.clone()),
+                                );
+                            }
+                        }
+                    }));
+                }
+
                 match guard.start().await {
                     Ok(()) => {
                         info!("Observer runtime started");

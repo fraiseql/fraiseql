@@ -129,6 +129,19 @@ impl FunctionObserver {
         registry.after_mutation_triggers.find(&event.entity, event.event_kind)
     }
 
+    /// Find `after:capture` triggers (#366) matching an externally-captured change.
+    ///
+    /// The change-log reader calls this for captured rows; the match is on entity +
+    /// event kind, same as after:mutation, but against the separate capture matcher.
+    #[must_use]
+    pub fn find_after_capture_triggers(
+        &self,
+        registry: &crate::triggers::registry::TriggerRegistry,
+        event: &crate::triggers::mutation::EntityEvent,
+    ) -> Vec<crate::triggers::mutation::AfterMutationTrigger> {
+        registry.after_capture_triggers.find(&event.entity, event.event_kind)
+    }
+
     /// Execute a function module with a full I/O-capable host context.
     ///
     /// Unlike [`invoke`](Self::invoke) — which snapshots the host into a

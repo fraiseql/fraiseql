@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Functions fire on externally-captured writes — `after:capture` (#366).** A
+  third-party daemon (or `psql`) INSERTing into a `@subscribable` table can now drive
+  a function, not just observers/subscriptions — event-driven reconciliation instead
+  of cron-polling. A new `after:capture:<Entity>[:<operation>]` trigger dispatches from
+  the change-log reader on the same durable/`re_runnable`/DLQ machinery and phase-02
+  `run_as` host as `after:mutation` (so the function can `fraiseql_query` back). **Loop
+  safety:** dispatch keys on the captured-row discriminator
+  `extra_metadata.cdc_source = "fallback_trigger"` — a FraiseQL executor/bridge write
+  carries no marker, so a capture-dispatched function writing back never re-enters the
+  capture path. Phase-04 `when` predicates evaluate identically on capture payloads.
+  See `docs/architecture/external-write-capture.md`.
+
 - **Declarative `when` predicates on after:mutation triggers (#597).** A function can
   now declare *when* it fires — `{ "field": "status", "changed_to": "approved" }` or
   `{ "field": "kind", "eq": "standard" }` — evaluated by the dispatcher on the row

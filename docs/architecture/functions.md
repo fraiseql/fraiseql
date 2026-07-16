@@ -26,6 +26,9 @@ dispatches execution.
 - Supports `before_mutation` and `after_mutation` hooks
 - `BeforeMutationChain` allows ordered execution of pre-mutation logic
 - Triggers are registered at server startup from the compiled schema
+- `after:capture` triggers (#366) fire on **externally-captured** writes (a
+  third-party daemon / `psql` INSERT) via the change-log reader — the ingress dual
+  of `after:mutation`; see [external-write-capture.md](./external-write-capture.md).
 
 ### Durable After-Mutation Dispatch
 
@@ -111,7 +114,7 @@ The host surface (`HostContext`) exposes:
 
 ### Declarative `when` predicates (#597)
 
-An `after:mutation` (or `after:capture`, #TBD) function can declare *when* it fires,
+An `after:mutation` (or `after:capture`, #366) function can declare *when* it fires,
 evaluated by the dispatcher on the row images **before** any runtime spins — a false
 predicate produces no dispatch record at all (not a skipped/failed dispatch):
 

@@ -307,6 +307,17 @@ impl ChangeLogEntry {
         // never matches the JWT/RLS tenant.
         let tenant_id = self.tenant_id.clone();
 
+        // #366: the capture-origin discriminator. A row written by the shipped
+        // external-write capture trigger carries `extra_metadata.cdc_source =
+        // "fallback_trigger"`; FraiseQL executor-written rows do not. `after:capture`
+        // dispatch keys on this so only genuinely-external writes drive functions.
+        let cdc_source = self
+            .extra_metadata
+            .as_ref()
+            .and_then(|meta| meta.get("cdc_source"))
+            .and_then(Value::as_str)
+            .map(String::from);
+
         Ok(EntityEvent {
             id: Uuid::parse_str(&self.pk_entity_change_log).unwrap_or_else(|_| Uuid::new_v4()),
             event_type: event_kind,
@@ -326,6 +337,7 @@ impl ChangeLogEntry {
             acting_for: self.acting_for.clone(),
             // #377 producer schema version, surfaced for deploy / cross-version audit.
             schema_version: self.schema_version.clone(),
+            cdc_source,
         })
     }
 
