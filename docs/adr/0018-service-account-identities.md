@@ -1,6 +1,6 @@
 # ADR-0018: Service-Account Identities
 
-## Status: Proposed
+## Status: Accepted
 
 This ADR records how FraiseQL grants an **external daemon or service** a named,
 auditable, ceiling-bounded identity for calling the API — reusing the authority
@@ -71,11 +71,20 @@ ceiling" is true by construction and by reuse, not by a second implementation.
 ### 2. Credential = a hashed static bearer secret behind an env indirection
 
 - The credential is a **static bearer secret** (`Authorization: Bearer <secret>`), the
-  form a daemon can present without an OIDC flow. `secret_env` names the environment
-  variable holding it (mirroring the SMTP `password_env` / webhook `secret_env`
-  precedent); the secret is **never** written inline in config.
-- Config stores only a **SHA-256 hash** of the secret; the presented secret is hashed
-  and **constant-time-compared** — reusing the exact posture of
+  form a daemon can present without an OIDC flow. Exactly what lives where:
+  - **The environment variable named by `secret_env` holds the plaintext secret.** It
+    is read once at startup (mirroring the SMTP `password_env` / webhook `secret_env`
+    precedent).
+  - **Process memory holds only the SHA-256 hash** of that secret; the plaintext is
+    not retained past startup, and the server never logs it.
+  - **The compiled schema / config JSON holds only the env-var *name*** — never the
+    secret, and **never an inline hash**. An inline-`key_hash` form (as
+    `StaticApiKeyConfig` uses today) is deliberately **not** offered: putting even a
+    hash into the schema JSON — which is built, committed, and distributed — is the
+    exact `api_key.rs` posture this ADR set out to fix (credential material travelling
+    with the schema). Env indirection is the *only* credential source.
+- At authentication the presented bearer secret is SHA-256-hashed and
+  **constant-time-compared** against the in-memory hash — reusing the exact posture of
   `ApiKeyAuthenticator` (never store the plaintext, `ct_eq`). This is the one place a
   service account is *credentialed* differently from a human (a shared secret, not a
   JWT); everything downstream is a normal `SecurityContext`.
@@ -92,9 +101,20 @@ fall-through to JWT). A matched service account produces a `SecurityContext` exa
 like any other authenticated principal; every downstream consumer (RLS, field-authz,
 the change log, subscriptions) sees a normal context and needs no service-account
 special-casing. This ADR **supersedes the scopes-only static API key** as the
-service-principal mechanism: static API keys become the degenerate case of a service
-account with `scopes` and no `roles`/`tenant` (migration is a config rewrite, not a
-behavior change for existing keys).
+*recommended* service-principal mechanism: a service account is the general case (full
+ceiling + env-indirected secret), a static API key the degenerate one (`scopes` only,
+in-schema hash).
+
+**The two config blocks coexist; existing keys are not silently migrated.** An entry
+under the legacy `[security.api_keys]` block keeps its audit identity
+`user_id = apikey:<name>` unchanged — no rename, no behavior change — so audit
+consumers and any RLS keyed on that principal string are untouched. The new
+`[service_accounts.<name>]` block mints `user_id = service_account:<name>`. Converting a
+key to a service account is therefore an **explicit operator choice that changes the
+account's audit principal string** (`apikey:<n>` → `service_account:<n>`), and is
+documented as such (a breaking change for that one account's audit/RLS identity), never
+an automatic rewrite. New principals should use `[service_accounts.<name>]`; existing
+keys migrate only when their owner accepts the identity change.
 
 ### 4. Recorded as `ActorType::ServiceAccount` — reuse, no new variant
 
@@ -146,8 +166,10 @@ way they do for a human, so a trusted daemon subscribing to a scoped entity is f
   oracle), never a fall-through to anonymous-with-authority.
 - An account declared **without a ceiling** ⇒ anonymous authority: RLS/field-authz deny
   writes (the same words as the sources `run_as` docs).
-- **Rotation is a config reload:** update `secret_env`'s value (or the stored hash) and
-  reload; there is no online rotation API. This ADR is **not** a secrets manager — the
+- **Rotation is a config reload:** update the value of the environment variable named
+  by `secret_env` and reload; there is no online rotation API and no stored hash to
+  edit (the hash lives only in process memory, re-derived from the env var each boot).
+  This ADR is **not** a secrets manager — the
   `crates/fraiseql-secrets` backend remains the place for managed secret resolution if
   an adopter wants it; here the credential is a hash + an env indirection.
 
@@ -197,13 +219,14 @@ way they do for a human, so a trusted daemon subscribing to a scoped entity is f
 
 ---
 
-## Implementation note (gated on acceptance)
+## Implementation note
 
-Per the phase plan, **no code lands until this ADR is Accepted.** When it is, the
-minimal implementation is: the `[service_accounts.<name>]` config (secret via env
-indirection, `deny_unknown_fields`), authentication on the existing bearer/API-key
-seam, the ceiling minted through the shared `RunAs::identity` path, and a conformance
-test — a service principal reads via a policy-scoped subscription (phase 06) and writes
-under its ceiling, with audit rows carrying the account name. A public issue (generic
-framing + evidence + this proposed shape) should be filed for visibility before that
-implementation begins.
+Accepted; implementation may proceed. The minimal first implementation is: the
+`[service_accounts.<name>]` config (secret via env indirection, `deny_unknown_fields`,
+**no** inline hash), authentication on the existing bearer/API-key seam, the ceiling
+minted through the shared `RunAs::identity` path with `ActorType::ServiceAccount`, and a
+conformance test — a service principal reads via a policy-scoped subscription (phase 06)
+and writes under its ceiling, with audit rows carrying the `service_account:<name>`
+identity, plus the fail-closed cases (unknown account / bad secret → 401; no ceiling →
+anonymous). A public issue (generic framing + evidence + this shape) is filed for
+visibility ahead of the work.
