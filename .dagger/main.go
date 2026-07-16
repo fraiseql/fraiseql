@@ -634,7 +634,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// poison-skip) + PG e2e (ingest-once / re-poll dedup / UIDVALIDITY reset / two-poller
 		// single-firing — the double-poll bug fix). The email test suite otherwise runs nowhere,
 		// so this is also its first Dagger coverage.
-		"cargo test -p fraiseql-server --features inbound-email --lib inbound::email::source inbound::email::sink -- --test-threads=1",
+		// Both filters go after `--`: cargo accepts a single TESTNAME, libtest ORs several.
+		"cargo test -p fraiseql-server --features inbound-email --lib -- inbound::email::source inbound::email::sink --test-threads=1",
 		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
 		// seam, the SourcePoller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
