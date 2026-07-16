@@ -4,7 +4,11 @@
 //! handles heartbeats and idle timeouts, enforces connection limits, and
 //! processes subscription requests for entity change events.
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     extract::{
@@ -21,6 +25,7 @@ use tracing::{debug, info, warn};
 use super::{
     connections::{ConnectionManager, ConnectionState},
     protocol::{ClientMessage, ServerMessage},
+    subscription_policy::{OwnerEnforcement, owner_enforcement},
     subscriptions::{EventKind, SubscriptionDetails, SubscriptionManager, parse_filter},
 };
 
@@ -95,6 +100,32 @@ pub struct TokenInfo {
     pub context_hash: u64,
     /// When the token expires (Unix timestamp in seconds).
     pub expires_at:   i64,
+    /// Server-resolved enriched identity (#539, the `fraiseql.enriched.*` namespace) for
+    /// this connection, consumed by a
+    /// [`SubscriptionPolicy`](super::subscription_policy::SubscriptionPolicy) at subscribe
+    /// time. Empty until a production `TokenValidator` runs enrichment — a step this dormant
+    /// subsystem does not yet have (#605) — so a policy-declaring subscription derives
+    /// **fail-closed** (refused) by default.
+    #[allow(clippy::struct_field_names)] // Reason: mirrors SecurityContext.attributes
+    pub attributes: HashMap<String, serde_json::Value>,
+    /// The connection's roles, consumed for `bypass_roles`.
+    pub roles:        Vec<String>,
+}
+
+impl TokenInfo {
+    /// A token carrying no enriched identity or roles — the shape a validator that has
+    /// not (yet) run #539 enrichment produces. A policy-declaring subscription on such a
+    /// connection is refused (fail-closed).
+    #[must_use]
+    pub fn new(user_id: String, context_hash: u64, expires_at: i64) -> Self {
+        Self {
+            user_id,
+            context_hash,
+            expires_at,
+            attributes: HashMap::new(),
+            roles: Vec::new(),
+        }
+    }
 }
 
 /// Shared state for the realtime `WebSocket` handler.
@@ -109,13 +140,18 @@ pub struct RealtimeState {
 /// The realtime `WebSocket` server.
 pub struct RealtimeServer {
     /// Active connection manager.
-    pub(crate) connections:    Arc<ConnectionManager>,
+    pub(crate) connections:           Arc<ConnectionManager>,
     /// Subscription manager for entity change subscriptions.
-    pub(crate) subscriptions:  Arc<SubscriptionManager>,
+    pub(crate) subscriptions:         Arc<SubscriptionManager>,
     /// Set of entity names that accept realtime subscriptions.
-    pub(crate) known_entities: HashSet<String>,
+    pub(crate) known_entities:        HashSet<String>,
     /// Server configuration.
-    pub(crate) config:         RealtimeConfig,
+    pub(crate) config:                RealtimeConfig,
+    /// Per-entity row-visibility policies (#596), keyed by entity name. A subscription
+    /// to a policy-declaring entity derives a server-owned owner boundary at subscribe
+    /// time and is refused when it is unresolvable (fail-closed).
+    pub(crate) subscription_policies:
+        HashMap<String, super::subscription_policy::SubscriptionPolicy>,
 }
 
 impl RealtimeServer {
@@ -132,6 +168,7 @@ impl RealtimeServer {
             subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
             known_entities: HashSet::new(),
             config,
+            subscription_policies: HashMap::new(),
         }
     }
 
@@ -148,7 +185,20 @@ impl RealtimeServer {
             subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
             known_entities: entities,
             config,
+            subscription_policies: HashMap::new(),
         }
+    }
+
+    /// Attach per-entity row-visibility policies (#596). Builder style so an assembler
+    /// (today: tests; in production see #605) can install policies resolved from the
+    /// compiled schema.
+    #[must_use]
+    pub fn with_subscription_policies(
+        mut self,
+        policies: HashMap<String, super::subscription_policy::SubscriptionPolicy>,
+    ) -> Self {
+        self.subscription_policies = policies;
+        self
     }
 
     /// Returns the number of active connections.
@@ -221,7 +271,6 @@ async fn handle_realtime_connection(
     server: Arc<RealtimeServer>,
     token_info: TokenInfo,
 ) {
-    let context_hash = token_info.context_hash;
     let connection_id = uuid::Uuid::new_v4().to_string();
     let config = &server.config;
 
@@ -339,7 +388,7 @@ async fn handle_realtime_connection(
                                 let reply = handle_subscribe(
                                     &server,
                                     &connection_id,
-                                    context_hash,
+                                    &token_info,
                                     &entity,
                                     &event,
                                     filter.as_deref(),
@@ -393,7 +442,7 @@ async fn handle_realtime_connection(
 fn handle_subscribe(
     server: &RealtimeServer,
     connection_id: &str,
-    context_hash: u64,
+    token_info: &TokenInfo,
     entity: &str,
     event: &str,
     filter: Option<&str>,
@@ -404,6 +453,20 @@ fn handle_subscribe(
             message: format!("unknown entity: {entity}"),
         };
     }
+
+    // #596: resolve the server-owned row-visibility enforcement for this entity from its
+    // policy and the connection's enriched identity. Fail-closed: an unresolvable
+    // identity (the default on this dormant seam, which has no enrichment plumbing —
+    // #605) refuses the subscription rather than delivering every row.
+    let owner_enforcement = match server.subscription_policies.get(entity) {
+        None => OwnerEnforcement::None,
+        Some(policy) => {
+            match owner_enforcement(policy.derive(&token_info.attributes, &token_info.roles)) {
+                Ok(enforcement) => enforcement,
+                Err(reason) => return ServerMessage::Error { message: reason },
+            }
+        },
+    };
 
     // Parse event filter
     let event_filter = if event == "*" {
@@ -428,7 +491,8 @@ fn handle_subscribe(
     let details = SubscriptionDetails {
         event_filter,
         field_filters,
-        security_context_hash: context_hash,
+        security_context_hash: token_info.context_hash,
+        owner_enforcement,
     };
 
     match server.subscriptions.subscribe(connection_id, entity, details) {

@@ -59,7 +59,7 @@ pub enum FilterOperator {
 }
 
 /// A single field-level filter on subscription events.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldFilter {
     /// Field name to compare.
     pub field:    String,
@@ -131,10 +131,17 @@ pub fn parse_filter(filter_str: &str) -> Result<Vec<FieldFilter>, String> {
 pub struct SubscriptionDetails {
     /// Optional event type filter (None = all events).
     pub event_filter:          Option<EventKind>,
-    /// Field-level filters applied to event payloads.
+    /// Client-supplied field-level filters applied to event payloads (cooperative — a
+    /// client can only narrow its own stream).
     pub field_filters:         Vec<FieldFilter>,
     /// Security context hash for RLS grouping.
     pub security_context_hash: u64,
+    /// Server-owned row-visibility enforcement for a policy-declaring entity (#596),
+    /// resolved at subscribe time. The delivery pipeline **denies** a policy entity's
+    /// events to a subscription left at `OwnerEnforcement::None` — so the seam is
+    /// fail-closed by construction even if a future assembler skips the subscribe-time
+    /// wiring.
+    pub owner_enforcement:     super::subscription_policy::OwnerEnforcement,
 }
 
 /// Thread-safe subscription manager with two-level indexing.

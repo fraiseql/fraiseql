@@ -4,7 +4,10 @@
 //! evaluates RLS once per group, applies field filters, and delivers events to
 //! authorized connections.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -14,6 +17,7 @@ use tracing::{debug, warn};
 
 use super::{
     connections::{ConnectionId, ConnectionManager},
+    subscription_policy::OwnerEnforcement,
     subscriptions::{EventKind, FieldFilter, FilterOperator, SubscriptionManager},
 };
 
@@ -130,27 +134,52 @@ impl ChangeMessage {
 /// Event delivery pipeline that processes entity events and delivers to subscribers.
 pub struct EventDeliveryPipeline {
     /// Subscription manager for looking up who receives what.
-    subscriptions: Arc<SubscriptionManager>,
+    subscriptions:   Arc<SubscriptionManager>,
     /// Connection manager for sending events to connections.
-    connections:   Arc<ConnectionManager>,
+    connections:     Arc<ConnectionManager>,
     /// RLS evaluator for access control.
-    rls_evaluator: Arc<dyn RlsEvaluator>,
+    rls_evaluator:   Arc<dyn RlsEvaluator>,
+    /// Names of entities that declare a row-visibility policy (#596). For these, the
+    /// pipeline is **fail-closed**: a subscription that reaches delivery without an
+    /// explicit [`OwnerEnforcement`] (`Bypass` or `Scoped`) is dropped, so the seam
+    /// cannot come up deliver-all even if a future assembler skips the subscribe-time
+    /// wiring.
+    policy_entities: HashSet<String>,
     /// Receiver for incoming entity events.
-    event_rx:      mpsc::Receiver<EntityEvent>,
+    event_rx:        mpsc::Receiver<EntityEvent>,
 }
 
 impl EventDeliveryPipeline {
-    /// Create a new event delivery pipeline.
+    /// Create a new event delivery pipeline with no row-visibility policies.
     pub fn new(
         subscriptions: Arc<SubscriptionManager>,
         connections: Arc<ConnectionManager>,
         rls_evaluator: Arc<dyn RlsEvaluator>,
         event_rx: mpsc::Receiver<EntityEvent>,
     ) -> Self {
+        Self::with_policy_entities(
+            subscriptions,
+            connections,
+            rls_evaluator,
+            HashSet::new(),
+            event_rx,
+        )
+    }
+
+    /// Create a pipeline that enforces the #596 fail-closed default for the given
+    /// policy-declaring entities.
+    pub fn with_policy_entities(
+        subscriptions: Arc<SubscriptionManager>,
+        connections: Arc<ConnectionManager>,
+        rls_evaluator: Arc<dyn RlsEvaluator>,
+        policy_entities: HashSet<String>,
+        event_rx: mpsc::Receiver<EntityEvent>,
+    ) -> Self {
         Self {
             subscriptions,
             connections,
             rls_evaluator,
+            policy_entities,
             event_rx,
         }
     }
@@ -172,8 +201,13 @@ impl EventDeliveryPipeline {
             return;
         };
 
+        // #596: is this entity governed by a row-visibility policy? If so, delivery is
+        // fail-closed — a subscription without a resolved owner enforcement is dropped.
+        let policy_entity = self.policy_entities.contains(&event.entity);
+
         // Group subscribers by security context hash for RLS coalescing
-        let mut groups: HashMap<u64, Vec<(ConnectionId, Vec<FieldFilter>)>> = HashMap::new();
+        let mut groups: HashMap<u64, Vec<(ConnectionId, Vec<FieldFilter>, OwnerEnforcement)>> =
+            HashMap::new();
         for (conn_id, details) in &subscriber_details {
             // Apply event type filter
             if let Some(filter_kind) = details.event_filter {
@@ -181,10 +215,11 @@ impl EventDeliveryPipeline {
                     continue;
                 }
             }
-            groups
-                .entry(details.security_context_hash)
-                .or_default()
-                .push((conn_id.clone(), details.field_filters.clone()));
+            groups.entry(details.security_context_hash).or_default().push((
+                conn_id.clone(),
+                details.field_filters.clone(),
+                details.owner_enforcement.clone(),
+            ));
         }
 
         // Determine the row to check for RLS (prefer `new`, fall back to `old`)
@@ -210,8 +245,18 @@ impl EventDeliveryPipeline {
             }
 
             // Deliver to each connection in this group
-            for (conn_id, field_filters) in connections {
-                // Apply field filters
+            for (conn_id, field_filters, owner_enforcement) in connections {
+                // #596 fail-closed row visibility for policy-declaring entities.
+                if policy_entity && !owner_enforcement_admits(owner_enforcement, row) {
+                    debug!(
+                        entity = %event.entity,
+                        connection_id = %conn_id,
+                        "row-visibility policy denied event delivery (fail-closed)"
+                    );
+                    continue;
+                }
+
+                // Client-supplied (cooperative) field filters.
                 if !evaluate_field_filters(field_filters, row) {
                     continue;
                 }
@@ -224,6 +269,25 @@ impl EventDeliveryPipeline {
                 }
             }
         }
+    }
+}
+
+/// Whether a policy-declaring entity's event may be delivered to a subscription with the
+/// given [`OwnerEnforcement`] (#596). **Fail-closed:**
+/// - [`OwnerEnforcement::None`] — no enforcement was resolved at subscribe time → **deny** (the
+///   property that keeps a dormant/misassembled seam from delivering everything);
+/// - [`OwnerEnforcement::Bypass`] — a bypass role → allow (full visibility);
+/// - [`OwnerEnforcement::Scoped`] — allow only if the row image is present **and** matches the
+///   server-owned owner filter (a missing image cannot prove ownership → deny; this is why a scoped
+///   subscriber only learns of a DELETE when a pre-image is available).
+#[must_use]
+pub fn owner_enforcement_admits(enforcement: &OwnerEnforcement, row: Option<&Value>) -> bool {
+    match enforcement {
+        OwnerEnforcement::None => false,
+        OwnerEnforcement::Bypass => true,
+        OwnerEnforcement::Scoped(owner_filter) => {
+            row.is_some_and(|r| evaluate_field_filters(std::slice::from_ref(owner_filter), Some(r)))
+        },
     }
 }
 

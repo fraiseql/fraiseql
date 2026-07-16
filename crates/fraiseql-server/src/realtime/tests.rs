@@ -48,16 +48,17 @@ impl TokenValidator for TestValidator {
         Box::pin(async move {
             if token.starts_with("valid-") {
                 let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
-                Ok(TokenInfo {
-                    user_id:      user_id.clone(),
-                    context_hash: {
-                        use std::hash::{Hash, Hasher};
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        user_id.hash(&mut hasher);
-                        hasher.finish()
-                    },
-                    expires_at:   chrono::Utc::now().timestamp() + expires_in,
-                })
+                let context_hash = {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    user_id.hash(&mut hasher);
+                    hasher.finish()
+                };
+                Ok(TokenInfo::new(
+                    user_id,
+                    context_hash,
+                    chrono::Utc::now().timestamp() + expires_in,
+                ))
             } else if token == "expired-token" {
                 Err("token expired".to_owned())
             } else {
@@ -377,11 +378,7 @@ impl TokenValidator for NearExpiryValidator {
         Box::pin(async move {
             if token.starts_with("valid-") {
                 let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
-                Ok(TokenInfo {
-                    user_id,
-                    context_hash: 42,
-                    expires_at: chrono::Utc::now().timestamp(),
-                })
+                Ok(TokenInfo::new(user_id, 42, chrono::Utc::now().timestamp()))
             } else {
                 Err("invalid".to_owned())
             }
@@ -1650,4 +1647,190 @@ async fn test_realtime_route_does_not_conflict() {
     );
 
     ws.close(None).await.ok();
+}
+
+// ── #596 phase 06a: row-visibility fail-closed on the (dormant) realtime seam ────
+
+/// End-to-end proofs that this seam cannot come up deliver-all for a policy-declaring
+/// entity: an unresolvable identity is **refused** at subscribe time, and a subscription
+/// that reaches delivery without a resolved owner enforcement is **dropped**.
+mod policy_596 {
+    use std::{
+        collections::{HashMap, HashSet},
+        net::SocketAddr,
+        sync::Arc,
+        time::Duration,
+    };
+
+    use axum::{Router, routing::get};
+    use fraiseql_core::schema::SubscriptionPolicy;
+    use futures::StreamExt;
+    use tokio::{net::TcpListener, sync::mpsc};
+    use tokio_tungstenite::connect_async;
+
+    use super::{
+        super::{
+            connections::{ConnectionManager, ConnectionState},
+            delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde},
+            server::{RealtimeConfig, RealtimeServer, RealtimeState},
+            subscription_policy::OwnerEnforcement,
+            subscriptions::{SubscriptionDetails, SubscriptionManager},
+        },
+        AllowAllRls, TestValidator, make_post_event, next_msg, send_json, ws_url,
+    };
+
+    /// A row policy on `Post`: owner boundary `owner_id == fraiseql.enriched.user_id`.
+    fn post_policy() -> SubscriptionPolicy {
+        SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_string(),
+            identity_field: "user_id".to_string(),
+            bypass_roles:   vec![],
+        }
+    }
+
+    /// Spawn a realtime server + delivery pipeline that both know about the given
+    /// per-entity policies (mirrors `spawn_server_with_delivery`, with policies wired).
+    async fn spawn_with_policies(
+        policies: HashMap<String, SubscriptionPolicy>,
+    ) -> (SocketAddr, mpsc::Sender<EntityEvent>) {
+        let entities: HashSet<String> = policies.keys().cloned().collect();
+        let policy_entities = entities.clone();
+        let server = Arc::new(
+            RealtimeServer::with_entities(RealtimeConfig::default(), entities)
+                .with_subscription_policies(policies),
+        );
+        let (event_tx, event_rx) = mpsc::channel(1000);
+        let pipeline = EventDeliveryPipeline::with_policy_entities(
+            server.subscriptions.clone(),
+            server.connections.clone(),
+            Arc::new(AllowAllRls),
+            policy_entities,
+            event_rx,
+        );
+        tokio::spawn(pipeline.run());
+
+        let state = RealtimeState {
+            server,
+            validator: Arc::new(TestValidator::new()),
+        };
+        let app = Router::new()
+            .route("/realtime/v1", get(super::super::server::ws_handler))
+            .with_state(state);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        (addr, event_tx)
+    }
+
+    /// The `TestValidator` produces a `TokenInfo` with no enriched identity (there is no
+    /// production enrichment on this dormant seam — #605), so a subscription to a
+    /// policy-declaring entity is refused at subscribe time and never registers.
+    #[tokio::test]
+    async fn subscription_to_policy_entity_refused_without_enriched_identity() {
+        let (addr, event_tx) =
+            spawn_with_policies(HashMap::from([("Post".to_string(), post_policy())])).await;
+
+        let (mut ws, _) = connect_async(ws_url(addr, Some("valid-alice"))).await.unwrap();
+        let _ = next_msg(&mut ws).await; // connected
+
+        send_json(&mut ws, serde_json::json!({ "type": "subscribe", "entity": "Post" })).await;
+        let reply = next_msg(&mut ws).await;
+        assert_eq!(
+            reply["type"], "error",
+            "a policy entity + unresolvable identity must refuse, got {reply}"
+        );
+
+        // Nothing registered, so a published event is delivered to no one.
+        event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+        let result = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
+        assert!(result.is_err(), "a refused subscription must receive no events");
+
+        ws.close(None).await.ok();
+    }
+
+    /// Defense-in-depth: even if a subscription reached the pipeline WITHOUT a resolved
+    /// owner enforcement (a future assembler bypassing the subscribe-time gate), a
+    /// policy-declaring entity's events are dropped for it — never deliver-all.
+    #[tokio::test]
+    async fn pipeline_drops_unenforced_policy_subscription() {
+        let subs = Arc::new(SubscriptionManager::new(1000));
+        let conns = Arc::new(ConnectionManager::new(50, 256));
+        let (event_tx, event_rx) = mpsc::channel(100);
+        let pipeline = EventDeliveryPipeline::with_policy_entities(
+            subs.clone(),
+            conns.clone(),
+            Arc::new(AllowAllRls),
+            HashSet::from(["Post".to_string()]),
+            event_rx,
+        );
+        tokio::spawn(pipeline.run());
+
+        let (mut conn_rx, _ctrl) = conns.insert(ConnectionState::new(
+            "conn-x".to_string(),
+            "user-x".to_string(),
+            7,
+            i64::MAX,
+        ));
+        subs.subscribe(
+            "conn-x",
+            "Post",
+            SubscriptionDetails {
+                event_filter:          None,
+                field_filters:         vec![],
+                security_context_hash: 7,
+                owner_enforcement:     OwnerEnforcement::None,
+            },
+        )
+        .unwrap();
+
+        event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+        let result = tokio::time::timeout(Duration::from_millis(200), conn_rx.recv()).await;
+        assert!(
+            result.is_err(),
+            "an unenforced subscription to a policy entity must be dropped (fail-closed)"
+        );
+    }
+
+    /// A `Bypass` enforcement (a bypass role) still receives a policy entity's events.
+    #[tokio::test]
+    async fn pipeline_delivers_to_bypass_subscription() {
+        let subs = Arc::new(SubscriptionManager::new(1000));
+        let conns = Arc::new(ConnectionManager::new(50, 256));
+        let (event_tx, event_rx) = mpsc::channel(100);
+        let pipeline = EventDeliveryPipeline::with_policy_entities(
+            subs.clone(),
+            conns.clone(),
+            Arc::new(AllowAllRls),
+            HashSet::from(["Post".to_string()]),
+            event_rx,
+        );
+        tokio::spawn(pipeline.run());
+
+        let (mut conn_rx, _ctrl) = conns.insert(ConnectionState::new(
+            "conn-b".to_string(),
+            "user-b".to_string(),
+            9,
+            i64::MAX,
+        ));
+        subs.subscribe(
+            "conn-b",
+            "Post",
+            SubscriptionDetails {
+                event_filter:          None,
+                field_filters:         vec![],
+                security_context_hash: 9,
+                owner_enforcement:     OwnerEnforcement::Bypass,
+            },
+        )
+        .unwrap();
+
+        event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+        let result = tokio::time::timeout(Duration::from_millis(500), conn_rx.recv()).await;
+        assert!(
+            result.is_ok(),
+            "a bypass-role subscription must receive the policy entity's events"
+        );
+    }
 }

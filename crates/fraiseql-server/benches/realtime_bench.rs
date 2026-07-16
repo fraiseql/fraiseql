@@ -10,6 +10,7 @@ use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_ma
 use fraiseql_server::realtime::{
     connections::{ConnectionManager, ConnectionState},
     context_hash::{SecurityContextHashInput, security_context_hash},
+    subscription_policy::OwnerEnforcement,
     subscriptions::{SubscriptionDetails, SubscriptionManager},
 };
 
@@ -47,6 +48,7 @@ fn bench_subscription_fanout_lookup(c: &mut Criterion) {
                 event_filter:          None,
                 field_filters:         vec![],
                 security_context_hash: u64::try_from(i % 10).unwrap(),
+                owner_enforcement:     OwnerEnforcement::None,
             };
             let conn_id = format!("conn-{i}");
             mgr.subscribe(&conn_id, "Order", details).unwrap();
