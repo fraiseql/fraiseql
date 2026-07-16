@@ -233,10 +233,12 @@ async fn serve_postgres(
         .context("Failed to connect to database")?,
     );
     let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
-        Server::new(config, schema, adapter, None)
+        // Box the server-init future: it exceeds clippy's `large_futures` stack
+        // threshold once the platform features are compiled in (`--all-features`).
+        Box::pin(Server::new(config, schema, adapter, None))
             .await
             .context("Failed to initialize server")?;
-    finish_serve(server, shutdown).await
+    Box::pin(finish_serve(server, shutdown)).await
 }
 
 #[cfg(feature = "mysql")]
@@ -255,10 +257,12 @@ async fn serve_mysql(
         .context("Failed to connect to MySQL")?,
     );
     let server: Server<CachedDatabaseAdapter<fraiseql_core::db::mysql::MySqlAdapter>> =
-        Server::new(config, schema, adapter, None)
+        // Box the server-init future: it exceeds clippy's `large_futures` stack
+        // threshold once the platform features are compiled in (`--all-features`).
+        Box::pin(Server::new(config, schema, adapter, None))
             .await
             .context("Failed to initialize server")?;
-    finish_serve(server, shutdown).await
+    Box::pin(finish_serve(server, shutdown)).await
 }
 
 #[cfg(not(feature = "mysql"))]
@@ -283,10 +287,12 @@ async fn serve_sqlite(
         .context("Failed to connect to SQLite")?,
     );
     let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlite::SqliteAdapter>> =
-        Server::new(config, schema, adapter, None)
+        // Box the server-init future: it exceeds clippy's `large_futures` stack
+        // threshold once the platform features are compiled in (`--all-features`).
+        Box::pin(Server::new(config, schema, adapter, None))
             .await
             .context("Failed to initialize server")?;
-    finish_serve(server, shutdown).await
+    Box::pin(finish_serve(server, shutdown)).await
 }
 
 #[cfg(not(feature = "sqlite"))]
@@ -310,10 +316,12 @@ async fn serve_sqlserver(
         .context("Failed to connect to SQL Server")?,
     );
     let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlserver::SqlServerAdapter>> =
-        Server::new(config, schema, adapter, None)
+        // Box the server-init future: it exceeds clippy's `large_futures` stack
+        // threshold once the platform features are compiled in (`--all-features`).
+        Box::pin(Server::new(config, schema, adapter, None))
             .await
             .context("Failed to initialize server")?;
-    finish_serve(server, shutdown).await
+    Box::pin(finish_serve(server, shutdown)).await
 }
 
 #[cfg(not(feature = "sqlserver"))]
