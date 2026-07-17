@@ -510,14 +510,13 @@ impl Default for TokenRevocationSecurityConfig {
 ///
 /// Two independent groups may be configured, together or separately:
 ///
-/// - **JWT validation** — `issuer` (required for this group), `audience` (optional).
-///   The server consumes these to validate incoming bearer tokens. Accepted and
-///   functional.
-/// - **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`,
-///   `client_secret_env`, `server_redirect_uri`, configured all four together.
-///   **Not yet functional on the compiled path (tracked in #621):** the compiled
-///   schema carries no `auth`/`auth_endpoints` for the server to consume, so a complete
-///   client group is *rejected at compile time* rather than silently accepted.
+/// - **JWT validation** — `issuer` (required for this group), `audience` (optional). The server
+///   consumes these to validate incoming bearer tokens. Accepted and functional.
+/// - **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`, `client_secret_env`,
+///   `server_redirect_uri`, configured all four together. **Not yet functional on the compiled path
+///   (tracked in #621):** the compiled schema carries no `auth`/`auth_endpoints` for the server to
+///   consume, so a complete client group is *rejected at compile time* rather than silently
+///   accepted.
 ///
 /// At least one group must be present; an empty `[auth]` is a load error. The client
 /// secret itself must never appear here — `client_secret_env` names the environment
