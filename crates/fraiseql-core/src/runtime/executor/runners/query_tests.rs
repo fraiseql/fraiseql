@@ -671,6 +671,52 @@ mod session_variables {
             "no session variables must be passed when no session_variables are configured"
         );
     }
+
+    /// A node-resolvable variant of [`schema_with_session_vars`]: the Relay `node(id:)`
+    /// path resolves the type by name from `schema.types`, so the `User` type must be
+    /// registered (the list-query-only `test_schema` does not register it).
+    fn node_schema_with_session_vars() -> CompiledSchema {
+        let mut schema = schema_with_session_vars();
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::String),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+        schema
+    }
+
+    // M-610: the Relay node(id:) lookup must resolve session variables so a PostgreSQL
+    // current_setting()-backed RLS policy constrains it — the same way regular queries
+    // (test_session_variables_injected_on_read_query, above) and Relay pages already do.
+    // Before the fix the node path called the non-session projection method, so no
+    // session variables reached the connection (cross-tenant read on any leaked node id).
+    #[tokio::test]
+    async fn test_session_variables_injected_on_node_lookup() {
+        let schema = node_schema_with_session_vars();
+        let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let node_id = crate::runtime::relay::encode_node_id(
+            "User",
+            "11111111-1111-1111-1111-111111111111",
+        );
+        let query = format!("{{ node(id: \"{node_id}\") {{ id name }} }}");
+
+        let ctx = security_ctx_with_tenant(); // tenant-abc
+        executor.execute_with_security(&query, None, &ctx).await.unwrap();
+
+        let pairs = adapter.captured_pairs();
+        let tenant = pairs.iter().find(|(k, _)| k == "app.tenant_id").map(|(_, v)| v.as_str());
+        assert_eq!(
+            tenant,
+            Some("tenant-abc"),
+            "node(id:) lookup must resolve the caller's tenant into session variables for \
+             current_setting()-backed RLS; got: {pairs:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

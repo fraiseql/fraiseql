@@ -298,6 +298,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **RLS session variables now reach the Relay `node(id:)` and partial-period aggregate
+  read paths (#610).** Both paths ran their read without resolving the schema's configured
+  `session_variables`, so a PostgreSQL RLS policy reading `current_setting()` did not
+  constrain them — a cross-tenant read on any Relay `node(id:)` lookup and any aggregate
+  taking the partial-period (`UNION ALL`) branch, both reachable from an ordinary GraphQL
+  request. They now resolve session variables and use the connection-affine
+  `*_with_session` adapter methods, exactly as regular queries, Relay pages, standard
+  aggregates, and mutations already did. (These were the two surviving read-path follow-ups
+  from #329, which was closed after its mutation-path fix shipped; they are fixed here under
+  #610, not by reopening #329.)
+
 - **`fraiseql compile` now surfaces the full error cause chain.** Converter
   failures printed only the top-level context (e.g. `Failed to convert schema to
   compiled format`) with the underlying reason swallowed at every log level and in

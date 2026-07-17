@@ -32,6 +32,7 @@ pub struct CapturingMockAdapter {
     pub captured_offset:           std::sync::Mutex<Option<u32>>,
     pub captured_aggregate_sql:    std::sync::Mutex<Option<String>>,
     pub captured_aggregate_params: std::sync::Mutex<Option<Vec<serde_json::Value>>>,
+    pub captured_aggregate_session_vars: std::sync::Mutex<Option<Vec<(String, String)>>>,
 }
 
 impl CapturingMockAdapter {
@@ -43,6 +44,7 @@ impl CapturingMockAdapter {
             captured_offset: std::sync::Mutex::new(None),
             captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
+            captured_aggregate_session_vars: std::sync::Mutex::new(None),
         }
     }
 
@@ -65,6 +67,13 @@ impl CapturingMockAdapter {
     #[allow(dead_code)] // Reason: available for future aggregate RLS param verification tests
     pub fn captured_aggregate_params(&self) -> Option<Vec<serde_json::Value>> {
         self.captured_aggregate_params.lock().unwrap().clone()
+    }
+
+    /// The session variables the last `_with_session` aggregate call received.
+    /// `None` means the non-session `execute_parameterized_aggregate` was called
+    /// (no session variables reached the connection) — the #610 partial-period gap.
+    pub fn captured_aggregate_session_vars(&self) -> Option<Vec<(String, String)>> {
+        self.captured_aggregate_session_vars.lock().unwrap().clone()
     }
 }
 
@@ -130,6 +139,18 @@ impl DatabaseAdapter for CapturingMockAdapter {
         *self.captured_aggregate_sql.lock().unwrap() = Some(sql.to_string());
         *self.captured_aggregate_params.lock().unwrap() = Some(params.to_vec());
         Ok(vec![])
+    }
+
+    async fn execute_parameterized_aggregate_with_session(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        *self.captured_aggregate_session_vars.lock().unwrap() =
+            Some(session_vars.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect());
+        // Delegate so SQL/params capture stays identical to the non-session path.
+        self.execute_parameterized_aggregate(sql, params).await
     }
 
     async fn execute_function_call(
