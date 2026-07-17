@@ -37,6 +37,7 @@ use crate::validation::ValidationRule;
 ///     is_error: false,
 ///     relay: false,
 ///     relationships: Vec::new(),
+///     subscription_policy: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
