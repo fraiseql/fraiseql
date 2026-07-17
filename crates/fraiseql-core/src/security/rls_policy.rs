@@ -1,63 +1,32 @@
 //! Row-Level Security (RLS) Policy Evaluation
 //!
-//! This module provides the trait for evaluating RLS rules at runtime.
+//! This module provides the [`RLSPolicy`] trait — the runtime seam that *would*
+//! compose an RLS filter into a query's WHERE clause from the requesting
+//! `SecurityContext`.
 //!
-//! RLS rules are defined in fraiseql.toml at authoring time and compiled into
-//! schema.compiled.json. At runtime, the executor evaluates these rules using
-//! the `SecurityContext` to determine what rows a user can access.
+//! # Status: not wired to a compiled-schema config (#612 item 4)
 //!
-//! # Architecture
+//! **There is no compiled-schema declarative-authorization engine yet.**
+//! `RuntimeConfig::from_compiled_schema` pins the operation- and field-authorizers
+//! to `None`, and no code path constructs a [`CompiledRLSPolicy`] from a compiled
+//! schema. The `[[security.rules]]` / `[[security.policies]]` / `[security.field_auth]`
+//! TOML sections that a reader might expect to feed this trait are **rejected at
+//! compile time** (`TomlSchema::reject_accepted_but_unconsumed_config`) rather than
+//! silently accepted — declaring an authorization boundary the runtime does not
+//! enforce is a false security claim, so the compiler fails loud and points here.
 //!
-//! ```text
-//! fraiseql.toml (authoring)
-//!     ├── [[security.policies]]          # Define policies
-//!     └── [[security.rules]]             # Define RLS rules
-//!     ↓
-//! schema.compiled.json (compiled)
-//!     ├── "policies": [...]              # Serialized policies
-//!     └── "rules": [...]                 # Serialized rules
-//!     ↓
-//! Executor.execute_regular_query()       # Runtime
-//!     ├── SecurityContext (user info)
-//!     └── RLSPolicy::evaluate()          # Evaluate rules
-//!     ↓
-//! WHERE clause composition
-//!     └── WhereClause::And([user_where, rls_filter])
-//! ```
+//! This trait and its evaluators are therefore *infrastructure for the future
+//! engine*, exercised by unit tests, not a shipping config surface. Building the
+//! compiled-schema declarative-authz engine that populates it is tracked in
+//! **[#626](https://github.com/fraiseql/fraiseql/issues/626)**.
 //!
-//! # Example RLS Rules (in fraiseql.toml)
+//! # Enforce authorization today
 //!
-//! ```toml
-//! # Users can only read their own posts
-//! [[security.rules]]
-//! name = "own_posts_only"
-//! rule = "user.id == object.author_id"
-//! cacheable = true
-//! cache_ttl_seconds = 300
-//!
-//! # Admins can read everything
-//! [[security.rules]]
-//! name = "admin_can_read_all"
-//! rule = "user.roles includes 'admin'"
-//! cacheable = false
-//! ```
-//!
-//! # Example RLS Policies (in fraiseql.toml)
-//!
-//! ```toml
-//! [[security.policies]]
-//! name = "read_own_posts"
-//! type = "rls"
-//! rules = ["own_posts_only"]
-//! description = "Users can only read their own posts"
-//!
-//! [[security.policies]]
-//! name = "admin_access"
-//! type = "rbac"
-//! roles = ["admin"]
-//! strategy = "any"
-//! description = "Admins have full access"
-//! ```
+//! Enforce row-level access at the **database layer** — PostgreSQL RLS policies
+//! keyed on the session variables FraiseQL sets from the request identity
+//! (`resolve_session_variables` →
+//! `crates/fraiseql-core/src/runtime/executor/support/security.rs`). That path is
+//! real and load-bearing; a compiled `[[security.rules]]` block is not.
 
 use std::sync::Arc;
 

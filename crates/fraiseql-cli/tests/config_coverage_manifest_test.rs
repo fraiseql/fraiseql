@@ -7,7 +7,7 @@
 //! nothing). It walks every leaf key of `TomlSchema::default()` and asserts each
 //! one is accounted for in the checked-in [`MANIFEST`] below, which names — for
 //! every leaf — the consumer that honors it, or records that it is deliberately
-//! **rejected at load** (the honest-loud dispositions from Phase 04/05).
+//! **rejected at load** (the honest-loud #612 dispositions).
 //!
 //! Adding a new field to `TomlSchema` (or any nested config struct) that is not in
 //! the manifest fails this test at PR time — the drift can no longer reach `dev`
@@ -108,7 +108,7 @@ const MANIFEST: &[(&str, &str)] = &[
         "security.field_auth",
         "REJECTED at load (#4) — declared-but-unenforced authz (#626)",
     ),
-    // ── Accepted-but-unconsumed sections rejected loud at load (Phase 04) ────
+    // ── Accepted-but-unconsumed sections rejected loud at load (#612) ────────
     ("caching.*", "REJECTED at load (#1) — no compiled/runtime consumer (#623)"),
     ("analytics.*", "REJECTED at load (#2) — fully inert (#624)"),
     ("observability.*", "REJECTED at load (#3) — use [metrics]/[tracing] (#625)"),

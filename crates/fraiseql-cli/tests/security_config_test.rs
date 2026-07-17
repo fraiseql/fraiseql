@@ -245,7 +245,7 @@ fn test_existing_enterprise_field_not_broken() {
 // a complete PKCE client group is rejected loud (not yet functional on the compiled
 // path — #621), never silently accepted.
 
-// M-612: a JWT-only [auth] block now compiles (was rejected — this is the item-9 fix).
+// a JWT-only [auth] block now compiles (was rejected — this is the item-9 fix).
 #[test]
 fn test_auth_jwt_only_compiles() {
     let toml = r#"
@@ -280,7 +280,7 @@ fn test_auth_issuer_without_audience_compiles() {
     schema.validate().expect("issuer alone is a valid JWT [auth] block");
 }
 
-// M-612: a complete PKCE client group is rejected loud (recognized, not yet functional).
+// a complete PKCE client group is rejected loud (recognized, not yet functional).
 #[test]
 fn test_auth_complete_client_group_rejected_loud() {
     let toml = r#"
@@ -404,7 +404,7 @@ fn test_auth_client_secret_field_rejected() {
 // and the docs instruct setting it, but the CLI struct lacked the field, so
 // `deny_unknown_fields` rejected it — the value could never reach the server.
 
-// M-612: the field now parses (was rejected by deny_unknown_fields).
+// the field now parses (was rejected by deny_unknown_fields).
 #[test]
 fn test_revoke_all_ttl_secs_parses() {
     let toml = r"
@@ -423,7 +423,7 @@ fn test_revoke_all_ttl_secs_defaults_to_86400() {
     assert_eq!(TokenRevocationSecurityConfig::default().revoke_all_ttl_secs, 86_400);
 }
 
-// M-612: the value reaches the compiled schema (was absent — server used its 86400 default).
+// the value reaches the compiled schema (was absent — server used its 86400 default).
 #[test]
 fn test_revoke_all_ttl_secs_reaches_compiled_schema() -> anyhow::Result<()> {
     use std::fs;
@@ -462,7 +462,7 @@ revoke_all_ttl_secs = 172800
 // `deny_unknown_fields` rejected it: the mitigation the docs recommend for
 // `trust_proxy_headers = true` was unsettable on the compiled path.
 
-// M-609: the block now parses (was rejected by deny_unknown_fields).
+// the block now parses (was rejected by deny_unknown_fields).
 #[test]
 fn test_trusted_proxy_cidrs_parses_into_schema() {
     let toml = r#"
@@ -490,7 +490,7 @@ fn test_trusted_proxy_cidrs_default_none() {
     assert_eq!(schema.security.rate_limiting.unwrap().trusted_proxy_cidrs, None);
 }
 
-// M-609: the value survives end-to-end into the compiled schema (was dropped —
+// the value survives end-to-end into the compiled schema (was dropped —
 // the compiled `security.rate_limiting` carried no `trusted_proxy_cidrs` key).
 #[test]
 fn test_trusted_proxy_cidrs_reach_compiled_schema() -> anyhow::Result<()> {
@@ -524,7 +524,7 @@ trusted_proxy_cidrs = ["10.0.0.0/8"]
     Ok(())
 }
 
-// M-609: a malformed CIDR fails `fraiseql compile` (validate) with a clear message,
+// a malformed CIDR fails `fraiseql compile` (validate) with a clear message,
 // not silently at server boot. The server parses these strings into `ipnet::IpNet`;
 // validating at compile time surfaces the error where the operator is authoring.
 #[test]

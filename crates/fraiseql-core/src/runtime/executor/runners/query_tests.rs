@@ -688,7 +688,7 @@ mod session_variables {
         schema
     }
 
-    // M-610: the Relay node(id:) lookup must resolve session variables so a PostgreSQL
+    // the Relay node(id:) lookup must resolve session variables so a PostgreSQL
     // current_setting()-backed RLS policy constrains it — the same way regular queries
     // (test_session_variables_injected_on_read_query, above) and Relay pages already do.
     // Before the fix the node path called the non-session projection method, so no

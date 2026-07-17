@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-//! #612 config-drift pins — the config-file surface (Phase 04).
+//! #612 config-drift pins — the config-file surface.
 //!
 //! One test per disposition target from `config-key-disposition.md` that lives on
 //! the `fraiseql-cli` TOML/merger surface. Each pin asserts the *disposed* behavior:
@@ -9,8 +9,8 @@
 //!   `fraiseql-auth`).
 //! - **REJECT** rows (#1 `[caching]`, #2 `[analytics]`, #3 `[observability]`, #4
 //!   `[security.rules/policies/field_auth]`, #7 `[security.api_keys] storage`) — each
-//!   previously-accepted key now fails **loudly at compile** with a targeted message. These replace
-//!   the Phase-00 "accepted silently" characterizations.
+//!   previously-accepted key now fails **loudly at compile** with a targeted message, replacing the
+//!   earlier "accepted silently" behavior.
 //!
 //! Items #6 (`revoke_all_ttl_secs`) and #9 (`[auth]`) are pinned by their own
 //! landing PRs (#612 commit `3d94331` and PR #622 respectively).
