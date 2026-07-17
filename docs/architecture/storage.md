@@ -33,6 +33,15 @@ switching between providers via configuration.
 - **Path validation**: Upload paths are validated against traversal attacks.
   The `validate_socket_dir` pattern rejects `..` components.
 - **Size limits**: Configurable per-file and per-request size limits.
+- **Download cache directives**: a download's `Cache-Control` depends on the
+  bucket's access mode. A `Private` bucket serves `Cache-Control: private,
+  no-store` — its per-request RLS decision (`can_read`) is per-row, so a
+  shared cache (CDN / reverse or forward proxy) keyed on the URL cannot
+  represent the boundary and must never store the object. A `PublicRead`
+  bucket serves `Cache-Control: public, max-age=3600`, since public read is
+  cacheable by definition. (Fixed in #608: previously every download was
+  served `public`, which let a shared cache serve a private object to
+  unauthenticated clients for up to an hour.)
 
 ## Transforms (Optional)
 

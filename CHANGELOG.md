@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Private-bucket downloads are no longer advertised as shared-cacheable (#608).**
+  Every storage download was served `Cache-Control: public, max-age=3600` regardless
+  of the bucket's access mode. For a `Private` bucket this defeated the per-request
+  RLS check (`can_read`) that ran immediately before it: any shared cache on the path
+  (CDN, reverse proxy, corporate forward proxy) was told the response was public and
+  could store it and serve the private object to unauthenticated third parties for up
+  to an hour, and revocation did not take effect until the entry expired. Downloads
+  now branch on access mode — a `Private` bucket serves `Cache-Control: private,
+  no-store` (per-row `can_read` cannot be represented by a URL-keyed shared cache, so
+  the object must not be stored at all); a `PublicRead` bucket is unchanged (`public,
+  max-age=3600`). Only shared-cache-fronted deployments were exposed; direct-to-server
+  deployments were unaffected.
+
 - **Subscription row-level visibility on the live `/ws` path — fail-closed (#596).**
   Previously any principal authorized to subscribe to an entity over `/ws`
   (`graphql-transport-ws` / legacy `graphql-ws`) received **every** row's after-images:
