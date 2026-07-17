@@ -413,8 +413,7 @@ async fn partial_period_aggregate_resolves_session_variables() {
     let session_vars = adapter
         .captured_aggregate_session_vars()
         .expect("partial-period branch must call the session-aware aggregate method");
-    let tenant =
-        session_vars.iter().find(|(k, _)| k == "app.tenant_id").map(|(_, v)| v.as_str());
+    let tenant = session_vars.iter().find(|(k, _)| k == "app.tenant_id").map(|(_, v)| v.as_str());
     assert_eq!(
         tenant,
         Some("tenant-abc"),

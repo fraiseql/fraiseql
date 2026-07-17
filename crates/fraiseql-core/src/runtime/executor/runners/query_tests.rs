@@ -699,10 +699,8 @@ mod session_variables {
         let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
         let executor = Executor::new(schema, adapter.clone());
 
-        let node_id = crate::runtime::relay::encode_node_id(
-            "User",
-            "11111111-1111-1111-1111-111111111111",
-        );
+        let node_id =
+            crate::runtime::relay::encode_node_id("User", "11111111-1111-1111-1111-111111111111");
         let query = format!("{{ node(id: \"{node_id}\") {{ id name }} }}");
 
         let ctx = security_ctx_with_tenant(); // tenant-abc

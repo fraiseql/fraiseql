@@ -26,12 +26,12 @@ use crate::{
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
-    pub mock_results:              Vec<JsonbValue>,
-    pub captured_where:            std::sync::Mutex<Option<WhereClause>>,
-    pub captured_limit:            std::sync::Mutex<Option<u32>>,
-    pub captured_offset:           std::sync::Mutex<Option<u32>>,
-    pub captured_aggregate_sql:    std::sync::Mutex<Option<String>>,
-    pub captured_aggregate_params: std::sync::Mutex<Option<Vec<serde_json::Value>>>,
+    pub mock_results:                    Vec<JsonbValue>,
+    pub captured_where:                  std::sync::Mutex<Option<WhereClause>>,
+    pub captured_limit:                  std::sync::Mutex<Option<u32>>,
+    pub captured_offset:                 std::sync::Mutex<Option<u32>>,
+    pub captured_aggregate_sql:          std::sync::Mutex<Option<String>>,
+    pub captured_aggregate_params:       std::sync::Mutex<Option<Vec<serde_json::Value>>>,
     pub captured_aggregate_session_vars: std::sync::Mutex<Option<Vec<(String, String)>>>,
 }
 
