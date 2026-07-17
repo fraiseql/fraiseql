@@ -501,6 +501,23 @@ impl TomlSchema {
             }
         }
 
+        // Validate trusted_proxy_cidrs are parseable CIDR ranges (#609). The server
+        // parses these into `ipnet::IpNet`; catching a bad value here surfaces the
+        // error where the operator is authoring rather than at server boot.
+        if let Some(rate_limiting) = &self.security.rate_limiting {
+            if let Some(cidrs) = &rate_limiting.trusted_proxy_cidrs {
+                for cidr in cidrs {
+                    if cidr.parse::<ipnet::IpNet>().is_err() {
+                        anyhow::bail!(
+                            "[security.rate_limiting] trusted_proxy_cidrs contains an invalid \
+                             CIDR range '{cidr}'. Use CIDR notation such as \"10.0.0.0/8\", or \
+                             \"0.0.0.0/0\" to trust every proxy IP explicitly."
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

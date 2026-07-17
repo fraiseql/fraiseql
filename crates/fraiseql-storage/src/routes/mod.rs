@@ -329,12 +329,18 @@ async fn get_handler(
                     headers.insert(header::ETAG, val);
                 }
             }
-            headers.insert(
-                header::CACHE_CONTROL,
-                "public, max-age=3600"
-                    .parse()
-                    .expect("static ASCII header value parses as HeaderValue"),
-            );
+            // #608: branch the cache directive on the bucket's access mode. A
+            // `Private` object's per-request RLS decision (`can_read`, above) is
+            // per-row, so a URL-keyed shared cache (CDN/reverse/forward proxy)
+            // cannot represent the boundary — advertising `public` would let it
+            // store the private object and serve it to unauthenticated third
+            // parties, and would delay revocation for up to `max-age`. `no-store`
+            // is the conservative directive; `PublicRead` stays publicly cacheable.
+            let cache_control = match bucket.access {
+                crate::config::BucketAccess::Private => "private, no-store",
+                crate::config::BucketAccess::PublicRead => "public, max-age=3600",
+            };
+            headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache_control));
             // #337: defang stored content. `nosniff` stops browsers from
             // MIME-sniffing the body into an executable type. The default
             // `attachment` disposition forces a download rather than inline
