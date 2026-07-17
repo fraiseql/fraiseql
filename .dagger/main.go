@@ -409,11 +409,22 @@ func (m *FraiseqlCi) Test(
 		"echo '### cargo test -p fraiseql-federation --lib --features saga (#429 wired forward exec; SQLite dispatch, no DB)'",
 		"cargo test -p fraiseql-federation --lib --features saga",
 		"echo '### cargo test --doc --all-features'",
-		"cargo test --doc --all-features",
+		// Cap doctest concurrency: `cargo test --doc` spawns one process per doctest,
+		// and the default thread count (= CPU count) OOMs the 31 GiB box on the heavy
+		// --all-features doctest set (arrow doctests were OOM-killed). See the leg-level
+		// CARGO_BUILD_JOBS note below.
+		"cargo test --doc --all-features -- --test-threads=6",
 		"echo \"test OK: workspace suite passed (toolchain " + toolchain + ", testcontainers tests skipped)\"",
 	}, "\n")
 
 	return m.rustBaseFor(toolchain).
+		// The test leg is the only one that runs a full `cargo build --all-features`
+		// PLUS the workspace test + doctest suites in one container. Since the functions
+		// runtime pulled V8 into --all-features (a very memory-heavy compilation unit),
+		// 16 parallel rustc jobs peak over this box's 31 GiB RAM and the OOM killer
+		// takes rustc/doctest processes (bare exit-101, no diagnostic). Cap this leg to
+		// 8 jobs (the other legs stay at the base 16 — they don't OOM). See #615.
+		WithEnvVariable("CARGO_BUILD_JOBS", "8").
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
