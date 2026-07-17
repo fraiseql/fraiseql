@@ -296,8 +296,11 @@ audit_logging_enabled = false
     assert!(compiled_value["queries"].is_array(), "queries should be an array, not object");
 }
 
+/// #612 item 4: declaring `[security.rules]` / `[security.policies]` /
+/// `[security.field_auth]` — authorization the runtime does not enforce — must be
+/// rejected at compile rather than embedded as a dishonest, unenforced config.
 #[test]
-fn test_security_config_in_compiled_schema() {
+fn test_declared_authorization_is_rejected_at_compile() {
     let temp_dir = TempDir::new().unwrap();
 
     let types_json = r#"
@@ -371,28 +374,26 @@ audit_logging_enabled = false
         .output()
         .expect("Failed to run compilation");
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        panic!("Compilation failed.\nstdout: {}\nstderr: {}", stdout, stderr);
-    }
-
-    let compiled = fs::read_to_string(&output_path).unwrap();
-    let compiled_value: serde_json::Value = serde_json::from_str(&compiled).unwrap();
-
-    // Verify security section exists and is properly embedded
+    // #612 item 4: `[[security.rules]]` / `[[security.policies]]` /
+    // `[[security.field_auth]]` declare authorization the runtime does not enforce, so
+    // the compile must now FAIL loudly rather than embed a dishonest, unenforced config.
     assert!(
-        compiled_value.get("security").is_some(),
-        "security section missing from compiled schema"
+        !output.status.success(),
+        "compile should reject declared-but-unenforced [security.rules/policies/field_auth]"
     );
-
-    let security = &compiled_value["security"];
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        security.get("default_policy").is_some(),
-        "default_policy missing from security config"
+        stderr.contains("[security.rules]") && stderr.contains("does NOT enforce"),
+        "rejection must name the blocks and explain they are unenforced; got stderr:\n{stderr}"
     );
-    assert!(security.get("rules").is_some(), "rules missing from security config");
-    assert!(security.get("policies").is_some(), "policies missing from security config");
+    assert!(
+        stderr.contains("/issues/626"),
+        "rejection must link the declarative-authz follow-up (#626); got stderr:\n{stderr}"
+    );
+    assert!(
+        !output_path.exists(),
+        "no compiled schema should be written when the config is rejected"
+    );
 }
 
 /// Full CLI compile pipeline with field-level assertions.

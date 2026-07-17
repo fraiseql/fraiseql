@@ -186,14 +186,9 @@ pub fn log_security_config(config: &SecurityConfigFromSchema) {
         "Error sanitization configuration"
     );
 
-    info!(
-        rate_limiting_enabled = config.rate_limiting.enabled,
-        auth_start_max = config.rate_limiting.auth_start_max_requests,
-        auth_callback_max = config.rate_limiting.auth_callback_max_requests,
-        auth_refresh_max = config.rate_limiting.auth_refresh_max_requests,
-        failed_login_max = config.rate_limiting.failed_login_max_requests,
-        "Rate limiting configuration"
-    );
+    // Rate-limiting configuration is logged by the server middleware from the live
+    // `RateLimitingSecurityConfig`; the dead reader that logged it here was removed
+    // under #612 (item 5b).
 
     info!(
         state_encryption_enabled = config.state_encryption.enabled,
@@ -219,9 +214,12 @@ pub fn log_security_config(config: &SecurityConfigFromSchema) {
 ///
 /// # Errors
 ///
-/// Returns [`AuthError::ConfigError`] if `leak_sensitive_details` is `true`,
-/// `auth_start_max_requests` is zero when rate limiting is enabled, or
-/// `auth_start_window_secs` is zero when rate limiting is enabled.
+/// Returns [`AuthError::ConfigError`] if `leak_sensitive_details` is `true`.
+///
+/// Note: rate-limit sanity checks (non-zero windows/caps) are enforced by the
+/// server middleware against the live `RateLimitingSecurityConfig`. The checks
+/// that formerly ran here operated on a dead reader fed only hardcoded defaults,
+/// so they validated nothing real and were removed under #612 (item 5b).
 pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()> {
     // Check if sensitive data leaking is disabled (security requirement)
     if config.error_sanitization.leak_sensitive_details {
@@ -229,20 +227,6 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
         return Err(AuthError::ConfigError {
             message: "leak_sensitive_details must be false in production".to_string(),
         });
-    }
-
-    // Check rate limits are reasonable
-    if config.rate_limiting.enabled {
-        if config.rate_limiting.auth_start_max_requests == 0 {
-            return Err(AuthError::ConfigError {
-                message: "auth_start_max_requests must be greater than 0".to_string(),
-            });
-        }
-        if config.rate_limiting.auth_start_window_secs == 0 {
-            return Err(AuthError::ConfigError {
-                message: "auth_start_window_secs must be greater than 0".to_string(),
-            });
-        }
     }
 
     // Check state encryption key size if enabled

@@ -40,6 +40,9 @@ fraiseql-server = {workspace = true, optional = true, features = ["cli"]}
 axum = {workspace = true, optional = true}
 glob = "0.3"
 hex = {workspace = true}
+# CIDR parsing to validate [security.rate_limiting] trusted_proxy_cidrs at compile
+# time (#609) — same parser the server uses, so compile rejects what boot would.
+ipnet = "2"
 reqwest = {workspace = true}
 # Serialization
 indexmap = {workspace = true}

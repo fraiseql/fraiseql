@@ -29,24 +29,34 @@ Organization
 
 ## Tenant isolation
 
-Multi-tenant safety lives in `fraiseql.toml`, not in the views. The schema
-itself is unaware of who is calling — every type carries a `tenantId`
-(`organizationId` for `Tenant`), but nothing scopes a query to one tenant on its
-own. The `[security]` block does that:
+> **Correction (#612).** Earlier revisions of this example claimed
+> `[[security.rules]]` in `fraiseql.toml` scoped each query to the caller's tenant.
+> That was false: FraiseQL does **not** enforce `[security.rules]` at runtime (the
+> operation/field authorizers are pinned to `None` — see #612 / #626). Those blocks
+> compiled but scoped nothing, so they have been removed. Do not rely on
+> `[security.rules]` for isolation.
 
-```toml
-[security]
-default_policy = "authenticated"   # no anonymous access — closes the leak
+Per-tenant isolation must be enforced **at the database layer**. The schema itself
+is unaware of who is calling — every type carries a `tenantId` (`organizationId`
+for `Tenant`), but nothing scopes a query to one tenant on its own.
 
-[[security.rules]]                  # rows scoped to the caller's tenant
-rule = "user.tenant_id == object.tenant_id"
-```
+`default_policy = "authenticated"` closes the anonymous read path (no unauthenticated
+access) — but it does **not** scope rows to a tenant. To scope rows:
 
-Without it, `listTenants` and `listResources` return **every** tenant's rows to
-**any** caller. Treat the `[security]` block as load-bearing: removing it
-re-opens cross-tenant data exposure. The rules above assume the authenticated
-principal carries `tenant_id`/`organization_id` claims; map them from your auth
-provider accordingly.
+1. **Set a session variable from the identity.** FraiseQL resolves configured session
+   variables from the request (JWT claims / headers) and injects them as
+   transaction-scoped PostgreSQL session variables via `set_config()` before each
+   query — see `resolve_session_variables`
+   (`crates/fraiseql-core/src/runtime/executor/support/security.rs`). Map e.g.
+   `app.tenant_id` to the `tenant_id` claim.
+2. **Enforce with RLS.** Define row-level-security policies on the views/tables that
+   read that variable with `current_setting('app.tenant_id')`, so PostgreSQL itself
+   rejects cross-tenant rows.
+
+Without database-layer RLS, `listTenants` and `listResources` return **every**
+tenant's rows to **any** authenticated caller. A worked end-to-end example
+(session-var mapping + RLS policy + a two-tenant proof) is tracked in
+[#628](https://github.com/fraiseql/fraiseql/issues/628).
 
 ## Compiling
 

@@ -8,14 +8,20 @@ use std::env;
 use serde_json::Value as JsonValue;
 
 /// Security configuration loaded from schema.compiled.json
+///
+/// Note: rate limiting is intentionally **not** represented here. The live
+/// rate-limit configuration is read by the server middleware from the compiled
+/// schema's flat `security.rate_limiting` snake_case key
+/// (`fraiseql-server middleware/rate_limit/config.rs`, `RateLimitingSecurityConfig`).
+/// A former nested-camelCase reader on this struct (`rateLimiting.authStart.maxRequests`)
+/// never matched the merger's emitted flat shape, so it silently fed hardcoded
+/// defaults; it was removed under #612 (item 5b) to eliminate that drift.
 #[derive(Debug, Clone)]
 pub struct SecurityConfigFromSchema {
     /// Audit logging configuration
     pub audit_logging:      AuditLoggingSettings,
     /// Error sanitization configuration
     pub error_sanitization: ErrorSanitizationSettings,
-    /// Rate limiting configuration
-    pub rate_limiting:      RateLimitingSettings,
     /// State encryption configuration
     pub state_encryption:   StateEncryptionSettings,
 }
@@ -57,33 +63,6 @@ pub struct ErrorSanitizationSettings {
     pub user_facing_format:     String,
 }
 
-/// Rate-limiting thresholds for each authentication endpoint.
-#[derive(Debug, Clone)]
-pub struct RateLimitingSettings {
-    /// Whether rate limiting is active across all auth endpoints.
-    pub enabled:                    bool,
-    /// Maximum requests to `/auth/start` per IP per window.
-    pub auth_start_max_requests:    u32,
-    /// Window duration (in seconds) for the `/auth/start` rate limit.
-    pub auth_start_window_secs:     u64,
-    /// Maximum requests to `/auth/callback` per IP per window.
-    pub auth_callback_max_requests: u32,
-    /// Window duration (in seconds) for the `/auth/callback` rate limit.
-    pub auth_callback_window_secs:  u64,
-    /// Maximum token refresh requests per user per window.
-    pub auth_refresh_max_requests:  u32,
-    /// Window duration (in seconds) for the `/auth/refresh` rate limit.
-    pub auth_refresh_window_secs:   u64,
-    /// Maximum logout requests per user per window.
-    pub auth_logout_max_requests:   u32,
-    /// Window duration (in seconds) for the `/auth/logout` rate limit.
-    pub auth_logout_window_secs:    u64,
-    /// Maximum failed login attempts per user per window (brute-force protection).
-    pub failed_login_max_requests:  u32,
-    /// Window duration (in seconds) for the failed login rate limit (typically 1 hour).
-    pub failed_login_window_secs:   u64,
-}
-
 /// OAuth state encryption settings loaded from the compiled schema.
 #[derive(Debug, Clone)]
 pub struct StateEncryptionSettings {
@@ -116,19 +95,6 @@ impl Default for SecurityConfigFromSchema {
                 internal_logging:       true,
                 leak_sensitive_details: false,
                 user_facing_format:     "generic".to_string(),
-            },
-            rate_limiting:      RateLimitingSettings {
-                enabled:                    true,
-                auth_start_max_requests:    100,
-                auth_start_window_secs:     60,
-                auth_callback_max_requests: 50,
-                auth_callback_window_secs:  60,
-                auth_refresh_max_requests:  10,
-                auth_refresh_window_secs:   60,
-                auth_logout_max_requests:   20,
-                auth_logout_window_secs:    60,
-                failed_login_max_requests:  5,
-                failed_login_window_secs:   3600,
             },
             state_encryption:   StateEncryptionSettings {
                 enabled:              true,
@@ -185,56 +151,9 @@ impl SecurityConfigFromSchema {
                 .to_string();
         }
 
-        if let Some(rate_limit) = value.get("rateLimiting").and_then(|v| v.as_object()) {
-            config.rate_limiting.enabled =
-                rate_limit.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: rate-limit maxRequests values are config-bounded within u32
-            if let Some(auth_start) = rate_limit.get("authStart").and_then(|v| v.as_object()) {
-                config.rate_limiting.auth_start_max_requests =
-                    auth_start.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
-                config.rate_limiting.auth_start_window_secs =
-                    auth_start.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
-            }
-
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: rate-limit maxRequests values are config-bounded within u32
-            if let Some(auth_callback) = rate_limit.get("authCallback").and_then(|v| v.as_object())
-            {
-                config.rate_limiting.auth_callback_max_requests =
-                    auth_callback.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(50) as u32;
-                config.rate_limiting.auth_callback_window_secs =
-                    auth_callback.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
-            }
-
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: rate-limit maxRequests values are config-bounded within u32
-            if let Some(auth_refresh) = rate_limit.get("authRefresh").and_then(|v| v.as_object()) {
-                config.rate_limiting.auth_refresh_max_requests =
-                    auth_refresh.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(10) as u32;
-                config.rate_limiting.auth_refresh_window_secs =
-                    auth_refresh.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
-            }
-
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: rate-limit maxRequests values are config-bounded within u32
-            if let Some(auth_logout) = rate_limit.get("authLogout").and_then(|v| v.as_object()) {
-                config.rate_limiting.auth_logout_max_requests =
-                    auth_logout.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
-                config.rate_limiting.auth_logout_window_secs =
-                    auth_logout.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
-            }
-
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: rate-limit maxRequests values are config-bounded within u32
-            if let Some(failed_login) = rate_limit.get("failedLogin").and_then(|v| v.as_object()) {
-                config.rate_limiting.failed_login_max_requests =
-                    failed_login.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
-                config.rate_limiting.failed_login_window_secs =
-                    failed_login.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(3600);
-            }
-        }
+        // Rate limiting is read from the compiled schema's flat `security.rate_limiting`
+        // key by the server middleware (`RateLimitingSecurityConfig`), not here. The
+        // former nested-camelCase reader was removed under #612 (item 5b).
 
         if let Some(state_enc) = value.get("stateEncryption").and_then(|v| v.as_object()) {
             config.state_encryption.enabled =
@@ -266,31 +185,8 @@ impl SecurityConfigFromSchema {
             self.audit_logging.log_level = level;
         }
 
-        // Rate limiting
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_START") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_start_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_CALLBACK") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_callback_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_REFRESH") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_refresh_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_LOGOUT") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_logout_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_FAILED_LOGIN") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.failed_login_max_requests = n;
-            }
-        }
+        // Rate limiting env overrides (RATE_LIMIT_*) apply to the live server-side
+        // `RateLimitingSecurityConfig`, not to this struct — the nested-camelCase
+        // reader that owned them here was removed under #612 (item 5b).
     }
 }

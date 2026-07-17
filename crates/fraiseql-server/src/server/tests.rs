@@ -263,6 +263,44 @@ mod initialization_tests {
         assert!(failed_login_lockout_check(5, 60, false).is_ok());
     }
 
+    // #609: trusting X-Forwarded-For from all proxies (empty CIDR list) warns with a
+    // 2.14 refuse-to-boot deprecation notice (#618); an explicit ["0.0.0.0/0"] opt-in
+    // does not warn.
+    use super::super::initialization::proxy_trust_startup_warning;
+
+    #[test]
+    fn proxy_trust_all_by_omission_warns_with_deprecation() {
+        let msg = proxy_trust_startup_warning(true, None)
+            .expect("trust_proxy_headers = true with no CIDRs must warn");
+        assert!(msg.contains("DEPRECATED"), "carries the deprecation notice: {msg}");
+        assert!(msg.contains("2.14"), "names the refuse-to-boot version: {msg}");
+        assert!(msg.contains("#618"), "links the follow-up issue: {msg}");
+    }
+
+    #[test]
+    fn proxy_trust_empty_list_warns() {
+        assert!(proxy_trust_startup_warning(true, Some(&[])).is_some());
+    }
+
+    #[test]
+    fn proxy_trust_explicit_trust_all_does_not_warn() {
+        // ["0.0.0.0/0"] is the sanctioned explicit opt-in — a deliberate, non-empty
+        // list, so the deprecation warning must not fire.
+        let cidrs = vec!["0.0.0.0/0".to_string()];
+        assert!(proxy_trust_startup_warning(true, Some(&cidrs)).is_none());
+    }
+
+    #[test]
+    fn proxy_trust_restricted_cidrs_do_not_warn() {
+        let cidrs = vec!["10.0.0.0/8".to_string()];
+        assert!(proxy_trust_startup_warning(true, Some(&cidrs)).is_none());
+    }
+
+    #[test]
+    fn proxy_trust_disabled_does_not_warn() {
+        assert!(proxy_trust_startup_warning(false, None).is_none());
+    }
+
     // #350: a configured non-Postgres observer transport that cannot run must fail
     // loud (refuse boot in production), never silently fall back to PostgreSQL.
     #[cfg(feature = "observers")]

@@ -221,6 +221,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                     lower_bound,
                     today,
                     query_name,
+                    security_context,
                 )
                 .await;
         }
@@ -277,6 +278,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         lower_bound: chrono::NaiveDate,
         today: chrono::NaiveDate,
         query_name: &str,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         let branch_plan = crate::runtime::partial_period::determine_branches(
             lower_bound,
@@ -309,15 +311,20 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
             extra_where.as_ref(),
         )?;
 
-        // Execute.
-        // No session vars: the partial-period UNION branch does not thread a
-        // SecurityContext (callers above do), so there is nothing to resolve
-        // session variables from here. RLS for partial-period aggregates over
-        // current_setting()-backed views is a follow-up (#329).
+        // Execute, pinning session variables to the connection so a
+        // `current_setting()`-backed RLS policy constrains the partial-period branch the
+        // same way it constrains the standard aggregate and window paths (#610).
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
-            .execute_parameterized_aggregate(&union_sql.sql, &union_sql.params)
+            .execute_parameterized_aggregate_with_session(
+                &union_sql.sql,
+                &union_sql.params,
+                &session_pairs,
+            )
             .await?;
 
         // Project and wrap (same as standard path)

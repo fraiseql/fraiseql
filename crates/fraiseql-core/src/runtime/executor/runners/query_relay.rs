@@ -565,21 +565,28 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
-        // 6. Execute the query (limit 1) with projection.
-        // The FraiseQL `rls_policy` and `inject_params` gates are enforced above as an
-        // explicit WHERE filter. Session variables are not resolved here, so DB-side
-        // `current_setting()`-backed RLS on the node path remains a follow-up (#329).
+        // 6. Execute the query (limit 1) with projection, pinning session variables to
+        // the read's connection so a PostgreSQL `current_setting()`-backed RLS policy
+        // constrains the node lookup the same way it constrains regular queries and Relay
+        // pages (#610). The FraiseQL `rls_policy` and `inject_params` gates are enforced
+        // above as an explicit WHERE filter.
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let rows = self
             .ctx
             .adapter
-            .execute_with_projection_arc(&crate::db::ProjectionRequest {
-                view:         &sql_source,
-                projection:   projection_hint.as_ref(),
-                where_clause: Some(&where_clause),
-                order_by:     None,
-                limit:        Some(1),
-                offset:       None,
-            })
+            .execute_with_projection_arc_with_session(
+                &crate::db::ProjectionRequest {
+                    view:         &sql_source,
+                    projection:   projection_hint.as_ref(),
+                    where_clause: Some(&where_clause),
+                    order_by:     None,
+                    limit:        Some(1),
+                    offset:       None,
+                },
+                &session_pairs,
+            )
             .await?;
 
         // 7. Return the first matching row (or null).

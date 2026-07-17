@@ -300,6 +300,71 @@ async fn test_download_sets_nosniff_and_attachment_for_html() {
 }
 
 #[tokio::test]
+async fn private_bucket_download_is_not_shared_cacheable() {
+    // #608: a Private-bucket download passes the per-request RLS check, then must NOT be
+    // advertised as publicly cacheable. A shared cache (CDN / reverse or forward proxy) told
+    // `public, max-age=3600` may store the private object and serve it to unauthenticated third
+    // parties for an hour, defeating the `can_read` check that ran immediately before. `can_read`
+    // is per-row, so a URL-keyed shared cache cannot represent the boundary → `private, no-store`.
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+
+    // The owner uploads, then downloads their own object (RLS allows the owner on a Private
+    // bucket).
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/private-files/secret.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("classified"))
+        .unwrap();
+    assert_eq!(app.oneshot(upload).await.unwrap().status(), StatusCode::OK);
+
+    let app = authenticated_router(state);
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/secret.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers().get(header::CACHE_CONTROL).and_then(|v| v.to_str().ok()),
+        Some("private, no-store"),
+        "a Private-bucket download must not be advertised as shared-cacheable (#608)",
+    );
+}
+
+#[tokio::test]
+async fn public_read_bucket_download_stays_publicly_cacheable() {
+    // #608 guard: the fix must not regress the public path. A PublicRead download stays
+    // `public, max-age=3600` — public read is cacheable by definition.
+    let (state, _keep) = test_state("public-files", BucketAccess::PublicRead).await;
+
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/public-files/logo.png")
+        .header(header::CONTENT_TYPE, "image/png")
+        .body(Body::from("PNGDATA"))
+        .unwrap();
+    assert_eq!(app.oneshot(upload).await.unwrap().status(), StatusCode::OK);
+
+    let app = authenticated_router(state);
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/public-files/logo.png")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers().get(header::CACHE_CONTROL).and_then(|v| v.to_str().ok()),
+        Some("public, max-age=3600"),
+        "PublicRead downloads remain publicly cacheable (#608 must not regress the public path)",
+    );
+}
+
+#[tokio::test]
 async fn test_serve_inline_bucket_renders_safe_types_but_attaches_dangerous_ones() {
     // #337: a bucket may opt into inline rendering, but content types that can
     // execute as active content are still served as attachments.

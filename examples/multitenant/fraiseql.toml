@@ -15,22 +15,19 @@ description = "Multi-tenant application with shared core and isolated tenant dom
 name = "multitenant"
 version = "1.0.0"
 
-# Tenant isolation is enforced here, not in the views. Without this block every
-# query (listTenants, listResources, ...) is anonymous and returns every
-# tenant's rows to any caller. default_policy = "authenticated" closes the
-# anonymous read path; the per-tenant rules scope each row to the caller's own
-# tenant/organization. See README.md ("Tenant isolation").
+# Per-tenant isolation is NOT enforced by FraiseQL configuration. `[security.rules]`
+# is declared-but-unenforced — the runtime pins the operation/field authorizers to
+# None (see #612 / #626) — so the two `[[security.rules]]` blocks that used to sit
+# here were removed rather than ship a false security claim (they compiled but scoped
+# nothing). `default_policy = "authenticated"` below only closes the anonymous path;
+# it does NOT scope rows to a tenant.
+#
+# Enforce tenant isolation at the database layer: define RLS policies on the
+# views/tables that read a session variable FraiseQL sets from the request identity.
+# FraiseQL injects configured session variables via `set_config()` before each query
+# (`resolve_session_variables`,
+# crates/fraiseql-core/src/runtime/executor/support/security.rs), and the RLS policy
+# reads it with `current_setting(...)`. A worked end-to-end example (session-var
+# mapping + RLS policy + two-tenant proof) is tracked in #628.
 [security]
 default_policy = "authenticated"
-
-[[security.rules]]
-cacheable = false
-description = "Resources are visible only within the caller's own tenant"
-name = "scope_resources_to_tenant"
-rule = "user.tenant_id == object.tenant_id"
-
-[[security.rules]]
-cacheable = false
-description = "Tenants are visible only within the caller's own organization"
-name = "scope_tenants_to_organization"
-rule = "user.organization_id == object.organization_id"

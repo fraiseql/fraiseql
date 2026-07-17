@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Private-bucket downloads are no longer advertised as shared-cacheable (#608).**
+  Every storage download was served `Cache-Control: public, max-age=3600` regardless
+  of the bucket's access mode. For a `Private` bucket this defeated the per-request
+  RLS check (`can_read`) that ran immediately before it: any shared cache on the path
+  (CDN, reverse proxy, corporate forward proxy) was told the response was public and
+  could store it and serve the private object to unauthenticated third parties for up
+  to an hour, and revocation did not take effect until the entry expired. Downloads
+  now branch on access mode — a `Private` bucket serves `Cache-Control: private,
+  no-store` (per-row `can_read` cannot be represented by a URL-keyed shared cache, so
+  the object must not be stored at all); a `PublicRead` bucket is unchanged (`public,
+  max-age=3600`). Only shared-cache-fronted deployments were exposed; direct-to-server
+  deployments were unaffected.
+
 - **Subscription row-level visibility on the live `/ws` path — fail-closed (#596).**
   Previously any principal authorized to subscribe to an entity over `/ws`
   (`graphql-transport-ws` / legacy `graphql-ws`) received **every** row's after-images:
@@ -37,6 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a subscription whose identity is unresolvable is **refused** at subscribe time. So
   whoever eventually productionizes the subsystem cannot bring it up deliver-all by
   accident. Issue #605 tracks the productionize-or-remove decision.
+
+- **Rate-limiting proxy-trust mitigation is reachable on the compiled path (#609).**
+  `trust_proxy_headers = true` was settable in `[security.rate_limiting]`, but its safety
+  valve `trusted_proxy_cidrs` was not — the CLI schema lacked the field and
+  `deny_unknown_fields` rejected it, so the only reachable posture trusted
+  `X-Forwarded-For` from **every** proxy IP. Any client could then spoof its address to
+  bypass per-IP rate limiting or poison IP-derived logging — the mitigation the docs
+  recommend could not be applied. The field is now accepted on the compiled path,
+  **validated as CIDR notation at compile time** (a malformed range fails `fraiseql
+  compile`, not server boot), and carried through to the runtime the server already
+  honours (`extract_real_ip`). The permissive posture is now **explicit**:
+  `trusted_proxy_cidrs = ["0.0.0.0/0"]` says "trust every proxy" on purpose.
+  **Deprecation:** `trust_proxy_headers = true` with an empty or omitted CIDR list still
+  boots but now warns that it will **refuse to boot in 2.14** (#618); set
+  `trusted_proxy_cidrs` to your proxy ranges, or `["0.0.0.0/0"]` to keep trusting every
+  proxy explicitly.
 
 ### Changed
 
@@ -270,6 +299,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the spine emit (all-or-nothing per poll batch) rather than per-message.
   `fraiseql_functions::migrations::inbound_email_cursor_migration_sql` is removed.
 
+- **Config sections that validated then did nothing are now rejected at compile
+  (#612).** Several `fraiseql.toml` sections the compiler accepted but no runtime
+  consumed now fail loudly at load — the fix-forward "honest-loud over silently-wrong"
+  stance (the v2.7.0 field-encryption precedent) — with a message naming the section
+  and either the real alternative or the tracking issue. Previously each was accepted
+  and silently ignored, so an operator believed it took effect. A schema using any of
+  these now errors; remove the section (or migrate as noted). The rejection runs on
+  **every** compile path, including `--types` (`merge_files`), which skips the rest of
+  `validate()`:
+  - **`[security.rules]` / `[security.policies]` / `[security.field_auth]` (security).**
+    Declared authorization the runtime never enforced — `RuntimeConfig::from_compiled_schema`
+    pins the operation- and field-authorizers to `None`, so any access boundary these
+    blocks implied did not exist. Every deployment carrying them was operating on a
+    false belief; the break *is* the fix. Remove them and enforce authorization at the
+    database layer (RLS policies keyed on the session variables FraiseQL sets from the
+    request identity) until a compiled-schema declarative-authorization engine ships
+    (**#626**).
+  - **`[caching]`** — never lowered into the compiled schema; no runtime honored it (**#623**).
+  - **`[analytics]`** — fully inert (**#624**).
+  - **`[observability]`** — inert on the compiled path; configure metrics under
+    `[metrics]` and tracing under `[tracing]` in `fraiseql.toml` instead (**#625**).
+  - **`[security.api_keys] storage`** — only `"env"` is implemented; `"postgres"`
+    authenticated nothing. Set `storage = "env"` (postgres-backed store: **#627**).
+- **The `multitenant` and `saas` examples stopped compiling until corrected (#612).**
+  Both declared `[[security.rules]]`, and the `multitenant` README + config claimed those
+  rules enforced tenant isolation — a false security claim (the rules were never
+  enforced). The unenforced blocks were removed and the docs corrected to point at
+  database-layer RLS plus the session variables FraiseQL sets from the identity
+  (`resolve_session_variables`, `crates/fraiseql-core/src/runtime/executor/support/security.rs`);
+  a worked end-to-end isolation example is tracked in **#628**.
+
 ### Changed
 
 - **Entity-identity contract: `id: UUID` is canonicalized to `id: ID` (ADR-0017).**
@@ -314,6 +374,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unenforced auth fails loud). The previously-false operator instructions that told
   operators to configure those four fields (`builder.rs` startup error, the Auth0 and SAML
   integration guides) are corrected to say so. JWT validation is unaffected.
+
+- **RLS session variables now reach the Relay `node(id:)` and partial-period aggregate
+  read paths (#610).** Both paths ran their read without resolving the schema's configured
+  `session_variables`, so a PostgreSQL RLS policy reading `current_setting()` did not
+  constrain them — a cross-tenant read on any Relay `node(id:)` lookup and any aggregate
+  taking the partial-period (`UNION ALL`) branch, both reachable from an ordinary GraphQL
+  request. They now resolve session variables and use the connection-affine
+  `*_with_session` adapter methods, exactly as regular queries, Relay pages, standard
+  aggregates, and mutations already did. (These were the two surviving read-path follow-ups
+  from #329, which was closed after its mutation-path fix shipped; they are fixed here under
+  #610, not by reopening #329.)
 
 - **`fraiseql compile` now surfaces the full error cause chain.** Converter
   failures printed only the top-level context (e.g. `Failed to convert schema to
@@ -368,6 +439,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client can paginate and filter. An explicit argument of the same name still wins
   (no duplicates), and Relay connection queries are unchanged (their `first`/`after`/
   `last`/`before` surface is owned by the Relay path).
+- **`security.token_revocation.revoke_all_ttl_secs` now reaches the server (#612).**
+  The server reads this key (default 86400s) to bound how long a `revoke-all` epoch
+  suppresses tokens, and the docs instructed setting it — but the CLI TOML schema lacked
+  the field, so `deny_unknown_fields` rejected any config that set it and it could never
+  take effect. Added to the CLI `[security.token_revocation]` schema; it now serializes
+  into the compiled schema the server already reads.
+- **Removed a dead rate-limiting config reader that silently fed hardcoded defaults
+  (#612).** `fraiseql-auth`'s `SecurityConfigFromSchema` parsed a nested-camelCase
+  `rateLimiting.authStart.maxRequests` shape the compiler never emits (it emits flat
+  snake_case `security.rate_limiting`), so that reader always fell back to hardcoded
+  defaults; its output only fed startup logging/validation before being dropped and
+  never drove runtime limits (those come from the server middleware's live
+  `RateLimitingSecurityConfig`, which reads the flat shape correctly). The dead
+  rate-limiting portion of the reader was removed and a merger→reader round-trip test
+  now pins the flat shape so the two ends cannot drift silently again.
 
 ## [2.11.0] - 2026-07-06
 

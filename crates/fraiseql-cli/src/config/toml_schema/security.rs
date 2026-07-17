@@ -230,6 +230,18 @@ pub struct RateLimitingSecurityConfig {
     /// Enabling without a trusted proxy allows clients to spoof their IP address.
     #[serde(default)]
     pub trust_proxy_headers: bool,
+    /// CIDR ranges trusted as proxy IPs (e.g. `["10.0.0.0/8", "172.16.0.0/12"]`).
+    ///
+    /// When set and `trust_proxy_headers = true`, `X-Forwarded-For` is only honoured
+    /// when the direct connection IP falls within one of these ranges — requests from
+    /// outside them use the connection IP directly, preventing clients from spoofing
+    /// their address. Use `["0.0.0.0/0"]` to trust every proxy IP explicitly.
+    ///
+    /// When omitted with `trust_proxy_headers = true`, all proxy IPs are trusted
+    /// (less secure — the server emits a startup warning). CIDR strings are validated
+    /// at compile time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_proxy_cidrs: Option<Vec<String>>,
 }
 
 impl Default for RateLimitingSecurityConfig {
@@ -251,6 +263,7 @@ impl Default for RateLimitingSecurityConfig {
             failed_login_lockout_secs: 900,
             redis_url: None,
             trust_proxy_headers: false,
+            trusted_proxy_cidrs: None,
         }
     }
 }
@@ -478,30 +491,39 @@ impl Default for TrustedDocumentsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct TokenRevocationSecurityConfig {
     /// Enable token revocation
-    pub enabled:     bool,
+    pub enabled:             bool,
     /// Backend: `"redis"`, `"postgres"`, or `"memory"`
-    pub backend:     String,
+    pub backend:             String,
     /// Reject JWTs without a `jti` claim when revocation is enabled
     #[serde(default = "default_true")]
-    pub require_jti: bool,
+    pub require_jti:         bool,
     /// If revocation store is unreachable: `false` = reject (fail-closed), `true` = allow
     /// (fail-open)
     #[serde(default)]
-    pub fail_open:   bool,
+    pub fail_open:           bool,
     /// Redis URL for distributed revocation (optional — inherited from `[fraiseql.redis]` if
     /// absent)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redis_url:   Option<String>,
+    pub redis_url:           Option<String>,
+    /// How long (seconds) a `revoke-all` epoch is retained.
+    ///
+    /// `revoke-all` records a per-user epoch rather than deleting individual tokens, so the
+    /// entry must outlive every token that could have been issued before the revocation.
+    /// Set this **above your maximum access-token lifetime**; once it expires a pre-revocation
+    /// token would resume working (until its own `exp`). Default: 86400 (24h). The server reads
+    /// this value from the compiled schema.
+    pub revoke_all_ttl_secs: u64,
 }
 
 impl Default for TokenRevocationSecurityConfig {
     fn default() -> Self {
         Self {
-            enabled:     false,
-            backend:     "memory".to_string(),
-            require_jti: true,
-            fail_open:   false,
-            redis_url:   None,
+            enabled:             false,
+            backend:             "memory".to_string(),
+            require_jti:         true,
+            fail_open:           false,
+            redis_url:           None,
+            revoke_all_ttl_secs: 86_400,
         }
     }
 }
