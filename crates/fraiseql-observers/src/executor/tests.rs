@@ -345,6 +345,7 @@ fn webhook_action() -> ActionConfig {
     ActionConfig::Webhook {
         url:                Some("https://example.com/hook".to_string()),
         url_env:            None,
+        method:             None,
         headers:            std::collections::HashMap::new(),
         body_template:      None,
         signing_secret:     None,
@@ -773,6 +774,7 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
     let action = ActionConfig::Webhook {
         url:                None,
         url_env:            None,
+        method:             None,
         headers:            std::collections::HashMap::new(),
         body_template:      None,
         signing_secret:     None,
@@ -794,6 +796,7 @@ async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name()
     let action = ActionConfig::Webhook {
         url:                None,
         url_env:            Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
+        method:             None,
         headers:            std::collections::HashMap::new(),
         body_template:      None,
         signing_secret:     None,

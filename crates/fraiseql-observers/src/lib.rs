@@ -215,6 +215,7 @@ mod integration_tests {
         let invalid = ActionConfig::Webhook {
             url:                None,
             url_env:            None,
+            method:             None,
             headers:            std::collections::HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -230,6 +231,7 @@ mod integration_tests {
         let valid = ActionConfig::Webhook {
             url:                Some("https://example.com".to_string()),
             url_env:            None,
+            method:             None,
             headers:            std::collections::HashMap::new(),
             body_template:      Some("{}".to_string()),
             signing_secret:     None,

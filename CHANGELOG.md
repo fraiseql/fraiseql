@@ -329,6 +329,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   database-layer RLS plus the session variables FraiseQL sets from the identity
   (`resolve_session_variables`, `crates/fraiseql-core/src/runtime/executor/support/security.rs`);
   a worked end-to-end isolation example is tracked in **#628**.
+- **Admin-API and observer config that "succeeded then did nothing" now fails loud
+  (#612, part 2).** The same honest-loud pass applied to the admin/observer surface:
+  - **`[[observers.handlers]]` in `fraiseql.toml` is rejected at compile.** Compiled
+    handlers were never loaded as runtime observers — those come only from the
+    `tb_observer` table / the admin observer API — so a declared handler silently
+    never fired. Define observers in `tb_observer` (or `POST /api/observers`) and
+    remove the block. Loading compiled handlers at boot is tracked in **#631**.
+  - **Creating an observer with an action `type` of `"database"` or `"log"` now
+    returns `400`, not `201`.** The runtime has no dispatcher for those types, so the
+    observer was created and then silently warn-and-skipped at load. The admin API now
+    rejects them at create/update, naming the supported types (`webhook`, `email`,
+    `slack`); real database/log dispatchers are tracked in **#632**.
+  - **The admin observer retry field is `backoff_strategy`, not `backoff`.** The
+    runtime reads `retry_config.backoff_strategy`, so the old DTO field name `backoff`
+    was silently dropped and every observer defaulted to exponential backoff. The field
+    is renamed and both `RetryConfig` structs gained `deny_unknown_fields`, so the dead
+    `backoff` key (or a typo) now fails loud. **Migration:** any `tb_observer.retry_config`
+    JSONB written before this release that carries a `backoff` key must be updated to
+    `backoff_strategy`, or that observer will fail to reload.
 
 ### Changed
 
@@ -358,6 +377,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Webhook observers honor their configured HTTP method (#612 item 12).** The admin
+  API accepted a `method` on webhook actions but the runtime always issued a `POST`.
+  The method is now threaded through dispatch (`PUT`/`PATCH`/… work; default stays
+  `POST`); an unparseable method fails loud rather than silently posting.
+- **Config drift-prevention gate (#612 item M).** A checked-in coverage test walks
+  every leaf of `TomlSchema::default()` (CLI) and `ServerConfig::default()` (server)
+  and asserts each maps to a named consumer in a reviewable manifest — a new config
+  key that no runtime consumes now fails CI at PR time rather than surfacing in a docs
+  pass. This is the durable half of #612: the mechanism whose absence let the whole
+  class accumulate. Paired with the CLI↔server round-trip pins (#6, #9, 5b) that a
+  leaf-walk cannot reach.
+- **Honest docs for two accepted-but-unenforced knobs (#612 items 13/14).** Tenant
+  `max_storage_bytes` is now documented as advisory-only (stored, never enforced — no
+  metering path exists; enforcement tracked in **#633**), and the observer Prometheus
+  metrics registry documents that it is not scraped by the server's `/metrics`
+  (a two-ecosystem split; bridging tracked in **#634**). No behavior change — the
+  surfaces no longer imply a guarantee that isn't there.
 - **A single `[auth]` block now validates on both the CLI compiler and the server (#612).**
   The CLI's `[auth]` schema required the PKCE OAuth-client fields (`discovery_url`,
   `client_id`, `client_secret_env`, `server_redirect_uri`) with `deny_unknown_fields`,

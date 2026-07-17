@@ -111,6 +111,7 @@ fn create_http_action(url: &str) -> ActionConfig {
     ActionConfig::Webhook {
         url:                Some(url.to_string()),
         url_env:            None,
+        method:             None,
         headers:            HashMap::from([(
             "Content-Type".to_string(),
             "application/json".to_string(),

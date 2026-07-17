@@ -397,9 +397,13 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         }
     }
 
-    /// Returns `true` if the tenant's soft storage quota has been exceeded.
+    /// Returns `true` if the tenant's storage-quota flag has been set.
     ///
-    /// When exceeded, mutations should be rejected (reads still allowed).
+    /// NOTE (#612 item 13): nothing sets this flag in production — there is no
+    /// usage-metering path that measures storage and calls
+    /// [`Self::set_quota_exceeded`], so `max_storage_bytes` is advisory only and
+    /// this always returns `false` outside tests. Metering + enforcement is
+    /// tracked at <https://github.com/fraiseql/fraiseql/issues/633>.
     #[must_use]
     pub fn is_quota_exceeded(&self, key: &str) -> bool {
         self.tenants
@@ -407,7 +411,10 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             .is_some_and(|e| e.value().quota_exceeded.load(Ordering::Relaxed))
     }
 
-    /// Set the quota-exceeded flag for a tenant (called by background task).
+    /// Set the quota-exceeded flag for a tenant.
+    ///
+    /// No production caller exists yet (see [`Self::is_quota_exceeded`]); this is
+    /// the seam a future storage-metering task (#633) would drive.
     pub fn set_quota_exceeded(&self, key: &str, exceeded: bool) {
         if let Some(entry) = self.tenants.get(key) {
             entry.value().quota_exceeded.store(exceeded, Ordering::Relaxed);

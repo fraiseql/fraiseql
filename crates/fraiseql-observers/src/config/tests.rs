@@ -239,6 +239,7 @@ fn test_action_type_names() {
         ActionConfig::Webhook {
             url:                None,
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -267,6 +268,7 @@ fn test_webhook_action_validation() {
     let invalid = ActionConfig::Webhook {
         url:                None,
         url_env:            None,
+        method:             None,
         headers:            HashMap::new(),
         body_template:      None,
         signing_secret:     None,
@@ -282,6 +284,7 @@ fn test_webhook_action_validation() {
     let valid = ActionConfig::Webhook {
         url:                Some("https://example.com".to_string()),
         url_env:            None,
+        method:             None,
         headers:            HashMap::new(),
         body_template:      Some("{}".to_string()),
         signing_secret:     None,
@@ -332,6 +335,7 @@ fn test_webhook_empty_signing_secret_env_is_rejected() {
     let action = ActionConfig::Webhook {
         url:                Some("https://example.com".to_string()),
         url_env:            None,
+        method:             None,
         headers:            HashMap::new(),
         body_template:      None,
         signing_secret:     None,
@@ -366,6 +370,7 @@ fn test_webhook_empty_signing_secret_literal_is_rejected() {
     let action = ActionConfig::Webhook {
         url:                Some("https://example.com".to_string()),
         url_env:            None,
+        method:             None,
         headers:            HashMap::new(),
         body_template:      None,
         signing_secret:     Some(String::new()),
@@ -383,6 +388,7 @@ fn test_webhook_both_signing_secret_sources_rejected() {
     let action = ActionConfig::Webhook {
         url:                Some("https://example.com".to_string()),
         url_env:            None,
+        method:             None,
         headers:            HashMap::new(),
         body_template:      None,
         signing_secret:     Some("whsec_literal".to_string()),

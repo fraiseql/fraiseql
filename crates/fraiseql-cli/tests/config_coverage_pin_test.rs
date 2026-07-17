@@ -216,3 +216,42 @@ fn api_keys_non_env_storage_is_rejected_at_compile() {
     .expect("TOML should parse");
     schema.validate().expect("storage = \"env\" must remain valid");
 }
+
+/// #8 `[[observers.handlers]]` — compiled but never run at runtime. Runtime
+/// observers come only from `tb_observer` / the admin observer API, so a
+/// TOML-declared handler silently never fires. Rejected at compile with a pointer
+/// to the load-at-boot follow-up (#631). `[observers] enabled` (a consumed
+/// changelog gate) without handlers must still validate.
+#[test]
+fn compiled_observer_handlers_are_rejected_at_compile() {
+    let err = validate_err(
+        r#"
+        [schema]
+        name = "t"
+
+        [[observers.handlers]]
+        name = "notify"
+        event = "INSERT"
+        action = "webhook"
+        webhook_url = "https://hook.example/x"
+    "#,
+    );
+    assert!(err.contains("[[observers.handlers]]"), "err = {err}");
+    assert!(err.contains("tb_observer"), "err = {err}");
+    assert!(err.contains("/issues/631"), "err = {err}");
+
+    // `[observers] enabled` without handlers is a consumed changelog gate — still valid.
+    let schema = TomlSchema::parse_toml(
+        r#"
+        [schema]
+        name = "t"
+
+        [observers]
+        enabled = true
+    "#,
+    )
+    .expect("TOML should parse");
+    schema
+        .validate()
+        .expect("[observers] enabled without handlers must remain valid");
+}

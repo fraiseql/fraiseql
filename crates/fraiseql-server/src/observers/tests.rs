@@ -118,7 +118,7 @@ mod repository_tests {
     fn test_retry_config_default() {
         let config = RetryConfig::default();
         assert_eq!(config.max_attempts, 3);
-        assert_eq!(config.backoff, "exponential");
+        assert_eq!(config.backoff_strategy, "exponential");
         assert_eq!(config.initial_delay_ms, 1000);
         assert_eq!(config.max_delay_ms, 60000);
     }
@@ -450,5 +450,120 @@ mod router_construction {
     async fn observer_changelog_routes_constructs() {
         let state = ChangelogState { pool: lazy_pool() };
         let _ = observer_changelog_routes(state);
+    }
+}
+
+mod retry_config_backoff_wire {
+    //! #612 item 11: the admin `RetryConfig` field is `backoff_strategy` (renamed
+    //! from `backoff`), so the persisted `retry_config` JSONB the runtime reads
+    //! carries the key the runtime actually consumes; `deny_unknown_fields` makes
+    //! the dead `backoff` name (or a typo) fail loud instead of silently
+    //! defaulting to exponential backoff.
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use fraiseql_observers::{BackoffStrategy, RetryConfig as RuntimeRetryConfig};
+
+    use super::super::RetryConfig as AdminRetryConfig;
+
+    #[test]
+    fn admin_backoff_strategy_round_trips_into_the_runtime() {
+        let admin = AdminRetryConfig {
+            backoff_strategy: "linear".to_string(),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&admin).unwrap();
+        // The persisted JSONB carries `backoff_strategy`, which the runtime reads —
+        // the pre-#612 dead `backoff` key is gone.
+        assert_eq!(json["backoff_strategy"], "linear");
+        assert!(json.get("backoff").is_none(), "the dead `backoff` key is not emitted");
+
+        let runtime: RuntimeRetryConfig = serde_json::from_value(json).unwrap();
+        assert!(
+            matches!(runtime.backoff_strategy, BackoffStrategy::Linear),
+            "the runtime honors the admin-configured strategy instead of defaulting"
+        );
+    }
+
+    #[test]
+    fn admin_dto_rejects_the_dead_backoff_field() {
+        let err =
+            serde_json::from_value::<AdminRetryConfig>(serde_json::json!({ "backoff": "linear" }))
+                .expect_err("the old `backoff` key must be rejected, not silently ignored");
+        assert!(err.to_string().contains("backoff"), "error names the offending key: {err}");
+    }
+
+    #[test]
+    fn runtime_retry_config_rejects_unknown_keys() {
+        let err = serde_json::from_value::<RuntimeRetryConfig>(
+            serde_json::json!({ "backoff": "linear", "backoff_strategy": "linear" }),
+        )
+        .expect_err("an unexpected key must fail loud at reload, not be silently dropped");
+        assert!(err.to_string().contains("backoff"), "{err}");
+    }
+}
+
+mod action_type_dispatch {
+    //! #612 item 10: action types the runtime cannot dispatch are rejected at
+    //! create/update (400) rather than accepted (201) then silently skipped.
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use axum::http::StatusCode;
+
+    use super::super::{ActionConfig, handlers::reject_undispatchable_actions};
+
+    fn action(json: serde_json::Value) -> ActionConfig {
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn webhook_email_slack_are_dispatchable() {
+        for (json, name) in [
+            (serde_json::json!({ "type": "webhook", "url": "https://h/x" }), "webhook"),
+            (
+                serde_json::json!({ "type": "email", "to": "a@b.c", "subject_template": "s", "body_template": "b" }),
+                "email",
+            ),
+            (
+                serde_json::json!({ "type": "slack", "webhook_url": "https://h/x", "message_template": "m" }),
+                "slack",
+            ),
+        ] {
+            let a = action(json);
+            assert_eq!(a.type_name(), name);
+            assert!(a.is_runtime_dispatchable(), "{name} must be dispatchable");
+        }
+    }
+
+    #[test]
+    fn database_and_log_are_not_dispatchable() {
+        for json in [
+            serde_json::json!({ "type": "database", "function_name": "fn_notify" }),
+            serde_json::json!({ "type": "log", "message_template": "m" }),
+        ] {
+            let a = action(json);
+            assert!(!a.is_runtime_dispatchable(), "{} has no runtime dispatcher", a.type_name());
+        }
+    }
+
+    #[test]
+    fn reject_helper_returns_400_for_a_database_action() {
+        let actions = vec![action(serde_json::json!({
+            "type": "database",
+            "function_name": "fn_notify"
+        }))];
+        let resp =
+            reject_undispatchable_actions(&actions).expect("a database action must be rejected");
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn reject_helper_passes_all_dispatchable_actions() {
+        let actions = vec![action(
+            serde_json::json!({ "type": "webhook", "url": "https://h/x" }),
+        )];
+        assert!(
+            reject_undispatchable_actions(&actions).is_none(),
+            "a webhook-only action set is accepted"
+        );
     }
 }

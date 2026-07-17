@@ -97,6 +97,7 @@ async fn main() -> fraiseql_observers::Result<()> {
             actions:    vec![ActionConfig::Webhook {
                 url:                Some("https://webhook.example.com/user-created".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            HashMap::default(),
                 body_template:      None,
                 signing_secret:     None,

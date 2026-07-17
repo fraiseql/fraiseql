@@ -343,16 +343,56 @@ pub enum ActionConfig {
     },
 }
 
+impl ActionConfig {
+    /// Action types the observer runtime can actually dispatch (#612 item 10).
+    ///
+    /// The runtime (`fraiseql_observers`) has wired dispatchers only for these.
+    /// `database` and `log` are accepted by this DTO's shape but have no runtime
+    /// dispatcher, so an observer created with them used to return 201 and then be
+    /// silently warn-and-skipped at runtime load. Creating one is now rejected at
+    /// the API boundary; real `database`/`log` dispatchers are tracked in #632.
+    pub const RUNTIME_DISPATCHABLE_TYPES: &'static [&'static str] = &["webhook", "email", "slack"];
+
+    /// The action `type` discriminant as it appears in the admin API and the
+    /// persisted `actions` JSONB (`webhook`, `email`, `slack`, `database`, `log`).
+    #[must_use]
+    pub const fn type_name(&self) -> &'static str {
+        match self {
+            Self::Webhook { .. } => "webhook",
+            Self::Email { .. } => "email",
+            Self::Slack { .. } => "slack",
+            Self::Database { .. } => "database",
+            Self::Log { .. } => "log",
+        }
+    }
+
+    /// Whether the observer runtime has a wired dispatcher for this action type.
+    #[must_use]
+    pub const fn is_runtime_dispatchable(&self) -> bool {
+        matches!(self, Self::Webhook { .. } | Self::Email { .. } | Self::Slack { .. })
+    }
+}
+
 /// Retry configuration for observer actions.
+///
+/// `deny_unknown_fields` (#612 item 11): the runtime observer's `RetryConfig`
+/// reads `backoff_strategy`, so the pre-#612 DTO field name `backoff` was
+/// silently ignored and every observer defaulted to exponential backoff. The
+/// field is now `backoff_strategy` and an unknown key (the old `backoff`, or a
+/// typo) is rejected at create time rather than silently dropped.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts (default: 3)
     #[serde(default = "default_max_attempts")]
     pub max_attempts: i32,
 
-    /// Backoff strategy: "fixed", "linear", "exponential"
+    /// Backoff strategy: "fixed", "linear", "exponential".
+    ///
+    /// Serialized into the observer's `retry_config` JSONB and consumed by the
+    /// runtime `fraiseql_observers::config::runtime::RetryConfig::backoff_strategy`.
     #[serde(default = "default_backoff")]
-    pub backoff: String,
+    pub backoff_strategy: String,
 
     /// Initial delay in milliseconds (default: 1000)
     #[serde(default = "default_initial_delay")]
@@ -367,7 +407,7 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_attempts:     3,
-            backoff:          "exponential".to_string(),
+            backoff_strategy: "exponential".to_string(),
             initial_delay_ms: 1000,
             max_delay_ms:     60000,
         }
