@@ -238,16 +238,56 @@ fn test_existing_enterprise_field_not_broken() {
 // OidcClientConfig / [auth]
 // ---------------------------------------------------------------------------
 
+// #612 item 9: the CLI [auth] schema and the server's OidcConfig read the same
+// fraiseql.toml [auth], but the CLI's old schema (required PKCE client fields +
+// deny_unknown_fields) rejected a JWT-only block, so a single valid [auth] could not
+// exist. The union schema accepts the JWT group (issuer/audience) — functional — while
+// a complete PKCE client group is rejected loud (not yet functional on the compiled
+// path — #621), never silently accepted.
+
+// M-612: a JWT-only [auth] block now compiles (was rejected — this is the item-9 fix).
 #[test]
-fn test_auth_config_parses() {
+fn test_auth_jwt_only_compiles() {
     let toml = r#"
         [schema]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
 
-        [database]
-        url = "postgresql://localhost/test"
+        [auth]
+        issuer   = "https://accounts.google.com"
+        audience = "my-api"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    schema.validate().expect("a JWT-validation [auth] block must compile");
+    let auth = schema.auth.expect("auth section should be present");
+    assert_eq!(auth.issuer.as_deref(), Some("https://accounts.google.com"));
+    assert_eq!(auth.audience.as_deref(), Some("my-api"));
+}
+
+#[test]
+fn test_auth_issuer_without_audience_compiles() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+        issuer = "https://accounts.example.com"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    schema.validate().expect("issuer alone is a valid JWT [auth] block");
+}
+
+// M-612: a complete PKCE client group is rejected loud (recognized, not yet functional).
+#[test]
+fn test_auth_complete_client_group_rejected_loud() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
 
         [auth]
         discovery_url       = "https://accounts.google.com"
@@ -256,11 +296,63 @@ fn test_auth_config_parses() {
         server_redirect_uri = "https://api.example.com/auth/callback"
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
-    let auth = schema.auth.expect("auth section should be present");
-    assert_eq!(auth.discovery_url, "https://accounts.google.com");
-    assert_eq!(auth.client_id, "my-client-id");
-    assert_eq!(auth.client_secret_env, "OIDC_CLIENT_SECRET");
-    assert_eq!(auth.server_redirect_uri, "https://api.example.com/auth/callback");
+    let err = schema.validate().expect_err("a complete PKCE client group must be rejected");
+    let msg = err.to_string();
+    assert!(msg.contains("not yet functional"), "explains why it is rejected: {msg}");
+    assert!(msg.contains("#621"), "points at the tracking follow-up: {msg}");
+}
+
+#[test]
+fn test_auth_partial_client_group_rejected_names_missing() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+        issuer        = "https://accounts.example.com"
+        discovery_url = "https://accounts.example.com"
+        client_id     = "my-client-id"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let err = schema.validate().expect_err("an incomplete PKCE client group must be rejected");
+    let msg = err.to_string();
+    assert!(msg.contains("incomplete"), "flags the incomplete group: {msg}");
+    assert!(msg.contains("client_secret_env"), "names a missing field: {msg}");
+    assert!(msg.contains("server_redirect_uri"), "names a missing field: {msg}");
+}
+
+#[test]
+fn test_auth_empty_block_rejected() {
+    // A present-but-empty [auth] table configures nothing and must not pass silently.
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let err = schema.validate().expect_err("an empty [auth] block must be rejected");
+    assert!(err.to_string().contains("empty"), "explains the empty block: {err}");
+}
+
+#[test]
+fn test_auth_audience_without_issuer_rejected() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+        audience = "my-api"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let err = schema.validate().expect_err("audience without issuer must be rejected");
+    assert!(err.to_string().contains("issuer"), "explains issuer is required: {err}");
 }
 
 #[test]

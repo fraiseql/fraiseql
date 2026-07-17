@@ -361,14 +361,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             Some(service)
         };
 
-        // Warn if PKCE is configured but [auth] is missing (no OidcServerClient).
+        // Warn if PKCE is configured but no OidcServerClient could be built.
         #[cfg(feature = "auth")]
         if pkce_store.is_some() && oidc_server_client.is_none() {
             tracing::error!(
-                "pkce.enabled = true but [auth] is not configured or OIDC client init failed. \
-                 Auth routes (/auth/start, /auth/callback) will NOT be mounted. \
-                 Add [auth] with discovery_url, client_id, client_secret_env, and \
-                 server_redirect_uri to fraiseql.toml and recompile the schema."
+                "pkce.enabled = true but no OIDC client is available. Auth routes \
+                 (/auth/start, /auth/callback) will NOT be mounted. Building an \
+                 OidcServerClient from the compiled schema's [auth] block is not yet \
+                 functional (the compiled schema carries no auth/auth_endpoints) — \
+                 tracked in #621."
             );
         }
 

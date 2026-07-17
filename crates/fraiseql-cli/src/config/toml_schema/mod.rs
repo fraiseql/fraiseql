@@ -421,6 +421,13 @@ impl TomlSchema {
             }
         }
 
+        // Validate the [auth] block's group structure (#612 item 9): JWT group
+        // (issuer/audience) is functional; a PKCE client group is all-four-or-none and
+        // a complete one is rejected (not yet functional on the compiled path — #621).
+        if let Some(auth) = &self.auth {
+            auth.validate()?;
+        }
+
         Ok(())
     }
 
