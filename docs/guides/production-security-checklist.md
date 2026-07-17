@@ -25,7 +25,7 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 ## Network
 
 - [ ] Terminate TLS at a reverse proxy / load balancer — FraiseQL serves plaintext and **refuses to boot** if the `[tls]` section is set
-- [ ] Configure trusted proxy headers for accurate client IP extraction
+- [ ] Configure trusted proxy headers for accurate client IP extraction — set `trust_proxy_headers = true` **and** `trusted_proxy_cidrs` to your proxy ranges (e.g. `["10.0.0.0/8"]`) in `[security.rate_limiting]`. Without the CIDR restriction any client can spoof `X-Forwarded-For` to bypass per-IP rate limiting; use `["0.0.0.0/0"]` only to trust every proxy on purpose
 - [ ] Restrict admin endpoints to internal networks or VPN
 - [ ] Set CORS origins explicitly (avoid `*` in production)
 
