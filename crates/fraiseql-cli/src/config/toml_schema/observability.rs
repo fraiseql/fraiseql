@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Observability configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObservabilityConfig {
     /// Enable Prometheus metrics

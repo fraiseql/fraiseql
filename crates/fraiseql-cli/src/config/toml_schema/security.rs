@@ -478,20 +478,20 @@ impl Default for TrustedDocumentsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct TokenRevocationSecurityConfig {
     /// Enable token revocation
-    pub enabled:     bool,
+    pub enabled:             bool,
     /// Backend: `"redis"`, `"postgres"`, or `"memory"`
-    pub backend:     String,
+    pub backend:             String,
     /// Reject JWTs without a `jti` claim when revocation is enabled
     #[serde(default = "default_true")]
-    pub require_jti: bool,
+    pub require_jti:         bool,
     /// If revocation store is unreachable: `false` = reject (fail-closed), `true` = allow
     /// (fail-open)
     #[serde(default)]
-    pub fail_open:   bool,
+    pub fail_open:           bool,
     /// Redis URL for distributed revocation (optional — inherited from `[fraiseql.redis]` if
     /// absent)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redis_url:   Option<String>,
+    pub redis_url:           Option<String>,
     /// How long (seconds) a `revoke-all` epoch is retained.
     ///
     /// `revoke-all` records a per-user epoch rather than deleting individual tokens, so the

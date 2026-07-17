@@ -18,17 +18,14 @@ description = "SaaS platform with account management, billing, teams, and integr
 name = "saas"
 version = "1.0.0"
 
+# `[security.rules]` is declared-but-unenforced by the FraiseQL runtime (the
+# operation/field authorizers are pinned to None; see #612 / #626). The two
+# `[[security.rules]]` blocks that used to sit here ("only account owners can modify
+# Account", "only billing admins can manage Subscription") compiled but enforced
+# nothing, so they were removed rather than ship a false authorization claim.
+# `default_policy = "authenticated"` only closes the anonymous path. Enforce
+# per-owner / per-role write rules at the database layer (RLS policies + the session
+# variables FraiseQL sets from the request identity via `set_config()`; see
+# `resolve_session_variables` in fraiseql-core). A worked example is tracked in #628.
 [security]
 default_policy = "authenticated"
-
-[[security.rules]]
-cacheable = false
-description = "Only account owners can modify account settings"
-name = "allow_account_owners"
-rule = "mutation * Account"
-
-[[security.rules]]
-cacheable = false
-description = "Only billing admins can manage subscriptions"
-name = "allow_billing_admin"
-rule = "mutation * Subscription"
