@@ -384,7 +384,7 @@ fn schema_with_partial_period_and_session_vars() -> crate::schema::CompiledSchem
     schema
 }
 
-// M-610: the partial-period aggregate branch must resolve session variables so a
+// the partial-period aggregate branch must resolve session variables so a
 // PostgreSQL current_setting()-backed RLS policy constrains it — the same way the
 // standard aggregate path and the window path already do. Before the fix this branch
 // called the non-session aggregate method, so no session variables reached the
