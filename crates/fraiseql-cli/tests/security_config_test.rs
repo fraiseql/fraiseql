@@ -304,3 +304,112 @@ fn test_auth_client_secret_field_rejected() {
         "client_secret in TOML must be rejected — secrets belong in env vars, not config files"
     );
 }
+
+// ---------------------------------------------------------------------------
+// trusted_proxy_cidrs — the X-Forwarded-For safety valve (#609)
+// ---------------------------------------------------------------------------
+// Before the fix the CLI `RateLimitingSecurityConfig` lacked this field, so
+// `deny_unknown_fields` rejected it: the mitigation the docs recommend for
+// `trust_proxy_headers = true` was unsettable on the compiled path.
+
+// M-609: the block now parses (was rejected by deny_unknown_fields).
+#[test]
+fn test_trusted_proxy_cidrs_parses_into_schema() {
+    let toml = r#"
+        [security.rate_limiting]
+        enabled             = true
+        trust_proxy_headers = true
+        trusted_proxy_cidrs = ["10.0.0.0/8", "172.16.0.0/12"]
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let cfg = schema.security.rate_limiting.unwrap();
+    assert!(cfg.trust_proxy_headers);
+    assert_eq!(
+        cfg.trusted_proxy_cidrs,
+        Some(vec!["10.0.0.0/8".to_string(), "172.16.0.0/12".to_string()])
+    );
+}
+
+#[test]
+fn test_trusted_proxy_cidrs_default_none() {
+    let toml = r"
+        [security.rate_limiting]
+        enabled = true
+    ";
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    assert_eq!(schema.security.rate_limiting.unwrap().trusted_proxy_cidrs, None);
+}
+
+// M-609: the value survives end-to-end into the compiled schema (was dropped —
+// the compiled `security.rate_limiting` carried no `trusted_proxy_cidrs` key).
+#[test]
+fn test_trusted_proxy_cidrs_reach_compiled_schema() -> anyhow::Result<()> {
+    use std::fs;
+
+    use fraiseql_cli::schema::SchemaMerger;
+    use tempfile::TempDir;
+
+    let temp = TempDir::new()?;
+    let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[security.rate_limiting]
+enabled             = true
+trust_proxy_headers = true
+trusted_proxy_cidrs = ["10.0.0.0/8"]
+"#;
+    let toml_path = temp.path().join("fraiseql.toml");
+    fs::write(&toml_path, toml)?;
+
+    let schema = SchemaMerger::merge_toml_only(toml_path.to_str().unwrap())?;
+    let security = schema.security.expect("security section present in compiled schema");
+    assert_eq!(
+        security["rate_limiting"]["trusted_proxy_cidrs"],
+        serde_json::json!(["10.0.0.0/8"]),
+        "trusted_proxy_cidrs must survive into the compiled schema so the server can honour it"
+    );
+    Ok(())
+}
+
+// M-609: a malformed CIDR fails `fraiseql compile` (validate) with a clear message,
+// not silently at server boot. The server parses these strings into `ipnet::IpNet`;
+// validating at compile time surfaces the error where the operator is authoring.
+#[test]
+fn test_malformed_trusted_proxy_cidr_fails_validation() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [security.rate_limiting]
+        enabled             = true
+        trust_proxy_headers = true
+        trusted_proxy_cidrs = ["not-a-cidr"]
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let err = schema.validate().expect_err("a malformed CIDR must fail validation");
+    let msg = err.to_string();
+    assert!(msg.contains("not-a-cidr"), "error names the offending value: {msg}");
+    assert!(msg.contains("trusted_proxy_cidrs"), "error names the field: {msg}");
+}
+
+#[test]
+fn test_valid_trusted_proxy_cidrs_pass_validation() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [security.rate_limiting]
+        enabled             = true
+        trust_proxy_headers = true
+        trusted_proxy_cidrs = ["10.0.0.0/8", "0.0.0.0/0", "::1/128"]
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    schema.validate().expect("valid IPv4/IPv6 CIDR ranges pass validation");
+}

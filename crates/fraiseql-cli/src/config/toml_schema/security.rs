@@ -230,6 +230,18 @@ pub struct RateLimitingSecurityConfig {
     /// Enabling without a trusted proxy allows clients to spoof their IP address.
     #[serde(default)]
     pub trust_proxy_headers: bool,
+    /// CIDR ranges trusted as proxy IPs (e.g. `["10.0.0.0/8", "172.16.0.0/12"]`).
+    ///
+    /// When set and `trust_proxy_headers = true`, `X-Forwarded-For` is only honoured
+    /// when the direct connection IP falls within one of these ranges — requests from
+    /// outside them use the connection IP directly, preventing clients from spoofing
+    /// their address. Use `["0.0.0.0/0"]` to trust every proxy IP explicitly.
+    ///
+    /// When omitted with `trust_proxy_headers = true`, all proxy IPs are trusted
+    /// (less secure — the server emits a startup warning). CIDR strings are validated
+    /// at compile time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_proxy_cidrs: Option<Vec<String>>,
 }
 
 impl Default for RateLimitingSecurityConfig {
@@ -251,6 +263,7 @@ impl Default for RateLimitingSecurityConfig {
             failed_login_lockout_secs: 900,
             redis_url: None,
             trust_proxy_headers: false,
+            trusted_proxy_cidrs: None,
         }
     }
 }
