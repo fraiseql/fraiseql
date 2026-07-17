@@ -379,6 +379,11 @@ impl SchemaMerger {
     /// Merge JSON types with TOML schema
     #[allow(clippy::cognitive_complexity)] // Reason: deep merge of two schema formats with many field-level transformations
     fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
+        // #612: reject accepted-but-unconsumed config on EVERY compile path. The full
+        // `TomlSchema::validate()` is skipped on the `--types` path (`merge_files`), but
+        // these sections are self-contained and must never compile silently.
+        toml_schema.reject_accepted_but_unconsumed_config()?;
+
         // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
         if toml_schema.queries.contains_key("defaults") {
             anyhow::bail!(

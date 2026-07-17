@@ -306,6 +306,64 @@ fn test_auth_client_secret_field_rejected() {
 }
 
 // ---------------------------------------------------------------------------
+// token_revocation.revoke_all_ttl_secs — WIRE (#612 item 6)
+// ---------------------------------------------------------------------------
+// The server reads `security.token_revocation.revoke_all_ttl_secs` (default 86400)
+// and the docs instruct setting it, but the CLI struct lacked the field, so
+// `deny_unknown_fields` rejected it — the value could never reach the server.
+
+// M-612: the field now parses (was rejected by deny_unknown_fields).
+#[test]
+fn test_revoke_all_ttl_secs_parses() {
+    let toml = r"
+        [security.token_revocation]
+        enabled             = true
+        revoke_all_ttl_secs = 172800
+    ";
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let cfg = schema.security.token_revocation.unwrap();
+    assert_eq!(cfg.revoke_all_ttl_secs, 172_800);
+}
+
+#[test]
+fn test_revoke_all_ttl_secs_defaults_to_86400() {
+    use fraiseql_cli::config::toml_schema::TokenRevocationSecurityConfig;
+    assert_eq!(TokenRevocationSecurityConfig::default().revoke_all_ttl_secs, 86_400);
+}
+
+// M-612: the value reaches the compiled schema (was absent — server used its 86400 default).
+#[test]
+fn test_revoke_all_ttl_secs_reaches_compiled_schema() -> anyhow::Result<()> {
+    use std::fs;
+
+    use fraiseql_cli::schema::SchemaMerger;
+    use tempfile::TempDir;
+
+    let temp = TempDir::new()?;
+    let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[security.token_revocation]
+enabled             = true
+revoke_all_ttl_secs = 172800
+"#;
+    let toml_path = temp.path().join("fraiseql.toml");
+    fs::write(&toml_path, toml)?;
+
+    let schema = SchemaMerger::merge_toml_only(toml_path.to_str().unwrap())?;
+    let security = schema.security.expect("security section present in compiled schema");
+    assert_eq!(
+        security["token_revocation"]["revoke_all_ttl_secs"],
+        serde_json::json!(172_800),
+        "revoke_all_ttl_secs must reach the compiled schema so the server honours it"
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // trusted_proxy_cidrs — the X-Forwarded-For safety valve (#609)
 // ---------------------------------------------------------------------------
 // Before the fix the CLI `RateLimitingSecurityConfig` lacked this field, so

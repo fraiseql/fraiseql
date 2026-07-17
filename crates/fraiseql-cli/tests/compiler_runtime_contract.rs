@@ -178,20 +178,10 @@ required = true
 [security]
 default_policy = "public"
 
-[[security.rules]]
-name = "read_own"
-rule = "user.id == object.owner_id"
-description = "owner read"
-cacheable = true
-cache_ttl_seconds = 300
-
-[[security.policies]]
-name = "admin_only"
-type = "rbac"
-roles = ["admin"]
-strategy = "any"
-description = "admins"
-cache_ttl_seconds = 600
+# Note: [[security.rules]] / [[security.policies]] are intentionally absent —
+# declared-but-unenforced authorization is rejected at compile (#612 item 4 / #626).
+# The emit↔parse contract this test guards is exercised by the remaining security
+# fields (default_policy, enterprise).
 
 [security.enterprise]
 rate_limiting_enabled = true

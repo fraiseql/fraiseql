@@ -79,7 +79,6 @@ mod security_config_tests {
         let config = SecurityConfigFromSchema::default();
         assert!(config.audit_logging.enabled);
         assert!(config.error_sanitization.enabled);
-        assert!(config.rate_limiting.enabled);
         assert!(config.state_encryption.enabled);
     }
 
@@ -90,19 +89,11 @@ mod security_config_tests {
                 "enabled": true,
                 "logLevel": "debug",
                 "includeSensitiveData": false
-            },
-            "rateLimiting": {
-                "enabled": true,
-                "authStart": {
-                    "maxRequests": 200,
-                    "windowSecs": 60
-                }
             }
         });
 
         let config = SecurityConfigFromSchema::from_json(&json).expect("Failed to parse");
         assert_eq!(config.audit_logging.log_level, "debug");
-        assert_eq!(config.rate_limiting.auth_start_max_requests, 200);
     }
 
     #[test]
@@ -126,7 +117,6 @@ mod security_init_tests {
         let config = init_default_security_config();
         assert!(config.audit_logging.enabled);
         assert!(config.error_sanitization.enabled);
-        assert!(config.rate_limiting.enabled);
         assert!(config.state_encryption.enabled);
     }
 
@@ -162,13 +152,6 @@ mod security_init_tests {
                 "auditLogging": {
                     "enabled": true,
                     "logLevel": "debug"
-                },
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 200,
-                        "windowSecs": 60
-                    }
                 }
             }
         });
@@ -176,7 +159,6 @@ mod security_init_tests {
         let cfg = init_security_config_from_value(&json)
             .unwrap_or_else(|e| panic!("expected Ok for valid security JSON: {e}"));
         assert_eq!(cfg.audit_logging.log_level, "debug");
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 200);
     }
 
     #[test]

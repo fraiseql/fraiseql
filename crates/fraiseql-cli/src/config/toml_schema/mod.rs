@@ -273,16 +273,110 @@ impl TomlSchema {
         toml::from_str(&expanded).context("Failed to parse TOML schema")
     }
 
+    /// Reject config sections the CLI accepts but no runtime consumes (#612).
+    ///
+    /// Each of these validated-then-did-nothing: the compiler embedded (or silently
+    /// dropped) the section and the server never read it, so an operator who set it
+    /// was misled. Per the fix-forward "honest-loud over silently-wrong" stance, each
+    /// now fails at load with a pointer to the real mechanism or the tracking issue,
+    /// rather than compiling a dishonest configuration. Mirrors the v2.7.0
+    /// field-encryption precedent (refuse rather than run an unsupported config).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of `[security.rules]` / `[security.policies]` /
+    /// `[security.field_auth]` (declared-but-unenforced authorization), `[caching]`,
+    /// `[analytics]`, a non-default `[observability]`, or a non-`env`
+    /// `[security.api_keys] storage` is present.
+    ///
+    /// Called from both [`Self::validate`] and the merger's `merge_values` so that no
+    /// compile path can bypass it — the `--types` path (`merge_files`) deliberately
+    /// skips the rest of `validate()` (queries may reference types from `types.json`),
+    /// but these sections are self-contained and must be rejected there too.
+    pub(crate) fn reject_accepted_but_unconsumed_config(&self) -> Result<()> {
+        // #4 (security-shaped, highest-stakes): declared authorization the runtime does
+        // not enforce. `RuntimeConfig::from_compiled_schema` pins the operation- and
+        // field-authorizers to None, so any access boundary these blocks imply does not
+        // exist. Fail loud rather than let a deployment believe it enforces authz.
+        if !self.security.rules.is_empty()
+            || !self.security.policies.is_empty()
+            || !self.security.field_auth.is_empty()
+        {
+            anyhow::bail!(
+                "[security.rules] / [security.policies] / [security.field_auth] declare \
+                 authorization that the FraiseQL runtime does NOT enforce: the server pins \
+                 the operation- and field-authorizers to None, so the access boundary these \
+                 blocks imply does not exist. Remove the block(s). Enforce authorization at \
+                 the database layer (RLS policies keyed on the session variables FraiseQL \
+                 sets from the request identity) until a compiled-schema declarative \
+                 authorization engine ships — tracked at \
+                 https://github.com/fraiseql/fraiseql/issues/626."
+            );
+        }
+
+        // #1 [caching]: never lowered into the compiled schema and never consumed;
+        // server result caching is configured elsewhere. Reject a configured section.
+        if self.caching.enabled || !self.caching.rules.is_empty() {
+            anyhow::bail!(
+                "[caching] is accepted but not consumed: the compiler does not lower it into \
+                 the compiled schema and no runtime honors it, so `enabled` / \
+                 `[[caching.rules]]` silently do nothing. Remove the [caching] section. \
+                 Declarative per-rule result caching is tracked at \
+                 https://github.com/fraiseql/fraiseql/issues/623."
+            );
+        }
+
+        // #2 [analytics]: fully inert — never merged, never read.
+        if self.analytics.enabled || !self.analytics.queries.is_empty() {
+            anyhow::bail!(
+                "[analytics] is accepted but fully inert: nothing in the compiler or runtime \
+                 consumes it. Remove the [analytics] section. Analytics query definitions are \
+                 tracked at https://github.com/fraiseql/fraiseql/issues/624."
+            );
+        }
+
+        // #3 [observability]: inert on the compiled path — the real metrics/tracing config
+        // lives in the server's runtime `[metrics]` / `[tracing]` sections.
+        if self.observability != ObservabilityConfig::default() {
+            anyhow::bail!(
+                "[observability] is accepted but not consumed on the compiled path. Configure \
+                 metrics under the server's [metrics] section and tracing under [tracing] in \
+                 fraiseql.toml (logging via RUST_LOG / the server log settings), then remove \
+                 [observability]. Alias-vs-remove rationale: \
+                 https://github.com/fraiseql/fraiseql/issues/625."
+            );
+        }
+
+        // #7 [security.api_keys] storage: only `env` (static keys) is implemented; the
+        // server never reads `.storage`, so `postgres` authenticates nothing.
+        if let Some(api_keys) = &self.security.api_keys {
+            if api_keys.storage != "env" {
+                anyhow::bail!(
+                    "[security.api_keys] storage = \"{}\" is not implemented: the server only \
+                     authenticates static `env` keys and never reads a postgres-backed key \
+                     store, so this value authenticates nothing. Set storage = \"env\". A \
+                     postgres-backed API-key store is tracked at \
+                     https://github.com/fraiseql/fraiseql/issues/627.",
+                    api_keys.storage
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     /// Validate schema
     ///
     /// # Errors
     ///
-    /// Returns an error if any query or mutation references an undefined type,
-    /// if a field auth rule references an undefined policy, if a federation
-    /// entity references an undefined type, or if server/database/circuit-breaker
-    /// configuration values are invalid.
+    /// Returns an error if any accepted-but-unconsumed config section is present
+    /// (see `reject_accepted_but_unconsumed_config`), if any query or mutation
+    /// references an undefined type, if a federation entity references an undefined
+    /// type, or if server/database/circuit-breaker configuration values are invalid.
     pub fn validate(&self) -> Result<()> {
         use fraiseql_core::runtime::suggest_similar;
+
+        self.reject_accepted_but_unconsumed_config()?;
 
         let type_names: Vec<&str> = self.types.keys().map(String::as_str).collect();
 
@@ -304,20 +398,6 @@ impl TomlSchema {
                 anyhow::bail!(
                     "Mutation '{mut_name}' references undefined type '{}'{hint}",
                     mut_def.return_type
-                );
-            }
-        }
-
-        // Validate field auth rules reference existing policies
-        for field_auth in &self.security.field_auth {
-            let policy_exists = self.security.policies.iter().any(|p| p.name == field_auth.policy);
-            if !policy_exists {
-                let policy_names: Vec<&str> =
-                    self.security.policies.iter().map(|p| p.name.as_str()).collect();
-                let hint = format_suggestions(suggest_similar(&field_auth.policy, &policy_names));
-                anyhow::bail!(
-                    "Field auth references undefined policy '{}'{hint}",
-                    field_auth.policy
                 );
             }
         }

@@ -16,9 +16,8 @@ use std::collections::BTreeMap;
 use fraiseql_cli::config::{
     SecurityConfig,
     toml_schema::{
-        AuthorizationPolicy, FederationCircuitBreakerConfig, FederationEntity, FieldAuthRule,
-        MutationDefinition, PerDatabaseCircuitBreakerOverride, QueryDefinition, TomlSchema,
-        TypeDefinition,
+        FederationCircuitBreakerConfig, FederationEntity, MutationDefinition,
+        PerDatabaseCircuitBreakerOverride, QueryDefinition, TomlSchema, TypeDefinition,
     },
 };
 
@@ -115,50 +114,15 @@ fn diagnostic_query_type_typo_suggests_correction() {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Field auth referencing an undefined policy
+// 4 & 5. (removed) Field-auth policy-reference diagnostics.
+//
+// `[security.field_auth]` / `[security.policies]` are now rejected wholesale at
+// load — declared-but-unenforced authorization (#612 item 4 / #626) — so the
+// former "undefined policy" and "did you mean" diagnostics for the field-auth path
+// no longer apply. The rejection is pinned in `config_coverage_pin_test.rs` and
+// `integration_toml_workflow.rs`; the `suggest_similar` machinery stays covered by
+// the query- and federation-undefined diagnostics below.
 // ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_field_auth_undefined_policy() {
-    let mut schema = base_schema_with_user();
-    schema.security.field_auth.push(FieldAuthRule {
-        type_name:  "User".to_string(),
-        field_name: "email".to_string(),
-        policy:     "admin_only".to_string(),
-    });
-    // No policies defined — should fail
-
-    let err = schema.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
-// 5. Field auth policy typo (close to existing policy)
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_field_auth_policy_typo_suggests_correction() {
-    let mut schema = base_schema_with_user();
-    schema.security.policies.push(AuthorizationPolicy {
-        name:              "admin_only".to_string(),
-        policy_type:       "RBAC".to_string(),
-        rule:              None,
-        roles:             vec!["admin".to_string()],
-        strategy:          None,
-        attributes:        vec![],
-        description:       None,
-        cache_ttl_seconds: None,
-    });
-    // Typo: "admin_onyl" — edit distance 2 from "admin_only"
-    schema.security.field_auth.push(FieldAuthRule {
-        type_name:  "User".to_string(),
-        field_name: "email".to_string(),
-        policy:     "admin_onyl".to_string(),
-    });
-
-    let err = schema.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
 
 // ---------------------------------------------------------------------------
 // 6. Federation entity referencing an undefined type

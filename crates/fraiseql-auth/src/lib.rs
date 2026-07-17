@@ -124,8 +124,8 @@ pub use saml::{
     saml_provider_key, saml_routes, verify_saml_response,
 };
 pub use security_config::{
-    AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
-    SecurityConfigFromSchema, StateEncryptionSettings,
+    AuditLoggingSettings, ErrorSanitizationSettings, SecurityConfigFromSchema,
+    StateEncryptionSettings,
 };
 pub use security_init::{
     init_default_security_config, init_security_config, log_security_config,

@@ -147,7 +147,10 @@ The new domains are automatically discovered!
 ## Production Considerations
 
 1. **Database**: Each query should have corresponding database views
-2. **Security**: Implement proper authz rules in fraiseql.toml
+2. **Security**: Enforce authorization at the database layer with RLS policies keyed on
+   a session variable FraiseQL sets from the request identity — **not** with
+   `[security.rules]` in `fraiseql.toml`, which is declared-but-unenforced (#612 / #626).
+   See `resolve_session_variables` in fraiseql-core; a worked example is tracked in #628.
 3. **Performance**: Add indexes on accountId for tenant isolation
 4. **Compliance**: Ensure GDPR/data deletion compliance per account
 

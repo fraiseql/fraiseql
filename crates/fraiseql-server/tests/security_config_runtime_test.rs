@@ -6,10 +6,15 @@
 //! 3. Environment variable overrides are applied
 //! 4. Security subsystems are initialized
 //!
+//! Rate limiting is **not** exercised here: the live rate-limit config is read by
+//! the server middleware from the compiled schema's flat `security.rate_limiting`
+//! `snake_case` key (`RateLimitingSecurityConfig`), not by `SecurityConfigFromSchema`.
+//! The nested-`camelCase` reader that used to own it here was removed under #612
+//! (item 5b) because it never matched the merger's emitted shape.
+//!
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
-
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #[cfg(test)]
 mod tests {
@@ -37,29 +42,6 @@ mod tests {
                     "internalLogging": true,
                     "leakSensitiveDetails": false,
                     "userFacingFormat": "generic"
-                },
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 100,
-                        "windowSecs": 60
-                    },
-                    "authCallback": {
-                        "maxRequests": 50,
-                        "windowSecs": 60
-                    },
-                    "authRefresh": {
-                        "maxRequests": 10,
-                        "windowSecs": 60
-                    },
-                    "authLogout": {
-                        "maxRequests": 20,
-                        "windowSecs": 60
-                    },
-                    "failedLogin": {
-                        "maxRequests": 5,
-                        "windowSecs": 3600
-                    }
                 },
                 "stateEncryption": {
                     "enabled": true,
@@ -93,14 +75,6 @@ mod tests {
         assert!(!cfg.error_sanitization.leak_sensitive_details);
         assert_eq!(cfg.error_sanitization.user_facing_format, "generic");
 
-        // Verify rate limiting settings
-        assert!(cfg.rate_limiting.enabled);
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 100);
-        assert_eq!(cfg.rate_limiting.auth_start_window_secs, 60);
-        assert_eq!(cfg.rate_limiting.auth_callback_max_requests, 50);
-        assert_eq!(cfg.rate_limiting.failed_login_max_requests, 5);
-        assert_eq!(cfg.rate_limiting.failed_login_window_secs, 3600);
-
         // Verify state encryption settings
         assert!(cfg.state_encryption.enabled);
         assert_eq!(cfg.state_encryption.algorithm, "chacha20-poly1305");
@@ -117,13 +91,6 @@ mod tests {
                 "auditLogging": {
                     "enabled": true,
                     "logLevel": "debug"
-                },
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 200,
-                        "windowSecs": 120
-                    }
                 }
             }
         }"#;
@@ -133,8 +100,6 @@ mod tests {
             .unwrap_or_else(|e| panic!("Failed to initialize security config from schema: {e}"));
         // Verify custom values were loaded
         assert_eq!(cfg.audit_logging.log_level, "debug");
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 200);
-        assert_eq!(cfg.rate_limiting.auth_start_window_secs, 120);
 
         // Verify other values use defaults
         assert!(cfg.audit_logging.enabled);
@@ -170,9 +135,6 @@ mod tests {
         assert!(config.error_sanitization.enabled);
         assert!(config.error_sanitization.generic_messages);
         assert!(!config.error_sanitization.leak_sensitive_details);
-
-        assert!(config.rate_limiting.enabled);
-        assert_eq!(config.rate_limiting.auth_start_max_requests, 100);
 
         assert!(config.state_encryption.enabled);
         assert_eq!(config.state_encryption.algorithm, "chacha20-poly1305");
@@ -212,13 +174,6 @@ mod tests {
                 "errorSanitization": {
                     "enabled": true
                 },
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 150,
-                        "windowSecs": 60
-                    }
-                },
                 "stateEncryption": {
                     "enabled": true,
                     "algorithm": "chacha20-poly1305"
@@ -234,7 +189,6 @@ mod tests {
 
         // Verify custom config values from security section
         assert_eq!(cfg.audit_logging.log_level, "warn");
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 150);
     }
 
     #[test]
@@ -259,47 +213,6 @@ mod tests {
 
         // Other settings use defaults
         assert!(cfg.error_sanitization.enabled);
-        assert!(cfg.rate_limiting.enabled);
         assert!(cfg.state_encryption.enabled);
-    }
-
-    #[test]
-    fn test_security_config_rate_limit_windows() {
-        // Test various rate limit window configurations
-        let schema_json = json!({
-            "security": {
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 50,
-                        "windowSecs": 120
-                    },
-                    "authCallback": {
-                        "maxRequests": 25,
-                        "windowSecs": 180
-                    },
-                    "failedLogin": {
-                        "maxRequests": 3,
-                        "windowSecs": 1800
-                    }
-                }
-            }
-        });
-
-        let security_value = schema_json.get("security").unwrap();
-        let config = fraiseql_server::auth::SecurityConfigFromSchema::from_json(security_value);
-
-        let cfg =
-            config.unwrap_or_else(|e| panic!("expected Ok parsing rate limit window config: {e}"));
-
-        // Verify rate limit configuration
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 50);
-        assert_eq!(cfg.rate_limiting.auth_start_window_secs, 120);
-
-        assert_eq!(cfg.rate_limiting.auth_callback_max_requests, 25);
-        assert_eq!(cfg.rate_limiting.auth_callback_window_secs, 180);
-
-        assert_eq!(cfg.rate_limiting.failed_login_max_requests, 3);
-        assert_eq!(cfg.rate_limiting.failed_login_window_secs, 1800);
     }
 }
