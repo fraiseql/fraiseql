@@ -114,6 +114,14 @@ The identity proxy:
 
 FraiseQL points its `[auth]` configuration at the proxy's OIDC endpoint.
 
+> **⚠️ Status (#621):** The compiled-path PKCE `[auth]` **server-login** blocks below
+> (`discovery_url` / `client_id` / `client_secret_env` / `server_redirect_uri`) are
+> **not yet functional** — the compiled schema does not carry the `[auth]` block or the
+> cached OIDC endpoints the server needs, so `fraiseql compile` currently **rejects** a
+> complete `[auth]` client group. Wiring it end-to-end is tracked in
+> [#621](https://github.com/fraiseql/fraiseql/issues/621). **JWT validation** via
+> `[auth] issuer = "…"` (validating tokens the proxy issues) is unaffected and works today.
+
 ## Recommended proxies
 
 | Proxy | Hosting | Best for |

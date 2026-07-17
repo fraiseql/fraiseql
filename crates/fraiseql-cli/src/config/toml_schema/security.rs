@@ -528,32 +528,114 @@ impl Default for TokenRevocationSecurityConfig {
     }
 }
 
-/// OAuth2 client configuration for server-side PKCE flows.
+/// OIDC configuration for `[auth]`.
 ///
-/// The client secret is intentionally absent — use `client_secret_env` to
-/// name the environment variable that holds the secret at runtime.
+/// Two independent groups may be configured, together or separately:
+///
+/// - **JWT validation** — `issuer` (required for this group), `audience` (optional). The server
+///   consumes these to validate incoming bearer tokens. Accepted and functional.
+/// - **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`, `client_secret_env`,
+///   `server_redirect_uri`, configured all four together. **Not yet functional on the compiled path
+///   (tracked in #621):** the compiled schema carries no `auth`/`auth_endpoints` for the server to
+///   consume, so a complete client group is *rejected at compile time* rather than silently
+///   accepted.
+///
+/// At least one group must be present; an empty `[auth]` is a load error. The client
+/// secret itself must never appear here — `client_secret_env` names the environment
+/// variable that holds it.
 ///
 /// ```toml
 /// [auth]
-/// discovery_url       = "https://accounts.google.com"
-/// client_id           = "my-fraiseql-client"
-/// client_secret_env   = "OIDC_CLIENT_SECRET"
-/// server_redirect_uri = "https://api.example.com/auth/callback"
+/// issuer   = "https://accounts.google.com"
+/// audience = "my-api"
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct OidcClientConfig {
-    /// OIDC provider discovery URL (e.g. `"https://accounts.google.com"`).
-    /// Used to fetch `authorization_endpoint` and `token_endpoint` at compile time.
-    pub discovery_url:       String,
-    /// OAuth2 `client_id` registered with the provider.
-    pub client_id:           String,
-    /// Name of the environment variable that holds the client secret.
+    /// OIDC issuer URL for JWT validation (e.g. `"https://accounts.google.com"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issuer:              Option<String>,
+    /// Expected `aud` claim for JWT validation (optional; only meaningful with `issuer`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience:            Option<String>,
+    /// PKCE: OIDC provider discovery URL. **Not yet functional (#621).**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discovery_url:       Option<String>,
+    /// PKCE: OAuth2 `client_id` registered with the provider. **Not yet functional (#621).**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id:           Option<String>,
+    /// PKCE: name of the environment variable that holds the client secret.
     /// The secret itself must never appear in TOML or the compiled schema.
-    pub client_secret_env:   String,
-    /// The full URL of this server's `/auth/callback` endpoint,
-    /// e.g. `"https://api.example.com/auth/callback"`.
-    pub server_redirect_uri: String,
+    /// **Not yet functional (#621).**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret_env:   Option<String>,
+    /// PKCE: the full URL of this server's `/auth/callback` endpoint.
+    /// **Not yet functional (#621).**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_redirect_uri: Option<String>,
+}
+
+impl OidcClientConfig {
+    /// Validate the `[auth]` group structure (#612 item 9).
+    ///
+    /// The JWT group (`issuer` + optional `audience`) is accepted and functional. The
+    /// PKCE client group is all-four-or-none, and a *complete* client group is rejected
+    /// — it is not yet functional on the compiled path (#621), so it is refused rather
+    /// than silently accepted. At least one group must be present.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the specific problem: an incomplete client group (with the
+    /// missing fields), a complete-but-unsupported client group, `audience` without
+    /// `issuer`, or an empty `[auth]` block.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        let client_fields = [
+            ("discovery_url", self.discovery_url.is_some()),
+            ("client_id", self.client_id.is_some()),
+            ("client_secret_env", self.client_secret_env.is_some()),
+            ("server_redirect_uri", self.server_redirect_uri.is_some()),
+        ];
+        let client_set = client_fields.iter().filter(|(_, set)| *set).count();
+        let has_client_group = client_set > 0;
+        let has_jwt_group = self.issuer.is_some();
+
+        if has_client_group && client_set < client_fields.len() {
+            let missing: Vec<&str> =
+                client_fields.iter().filter(|(_, set)| !*set).map(|(name, _)| *name).collect();
+            anyhow::bail!(
+                "[auth] PKCE OAuth-client config is incomplete: discovery_url, client_id, \
+                 client_secret_env, and server_redirect_uri must be set together (missing: {}).",
+                missing.join(", ")
+            );
+        }
+
+        if has_client_group {
+            // client_set == 4 here (all-or-none enforced above).
+            anyhow::bail!(
+                "[auth] PKCE OAuth-client config (discovery_url, client_id, client_secret_env, \
+                 server_redirect_uri) is recognized but not yet functional on the compiled path: \
+                 the compiled schema carries no auth/auth_endpoints for the server to consume. \
+                 Remove these fields and use [auth] issuer/audience for JWT validation, or track \
+                 the wiring in #621."
+            );
+        }
+
+        if self.audience.is_some() && !has_jwt_group {
+            anyhow::bail!(
+                "[auth] audience is set but issuer is not. JWT validation requires issuer — \
+                 add issuer, or remove audience."
+            );
+        }
+
+        if !has_jwt_group {
+            anyhow::bail!(
+                "[auth] is empty. Configure JWT validation with issuer (audience optional). \
+                 An empty [auth] block does nothing."
+            );
+        }
+
+        Ok(())
+    }
 }
 
 fn default_true() -> bool {

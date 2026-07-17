@@ -1,7 +1,17 @@
 # Auth0 with FraiseQL
 
-Auth0 is an OIDC-compliant provider that works with FraiseQL's existing PKCE
-authentication flow **without any code changes**. This guide covers configuration.
+Auth0 is an OIDC-compliant provider that works with FraiseQL's PKCE
+authentication flow. This guide covers configuration.
+
+> **⚠️ Status (#621):** The compiled-path PKCE `[auth]` **server-login** flow shown
+> below (`discovery_url` / `client_id` / `client_secret_env` / `server_redirect_uri`)
+> is **not yet functional** — the compiled schema does not carry the `[auth]` block or
+> the cached OIDC endpoints the server needs to build an `OidcServerClient`, so
+> `fraiseql compile` currently **rejects** a complete `[auth]` client group. Wiring it
+> end-to-end is tracked in
+> [#621](https://github.com/fraiseql/fraiseql/issues/621). **JWT validation** via
+> `[auth] issuer = "…"` (validating Auth0-issued bearer tokens) is unaffected and works
+> today.
 
 ## Prerequisites
 

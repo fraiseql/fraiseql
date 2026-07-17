@@ -358,6 +358,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A single `[auth]` block now validates on both the CLI compiler and the server (#612).**
+  The CLI's `[auth]` schema required the PKCE OAuth-client fields (`discovery_url`,
+  `client_id`, `client_secret_env`, `server_redirect_uri`) with `deny_unknown_fields`,
+  while the server's OIDC config — read from the **same** `fraiseql.toml` — expects
+  `issuer`. So a JWT-validation block (`[auth] issuer = "…"`) failed `fraiseql compile`,
+  and no single `[auth]` could satisfy both tools. `[auth]` now accepts a **JWT-validation
+  group** (`issuer` + optional `audience`) and a **PKCE OAuth-client group** (the four
+  client fields), each validated as a coherent unit (client group is all-four-or-none;
+  `audience` requires `issuer`; an empty `[auth]` is a load error). The PKCE server-login
+  flow is **not yet functional on the compiled path** — the compiled schema carries no
+  `auth`/`auth_endpoints` blob for the server's `OidcServerClient`, and the CLI never
+  emitted one — so a *complete* client group is now **rejected at compile time with a
+  pointer to #621** instead of being silently accepted (the item-4 precedent: declared-but-
+  unenforced auth fails loud). The previously-false operator instructions that told
+  operators to configure those four fields (`builder.rs` startup error, the Auth0 and SAML
+  integration guides) are corrected to say so. JWT validation is unaffected.
+
 - **RLS session variables now reach the Relay `node(id:)` and partial-period aggregate
   read paths (#610).** Both paths ran their read without resolving the schema's configured
   `session_variables`, so a PostgreSQL RLS policy reading `current_setting()` did not
