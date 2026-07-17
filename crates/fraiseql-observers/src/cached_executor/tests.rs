@@ -140,6 +140,7 @@ fn test_cache_key_generation() {
     let action = ActionConfig::Webhook {
         url:                Some("https://example.com".to_string()),
         url_env:            None,
+        method:             None,
         headers:            std::collections::HashMap::new(),
         body_template:      Some("{}".to_string()),
         signing_secret:     None,

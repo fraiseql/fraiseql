@@ -169,6 +169,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 ActionConfig::Webhook {
                     url,
                     url_env,
+                    method,
                     headers,
                     body_template,
                     signing_secret,
@@ -188,6 +189,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         .webhook_action
                         .execute(
                             &webhook_url,
+                            method.as_deref(),
                             headers,
                             body_template.as_deref(),
                             resolved_secret.as_deref(),

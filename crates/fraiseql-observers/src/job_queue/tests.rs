@@ -169,6 +169,7 @@ mod job_queue_tests {
             ActionConfig::Webhook {
                 url:                Some("http://example.com".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            std::collections::HashMap::default(),
                 body_template:      None,
                 signing_secret:     None,

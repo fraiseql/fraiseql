@@ -113,6 +113,7 @@ fn test_job_creation_with_fixed_backoff() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -139,6 +140,7 @@ fn test_job_creation_with_linear_backoff() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -163,6 +165,7 @@ fn test_job_creation_with_exponential_backoff() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -190,6 +193,7 @@ fn test_job_retry_counting() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -235,6 +239,7 @@ fn test_job_with_webhook_action() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://api.example.com/webhooks/event".to_string()),
             url_env:            None,
+            method:             None,
             headers:            {
                 let mut h = HashMap::new();
                 h.insert("X-API-Key".to_string(), "secret".to_string());
@@ -353,6 +358,7 @@ fn test_backoff_strategies() -> Result<()> {
             ActionConfig::Webhook {
                 url:                Some("http://example.com/webhook".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            HashMap::new(),
                 body_template:      None,
                 signing_secret:     None,
@@ -381,6 +387,7 @@ fn test_job_lifecycle() -> Result<()> {
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
+            method:             None,
             headers:            HashMap::new(),
             body_template:      None,
             signing_secret:     None,
@@ -426,6 +433,7 @@ fn test_job_config_combinations() -> Result<()> {
             ActionConfig::Webhook {
                 url:                Some("http://example.com/webhook".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            HashMap::new(),
                 body_template:      None,
                 signing_secret:     None,

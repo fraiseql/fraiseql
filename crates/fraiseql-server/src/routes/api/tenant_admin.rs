@@ -63,7 +63,11 @@ pub struct TenantRegistrationRequest {
     /// Maximum concurrent in-flight requests. `None` = unlimited.
     #[serde(default)]
     pub max_concurrent:       Option<u32>,
-    /// Maximum storage in bytes (soft limit). `None` = unlimited.
+    /// Maximum storage in bytes. **Advisory only — accepted and stored but NOT
+    /// enforced** (#612 item 13): FraiseQL has no usage-metering path, so no
+    /// request is ever rejected on the basis of this value. It is retained as an
+    /// operator annotation. Metering + enforcement is tracked at
+    /// <https://github.com/fraiseql/fraiseql/issues/633>. `None` = unset.
     #[serde(default)]
     pub max_storage_bytes:    Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` = no

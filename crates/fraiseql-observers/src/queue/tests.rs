@@ -20,6 +20,7 @@ mod queue_tests {
             action_config: ActionConfig::Webhook {
                 url:                Some("http://localhost:8000".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            std::collections::HashMap::new(),
                 body_template:      None,
                 signing_secret:     None,

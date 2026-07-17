@@ -1,6 +1,19 @@
 //! Prometheus metrics registry for observer system
 //!
 //! This module defines and manages all Prometheus metrics for the observer system.
+//!
+//! # Scrape reachability (#612 item 14)
+//!
+//! These series register into the [`prometheus`] crate's **default global
+//! registry** and are exposed by this crate's own `/metrics` handler
+//! ([`crate::metrics::handler`], which calls `prometheus::gather()`). The
+//! `fraiseql-server` `/metrics` endpoint uses a *different* ecosystem
+//! (`metrics` / `metrics-exporter-prometheus`) and never calls
+//! `prometheus::gather()`, so **it does not scrape these observer metrics** —
+//! even when `observers-enterprise` compiles the series in. To collect observer
+//! metrics today, mount this crate's `/metrics` handler. Bridging the two
+//! registries so the server's `/metrics` also exposes them is tracked at
+//! <https://github.com/fraiseql/fraiseql/issues/634>.
 
 use std::sync::OnceLock;
 

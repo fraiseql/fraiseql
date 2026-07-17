@@ -4,16 +4,42 @@ use axum::{
     Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use fraiseql_core::security::SecurityContext;
 use uuid::Uuid;
 
 use super::{
-    CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
-    PaginatedResponse, UpdateObserverRequest,
+    ActionConfig, CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery,
+    ObserverRepository, PaginatedResponse, UpdateObserverRequest,
 };
 use crate::extractors::OptionalSecurityContext;
+
+/// Reject observer actions whose `type` the runtime cannot dispatch (#612 item 10).
+///
+/// `database`/`log` actions are accepted by the DTO shape but have no runtime
+/// dispatcher, so before this check a create returned 201 and the observer was
+/// then silently warn-and-skipped at load ("success then nothing"). Returns a
+/// `400` response naming the offending type and the supported set, or `None`
+/// when every action is dispatchable.
+pub(super) fn reject_undispatchable_actions(actions: &[ActionConfig]) -> Option<Response> {
+    actions.iter().find(|a| !a.is_runtime_dispatchable()).map(|action| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!(
+                    "Observer action type '{}' has no runtime dispatcher: the observer would be \
+                     created and then silently skipped at load. Supported action types: {}. \
+                     Database/log dispatchers are tracked in \
+                     https://github.com/fraiseql/fraiseql/issues/632.",
+                    action.type_name(),
+                    ActionConfig::RUNTIME_DISPATCHABLE_TYPES.join(", ")
+                )
+            })),
+        )
+            .into_response()
+    })
+}
 
 /// Application state for observer handlers.
 #[derive(Clone)]
@@ -142,6 +168,12 @@ pub async fn create_observer(
             .into_response();
     }
 
+    // Reject action types the runtime cannot dispatch (#612 item 10) — 400 now
+    // rather than 201-then-silently-skipped at load.
+    if let Some(resp) = reject_undispatchable_actions(&request.actions) {
+        return resp;
+    }
+
     // Validate event_type if provided
     if let Some(ref event_type) = request.event_type {
         let valid_types = ["INSERT", "UPDATE", "DELETE", "CUSTOM"];
@@ -197,6 +229,13 @@ pub async fn update_observer(
                 })),
             )
                 .into_response();
+        }
+    }
+
+    // Reject action types the runtime cannot dispatch (#612 item 10).
+    if let Some(ref actions) = request.actions {
+        if let Some(resp) = reject_undispatchable_actions(actions) {
+            return resp;
         }
     }
 

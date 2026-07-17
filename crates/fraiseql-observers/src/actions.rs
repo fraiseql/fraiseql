@@ -319,6 +319,9 @@ impl WebhookAction {
 
     /// Execute webhook action
     ///
+    /// `method` is the HTTP verb to use (`None` means `POST`); an unparseable
+    /// method fails loud rather than silently posting (#612 item 12).
+    ///
     /// # Errors
     ///
     /// Returns `ObserverError` if the HTTP request fails or the response is not 2xx.
@@ -326,6 +329,7 @@ impl WebhookAction {
     pub async fn execute(
         &self,
         url: &str,
+        method: Option<&str>,
         headers: &HashMap<String, String>,
         body_template: Option<&str>,
         signing_secret: Option<&str>,
@@ -384,8 +388,18 @@ impl WebhookAction {
                 reason: format!("Failed to serialize webhook body: {e}"),
             })?;
 
-        // Build request
-        let mut request = self.client.post(url);
+        // Build request. `method` defaults to POST; an explicit but unparseable
+        // verb fails loud rather than silently posting (#612 item 12).
+        let http_method =
+            match method {
+                None => reqwest::Method::POST,
+                Some(m) => reqwest::Method::from_bytes(m.to_ascii_uppercase().as_bytes()).map_err(
+                    |_| ObserverError::InvalidActionConfig {
+                        reason: format!("Webhook action has an invalid HTTP method '{m}'"),
+                    },
+                )?,
+            };
+        let mut request = self.client.request(http_method, url);
 
         // Add headers (already validated above), tracking whether the operator
         // set a Content-Type so we don't duplicate it.

@@ -362,6 +362,22 @@ impl TomlSchema {
             }
         }
 
+        // #8 [[observers.handlers]]: compiled into `observers_config.handlers` but never
+        // read at runtime — runtime observers are loaded only from the `tb_observer` table
+        // (or the admin observer API), so a TOML-declared handler silently never fires.
+        // (`[observers] enabled` is still consumed as a changelog gate; only the `handlers`
+        // array is inert.)
+        if !self.observers.handlers.is_empty() {
+            anyhow::bail!(
+                "[[observers.handlers]] is accepted but never run: compiled TOML handlers are \
+                 not loaded as runtime observers (those come only from the `tb_observer` table \
+                 or the admin observer API), so a declared handler silently never fires. Define \
+                 observers in `tb_observer` / via `POST /api/observers` and remove the \
+                 [[observers.handlers]] block. Loading compiled handlers at boot is tracked at \
+                 https://github.com/fraiseql/fraiseql/issues/631."
+            );
+        }
+
         Ok(())
     }
 

@@ -183,7 +183,15 @@ impl ObserverDefinition {
 // ============================================================================
 
 /// Retry configuration
+///
+/// `deny_unknown_fields` (#612 item 11): a `retry_config` JSONB carrying a key
+/// the runtime does not read — the pre-#612 admin DTO wrote `backoff` while this
+/// struct reads `backoff_strategy`, so the operator's choice was silently
+/// dropped and every observer defaulted to exponential backoff — now fails loud
+/// at reload rather than being silently ignored. Rows written before the #612
+/// rename (carrying `backoff`) must be updated to `backoff_strategy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts (default: 3)
     #[serde(default = "default_max_attempts")]
@@ -326,12 +334,20 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ActionConfig {
-    /// HTTP POST webhook to external URL
+    /// HTTP webhook to external URL
     Webhook {
-        /// URL to POST to
+        /// URL to send the request to
         url:                Option<String>,
         /// Environment variable containing the URL
         url_env:            Option<String>,
+        /// HTTP method for the request (`POST` when unset).
+        ///
+        /// Threaded from the admin API's `method` field so a webhook observer can
+        /// `PUT`/`PATCH`/etc. rather than always `POST` (#612 item 12). An absent
+        /// key (older `tb_observer.actions` rows) or `None` means `POST`. An
+        /// unparseable method fails loud at dispatch rather than silently posting.
+        #[serde(default)]
+        method:             Option<String>,
         /// Optional HTTP headers
         ///
         /// `deserialize_with` treats an explicit JSON `null` the same as an

@@ -1229,6 +1229,7 @@ mod matcher_tests {
             actions:    vec![ActionConfig::Webhook {
                 url:                Some("https://example.com".to_string()),
                 url_env:            None,
+                method:             None,
                 headers:            HashMap::default(),
                 body_template:      Some("{}".to_string()),
                 signing_secret:     None,
