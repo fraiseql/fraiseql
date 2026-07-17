@@ -12,6 +12,7 @@ use crate::{
         SqlType, TemporalGrain,
     },
     runtime::{Executor, RuntimeConfig, executor::test_support::CapturingMockAdapter},
+    schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
     security::{DefaultRLSPolicy, SecurityContext},
 };
 
@@ -365,6 +366,60 @@ async fn partial_period_with_rls_includes_tenant_in_all_branches() {
             i + 1
         );
     }
+}
+
+/// A partial-period schema with session variables configured, so
+/// `resolve_session_vars` produces `app.tenant_id` from the security context.
+fn schema_with_partial_period_and_session_vars() -> crate::schema::CompiledSchema {
+    let mut schema = schema_with_partial_period();
+    schema.session_variables = SessionVariablesConfig {
+        variables:         vec![SessionVariableMapping {
+            name:   "app.tenant_id".to_string(),
+            source: SessionVariableSource::Jwt {
+                claim: "tenant_id".to_string(),
+            },
+        }],
+        inject_started_at: false,
+    };
+    schema
+}
+
+// M-610: the partial-period aggregate branch must resolve session variables so a
+// PostgreSQL current_setting()-backed RLS policy constrains it — the same way the
+// standard aggregate path and the window path already do. Before the fix this branch
+// called the non-session aggregate method, so no session variables reached the
+// connection (cross-tenant read on any aggregate taking the partial-period branch).
+#[tokio::test]
+async fn partial_period_aggregate_resolves_session_variables() {
+    let schema = schema_with_partial_period_and_session_vars();
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter.clone());
+
+    let ctx = tenant_security_context("tenant-abc");
+    let vars = serde_json::json!({
+        "table": "tf_events",
+        "aggregates": [{"count": {}}],
+        "where": {"period_start_gte": "2020-01-15"}
+    });
+    executor
+        .execute_with_security("{ events_aggregate }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    // Confirm the partial-period branch was actually exercised.
+    let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
+    assert!(sql.contains("UNION ALL"), "test must exercise the partial-period path: {sql}");
+
+    let session_vars = adapter
+        .captured_aggregate_session_vars()
+        .expect("partial-period branch must call the session-aware aggregate method");
+    let tenant = session_vars.iter().find(|(k, _)| k == "app.tenant_id").map(|(_, v)| v.as_str());
+    assert_eq!(
+        tenant,
+        Some("tenant-abc"),
+        "partial-period aggregate must resolve the caller's tenant into session variables for \
+         current_setting()-backed RLS; got: {session_vars:?}"
+    );
 }
 
 #[tokio::test]

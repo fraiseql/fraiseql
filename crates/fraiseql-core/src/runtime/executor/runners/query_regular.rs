@@ -36,7 +36,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Returns an empty vec when there is no security context or no session
     /// variables are configured; the adapter treats an empty slice as "no
     /// session variables" with zero overhead.
-    fn resolve_session_vars(
+    ///
+    /// `pub(super)` so the sibling `query_relay` impl of the same `QueryRunner` can
+    /// reuse it for the node-lookup path (#610).
+    pub(super) fn resolve_session_vars(
         &self,
         security_context: Option<&SecurityContext>,
     ) -> Result<Vec<(String, String)>> {
