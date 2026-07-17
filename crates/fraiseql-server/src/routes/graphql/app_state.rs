@@ -10,7 +10,7 @@ use fraiseql_core::{
     schema::CompiledSchema,
     security::IntrospectionPolicy,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use super::{tenant_key::DomainRegistry, tenant_registry::TenantExecutorRegistry};
 #[cfg(feature = "auth")]
@@ -398,6 +398,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
+        // #611: subscription policies do not hot-reload — surface any change loudly.
+        warn_on_subscription_policy_reload(current.schema(), &schema);
+
         // 5. Notify adapter of schema change (clears query result cache if applicable)
         adapter.on_schema_reload();
 
@@ -455,6 +458,9 @@ impl<A: DatabaseAdapter> AppState<A> {
         if current.schema().content_hash() == schema.content_hash() {
             return Ok(()); // Same schema, no-op
         }
+
+        // #611: subscription policies do not hot-reload — surface any change loudly.
+        warn_on_subscription_policy_reload(current.schema(), &schema);
 
         // 4. Notify adapter of schema change (clears query result cache if applicable)
         adapter.on_schema_reload();
@@ -686,5 +692,76 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
         self.error_sanitizer.sanitize_all(errors)
+    }
+}
+
+/// Warn (loudly) when a schema hot-reload changes the subscription row-visibility
+/// policies (#596/#611).
+///
+/// The subscription subsystem is resolved once at server start and is **not** re-mounted
+/// on reload, so a policy added or changed here takes effect on **restart**, not now —
+/// a silent fail-open window for a newly-tightened entity. This converts that window
+/// into an operator-visible warning (one map comparison), pending the full reload-aware
+/// remount tracked in #611.
+fn warn_on_subscription_policy_reload(
+    old_schema: &CompiledSchema,
+    new_schema: &CompiledSchema,
+) -> bool {
+    let old_policies = crate::routes::subscriptions::build_subscription_policies(old_schema);
+    let new_policies = crate::routes::subscriptions::build_subscription_policies(new_schema);
+    let changed = old_policies != new_policies;
+    if changed {
+        warn!(
+            old = old_policies.len(),
+            new = new_policies.len(),
+            "SECURITY: schema reload changes subscription row-visibility policies, but the \
+             subscription subsystem is not re-mounted on reload — the new policies take effect \
+             on RESTART, not now. Restart to apply subscription policy changes (#611)."
+        );
+    }
+    changed
+}
+
+#[cfg(test)]
+mod reload_policy_warn_tests {
+    use fraiseql_core::schema::{
+        CompiledSchema, SubscriptionDefinition, SubscriptionPolicy, TypeDefinition,
+    };
+
+    use super::warn_on_subscription_policy_reload;
+
+    fn schema(policy: Option<SubscriptionPolicy>) -> CompiledSchema {
+        let mut order = TypeDefinition::new("Order", "v_order");
+        if let Some(p) = policy {
+            order = order.with_subscription_policy(p);
+        }
+        CompiledSchema {
+            types: vec![order],
+            subscriptions: vec![SubscriptionDefinition::new("orderUpdated", "Order")],
+            ..Default::default()
+        }
+    }
+
+    fn policy() -> SubscriptionPolicy {
+        SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_string(),
+            identity_field: "user_id".to_string(),
+            bypass_roles:   vec![],
+        }
+    }
+
+    #[test]
+    fn adding_a_policy_on_reload_is_flagged() {
+        // #611: a policy added by a hot-reload is a change → operator-visible.
+        assert!(warn_on_subscription_policy_reload(&schema(None), &schema(Some(policy()))));
+    }
+
+    #[test]
+    fn an_unchanged_policy_set_is_not_flagged() {
+        assert!(!warn_on_subscription_policy_reload(
+            &schema(Some(policy())),
+            &schema(Some(policy()))
+        ));
+        assert!(!warn_on_subscription_policy_reload(&schema(None), &schema(None)));
     }
 }
