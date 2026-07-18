@@ -185,10 +185,10 @@ fn top_level_typename_emitted_only_when_selected() {
     assert_eq!(with["__typename"], "DecommissionError");
 }
 
-// ── list fields pass through (matching the SQL full-sub-blob fallback) ──────
+// ── list-of-object fields are recased + projected to the selection (#489) ──────
 
 #[test]
-fn list_field_passes_through_verbatim() {
+fn list_field_is_recased_and_projected() {
     let s = schema();
     let md = json!({ "blockers": [
         { "id": "b1", "reason": "active" },
@@ -196,12 +196,18 @@ fn list_field_passes_through_verbatim() {
     ]});
     let out =
         project_entity(&md, "DecommissionError", &[sel_nested("blockers", vec![sel("id")])], &s);
-    // Lists are returned as their stored sub-blob — not subset — exactly as the
-    // SQL query projection does, so query and mutation stay shape-identical.
+    // #489: nested list-of-object elements are recased and projected to the selection
+    // set — exactly as the query path now does (`project_nested_lists`), so query and
+    // mutation stay shape-identical. The unselected `reason` is dropped (previously it
+    // leaked through verbatim, the bug #489 fixes).
     let arr = out["blockers"].as_array().expect("blockers array");
     assert_eq!(arr.len(), 2);
     assert_eq!(arr[0]["id"], "b1");
-    assert_eq!(arr[0]["reason"], "active", "list elements pass through unsubsetted");
+    assert_eq!(arr[1]["id"], "b2");
+    assert!(
+        !arr[0].as_object().unwrap().contains_key("reason"),
+        "unselected list-element field is dropped (#489), not passed through verbatim"
+    );
 }
 
 // ── edge cases ─────────────────────────────────────────────────────────────
