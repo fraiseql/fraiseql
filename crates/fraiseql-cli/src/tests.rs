@@ -261,3 +261,18 @@ mod runner_tests {
         );
     }
 }
+
+mod cli_arg_conflicts {
+    use clap::CommandFactory;
+
+    /// Every subcommand's args — including propagated globals like `--debug` — must have
+    /// unique short flags. clap's `debug_assert` validates the whole command tree and
+    /// panics on a conflict, e.g. the `-d`/`--database` vs global `-d`/`--debug` collision
+    /// of #650. This test (recompiled with `run-server` under `--all-features`) covers the
+    /// `run`, `validate facts`, and `introspect facts` `--database` args; it fails if any
+    /// short-flag conflict is reintroduced on those or any other subcommand.
+    #[test]
+    fn no_conflicting_short_flags() {
+        crate::cli::Cli::command().debug_assert();
+    }
+}
