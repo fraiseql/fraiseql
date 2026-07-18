@@ -177,9 +177,11 @@ jobs:
     name: Build Binary (${{ matrix.target }})
     needs: create-github-release
     runs-on: ${{ matrix.os }}
-    # Native targets build BOTH the lean and the `-full` (V8) variant in one job;
-    # V8 release compilation is heavy, so allow more headroom than the lean-only 60m.
-    timeout-minutes: 90
+    # Native targets build the lean umbrella, the `-full` (V8) umbrella, AND the
+    # standalone `fraiseql-server` (#643) in one job. The V8 crate artifact is shared
+    # across the two -full builds, but fraiseql-server is a large crate; V8 release
+    # compilation is heavy, so allow generous headroom over the lean-only 60m.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -291,22 +293,39 @@ jobs:
             || { echo "::error::the -full binary is missing 'functions invoke' — functions-invoke is not compiled in"; exit 1; }
           echo "✅ -full binary ships 'fraiseql functions invoke' (functions-invoke compiled in)."
 
-      - name: Strip full binary (Linux/macOS native)
+      # Second binary in the `-full` tarball: the standalone `fraiseql-server`, the
+      # production `--config server.toml` entrypoint. The umbrella `fraiseql run` is a
+      # dev quick-launcher that reads only [server]/[database] (#643); a real deployment
+      # of auth/federation/observers/enrichment/tenancy/storage needs `fraiseql-server`,
+      # which was previously reachable only by rebuilding from source. Built with the
+      # same stable platform surface `release-full` compiles into the umbrella (auth and
+      # cli are on by default in fraiseql-server). One archive now carries the compiler
+      # CLI and the server at a single revision — the #507 same-revision contract made
+      # physical.
+      - name: Build fraiseql-server binary (cargo, -full)
+        if: '!matrix.use_cross'
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+
+      - name: Strip full binaries (Linux/macOS native)
         if: matrix.os != 'windows-latest' && !matrix.use_cross
-        run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+          strip target/${{ matrix.target }}/release/fraiseql-server
 
       - name: Create full archive (tar.gz)
         if: matrix.archive_ext == 'tar.gz' && !matrix.use_cross
         run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql
-          tar czf fraiseql-full-${{ matrix.target }}.tar.gz fraiseql
+          cp target/${{ matrix.target }}/release/fraiseql-server fraiseql-server
+          tar czf fraiseql-full-${{ matrix.target }}.tar.gz fraiseql fraiseql-server
 
       - name: Create full archive (zip)
         if: matrix.archive_ext == 'zip' && !matrix.use_cross
         shell: bash
         run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql.exe
-          7z a fraiseql-full-${{ matrix.target }}.zip fraiseql.exe
+          cp target/${{ matrix.target }}/release/fraiseql-server.exe fraiseql-server.exe
+          7z a fraiseql-full-${{ matrix.target }}.zip fraiseql.exe fraiseql-server.exe
 
       - name: Upload full archive to release
         if: '!matrix.use_cross'
