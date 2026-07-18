@@ -172,6 +172,36 @@ jobs:
               --prerelease=$PRERELEASE
           fi
 
+  # Kick off SBOM generation for this release.
+  #
+  # The release above is created with the default GITHUB_TOKEN, and GitHub suppresses
+  # workflow runs from events triggered by that token (recursion prevention). So the
+  # `release: published` event NEVER reaches sbom-generation.yml — which is exactly why
+  # the v2.13.1 release produced no SBOM. `workflow_dispatch` and `repository_dispatch`
+  # are the ONLY events exempt from that suppression, so dispatch the SBOM workflow
+  # explicitly here instead of relying on the (suppressed) release event.
+  trigger-sbom:
+    name: Trigger SBOM generation
+    needs: create-github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Least-privilege: a job-level permissions block REPLACES the workflow default, so
+    # this grants ONLY the actions:write needed to dispatch another workflow.
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch SBOM Generation for this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG="v${VERSION}"
+          gh workflow run sbom-generation.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TAG" \
+            -f version="$VERSION"
+          echo "Dispatched sbom-generation.yml for $VERSION (ref $TAG)."
+
   # Build binaries for multiple platforms
   build-binaries:
     name: Build Binary (${{ matrix.target }})
