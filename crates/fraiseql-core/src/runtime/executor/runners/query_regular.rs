@@ -382,6 +382,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let mut projected =
             projector.project_results(&results, query_match.query_def.returns_list)?;
 
+        // 11a. #489: recase + project nested list-of-object fields the SQL projection
+        //      left as the raw stored sub-blob (snake_case keys, unselected keys). The
+        //      SQL side already projected top-level fields and nested single objects.
+        crate::runtime::project_nested_lists(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
+
         // 11. Null out masked fields in the projected result
         if !access.masked.is_empty() {
             null_masked_fields(&mut projected, &access.masked);
@@ -709,7 +719,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+        let mut projected =
+            projector.project_results(&results, query_match.query_def.returns_list)?;
+        // #489: recase + project nested list-of-object fields left raw by SQL projection.
+        crate::runtime::project_nested_lists(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
 
         // 5. Wrap in GraphQL data envelope
         let response =
@@ -874,7 +892,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+        let mut projected =
+            projector.project_results(&results, query_match.query_def.returns_list)?;
+        // #489: recase + project nested list-of-object fields left raw by SQL projection.
+        crate::runtime::project_nested_lists(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
 
         // Wrap in GraphQL data envelope.
         let response =
