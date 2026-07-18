@@ -327,6 +327,12 @@ jobs:
           # A full server.toml driven entirely through --config: schema/db/bind AND a
           # platform feature (metrics) that is OFF by default. This is exactly what
           # `fraiseql run` could NOT do (#643); the shipped fraiseql-server must.
+          #
+          # metrics_enabled=true makes config.validate() (server_config/methods.rs) REQUIRE
+          # a metrics_token of >=16 chars, or the server refuses to boot — a deliberate
+          # guard. Supplying the token here is what makes the guard PASS; the point of this
+          # job is that --config drives the platform section, not that the guard is absent.
+          # The token below MUST match the Authorization bearer token in the probe step.
           cat > /tmp/full/server.toml <<'TOML'
           schema_path = "docker/e2e/schema.compiled.json"
           database_url = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
@@ -334,6 +340,7 @@ jobs:
           introspection_enabled = true
           introspection_require_auth = false
           metrics_enabled = true
+          metrics_token = "release-smoke-metrics-token-0001"
           TOML
           /tmp/full/extract/fraiseql-server --config /tmp/full/server.toml &
           echo $! > /tmp/fraiseql-published.pid
@@ -357,12 +364,15 @@ jobs:
             sleep 1
           done
           test "$up" = "1" || { echo "::error::timed out waiting for published fraiseql-server /health" >&2; exit 1; }
-          # metrics_enabled=true came ONLY from --config; /metrics responding proves the
-          # shipped server honored a platform section from server.toml — unlike
-          # `fraiseql run`, which silently drops them (#643).
-          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8818/metrics)
+          # metrics_enabled + metrics_token came ONLY from --config; /metrics answering 200
+          # (with its required bearer token — see mount_metrics in server/routing/admin.rs)
+          # proves the shipped server honored a platform section from server.toml, unlike
+          # `fraiseql run`, which silently drops them (#643). The token matches server.toml.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer release-smoke-metrics-token-0001" \
+            http://127.0.0.1:8818/metrics)
           test "$code" = "200" \
-            || { echo "::error::/metrics returned HTTP $code — metrics_enabled from --config was not honored" >&2; exit 1; }
+            || { echo "::error::/metrics returned HTTP $code — metrics from --config not honored (expected 200 with the bearer token)" >&2; exit 1; }
           echo "Published fraiseql-server honored [metrics] from --config (/metrics HTTP 200)."
 
       - name: Stop published server
