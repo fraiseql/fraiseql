@@ -6,7 +6,7 @@ use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
-    schema::{CompiledSchema, FieldDefinition},
+    schema::{CompiledSchema, FieldDefinition, FieldType},
     utils::casing::{to_camel_case, to_snake_case},
 };
 
@@ -619,10 +619,150 @@ fn project_field_value(
                         _ => {},
                     }
                 }
+            } else if fd.field_type.is_list() {
+                // #489: a nested LIST-of-object field. The SQL/stored side returns the
+                // raw aggregated sub-blob (snake_case keys, unselected keys included);
+                // project every element at the element type — the same recasing +
+                // selection-set projection applied to single nested objects — so nested
+                // list output matches top-level and nested-object output.
+                if let Some(child_type) = fd.field_type.inner_type().and_then(FieldType::type_name)
+                {
+                    if let JsonValue::Array(arr) = value {
+                        return JsonValue::Array(
+                            arr.iter()
+                                .map(|el| {
+                                    project_list_element(el, child_type, nested, schema, depth)
+                                })
+                                .collect(),
+                        );
+                    }
+                    // The DB sometimes returns the whole array as a JSON string
+                    // (`->>` text extraction). Re-parse and project each element.
+                    if let JsonValue::String(s) = value {
+                        if let Ok(JsonValue::Array(arr)) = serde_json::from_str::<JsonValue>(s) {
+                            return JsonValue::Array(
+                                arr.iter()
+                                    .map(|el| {
+                                        project_list_element(el, child_type, nested, schema, depth)
+                                    })
+                                    .collect(),
+                            );
+                        }
+                    }
+                }
             }
         }
     }
     value.clone()
+}
+
+/// Project one element of a nested list-of-object field (#489): recase + project
+/// object elements at `child_type`, passing scalars and non-object strings through.
+fn project_list_element(
+    element: &JsonValue,
+    child_type: &str,
+    nested: &[FieldSelection],
+    schema: &CompiledSchema,
+    depth: usize,
+) -> JsonValue {
+    match element {
+        JsonValue::Object(_) => project_entity_at(element, child_type, nested, schema, depth + 1),
+        // An element itself text-encoded as a JSON object.
+        JsonValue::String(s) => match serde_json::from_str::<JsonValue>(s) {
+            Ok(parsed @ JsonValue::Object(_)) => {
+                project_entity_at(&parsed, child_type, nested, schema, depth + 1)
+            },
+            _ => element.clone(),
+        },
+        _ => element.clone(),
+    }
+}
+
+/// #489 — recase + project nested LIST-of-object fields left raw by the SQL projection.
+///
+/// The query path projects top-level fields and nested single objects at the SQL level
+/// (`jsonb_build_object`), but list fields fall back to the raw stored sub-blob
+/// (`snake_case` keys, unselected keys included). This walks the already-projected
+/// `value` guided by the selection set and, for each list-of-object field (up to the
+/// projection depth cap), replaces its elements with the fully projected form via
+/// [`project_entity`] at the element type. Non-list fields are left untouched — the SQL
+/// side already projected them; single-object fields are only recursed into to reach
+/// any lists nested inside them.
+///
+/// `type_name` is the entity type of `value` (or of each element when `value` is a
+/// list-returning query's top-level array); `selections` is the entity-level selection
+/// set (the query field's `nested_fields`).
+pub fn project_nested_lists(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+) {
+    project_nested_lists_at(value, type_name, selections, schema, 0);
+}
+
+fn project_nested_lists_at(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    depth: usize,
+) {
+    if depth >= MAX_ENTITY_PROJECTION_DEPTH {
+        return;
+    }
+    match value {
+        // A list-returning query: each element is an entity of `type_name` (the list
+        // itself is not a nesting level).
+        JsonValue::Array(arr) => {
+            for el in arr.iter_mut() {
+                project_nested_lists_at(el, type_name, selections, schema, depth);
+            }
+        },
+        JsonValue::Object(obj) => {
+            let type_def = schema.find_type(type_name);
+            for sel in effective_selections(selections, type_name, schema) {
+                if sel.name == "__typename" {
+                    continue;
+                }
+                let Some(fd) =
+                    type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name))
+                else {
+                    continue;
+                };
+                if fd.field_type.is_scalar() {
+                    continue;
+                }
+                let key = sel.response_key();
+                if fd.field_type.is_list() {
+                    // The element type of a list-of-object field. `project_entity` fully
+                    // projects each raw element, including any lists nested inside it.
+                    if let Some(child_type) =
+                        fd.field_type.inner_type().and_then(FieldType::type_name)
+                    {
+                        if let Some(JsonValue::Array(arr)) = obj.get_mut(key) {
+                            for el in arr.iter_mut() {
+                                *el = project_entity(el, child_type, &sel.nested_fields, schema);
+                            }
+                        }
+                    }
+                } else if let Some(child_type) = fd.field_type.type_name() {
+                    // Single object already projected by the SQL side — recurse to reach
+                    // any lists nested inside it.
+                    if let Some(child) = obj.get_mut(key) {
+                        project_nested_lists_at(
+                            child,
+                            child_type,
+                            &sel.nested_fields,
+                            schema,
+                            depth + 1,
+                        );
+                    }
+                }
+            }
+        },
+        _ => {},
+    }
 }
 
 /// Look up a field's stored value: canonical `snake_case` key first, then a

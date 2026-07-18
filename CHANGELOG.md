@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nested list-of-object query output is now recased to camelCase and projected to the
+  selection set (#489).** A nested `[Object]` field projected from a JSONB `data` view
+  was returned as the stored blob verbatim — `snake_case` element keys, plus keys the
+  query never selected — while the camelCase-selected fields came back null. This was the
+  third recasing path after #456 (mutation input) and #486 (query arguments): the SQL
+  projector leaves list fields as the raw sub-blob, so the recasing + selection-set
+  projection is now applied in Rust on both the query path (`project_nested_lists`, wired
+  into the query runner) and the mutation/entity path (`project_entity`), at any depth up
+  to the projection cap. Scalar fields and already-SQL-projected single objects are
+  untouched.
+
 ## [2.13.0] - 2026-07-17
 
 ### Security
