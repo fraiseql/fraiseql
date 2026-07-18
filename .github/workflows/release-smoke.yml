@@ -242,14 +242,153 @@ jobs:
         if: always()
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
 
-      # Link-check the ACTUAL published `-full` download artifact (phase 01): the
-      # umbrella `fraiseql` binary built with `release-full` (adds `run-server` so it
-      # is a self-contained server, plus every platform feature). release.yml ships
-      # this exact `--package fraiseql --features release-full` binary as
-      # `fraiseql-full-<target>`; building it here proves the shipped artifact links
-      # (V8 + rmcp + metrics-exporter + the CLI serve path) at release time, not just
-      # the fraiseql-server crate. This replaces the previous divergent
-      # `-p fraiseql-server` throwaway build's role: the smoke now exercises the real
-      # published artifact's feature graph.
-      - name: Build the published -full release artifact (link check)
-        run: cargo build --release --package fraiseql --features release-full
+  # ── Assert against the ACTUAL published -full artifact ──────────────────────
+  # A local `cargo build --features release-full` proves nothing about what got
+  # published: the previous "link check" step rebuilt the umbrella from source and
+  # let the #643 defect ship (the -full tarball shipped only the umbrella binary,
+  # whose `fraiseql run` silently drops server.toml platform sections; the real
+  # `--config` server was never in the tarball). release.yml's build-binaries job is
+  # itself the "does the -full artifact link" gate; THIS job is the "does the
+  # published artifact actually work" gate — it downloads the real asset and boots it.
+  verify-published-full:
+    name: Verify published -full artifact
+    # Tag-only: the published -full asset exists only on a v* release tag. On
+    # release/* branches and workflow_dispatch there is nothing published to
+    # download, so this job is skipped there.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Generous: this job POLLS for the -full asset, which release.yml's build-binaries
+    # job produces in parallel (V8 + two binaries — tens of minutes), then downloads
+    # and boots it. It exits as soon as the asset appears (typically well under the cap).
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASSET: fraiseql-full-x86_64-unknown-linux-gnu.tar.gz
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Apply E2E database schema
+        run: |
+          PGPASSWORD=fraiseql_test_password psql \
+            -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
+            -f docker/e2e/init-postgres.sql
+
+      - name: Wait for the published -full linux asset, then download it
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME}"
+          echo "Waiting for $ASSET on release $TAG (release.yml builds it in parallel)..."
+          for i in $(seq 1 120); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+                 --jq '.assets[].name' 2>/dev/null | grep -qx "$ASSET"; then
+              echo "Asset present after ~$((i * 40))s."
+              gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+                --pattern "$ASSET" --dir /tmp/full --clobber
+              exit 0
+            fi
+            sleep 40
+          done
+          echo "::error::$ASSET never appeared on release $TAG within ~80min — the -full build failed or did not upload." >&2
+          exit 1
+
+      - name: Extract and assert BOTH binaries are present (#643)
+        run: |
+          set -eu
+          mkdir -p /tmp/full/extract
+          tar xzf "/tmp/full/$ASSET" -C /tmp/full/extract
+          ls -la /tmp/full/extract
+          test -x /tmp/full/extract/fraiseql \
+            || { echo "::error::published -full tarball is missing the 'fraiseql' binary" >&2; exit 1; }
+          test -x /tmp/full/extract/fraiseql-server \
+            || { echo "::error::published -full tarball is missing the 'fraiseql-server' binary — #643 regression: the -full artifact must ship the --config production server" >&2; exit 1; }
+          /tmp/full/extract/fraiseql --version
+          /tmp/full/extract/fraiseql-server --version
+          echo "Both binaries present in the published -full tarball."
+
+      - name: Boot the published fraiseql-server via --config (metrics platform section)
+        run: |
+          set -eu
+          # A full server.toml driven entirely through --config: schema/db/bind AND a
+          # platform feature (metrics) that is OFF by default. This is exactly what
+          # `fraiseql run` could NOT do (#643); the shipped fraiseql-server must.
+          cat > /tmp/full/server.toml <<'TOML'
+          schema_path = "docker/e2e/schema.compiled.json"
+          database_url = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
+          bind_addr = "127.0.0.1:8818"
+          introspection_enabled = true
+          introspection_require_auth = false
+          metrics_enabled = true
+          TOML
+          /tmp/full/extract/fraiseql-server --config /tmp/full/server.toml &
+          echo $! > /tmp/fraiseql-published.pid
+        env:
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Assert /health AND /metrics respond (--config drove a platform section)
+        run: |
+          set -eu
+          up=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8818/health; then
+              echo; echo "Published fraiseql-server booted via --config after ~${i}s."
+              up=1; break
+            fi
+            if ! kill -0 "$(cat /tmp/fraiseql-published.pid)" 2>/dev/null; then
+              echo "::error::published fraiseql-server exited before /health — the shipped --config server does not boot." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$up" = "1" || { echo "::error::timed out waiting for published fraiseql-server /health" >&2; exit 1; }
+          # metrics_enabled=true came ONLY from --config; /metrics responding proves the
+          # shipped server honored a platform section from server.toml — unlike
+          # `fraiseql run`, which silently drops them (#643).
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8818/metrics)
+          test "$code" = "200" \
+            || { echo "::error::/metrics returned HTTP $code — metrics_enabled from --config was not honored" >&2; exit 1; }
+          echo "Published fraiseql-server honored [metrics] from --config (/metrics HTTP 200)."
+
+      - name: Stop published server
+        if: always()
+        run: kill "$(cat /tmp/fraiseql-published.pid 2>/dev/null)" 2>/dev/null || true
+
+      - name: Assert `fraiseql run` warns (never silently drops) on ignored sections (#643)
+        run: |
+          set -eu
+          cat > /tmp/full/run.toml <<'TOML'
+          [server]
+          port = 8899
+
+          [database]
+          url = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
+
+          [observers]
+          TOML
+          # `fraiseql run` reads only [server]/[database]; the [observers] section must
+          # produce a loud warning pointing at fraiseql-server, not a silent drop. The
+          # warning fires during config load (before serve), so a short timeout is
+          # enough; the subsequent serve/compile outcome is irrelevant to this assertion.
+          timeout 25 /tmp/full/extract/fraiseql run /tmp/full/run.toml > /tmp/run.out 2>&1 || true
+          cat /tmp/run.out
+          grep -q "are ignored" /tmp/run.out \
+            || { echo "::error::published 'fraiseql run' did not warn about the ignored [observers] section (#643 regression)" >&2; exit 1; }
+          grep -q "fraiseql-server" /tmp/run.out \
+            || { echo "::error::published 'fraiseql run' warning did not point at fraiseql-server" >&2; exit 1; }
+          echo "'fraiseql run' loudly warns about ignored config sections and points at fraiseql-server."
