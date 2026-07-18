@@ -3015,59 +3015,93 @@ mod result_tests {
     // Concurrency regression test (#185)
     // ========================================================================
 
-    /// Regression guard for #185: LRU+Mutex serialized all hot-key reads through
-    /// one shard's mutex. With moka, reads are lock-free and should scale near-
-    /// linearly with thread count.
+    /// Concurrency guard + manual scaling benchmark for #185 (LRU+Mutex serialized
+    /// all hot-key reads through one shard's mutex; moka reads are lock-free).
     ///
-    /// Requires >= 8 cores for meaningful results — on 2-vCPU CI runners,
-    /// thread scheduling overhead for 40 threads dominates regardless of
-    /// lock contention, producing 50x+ ratios even with lock-free reads.
+    /// **The hard assertion is correctness under concurrent load**, not wall-clock:
+    /// every concurrent reader must see the entry and its exact value, and the cache
+    /// must survive the hammering uncorrupted. That is a robust, deterministic guard
+    /// against a re-serialization regression that also corrupts (deadlock, lost
+    /// entry, torn value).
+    ///
+    /// The **scaling ratio is reported, not asserted (#600)**. A wall-clock ratio of
+    /// `multi / single` is not a reliable serialization signal: a moka `get` is a
+    /// few nanoseconds, so on low-core CI runners *and* on hybrid P/E-core desktops
+    /// (asymmetric cores + E-core scheduling) thread-scheduling overhead dominates
+    /// the actual work — lock-free reads produced ~29× ratios on an idle i7-13700K,
+    /// nearly indistinguishable from serialization. The numbers are printed for a
+    /// human to interpret when investigating scaling; they are not a pass/fail.
     #[test]
-    #[ignore = "wall-clock dependent — run manually to confirm lock-free read scaling"]
+    #[ignore = "manual scaling benchmark — asserts concurrency correctness, reports throughput"]
+    // Reason: the throughput figures are a human-read benchmark report; f64 precision
+    // loss on the small op counts is irrelevant and never asserted on.
+    #[allow(clippy::cast_precision_loss)]
     fn test_concurrent_reads_do_not_serialize() {
         const ITERS: usize = 10_000;
 
-        let cores = std::thread::available_parallelism().map_or(0, |n| n.get());
-        if cores < 8 {
-            eprintln!("Skipping: need >= 8 cores for meaningful concurrency test (have {cores})");
-            return;
+        // `JsonbValue` is not `PartialEq`; compare the inner JSON values.
+        fn same(a: &[JsonbValue], b: &[JsonbValue]) -> bool {
+            a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.as_value() == y.as_value())
         }
+
+        // Match threads to available parallelism instead of a fixed 40 to avoid
+        // oversubscription noise; clamp so the benchmark stays bounded on big boxes.
+        let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+        let threads = cores.clamp(2, 32);
+
         let config = CacheConfig::enabled();
         let cache = Arc::new(QueryResultCache::new(config));
         let key = 42_u64;
-        cache.put(key, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        let expected = test_result();
+        cache
+            .put(key, expected.clone(), vec!["v_user".to_string()], None, None)
+            .unwrap();
 
-        // Single-threaded baseline
+        // Single-threaded baseline.
         let start = std::time::Instant::now();
         for _ in 0..ITERS {
-            let _ = cache.get(key).unwrap();
+            assert!(cache.get(key).unwrap().is_some(), "baseline read must hit");
         }
         let single_elapsed = start.elapsed();
 
-        // 40-thread concurrent
+        // Concurrent readers: the HARD guard. Each reader asserts every read hits and
+        // returns the exact stored value — a serialized-and-corrupting regression, a
+        // lost entry, or a torn read fails here deterministically, on any hardware.
         let start = std::time::Instant::now();
-        let handles: Vec<_> = (0..40)
+        let handles: Vec<_> = (0..threads)
             .map(|_| {
                 let c = Arc::clone(&cache);
+                let want = expected.clone();
                 std::thread::spawn(move || {
                     for _ in 0..ITERS {
-                        let _ = c.get(key).unwrap();
+                        let got = c.get(key).unwrap().expect("concurrent read must hit");
+                        assert!(same(&got, &want), "concurrent read returned an unexpected value");
                     }
                 })
             })
             .collect();
         for h in handles {
-            h.join().unwrap();
+            h.join().expect("reader thread must not panic (deadlock/corruption)");
         }
         let multi_elapsed = start.elapsed();
 
-        // 40× the work in ≤2× the time → near-linear scaling.
-        // Under old LRU+Mutex, 40-thread took ~20-40× single-thread time.
+        // The cache is intact after concurrent hammering.
         assert!(
-            multi_elapsed <= single_elapsed * 2,
-            "40-thread ({:?}) was more than 2× single-thread ({:?}) — suggests serialization",
-            multi_elapsed,
-            single_elapsed,
+            same(&cache.get(key).unwrap().expect("entry survives concurrency"), &expected),
+            "entry value survives concurrency"
+        );
+
+        // Reported, NOT asserted (#600): aggregate throughput and the raw ratio, for
+        // manual interpretation of lock-free scaling.
+        let single_tput = ITERS as f64 / single_elapsed.as_secs_f64();
+        let multi_tput = (threads * ITERS) as f64 / multi_elapsed.as_secs_f64();
+        eprintln!(
+            "concurrent-read scaling ({threads} threads, {ITERS} iters/thread): \
+             single {single_elapsed:?} ({single_tput:.0} ops/s), \
+             multi {multi_elapsed:?} ({multi_tput:.0} ops/s), \
+             aggregate speedup {:.2}×, wall ratio {:.1}×",
+            multi_tput / single_tput,
+            multi_elapsed.as_secs_f64() / single_elapsed.as_secs_f64(),
         );
     }
 }
