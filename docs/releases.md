@@ -8,19 +8,33 @@ two variants; pick by whether your deployment uses the opt-in platform features.
 | Artifact | Features | Use it when |
 |----------|----------|-------------|
 | `fraiseql-<target>` (**default**) | `cli,server,postgres` | You compile schemas and/or run a plain GraphQL-over-Postgres server. This is the lean binary — no V8, no extra runtime weight. |
-| `fraiseql-full-<target>` | `release-full` — adds Deno/TypeScript functions, scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, and `run-server` | Your deployment uses any FraiseQL **platform feature**: `after:mutation`/`cron`/`after:capture` functions, scheduled sources, the MCP endpoint, inbound ingestion, or Prometheus metrics. |
+| `fraiseql-full-<target>` | `release-full` — Deno/TypeScript functions, scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, `federation`, and `run-server` | Your deployment uses any FraiseQL **platform feature**: `after:mutation`/`cron`/`after:capture` functions, scheduled sources, federation, the MCP endpoint, inbound ingestion, or Prometheus metrics. Contains **two** binaries — `fraiseql` and `fraiseql-server` (see below). |
 
-Both are the umbrella `fraiseql` binary (`--package fraiseql`). The `-full` variant
-additionally enables `run-server`, so it is a self-contained server: `fraiseql run`
-serves with every platform feature compiled in.
+The `-full` tarball contains **two** binaries:
+
+- **`fraiseql`** — the umbrella binary (`--package fraiseql`): the compiler CLI plus
+  `fraiseql run`, a development quick-launcher that compiles a schema in memory and serves
+  it. `fraiseql run` reads only the `[server]` and `[database]` config sections (it warns
+  and names any other section it is handed), so it is for local iteration, not production.
+- **`fraiseql-server`** — the standalone production server, driven by `--config server.toml`.
+  This is the entrypoint for a real deployment: it honors the full config surface
+  (`[auth]`, `[federation]`, `[observers]`, `[tenancy]`, `[storage]`, `[security]`, …),
+  wires the observer / tenancy / storage / token-revocation / secrets subsystems, and
+  validates `sql_source`s at boot. Point a full `server.toml` at this binary — not at
+  `fraiseql run`.
+
+The lean `fraiseql-<target>` artifact ships only the umbrella `fraiseql` binary (no
+`fraiseql-server`, and its `fraiseql run` is compiled out).
 
 ## Use the cli and server from the *same* release
 
 The compiled-schema `jsonb_column` contract is a same-revision contract (#507): a schema
 compiled by one revision's cli must be served by the same revision's server. Do **not**
-mix a stock cli from release *N* with a server built from a different revision. The
-simplest safe setup is a single `fraiseql-full-<target>` binary from one release doing
-both `fraiseql compile` and `fraiseql run`.
+mix a stock cli from release *N* with a server built from a different revision. The `-full`
+tarball makes this contract physical: its `fraiseql` (compiler cli) and `fraiseql-server`
+come from a single build of a single revision, so `fraiseql compile` and
+`fraiseql-server --config server.toml` taken from the same archive are revision-matched by
+construction.
 
 ## Platform matrix
 

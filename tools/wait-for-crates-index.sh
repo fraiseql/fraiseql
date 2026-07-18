@@ -17,9 +17,12 @@
 #   CRATES_INDEX_MAX_ATTEMPTS  poll attempts per crate (default 40)
 #   CRATES_INDEX_SLEEP_SECS    delay between attempts  (default 10)
 # Default budget ~= 6.5 min/crate (the index usually lags only tens of seconds; the
-# budget is generous so propagation almost always wins). On timeout this WARNS and
-# proceeds — it never hard-fails — preserving the original wait's non-fatal
-# behaviour; the next tier's `cargo publish` stays the real gate.
+# budget is generous so propagation almost always wins). On timeout this HARD-FAILS
+# (exit 1) rather than warn-and-proceed: the v2.13.0 federation publish failed
+# mid-sequence precisely because the old wait warned and proceeded, letting a later
+# tier's `cargo publish` resolve against a not-yet-indexed sibling. The bounded retry
+# above IS the absorb-propagation-lag mechanism; a timeout after that budget is a real
+# stall, so we stop the release rather than march into a partial publish.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,6 +58,7 @@ for crate in "$@"; do
         sleep "$sleep_secs"
     done
     if [ "$indexed" -ne 1 ]; then
-        echo "⚠️  $crate@$version not visible in the sparse index after $((max_attempts * sleep_secs))s; proceeding (the next tier's cargo publish remains the hard gate and will retry/fail loudly if resolution is still pending)." >&2
+        echo "::error::$crate@$version not visible in the sparse index ($idx_url) after $((max_attempts * sleep_secs))s — refusing to proceed. Publishing the next tier now risks resolving a dependency against a stale index (the v2.13.0 federation mid-sequence failure). Wait for propagation and re-run, or raise CRATES_INDEX_MAX_ATTEMPTS / CRATES_INDEX_SLEEP_SECS." >&2
+        exit 1
     fi
 done

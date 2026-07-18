@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `-full` release tarballs now ship the `fraiseql-server` binary alongside the
+  umbrella `fraiseql` binary (#643).** Previously every tarball — lean and `-full` —
+  contained only the umbrella binary, whose `fraiseql run` subcommand is a development
+  quick-launcher that reads only `[server]` and `[database]`. A `-full` download therefore
+  could not run a real `server.toml` deployment (`[auth]` / `[federation]` / `[observers]`
+  / `[enrichment]` / `[tenancy]` / `[storage]` were silently ignored), and the production
+  entrypoint — `fraiseql-server --config` — was reachable only by rebuilding from source.
+  The `-full` archive now carries **both** binaries, built from one revision (the #507
+  same-revision contract made physical): use `fraiseql-server --config server.toml` for
+  deployments and `fraiseql run` for local iteration. Windows `-full` zips include
+  `fraiseql-server.exe`. The lean default artifact is unchanged; `aarch64-unknown-linux-gnu`
+  remains lean-only (V8 does not cross-compile there — a documented gap in
+  `docs/releases.md`).
+
 ### Fixed
+
+- **`fraiseql run` no longer silently ignores unsupported config sections (#643).** Handed
+  a config that declares platform sections it does not consume (`[auth]`, `[federation]`,
+  `[observers]`, `[enrichment]`, `[tenancy]`, `[storage]`, `[security]`), it now logs a
+  warning naming each ignored section and pointing at `fraiseql-server --config`, rather
+  than dropping them without a word. Pointing the dev launcher at a full config stays
+  legitimate (it is a warning, not a boot refusal) — but the drop is no longer silent.
 
 - **Nested list-of-object query output is now recased to camelCase and projected to the
   selection set (#489).** A nested `[Object]` field projected from a JSONB `data` view

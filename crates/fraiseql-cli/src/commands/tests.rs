@@ -2044,9 +2044,36 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        auto_detect_input, build_config_from, resolve_input, resolve_runtime_config,
+        auto_detect_input, build_config_from, ignored_config_sections, resolve_input,
+        resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
+
+    #[test]
+    fn test_ignored_config_sections_detects_platform_tables() {
+        // A config `fraiseql run` cannot fully honor: [server]/[database] are consumed,
+        // the rest are dropped. Detection drives the loud warning (#643).
+        let toml = "\
+[server]\nhost = \"127.0.0.1\"\n\
+[database]\nurl = \"postgres://x\"\n\
+[observers]\n\
+[auth]\n\
+[tenancy]\n";
+        // Stable order follows RUN_IGNORED_CONFIG_SECTIONS, not the file order.
+        assert_eq!(ignored_config_sections(toml), vec!["auth", "observers", "tenancy"]);
+    }
+
+    #[test]
+    fn test_ignored_config_sections_empty_for_server_database_only() {
+        let toml = "[server]\nhost = \"127.0.0.1\"\n[database]\nurl = \"postgres://x\"\n";
+        assert!(ignored_config_sections(toml).is_empty());
+    }
+
+    #[test]
+    fn test_ignored_config_sections_empty_on_unparseable_toml() {
+        // Best-effort advisory: a parse failure must not fail the run path.
+        assert!(ignored_config_sections("this is = = not [[[ toml").is_empty());
+    }
 
     #[test]
     fn test_resolve_input_explicit_existing_file() {
