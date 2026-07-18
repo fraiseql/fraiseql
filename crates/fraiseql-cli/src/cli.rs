@@ -340,7 +340,7 @@ EXAMPLES:
     fraiseql validate schema.json
     fraiseql validate schema.json --check-unused
     fraiseql validate schema.json --strict
-    fraiseql validate facts -s schema.json -d postgres://localhost/db")]
+    fraiseql validate facts -s schema.json --database postgres://localhost/db")]
     Validate {
         #[command(subcommand)]
         command: Option<ValidateCommands>,
@@ -378,8 +378,8 @@ EXAMPLES:
     /// Introspect database for fact tables and output suggestions
     #[command(after_help = "\
 EXAMPLES:
-    fraiseql introspect facts -d postgres://localhost/db
-    fraiseql introspect facts -d postgres://localhost/db -f json")]
+    fraiseql introspect facts --database postgres://localhost/db
+    fraiseql introspect facts --database postgres://localhost/db -f json")]
     Introspect {
         #[command(subcommand)]
         command: IntrospectCommands,
@@ -522,7 +522,10 @@ TOML CONFIG:
         input: Option<String>,
 
         /// Database URL (overrides [database].url in fraiseql.toml and DATABASE_URL env var)
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        // Long-only: the global `--debug` (`Cli.debug`) already owns `-d`. A local
+        // `-d`/`--database` short here collides with it — clap's debug_asserts panic in
+        // debug builds and the short is ambiguous in release builds (#650).
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Port to listen on (overrides [server].port in fraiseql.toml)
@@ -937,7 +940,8 @@ pub(crate) enum ValidateCommands {
         schema: String,
 
         /// Database connection string
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        // Long-only: `-d` is the global `--debug` short (#650).
+        #[arg(long, value_name = "DATABASE_URL")]
         database: String,
     },
 }
@@ -995,7 +999,8 @@ pub(crate) enum IntrospectCommands {
     /// Introspect database for fact tables (tf_* tables)
     Facts {
         /// Database connection string
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        // Long-only: `-d` is the global `--debug` short (#650).
+        #[arg(long, value_name = "DATABASE_URL")]
         database: String,
 
         /// Output format (python, json)

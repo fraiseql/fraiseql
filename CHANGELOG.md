@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
+  collide on `-d` (#650).** The global `--debug` short (`-d`) and each subcommand's
+  `--database` short (also `-d`) claimed the same letter, so debug builds of the CLI
+  panicked at startup (clap `debug_asserts`: "Short option names must be unique … '-d' is
+  in use by both 'database' and 'debug'") and release builds advertised an ambiguous `-d`.
+  `--database` is now long-only on all three subcommands — the global `-d` (debug) is
+  consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
+  against reintroduction. Use `--database <url>` (the long form always worked).
+
 ## [2.14.1] - 2026-07-24
 
 ### Added
@@ -207,6 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   may **newly reject** callers that previously succeeded, so verify role assignments before
   rolling out. Type-level `requires_role` remains unenforced and is tracked separately in
   \#677.
+||||||| parent of 28a1cc50b (fix(cli): drop `-d` short from --database (collides with global --debug) (#650))
 
 ## [2.13.1] - 2026-07-18
 
