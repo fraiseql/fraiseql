@@ -683,52 +683,108 @@ jobs:
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Check crates.io packages
-        id: verify-crates
+      - name: Verify every crate is published on crates.io (+ PyPI + npm)
         run: |
-          echo "## 📦 Package Verification" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
+          # Disable errexit: this is a collect-ALL check that tracks failures itself
+          # and fails once at the end (GitHub runs `run:` as `bash -e`). No
+          # continue-on-error — a version that never becomes visible MUST redden the job.
+          set +e
+          echo "## 📦 Package Verification" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           VERSION="${{ steps.get_version.outputs.version }}"
 
-          # Check fraiseql crate
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql/$VERSION")" = "200" ]; then
-            echo "✅ fraiseql v$VERSION on crates.io" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⏳ fraiseql v$VERSION (crates.io indexing in progress)" >> $GITHUB_STEP_SUMMARY
-          fi
-        continue-on-error: true
+          # Every crate the `publish-crates` job ships — keep in sync with the CRATES
+          # list in the validate-release "Dry-run publish" step. The old step checked
+          # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
+          CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+                  fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
+                  fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
+                  fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
 
-      - name: Check GitHub release assets
-        id: verify-binaries
+          # One "label|url" channel-item per array element.
+          PENDING=()
+          for c in $CRATES; do
+            PENDING+=("crates.io: $c v$VERSION|https://crates.io/api/v1/crates/$c/$VERSION")
+          done
+          PENDING+=("PyPI: fraiseql v$VERSION|https://pypi.org/pypi/fraiseql/$VERSION/json")
+          PENDING+=("npm: fraiseql v$VERSION|https://registry.npmjs.org/fraiseql/$VERSION")
+
+          # Bounded retry-then-FAIL: absorbs registry indexing lag (tens of seconds)
+          # without the old warn-and-proceed. ~3 min ceiling; usually one round.
+          MAX_ROUNDS=12
+          SLEEP=15
+          for round in $(seq 1 "$MAX_ROUNDS"); do
+            STILL=()
+            for item in "${PENDING[@]}"; do
+              label="${item%%|*}"; url="${item##*|}"
+              code="$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "$url")"
+              if [ "$code" = "200" ]; then
+                echo "✅ $label" >> "$GITHUB_STEP_SUMMARY"
+              else
+                STILL+=("$item")
+              fi
+            done
+            PENDING=("${STILL[@]}")
+            [ "${#PENDING[@]}" -eq 0 ] && break
+            echo "… ${#PENDING[@]} not yet visible; retry in ${SLEEP}s (round $round/$MAX_ROUNDS)"
+            sleep "$SLEEP"
+          done
+
+          if [ "${#PENDING[@]}" -ne 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ❌ Never became visible" >> "$GITHUB_STEP_SUMMARY"
+            for item in "${PENDING[@]}"; do echo "- ${item%%|*}" >> "$GITHUB_STEP_SUMMARY"; done
+            echo "::error::one or more published artifacts never became visible after ~3min — see the job summary"
+            exit 1
+          fi
+          echo "All crates (crates.io) + PyPI + npm are published and visible at v$VERSION."
+
+      - name: Verify all expected release assets are present
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
           RELEASE_TAG="${{ github.ref_name }}"
+          mapfile -t ACTUAL < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
 
-          # Wait a moment for release to be fully created
-          sleep 5
+          # Expected assets are DERIVED from the build-binaries matrix, not a magic
+          # count: 5 lean (one per target) + 4 -full (native targets only —
+          # aarch64-unknown-linux-gnu is use_cross and V8 does not build under cross,
+          # so it ships lean-only: a documented gap). Assert each by NAME — a bare
+          # count would pass a duplicate-plus-missing swap (the old `-ge 5` was also
+          # stale: 9 assets ship).
+          EXPECTED=(
+            fraiseql-x86_64-unknown-linux-gnu.tar.gz
+            fraiseql-aarch64-unknown-linux-gnu.tar.gz
+            fraiseql-x86_64-apple-darwin.tar.gz
+            fraiseql-aarch64-apple-darwin.tar.gz
+            fraiseql-x86_64-pc-windows-msvc.zip
+            fraiseql-full-x86_64-unknown-linux-gnu.tar.gz
+            fraiseql-full-x86_64-apple-darwin.tar.gz
+            fraiseql-full-aarch64-apple-darwin.tar.gz
+            fraiseql-full-x86_64-pc-windows-msvc.zip
+          )
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 📎 Release Assets (${#ACTUAL[@]} present, ${#EXPECTED[@]} expected)" >> "$GITHUB_STEP_SUMMARY"
+          MISSING=0
+          for a in "${EXPECTED[@]}"; do
+            if printf '%s\n' "${ACTUAL[@]}" | grep -qx "$a"; then
+              echo "- ✅ $a" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ❌ $a (MISSING)" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::missing expected release asset: $a"
+              MISSING=1
+            fi
+          done
+          [ "$MISSING" -eq 0 ] || { echo "::error::one or more expected release assets are missing"; exit 1; }
+          echo "All ${#EXPECTED[@]} expected release assets are present."
 
-          ASSET_COUNT=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length' 2>/dev/null || echo "0")
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📎 Release Assets" >> $GITHUB_STEP_SUMMARY
-          echo "Total binaries uploaded: $ASSET_COUNT" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$ASSET_COUNT" -ge 5 ]; then
-            echo "✅ All expected binaries present" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Missing some binaries (expected 5, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # List all assets
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Uploaded Files:" >> $GITHUB_STEP_SUMMARY
-          gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | "- \(.name)"' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "- (assets not yet available)" >> $GITHUB_STEP_SUMMARY
-        continue-on-error: true
-
+      # success() only: this job now fails when a package/asset is missing (no more
+      # continue-on-error), so a green "Release complete!" must not print over a red
+      # verification. On failure the job is red and the per-step ::error:: annotations
+      # are the signal.
       - name: Summary
-        if: always()
+        if: success()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
