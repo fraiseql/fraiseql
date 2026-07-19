@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The compiled-schema `"realtime"` section and the `[realtime]` server-config section are no
+  longer honored (#605).** With the dormant `/realtime/v1` subsystem removed, neither is
+  parsed: a compiled schema that still carries a `"realtime"` key loads with a `warn!`
+  ("`realtime` section is no longer supported and is ignored; recompile with the current
+  fraiseql-cli") and the section is dropped — the load never fails on it (fraiseql-cli never
+  emitted this section, so only a hand-authored or stale schema could contain one). A
+  `[realtime]` section in `fraiseql.toml` is now silently ignored by serde, where it
+  previously refused to boot with "config section 'realtime' is not yet implemented". Use
+  `/ws` GraphQL subscriptions for real-time updates.
 - **The `POST /realtime/v1/broadcast` channel-broadcast endpoint and room-presence tracking
   have been removed **without replacement** (#605).** These were the "channels"-style siblings
   of the dormant `/realtime/v1` entity stream: `BroadcastManager` (ephemeral pub/sub) and
