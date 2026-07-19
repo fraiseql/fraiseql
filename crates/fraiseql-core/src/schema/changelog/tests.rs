@@ -109,6 +109,37 @@ fn transport_checkpoint_has_no_id_field() {
     );
 }
 
+/// Both injected projections are marked `internal` — framework bookkeeping views, never
+/// client-cache nodes. This is the write half of the #665 fix: `TransportCheckpoint`
+/// needs the exemption to compile alongside cascade at all (it has no `id`), and
+/// `EntityChangeLog` gets it too (gate 2) so auto-implementing `CascadeNode` on it can
+/// never advertise a deliverability the runtime does not provide. Phase 02 wires the
+/// read side (`is_queryable_entity`); until then the flag is inert.
+#[test]
+fn both_projections_are_marked_internal() {
+    let schema = exposed_schema(ChangelogConfig {
+        expose: true,
+        ..Default::default()
+    });
+
+    let ecl = schema
+        .types
+        .iter()
+        .find(|t| t.name == ENTITY_CHANGE_LOG)
+        .expect("EntityChangeLog");
+    assert!(ecl.internal, "EntityChangeLog is a framework projection, not a cascade entity");
+
+    let tc = schema
+        .types
+        .iter()
+        .find(|t| t.name == TRANSPORT_CHECKPOINT)
+        .expect("TransportCheckpoint");
+    assert!(
+        tc.internal,
+        "TransportCheckpoint is a framework projection, not a cascade entity"
+    );
+}
+
 #[test]
 fn list_query_uses_filter_machinery_and_bypasses_cache() {
     let schema = exposed_schema(ChangelogConfig {

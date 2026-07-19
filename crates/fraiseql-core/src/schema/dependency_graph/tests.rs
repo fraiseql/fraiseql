@@ -22,6 +22,7 @@ fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        internal:            false,
         relationships:       vec![],
         subscription_policy: None,
     }
@@ -432,6 +433,7 @@ fn test_interface_dependencies() {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            internal:            false,
             relationships:       vec![],
             subscription_policy: None,
         }],

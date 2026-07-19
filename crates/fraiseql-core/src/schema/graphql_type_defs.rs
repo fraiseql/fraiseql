@@ -36,6 +36,7 @@ use crate::validation::ValidationRule;
 ///     requires_role: None,
 ///     is_error: false,
 ///     relay: false,
+///     internal: false,
 ///     relationships: Vec::new(),
 ///     subscription_policy: None,
 /// };
@@ -97,6 +98,24 @@ pub struct TypeDefinition {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
 
+    /// Whether this is a framework-synthesized bookkeeping projection rather than a
+    /// client-cache node.
+    ///
+    /// Set to `true` only by internal schema-injection passes for the read-only
+    /// projections they synthesize — today, `inject_changelog`'s `EntityChangeLog` and
+    /// `TransportCheckpoint` views over the observer change-log tables. Plain
+    /// `schema.json` authors never set it; the serde default keeps it `false` for every
+    /// authored type.
+    ///
+    /// What it exempts: cascade entity classification (`is_queryable_entity`, wired in
+    /// Phase 02). Framework projections are the change-capture *mechanism*, not captured
+    /// entities — the runtime cascade collector never projects them into a payload — so
+    /// they must not have `id: ID!` enforced on them nor auto-implement `CascadeNode`.
+    /// Serialized (not skipped) so the distinction survives into the compiled schema that
+    /// the server and cli commands re-load.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub internal: bool,
+
     /// Relationships to other types (used by REST resource embedding).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relationships: Vec<super::config_types::Relationship>,
@@ -131,6 +150,7 @@ impl TypeDefinition {
             requires_role:       None,
             is_error:            false,
             relay:               false,
+            internal:            false,
             relationships:       Vec::new(),
             subscription_policy: None,
         }

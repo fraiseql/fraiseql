@@ -89,6 +89,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        internal:            false,
         relationships:       vec![],
         subscription_policy: None,
     };
