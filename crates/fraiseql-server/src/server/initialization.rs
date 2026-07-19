@@ -238,14 +238,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             crate::ServerConfig::is_production_mode(),
         )?;
 
-        // Warn when trust_proxy_headers is enabled without restricting which IPs are
-        // trusted proxies — any client can then spoof X-Forwarded-For (#609). Explicit
-        // ["0.0.0.0/0"] opts into trust-all deliberately and does not warn.
-        if let Some(msg) =
-            proxy_trust_startup_warning(sec.trust_proxy_headers, sec.trusted_proxy_cidrs.as_deref())
-        {
-            warn!("{msg}");
-        }
+        // Refuse to boot in production when trust_proxy_headers is enabled without
+        // restricting which IPs are trusted proxies — any client could then spoof
+        // X-Forwarded-For and bypass per-IP rate limits (#609/#618). Explicit
+        // ["0.0.0.0/0"] opts into trust-all deliberately; development downgrades to a warning.
+        proxy_trust_check(
+            sec.trust_proxy_headers,
+            sec.trusted_proxy_cidrs.as_deref(),
+            crate::ServerConfig::is_production_mode(),
+        )?;
 
         let config = crate::middleware::RateLimitConfig::from_security_config(&sec);
 
@@ -672,34 +673,61 @@ pub(super) fn failed_login_lockout_check(
     Ok(())
 }
 
-/// Startup warning for an unrestricted `X-Forwarded-For` trust posture (#609).
+/// Startup check for an unrestricted `X-Forwarded-For` trust posture (#609/#618).
 ///
-/// Returns the warning to emit when `trust_proxy_headers` is enabled but no CIDR
-/// range restricts which direct peers may set `X-Forwarded-For` — the trust-every-proxy
-/// posture, where any client can spoof its IP and bypass per-IP rate limiting. Returns
-/// `None` when the configuration is safe: proxy trust off, or a **non-empty** CIDR list —
-/// including `["0.0.0.0/0"]`, the sanctioned way to say "trust every proxy" on purpose,
-/// which is a valid CIDR that `extract_real_ip` already treats as trust-all.
+/// When `trust_proxy_headers` is enabled but no CIDR range restricts which direct peers
+/// may set `X-Forwarded-For` — the trust-every-proxy-by-omission posture — any client can
+/// spoof its IP and bypass per-IP rate limiting (or poison IP-derived logging). In
+/// **production** this refuses to boot (`ServerError::ConfigError`); in **development** it
+/// downgrades to a warning, matching [`failed_login_lockout_check`].
 ///
-/// Empty-by-omission warns and carries a deprecation notice: trusting all proxies
-/// implicitly is scheduled to refuse boot in 2.14 (#618). An operator who writes
-/// `["0.0.0.0/0"]` opted in deliberately, so the list is non-empty and this does not fire.
-pub(super) fn proxy_trust_startup_warning(
+/// Safe configurations return `Ok(())` with no warning: proxy trust off, or a **non-empty**
+/// CIDR list — including `["0.0.0.0/0"]`, the sanctioned explicit "trust every proxy" opt-in,
+/// a valid CIDR that `extract_real_ip` already treats as trust-all.
+///
+/// 2.13 shipped this as a deprecation warning promising a 2.14 refuse-to-boot (#618); this
+/// is that promotion. Operators who genuinely want trust-all keep it working by writing
+/// `trusted_proxy_cidrs = ["0.0.0.0/0"]` explicitly.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `trust_proxy_headers = true`, the resolved CIDR
+/// list is empty, and `is_production` is true.
+pub(super) fn proxy_trust_check(
     trust_proxy_headers: bool,
     trusted_proxy_cidrs: Option<&[String]>,
-) -> Option<&'static str> {
-    if trust_proxy_headers && trusted_proxy_cidrs.is_none_or(<[String]>::is_empty) {
-        Some(
-            "Rate limiter: trust_proxy_headers = true but trusted_proxy_cidrs is not set. \
-             Any client can spoof X-Forwarded-For and bypass per-IP rate limits. Set \
-             trusted_proxy_cidrs in [security.rate_limiting] to your proxy ranges (e.g. \
-             [\"10.0.0.0/8\"] for internal load balancers), or [\"0.0.0.0/0\"] to keep \
-             trusting every proxy explicitly. DEPRECATED: trusting all proxies by omission \
-             will refuse to boot in 2.14 (#618).",
-        )
-    } else {
-        None
+    is_production: bool,
+) -> crate::Result<()> {
+    let trust_all_by_omission =
+        trust_proxy_headers && trusted_proxy_cidrs.is_none_or(<[String]>::is_empty);
+    if !trust_all_by_omission {
+        return Ok(());
     }
+    if is_production {
+        return Err(crate::ServerError::ConfigError(
+            concat!(
+                "FraiseQL failed to start\n\n",
+                "  [security.rate_limiting] trust_proxy_headers = true, but trusted_proxy_cidrs\n",
+                "  is empty or unset. Every direct peer would be trusted to set X-Forwarded-For,\n",
+                "  so any client could spoof its IP and bypass per-IP rate limiting (and poison\n",
+                "  IP-derived logging).\n\n",
+                "  Restrict which peers are trusted proxies:\n",
+                "    trusted_proxy_cidrs = [\"10.0.0.0/8\"]   # your load balancer / proxy ranges\n\n",
+                "  Or, to keep trusting every proxy on purpose, opt in explicitly:\n",
+                "    trusted_proxy_cidrs = [\"0.0.0.0/0\"]\n\n",
+                "  For local development only:\n",
+                "    Set FRAISEQL_ENV=development to downgrade this to a warning.",
+            )
+            .into(),
+        ));
+    }
+    warn!(
+        "[security.rate_limiting] trust_proxy_headers = true but trusted_proxy_cidrs is empty. \
+         Any client can spoof X-Forwarded-For and bypass per-IP rate limits. Allowed only \
+         because FRAISEQL_ENV=development; set trusted_proxy_cidrs to your proxy ranges (e.g. \
+         [\"10.0.0.0/8\"]), or [\"0.0.0.0/0\"] to keep trusting every proxy explicitly."
+    );
+    Ok(())
 }
 
 // ── Observer transport selection (#350) ──────────────────────────────────────

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **In production, `[security.rate_limiting] trust_proxy_headers = true` with an empty or
+  omitted `trusted_proxy_cidrs` now refuses to boot (#618).** The 2.13 deprecation warning
+  (#609) promised exactly this. Trusting `X-Forwarded-For` from every direct peer lets any
+  client spoof its IP and bypass per-IP rate limiting (and poison IP-derived logging).
+  Restrict trust with `trusted_proxy_cidrs = ["10.0.0.0/8"]` (your load-balancer/proxy
+  ranges), or opt into trust-all **explicitly** with `trusted_proxy_cidrs = ["0.0.0.0/0"]`
+  (unchanged, never warns). Development (`FRAISEQL_ENV=development`) downgrades the refusal
+  to a warning, matching the `failed_login_*` production/development split.
+
 ## [2.13.1] - 2026-07-18
 
 ### Changed

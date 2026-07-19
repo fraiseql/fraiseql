@@ -263,42 +263,53 @@ mod initialization_tests {
         assert!(failed_login_lockout_check(5, 60, false).is_ok());
     }
 
-    // #609: trusting X-Forwarded-For from all proxies (empty CIDR list) warns with a
-    // 2.14 refuse-to-boot deprecation notice (#618); an explicit ["0.0.0.0/0"] opt-in
-    // does not warn.
-    use super::super::initialization::proxy_trust_startup_warning;
+    // #618: trusting X-Forwarded-For from all proxies (empty CIDR list) now REFUSES to
+    // boot in production and downgrades to a warning in development — the 2.13 deprecation
+    // (#609) promised this. An explicit ["0.0.0.0/0"] opt-in is safe (non-empty list).
+    use super::super::initialization::proxy_trust_check;
 
     #[test]
-    fn proxy_trust_all_by_omission_warns_with_deprecation() {
-        let msg = proxy_trust_startup_warning(true, None)
-            .expect("trust_proxy_headers = true with no CIDRs must warn");
-        assert!(msg.contains("DEPRECATED"), "carries the deprecation notice: {msg}");
-        assert!(msg.contains("2.14"), "names the refuse-to-boot version: {msg}");
-        assert!(msg.contains("#618"), "links the follow-up issue: {msg}");
+    fn proxy_trust_all_by_omission_refuses_boot_in_production() {
+        // trust + no CIDRs (None) → refuse in production, with an actionable message.
+        let err = proxy_trust_check(true, None, true).expect_err("must refuse to boot");
+        let msg = format!("{err}");
+        assert!(msg.contains("trusted_proxy_cidrs"), "names the fix: {msg}");
+        assert!(msg.contains("0.0.0.0/0"), "names the explicit trust-all opt-in: {msg}");
     }
 
     #[test]
-    fn proxy_trust_empty_list_warns() {
-        assert!(proxy_trust_startup_warning(true, Some(&[])).is_some());
+    fn proxy_trust_empty_list_refuses_boot_in_production() {
+        // An explicitly empty list is the same permissive posture as omission.
+        assert!(proxy_trust_check(true, Some(&[]), true).is_err());
     }
 
     #[test]
-    fn proxy_trust_explicit_trust_all_does_not_warn() {
-        // ["0.0.0.0/0"] is the sanctioned explicit opt-in — a deliberate, non-empty
-        // list, so the deprecation warning must not fire.
+    fn proxy_trust_all_by_omission_is_a_warning_in_development() {
+        // Development downgrades to a warning (boot proceeds), matching failed_login.
+        assert!(proxy_trust_check(true, None, false).is_ok());
+        assert!(proxy_trust_check(true, Some(&[]), false).is_ok());
+    }
+
+    #[test]
+    fn proxy_trust_explicit_trust_all_is_ok_even_in_production() {
+        // ["0.0.0.0/0"] is the sanctioned explicit opt-in — a deliberate, non-empty list,
+        // so it neither errors nor warns, in production or development.
         let cidrs = vec!["0.0.0.0/0".to_string()];
-        assert!(proxy_trust_startup_warning(true, Some(&cidrs)).is_none());
+        assert!(proxy_trust_check(true, Some(&cidrs), true).is_ok());
+        assert!(proxy_trust_check(true, Some(&cidrs), false).is_ok());
     }
 
     #[test]
-    fn proxy_trust_restricted_cidrs_do_not_warn() {
+    fn proxy_trust_restricted_cidrs_are_ok_in_production() {
         let cidrs = vec!["10.0.0.0/8".to_string()];
-        assert!(proxy_trust_startup_warning(true, Some(&cidrs)).is_none());
+        assert!(proxy_trust_check(true, Some(&cidrs), true).is_ok());
     }
 
     #[test]
-    fn proxy_trust_disabled_does_not_warn() {
-        assert!(proxy_trust_startup_warning(false, None).is_none());
+    fn proxy_trust_disabled_is_ok() {
+        // trust_proxy_headers = false → the CIDR list is irrelevant; never errors/warns.
+        assert!(proxy_trust_check(false, None, true).is_ok());
+        assert!(proxy_trust_check(false, None, false).is_ok());
     }
 
     // #350: a configured non-Postgres observer transport that cannot run must fail
