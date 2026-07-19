@@ -305,6 +305,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             crate::routes::subscriptions::build_subscription_policies(self.executor.schema()),
         );
 
+        // #611: a live policy source so a hot-reload's subscription_policy change reaches
+        // NEW subscriptions on the next subscribe, not only on restart. It reads the same
+        // reload-aware executor ArcSwap the query plane swaps in `AppState::reload_schema`;
+        // the mount-time `subscription_policies` above stays as the fallback. Already-connected
+        // subscriptions keep their subscribe-time boundary until reconnect (layer-2, deferred).
+        let executor_swap = state.executor.clone();
+        let live_subscription_policies: crate::routes::subscriptions::LiveSubscriptionPolicies =
+            Arc::new(move || {
+                Arc::new(crate::routes::subscriptions::build_subscription_policies(
+                    executor_swap.load().schema(),
+                ))
+            });
+
         #[allow(unused_mut)]
         // Reason: `mut` is needed when the federation/auth features are enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
@@ -315,6 +328,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_authorizer(self.executor.config().authorizer.clone())
             // #596: server-owned row-visibility policies (fail-closed at subscribe time).
             .with_subscription_policies(subscription_policies)
+            // #611: read live policies per new subscription so a hot-reload applies promptly.
+            .with_live_subscription_policies(Some(live_subscription_policies))
             // ADR-0018: let a service account authenticate the /ws upgrade with its secret.
             .with_service_account_authenticator(state.service_account_authenticator.clone())
             // M-tenant-ws-suspended: reject subscribes / pause delivery for a

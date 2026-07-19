@@ -114,7 +114,10 @@ mod row_visibility_596 {
     };
 
     use super::{
-        super::{build_subscription_policies, derive_policy_conditions},
+        super::{
+            LiveSubscriptionPolicies, build_subscription_policies, derive_policy_conditions,
+            resolve_subscription_rls,
+        },
         *,
     };
 
@@ -218,6 +221,77 @@ mod row_visibility_596 {
         assert!(map.contains_key("orderUpdated"), "policy-declaring entity is mapped");
         assert!(!map.contains_key("pinged"), "an entity without a policy is not mapped");
         assert_eq!(map.len(), 1);
+    }
+
+    /// #611 layer-1: a policy ADDED by a hot-reload applies to a NEW subscription — the live
+    /// source is read per subscribe, and the newly-scoped entity fails closed for an
+    /// unresolvable identity rather than staying deliver-all until restart.
+    #[tokio::test]
+    async fn policy_added_by_reload_applies_to_new_subscription_fail_closed() {
+        use arc_swap::ArcSwap;
+        // A live source the test swaps to simulate a hot-reload (exactly how the `/ws`
+        // handler reads the reload-aware executor ArcSwap in production).
+        let live_swap: Arc<ArcSwap<HashMap<String, SubscriptionPolicy>>> =
+            Arc::new(ArcSwap::from_pointee(HashMap::new()));
+        let live_swap_reader = live_swap.clone();
+        let live: LiveSubscriptionPolicies = Arc::new(move || live_swap_reader.load_full());
+
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+        let state = SubscriptionState::new(manager).with_live_subscription_policies(Some(live));
+
+        // Before the reload: no policy → unscoped (deliver-all), even for an anonymous sub.
+        let before = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        assert_eq!(before.expect("no policy → ok"), Vec::new());
+
+        // Reload adds a policy for orderUpdated.
+        let mut reloaded = HashMap::new();
+        reloaded.insert("orderUpdated".to_string(), policy());
+        live_swap.store(Arc::new(reloaded));
+
+        // A NEW anonymous subscription now sees the added policy → refused (fail-closed),
+        // NOT deliver-all. This is the layer-1 guarantee that closes the fail-open window.
+        let after = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        assert!(
+            after.is_err(),
+            "a hot-reloaded policy must apply to new subscriptions (fail-closed): {after:?}"
+        );
+    }
+
+    /// #611 layer-1: the live source overrides the mount-time snapshot. A policy REMOVED by a
+    /// hot-reload leaves new subscriptions unscoped (the operator's explicit choice), rather
+    /// than keeping the stale snapshot's scoping.
+    #[tokio::test]
+    async fn live_source_overrides_mount_time_snapshot() {
+        // Mount-time snapshot HAS a policy; the live source (post-reload) does NOT.
+        let mut snapshot = HashMap::new();
+        snapshot.insert("orderUpdated".to_string(), policy());
+        let live_empty: LiveSubscriptionPolicies = Arc::new(|| Arc::new(HashMap::new()));
+
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+        let state = SubscriptionState::new(manager)
+            .with_subscription_policies(Arc::new(snapshot))
+            .with_live_subscription_policies(Some(live_empty));
+
+        // The live (empty) source wins over the snapshot → unscoped, not the snapshot's refuse.
+        let r = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        assert_eq!(
+            r.expect("live source removed the policy → unscoped"),
+            Vec::new(),
+            "the live source must override the mount-time snapshot"
+        );
+    }
+
+    /// Without a live source, behavior is unchanged: the mount-time snapshot is used and
+    /// fails closed for a policy-declaring subscription with an anonymous principal.
+    #[tokio::test]
+    async fn no_live_source_falls_back_to_snapshot_fail_closed() {
+        let mut snapshot = HashMap::new();
+        snapshot.insert("orderUpdated".to_string(), policy());
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+        let state = SubscriptionState::new(manager).with_subscription_policies(Arc::new(snapshot));
+
+        let r = resolve_subscription_rls(&state, "orderUpdated", None).await;
+        assert!(r.is_err(), "snapshot policy still fails closed for an anonymous sub: {r:?}");
     }
 }
 
