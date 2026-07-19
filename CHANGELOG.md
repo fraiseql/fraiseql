@@ -51,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   points at `fraiseql setup` when the table is missing. Row-Level Security (migration 12)
   remains a separate operator step, and `RETURNS SETOF v_*` mutation functions remain
   unsupported — both documented in `docs/architecture/change-log-contract.md`.
+- **Subscription row-visibility policies now hot-reload for new subscriptions (#611).** A
+  `subscription_policy` added or tightened via a schema hot-reload previously took effect only
+  on server **restart** — a fail-open window where a newly-tightened entity kept delivering
+  all rows to new subscribers until then. The `/ws` handler now reads policies from the live
+  (reload-aware) schema per new subscription, so a reloaded change applies on the next
+  subscribe. Fail-closed is preserved: a policy whose owner identity is unresolvable refuses
+  the subscription, never deliver-all. Already-connected subscriptions keep their
+  subscribe-time boundary until they reconnect (the reload warning now says so); mid-stream
+  re-derivation of live subscriptions is a deferred follow-up.
 
 ## [2.13.1] - 2026-07-18
 

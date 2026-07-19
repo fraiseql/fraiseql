@@ -698,11 +698,12 @@ impl<A: DatabaseAdapter> AppState<A> {
 /// Warn (loudly) when a schema hot-reload changes the subscription row-visibility
 /// policies (#596/#611).
 ///
-/// The subscription subsystem is resolved once at server start and is **not** re-mounted
-/// on reload, so a policy added or changed here takes effect on **restart**, not now —
-/// a silent fail-open window for a newly-tightened entity. This converts that window
-/// into an operator-visible warning (one map comparison), pending the full reload-aware
-/// remount tracked in #611.
+/// As of #611 layer-1, **new** subscriptions read the live policies (the `/ws` handler
+/// resolves them from the reload-aware executor `ArcSwap`), so a reloaded change reaches
+/// them on the next subscribe. **Already-connected** subscriptions keep their subscribe-time
+/// boundary until they reconnect — this warning makes that window operator-visible so a
+/// reconnect can be forced. Mid-stream re-derivation of live subscriptions is layer-2
+/// (deferred; #611).
 fn warn_on_subscription_policy_reload(
     old_schema: &CompiledSchema,
     new_schema: &CompiledSchema,
@@ -714,9 +715,10 @@ fn warn_on_subscription_policy_reload(
         warn!(
             old = old_policies.len(),
             new = new_policies.len(),
-            "SECURITY: schema reload changes subscription row-visibility policies, but the \
-             subscription subsystem is not re-mounted on reload — the new policies take effect \
-             on RESTART, not now. Restart to apply subscription policy changes (#611)."
+            "SECURITY: schema reload changes subscription row-visibility policies. NEW \
+             subscriptions pick up the change immediately (#611 layer-1); ALREADY-CONNECTED \
+             subscriptions keep their subscribe-time boundary until they reconnect. Force a \
+             reconnect (or restart) to apply the change to existing streams."
         );
     }
     changed

@@ -112,6 +112,14 @@ const CONNECTION_INIT_TIMEOUT: Duration = Duration::from_secs(5);
 /// Ping/keepalive interval.
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
+/// A live source of per-subscription row-visibility policies (#611).
+///
+/// Returns the CURRENT compiled schema's `subscription_policy` map. Installed at mount over
+/// the reload-aware executor `ArcSwap`, so a policy added or changed by a hot-reload reaches
+/// the next subscribe — not only a restart. Type-erased over the database adapter.
+pub type LiveSubscriptionPolicies =
+    Arc<dyn Fn() -> Arc<HashMap<String, SubscriptionPolicy>> + Send + Sync>;
+
 /// State for subscription `WebSocket` handler.
 #[derive(Clone)]
 pub struct SubscriptionState {
@@ -150,6 +158,14 @@ pub struct SubscriptionState {
     /// when the identity is unresolvable. A subscription with no policy keeps today's
     /// behavior (no back-compat break).
     pub subscription_policies: Arc<HashMap<String, SubscriptionPolicy>>,
+    /// #611: live row-visibility policy source. When set (installed at mount from the
+    /// reload-aware executor `ArcSwap`), each **new** subscription is evaluated against the
+    /// **current** schema's policies, so a policy added or tightened by a hot-reload takes
+    /// effect on the next subscribe rather than only on restart. `None` falls back to the
+    /// mount-time `subscription_policies` snapshot — the behavior tests and hosts that do
+    /// not wire a live source keep. Already-connected subscriptions keep their subscribe-time
+    /// boundary until they reconnect (layer-2, deferred; #611).
+    pub live_subscription_policies: Option<LiveSubscriptionPolicies>,
     /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
     /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
     /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted.
@@ -176,6 +192,7 @@ impl SubscriptionState {
             authorizer: None,
             tenant_status_source: None,
             subscription_policies: Arc::new(HashMap::new()),
+            live_subscription_policies: None,
             #[cfg(feature = "auth")]
             identity_resolver: None,
             service_account_authenticator: None,
@@ -183,13 +200,27 @@ impl SubscriptionState {
     }
 
     /// Install the per-subscription row-visibility policies (#596). Typically built by
-    /// [`build_subscription_policies`] from the compiled schema at mount time.
+    /// [`build_subscription_policies`] from the compiled schema at mount time. Used as the
+    /// fallback when no live source (`with_live_subscription_policies`) is installed.
     #[must_use]
     pub fn with_subscription_policies(
         mut self,
         policies: Arc<HashMap<String, SubscriptionPolicy>>,
     ) -> Self {
         self.subscription_policies = policies;
+        self
+    }
+
+    /// Install the live row-visibility policy source (#611). When set, each new subscription
+    /// is evaluated against the current schema's policies, so a hot-reloaded policy applies
+    /// on the next subscribe rather than only on restart. `None` keeps the mount-time
+    /// snapshot behavior.
+    #[must_use]
+    pub fn with_live_subscription_policies(
+        mut self,
+        live: Option<LiveSubscriptionPolicies>,
+    ) -> Self {
+        self.live_subscription_policies = live;
         self
     }
 
@@ -311,7 +342,15 @@ async fn resolve_subscription_rls(
     subscription_name: &str,
     principal: Option<&SecurityContext>,
 ) -> Result<Vec<(String, serde_json::Value)>, String> {
-    let Some(policy) = state.subscription_policies.get(subscription_name) else {
+    // #611: when a live source is installed, evaluate against the CURRENT schema's policies
+    // so a hot-reloaded policy applies to this new subscription; otherwise the mount-time
+    // snapshot. Fail-closed is preserved downstream: a policy that applies but whose owner
+    // identity is unresolvable refuses the subscription (never deliver-all).
+    let policies = state
+        .live_subscription_policies
+        .as_ref()
+        .map_or_else(|| Arc::clone(&state.subscription_policies), |live| live());
+    let Some(policy) = policies.get(subscription_name) else {
         return Ok(Vec::new());
     };
 
