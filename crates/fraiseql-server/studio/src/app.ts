@@ -157,48 +157,6 @@ async function renderFunctions(el: HTMLElement): Promise<void> {
   }
 }
 
-async function renderRealtime(el: HTMLElement): Promise<void> {
-  el.innerHTML = `<div class="section-placeholder">${skeleton(3)}</div>`;
-  try {
-    const r = await apiFetch('/admin/v1/realtime/stats');
-    const data = await r.json() as {
-      connections: number;
-      channels: string[];
-      presence_rooms: { room: string; members: number }[];
-      cdc_lag_ms: number | null;
-    };
-    el.innerHTML = `
-      <h2>Realtime Monitor</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem">
-        <div class="stat-card">
-          <div class="stat-label">Connections</div>
-          <div class="stat-value">${data.connections}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Channels</div>
-          <div class="stat-value">${data.channels.length}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Presence Rooms</div>
-          <div class="stat-value">${data.presence_rooms.length}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">CDC Lag</div>
-          <div class="stat-value">
-            ${data.cdc_lag_ms != null
-              ? `<l-tooltip content="Replication lag in ms">${data.cdc_lag_ms} ms</l-tooltip>`
-              : 'N/A'}
-          </div>
-        </div>
-      </div>
-      ${data.channels.length > 0
-        ? `<h3>Channels</h3>${table(['name'], data.channels.map(c => ({ name: c })))}`
-        : ''}`;
-  } catch {
-    el.innerHTML = emptyState('Realtime stats unavailable.');
-  }
-}
-
 async function renderMetrics(el: HTMLElement): Promise<void> {
   el.innerHTML = `<div class="section-placeholder">${skeleton(4)}</div>`;
   try {
@@ -257,7 +215,6 @@ const SECTIONS: Record<string, (el: HTMLElement) => Promise<void>> = {
   auth:      renderAuth,
   storage:   renderStorage,
   functions: renderFunctions,
-  realtime:  renderRealtime,
   metrics:   renderMetrics,
 };
 

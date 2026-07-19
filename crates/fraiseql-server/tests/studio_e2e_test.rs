@@ -17,15 +17,8 @@
 fn test_studio_shell_has_all_tab_items() {
     use fraiseql_server::routes::studio::studio_shell_html;
     let html = studio_shell_html();
-    // Each tab item must reference one of the six sections
-    for section in [
-        "data",
-        "auth",
-        "storage",
-        "functions",
-        "realtime",
-        "metrics",
-    ] {
+    // Each tab item must reference one of the five sections
+    for section in ["data", "auth", "storage", "functions", "metrics"] {
         assert!(
             html.contains(&format!("value=\"{section}\"")),
             "Shell must have a tab item for '{section}'"
@@ -68,7 +61,6 @@ fn test_all_admin_types_importable() {
         data::{DataBrowserQuery, DataQueryResponse},
         function_ops::{FunctionListResponse, SecretSetRequest},
         metrics_summary::MetricsSummary,
-        realtime_monitor::RealtimeStatsResponse,
         storage_browser::{ObjectListResponse, PresignRequest},
     };
 
@@ -112,12 +104,6 @@ fn test_all_admin_types_importable() {
         value: String::new(),
     };
     let _ = MetricsSummary::zero();
-    let _ = RealtimeStatsResponse {
-        connections:    0,
-        channels:       vec![],
-        presence_rooms: vec![],
-        cdc_lag_ms:     None,
-    };
     let _ = ObjectListResponse {
         objects:   vec![],
         total:     0,

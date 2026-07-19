@@ -10,7 +10,6 @@ pub mod auth_users;
 pub mod data;
 pub mod function_ops;
 pub mod metrics_summary;
-pub mod realtime_monitor;
 pub mod storage_browser;
 
 use axum::{
@@ -103,7 +102,6 @@ pub fn studio_shell_html() -> String {
       <l-tab-item value="auth">Auth</l-tab-item>
       <l-tab-item value="storage">Storage</l-tab-item>
       <l-tab-item value="functions">Functions</l-tab-item>
-      <l-tab-item value="realtime">Realtime</l-tab-item>
       <l-tab-item value="metrics">Metrics</l-tab-item>
     </l-tabs>
 
