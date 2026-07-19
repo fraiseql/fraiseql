@@ -245,6 +245,57 @@ mod database_validator_tests {
         );
     }
 
+    // #653 (2.14 Phase 03): a `@fraiseql.type`'s declared `sql_source` view that is absent
+    // from the DB warns (warn-grade, never fails) under `compile --database`. Synthesized
+    // types (empty source) are skipped. The hard `FRAISEQL_VALIDATE_SQL_SOURCES` gate does
+    // not probe type sources; this is the only check that surfaces phantom type sources.
+    #[tokio::test]
+    async fn missing_type_source_warns_and_skips_synthetic_types() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL).with_relation(
+            "public",
+            "v_order",
+            fraiseql_core::db::RelationKind::View,
+        );
+
+        // Order is view-backed and its view exists → no warning.
+        let order = TypeDefinition {
+            sql_source: "v_order".into(),
+            ..make_type("Order", vec![("id", FieldType::Id)])
+        };
+        // Money is an embedded value object the SDK synthesized `v_money` for → one warning.
+        let money = TypeDefinition {
+            sql_source: "v_money".into(),
+            ..make_type("Money", vec![("amount", FieldType::Int)])
+        };
+        // A synthesized cascade payload (empty sql_source) must be skipped, not warned about.
+        let synthetic =
+            make_type("CreateOrderPayload", vec![("entity", FieldType::Object("Order".into()))]);
+
+        let schema = make_schema(vec![order, money, synthetic], vec![]);
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+
+        let type_warnings: Vec<_> = report
+            .warnings
+            .iter()
+            .filter(|w| matches!(w, DatabaseWarning::MissingTypeSource { .. }))
+            .collect();
+        assert_eq!(
+            type_warnings.len(),
+            1,
+            "only the phantom type source warns: {:?}",
+            report.warnings
+        );
+        assert!(
+            matches!(&type_warnings[0], DatabaseWarning::MissingTypeSource { type_name, sql_source }
+                if type_name == "Money" && sql_source == "v_money")
+        );
+        assert!(
+            type_warnings[0].to_string().contains("embedded value object"),
+            "message points at the real fix: {}",
+            type_warnings[0]
+        );
+    }
+
     #[tokio::test]
     async fn test_missing_additional_view() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)

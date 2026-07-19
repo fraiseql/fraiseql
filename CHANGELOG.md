@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sql_source = "v_money"; an embedded value object … should declare no source`) and the
   reference path (`createOrder → Order.total → Money`), pointing at the real fix. Purely a
   diagnostic change — which schemas compile is unchanged.
+- **`compile --database` now warns when a `@fraiseql.type` declares a `sql_source` view that
+  is absent from the connected database (#653).** These phantom sources — usually an
+  embedded value object the SDK synthesized a `v_<name>` source for — were invisible to
+  every existing check (type sources are not on the shared existence-probe work-list that
+  the hard `FRAISEQL_VALIDATE_SQL_SOURCES` gate uses). The warning surfaces them at their
+  origin instead of later as an unrelated cascade `id` error. Warn-grade and non-breaking:
+  it never fails the compile, and the opt-in hard gate is unchanged (it still does not probe
+  type sources, to avoid drowning in synthesized-source noise until they stop being
+  synthesized).
 
 ## [2.13.1] - 2026-07-18
 
