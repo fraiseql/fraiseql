@@ -102,6 +102,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscribe-time boundary until they reconnect (the reload warning now says so); mid-stream
   re-derivation of live subscriptions is a deferred follow-up.
 
+### Security
+
+- **`mutation(requires_role=…)` is now enforced — the authored role was previously discarded
+  at compile time, shipping the mutation ungated (#676).** A mutation declared with
+  `@fraiseql.mutation(requires_role="admin")` (a capability documented in
+  `docs/guides/operation-authorization.md`) was accepted by the SDK, silently dropped during
+  compilation, and served callable by **any** principal — with no error at author time, no
+  warning at compile time, and nothing in the compiled artifact recording that a gate had been
+  requested. The runtime gate itself was always correct and tested; it simply never received
+  its input. Two links were broken: `IntermediateMutation` declared no `requires_role` field
+  (so serde discarded the key from `schema.json`), and the converter hardcoded `None`. Both are
+  fixed, mirroring the query path, which was unaffected throughout.
+
+  **Audit your mutations.** Any deployment relying on `requires_role` for mutation
+  authorization was unprotected by that control on every release since it was documented;
+  compensating controls (field authorizers, operation authorizers, RLS, gateway rules) were
+  not affected. Recompiling with this release makes the declared roles take effect — which
+  may **newly reject** callers that previously succeeded, so verify role assignments before
+  rolling out. Type-level `requires_role` remains unenforced and is tracked separately in
+  \#677.
+
 ## [2.13.1] - 2026-07-18
 
 ### Changed

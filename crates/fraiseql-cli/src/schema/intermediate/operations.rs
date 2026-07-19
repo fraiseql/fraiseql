@@ -148,6 +148,14 @@ pub struct IntermediateMutation {
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject: IndexMap<String, String>,
 
+    /// Role required to execute this mutation and see it in introspection.
+    ///
+    /// Mirrors [`IntermediateQuery::requires_role`]. Enforced at runtime with the same
+    /// enumeration-hiding "not found" response as the query gate — a principal lacking
+    /// the role cannot distinguish a forbidden mutation from a nonexistent one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
+
     /// Fact tables whose version counter should be bumped after this mutation succeeds.
     ///
     /// Used for correct invalidation of analytic/aggregate cache entries.
@@ -222,6 +230,7 @@ impl Default for IntermediateMutation {
             operation:               None,
             deprecated:              None,
             inject:                  IndexMap::new(),
+            requires_role:           None,
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),
             changelog:               default_changelog(),

@@ -487,6 +487,7 @@ fn test_e2e_full_field_assertion() {
             deprecated:              None,
             sql_source:              Some("fn_create_user".to_string()),
             inject:                  IndexMap::default(),
+            requires_role:           None,
             invalidates_fact_tables: vec![],
             invalidates_views:       vec![],
             changelog:               true,

@@ -75,7 +75,7 @@ impl SchemaConverter {
             rest_path: None,
             rest_method: None,
             upsert_function: None,
-            requires_role: None,
+            requires_role: intermediate.requires_role,
             changelog: intermediate.changelog,
             input_style: intermediate.input_style,
             changelog_pre_image: intermediate.changelog_pre_image,

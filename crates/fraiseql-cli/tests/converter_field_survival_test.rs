@@ -236,6 +236,68 @@ fn converter_threads_invalidates_fact_tables_on_mutation() {
     );
 }
 
+/// #676: an authored `mutation(requires_role=…)` must reach the compiled schema.
+///
+/// The runtime gate at `runtime/executor/runners/mutation/mod.rs` is correct and
+/// enumeration-hiding, but it can only fire if the role survives compilation. It did
+/// not: `IntermediateMutation` declared no `requires_role` field (so serde dropped the
+/// key silently) and the converter hardcoded `None`. The result was an authored
+/// admin-only mutation shipping callable by anyone, with no error at author time and
+/// none at compile time.
+///
+/// The query twin of this test (`converter_threads_requires_role_on_query`) existed
+/// throughout; only the mutation side was missing, which is why the gap survived.
+#[test]
+fn converter_threads_requires_role_on_mutation() {
+    let schema = IntermediateSchema {
+        types: vec![order_type()],
+        mutations: vec![IntermediateMutation {
+            name: "deleteOrganization".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("fn_delete_organization".to_string()),
+            requires_role: Some("admin".to_string()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled = SchemaConverter::convert(schema).expect("convert must succeed");
+    let m = compiled
+        .find_mutation("deleteOrganization")
+        .expect("'deleteOrganization' must be present");
+
+    assert_eq!(
+        m.requires_role.as_deref(),
+        Some("admin"),
+        "requires_role must survive SchemaConverter::convert()"
+    );
+}
+
+/// #676: the role must also survive **deserialization** of the authored `schema.json`.
+///
+/// This is the link the converter test cannot cover. `IntermediateMutation` carries no
+/// `deny_unknown_fields`, so before the fix a `requires_role` key emitted by the SDK was
+/// discarded without comment — the field was gone before the converter ever ran. Pinning
+/// the JSON boundary keeps the whole authoring → compile chain honest.
+#[test]
+fn mutation_requires_role_survives_schema_json_deserialization() {
+    let json = serde_json::json!({
+        "name": "deleteOrganization",
+        "return_type": "Order",
+        "sql_source": "fn_delete_organization",
+        "requires_role": "admin",
+    });
+
+    let m: IntermediateMutation =
+        serde_json::from_value(json).expect("intermediate mutation must deserialize");
+
+    assert_eq!(
+        m.requires_role.as_deref(),
+        Some("admin"),
+        "requires_role must survive schema.json deserialization"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Type field survival
 // ---------------------------------------------------------------------------
