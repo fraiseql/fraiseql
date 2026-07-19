@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The dormant `/realtime/v1` WebSocket entity-stream subsystem and its public
+  `fraiseql_server::realtime` module have been deleted (#605).** This is the final step of the
+  removal train: ~3,600 LOC of security-sensitive dead surface — a second, parallel
+  "entity after-images over WebSocket" mechanism that duplicated the live `/ws`
+  GraphQL-subscription path, with no production `TokenValidator` or `RlsEvaluator` and no
+  binary that ever assembled it. **The live `/ws` path is unaffected and is the single
+  supported real-time mechanism** — it covers entity change streams, hardened with #596
+  row-visibility and #611 hot-reload. Removed without replacement: the `/realtime/v1` endpoint
+  family, the `POST /realtime/v1/broadcast` channel-broadcast endpoint, room presence, the
+  `/admin/v1/realtime/*` studio monitor, the `RealtimeSubsystem`/`Server::with_realtime`
+  assembly, and the compiled-schema/server-config `realtime` sections. A revival (should
+  channels-style features ever be wanted) must be designed fresh as `/ws`-native subscription
+  fields on the hardened machinery — a real `TokenValidator` over `OidcValidator`, a production
+  `RlsEvaluator`, and #539 identity plumbing — not by restoring this code; this train's PR
+  series (#664, #667, #668, #669, #670, #671, and this PR) is the reference for what that would
+  entail.
 - **The compiled-schema `"realtime"` section and the `[realtime]` server-config section are no
   longer honored (#605).** With the dormant `/realtime/v1` subsystem removed, neither is
   parsed: a compiled schema that still carries a `"realtime"` key loads with a `warn!`

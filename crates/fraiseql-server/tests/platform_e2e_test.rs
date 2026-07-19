@@ -1,7 +1,7 @@
 //! Platform E2E Integration Tests — Phase 8 Cycle 7
 //!
 //! End-to-end tests that verify the complete platform integration:
-//! storage, functions (before/after mutation, cron), and realtime.
+//! storage and functions (before/after mutation, cron).
 //!
 //! # Test tiers
 //!
@@ -223,67 +223,6 @@ async fn test_platform_e2e_cron_scheduler_starts_on_server_start() {
     tokio::task::yield_now().await;
 }
 
-/// Verify that the realtime observer hook point exists on `AppState`.
-///
-/// The full realtime notification path (mutation → entity event → `WebSocket`)
-/// requires the observer runtime pipeline which is exercised in Tier 3.
-/// This test verifies only the `AppState` hook plumbing.
-#[test]
-fn test_platform_e2e_realtime_observer_hook_is_accessible() {
-    use fraiseql_server::realtime::observer::RealtimeBroadcastObserver;
-
-    let (observer, _rx) = RealtimeBroadcastObserver::new(64);
-    let observer = Arc::new(observer);
-
-    // The observer tracks dropped events; must start at 0
-    assert_eq!(observer.events_dropped_total(), 0);
-
-    // Simulate a mutation completing: non-blocking, returns immediately
-    use fraiseql_server::realtime::delivery::{EntityEvent, EventKindSerde};
-    let event = EntityEvent {
-        entity:     "User".to_string(),
-        event_kind: EventKindSerde::Insert,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        old:        None,
-        timestamp:  chrono::Utc::now().to_rfc3339(),
-    };
-    observer.on_mutation_complete(event);
-
-    // With an active receiver (_rx), the event should be buffered, not dropped
-    assert_eq!(observer.events_dropped_total(), 0);
-}
-
-/// Verify that `on_mutation_complete` drops events when channel is full (backpressure).
-///
-/// The realtime delivery pipeline is intentionally lossy under backpressure to
-/// protect mutation response latency.
-#[test]
-fn test_platform_e2e_realtime_observer_drops_events_on_backpressure() {
-    use fraiseql_server::realtime::{
-        delivery::{EntityEvent, EventKindSerde},
-        observer::RealtimeBroadcastObserver,
-    };
-
-    // Capacity = 1 → second event should be dropped when channel is full
-    let (observer, _rx) = RealtimeBroadcastObserver::new(1);
-
-    let make_event = || EntityEvent {
-        entity:     "Post".to_string(),
-        event_kind: EventKindSerde::Insert,
-        new:        Some(serde_json::json!({ "id": 1 })),
-        old:        None,
-        timestamp:  chrono::Utc::now().to_rfc3339(),
-    };
-
-    // First event fills the channel
-    observer.on_mutation_complete(make_event());
-    assert_eq!(observer.events_dropped_total(), 0);
-
-    // Second event overflows the channel → dropped
-    observer.on_mutation_complete(make_event());
-    assert_eq!(observer.events_dropped_total(), 1);
-}
-
 // ── Tier 3: Full platform E2E (requires PostgreSQL + Deno) ───────────────────
 //
 // These tests are `#[ignore]` and require the full platform stack.
@@ -336,29 +275,6 @@ async fn test_e2e_before_mutation_validates_input() {
     );
     let errors = body["errors"].as_array().unwrap();
     assert!(!errors.is_empty(), "should have at least one error");
-}
-
-/// E2E: `WebSocket` subscriber receives insert event in real time.
-///
-/// Flow:
-/// 1. Connect `WebSocket` to `/realtime/v1`
-/// 2. Subscribe to `Post` entity
-/// 3. Insert a Post via GraphQL mutation
-/// 4. Assert the subscriber receives a `change` message with the new Post data
-///
-/// Run with: `FRAISEQL_PLATFORM_E2E=1 FRAISEQL_TEST_URL=http://localhost:8000 cargo test ...`
-#[tokio::test]
-#[ignore = "requires full platform stack (FRAISEQL_PLATFORM_E2E=1)"]
-async fn test_e2e_realtime_subscription_receives_insert() {
-    if !platform_e2e_available() {
-        eprintln!("skipped: FRAISEQL_PLATFORM_E2E not set");
-        return;
-    }
-
-    // Implementation: connect WS, subscribe, insert, assert event received.
-    // Full implementation requires the fraiseql-test-utils WS client helpers.
-    // Tracked for implementation when the platform stack is available.
-    todo!("requires WS client helper and running platform stack")
 }
 
 /// E2E: Cron function fires and persists state to `_fraiseql_cron_state`.

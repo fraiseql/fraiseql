@@ -242,9 +242,6 @@ pub mod inbound;
 // Connection pool management and auto-tuning
 pub mod pool;
 
-// Realtime WebSocket server — entity change streams (complementary to subscriptions/)
-pub mod realtime;
-
 // Object storage backends (local, S3, GCS, Azure Blob)
 pub mod storage;
 
