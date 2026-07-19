@@ -343,6 +343,7 @@ fn make_type_def(name: &str) -> TypeDefinition {
         requires_role:       None,
         is_error:            false,
         relay:               false,
+        internal:            false,
         relationships:       vec![],
         subscription_policy: None,
     }
@@ -1444,4 +1445,41 @@ fn schema_integrity_verification() {
     // Test missing hash with non-strict
     let restored = CompiledSchema::from_json(&body, false).unwrap();
     assert_eq!(restored.types.len(), schema.types.len());
+}
+
+// -------------------------------------------------------------------------
+// `TypeDefinition.internal` serde (#665, Phase 01)
+// -------------------------------------------------------------------------
+
+/// The `internal` flag must survive a compiled-schema serialize→deserialize when set —
+/// the server's schema loader and cli commands re-load compiled files, and Phase 02's
+/// runtime guard reads `internal` off a re-loaded schema (its first runtime consumer).
+/// A `#[serde(skip)]` flag would evaporate at that boundary; this pins that it does not.
+#[test]
+fn internal_flag_round_trips_when_true() {
+    let mut ty = make_type_def("EntityChangeLog");
+    ty.internal = true;
+
+    let json = serde_json::to_string(&ty).unwrap();
+    assert!(json.contains("\"internal\":true"), "internal=true must serialize: {json}");
+
+    let back: TypeDefinition = serde_json::from_str(&json).unwrap();
+    assert!(back.internal, "internal must survive round-trip");
+    assert_eq!(ty, back);
+}
+
+/// Authored types never set `internal`; `skip_serializing_if` omits the key entirely so
+/// existing compiled schemas are byte-identical, and the serde default restores `false`
+/// on load. This is the honest proof the field is inert for every non-framework type.
+#[test]
+fn internal_flag_omitted_when_false() {
+    let ty = make_type_def("User");
+    assert!(!ty.internal, "authored types default to internal = false");
+
+    let json = serde_json::to_string(&ty).unwrap();
+    assert!(!json.contains("internal"), "internal=false must be omitted from JSON: {json}");
+
+    let back: TypeDefinition = serde_json::from_str(&json).unwrap();
+    assert!(!back.internal, "omitted key deserializes back to false");
+    assert_eq!(ty, back);
 }

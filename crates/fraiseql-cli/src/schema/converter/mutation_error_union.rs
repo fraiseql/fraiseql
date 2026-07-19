@@ -156,6 +156,7 @@ fn mutation_error_type() -> TypeDefinition {
         requires_role:       None,
         is_error:            true,
         relay:               false,
+        internal:            false,
         relationships:       Vec::new(),
         subscription_policy: None,
     }

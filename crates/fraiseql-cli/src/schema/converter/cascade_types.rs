@@ -288,6 +288,7 @@ fn synth_type(name: &str, fields: Vec<FieldDefinition>, desc: &str) -> TypeDefin
         requires_role: None,
         is_error: false,
         relay: false,
+        internal: false,
         relationships: Vec::new(),
         subscription_policy: None,
     }

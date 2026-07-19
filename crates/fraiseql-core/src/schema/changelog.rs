@@ -106,6 +106,9 @@ fn entity_change_log_type(cfg: &ChangelogConfig, nc: NamingConvention) -> TypeDe
             .with_field(FieldDefinition::nullable(cased("extra_metadata", nc), FieldType::Json))
             .with_field(FieldDefinition::new(cased("created_at", nc), FieldType::DateTime));
     t.requires_role.clone_from(&cfg.read_role);
+    // Framework-synthesized read-only projection, not a client-cache node: exempt from
+    // cascade entity classification (`id: ID!` enforcement + `CascadeNode` auto-implement).
+    t.internal = true;
     t
 }
 
@@ -121,6 +124,11 @@ fn transport_checkpoint_type(cfg: &ChangelogConfig, nc: NamingConvention) -> Typ
             .with_field(FieldDefinition::new(cased("last_pk", nc), FieldType::Int))
             .with_field(FieldDefinition::new(cased("updated_at", nc), FieldType::DateTime));
     t.requires_role.clone_from(&cfg.read_role);
+    // Framework-synthesized read-only projection, not a client-cache node: exempt from
+    // cascade entity classification (`id: ID!` enforcement + `CascadeNode` auto-implement).
+    // Keyed by `transport_name` (no `id`), so this exemption is what lets changelog +
+    // cascade compile together at all — see #665.
+    t.internal = true;
     t
 }
 
