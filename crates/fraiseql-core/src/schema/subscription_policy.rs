@@ -7,18 +7,16 @@
 //! enriched identity (#539, the forge-proof `fraiseql.enriched.*` namespace), so a
 //! scoped subscriber only receives rows it owns.
 //!
-//! # One derivation, two seams
+//! # One derivation, seam-neutral by design
 //!
-//! [`SubscriptionPolicy::derive`] returns a seam-neutral [`OwnerCondition`]. Both push
-//! seams are thin adapters over this single function:
-//! - the graphql `/ws` path maps [`OwnerCondition::Eq`] to a `(field, value)` RLS condition on
-//!   `subscribe_with_rls`;
-//! - the realtime entity-stream maps it to a server-owned equality `FieldFilter`.
+//! [`SubscriptionPolicy::derive`] returns a seam-neutral [`OwnerCondition`]. The live push
+//! seam — the graphql `/ws` path — is a thin adapter over this single function, mapping
+//! [`OwnerCondition::Eq`] to a `(field, value)` RLS condition on `subscribe_with_rls`.
 //!
 //! Keeping the semantics (owner-path resolution, `bypass_roles`, unresolvable-identity
-//! refusal) in *one* place is a security property: if the two seams grew their own
-//! interpretations they would drift, and a divergence — e.g. `bypass_roles` honored on
-//! one path but not the other — is itself a visibility bypass.
+//! refusal) in *one* seam-neutral place is a security property: any future push seam must
+//! reuse this derivation rather than reinterpret it, so the two cannot drift — a divergence
+//! (e.g. `bypass_roles` honored on one path but not another) is itself a visibility bypass.
 //!
 //! It is **fail-closed for declaring entities**: a policy present but the identity field
 //! unresolvable (no enrichment configured, NULL/absent field) yields

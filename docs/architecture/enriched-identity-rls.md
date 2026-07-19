@@ -185,10 +185,11 @@ the subscription rather than silently widening it.
 > fail-closed default — a scoped client is never shown a row it does not own, even a
 > deleted one.
 
-> **Realtime `/realtime/v1` entity stream.** A second (opt-in, not assembled by the
-> stock server) push subsystem carries entity after-images too; its policy hardening is
-> tracked separately. The `POST /realtime/v1/broadcast` app-channel pubsub carries no
-> entity after-images and has no row policy.
+> **Removed: the `/realtime/v1` entity stream.** A second, dormant push subsystem
+> (never assembled by the stock server) once carried entity after-images alongside the
+> `/ws` path, with `POST /realtime/v1/broadcast` app-channel pubsub. It was removed in
+> full (#605) as unhardened dead surface — the live `/ws` GraphQL-subscription path is the
+> single supported real-time mechanism, and the only push seam this policy adapts.
 
 > **Hot-reload.** Subscription policies are resolved at server start; a policy added or
 > changed via a schema **hot-reload** takes effect on **restart**, not immediately (the
