@@ -35,8 +35,8 @@ use tower::ServiceExt;
 use crate::{server::Server, server_config::ServerConfig};
 
 /// Assemble a full production router (base + admin + extensions) from `config` with an empty
-/// schema and a healthy mock adapter — no OIDC validator, nothing that would mount the dormant
-/// realtime subsystem (which requires an explicit `.with_realtime(..)`).
+/// schema and a healthy mock adapter — no OIDC validator. This is the same base + admin +
+/// extension mount path the binary assembles.
 async fn prod_router(config: ServerConfig) -> Router {
     let server: Server<CachedDatabaseAdapter<FailingAdapter>> =
         Server::new(config, CompiledSchema::new(), Arc::new(FailingAdapter::new()), None)

@@ -372,7 +372,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             storage_state: None,
-            realtime_state: None,
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
             tenant_executor_factory: None,

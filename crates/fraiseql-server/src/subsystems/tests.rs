@@ -3,10 +3,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(missing_docs)] // Reason: test code
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_functions::{
     FunctionDefinition, FunctionObserver, RuntimeType, triggers::TriggerRegistry,
@@ -22,18 +19,11 @@ use tempfile::tempdir;
 #[cfg(feature = "functions-runtime")]
 use super::BeforeMutationHooks;
 use super::{
-    FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem,
+    FunctionsSubsystem, ServerSubsystems, StorageSubsystem,
     builder::{ServerSubsystemsBuilder, SubsystemBuildError},
     validator::{SubsystemConfigWarning, validate_subsystems_config},
 };
-use crate::{
-    realtime::{
-        observer::RealtimeBroadcastObserver,
-        routes::RealtimeSchemaConfig,
-        server::{RealtimeConfig, RealtimeServer},
-    },
-    schema::loader::{FunctionsConfig, SchemaBucketDef, SchemaStorageConfig},
-};
+use crate::schema::loader::{FunctionsConfig, SchemaBucketDef, SchemaStorageConfig};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -87,14 +77,6 @@ fn minimal_functions_config() -> FunctionsConfig {
     }
 }
 
-fn minimal_realtime_config() -> RealtimeSchemaConfig {
-    serde_json::from_value(serde_json::json!({
-        "enabled": true,
-        "entities": ["User"]
-    }))
-    .unwrap()
-}
-
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -109,7 +91,6 @@ async fn test_server_state_with_storage() {
 
     assert!(subsystems.storage.is_some());
     assert!(subsystems.functions.is_none());
-    assert!(subsystems.realtime.is_none());
 }
 
 #[test]
@@ -137,7 +118,6 @@ fn test_server_state_with_functions() {
 
     assert!(subsystems.functions.is_some());
     assert!(subsystems.storage.is_none());
-    assert!(subsystems.realtime.is_none());
     assert_eq!(subsystems.functions.as_ref().unwrap().trigger_registry.function_count, 1);
 }
 
@@ -224,33 +204,6 @@ fn with_email_attaches_sender_resolver_and_transport() {
     assert!(hooks.email_transport.is_some(), "transport attached");
 }
 
-// ── Realtime ──────────────────────────────────────────────────────────────────
-
-#[test]
-fn test_server_state_with_realtime() {
-    let entities: HashSet<String> = ["User".to_string()].into();
-    let server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
-    let (observer, _rx) = RealtimeBroadcastObserver::new(256);
-
-    let subsystem = RealtimeSubsystem {
-        server,
-        observer,
-        schema_config: minimal_realtime_config(),
-    };
-
-    let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
-
-    assert!(subsystems.realtime.is_some());
-    assert!(subsystems.storage.is_none());
-    assert!(subsystems.functions.is_none());
-}
-
-#[test]
-fn test_server_state_without_realtime() {
-    let subsystems = ServerSubsystemsBuilder::new().build().unwrap();
-    assert!(subsystems.realtime.is_none());
-}
-
 // ── All features ──────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -271,25 +224,14 @@ async fn test_server_state_all_features() {
         module_registry: std::collections::HashMap::new(),
     };
 
-    let entities: HashSet<String> = ["User".to_string()].into();
-    let rt_server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
-    let (rt_observer, _rx) = RealtimeBroadcastObserver::new(256);
-    let realtime = RealtimeSubsystem {
-        server:        rt_server,
-        observer:      rt_observer,
-        schema_config: minimal_realtime_config(),
-    };
-
     let subsystems = ServerSubsystemsBuilder::new()
         .with_storage(storage)
         .with_functions(functions)
-        .with_realtime(realtime)
         .build()
         .unwrap();
 
     assert!(subsystems.storage.is_some());
     assert!(subsystems.functions.is_some());
-    assert!(subsystems.realtime.is_some());
 }
 
 // ── Cross-subsystem validation ────────────────────────────────────────────────
@@ -393,25 +335,10 @@ fn test_subsystems_is_functions_enabled() {
 }
 
 #[test]
-fn test_subsystems_is_realtime_enabled() {
-    let entities: HashSet<String> = ["Post".to_string()].into();
-    let server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
-    let (observer, _rx) = RealtimeBroadcastObserver::new(64);
-    let subsystem = RealtimeSubsystem {
-        server,
-        observer,
-        schema_config: minimal_realtime_config(),
-    };
-    let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
-    assert!(subsystems.is_realtime_enabled());
-}
-
-#[test]
 fn test_empty_subsystems_all_disabled() {
     let subsystems = ServerSubsystems::none();
     assert!(!subsystems.is_storage_enabled());
     assert!(!subsystems.is_functions_enabled());
-    assert!(!subsystems.is_realtime_enabled());
 }
 
 // ── Config validation ─────────────────────────────────────────────────────────
@@ -497,32 +424,6 @@ fn test_validate_empty_functions_registry_warns() {
     assert!(
         warnings.contains(&SubsystemConfigWarning::EmptyFunctionsRegistry),
         "expected EmptyFunctionsRegistry warning"
-    );
-}
-
-/// Realtime with no entities → `RealtimeWithNoEntities` warning.
-#[test]
-fn test_validate_realtime_no_entities_warns() {
-    let server = Arc::new(RealtimeServer::with_entities(
-        RealtimeConfig::default(),
-        HashSet::new(), // empty entity set
-    ));
-    let (observer, _rx) = RealtimeBroadcastObserver::new(64);
-    let schema_config: RealtimeSchemaConfig = serde_json::from_value(serde_json::json!({
-        "enabled": true,
-        "entities": []
-    }))
-    .unwrap();
-    let subsystem = RealtimeSubsystem {
-        server,
-        observer,
-        schema_config,
-    };
-    let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
-    let warnings = validate_subsystems_config(&subsystems);
-    assert!(
-        warnings.contains(&SubsystemConfigWarning::RealtimeWithNoEntities),
-        "expected RealtimeWithNoEntities warning"
     );
 }
 

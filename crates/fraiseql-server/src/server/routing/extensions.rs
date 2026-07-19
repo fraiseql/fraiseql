@@ -1,5 +1,5 @@
 //! Extension route mounting: MCP, API, RBAC, observers, storage, functions, REST,
-//! realtime, and admission control.
+//! and admission control.
 
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ use crate::routes::graphql::AppState;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Mount MCP, API routes, RBAC, observer hooks, storage, functions, REST,
-    /// realtime, and admission control.
+    /// and admission control.
     pub(super) fn mount_extensions(&self, mut app: Router, state: &AppState<A>) -> Router {
         // MCP (Model Context Protocol) route
         #[cfg(feature = "mcp")]
@@ -109,13 +109,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             if let Some(rest_app) = rest_query_router(state, self.config.compression_enabled) {
                 app = app.merge(rest_app);
             }
-        }
-
-        // Mount realtime WebSocket routes when a RealtimeState was configured.
-        if let Some(rt_state) = &self.realtime_state {
-            use crate::realtime::routes::realtime_router;
-            app = app.merge(realtime_router(rt_state.clone()));
-            info!("Realtime WebSocket routes mounted: GET /realtime/v1");
         }
 
         // Mount storage routes when StorageState was pre-built during server construction.
