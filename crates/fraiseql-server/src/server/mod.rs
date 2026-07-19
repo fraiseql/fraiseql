@@ -142,12 +142,6 @@ pub struct Server<A: DatabaseAdapter> {
     /// a PostgreSQL pool is available for metadata tracking.
     pub(super) storage_state: Option<fraiseql_storage::StorageState>,
 
-    /// Pre-built realtime state for mounting the `WebSocket` endpoint.
-    ///
-    /// When `Some`, `build_base_router` merges `realtime_router(state)` at
-    /// `/realtime/v1`. Set via [`Server::with_realtime`].
-    pub(super) realtime_state: Option<crate::realtime::server::RealtimeState>,
-
     /// Before-mutation function-dispatch hooks, prepared at serve time from the
     /// compiled schema's functions config (modules loaded, runtimes registered,
     /// `send_email` wiring attached). When `Some`, `build_app_state` attaches them

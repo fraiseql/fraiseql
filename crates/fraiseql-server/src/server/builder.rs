@@ -423,7 +423,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             storage_state: None,
-            realtime_state: None,
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
             tenant_executor_factory: None,
@@ -502,17 +501,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         factory: crate::tenancy::TenantExecutorFactory<A>,
     ) -> Self {
         self.tenant_executor_factory = Some(factory);
-        self
-    }
-
-    /// Attach a pre-built realtime `WebSocket` state to the server.
-    ///
-    /// When set, `build_base_router` will merge `realtime_router(state)` at
-    /// `/realtime/v1`.  Call this after constructing the server but before
-    /// calling `serve` or `serve_with_shutdown`.
-    #[must_use]
-    pub fn with_realtime(mut self, state: crate::realtime::server::RealtimeState) -> Self {
-        self.realtime_state = Some(state);
         self
     }
 

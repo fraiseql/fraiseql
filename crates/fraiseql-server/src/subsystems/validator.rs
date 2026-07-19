@@ -47,10 +47,6 @@ pub enum SubsystemConfigWarning {
     /// The functions module directory is configured but no function
     /// definitions exist in the schema. The directory will be ignored.
     EmptyFunctionsRegistry,
-
-    /// The realtime subsystem is enabled but no entities are declared.
-    /// Clients will not be able to subscribe to any entity streams.
-    RealtimeWithNoEntities,
 }
 
 impl fmt::Display for SubsystemConfigWarning {
@@ -69,11 +65,6 @@ impl fmt::Display for SubsystemConfigWarning {
             Self::EmptyFunctionsRegistry => f.write_str(
                 "the functions module directory is configured but no function \
                  definitions exist in the schema; the directory will be ignored",
-            ),
-            Self::RealtimeWithNoEntities => f.write_str(
-                "the realtime subsystem is enabled but no entities are declared; \
-                 clients will receive errors for all subscribe requests — \
-                 add entities under the 'realtime.entities' key in the compiled schema",
             ),
         }
     }
@@ -97,12 +88,6 @@ pub fn validate_subsystems_config(subsystems: &ServerSubsystems) -> Vec<Subsyste
     if let Some(functions) = &subsystems.functions {
         if functions.config.definitions.is_empty() {
             warnings.push(SubsystemConfigWarning::EmptyFunctionsRegistry);
-        }
-    }
-
-    if let Some(realtime) = &subsystems.realtime {
-        if realtime.schema_config.entities.is_empty() {
-            warnings.push(SubsystemConfigWarning::RealtimeWithNoEntities);
         }
     }
 

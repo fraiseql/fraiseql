@@ -1,6 +1,6 @@
 //! Builder for assembling server subsystems with cross-subsystem validation.
 
-use super::{FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem};
+use super::{FunctionsSubsystem, ServerSubsystems, StorageSubsystem};
 
 /// Error returned when `ServerSubsystemsBuilder::build` detects a configuration problem.
 #[derive(Debug, thiserror::Error)]
@@ -33,14 +33,12 @@ pub enum SubsystemBuildError {
 /// let subsystems = ServerSubsystemsBuilder::new()
 ///     .with_storage(storage_subsystem)
 ///     .with_functions(functions_subsystem)
-///     .with_realtime(realtime_subsystem)
 ///     .build()?;
 /// ```
 #[derive(Default)]
 pub struct ServerSubsystemsBuilder {
     storage:   Option<StorageSubsystem>,
     functions: Option<FunctionsSubsystem>,
-    realtime:  Option<RealtimeSubsystem>,
 }
 
 impl ServerSubsystemsBuilder {
@@ -64,13 +62,6 @@ impl ServerSubsystemsBuilder {
         self
     }
 
-    /// Register the realtime subsystem.
-    #[must_use = "builder method returns modified builder"]
-    pub fn with_realtime(mut self, subsystem: RealtimeSubsystem) -> Self {
-        self.realtime = Some(subsystem);
-        self
-    }
-
     /// Validate cross-subsystem dependencies and build [`ServerSubsystems`].
     ///
     /// # Errors
@@ -82,7 +73,6 @@ impl ServerSubsystemsBuilder {
         Ok(ServerSubsystems {
             storage:   self.storage,
             functions: self.functions,
-            realtime:  self.realtime,
         })
     }
 

@@ -58,7 +58,6 @@ fn test_platform_e2e_server_subsystems_none_is_all_absent() {
     let subsystems = ServerSubsystems::none();
     assert!(!subsystems.is_storage_enabled());
     assert!(!subsystems.is_functions_enabled());
-    assert!(!subsystems.is_realtime_enabled());
 }
 
 /// Verify that `BeforeMutationHooks` can be constructed from a trigger registry.

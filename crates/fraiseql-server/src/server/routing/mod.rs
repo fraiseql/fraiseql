@@ -63,7 +63,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_auth_routes(app);
         }
 
-        // Mount extension routes (MCP, API, RBAC, storage, functions, REST, realtime).
+        // Mount extension routes (MCP, API, RBAC, storage, functions, REST).
         app = self.mount_extensions(app, &state);
 
         // Apply global middleware layers (metrics, tracing, CORS, limits, timeout, rate limiting).
