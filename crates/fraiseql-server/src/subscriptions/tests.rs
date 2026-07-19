@@ -1,144 +1,3 @@
-mod broadcast_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use std::sync::Arc;
-
-    use super::super::broadcast::*;
-
-    #[tokio::test]
-    async fn test_publish_creates_channel_on_demand() {
-        let manager = BroadcastManager::new(BroadcastConfig::new());
-
-        let receivers = manager
-            .publish("chat:room1", "message".into(), serde_json::json!({"text": "hello"}))
-            .await
-            .unwrap();
-
-        // No subscribers yet, so 0 receivers
-        assert_eq!(receivers, 0);
-        assert_eq!(manager.channel_count().await, 1);
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_then_publish() {
-        let manager = Arc::new(BroadcastManager::new(BroadcastConfig::new()));
-
-        let mut rx = manager.subscribe("chat:room1").await.unwrap();
-
-        let receivers = manager
-            .publish("chat:room1", "message".into(), serde_json::json!({"text": "hello"}))
-            .await
-            .unwrap();
-
-        assert_eq!(receivers, 1);
-
-        let msg = rx.recv().await.unwrap();
-        assert_eq!(msg.channel, "chat:room1");
-        assert_eq!(msg.event, "message");
-        assert_eq!(msg.payload["text"], "hello");
-    }
-
-    #[tokio::test]
-    async fn test_multiple_subscribers() {
-        let manager = Arc::new(BroadcastManager::new(BroadcastConfig::new()));
-
-        let mut rx1 = manager.subscribe("events").await.unwrap();
-        let mut rx2 = manager.subscribe("events").await.unwrap();
-
-        let receivers = manager
-            .publish("events", "update".into(), serde_json::json!({"v": 1}))
-            .await
-            .unwrap();
-
-        assert_eq!(receivers, 2);
-
-        let msg1 = rx1.recv().await.unwrap();
-        let msg2 = rx2.recv().await.unwrap();
-        assert_eq!(msg1.payload, msg2.payload);
-    }
-
-    #[tokio::test]
-    async fn test_payload_too_large() {
-        let config = BroadcastConfig {
-            max_message_bytes: 10,
-            ..BroadcastConfig::new()
-        };
-        let manager = BroadcastManager::new(config);
-
-        let result = manager
-            .publish("ch", "e".into(), serde_json::json!({"big": "data that is too large"}))
-            .await;
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().status_code(), 413);
-    }
-
-    #[tokio::test]
-    async fn test_too_many_channels() {
-        let config = BroadcastConfig {
-            max_channels: 2,
-            ..BroadcastConfig::new()
-        };
-        let manager = BroadcastManager::new(config);
-
-        manager.publish("ch1", "e".into(), serde_json::json!({})).await.unwrap();
-        manager.publish("ch2", "e".into(), serde_json::json!({})).await.unwrap();
-        let result = manager.publish("ch3", "e".into(), serde_json::json!({})).await;
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().status_code(), 503);
-    }
-
-    #[tokio::test]
-    async fn test_gc_empty_channels() {
-        let manager = BroadcastManager::new(BroadcastConfig::new());
-
-        // Create a channel with a subscriber
-        let _rx = manager.subscribe("active").await.unwrap();
-        // Create a channel with no subscribers
-        manager.publish("orphan", "e".into(), serde_json::json!({})).await.unwrap();
-
-        assert_eq!(manager.channel_count().await, 2);
-
-        let removed = manager.gc_empty_channels().await;
-        assert_eq!(removed, 1);
-        assert_eq!(manager.channel_count().await, 1);
-    }
-
-    #[tokio::test]
-    async fn test_stats() {
-        let manager = Arc::new(BroadcastManager::new(BroadcastConfig::new()));
-
-        let _rx = manager.subscribe("ch1").await.unwrap();
-        manager.publish("ch1", "e".into(), serde_json::json!({})).await.unwrap();
-        manager.publish("ch2", "e".into(), serde_json::json!({})).await.unwrap();
-
-        let stats = manager.stats().await;
-        assert_eq!(stats.messages_published, 2);
-        assert_eq!(stats.active_channels, 2);
-        assert_eq!(stats.active_receivers, 1);
-    }
-
-    #[tokio::test]
-    async fn test_channel_isolation() {
-        let manager = Arc::new(BroadcastManager::new(BroadcastConfig::new()));
-
-        let mut rx_a = manager.subscribe("channel_a").await.unwrap();
-        let _rx_b = manager.subscribe("channel_b").await.unwrap();
-
-        manager
-            .publish("channel_a", "event".into(), serde_json::json!({"for": "a"}))
-            .await
-            .unwrap();
-
-        let msg = rx_a.recv().await.unwrap();
-        assert_eq!(msg.payload["for"], "a");
-
-        // channel_b subscriber should not have received anything
-        // (try_recv would return Empty, not a message)
-    }
-}
-
 mod event_bridge_tests {
     use std::sync::Arc;
 
@@ -329,6 +188,32 @@ mod event_bridge_tests {
         assert!(sender1.try_reserve().is_ok());
         assert!(sender2.try_reserve().is_ok());
     }
+
+    // Tenant-aware CDC filtering: `EventBridge::convert_event` must carry the top-level
+    // `tenant_id` from the source `EntityEvent` onto the `SubscriptionEvent` — this is the
+    // multi-tenant filtering key on the live `/ws` path. (Ported from the deleted
+    // `realtime_integration_test.rs`, whose broadcast/presence tests went with Cluster C but
+    // whose live-path conversion tests must survive.)
+    #[test]
+    fn convert_event_preserves_tenant_id() {
+        let entity_event =
+            EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}))
+                .with_tenant_id("org_42");
+
+        let sub_event = EventBridge::convert_event(entity_event);
+        assert_eq!(sub_event.tenant_id.as_deref(), Some("org_42"));
+        assert_eq!(sub_event.entity_type, "Order");
+    }
+
+    #[test]
+    fn convert_event_without_tenant_id_passes_through_as_none() {
+        // No source tenant → `None` (event delivered to all subscribers, not scoped).
+        let entity_event =
+            EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
+
+        let sub_event = EventBridge::convert_event(entity_event);
+        assert!(sub_event.tenant_id.is_none());
+    }
 }
 
 mod lifecycle_tests {
@@ -346,216 +231,6 @@ mod lifecycle_tests {
         let lifecycle = NoopLifecycle;
         let result = lifecycle.on_subscribe("orderCreated", &serde_json::json!({}), "conn-1").await;
         assert!(result.is_ok(), "noop lifecycle should accept any subscription");
-    }
-}
-
-mod presence_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use std::time::Duration;
-
-    use super::super::presence::*;
-
-    fn default_manager() -> PresenceManager {
-        PresenceManager::new(PresenceConfig::new())
-    }
-
-    #[tokio::test]
-    async fn test_join_returns_state_and_diff() {
-        let mgr = default_manager();
-
-        let (state, diff) = mgr
-            .join("room1", "alice", serde_json::json!({"status": "online"}))
-            .await
-            .unwrap();
-
-        assert_eq!(state.room, "room1");
-        assert_eq!(state.members.len(), 1);
-        assert_eq!(state.members[0].id, "alice");
-        assert_eq!(diff.joins.len(), 1);
-        assert!(diff.leaves.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_multiple_members_in_room() {
-        let mgr = default_manager();
-
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        let (state, diff) = mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
-
-        assert_eq!(state.members.len(), 2);
-        assert_eq!(diff.joins.len(), 1);
-        assert_eq!(diff.joins[0].id, "bob");
-    }
-
-    #[tokio::test]
-    async fn test_leave_returns_diff() {
-        let mgr = default_manager();
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-
-        let diff = mgr.leave("room1", "alice").await.unwrap();
-        assert_eq!(diff.leaves, vec!["alice"]);
-        assert!(diff.joins.is_empty());
-
-        // Room should be cleaned up
-        assert!(mgr.get_room("room1").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_leave_nonexistent_returns_none() {
-        let mgr = default_manager();
-        assert!(mgr.leave("room1", "alice").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_heartbeat() {
-        let mgr = default_manager();
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-
-        assert!(mgr.heartbeat("room1", "alice").await);
-        assert!(!mgr.heartbeat("room1", "nobody").await);
-        assert!(!mgr.heartbeat("noroom", "alice").await);
-    }
-
-    #[tokio::test]
-    async fn test_update_state() {
-        let mgr = default_manager();
-        mgr.join("room1", "alice", serde_json::json!({"status": "online"}))
-            .await
-            .unwrap();
-
-        let diff = mgr
-            .update_state("room1", "alice", serde_json::json!({"status": "away"}))
-            .await
-            .unwrap();
-
-        assert_eq!(diff.joins.len(), 1);
-        assert_eq!(diff.joins[0].state["status"], "away");
-
-        let state = mgr.get_room("room1").await.unwrap();
-        assert_eq!(state.members[0].state["status"], "away");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_evict_stale_members() {
-        let config = PresenceConfig {
-            heartbeat_timeout: Duration::from_millis(1),
-            ..PresenceConfig::new()
-        };
-        let mgr = PresenceManager::new(config);
-
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
-
-        // Advance past heartbeat timeout
-        tokio::time::advance(Duration::from_millis(10)).await;
-
-        let diffs = mgr.evict_stale().await;
-        assert_eq!(diffs.len(), 1);
-        assert_eq!(diffs[0].leaves.len(), 2);
-
-        // Room should be cleaned up
-        assert!(mgr.get_room("room1").await.is_none());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_heartbeat_prevents_eviction() {
-        let config = PresenceConfig {
-            heartbeat_timeout: Duration::from_millis(50),
-            ..PresenceConfig::new()
-        };
-        let mgr = PresenceManager::new(config);
-
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
-
-        // Advance time, then heartbeat only alice
-        tokio::time::advance(Duration::from_millis(30)).await;
-        mgr.heartbeat("room1", "alice").await;
-
-        // Advance past bob's expiry but not alice's (she heartbeated at t=30)
-        tokio::time::advance(Duration::from_millis(30)).await;
-
-        let diffs = mgr.evict_stale().await;
-        assert_eq!(diffs.len(), 1);
-        assert_eq!(diffs[0].leaves, vec!["bob"]);
-
-        // Alice should still be in the room
-        let state = mgr.get_room("room1").await.unwrap();
-        assert_eq!(state.members.len(), 1);
-        assert_eq!(state.members[0].id, "alice");
-    }
-
-    #[tokio::test]
-    async fn test_room_full() {
-        let config = PresenceConfig {
-            max_members_per_room: 2,
-            ..PresenceConfig::new()
-        };
-        let mgr = PresenceManager::new(config);
-
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
-
-        let result = mgr.join("room1", "charlie", serde_json::json!({})).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_too_many_rooms() {
-        let config = PresenceConfig {
-            max_rooms: 2,
-            ..PresenceConfig::new()
-        };
-        let mgr = PresenceManager::new(config);
-
-        mgr.join("room1", "a", serde_json::json!({})).await.unwrap();
-        mgr.join("room2", "b", serde_json::json!({})).await.unwrap();
-
-        let result = mgr.join("room3", "c", serde_json::json!({})).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_rejoin_same_member_updates_state() {
-        let mgr = default_manager();
-
-        mgr.join("room1", "alice", serde_json::json!({"v": 1})).await.unwrap();
-        let (state, _) = mgr.join("room1", "alice", serde_json::json!({"v": 2})).await.unwrap();
-
-        // Should still be 1 member, not 2
-        assert_eq!(state.members.len(), 1);
-        assert_eq!(state.members[0].state["v"], 2);
-    }
-
-    #[tokio::test]
-    async fn test_stats() {
-        let mgr = default_manager();
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
-        mgr.join("room2", "charlie", serde_json::json!({})).await.unwrap();
-        mgr.leave("room1", "alice").await;
-
-        let stats = mgr.stats().await;
-        assert_eq!(stats.active_rooms, 2);
-        assert_eq!(stats.total_members, 2);
-        assert_eq!(stats.joins_total, 3);
-        assert_eq!(stats.leaves_total, 1);
-    }
-
-    #[tokio::test]
-    async fn test_room_isolation() {
-        let mgr = default_manager();
-        mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        mgr.join("room2", "bob", serde_json::json!({})).await.unwrap();
-
-        let state1 = mgr.get_room("room1").await.unwrap();
-        let state2 = mgr.get_room("room2").await.unwrap();
-
-        assert_eq!(state1.members.len(), 1);
-        assert_eq!(state1.members[0].id, "alice");
-        assert_eq!(state2.members.len(), 1);
-        assert_eq!(state2.members[0].id, "bob");
     }
 }
 

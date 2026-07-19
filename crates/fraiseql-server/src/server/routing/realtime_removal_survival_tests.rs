@@ -158,3 +158,47 @@ async fn admin_assembly_does_not_expose_realtime_monitor_routes() {
         );
     }
 }
+
+/// Pin #4 (Phase 02): the `POST /realtime/v1/broadcast` channel-broadcast endpoint is gone.
+/// It was config-gated (via the builder's now-removed `with_broadcast`), so no configuration
+/// can reach a mount any more — the endpoint is structurally absent. A default assembly (which
+/// does mount live routes like `/ws` and `/health`, so the router is non-empty) answers **404**
+/// on both the endpoint's real method (POST) and a probe method. Broadcast was removed *without
+/// replacement* — `/ws` does not supersede it — so this endpoint must never return.
+#[tokio::test]
+async fn assembly_does_not_expose_realtime_broadcast_endpoint() {
+    let app = prod_router(ServerConfig::default()).await;
+
+    // Positive control: a live route exists (the router is non-empty), so a 404 on the
+    // broadcast path is meaningful absence, not an empty-router artifact.
+    let control = app
+        .clone()
+        .oneshot(Request::builder().method("GET").uri("/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_ne!(
+        control.status(),
+        StatusCode::NOT_FOUND,
+        "sanity: a default assembly must mount /health, proving the router is non-empty",
+    );
+
+    for method in ["POST", "GET"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/realtime/v1/broadcast")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "POST /realtime/v1/broadcast was removed (Cluster C); no config can mount it \
+             (probed with {method}) — 404, never a mounted 401/405",
+        );
+    }
+}
