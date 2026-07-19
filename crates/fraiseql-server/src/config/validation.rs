@@ -159,14 +159,13 @@ impl<'a> ConfigValidator<'a> {
                     .to_string(),
             });
         }
-        if self.config.realtime.is_some() {
-            self.result.add_error(ConfigError::ValidationError {
-                field:   "realtime".to_string(),
-                message: "config section 'realtime' is not yet implemented; \
-                          use the 'subscriptions' feature for real-time updates"
-                    .to_string(),
-            });
-        }
+        // NOTE: `[realtime]` is deliberately absent here. Unlike the reserved-future
+        // placeholders above (which refuse to boot so an operator isn't misled into
+        // thinking an unimplemented feature works), `realtime` is a *removed* feature
+        // (#605): its `RuntimeConfig` field was deleted, so a stray `[realtime]` table is
+        // silently ignored by serde (no `deny_unknown_fields`). This is an intentional
+        // back-compat choice for stale `fraiseql.toml` files — do NOT re-add a
+        // refuse-to-boot check here. The behaviour is documented in the CHANGELOG.
         if self.config.custom_endpoints.is_some() {
             self.result.add_error(ConfigError::ValidationError {
                 field:   "custom_endpoints".to_string(),

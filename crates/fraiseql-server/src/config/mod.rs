@@ -125,10 +125,6 @@ pub struct RuntimeConfig {
     #[serde(default)]
     pub queues: Option<QueueConfig>,
 
-    /// Reserved: placeholder for future real-time update configuration.
-    #[serde(default)]
-    pub realtime: Option<RealtimeConfig>,
-
     /// Reserved: placeholder for future custom-endpoint configuration.
     #[serde(default)]
     pub custom_endpoints: Option<CustomEndpointsConfig>,
@@ -439,10 +435,6 @@ pub struct CacheConfig {}
 /// Reserved: placeholder for future background job-queue configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueueConfig {}
-
-/// Reserved: placeholder for future real-time subscription update configuration.
-#[derive(Debug, Clone, Deserialize)]
-pub struct RealtimeConfig {}
 
 /// Reserved: placeholder for future custom HTTP endpoint configuration.
 #[derive(Debug, Clone, Deserialize)]

@@ -172,10 +172,13 @@ async fn test_schema_validates_function_triggers() {
     );
 }
 
-// ── Realtime config ───────────────────────────────────────────────────────────
+// ── Realtime config (removed in #605 — warn-and-ignore posture) ─────────────────
 
 #[tokio::test]
-async fn test_schema_loads_realtime_config() {
+async fn test_schema_with_realtime_key_is_ignored() {
+    // The `/realtime/v1` subsystem was removed (#605). A compiled schema that still
+    // carries a `"realtime"` section (hand-authored or stale) must load clean — the
+    // section is ignored (with a warning), not parsed, and never fails the load.
     let json = r#"{
         "types": [
             {"name": "Post", "sql_source": "t_posts"},
@@ -191,26 +194,25 @@ async fn test_schema_loads_realtime_config() {
     let loader = CompiledSchemaLoader::new(file.path());
 
     let extended = loader.load_extended().await.unwrap();
-    let realtime = extended.realtime.unwrap();
-
-    assert!(realtime.enabled);
-    assert_eq!(realtime.entities.len(), 2);
-    assert!(realtime.entities.contains(&"Post".to_string()));
-    assert_eq!(realtime.max_connections_per_context, Some(50));
+    // Core schema still loads; the realtime section is dropped (no field to inspect).
+    assert_eq!(extended.schema.types.len(), 2);
 }
 
 #[tokio::test]
-async fn test_schema_without_realtime_returns_none() {
+async fn test_schema_without_realtime_key_loads_clean() {
+    // Survival pin (#605 Phase 00 pin #4): a realtime-free schema — the overwhelmingly
+    // common case — loads without error before, during, and after the removal.
     let file = write_schema(minimal_schema());
     let loader = CompiledSchemaLoader::new(file.path());
 
-    let extended = loader.load_extended().await.unwrap();
-    assert!(extended.realtime.is_none());
+    loader.load_extended().await.unwrap();
 }
 
 #[tokio::test]
-async fn test_schema_validates_realtime_entities() {
-    // "Ghost" is not in schema types
+async fn test_schema_realtime_key_with_unknown_entity_is_ignored() {
+    // Before #605 this errored (`validate_realtime_config` rejected an entity absent
+    // from the schema types). Under warn-and-ignore, the whole section is dropped, so a
+    // "ghost" entity can no longer fail the load — the section is never validated.
     let json = r#"{
         "types": [{"name": "Post", "sql_source": "t_posts"}],
         "realtime": {
@@ -223,8 +225,8 @@ async fn test_schema_validates_realtime_entities() {
 
     let result = loader.load_extended().await;
     assert!(
-        matches!(result, Err(SchemaLoadError::ValidationError(_))),
-        "expected ValidationError for unknown realtime entity, got {result:?}"
+        result.is_ok(),
+        "realtime section must be ignored, not validated, got {result:?}"
     );
 }
 
@@ -253,9 +255,10 @@ async fn test_schema_full_loads_all_sections() {
 
     let extended = loader.load_extended().await.unwrap();
 
+    // storage + functions load; the legacy `"realtime"` section (still in the fixture) is
+    // ignored with a warning (#605), so the load still succeeds.
     assert!(extended.storage.is_some());
     assert!(extended.functions.is_some());
-    assert!(extended.realtime.is_some());
 }
 
 #[tokio::test]

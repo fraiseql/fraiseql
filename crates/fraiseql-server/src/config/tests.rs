@@ -106,6 +106,34 @@ fn test_validation_missing_env_var() {
 }
 
 #[test]
+fn test_config_legacy_realtime_section_is_ignored_not_rejected() {
+    // #605: the `[realtime]` server-config section was removed. It previously failed
+    // validation ("config section 'realtime' is not yet implemented"); now, with the
+    // field gone and no `deny_unknown_fields`, serde silently ignores the stray table and
+    // no `realtime` validation error is produced — a stale `fraiseql.toml` still boots.
+    temp_env::with_vars([("DATABASE_URL", Some("postgres://localhost/test"))], || {
+        let toml = r#"
+            [server]
+            port = 4000
+
+            [database]
+            url_env = "DATABASE_URL"
+
+            [realtime]
+        "#;
+
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
+        let result = ConfigValidator::new(&config).validate();
+
+        assert!(
+            !result.errors.iter().any(|e| format!("{e:?}").contains("realtime")),
+            "a legacy [realtime] section must be silently ignored, not rejected: {:?}",
+            result.errors
+        );
+    });
+}
+
+#[test]
 fn test_validation_cross_field() {
     temp_env::with_vars([("DATABASE_URL", Some("postgres://localhost/test"))], || {
         let toml = r#"
