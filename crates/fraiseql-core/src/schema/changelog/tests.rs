@@ -54,6 +54,61 @@ fn exposed_config_injects_full_surface() {
     assert!(schema.mutation_index.contains_key("upsert_transport_checkpoint"));
 }
 
+/// `EntityChangeLog.id` is `FieldType::Id` — the reason this projection satisfies the
+/// Node-style `id: ID!` contract that the cascade and Relay passes force onto entities,
+/// while its sibling `TransportCheckpoint` does not (#665).
+///
+/// Pinned because the only pre-existing assertion on this field
+/// (`camel_case_convention_renders_camelcase_identifiers`) checks that it *exists* — it
+/// is there to prove single-word names aren't recased, and would still pass if the field
+/// type changed.
+#[test]
+fn entity_change_log_id_field_is_id_typed() {
+    let schema = exposed_schema(ChangelogConfig {
+        expose: true,
+        ..Default::default()
+    });
+
+    let ecl = schema
+        .types
+        .iter()
+        .find(|t| t.name == ENTITY_CHANGE_LOG)
+        .expect("EntityChangeLog");
+    let id = ecl.find_field("id").expect("EntityChangeLog.id");
+    assert_eq!(id.field_type, FieldType::Id, "EntityChangeLog.id backs the `id: ID!` contract");
+    assert!(!id.nullable, "EntityChangeLog.id is non-null");
+}
+
+/// `TransportCheckpoint` is keyed by `transport_name` and deliberately carries **no**
+/// `id`: it is a consumer's cursor bookkeeping row, not an identity-bearing entity.
+///
+/// This absence is the precondition of #665 — it is what makes the framework's own
+/// projection fail the cascade `id: ID!` enforcement. Pinned explicitly so that adding a
+/// synthetic `id` here can never become a silent, incidental "fix": that would dissolve
+/// the bug out from under this train's regression test while leaving the real defect
+/// (framework projections being classified as cascade entities at all) in place.
+#[test]
+fn transport_checkpoint_has_no_id_field() {
+    let schema = exposed_schema(ChangelogConfig {
+        expose: true,
+        ..Default::default()
+    });
+
+    let tc = schema
+        .types
+        .iter()
+        .find(|t| t.name == TRANSPORT_CHECKPOINT)
+        .expect("TransportCheckpoint");
+    assert!(
+        tc.find_field("id").is_none(),
+        "TransportCheckpoint is keyed by transport_name and has no `id` by design"
+    );
+    assert!(
+        tc.find_field("transport_name").is_some(),
+        "TransportCheckpoint.transport_name is key"
+    );
+}
+
 #[test]
 fn list_query_uses_filter_machinery_and_bypasses_cache() {
     let schema = exposed_schema(ChangelogConfig {
