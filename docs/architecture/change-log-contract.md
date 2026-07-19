@@ -12,6 +12,37 @@ re-migrated for either consumer.
 
 ---
 
+## Installing the contract
+
+The table is a **hard runtime dependency** of every default (`changelog = true`) mutation:
+the executor wraps the mutation function in a transactional-outbox CTE that writes
+`core.tb_entity_change_log`, so **without the table the first mutation fails at prepare
+time** with `relation "core.tb_entity_change_log" does not exist` (#569). Install it via
+either path — both apply the same idempotent DDL:
+
+- **`fraiseql setup --database <url>`** — installs the mutation helpers **and** the
+  change-log contract table. The paved path for a freshly authored stack.
+- **`fraiseql migrate up`** — applies the full observers migration set (including RLS,
+  migration 12) for a complete change-capture deployment.
+
+`fraiseql doctor --against-db <url>` reports the table as missing (with the remedy above)
+and flags contract drift on an existing one.
+
+**Row-Level Security** (`12_enable_change_log_rls.sql`) is **not** installed by `fraiseql
+setup` — it is a separate hardening step for cross-tenant fail-closed reads. Apply it (via
+`fraiseql migrate up`) in a multi-tenant deployment; the trusted consumers must run as
+`BYPASSRLS`/owner.
+
+**Mutation function shape.** The outbox CTE reads the v2.2 `mutation_response` shape
+(`r.entity_type`, `r.succeeded`, `r.state_changed`, …) from the function's result, so a
+`RETURNS SETOF v_*` mutation function is **not supported** — it fails with `column
+r.entity_type does not exist`. Return the `mutation_response` shape (use
+`fraiseql.mutation_ok` / `fraiseql.mutation_err`; see
+[mutation-response.md](mutation-response.md)). To opt a single mutation out of the
+change-log entirely, set `changelog = false` on it.
+
+---
+
 ## Design principles
 
 1. **One owned contract, shipped once.** The superset of perf + envelope columns

@@ -70,3 +70,53 @@ async fn setup_installs_dollar_quoted_helpers() {
         .get("succeeded");
     assert!(!err_succeeded, "mutation_err must return succeeded=false");
 }
+
+/// #569: `fraiseql setup` must also install `core.tb_entity_change_log` — the table every
+/// default mutation's transactional-outbox CTE writes. Without it, the first mutation on a
+/// freshly authored stack fails at prepare with a bare
+/// `relation "core.tb_entity_change_log" does not exist`. The contract DDL is idempotent,
+/// so running setup here (which the sibling test also does) is safe to repeat.
+#[tokio::test]
+async fn setup_installs_change_log_contract() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #569 setup change-log against-db test: DATABASE_URL not set");
+        return;
+    };
+
+    let out = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["setup", "--database", &url])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "fraiseql setup must install the change-log contract; exit={:?}\nstderr:\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let (client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+
+    // The contract table exists after setup.
+    let present: bool = client
+        .query_one("SELECT to_regclass('core.tb_entity_change_log') IS NOT NULL AS present", &[])
+        .await
+        .unwrap()
+        .get("present");
+    assert!(present, "setup must install core.tb_entity_change_log (#569)");
+
+    // The NOT-NULL backbone columns the outbox CTE relies on are present.
+    let backbone: i64 = client
+        .query_one(
+            "SELECT count(*) AS n FROM information_schema.columns \
+             WHERE table_schema = 'core' AND table_name = 'tb_entity_change_log' \
+               AND column_name IN ('object_type', 'modification_type')",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get("n");
+    assert_eq!(backbone, 2, "the change-log contract backbone columns must be present");
+}

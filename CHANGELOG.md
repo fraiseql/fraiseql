@@ -38,6 +38,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   type sources, to avoid drowning in synthesized-source noise until they stop being
   synthesized).
 
+### Fixed
+
+- **`fraiseql setup` now installs the `core.tb_entity_change_log` change-log contract, so the
+  first mutation on a freshly authored stack no longer fails at prepare time (#569).** Every
+  default (`changelog = true`) mutation writes this table via its transactional-outbox CTE;
+  previously it shipped only as an observers migration that no documented authoring step
+  applied, so a stack built the documented way (`export_schema` → `compile` → DDL →
+  `fraiseql-server`) failed on its first mutation with `relation "core.tb_entity_change_log"
+  does not exist`. `setup` now applies the contract's idempotent DDL (vendored byte-for-byte
+  from observers migration 08, guarded by a drift test), and `fraiseql doctor --against-db`
+  points at `fraiseql setup` when the table is missing. Row-Level Security (migration 12)
+  remains a separate operator step, and `RETURNS SETOF v_*` mutation functions remain
+  unsupported — both documented in `docs/architecture/change-log-contract.md`.
+
 ## [2.13.1] - 2026-07-18
 
 ### Changed

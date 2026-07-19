@@ -1298,7 +1298,9 @@ pub(crate) fn changelog_contract_drift(live: &[LiveColumn]) -> Vec<DoctorCheck> 
         return vec![DoctorCheck::warn(
             CHANGELOG_CONTRACT_NAME,
             "core.tb_entity_change_log not found",
-            "Run `fraiseql migrate up` to install the change-log contract",
+            "Run `fraiseql setup` (installs the change-log contract) or `fraiseql migrate up`. \
+             Every default mutation writes this table via its transactional-outbox CTE, so \
+             without it the first mutation fails at prepare time (#569).",
         )];
     }
 
