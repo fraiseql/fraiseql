@@ -100,3 +100,61 @@ async fn prod_assembly_mounts_live_ws_subscription_path() {
          (subscriptions_enabled defaults true) throughout the #605 realtime removal",
     );
 }
+
+/// Pin #3 (Phase 01): the `/admin/v1/realtime/*` studio monitor routes are gone. With the
+/// studio admin API enabled (an admin token configured so the studio admin router mounts), an
+/// unauthenticated GET to a *removed* route answers **404** (path absent), whereas a *present*
+/// admin route answers **401** (mounted, but behind the bearer-auth layer). So 404 proves the
+/// route is unmounted without needing a valid token. Guards against a future re-mount of the
+/// removed monitor surface. Stays green for the rest of the train (the routes never return).
+#[tokio::test]
+async fn admin_assembly_does_not_expose_realtime_monitor_routes() {
+    let config = ServerConfig {
+        admin_api_enabled: true,
+        admin_token: Some("realtime-removal-test-admin-token-0123456789".to_string()),
+        ..ServerConfig::default()
+    };
+    let app = prod_router(config).await;
+
+    // Positive control: a *surviving* studio admin route answers 401 (mounted, behind the
+    // bearer-auth layer) to an unauthenticated GET. This proves the studio admin router is
+    // actually mounted under this config — without it, the 404 assertions below would pass
+    // vacuously if a future refactor stopped the router from mounting at all.
+    let control = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/v1/schema")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        control.status(),
+        StatusCode::UNAUTHORIZED,
+        "the studio admin router must be mounted (a surviving admin route answers 401 \
+         unauthenticated) — otherwise the realtime-route 404 checks below are vacuous",
+    );
+
+    for path in [
+        "/admin/v1/realtime/stats",
+        "/admin/v1/realtime/broadcast",
+        "/admin/v1/realtime/presence",
+        "/admin/v1/realtime/cdc",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().method("GET").uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "removed studio monitor route {path} must be unmounted (404), not merely \
+             auth-gated (401) — a mounted admin route would answer 401 here",
+        );
+    }
+}

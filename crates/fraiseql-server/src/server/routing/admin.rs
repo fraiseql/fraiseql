@@ -165,10 +165,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 list_functions_handler, list_secrets_handler, set_secret_handler,
             },
             metrics_summary::summary_handler as metrics_summary_handler,
-            realtime_monitor::{
-                broadcast_channels_handler, cdc_lag_handler, presence_rooms_handler,
-                stats_handler as realtime_stats_handler,
-            },
             storage_browser::{
                 delete_object_handler, list_buckets_handler, list_objects_handler, presign_handler,
             },
@@ -194,11 +190,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .route("/admin/v1/storage/objects", get(list_objects_handler::<A>))
             .route("/admin/v1/storage/objects/sign", post(presign_handler::<A>))
             .route("/admin/v1/storage/objects", axum::routing::delete(delete_object_handler::<A>))
-            // Realtime monitor
-            .route("/admin/v1/realtime/stats", get(realtime_stats_handler::<A>))
-            .route("/admin/v1/realtime/broadcast", get(broadcast_channels_handler::<A>))
-            .route("/admin/v1/realtime/presence", get(presence_rooms_handler::<A>))
-            .route("/admin/v1/realtime/cdc", get(cdc_lag_handler::<A>))
             // Function operations
             .route("/admin/v1/functions", get(list_functions_handler::<A>))
             .route("/admin/v1/functions/{name}/invoke", post(invoke_function_handler::<A>))

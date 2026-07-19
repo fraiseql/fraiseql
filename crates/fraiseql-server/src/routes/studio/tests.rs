@@ -214,14 +214,7 @@ mod mod_tests {
     #[test]
     fn test_shell_contains_all_sections() {
         let html = studio_shell_html();
-        for s in [
-            "Data",
-            "Auth",
-            "Storage",
-            "Functions",
-            "Realtime",
-            "Metrics",
-        ] {
+        for s in ["Data", "Auth", "Storage", "Functions", "Metrics"] {
             assert!(html.contains(s), "shell must contain section '{s}'");
         }
     }
@@ -240,29 +233,6 @@ mod mod_tests {
     #[test]
     fn test_mime_for_css() {
         assert!(mime_for_filename("app.css").contains("css"));
-    }
-}
-
-mod realtime_monitor_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::super::realtime_monitor::*;
-
-    #[test]
-    fn test_realtime_stats_serializes() {
-        let resp = RealtimeStatsResponse {
-            connections:    5,
-            channels:       vec!["users".to_string()],
-            presence_rooms: vec![PresenceRoom {
-                room:    "lobby".to_string(),
-                members: 3,
-            }],
-            cdc_lag_ms:     Some(10),
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"connections\""));
-        assert!(json.contains("\"channels\""));
-        assert!(json.contains("\"presence_rooms\""));
-        assert!(json.contains("\"cdc_lag_ms\""));
     }
 }
 

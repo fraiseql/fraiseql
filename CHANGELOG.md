@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The four `GET /admin/v1/realtime/{stats,broadcast,presence,cdc}` studio-monitor endpoints
+  and the Studio dashboard's "Realtime" panel have been removed (#605).** They were the
+  observability surface for the dormant `/realtime/v1` entity-stream subsystem, which is being
+  removed in full — the handlers returned placeholder data (zeros/`null`) and were never wired
+  to live state (no live CDC replication-lag metric exists to back the `cdc` tile). This is the
+  first step of the `/realtime/v1` removal train; the `POST /realtime/v1/broadcast` endpoint,
+  the broadcast/presence managers, and the subsystem itself are removed in the phases that
+  follow. The live `/ws` GraphQL-subscription path is unaffected.
 - **In production, `[security.rate_limiting] trust_proxy_headers = true` with an empty or
   omitted `trusted_proxy_cidrs` now refuses to boot (#618).** The 2.13 deprecation warning
   (#609) promised exactly this. Trusting `X-Forwarded-For` from every direct peer lets any

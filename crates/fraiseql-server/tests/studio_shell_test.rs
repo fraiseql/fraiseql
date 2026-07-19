@@ -19,18 +19,11 @@ fn test_studio_shell_contains_l_tabs() {
     );
 }
 
-/// Shell must contain all six section names.
+/// Shell must contain all five section names.
 #[test]
 fn test_studio_shell_contains_all_sections() {
     let html = studio_shell_html();
-    for section in [
-        "Data",
-        "Auth",
-        "Storage",
-        "Functions",
-        "Realtime",
-        "Metrics",
-    ] {
+    for section in ["Data", "Auth", "Storage", "Functions", "Metrics"] {
         assert!(html.contains(section), "Studio shell must contain section '{section}'");
     }
 }
