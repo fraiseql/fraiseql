@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (unchanged, never warns). Development (`FRAISEQL_ENV=development`) downgrades the refusal
   to a warning, matching the `failed_login_*` production/development split.
 
+### Changed
+
+- **The cascade `id: ID!` error now names *why* a type was classified an entity and *how* a
+  mutation reaches it (#653).** When a `cascade = true` mutation drags in a type that lacks
+  `id: ID!`, the error previously stated only the failed assertion — and its two suggested
+  fixes ("add `id`" / "remove `cascade`") were both wrong for an embedded value object the
+  SDK gave a synthesized `sql_source`. It now reports the classification signal (`declares
+  sql_source = "v_money"; an embedded value object … should declare no source`) and the
+  reference path (`createOrder → Order.total → Money`), pointing at the real fix. Purely a
+  diagnostic change — which schemas compile is unchanged.
+
 ## [2.13.1] - 2026-07-18
 
 ### Changed

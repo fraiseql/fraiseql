@@ -38,19 +38,32 @@ fn id_defect(ty: &TypeDefinition) -> Option<IdDefect> {
 /// Node-style interface (`id: ID!`).
 ///
 /// `lead` is the opening sentence (names the feature + the interface contract);
-/// `remedy` completes the `Fix:` line's "or …" clause. Entities are reported in
-/// iteration order so the message is deterministic. Returns `Ok(())` when every
-/// entity conforms.
+/// `remedy` completes the `Fix:` line's "or …" clause. `annotate` supplies an optional
+/// per-offender note appended under its line — the caller uses it to explain *why* the
+/// type was classified an entity and *how* it was reached (#653). Entities are reported
+/// in iteration order so the message is deterministic. Returns `Ok(())` when every entity
+/// conforms.
 pub(super) fn enforce_node_id_conformance<'a>(
     entities: impl Iterator<Item = &'a TypeDefinition>,
     lead: &str,
     remedy: &str,
+    annotate: impl Fn(&TypeDefinition) -> Option<String>,
 ) -> anyhow::Result<()> {
     let offenders: Vec<String> = entities
-        .filter_map(|ty| id_defect(ty).map(|defect| (ty.name.to_string(), defect)))
-        .map(|(name, defect)| match defect {
-            IdDefect::WrongType(actual) => format!("  - Type '{name}': `id` is {actual}, not ID"),
-            IdDefect::Missing => format!("  - Type '{name}': no `id` field"),
+        .filter_map(|ty| id_defect(ty).map(|defect| (ty, defect)))
+        .map(|(ty, defect)| {
+            let name = ty.name.to_string();
+            let mut line = match defect {
+                IdDefect::WrongType(actual) => {
+                    format!("  - Type '{name}': `id` is {actual}, not ID")
+                },
+                IdDefect::Missing => format!("  - Type '{name}': no `id` field"),
+            };
+            if let Some(note) = annotate(ty) {
+                line.push_str("\n      ");
+                line.push_str(&note);
+            }
+            line
         })
         .collect();
 

@@ -32,7 +32,7 @@
 //! alone) and inert unless a mutation opts in — so a schema with no cascade
 //! mutations is byte-identical to one compiled before this pass existed.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use fraiseql_core::schema::{
     CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy,
@@ -80,11 +80,17 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
     // CascadeNode`: an entity that cannot back `id: ID!` would otherwise yield a
     // compiled schema that `validate()` rejects with a swallowed "missing field
     // 'id'". Fail fast with one aggregated, actionable error instead.
+    // Reference path a cascade mutation reaches each type through (#653 proposal 4),
+    // computed up front so its immutable borrow ends before the annotate closure below
+    // captures the owned map.
+    let reference_paths = build_reference_paths(schema);
+
     super::interface_conformance::enforce_node_id_conformance(
         schema.types.iter().filter(|t| is_queryable_entity(t)),
         "cascade requires `id: ID!` on every cascade entity (the graphql-cascade CascadeNode \
          interface requires it)",
         "remove `cascade` from the mutations that return them",
+        |ty| annotate_cascade_offender(ty, &reference_paths),
     )?;
 
     let existing_type_names: HashSet<String> =
@@ -169,6 +175,72 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
 /// relay connection/edge wrappers.
 fn is_queryable_entity(ty: &TypeDefinition) -> bool {
     !ty.is_error && !ty.sql_source.as_str().is_empty()
+}
+
+/// Explain (#653) why a type that failed the `id: ID!` contract was classified a cascade
+/// entity, and how a cascade mutation reaches it. Returns `None` when there is nothing to
+/// add. The signal (its declared `sql_source`) is only surfaced for a type with **no**
+/// `id` — a missing-id type is most likely an embedded value object the SDK gave a
+/// synthesized source; a type with a wrong-typed `id` is a genuine entity, where the
+/// source is not the issue.
+fn annotate_cascade_offender(
+    ty: &TypeDefinition,
+    reference_paths: &HashMap<String, String>,
+) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let has_id = ty.fields.iter().any(|f| f.name == "id");
+    if !has_id && !ty.sql_source.as_str().is_empty() {
+        parts.push(format!(
+            "classified as a cascade entity because it declares sql_source = \"{}\"; an \
+             embedded value object has no independent identity and should declare no source",
+            ty.sql_source.as_str()
+        ));
+    }
+    if let Some(path) = reference_paths.get(ty.name.as_str()) {
+        parts.push(format!("reached via {path}"));
+    }
+    (!parts.is_empty()).then(|| parts.join("\n      "))
+}
+
+/// For each cascade mutation, walk its return type's object graph (breadth-first) and
+/// record the first — shortest — path that reaches each type, e.g.
+/// `createOrder → Order.total → Money` (#653 proposal 4). A type not reachable from any
+/// cascade mutation gets no entry (it is a top-level entity, legitimately identity-bearing).
+fn build_reference_paths(schema: &CompiledSchema) -> HashMap<String, String> {
+    let type_by_name: HashMap<&str, &TypeDefinition> =
+        schema.types.iter().map(|t| (t.name.as_str(), t)).collect();
+    let mut paths: HashMap<String, String> = HashMap::new();
+    for m in schema.mutations.iter().filter(|m| m.cascade) {
+        let root = m.return_type.as_str();
+        let mut seen: HashSet<String> = HashSet::from([root.to_string()]);
+        let mut queue: VecDeque<(String, String)> =
+            VecDeque::from([(root.to_string(), format!("{} → {root}", m.name))]);
+        while let Some((tname, path)) = queue.pop_front() {
+            paths.entry(tname.clone()).or_insert(path.clone());
+            let Some(ty) = type_by_name.get(tname.as_str()) else {
+                continue;
+            };
+            for f in &ty.fields {
+                if let Some(child) = object_type_name(&f.field_type) {
+                    if seen.insert(child.to_string()) {
+                        queue
+                            .push_back((child.to_string(), format!("{path}.{} → {child}", f.name)));
+                    }
+                }
+            }
+        }
+    }
+    paths
+}
+
+/// The named object type a field ultimately refers to, unwrapping `List` wrappers.
+/// Scalars, enums, interfaces, and JSON return `None`.
+fn object_type_name(field_type: &FieldType) -> Option<&str> {
+    match field_type {
+        FieldType::Object(name) => Some(name.as_str()),
+        FieldType::List(inner) => object_type_name(inner),
+        _ => None,
+    }
 }
 
 /// `createUser` → `CreateUserPayload`. Uppercases the first character (mutation
