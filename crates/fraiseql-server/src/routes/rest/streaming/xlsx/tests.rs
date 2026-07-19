@@ -226,6 +226,16 @@ fn determine_columns_falls_back_to_first_row_keys() {
 }
 
 #[test]
+fn determine_columns_fallback_is_sorted_regardless_of_key_insertion_order() {
+    // Keys given out of alphabetical order: `determine_columns` sorts them
+    // explicitly, so the header is deterministic (email, id, name) regardless of
+    // `serde_json`'s `preserve_order` feature — including under `--all-features`.
+    let rows = vec![json!({"name": "Alice", "email": "a@b", "id": 1})];
+    let cols = determine_columns(None, &rows);
+    assert_eq!(cols, vec!["email", "id", "name"]);
+}
+
+#[test]
 fn determine_columns_empty_when_no_rows_and_no_select() {
     let rows: Vec<serde_json::Value> = Vec::new();
     assert!(determine_columns(None, &rows).is_empty());

@@ -233,8 +233,8 @@ fn determine_columns_prefers_select_list() {
 fn determine_columns_falls_back_to_first_row_keys() {
     let rows = vec![json!({"id": 1, "name": "Alice"})];
     let cols = determine_columns(None, &rows);
-    // serde_json::Map is alphabetically ordered without preserve_order;
-    // see module docs.
+    // `determine_columns` sorts the fallback keys explicitly, so the order is
+    // alphabetical regardless of `serde_json`'s `preserve_order` feature.
     assert_eq!(cols, vec!["id", "name"]);
 }
 
@@ -471,14 +471,18 @@ fn select_columns_drive_order_when_present() {
 
 #[test]
 fn no_select_falls_back_to_sorted_first_row_keys() {
-    // Without ?select=, the column order comes from serde_json::Map
-    // iteration which the workspace's default serde_json build sorts
-    // alphabetically — deterministic and assertable.
+    // Without ?select=, `determine_columns` sorts the first row's keys
+    // explicitly, so the header is alphabetical (email, id, name) regardless of
+    // `serde_json`'s `preserve_order` feature — deterministic under any feature
+    // resolution, including `--all-features`.
     let rows = vec![json!({"name": "Alice", "email": "a@b", "id": 1})];
     let cols = determine_columns(None, &rows);
     let payload = write_csv_payload(&cols, &rows, b',', false, true).unwrap();
     let s = String::from_utf8(payload.to_vec()).unwrap();
     assert!(s.starts_with("email,id,name\n"));
+    // The data row follows the same sorted order — reordering the header keeps
+    // each value under its own column (values are keyed by name, not position).
+    assert!(s.contains("a@b,1,Alice"), "data row must align with the sorted header: {s}");
 }
 
 #[test]

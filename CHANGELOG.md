@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CSV and XLSX exports now emit a deterministic, alphabetically-sorted column order when no
+  `?select=` is given.** The fallback column order was taken from `serde_json::Map` iteration,
+  which is alphabetical only for the default `BTreeMap` build; a dependency that enables
+  serde_json's `preserve_order` feature (e.g. the `functions-runtime-deno` runtime, or any
+  `--all-features` build) flips the map to insertion order, silently changing export column
+  order for the same data. `determine_columns` now sorts the fallback keys explicitly, so the
+  header is alphabetical regardless of feature resolution. Default-build output is byte-for-byte
+  unchanged; `?select=` still drives explicit column order.
 - **`fraiseql setup` now installs the `core.tb_entity_change_log` change-log contract, so the
   first mutation on a freshly authored stack no longer fails at prepare time (#569).** Every
   default (`changelog = true`) mutation writes this table via its transactional-outbox CTE;

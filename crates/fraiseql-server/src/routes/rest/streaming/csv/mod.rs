@@ -9,8 +9,8 @@
 //!   (default `true` — Excel needs it).
 //! - One header row whose columns are the top-level fields of the query result. If `?select=a,b,c`
 //!   is provided the column order matches that list (paren-aware: `posts(id,title)` becomes a
-//!   single `posts` column); otherwise columns come from `serde_json::Map` iteration, which is
-//!   stable (alphabetical) under the default `serde_json` build used in this workspace.
+//!   single `posts` column); otherwise columns are the first row's keys, sorted alphabetically
+//!   (deterministic regardless of `serde_json`'s `preserve_order` feature).
 //! - One row per result, RFC 4180 quoting, configurable delimiter via
 //!   [`ExportConfig::csv_delimiter`].
 //!
@@ -461,15 +461,25 @@ pub(crate) fn guard_formula_injection(value: &str) -> String {
 ///
 /// Preference:
 /// 1. `?select=` order, when supplied.
-/// 2. First row's `serde_json::Map` iteration order (alphabetical under the workspace's default
-///    `serde_json` build).
+/// 2. First row's keys, sorted alphabetically.
+///
+/// The fallback sorts explicitly rather than leaning on `serde_json::Map`
+/// iteration order: that order is alphabetical only for the default (`BTreeMap`)
+/// build and becomes insertion order when any dependency enables the
+/// `preserve_order` feature (e.g. under `--all-features`), which would silently
+/// change export column order. Sorting here keeps the header deterministic
+/// regardless of `serde_json`'s feature resolution.
 fn determine_columns(select_columns: Option<&[String]>, rows: &[serde_json::Value]) -> Vec<String> {
     if let Some(cols) = select_columns {
         return cols.to_vec();
     }
     rows.first()
         .and_then(|v| v.as_object())
-        .map(|m| m.keys().cloned().collect())
+        .map(|m| {
+            let mut cols: Vec<String> = m.keys().cloned().collect();
+            cols.sort();
+            cols
+        })
         .unwrap_or_default()
 }
 
