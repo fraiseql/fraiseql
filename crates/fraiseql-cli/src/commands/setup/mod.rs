@@ -22,6 +22,15 @@ const MUTATION_RESPONSE_SQL: &str = include_str!("../../../sql/helpers/mutation_
 /// spec-conformant, RLS-safe cascade.
 const CASCADE_SQL: &str = include_str!("../../../sql/helpers/cascade.sql");
 
+/// The change-log contract table (`core.tb_entity_change_log`) the mutation executor's
+/// transactional-outbox CTE writes in-txn (#569). Vendored **byte-for-byte** from
+/// `crates/fraiseql-observers/migrations/08_create_entity_change_log_contract.sql`, which
+/// owns the contract; the `changelog_contract_matches_observers_migration` test fails if
+/// the two drift. Idempotent DDL (`CREATE TABLE IF NOT EXISTS` + `ALTER … ADD COLUMN IF
+/// NOT EXISTS`), so re-running `setup` is safe.
+const CHANGELOG_CONTRACT_SQL: &str =
+    include_str!("../../../sql/helpers/entity_change_log_contract.sql");
+
 /// Run the setup command to install helpers to a database.
 ///
 /// # Errors
@@ -65,6 +74,8 @@ pub async fn run(
     formatter.progress("  - fraiseql.library_version()");
     formatter.progress("  - fraiseql.mutation_ok(...)");
     formatter.progress("  - fraiseql.mutation_err(...)");
+    formatter.progress("Installed tables:");
+    formatter.progress("  - core.tb_entity_change_log (mutation change-log outbox — #569)");
 
     Ok(())
 }
@@ -75,7 +86,12 @@ fn print_dry_run(db_url: &str, formatter: &OutputFormatter) {
     formatter.progress("");
     formatter.progress(&format!("Database URL: {}", mask_password(db_url)));
     formatter.progress("");
-    formatter.progress("The following SQL will be executed:");
+    formatter.progress("Would install:");
+    formatter.progress("  - fraiseql.mutation_ok/err/library_version helpers");
+    formatter.progress("  - fraiseql.build_cascade cascade builders");
+    formatter.progress("  - core.tb_entity_change_log change-log contract table (#569)");
+    formatter.progress("");
+    formatter.progress("Mutation-helper SQL that will be executed:");
     formatter.progress("");
     formatter.progress(MUTATION_RESPONSE_SQL);
     formatter.progress("");
@@ -145,7 +161,18 @@ async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatt
         .await
         .context("Failed to install FraiseQL cascade builders")?;
 
-    formatter.progress("✓ SQL helpers applied");
+    // Install the change-log contract table (#569). The mutation executor wraps every
+    // mutation in a transactional-outbox CTE that writes `core.tb_entity_change_log`, so
+    // without this table the first mutation fails at prepare with a bare
+    // `relation "core.tb_entity_change_log" does not exist`. Idempotent DDL — safe to
+    // re-run. Row-Level Security on the change-log is a separate operator step (observers
+    // migration 12), intentionally not installed here.
+    client
+        .batch_execute(CHANGELOG_CONTRACT_SQL)
+        .await
+        .context("Failed to install FraiseQL change-log contract table")?;
+
+    formatter.progress("✓ SQL helpers + change-log contract applied");
 
     // Verify installation
     let version: String = client

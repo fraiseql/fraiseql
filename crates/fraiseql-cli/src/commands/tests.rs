@@ -1490,7 +1490,11 @@ mod doctor_tests {
         assert_eq!(checks.len(), 1, "an absent table yields a single warning");
         assert_eq!(checks[0].status, CheckStatus::Warn);
         assert!(checks[0].detail.contains("not found"));
-        assert!(checks[0].hint.as_deref().unwrap().contains("migrate up"));
+        // #569: the remedy points at both install paths — `fraiseql setup` (now installs the
+        // contract) and `fraiseql migrate up` — and explains why the table is required.
+        let hint = checks[0].hint.as_deref().unwrap();
+        assert!(hint.contains("fraiseql setup"), "names the setup install path: {hint}");
+        assert!(hint.contains("migrate up"), "keeps the migrate path: {hint}");
     }
 
     #[test]
