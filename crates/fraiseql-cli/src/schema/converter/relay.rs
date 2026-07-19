@@ -30,6 +30,9 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
         schema.types.iter().filter(|t| t.relay),
         "relay = true requires `id: ID!` on every Relay type (the Relay Node interface requires it)",
         "remove `relay = true` from them",
+        // Relay types are classified by the `relay` flag, not `sql_source`, and are not
+        // pulled in via a mutation cascade — so no derivation/path annotation applies.
+        |_| None,
     )?;
 
     // --- Node interface (inject once if not already present) ---

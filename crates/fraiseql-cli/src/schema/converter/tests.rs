@@ -2192,16 +2192,15 @@ mod tenancy_tests {
         assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
     }
 
-    /// Phase-00 baseline pin for the 2.14 train (#653). An embedded value object
-    /// (`Money`) that the Python SDK gave a synthesized `sql_source` (`v_money`, a view
-    /// that does not exist) is flagged as a cascade entity purely because
-    /// `is_queryable_entity` keys off `!sql_source.is_empty()`. Today the error names
-    /// only the failed assertion ("no `id` field"); it does NOT say (3) *why* the type
-    /// was classified an entity (its `sql_source` signal) nor (4) the reference path that
-    /// pulled it in. Phase 02 adds both — this test flips RED then, making the diagnostic
-    /// improvement a deliberate, visible change rather than a silent one.
+    /// #653 (2.14 Phase 02). An embedded value object (`Money`) that the Python SDK gave a
+    /// synthesized `sql_source` (`v_money`, a view that does not exist) is flagged as a
+    /// cascade entity purely because `is_queryable_entity` keys off `!sql_source.is_empty()`.
+    /// The error now names (3) *why* the type was classified an entity — its `sql_source`
+    /// signal — and (4) the reference path a cascade mutation reaches it by, so the author
+    /// sees the real fix ("Money should not declare a source") instead of the two wrong ones.
+    /// (This was the Phase 00 baseline pin, flipped from "omits" to "reports".)
     #[test]
-    fn cascade_embedded_value_object_error_omits_derivation_and_path_today() {
+    fn cascade_embedded_value_object_error_reports_derivation_and_path() {
         use crate::schema::SchemaConverter;
         // Order is genuinely view-backed and identity-bearing — it must NOT be flagged.
         let order = IntermediateType {
@@ -2224,20 +2223,42 @@ mod tenancy_tests {
             make_schema(vec![order, money], vec![], vec![cascade_mut("createOrder", "Order")]);
         let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
 
-        // Current behavior, locked: the embedded type is flagged with the bare assertion.
         assert!(msg.contains("Money"), "names the flagged type: {msg}");
         assert!(msg.contains("no `id` field"), "states the failed assertion: {msg}");
+        // #653(3): the message names the classification signal (its declared sql_source).
+        assert!(
+            msg.contains("sql_source") && msg.contains("v_money"),
+            "#653(3): names the classification signal: {msg}"
+        );
+        // #653(4): the message names the reference path a cascade mutation reaches it by.
+        assert!(
+            msg.contains("createOrder → Order.total → Money"),
+            "#653(4): names the reference path: {msg}"
+        );
+    }
 
-        // Baseline GAPS that Phase 02 (#653 proposals 3 & 4) will close. Asserted ABSENT so
-        // the pin turns RED-by-design when the richer message lands:
-        assert!(
-            !msg.contains("sql_source") && !msg.contains("v_money"),
-            "#653(3): message does not yet name the classification signal (sql_source): {msg}"
-        );
-        assert!(
-            !msg.contains("createOrder") && !msg.contains('→'),
-            "#653(4): message does not yet name the reference path: {msg}"
-        );
+    /// #653(4): a flagged queryable entity that no cascade mutation reaches gets the
+    /// `sql_source` signal but NO "reached via" line — it is a top-level entity, not one
+    /// dragged in by a cascade, so there is no path to name.
+    #[test]
+    fn cascade_flagged_entity_unreachable_from_a_mutation_has_no_reference_path() {
+        use crate::schema::SchemaConverter;
+        let order = IntermediateType {
+            sql_source: Some("v_order".to_string()),
+            ..make_type("Order", vec![make_field("id", "UUID")])
+        };
+        // Widget is view-backed but has no `id` and is not reachable from `createOrder`.
+        let widget = IntermediateType {
+            sql_source: Some("v_widget".to_string()),
+            ..make_type("Widget", vec![make_field("label", "String")])
+        };
+        let schema =
+            make_schema(vec![order, widget], vec![], vec![cascade_mut("createOrder", "Order")]);
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+
+        assert!(msg.contains("Widget") && msg.contains("no `id` field"), "{msg}");
+        assert!(msg.contains("v_widget"), "#653(3): signal present even off the cascade: {msg}");
+        assert!(!msg.contains("reached via"), "#653(4): no path for an unreachable type: {msg}");
     }
 
     /// An `id: Int` (a serial pk exposed directly — not the Trinity external id) is
@@ -2257,6 +2278,12 @@ mod tenancy_tests {
             "names type + actual id type: {msg}"
         );
         assert!(msg.contains("id: ID!") && msg.contains("Fix:"), "{msg}");
+        // #653(3): a wrong-typed `id` is a genuine entity, not a misclassified value
+        // object — it must NOT get the "declare no source" hint (that guard is `has_id`).
+        assert!(
+            !msg.contains("embedded value object"),
+            "wrong-typed id is a real entity, not a value object: {msg}"
+        );
     }
 
     /// One error lists *every* offender, so a developer fixes them in one pass
