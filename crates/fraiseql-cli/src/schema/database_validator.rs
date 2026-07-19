@@ -56,6 +56,19 @@ pub enum DatabaseWarning {
         /// The `sql_source` function that was not found.
         sql_source:    String,
     },
+    /// L1: a `@fraiseql.type`'s declared `sql_source` view does not exist (#653).
+    ///
+    /// Most often an embedded value object the SDK gave a synthesized `v_<name>` source by
+    /// naming convention (a view that was never authored). Advisory only — it never fails
+    /// the compile; the hard `FRAISEQL_VALIDATE_SQL_SOURCES` gate deliberately does **not**
+    /// probe type sources (it would drown in synthesized-source noise), so this warn-grade
+    /// path under `--database` is the only place phantom type sources surface.
+    MissingTypeSource {
+        /// Name of the type.
+        type_name:  String,
+        /// The `sql_source` view that was not found.
+        sql_source: String,
+    },
     /// L1: `additional_view` does not exist.
     MissingAdditionalView {
         /// Name of the query.
@@ -157,6 +170,18 @@ impl fmt::Display for DatabaseWarning {
                 write!(
                     f,
                     "mutation `{mutation_name}`: sql_source function `{sql_source}` does not exist in database"
+                )
+            },
+            Self::MissingTypeSource {
+                type_name,
+                sql_source,
+            } => {
+                write!(
+                    f,
+                    "type `{type_name}`: sql_source `{sql_source}` does not exist in the \
+                     database — if `{type_name}` is an embedded value object it should declare \
+                     no source (a value object has no independent identity; it is fetched via \
+                     its parent)"
                 )
             },
             Self::MissingAdditionalView {
@@ -556,6 +581,27 @@ pub async fn validate_schema_against_database(
                     sql_source:    source.clone(),
                 });
             }
+        }
+    }
+
+    // Validate type sources (L1 only, warn-grade). A `@fraiseql.type`'s `sql_source` is a
+    // view/table; a declared source that does not exist is usually an embedded value object
+    // the SDK synthesized a source for (#653). Surface it at its origin — never failing —
+    // instead of letting it resurface later as an unrelated cascade `id` error. Unlike
+    // queries/mutations, type sources are not on the shared `sql_source_probes` work-list,
+    // so the hard `FRAISEQL_VALIDATE_SQL_SOURCES` gate does not flag them; this is the only
+    // check that does. Synthetic types (empty source) and error types are skipped — this is
+    // exactly the `is_queryable_entity` set the cascade pass keys off.
+    for ty in &schema.types {
+        let source = ty.sql_source.as_str();
+        if ty.is_error || source.is_empty() {
+            continue;
+        }
+        if !relation_source_exists(introspector, &schema_qualified, &unqualified, source).await? {
+            warnings.push(DatabaseWarning::MissingTypeSource {
+                type_name:  ty.name.to_string(),
+                sql_source: source.to_string(),
+            });
         }
     }
 
