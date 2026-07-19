@@ -398,7 +398,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
-        // #611: subscription policies do not hot-reload — surface any change loudly.
+        // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
+        // so operators know already-connected streams must reconnect to apply the change.
         warn_on_subscription_policy_reload(current.schema(), &schema);
 
         // 5. Notify adapter of schema change (clears query result cache if applicable)
@@ -459,7 +460,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
-        // #611: subscription policies do not hot-reload — surface any change loudly.
+        // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
+        // so operators know already-connected streams must reconnect to apply the change.
         warn_on_subscription_policy_reload(current.schema(), &schema);
 
         // 4. Notify adapter of schema change (clears query result cache if applicable)
