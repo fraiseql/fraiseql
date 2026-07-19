@@ -2192,6 +2192,54 @@ mod tenancy_tests {
         assert!(msg.contains("Fix:"), "offers a remedy: {msg}");
     }
 
+    /// Phase-00 baseline pin for the 2.14 train (#653). An embedded value object
+    /// (`Money`) that the Python SDK gave a synthesized `sql_source` (`v_money`, a view
+    /// that does not exist) is flagged as a cascade entity purely because
+    /// `is_queryable_entity` keys off `!sql_source.is_empty()`. Today the error names
+    /// only the failed assertion ("no `id` field"); it does NOT say (3) *why* the type
+    /// was classified an entity (its `sql_source` signal) nor (4) the reference path that
+    /// pulled it in. Phase 02 adds both — this test flips RED then, making the diagnostic
+    /// improvement a deliberate, visible change rather than a silent one.
+    #[test]
+    fn cascade_embedded_value_object_error_omits_derivation_and_path_today() {
+        use crate::schema::SchemaConverter;
+        // Order is genuinely view-backed and identity-bearing — it must NOT be flagged.
+        let order = IntermediateType {
+            sql_source: Some("v_order".to_string()),
+            ..make_type("Order", vec![make_field("id", "UUID"), make_field("total", "Money")])
+        };
+        // Money is an embedded value object: no independent identity, never queried on its
+        // own. The SDK synthesized `sql_source = "v_money"` for it and no such view exists.
+        let money = IntermediateType {
+            sql_source: Some("v_money".to_string()),
+            ..make_type(
+                "Money",
+                vec![
+                    make_field("amount", "Int"),
+                    make_field("currency", "String"),
+                ],
+            )
+        };
+        let schema =
+            make_schema(vec![order, money], vec![], vec![cascade_mut("createOrder", "Order")]);
+        let msg = format!("{:#}", SchemaConverter::convert(schema).unwrap_err());
+
+        // Current behavior, locked: the embedded type is flagged with the bare assertion.
+        assert!(msg.contains("Money"), "names the flagged type: {msg}");
+        assert!(msg.contains("no `id` field"), "states the failed assertion: {msg}");
+
+        // Baseline GAPS that Phase 02 (#653 proposals 3 & 4) will close. Asserted ABSENT so
+        // the pin turns RED-by-design when the richer message lands:
+        assert!(
+            !msg.contains("sql_source") && !msg.contains("v_money"),
+            "#653(3): message does not yet name the classification signal (sql_source): {msg}"
+        );
+        assert!(
+            !msg.contains("createOrder") && !msg.contains('→'),
+            "#653(4): message does not yet name the reference path: {msg}"
+        );
+    }
+
     /// An `id: Int` (a serial pk exposed directly — not the Trinity external id) is
     /// not canonicalized and cannot back `id: ID!`; a cascade over it fails fast with
     /// the actual id type and the remedy (adopt a UUID/ID identity).
