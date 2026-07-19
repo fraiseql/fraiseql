@@ -6,7 +6,12 @@ lto = "thin"
 opt-level = 3
 
 [profile.dev]
-debug = true
+# line-tables-only keeps symbol names + file:line in backtraces (what test
+# failures and panics actually surface) while dropping variable/type DWARF.
+# Full debug info across ~90 test binaries and feature-matrix variants grows
+# target/ into the hundreds of GB; for interactive debugger sessions override
+# per-run: CARGO_PROFILE_DEV_DEBUG=full cargo test -p <crate> ...
+debug = "line-tables-only"
 opt-level = 0
 
 [profile.release]
