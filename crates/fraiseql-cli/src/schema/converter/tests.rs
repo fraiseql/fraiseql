@@ -2674,6 +2674,210 @@ mod changelog_validation_tests {
     }
 }
 
+// ── #665 changelog projections vs. cascade entity classification ─────────────
+
+mod changelog_cascade_conformance_tests {
+    //! Pins for the interaction between the framework-synthesized changelog
+    //! projections and cascade entity classification (#665), plus the two exclusion
+    //! legs `is_queryable_entity`'s doc-comment claims but which nothing pinned.
+
+    use fraiseql_core::schema::ChangelogConfig;
+    use serde_json::json;
+
+    use crate::schema::{
+        converter::SchemaConverter,
+        intermediate::{
+            IntermediateField, IntermediateMutation, IntermediateSchema, IntermediateType,
+        },
+    };
+
+    fn field(name: &str, field_type: &str) -> IntermediateField {
+        IntermediateField {
+            name:           name.to_string(),
+            field_type:     field_type.to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
+            requires_scope: None,
+            on_deny:        None,
+            authorize:      None,
+            hierarchy:      None,
+        }
+    }
+
+    /// A view-backed entity with a conformant `id: ID`.
+    fn entity(name: &str) -> IntermediateType {
+        IntermediateType {
+            name: name.to_string(),
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            fields: vec![field("id", "ID"), field("title", "String")],
+            ..IntermediateType::default()
+        }
+    }
+
+    fn cascade_mutation(name: &str, entity_type: &str) -> IntermediateMutation {
+        IntermediateMutation {
+            name: name.to_string(),
+            return_type: entity_type.to_string(),
+            cascade: true,
+            sql_source: Some(format!("fn_{}", name.to_lowercase())),
+            ..IntermediateMutation::default()
+        }
+    }
+
+    fn schema_with(
+        types: Vec<IntermediateType>,
+        mutations: Vec<IntermediateMutation>,
+    ) -> IntermediateSchema {
+        IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types,
+            mutations,
+            ..IntermediateSchema::default()
+        }
+    }
+
+    /// The same, with the change-log surface exposed (and its observers prerequisite).
+    fn changelog_schema_with(
+        types: Vec<IntermediateType>,
+        mutations: Vec<IntermediateMutation>,
+    ) -> IntermediateSchema {
+        IntermediateSchema {
+            changelog_config: Some(ChangelogConfig {
+                expose: true,
+                ..Default::default()
+            }),
+            observers_config: Some(json!({ "enabled": true, "backend": "redis" })),
+            ..schema_with(types, mutations)
+        }
+    }
+
+    /// The cascade envelope and payload types are never cascade nodes: each is
+    /// synthesized with an empty `sql_source`, which is the sole mechanism excluding
+    /// them from `is_queryable_entity`.
+    ///
+    /// Pinned because the exclusion is load-bearing but was previously only implied by
+    /// `synth_type`'s construction — no test asserted it.
+    #[test]
+    fn cascade_envelope_types_are_never_cascade_nodes() {
+        let compiled = SchemaConverter::convert(schema_with(
+            vec![entity("Post")],
+            vec![cascade_mutation("createPost", "Post")],
+        ))
+        .expect("cascade-only schema compiles");
+
+        // The user entity is a cascade node …
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
+        assert!(
+            post.implements.iter().any(|i| i == "CascadeNode"),
+            "Post implements CascadeNode"
+        );
+
+        // … and none of the synthesized machinery is.
+        for name in [
+            "UpdatedEntity",
+            "DeletedEntity",
+            "CascadeUpdates",
+            "CascadeMetadata",
+            "QueryInvalidation",
+            "CreatePostPayload",
+        ] {
+            let ty = compiled.types.iter().find(|t| t.name.as_str() == name);
+            assert!(ty.is_some(), "{name} is synthesized");
+            let ty = ty.unwrap();
+            assert!(ty.sql_source.as_str().is_empty(), "{name} declares no sql_source");
+            assert!(
+                !ty.implements.iter().any(|i| i == "CascadeNode"),
+                "{name} does not implement CascadeNode"
+            );
+        }
+    }
+
+    /// Relay connection/edge wrappers are excluded from the cascade entity set for the
+    /// same reason. `is_queryable_entity`'s doc-comment asserts this ("as are relay
+    /// connection/edge wrappers"); until now nothing combined `relay = true` with
+    /// `cascade = true` to prove it.
+    #[test]
+    fn relay_wrapper_types_are_never_cascade_nodes() {
+        let post = IntermediateType {
+            relay: true,
+            ..entity("Post")
+        };
+        let compiled = SchemaConverter::convert(schema_with(
+            vec![post],
+            vec![cascade_mutation("createPost", "Post")],
+        ))
+        .expect("relay + cascade compiles");
+
+        for name in ["PostConnection", "PostEdge", "PageInfo"] {
+            let ty = compiled.types.iter().find(|t| t.name.as_str() == name);
+            assert!(ty.is_some(), "{name} is synthesized by the relay pass");
+            assert!(
+                !ty.unwrap().implements.iter().any(|i| i == "CascadeNode"),
+                "{name} is a pagination wrapper, not a cascade entity"
+            );
+        }
+    }
+
+    /// **#665 REPRO — EXPECTED-FAILURE PIN. This test is FLIPPED by Phase 02 of the
+    /// #665 train into its success shape.**
+    ///
+    /// Asserts the CURRENT (broken) behavior so it merges green on top of the bug:
+    /// exposing the change-log and opting any single mutation into `cascade = true`
+    /// fails to compile. `inject_changelog` (converter/mod.rs) runs *before*
+    /// `synthesize_cascade_types`, so the framework's own `TransportCheckpoint`
+    /// projection — view-backed, non-error, and keyed by `transport_name` with no `id`
+    /// by design — is classified a cascade entity and fails the `id: ID!` contract.
+    ///
+    /// The result is that the two features are mutually exclusive, on a type the user
+    /// never wrote and cannot fix. This is the discriminating pin for the train: it
+    /// proves Phase 02 changes the one thing it claims to.
+    #[test]
+    fn changelog_plus_cascade_fails_on_transport_checkpoint_today() {
+        let err = SchemaConverter::convert(changelog_schema_with(
+            vec![entity("Post")],
+            vec![cascade_mutation("createPost", "Post")],
+        ))
+        .expect_err("#665: changelog + cascade is currently mutually exclusive");
+        let msg = err.to_string();
+
+        assert!(
+            msg.contains("cascade requires `id: ID!`"),
+            "fails via the cascade conformance enforcement, got: {msg}"
+        );
+        assert!(
+            msg.contains("TransportCheckpoint") && msg.contains("no `id` field"),
+            "the offender is the framework's own TransportCheckpoint projection, got: {msg}"
+        );
+        // The #659 diagnostic enrichment fires on a framework projection and tells the
+        // user their type is an embedded value object that should drop its source —
+        // advice that is both wrong and unactionable here. Pinned so the flip in
+        // Phase 02 is visibly removing a misleading diagnostic, not just an error.
+        assert!(
+            msg.contains("embedded value object"),
+            "the derivation-signal hint misfires on a framework projection, got: {msg}"
+        );
+    }
+
+    /// The change-log surface alone (no cascade mutation) compiles — the baseline the
+    /// fix must not disturb.
+    #[test]
+    fn changelog_without_cascade_compiles() {
+        let compiled = SchemaConverter::convert(changelog_schema_with(
+            vec![entity("Post")],
+            vec![IntermediateMutation {
+                cascade: false,
+                ..cascade_mutation("createPost", "Post")
+            }],
+        ))
+        .expect("changelog-only schema compiles");
+
+        assert!(compiled.types.iter().any(|t| t.name == "EntityChangeLog"));
+        assert!(compiled.types.iter().any(|t| t.name == "TransportCheckpoint"));
+        assert!(!compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
+    }
+}
+
 // ── #573 scheduled ingress sources ───────────────────────────────────────────
 
 #[test]
