@@ -16,7 +16,6 @@ pub mod introspection;
 pub mod jwks_admin;
 pub mod metrics;
 pub mod playground;
-pub mod realtime;
 pub mod storage;
 pub mod studio;
 pub mod subscriptions;
@@ -39,7 +38,6 @@ pub use health::{health_handler, readiness_handler};
 pub use introspection::introspection_handler;
 pub use metrics::{metrics_handler, metrics_json_handler};
 pub use playground::{PlaygroundState, playground_handler};
-pub use realtime::{BroadcastState, broadcast_handler};
 pub use subscriptions::{SubscriptionState, subscription_handler, subscription_metrics};
 pub use well_known::security_txt_handler;
 

@@ -379,8 +379,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "arrow")]
             flight_service,
             adapter_cache_enabled: false,
-            broadcast_manager: None,
-            presence_manager: None,
             storage_backend: None,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             #[cfg(feature = "functions")]

@@ -25,10 +25,9 @@ use crate::{
         required_auth_middleware, trace_layer,
     },
     routes::{
-        BroadcastState, PlaygroundState, SubscriptionState, api, broadcast_handler,
-        graphql_get_handler, graphql_handler, health_handler, introspection_handler,
-        metrics_handler, metrics_json_handler, playground_handler, readiness_handler,
-        subscription_handler,
+        PlaygroundState, SubscriptionState, api, graphql_get_handler, graphql_handler,
+        health_handler, introspection_handler, metrics_handler, metrics_json_handler,
+        playground_handler, readiness_handler, subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -176,12 +175,6 @@ pub struct Server<A: DatabaseAdapter> {
     /// Set to `true` when `ServerConfig::cache_enabled = true` and the server was built
     /// with `Server::new` or `Server::with_relay_pagination`.
     pub(super) adapter_cache_enabled: bool,
-
-    /// Broadcast channel manager for ephemeral realtime pub/sub.
-    pub(super) broadcast_manager: Option<Arc<crate::subscriptions::BroadcastManager>>,
-
-    /// Presence manager for room-based member tracking.
-    pub(super) presence_manager: Option<Arc<crate::subscriptions::PresenceManager>>,
 
     /// Object storage backend for the `/storage/v1/` routes.
     ///

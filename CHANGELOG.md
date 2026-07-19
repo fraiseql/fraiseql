@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The `POST /realtime/v1/broadcast` channel-broadcast endpoint and room-presence tracking
+  have been removed **without replacement** (#605).** These were the "channels"-style siblings
+  of the dormant `/realtime/v1` entity stream: `BroadcastManager` (ephemeral pub/sub) and
+  `PresenceManager` (Supabase-style room presence), enabled via the `Server` builder methods
+  `with_broadcast(..)` / `with_presence(..)`. Neither was ever wired into a production delivery
+  path — no `/ws` handler or `EventBridge` consumed them — so removing them loses *potential*,
+  not function. **The live `/ws` GraphQL-subscription path does not supersede them** (it
+  supersedes only the entity stream). Removed crate API:
+  `fraiseql_server::subscriptions::{broadcast::*, presence::*}`, the `Server::with_broadcast` /
+  `Server::with_presence` builder methods, and the `broadcast_manager` / `presence_manager`
+  server fields. Any code calling `with_broadcast`/`with_presence` will no longer compile; drop
+  the call. If channels-style features are ever wanted they will be designed fresh as
+  `/ws`-native GraphQL subscription fields, not by reviving this code.
 - **The four `GET /admin/v1/realtime/{stats,broadcast,presence,cdc}` studio-monitor endpoints
   and the Studio dashboard's "Realtime" panel have been removed (#605).** They were the
   observability surface for the dormant `/realtime/v1` entity-stream subsystem, which is being

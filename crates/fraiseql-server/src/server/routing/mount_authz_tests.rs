@@ -1,11 +1,11 @@
-//! Phase 03 C6 fail-closed mount tests (M-broadcast, M-storage-legacy).
+//! Phase 03 C6 fail-closed mount tests (M-storage-legacy).
 //!
 //! These build a real [`Server`] and exercise the production mount methods
 //! (`mount_base_and_admin_routes`, `mount_extensions`) through axum's
 //! `tower::ServiceExt::oneshot`, asserting that privileged subsystems refuse to
 //! mount when there is no way to authenticate a caller. A route that is *not*
-//! mounted answers 404; the previous behaviour mounted these endpoints
-//! unauthenticated (broadcast) or with no RLS at all (legacy storage backend).
+//! mounted answers 404; the previous behaviour mounted the legacy storage
+//! backend with no RLS at all.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
 use std::{collections::HashMap, sync::Arc};
@@ -16,7 +16,7 @@ use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
 
-use crate::{server::Server, server_config::ServerConfig, subscriptions::BroadcastConfig};
+use crate::{server::Server, server_config::ServerConfig};
 
 /// Build a `Server` from the given config with an empty schema and a healthy
 /// mock adapter (no OIDC validator unless the config requests one — which these
@@ -25,37 +25,6 @@ async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<Faili
     Server::new(config, CompiledSchema::new(), Arc::new(FailingAdapter::new()), None)
         .await
         .expect("Server::new should succeed for an empty schema + default config")
-}
-
-// ── M-broadcast: broadcast endpoint fails closed without an OIDC validator ──
-
-#[tokio::test]
-async fn broadcast_endpoint_not_mounted_without_oidc_validator() {
-    let server = server_with(ServerConfig::default())
-        .await
-        .with_broadcast(BroadcastConfig::default());
-    let state = server.build_app_state();
-    let app: Router = server.mount_base_and_admin_routes(Router::new(), &state);
-
-    // Probe with a method the broadcast route does NOT register (it is POST-only).
-    // If the route existed, axum would answer 405 Method Not Allowed; a 404 proves
-    // the path is not registered at all (fail closed). Before C6 this returned 405.
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/realtime/v1/broadcast")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(
-        response.status(),
-        StatusCode::NOT_FOUND,
-        "broadcast must fail closed (not mounted) when no OIDC validator is configured to gate it",
-    );
 }
 
 // ── M-storage-legacy: legacy backend fails closed without a storage_token ──

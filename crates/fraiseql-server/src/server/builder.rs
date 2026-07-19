@@ -433,8 +433,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             mcp_config: None,
             pool_tuning_config: None,
             adapter_cache_enabled: false,
-            broadcast_manager: None,
-            presence_manager: None,
             storage_backend: None,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             #[cfg(feature = "functions")]
@@ -515,21 +513,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub fn with_realtime(mut self, state: crate::realtime::server::RealtimeState) -> Self {
         self.realtime_state = Some(state);
-        self
-    }
-
-    /// Enable ephemeral broadcast channels (`POST /realtime/v1/broadcast`).
-    #[must_use]
-    pub fn with_broadcast(mut self, config: crate::subscriptions::BroadcastConfig) -> Self {
-        self.broadcast_manager =
-            Some(Arc::new(crate::subscriptions::BroadcastManager::new(config)));
-        self
-    }
-
-    /// Enable room-based presence tracking.
-    #[must_use]
-    pub fn with_presence(mut self, config: crate::subscriptions::PresenceConfig) -> Self {
-        self.presence_manager = Some(Arc::new(crate::subscriptions::PresenceManager::new(config)));
         self
     }
 
