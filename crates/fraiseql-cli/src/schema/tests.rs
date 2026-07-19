@@ -297,6 +297,52 @@ mod database_validator_tests {
         );
     }
 
+    /// The type-source existence check INCLUDES framework-`internal` projections — it
+    /// INTENTIONALLY diverges from `is_queryable_entity` (the cascade classifier), which
+    /// excludes them (#665). A change-log projection whose backing view is absent
+    /// (`EntityChangeLog` → `v_entity_change_log`) is exactly #569's failure mode ("no
+    /// install path; every mutation fails on a fresh stack"), so the validator MUST still
+    /// flag it — surfacing that missing view is the whole point of this check.
+    ///
+    /// Pinned as a TRIPWIRE: a future DRY pass that "unifies" this predicate with the
+    /// cascade classifier — adding `!ty.internal` here — deletes the #569 signal, and must
+    /// fail this test instead of passing silently. Do NOT satisfy it by excluding internal
+    /// types; the `internal` exemption belongs to cascade classification only.
+    #[tokio::test]
+    async fn validator_checks_internal_projection_view_existence() {
+        // The database has the user entity's view but NOT the change-log view.
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL).with_relation(
+            "public",
+            "v_user",
+            fraiseql_core::db::RelationKind::View,
+        );
+
+        let user = TypeDefinition {
+            sql_source: "v_user".into(),
+            ..make_type("User", vec![("id", FieldType::Id)])
+        };
+        // A framework-`internal` change-log projection whose view is absent from the DB.
+        let change_log = TypeDefinition {
+            sql_source: "v_entity_change_log".into(),
+            internal: true,
+            ..make_type("EntityChangeLog", vec![("id", FieldType::Id)])
+        };
+
+        let schema = make_schema(vec![user, change_log], vec![]);
+        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
+
+        let flagged = report
+            .warnings
+            .iter()
+            .filter(|w| matches!(w, DatabaseWarning::MissingTypeSource { type_name, .. } if type_name == "EntityChangeLog"))
+            .count();
+        assert_eq!(
+            flagged, 1,
+            "the internal projection's missing view MUST still be flagged (#569): {:?}",
+            report.warnings
+        );
+    }
+
     #[tokio::test]
     async fn test_missing_additional_view() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)

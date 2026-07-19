@@ -449,12 +449,32 @@ fn build_updated_entities<A: DatabaseAdapter>(
                 path:    Some("cascade.updated.__typename".to_string()),
             });
         };
-        // Fail-closed on an unknown type — we cannot project or authorize it.
-        if ctx.schema.find_type(typename).is_none() {
-            return Err(FraiseQLError::Validation {
-                message: format!("cascade.updated entry has unknown __typename '{typename}'"),
-                path:    Some("cascade.updated.__typename".to_string()),
-            });
+        // Fail-closed on a type we cannot deliver. Two rejections:
+        //  - unknown type — we cannot project or authorize it;
+        //  - framework-`internal` projection (#665, gate 5) — a change-log / checkpoint bookkeeping
+        //    view is the change-capture *mechanism*, never a cascade-deliverable entity. The
+        //    compiler excludes `internal` types from cascade classification, so they do not
+        //    implement `CascadeNode`; an entry naming one (only hand-crafted JSONB can produce this
+        //    — the framework never does) would otherwise yield a payload whose `entity` violates
+        //    its declared interface. This reads `internal` off the re-loaded compiled schema — the
+        //    flag's first runtime consumer, hence Phase 01 serializes it rather than `serde(skip)`.
+        match ctx.schema.find_type(typename) {
+            None => {
+                return Err(FraiseQLError::Validation {
+                    message: format!("cascade.updated entry has unknown __typename '{typename}'"),
+                    path:    Some("cascade.updated.__typename".to_string()),
+                });
+            },
+            Some(ty) if ty.internal => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "cascade.updated entry names framework-internal type '{typename}', a \
+                         bookkeeping projection that is not a cascade-deliverable entity"
+                    ),
+                    path:    Some("cascade.updated.__typename".to_string()),
+                });
+            },
+            Some(_) => {},
         }
         // Non-null `id: ID!` and a valid `operation: CascadeOperation!` are required.
         if !entry_obj.contains_key("id") {

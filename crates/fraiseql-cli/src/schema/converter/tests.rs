@@ -2819,44 +2819,50 @@ mod changelog_cascade_conformance_tests {
         }
     }
 
-    /// **#665 REPRO — EXPECTED-FAILURE PIN. This test is FLIPPED by Phase 02 of the
-    /// #665 train into its success shape.**
+    /// **#665 — the fix.** Exposing the change-log and opting a mutation into
+    /// `cascade = true` now COMPILES. `inject_changelog` marks its two projections
+    /// `internal` (Phase 01); `is_queryable_entity` excludes internal types (Phase 02),
+    /// so the framework's own `TransportCheckpoint` — keyed by `transport_name`, no `id`
+    /// by design — is no longer classified a cascade entity and no longer fails the
+    /// `id: ID!` contract on a type the user never wrote.
     ///
-    /// Asserts the CURRENT (broken) behavior so it merges green on top of the bug:
-    /// exposing the change-log and opting any single mutation into `cascade = true`
-    /// fails to compile. `inject_changelog` (converter/mod.rs) runs *before*
-    /// `synthesize_cascade_types`, so the framework's own `TransportCheckpoint`
-    /// projection — view-backed, non-error, and keyed by `transport_name` with no `id`
-    /// by design — is classified a cascade entity and fails the `id: ID!` contract.
-    ///
-    /// The result is that the two features are mutually exclusive, on a type the user
-    /// never wrote and cannot fix. This is the discriminating pin for the train: it
-    /// proves Phase 02 changes the one thing it claims to.
+    /// This is the flip of the Phase 00 expected-failure pin
+    /// (`changelog_plus_cascade_fails_on_transport_checkpoint_today`). The whole error —
+    /// including the misleading #659 "embedded value object" hint that misfired on a
+    /// framework projection — is gone, because `validate()` now accepts the schema.
     #[test]
-    fn changelog_plus_cascade_fails_on_transport_checkpoint_today() {
-        let err = SchemaConverter::convert(changelog_schema_with(
+    fn changelog_plus_cascade_compiles_via_internal_exemption() {
+        let compiled = SchemaConverter::convert(changelog_schema_with(
             vec![entity("Post")],
             vec![cascade_mutation("createPost", "Post")],
         ))
-        .expect_err("#665: changelog + cascade is currently mutually exclusive");
-        let msg = err.to_string();
+        .expect("#665: changelog + cascade now compiles (validate() passes)");
 
+        // The two framework projections are `internal` — NOT cascade nodes. Excluding
+        // them is the whole fix: `TransportCheckpoint` has no `id` and could never back
+        // the CascadeNode contract, and `EntityChangeLog` is bookkeeping, not a
+        // cascade-deliverable entity (gate 2).
+        for name in ["TransportCheckpoint", "EntityChangeLog"] {
+            let ty = compiled.types.iter().find(|t| t.name.as_str() == name);
+            assert!(ty.is_some(), "{name} is injected");
+            assert!(
+                !ty.unwrap().implements.iter().any(|i| i == "CascadeNode"),
+                "{name} is a framework projection, not a cascade entity"
+            );
+        }
+
+        // The genuine user entity still IS a cascade node — enforcement is unchanged
+        // for real entities.
+        let post = compiled.types.iter().find(|t| t.name.as_str() == "Post").unwrap();
         assert!(
-            msg.contains("cascade requires `id: ID!`"),
-            "fails via the cascade conformance enforcement, got: {msg}"
+            post.implements.iter().any(|i| i == "CascadeNode"),
+            "the user's Post entity still implements CascadeNode"
         );
-        assert!(
-            msg.contains("TransportCheckpoint") && msg.contains("no `id` field"),
-            "the offender is the framework's own TransportCheckpoint projection, got: {msg}"
-        );
-        // The #659 diagnostic enrichment fires on a framework projection and tells the
-        // user their type is an embedded value object that should drop its source —
-        // advice that is both wrong and unactionable here. Pinned so the flip in
-        // Phase 02 is visibly removing a misleading diagnostic, not just an error.
-        assert!(
-            msg.contains("embedded value object"),
-            "the derivation-signal hint misfires on a framework projection, got: {msg}"
-        );
+
+        // The injected change-log surface survives untouched.
+        assert!(compiled.queries.iter().any(|q| q.name == "entity_change_logs"));
+        assert!(compiled.queries.iter().any(|q| q.name == "transport_checkpoint"));
+        assert!(compiled.mutations.iter().any(|m| m.name == "upsert_transport_checkpoint"));
     }
 
     /// The change-log surface alone (no cascade mutation) compiles — the baseline the
