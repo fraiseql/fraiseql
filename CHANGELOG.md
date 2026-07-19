@@ -9,52 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **The dormant `/realtime/v1` WebSocket entity-stream subsystem and its public
-  `fraiseql_server::realtime` module have been deleted (#605).** This is the final step of the
-  removal train: ~3,600 LOC of security-sensitive dead surface — a second, parallel
-  "entity after-images over WebSocket" mechanism that duplicated the live `/ws`
-  GraphQL-subscription path, with no production `TokenValidator` or `RlsEvaluator` and no
-  binary that ever assembled it. **The live `/ws` path is unaffected and is the single
-  supported real-time mechanism** — it covers entity change streams, hardened with #596
-  row-visibility and #611 hot-reload. Removed without replacement: the `/realtime/v1` endpoint
-  family, the `POST /realtime/v1/broadcast` channel-broadcast endpoint, room presence, the
-  `/admin/v1/realtime/*` studio monitor, the `RealtimeSubsystem`/`Server::with_realtime`
-  assembly, and the compiled-schema/server-config `realtime` sections. A revival (should
-  channels-style features ever be wanted) must be designed fresh as `/ws`-native subscription
-  fields on the hardened machinery — a real `TokenValidator` over `OidcValidator`, a production
-  `RlsEvaluator`, and #539 identity plumbing — not by restoring this code; this train's PR
-  series (#664, #667, #668, #669, #670, #671, and this PR) is the reference for what that would
-  entail.
-- **The compiled-schema `"realtime"` section and the `[realtime]` server-config section are no
-  longer honored (#605).** With the dormant `/realtime/v1` subsystem removed, neither is
-  parsed: a compiled schema that still carries a `"realtime"` key loads with a `warn!`
-  ("`realtime` section is no longer supported and is ignored; recompile with the current
-  fraiseql-cli") and the section is dropped — the load never fails on it (fraiseql-cli never
-  emitted this section, so only a hand-authored or stale schema could contain one). A
-  `[realtime]` section in `fraiseql.toml` is now silently ignored by serde, where it
-  previously refused to boot with "config section 'realtime' is not yet implemented". Use
-  `/ws` GraphQL subscriptions for real-time updates.
-- **The `POST /realtime/v1/broadcast` channel-broadcast endpoint and room-presence tracking
-  have been removed **without replacement** (#605).** These were the "channels"-style siblings
-  of the dormant `/realtime/v1` entity stream: `BroadcastManager` (ephemeral pub/sub) and
-  `PresenceManager` (Supabase-style room presence), enabled via the `Server` builder methods
-  `with_broadcast(..)` / `with_presence(..)`. Neither was ever wired into a production delivery
-  path — no `/ws` handler or `EventBridge` consumed them — so removing them loses *potential*,
-  not function. **The live `/ws` GraphQL-subscription path does not supersede them** (it
-  supersedes only the entity stream). Removed crate API:
-  `fraiseql_server::subscriptions::{broadcast::*, presence::*}`, the `Server::with_broadcast` /
-  `Server::with_presence` builder methods, and the `broadcast_manager` / `presence_manager`
-  server fields. Any code calling `with_broadcast`/`with_presence` will no longer compile; drop
-  the call. If channels-style features are ever wanted they will be designed fresh as
-  `/ws`-native GraphQL subscription fields, not by reviving this code.
-- **The four `GET /admin/v1/realtime/{stats,broadcast,presence,cdc}` studio-monitor endpoints
-  and the Studio dashboard's "Realtime" panel have been removed (#605).** They were the
-  observability surface for the dormant `/realtime/v1` entity-stream subsystem, which is being
-  removed in full — the handlers returned placeholder data (zeros/`null`) and were never wired
-  to live state (no live CDC replication-lag metric exists to back the `cdc` tile). This is the
-  first step of the `/realtime/v1` removal train; the `POST /realtime/v1/broadcast` endpoint,
-  the broadcast/presence managers, and the subsystem itself are removed in the phases that
-  follow. The live `/ws` GraphQL-subscription path is unaffected.
+- **The dormant `/realtime/v1` WebSocket subsystem has been removed in full (#605).** It was a
+  second, parallel "entity after-images over WebSocket" mechanism (~3,600 LOC) that duplicated
+  the live `/ws` GraphQL-subscription path, with no production `TokenValidator`, no production
+  `RlsEvaluator`, and no binary that ever assembled it — security-sensitive dead surface whose
+  main risk was a future permissive assembly reintroducing the row-visibility gap #596 closed.
+  Everything realtime is gone:
+    - the `/realtime/v1` WebSocket endpoint family and the public `fraiseql_server::realtime`
+      module;
+    - the `POST /realtime/v1/broadcast` channel-broadcast endpoint plus room presence
+      (`BroadcastManager`/`PresenceManager`), with their crate API
+      `fraiseql_server::subscriptions::{broadcast::*, presence::*}` and the
+      `Server::with_broadcast` / `Server::with_presence` builder methods;
+    - the four `GET /admin/v1/realtime/{stats,broadcast,presence,cdc}` studio-monitor endpoints
+      and the Studio dashboard's "Realtime" panel (placeholder handlers wired to no live state —
+      no CDC replication-lag metric ever backed the `cdc` tile);
+    - the `RealtimeSubsystem` / `ServerSubsystems.with_realtime` / `Server::with_realtime`
+      assembly and the mount glue;
+    - the compiled-schema `"realtime"` section (now loaded with a `warn!` and ignored — the load
+      never fails; fraiseql-cli never emitted it) and the `[realtime]` `fraiseql.toml` section
+      (now silently ignored, where it previously refused to boot with "not yet implemented").
+
+    **The live `/ws` GraphQL-subscription path is unaffected and is the single supported
+    real-time mechanism** — it delivers entity change streams, hardened with #596 row-visibility
+    and #611 hot-reload, so the entity stream needs no successor. **Broadcast and presence were
+    removed *without replacement*** — they were never wired into any production delivery path, so
+    `/ws` does not supersede them; if channels-style features (presence, ephemeral pub/sub) are
+    ever wanted they are to be designed fresh as `/ws`-native GraphQL subscription fields on the
+    hardened auth/policy/protocol machinery, not by reviving this code (which had no working
+    delivery or auth to reuse). A revival must rebuild a real `TokenValidator` over
+    `OidcValidator`, a production `RlsEvaluator`, and #539 identity plumbing; the PR series
+    #664 / #667 / #668 / #669 / #670 / #671 / #672 is the reference for what that would entail.
+    Any code calling `with_broadcast`/`with_presence`/`with_realtime` will no longer compile;
+    drop the call.
 - **In production, `[security.rate_limiting] trust_proxy_headers = true` with an empty or
   omitted `trusted_proxy_cidrs` now refuses to boot (#618).** The 2.13 deprecation warning
   (#609) promised exactly this. Trusting `X-Forwarded-For` from every direct peer lets any
