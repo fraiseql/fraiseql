@@ -116,6 +116,20 @@ are genuinely different streams, not one federated entity.
 The compiler emits a warning when `[changelog] expose = true` on a federation
 subgraph, restating the single-owner rule (the owning subgraph can ignore it).
 
+## Composes with cascade
+
+The change-log surface and per-mutation `cascade = true` are independent and compose
+freely — a schema can expose `entity_change_logs` **and** opt mutations into the typed
+cascade payload. The injected `EntityChangeLog` and `TransportCheckpoint` types are
+framework-synthesized read-only projections: the change-capture *mechanism*, not
+cascade-deliverable entities. They are excluded from cascade entity classification, so
+they do **not** implement `CascadeNode` and are never enforced against the cascade
+`id: ID!` contract — which matters for `TransportCheckpoint`, keyed by `transport_name`
+with no `id` by design. The runtime never projects a change-log row into a cascade
+payload (and rejects one that names such a type). A cascade mutation delivers *your*
+entities; the change-log records *what changed* — two separate streams that don't
+collide.
+
 ## Cursor pagination
 
 `entity_change_logs` is a standard FraiseQL list query: it uses the generic

@@ -73,6 +73,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`[changelog] expose = true` and `cascade = true` mutations now compile together (#665).**
+  Since 2.12.0 the two features were mutually exclusive. The cascade pass classifies every
+  view-backed, non-error type as a cascade entity and enforces the `CascadeNode` `id: ID!`
+  contract on it — which swept in the framework's own `TransportCheckpoint` projection, keyed by
+  `transport_name` with no `id` by design, so exposing the change-log and opting any mutation
+  into cascade failed to compile on a type the user never wrote and could not fix. Framework-
+  synthesized read-only projections (`EntityChangeLog`, `TransportCheckpoint`) are now marked
+  `internal` and excluded from cascade classification: they are the change-capture *mechanism*,
+  never cascade-deliverable entities, so they carry neither the `id: ID!` enforcement nor the
+  `implements CascadeNode` auto-annotation. The runtime cascade path also rejects a payload entry
+  naming an `internal` type, so the exclusion holds end-to-end. Adds one additive, optional key
+  (`internal`) to the compiled-schema format — cli↔server are version-locked, so no cross-version
+  concern, and single-feature schemas compile byte-identically. (This is the framework-generated
+  instance of the cascade-classification problem whose diagnostic half shipped with #653; the SDK
+  provenance half remains with #653.)
 - **CSV and XLSX exports now emit a deterministic, alphabetically-sorted column order when no
   `?select=` is given.** The fallback column order was taken from `serde_json::Map` iteration,
   which is alphabetical only for the default `BTreeMap` build; a dependency that enables
