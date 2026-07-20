@@ -261,6 +261,17 @@ field-level authorizer (#423) on it, exactly like a queried entity, and enforces
 the response limits (`RuntimeConfig.cascade_limits`: max affected entities → the
 cascade is truncated with `metadata.truncated`, max response size → rejected).
 
+> **Framework projections are not cascade entities (#665).** When the change-log GraphQL
+> surface is exposed (`[changelog] expose = true`), FraiseQL injects two read-only
+> projections — `EntityChangeLog` and `TransportCheckpoint`. They are the change-capture
+> *mechanism*, not cascade-deliverable entities, so they are marked `internal` and excluded
+> from cascade classification: they do **not** implement `CascadeNode` and are exempt from
+> the `id: ID!` eligibility check above (`TransportCheckpoint` is keyed by `transport_name`
+> and has no `id` by design, so the check would otherwise fail on a framework type the
+> user never wrote). The runtime cascade path also rejects a payload entry naming an
+> `internal` type, so a change-log row can never ride in a cascade. The two features
+> compose freely — see [the change-log-over-GraphQL guide](../guides/changelog-graphql.md).
+
 ### Row-visibility boundary (RLS)
 
 FraiseQL enforces **field-level** authorization on every cascade entity, but it
