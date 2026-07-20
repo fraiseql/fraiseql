@@ -50,6 +50,17 @@ pub struct IntermediateType {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
 
+    /// Whether the author declared this an embedded value object
+    /// (`@fraiseql.type(embedded=True)`, #687).
+    ///
+    /// A value object has no independent identity and is always nested under a parent
+    /// entity, so the compiler exempts it from cascade entity classification: no
+    /// `id: ID!` enforcement, no auto-`implements CascadeNode`. Threaded verbatim to
+    /// `TypeDefinition.embedded` — it is the author's declaration, not something the
+    /// compiler infers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub embedded: bool,
+
     /// `@subscribable(tables=[...])` — the underlying base table(s) whose external
     /// writes should be captured onto the Change Spine (#366).
     ///

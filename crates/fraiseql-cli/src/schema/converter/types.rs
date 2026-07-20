@@ -55,6 +55,7 @@ impl SchemaConverter {
             requires_role: intermediate.requires_role,
             is_error: intermediate.is_error,
             relay: intermediate.relay,
+            embedded: intermediate.embedded,
             internal: false,
             relationships: Vec::new(),
             subscription_policy: None,

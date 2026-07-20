@@ -1691,3 +1691,38 @@ fn test_field_definition_hierarchy_skipped_when_none() {
     let json = serde_json::to_string(&field).unwrap();
     assert!(!json.contains("hierarchy"));
 }
+
+// --- #687: TypeDefinition.embedded (author-declared value object) ---
+
+#[test]
+fn embedded_type_definition_deserializes_the_declared_flag() {
+    let json = r#"{"name":"Money","sql_source":"","fields":[],"embedded":true}"#;
+    let ty: TypeDefinition = serde_json::from_str(json).unwrap();
+    assert!(ty.embedded, "an author-declared embedded value object round-trips as embedded");
+}
+
+#[test]
+fn embedded_absent_defaults_to_false() {
+    let json = r#"{"name":"Order","sql_source":"v_order","fields":[]}"#;
+    let ty: TypeDefinition = serde_json::from_str(json).unwrap();
+    assert!(!ty.embedded, "pre-#687 schemas stay strict: no declaration means not embedded");
+}
+
+#[test]
+fn embedded_is_skipped_when_false() {
+    let ty = TypeDefinition::new("Order", "v_order");
+    let json = serde_json::to_string(&ty).unwrap();
+    assert!(
+        !json.contains("embedded"),
+        "a non-embedded type serializes byte-identically to pre-#687 output: {json}"
+    );
+}
+
+#[test]
+fn embedded_survives_a_serialize_deserialize_roundtrip() {
+    let mut ty = TypeDefinition::new("Money", "");
+    ty.embedded = true;
+    let restored: TypeDefinition =
+        serde_json::from_str(&serde_json::to_string(&ty).unwrap()).unwrap();
+    assert!(restored.embedded, "the declaration survives the compiled schema");
+}

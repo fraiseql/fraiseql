@@ -115,6 +115,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
             is_error:            false,
             relay:               false,
             internal:            false,
+            embedded:            false,
             relationships:       Vec::new(),
             subscription_policy: None,
         };
@@ -181,6 +182,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
                 is_error:            false,
                 relay:               false,
                 internal:            false,
+                embedded:            false,
                 relationships:       Vec::new(),
                 subscription_policy: None,
             });
@@ -221,6 +223,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
                 is_error:            false,
                 relay:               false,
                 internal:            false,
+                embedded:            false,
                 relationships:       Vec::new(),
                 subscription_policy: None,
             });

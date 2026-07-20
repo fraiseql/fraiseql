@@ -90,6 +90,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
     };

@@ -347,6 +347,7 @@ fn test_convert_type_with_fields() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -458,6 +459,7 @@ fn test_convert_query_with_arguments() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -539,6 +541,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -610,6 +613,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -709,6 +713,7 @@ fn test_convert_field_with_deprecated_directive() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -1275,6 +1280,7 @@ fn test_convert_type_implements_interface() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -1358,6 +1364,7 @@ fn test_validate_unknown_interface() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -1424,6 +1431,7 @@ fn test_validate_missing_interface_field() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -1502,6 +1510,7 @@ fn test_convert_union() {
                 requires_role:          None,
                 is_error:               false,
                 relay:                  false,
+                embedded:               false,
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
             },
@@ -1524,6 +1533,7 @@ fn test_convert_union() {
                 requires_role:          None,
                 is_error:               false,
                 relay:                  false,
+                embedded:               false,
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
             },
@@ -1632,6 +1642,7 @@ fn test_convert_field_requires_scope() {
             requires_role:          None,
             is_error:               false,
             relay:                  false,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
@@ -1767,6 +1778,7 @@ mod tenancy_tests {
             requires_role: None,
             is_error: false,
             relay: false,
+            embedded: false,
             subscribable_tables: None,
             subscribable_pre_image: false,
         }
@@ -2983,18 +2995,82 @@ mod changelog_cascade_conformance_tests {
         );
     }
 
+    /// A declared embedded value object (#687) that *also* carries a non-empty
+    /// `sql_source` — the hand-authored contradiction the SDK cannot emit (it suppresses
+    /// the source, and Phase 02 rejects the combination outright). The non-empty source
+    /// is load-bearing: an embedded type with an *empty* source is already exempt via
+    /// the `!sql_source.is_empty()` leg, so it would compile even before Phase 01 and
+    /// prove nothing about the `&& !ty.embedded` guard.
+    fn embedded_view_type(name: &str, fields: Vec<IntermediateField>) -> IntermediateType {
+        IntermediateType {
+            embedded: true,
+            ..view_type(name, fields)
+        }
+    }
+
+    /// **Phase 01 Cycle 2 — the declared exemption.** An id-less `Money` that declares
+    /// `embedded=True` compiles even though it carries a source: the author stated it has
+    /// no independent identity, so it is not a cascade entity, is not `id`-enforced, and
+    /// never auto-implements `CascadeNode`.
+    #[test]
+    fn declared_embedded_value_object_is_exempt_from_cascade_entity_classification() {
+        let compiled = SchemaConverter::convert(schema_with(
+            vec![
+                view_type("Order", vec![field("id", "ID"), field("total", "Money")]),
+                embedded_view_type(
+                    "Money",
+                    vec![field("amount", "Int"), field("currency", "String")],
+                ),
+            ],
+            vec![cascade_mutation("createOrder", "Order")],
+        ))
+        .expect("a declared embedded value object compiles under a cascade");
+
+        let money = compiled.types.iter().find(|t| t.name.as_str() == "Money").unwrap();
+        assert!(money.embedded, "the declaration survives into the compiled schema");
+        assert!(
+            !money.implements.iter().any(|i| i == "CascadeNode"),
+            "a value object is never a cascade node: {:?}",
+            money.implements
+        );
+        assert!(money.find_field("id").is_none(), "no `id` was synthesized onto it");
+
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(
+            order.implements.iter().any(|i| i == "CascadeNode"),
+            "its parent entity is still a cascade node"
+        );
+    }
+
+    /// **Phase 01 Cycle 3 — the (b) regression guard.** The exemption is scoped to the
+    /// *declaration* alone: a **non-`embedded`** id-less type carrying the same
+    /// synthesized source still hard-fails. Enforcement is whole-schema (gated only on a
+    /// cascade mutation existing, `cascade_types.rs`), so this holds whether or not the
+    /// type sits under the payload — embedding it just adds the `reached via` clause.
+    /// Locks the forgot-`id` hole (#687 failure mode 2) shut.
+    #[test]
+    fn non_embedded_idless_type_still_hard_fails_after_the_exemption_lands() {
+        let err = SchemaConverter::convert(order_embedding_money())
+            .expect_err("a non-embedded id-less type is still a cascade entity");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("Type 'Money': no `id` field"), "still fails the contract: {msg}");
+    }
+
     /// **Cycle 3 — diagnostic wording snapshot.** The full cascade `id` error for the
     /// id-less value object, verbatim: the signal clause + the reference-path clause +
-    /// the `Fix:` line. Phase 01 Cycle 4 will deliberately re-point the message at
-    /// `embedded=True`; this snapshot makes that change explicit and reviewable.
+    /// the `Fix:` line. Phase 01 Cycle 4 re-pointed the signal clause at `embedded=True`
+    /// — it now names *both* exits (declare it embedded, or give it an `id`) instead of
+    /// the pre-#687 "should declare no source", which described a state the author had no
+    /// way to reach.
     #[test]
     fn cascade_idless_value_object_diagnostic_wording_snapshot() {
         let msg = format!("{:#}", SchemaConverter::convert(order_embedding_money()).unwrap_err());
         let expected = "cascade requires `id: ID!` on every cascade entity (the graphql-cascade \
 CascadeNode interface requires it):
   - Type 'Money': no `id` field
-      classified as a cascade entity because it declares sql_source = \"v_money\"; an embedded \
-value object has no independent identity and should declare no source
+      classified as a cascade entity because it declares sql_source = \"v_money\"; if it is an \
+embedded value object, mark it embedded=True (it will declare no source and be exempt); if it is \
+an entity, add id: ID!
       reached via createOrder → Order.total → Money
 Fix: expose `id: ID!` on each type, or remove `cascade` from the mutations that return them.";
         assert_eq!(msg, expected, "diagnostic wording drifted:\n{msg}");

@@ -35,6 +35,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     requires_role: None,
                     is_error: false,
                     relay: false,
+                    embedded: false,
                     subscribable_tables: None,
                     subscribable_pre_image: false,
                 });

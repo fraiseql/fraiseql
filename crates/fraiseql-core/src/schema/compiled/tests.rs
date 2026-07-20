@@ -344,6 +344,7 @@ fn make_type_def(name: &str) -> TypeDefinition {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
     }

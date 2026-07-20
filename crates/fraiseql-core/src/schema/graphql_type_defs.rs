@@ -37,6 +37,7 @@ use crate::validation::ValidationRule;
 ///     is_error: false,
 ///     relay: false,
 ///     internal: false,
+///     embedded: false,
 ///     relationships: Vec::new(),
 ///     subscription_policy: None,
 /// };
@@ -116,6 +117,25 @@ pub struct TypeDefinition {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub internal: bool,
 
+    /// Author-declared embedded value object (#687): a type with no independent
+    /// identity, always nested under a parent entity.
+    ///
+    /// Set from `@fraiseql.type(embedded=True)`. Unlike [`Self::internal`] — which
+    /// framework injection passes set on projections they synthesize — this one carries
+    /// the *author's* declaration, so it is threaded verbatim from the intermediate
+    /// schema rather than reconstructed by the compiler.
+    ///
+    /// What it exempts: cascade entity classification (`is_queryable_entity`). A value
+    /// object is delivered as part of its parent's payload, never as a cache node of its
+    /// own, so it must not have `id: ID!` enforced on it nor auto-implement
+    /// `CascadeNode`. An embedded type emits no `sql_source`; this flag is the
+    /// source-independent guard, so a hand-authored `embedded` + non-empty-source
+    /// contradiction still resolves as embedded.
+    ///
+    /// The serde default keeps pre-#687 schemas strict: a type must opt in.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub embedded: bool,
+
     /// Relationships to other types (used by REST resource embedding).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relationships: Vec<super::config_types::Relationship>,
@@ -151,6 +171,7 @@ impl TypeDefinition {
             is_error:            false,
             relay:               false,
             internal:            false,
+            embedded:            false,
             relationships:       Vec::new(),
             subscription_policy: None,
         }
