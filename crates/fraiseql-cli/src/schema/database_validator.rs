@@ -590,8 +590,16 @@ pub async fn validate_schema_against_database(
     // instead of letting it resurface later as an unrelated cascade `id` error. Unlike
     // queries/mutations, type sources are not on the shared `sql_source_probes` work-list,
     // so the hard `FRAISEQL_VALIDATE_SQL_SOURCES` gate does not flag them; this is the only
-    // check that does. Synthetic types (empty source) and error types are skipped — this is
-    // exactly the `is_queryable_entity` set the cascade pass keys off.
+    // check that does. Synthetic types (empty source) and error types are skipped.
+    //
+    // This set INTENTIONALLY DIVERGES from `is_queryable_entity` (the cascade classifier).
+    // After #665 that predicate ALSO excludes framework-`internal` projections, but this
+    // existence check must NOT: a missing `v_entity_change_log` / `v_transport_checkpoint`
+    // is exactly #569's failure mode ("no install path; every mutation fails on a fresh
+    // stack"), so validating the change-log views is precisely the point. Do NOT DRY the
+    // two predicates together — the `internal` exemption belongs to cascade classification
+    // only. The `validator_checks_internal_projection_view_existence` tripwire test pins
+    // this divergence so a future "unification" cannot silently delete the #569 signal.
     for ty in &schema.types {
         let source = ty.sql_source.as_str();
         if ty.is_error || source.is_empty() {

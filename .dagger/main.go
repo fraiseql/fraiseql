@@ -229,6 +229,7 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
 		"bash tools/check-deploy-security.sh",
+		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-audit-lockstep.sh",
 		"bash tools/check-deadlines.sh",
 	}, "\n")

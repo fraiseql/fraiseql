@@ -3550,4 +3550,39 @@ mod cascade {
         let res = executor.execute(q, None).await;
         assert!(res.is_err(), "unknown cascade __typename must fail closed");
     }
+
+    /// Fail-closed: a cascade entry naming a framework-`internal` projection is rejected
+    /// (#665, gate 5). A change-log/checkpoint view is the change-capture *mechanism*,
+    /// never a cascade-deliverable entity — the compiler excludes internal types from
+    /// cascade classification (`is_queryable_entity`), so they never implement
+    /// `CascadeNode`. This pins that the runtime ALSO rejects a hand-crafted cascade
+    /// JSONB entry that names one, turning "framework projections never appear in a
+    /// payload" from emergent (the type IS in `schema.types`, so the bare existence
+    /// check would pass it) into enforced. It reads `internal` off the compiled schema —
+    /// the flag's first runtime consumer, which is why Phase 01 serializes it.
+    #[tokio::test]
+    async fn cascade_internal_typename_fails_closed() {
+        let mut schema = cascade_schema();
+        let mut ecl = TypeDefinition::new("EntityChangeLog", "core.v_entity_change_log");
+        ecl.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        ecl.internal = true;
+        schema.types.push(ecl);
+        schema.build_indexes();
+
+        let cascade = json!({
+            "updated": [
+                { "__typename": "EntityChangeLog", "id": "e1", "operation": "UPDATED", "entity": { "id": "e1" } }
+            ],
+            "deleted": []
+        });
+        let executor = Executor::new(schema, Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { updated { id } } } }";
+        let res = executor.execute(q, None).await;
+        let err = res.expect_err("a cascade entry naming an internal type must fail closed");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("EntityChangeLog") && msg.contains("internal"),
+            "the error must legibly name the internal type, got: {msg}"
+        );
+    }
 }

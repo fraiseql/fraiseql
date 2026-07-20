@@ -458,6 +458,12 @@ lint-routes:
 lint-deploy-security:
 	@bash tools/check-deploy-security.sh
 
+# Gate: pin the set of production files that READ TypeDefinition.internal (#665), so a
+# property-named flag cannot silently grow new consumers. See tools/check-internal-flag-sites.sh.
+.PHONY: lint-internal-flag
+lint-internal-flag:
+	@bash tools/check-internal-flag-sites.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -466,7 +472,7 @@ lint-deploy-security:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-internal-flag test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

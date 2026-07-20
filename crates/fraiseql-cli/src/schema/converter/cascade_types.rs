@@ -169,12 +169,22 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
     Ok(())
 }
 
-/// A queryable entity type: view-backed and non-error. The `CascadeNode` interface
-/// is auto-implemented on exactly these. Synthetic types (the cascade envelope,
-/// payloads, `MutationError`) have an empty `sql_source` and are excluded, as are
-/// relay connection/edge wrappers.
+/// A queryable entity type: the `CascadeNode` interface is auto-implemented on exactly
+/// these, and `id: ID!` is enforced on exactly these. Three exclusion legs:
+///
+/// - **error types** (`is_error`) — populated from `mutation_response.metadata`, never a cache
+///   node;
+/// - **framework-internal projections** (`internal`, #665) — the change-log / checkpoint
+///   bookkeeping views `inject_changelog` synthesizes are the change-capture *mechanism*, not
+///   cascade-deliverable entities; `TransportCheckpoint` in particular has no `id` by design and
+///   could never back the CascadeNode contract;
+/// - **empty-source synthetics** — the cascade envelope/payload types and `MutationError` carry an
+///   empty `sql_source`, as do relay connection/edge wrappers.
+///
+/// This one predicate feeds BOTH the `id: ID!` enforcement and the
+/// `implements CascadeNode` auto-loop, so the two can never key off divergent sets.
 fn is_queryable_entity(ty: &TypeDefinition) -> bool {
-    !ty.is_error && !ty.sql_source.as_str().is_empty()
+    !ty.is_error && !ty.internal && !ty.sql_source.as_str().is_empty()
 }
 
 /// Explain (#653) why a type that failed the `id: ID!` contract was classified a cascade
