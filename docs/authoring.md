@@ -107,6 +107,7 @@ class Post:
 | `implements` | `list[str] \| None` | Interface names this type implements |
 | `relay` | `bool` | Enable Relay cursor pagination for this type |
 | `requires_role` | `str \| None` | JWT role required to access any field on this type |
+| `embedded` | `bool` | Mark an embedded value object (no independent identity, nested under a parent). Declares no `sql_source`; exempt from the cascade `CascadeNode` `id: ID!` contract |
 
 ```python
 @fraiseql.type(relay=True, requires_role="admin")
@@ -115,6 +116,30 @@ class AuditLog:
     action: str
     created_at: str
 ```
+
+**Embedded value objects.** A type with no independent identity — a `Money` amount, a
+`Dimensions` triple, an address-as-value — is *embedded* under a parent entity rather than
+being a cache node of its own. Mark it `embedded=True`: it declares no `sql_source` and is
+exempt from the cascade identity contract, so a schema that nests it under a `cascade=True`
+mutation compiles (without the marker its synthesized `v_{name}` source makes it a cascade
+entity that fails the `id: ID!` requirement).
+
+```python
+@fraiseql.type(embedded=True)
+class Money:
+    amount: int
+    currency: str
+
+@fraiseql.type(sql_source="v_order")
+class Order:
+    id: str
+    total: Money  # embedded value object — no id of its own
+```
+
+`embedded=True` cannot be combined with `sql_source` (a value object has no backing view) or
+with `cascade=True` (a value object cannot originate a cascade); both raise a `ValueError` at
+authoring time. See [entity identity](adr/0017-entity-identity-contract.md) and the
+[cascade surface](architecture/mutation-response.md#cascade-the-typed-cascade-surface).
 
 ---
 

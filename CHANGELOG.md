@@ -51,15 +51,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (unchanged, never warns). Development (`FRAISEQL_ENV=development`) downgrades the refusal
   to a warning, matching the `failed_login_*` production/development split.
 
+### Added
+
+- **`@fraiseql.type(embedded=True)` declares a type an embedded value object (#687,
+  follow-up to #653).** An embedded value object has no independent identity and is always
+  nested under a parent entity (e.g. a `Money` amount on an `Order`). Such a type declares
+  **no** `sql_source` — the SDK suppresses the synthesized `v_{name}` — and is exempt from
+  cascade classification: the compiler never enforces the `CascadeNode` `id: ID!` contract on
+  it nor auto-implements the interface. This fixes the case where a value object embedded under
+  a `cascade` mutation could not compile at all: its synthesized source made it a cascade
+  entity that could never satisfy `id: ID!`. Purely additive — `embedded` defaults false, a
+  type must opt in, and nothing currently-compiling changes. The SDK rejects the two
+  contradictions the combination implies: `embedded=True` with an explicit `sql_source` (a
+  value object has no backing view), and `embedded=True` with `cascade=True` (a value object
+  cannot originate a cascade).
+
 ### Changed
 
-- **The cascade `id: ID!` error now names *why* a type was classified an entity and *how* a
-  mutation reaches it (#653).** When a `cascade = true` mutation drags in a type that lacks
-  `id: ID!`, the error previously stated only the failed assertion — and its two suggested
-  fixes ("add `id`" / "remove `cascade`") were both wrong for an embedded value object the
-  SDK gave a synthesized `sql_source`. It now reports the classification signal (`declares
-  sql_source = "v_money"; an embedded value object … should declare no source`) and the
-  reference path (`createOrder → Order.total → Money`), pointing at the real fix. Purely a
+- **The cascade `id: ID!` error now names *why* a type was classified an entity, *how* a
+  mutation reaches it, and the actionable fix for each case (#653, #659, #687).** When a
+  `cascade = true` mutation drags in a type that lacks `id: ID!`, the error previously stated
+  only the failed assertion — and its two suggested fixes ("add `id`" / "remove `cascade`")
+  were both wrong for an embedded value object the SDK gave a synthesized `sql_source`. It now
+  reports the classification signal and names both exits — `classified as a cascade entity
+  because it declares sql_source = "v_money"; if it is an embedded value object, mark it
+  embedded=True (it will declare no source and be exempt); if it is an entity, add id: ID!` —
+  alongside the reference path (`createOrder → Order.total → Money`). Purely a
   diagnostic change — which schemas compile is unchanged.
 - **`compile --database` now warns when a `@fraiseql.type` declares a `sql_source` view that
   is absent from the connected database (#653).** These phantom sources — usually an

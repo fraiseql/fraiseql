@@ -272,6 +272,32 @@ cascade is truncated with `metadata.truncated`, max response size → rejected).
 > `internal` type, so a change-log row can never ride in a cascade. The two features
 > compose freely — see [the change-log-over-GraphQL guide](../guides/changelog-graphql.md).
 
+> **Embedded value objects are not cascade entities (#687).** A type with no independent
+> identity — a `Money` amount, a `Dimensions` triple — is *embedded* under a parent entity,
+> not a cache node of its own. Declare it `@fraiseql.type(embedded=True)`: it emits no
+> `sql_source` and is exempt from the eligibility check above — it does **not** implement
+> `CascadeNode` and is never enforced against `id: ID!`.
+>
+> ```python
+> @fraiseql.type(embedded=True)
+> class Money:
+>     amount: int
+>     currency: str
+>
+> @fraiseql.type(sql_source="v_order")
+> class Order:
+>     id: str
+>     total: Money  # rides inside the Order payload; no id of its own
+> ```
+>
+> This is **author-declared**, not inferred from the source. Without the marker, the SDK
+> synthesizes a `v_money` source for every `@fraiseql.type`, which classifies `Money` as a
+> cascade entity and fails the compile on a type that has no identity by design — the reason a
+> value object under a `cascade` mutation could not compile before #687. The declaration is
+> the fix, so `embedded=True` rejects an explicit `sql_source` (no backing view) and `cascade`
+> (a value object cannot originate a cascade). Contrast the `internal` exemption above: that is
+> set by the framework on projections it synthesizes; `embedded` is the *author's* declaration.
+
 ### Row-visibility boundary (RLS)
 
 FraiseQL enforces **field-level** authorization on every cascade entity, but it
