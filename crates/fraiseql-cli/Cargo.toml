@@ -120,6 +120,10 @@ name = "functions_invoke"
 required-features = ["functions-invoke"]
 
 [[test]]
+name = "cascade_federation_shareable_e2e"
+required-features = ["federation"]
+
+[[test]]
 name = "cli_federation_validation"
 required-features = ["federation"]
 
