@@ -134,20 +134,35 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
     if !existing_enum_names.contains(INVALIDATION_SCOPE) {
         schema.enums.push(invalidation_scope_enum());
     }
-    if !existing_type_names.contains(UPDATED_ENTITY) {
-        schema.types.push(updated_entity_type());
+    // Track exactly which envelope value types this pass synthesized (a name already owned by
+    // a real user type is left alone), so federation can mark precisely those `@shareable`.
+    let mut synthesized_envelopes: Vec<&'static str> = Vec::new();
+    for (name, build) in [
+        (UPDATED_ENTITY, updated_entity_type as fn() -> TypeDefinition),
+        (DELETED_ENTITY, deleted_entity_type),
+        (CASCADE_METADATA, cascade_metadata_type),
+        (QUERY_INVALIDATION, query_invalidation_type),
+        (CASCADE_UPDATES, cascade_updates_type),
+    ] {
+        if !existing_type_names.contains(name) {
+            schema.types.push(build());
+            synthesized_envelopes.push(name);
+        }
     }
-    if !existing_type_names.contains(DELETED_ENTITY) {
-        schema.types.push(deleted_entity_type());
-    }
-    if !existing_type_names.contains(CASCADE_METADATA) {
-        schema.types.push(cascade_metadata_type());
-    }
-    if !existing_type_names.contains(QUERY_INVALIDATION) {
-        schema.types.push(query_invalidation_type());
-    }
-    if !existing_type_names.contains(CASCADE_UPDATES) {
-        schema.types.push(cascade_updates_type());
+
+    // Federation (#698): the synthesized envelope value types are structurally identical in
+    // every cascade-enabled subgraph and carry no independent identity, so a supergraph that
+    // composes two such subgraphs rejects them with `INVALID_FIELD_SHARING` unless they are
+    // `@shareable` in each. Mark exactly the ones this pass synthesized — the same treatment the
+    // authored `MutationError` value type already gets via `shareable_types`. No-op without a
+    // federation block; the per-mutation `<Name>Payload` types are uniquely named per entity and
+    // never collide, so they are deliberately not marked.
+    if let Some(fed) = schema.federation.as_mut() {
+        for name in synthesized_envelopes {
+            if !fed.shareable_types.iter().any(|t| t == name) {
+                fed.shareable_types.push(name.to_string());
+            }
+        }
     }
 
     // 3. Per-mutation payload wrapper + return-type rewrite. Plan up front so the mutation list
