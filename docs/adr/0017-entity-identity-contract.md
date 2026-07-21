@@ -113,6 +113,15 @@ and `--json` output, so any residual rejection is self-diagnosing.
   `uuid`-typed — so it emits `id: UUID`, which the compiler's `UUID → ID`
   canonicalization handles. No SpecQL change is required for conformance; emitting
   `id: ID` directly for the identity column would be an optional honesty improvement.
+- **A type can declare itself a non-entity (#687).** `@fraiseql.type(embedded=True)` marks an
+  embedded value object — no independent identity, always nested under a parent (e.g. a `Money`
+  amount on an `Order`) — which emits no `sql_source` and is exempt from this contract: no
+  `id: ID!`, no `CascadeNode`/`Node`. Entity-ness is therefore **author-declared** — a value
+  object opts out with `embedded`, and every other view-backed type must present `id: ID!` — not
+  inferred from the `sql_source` shape. Before this, the SDK synthesized a `v_{name}` source for
+  every `@fraiseql.type`, so an embedded value object under a cascade was classified an entity
+  and failed the backstop (point 3) on a type with no identity by design; the declaration is the
+  fix. The backstop still fires for a genuine, non-`embedded` entity that lacks `id: ID!`.
 - **Future (graphql-cascade#5):** if a genuine need for heterogeneous-identity
   cascades emerges, the union model can relax this contract without breaking anyone
   (error → working is non-breaking).
