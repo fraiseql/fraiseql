@@ -412,6 +412,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     shareable: bool = False,
     subscribable_tables: list[str] | None = None,
     subscribable_pre_image: bool = False,
+    embedded: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -454,6 +455,15 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             (OLD) into ``object_data_before`` — the out-of-band parity for a
             mutation's ``changelog_pre_image``. Default ``False`` (after-image
             only). Only meaningful together with ``subscribable_tables``.
+        embedded: Mark this type an embedded value object (#687) — a type with no
+            independent identity that is always nested under a parent entity (e.g. a
+            ``Money`` amount on an ``Order``). An embedded type declares **no**
+            ``sql_source`` (the synthesized ``v_{name}`` is suppressed) and is exempt
+            from cascade classification: the compiler never enforces ``id: ID!`` on it
+            nor auto-implements ``CascadeNode``, so a cascade schema that embeds it
+            compiles. Mutually exclusive with ``sql_source`` (a value object has no
+            backing view) and with ``cascade`` (a value object cannot originate a
+            cascade). Default ``False``.
 
     Returns:
         The original class (unmodified)
@@ -507,6 +517,25 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             )
             raise ValueError(msg)
 
+        # Reject embedded value-object contradictions (#687) *before* the sql_source and
+        # cascade-without-crud checks, so the value-object message wins. The compiler only
+        # warn!s on the hand-authored `embedded` + source form — the SDK must make it
+        # unreachable, and a value object can never originate a cascade.
+        if embedded and sql_source is not None:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: embedded=True declares a value object with "
+                f"no backing view, so it cannot be combined with sql_source={sql_source!r}. "
+                "An embedded type declares no source; remove sql_source or drop embedded=True."
+            )
+            raise ValueError(msg)
+        if embedded and cascade:
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: embedded=True declares a value object, which "
+                "cannot originate a cascade, so it cannot be combined with cascade=True. "
+                "A cascade originates from a keyed entity's mutation, never a value object."
+            )
+            raise ValueError(msg)
+
         # Validate the @subscribable opt-in + its pre-image flag (#366).
         _validate_subscribable(
             subscribable_tables, subscribable_pre_image, f"@fraiseql.type on {c.__name__!r}"
@@ -552,6 +581,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             shareable=shareable,
             subscribable_tables=subscribable_tables,
             subscribable_pre_image=subscribable_pre_image,
+            embedded=embedded,
         )
 
         # Generate CRUD operations if requested
