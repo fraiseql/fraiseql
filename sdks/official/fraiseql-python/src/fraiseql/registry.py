@@ -99,6 +99,7 @@ class SchemaRegistry:
         shareable: bool = False,
         subscribable_tables: list[str] | None = None,
         subscribable_pre_image: bool = False,
+        embedded: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -124,15 +125,26 @@ class SchemaRegistry:
                 also record the pre-image (OLD) into ``object_data_before`` (the
                 ``changelog_pre_image`` out-of-band parity). Emitted only when
                 ``True`` and there are tables to subscribe.
+            embedded: Whether the author declared this an embedded value object
+                (``@fraiseql.type(embedded=True)``, #687). When ``True`` the type
+                declares **no** ``sql_source`` — the synthesized ``v_{name}`` is
+                suppressed, since that source is exactly what would misclassify a value
+                object as a cascade entity — and ``embedded: true`` is emitted so the
+                compiler exempts it from the ``CascadeNode`` ``id: ID!`` contract.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
-        type_def: dict[str, Any] = {
-            "name": name,
-            "sql_source": sql_source or f"v_{_pascal_to_snake(name)}",
-            "fields": field_list,
-            "description": description,
-        }
+        # An embedded value object (#687) declares no backing view: suppress the
+        # synthesized ``v_{name}`` source and mark it embedded. Every other type keeps
+        # its synthesized source and carries no ``embedded`` key (byte-identical to
+        # pre-#687 output).
+        type_def: dict[str, Any] = {"name": name}
+        if embedded:
+            type_def["embedded"] = True
+        else:
+            type_def["sql_source"] = sql_source or f"v_{_pascal_to_snake(name)}"
+        type_def["fields"] = field_list
+        type_def["description"] = description
 
         if name in cls._types:
             raise ValueError(

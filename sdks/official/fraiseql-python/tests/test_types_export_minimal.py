@@ -200,5 +200,45 @@ def test_export_types_no_queries_or_mutations() -> None:
         assert "mutations" not in schema or len(schema.get("mutations", [])) == 0
 
 
+def test_embedded_type_emits_flag_and_suppresses_source() -> None:
+    """An @fraiseql.type(embedded=True) value object emits ``embedded: true`` and NO
+    ``sql_source`` — the synthesized ``v_money`` is exactly what misclassifies a value
+    object as a cascade entity (#687), so the SDK must suppress it."""
+
+    @fraiseql.type(embedded=True)
+    class Money:
+        """A monetary amount — an embedded value object, no independent identity."""
+
+        amount: int
+        currency: str
+
+    schema = SchemaRegistry.get_schema()
+    money = next(t for t in schema["types"] if t["name"] == "Money")
+
+    assert money["embedded"] is True
+    assert "sql_source" not in money, (
+        "an embedded value object must declare no source — a synthesized v_money is what "
+        "misclassifies it as a cascade entity"
+    )
+
+
+def test_non_embedded_type_is_unchanged() -> None:
+    """A default (non-embedded) type keeps its synthesized ``sql_source`` and carries NO
+    ``embedded`` key (skip-when-false ⇒ byte-identical to pre-#687)."""
+
+    @fraiseql.type
+    class User:
+        """A user."""
+
+        id: str
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    user = next(t for t in schema["types"] if t["name"] == "User")
+
+    assert user["sql_source"] == "v_user"
+    assert "embedded" not in user
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

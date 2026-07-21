@@ -1,0 +1,57 @@
+{
+  "types": [
+    {
+      "name": "Money",
+      "embedded": true,
+      "fields": [
+        {
+          "name": "amount",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "A monetary amount embedded on an order — no independent identity."
+    },
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "total",
+          "type": "Money",
+          "nullable": false
+        }
+      ],
+      "description": "An order whose total is an embedded Money value object."
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createOrder",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "reference",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Create an order (returns a cascade payload).",
+      "sql_source": "fn_create_order",
+      "operation": "insert",
+      "cascade": true
+    }
+  ]
+}
