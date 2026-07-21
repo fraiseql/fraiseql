@@ -2882,6 +2882,123 @@ mod changelog_cascade_conformance_tests {
         assert!(compiled.types.iter().any(|t| t.name == "TransportCheckpoint"));
         assert!(!compiled.interfaces.iter().any(|i| i.name == "CascadeNode"));
     }
+
+    // ── #687 declared cascade-node identity — Phase 00 baseline pins ──────────
+    //
+    // These lock the three behaviors #687 will change, so Phase 01's diff shows
+    // only intended changes against a green baseline. All GREEN today
+    // (characterization); each is proven able to fail before landing.
+    //
+    // Cycle 0 inventory — what the existing suite already covers (do NOT duplicate):
+    //   * id-less value object under cascade HARD-FAILS with the #659 signal + reference-path
+    //     clauses: `tenancy_tests::cascade_embedded_value_object_error_reports_derivation_and_path`
+    //     (asserts the `sql_source` / `v_money` / `createOrder → Order.total → Money` *fragments*).
+    //     The Cycle-1 pin below tightens this to the exact signal clause; the Cycle-3 pin snapshots
+    //     the whole diagnostic string.
+    //   * a real view-backed `id: ID` entity implements `CascadeNode`:
+    //     `tenancy_tests::cascade_conformant_id_entity_still_implements_cascade_node` and
+    //     `changelog_cascade_conformance_tests::cascade_envelope_types_are_never_cascade_nodes`.
+    //   * a wrong-typed / absent `id` cascade entity fails legibly:
+    //     `tenancy_tests::cascade_int_id_entity_fails_with_actionable_error`,
+    //     `tenancy_tests::cascade_missing_id_entity_fails_with_actionable_error`.
+    //
+    // #687-specific gaps added below: (1) the *exact* #659 signal clause on the
+    // id-less value object; (2) a real `{ id, total }` entity reached by a cascade
+    // stays classified (guards Phase 01's future `&& !ty.embedded` exemption from
+    // over-reaching); (3) a full-string snapshot of the diagnostic Phase 01 Cycle 4
+    // will deliberately re-point at `embedded=True`.
+
+    /// A view-backed type with a synthesized `sql_source` (`v_<name>`) and the given
+    /// fields — models both a real entity and the SDK-synthesized-source value object
+    /// #687 distinguishes (the SDK gives every `@fraiseql.type` a source today, which
+    /// is exactly why an id-less value object is misclassified as a cascade entity).
+    fn view_type(name: &str, fields: Vec<IntermediateField>) -> IntermediateType {
+        IntermediateType {
+            name: name.to_string(),
+            sql_source: Some(format!("v_{}", name.to_lowercase())),
+            fields,
+            ..IntermediateType::default()
+        }
+    }
+
+    /// The realistic #653/#687 shape: an id-less value object (`Money`) the SDK gave a
+    /// synthesized `sql_source = "v_money"`, embedded under a genuine entity (`Order`)
+    /// that a `cascade = true` mutation returns.
+    fn order_embedding_money() -> IntermediateSchema {
+        schema_with(
+            vec![
+                view_type("Order", vec![field("id", "ID"), field("total", "Money")]),
+                view_type("Money", vec![field("amount", "Int"), field("currency", "String")]),
+            ],
+            vec![cascade_mutation("createOrder", "Order")],
+        )
+    }
+
+    /// **Cycle 1 — status quo we improve.** An id-less value object carrying an
+    /// SDK-synthesized `sql_source` HARD-FAILS the cascade `id: ID!` contract *today*,
+    /// with the #659 signal clause naming its declared source as the classification
+    /// reason. Phase 01 will make this compile *when the type declares `embedded=True`*
+    /// and will update this pin; the failure must persist for a non-embedded id-less
+    /// type (Phase 01 Cycle 3).
+    #[test]
+    fn cascade_idless_value_object_hard_fails_naming_its_source() {
+        let msg = format!("{:#}", SchemaConverter::convert(order_embedding_money()).unwrap_err());
+        // The exact #659 signal clause — not just the `sql_source` / `v_money`
+        // fragments the tenancy_tests pin checks.
+        assert!(
+            msg.contains(
+                "classified as a cascade entity because it declares sql_source = \"v_money\""
+            ),
+            "names the classification signal verbatim: {msg}"
+        );
+        assert!(msg.contains("Type 'Money': no `id` field"), "states the failed contract: {msg}");
+    }
+
+    /// **Cycle 2 — real entities stay classified.** A genuine view-backed entity
+    /// (`Order { id, total }`) reached by a cascade compiles, `implements CascadeNode`,
+    /// and keeps its canonical `id: ID`. Guards Phase 01's forthcoming
+    /// `&& !ty.embedded` exemption leg from accidentally exempting real entities
+    /// (a real entity has `embedded=false`, so it must remain a cascade node).
+    #[test]
+    fn real_entity_reached_by_cascade_stays_a_cascade_node() {
+        use fraiseql_core::schema::FieldType;
+        let compiled = SchemaConverter::convert(schema_with(
+            vec![view_type(
+                "Order",
+                vec![field("id", "ID"), field("total", "Int")],
+            )],
+            vec![cascade_mutation("createOrder", "Order")],
+        ))
+        .expect("a real id-bearing entity under a cascade compiles");
+
+        let order = compiled.types.iter().find(|t| t.name.as_str() == "Order").unwrap();
+        assert!(
+            order.implements.iter().any(|i| i == "CascadeNode"),
+            "the real entity implements CascadeNode"
+        );
+        assert_eq!(
+            order.find_field("id").expect("id field").field_type,
+            FieldType::Id,
+            "its id is enforced as ID"
+        );
+    }
+
+    /// **Cycle 3 — diagnostic wording snapshot.** The full cascade `id` error for the
+    /// id-less value object, verbatim: the signal clause + the reference-path clause +
+    /// the `Fix:` line. Phase 01 Cycle 4 will deliberately re-point the message at
+    /// `embedded=True`; this snapshot makes that change explicit and reviewable.
+    #[test]
+    fn cascade_idless_value_object_diagnostic_wording_snapshot() {
+        let msg = format!("{:#}", SchemaConverter::convert(order_embedding_money()).unwrap_err());
+        let expected = "cascade requires `id: ID!` on every cascade entity (the graphql-cascade \
+CascadeNode interface requires it):
+  - Type 'Money': no `id` field
+      classified as a cascade entity because it declares sql_source = \"v_money\"; an embedded \
+value object has no independent identity and should declare no source
+      reached via createOrder → Order.total → Money
+Fix: expose `id: ID!` on each type, or remove `cascade` from the mutations that return them.";
+        assert_eq!(msg, expected, "diagnostic wording drifted:\n{msg}");
+    }
 }
 
 // ── #573 scheduled ingress sources ───────────────────────────────────────────
