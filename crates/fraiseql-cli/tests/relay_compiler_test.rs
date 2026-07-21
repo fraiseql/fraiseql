@@ -55,6 +55,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             requires_role:          None,
             is_error:               false,
             relay:                  true,
+            embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],

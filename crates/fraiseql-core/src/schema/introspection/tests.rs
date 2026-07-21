@@ -227,6 +227,7 @@ fn test_deprecated_field_introspection() {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
         fields:              vec![
@@ -484,6 +485,7 @@ fn test_interface_introspection() {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
         fields:              vec![
@@ -503,6 +505,7 @@ fn test_interface_introspection() {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
         fields:              vec![
@@ -570,6 +573,7 @@ fn test_type_implements_interface() {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
         fields:              vec![

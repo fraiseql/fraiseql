@@ -118,6 +118,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         is_error:            false,
         relay:               false,
         internal:            false,
+        embedded:            false,
         relationships:       vec![],
         subscription_policy: None,
     }

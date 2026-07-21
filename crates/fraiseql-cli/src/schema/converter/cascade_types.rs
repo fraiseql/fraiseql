@@ -85,6 +85,20 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
     // captures the owned map.
     let reference_paths = build_reference_paths(schema);
 
+    // A declared value object that also carries a source is a contradiction the SDK cannot
+    // emit (it suppresses the source for an `embedded` type) — so it is hand-authored, and
+    // most likely a mistake. The declaration wins (the type is exempt either way); say so
+    // rather than resolving it silently.
+    for ty in schema.types.iter().filter(|t| t.embedded && !t.sql_source.as_str().is_empty()) {
+        warn!(
+            type_name = %ty.name,
+            sql_source = %ty.sql_source.as_str(),
+            "cascade: type declares embedded=True but also declares a sql_source; treating it as \
+             an embedded value object (exempt from the CascadeNode id contract) and ignoring the \
+             source"
+        );
+    }
+
     super::interface_conformance::enforce_node_id_conformance(
         schema.types.iter().filter(|t| is_queryable_entity(t)),
         "cascade requires `id: ID!` on every cascade entity (the graphql-cascade CascadeNode \
@@ -179,12 +193,17 @@ pub(super) fn synthesize_cascade_types(schema: &mut CompiledSchema) -> anyhow::R
 ///   cascade-deliverable entities; `TransportCheckpoint` in particular has no `id` by design and
 ///   could never back the CascadeNode contract;
 /// - **empty-source synthetics** — the cascade envelope/payload types and `MutationError` carry an
-///   empty `sql_source`, as do relay connection/edge wrappers.
+///   empty `sql_source`, as do relay connection/edge wrappers;
+/// - **declared value objects** (`embedded`, #687) — the author stated the type has no independent
+///   identity, so it is delivered inside its parent's payload rather than as a cache node of its
+///   own. The SDK emits no source for such a type (which the empty-source leg would already
+///   exempt); this leg is the *declared*, source-independent guard, so a hand-authored `embedded`
+///   type that also carries a source still resolves as embedded.
 ///
 /// This one predicate feeds BOTH the `id: ID!` enforcement and the
 /// `implements CascadeNode` auto-loop, so the two can never key off divergent sets.
 fn is_queryable_entity(ty: &TypeDefinition) -> bool {
-    !ty.is_error && !ty.internal && !ty.sql_source.as_str().is_empty()
+    !ty.is_error && !ty.internal && !ty.sql_source.as_str().is_empty() && !ty.embedded
 }
 
 /// Explain (#653) why a type that failed the `id: ID!` contract was classified a cascade
@@ -193,6 +212,12 @@ fn is_queryable_entity(ty: &TypeDefinition) -> bool {
 /// `id` — a missing-id type is most likely an embedded value object the SDK gave a
 /// synthesized source; a type with a wrong-typed `id` is a genuine entity, where the
 /// source is not the issue.
+///
+/// The suggested fix names both exits (#687): declare the type `embedded=True` if it is a
+/// value object, or give it an `id: ID!` if it is an entity. It deliberately does *not*
+/// tell the author to "declare no source" — under the SDK every `@fraiseql.type` gets a
+/// synthesized source, so that was a state they had no way to reach; declaring `embedded`
+/// is what suppresses it.
 fn annotate_cascade_offender(
     ty: &TypeDefinition,
     reference_paths: &HashMap<String, String>,
@@ -201,8 +226,9 @@ fn annotate_cascade_offender(
     let has_id = ty.fields.iter().any(|f| f.name == "id");
     if !has_id && !ty.sql_source.as_str().is_empty() {
         parts.push(format!(
-            "classified as a cascade entity because it declares sql_source = \"{}\"; an \
-             embedded value object has no independent identity and should declare no source",
+            "classified as a cascade entity because it declares sql_source = \"{}\"; if it is an \
+             embedded value object, mark it embedded=True (it will declare no source and be \
+             exempt); if it is an entity, add id: ID!",
             ty.sql_source.as_str()
         ));
     }
@@ -299,6 +325,7 @@ fn synth_type(name: &str, fields: Vec<FieldDefinition>, desc: &str) -> TypeDefin
         is_error: false,
         relay: false,
         internal: false,
+        embedded: false,
         relationships: Vec::new(),
         subscription_policy: None,
     }
