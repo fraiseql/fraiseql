@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-07-22
+
 ### Breaking
 
 - **The dormant `/realtime/v1` WebSocket subsystem has been removed in full (#605).** It was a
@@ -89,6 +91,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   synthesized).
 
 ### Fixed
+
+- **Federation subgraphs with `cascade = true` mutations now compose into a supergraph (#698).**
+  A cascade mutation makes the compiler synthesize five envelope value types — `UpdatedEntity`,
+  `DeletedEntity`, `CascadeMetadata`, `QueryInvalidation`, `CascadeUpdates` — that are
+  structurally identical in every cascade-enabled subgraph and carry no independent identity.
+  They were emitted non-`@shareable`, so composing two such subgraphs into a supergraph failed
+  Federation-v2 validation with one `INVALID_FIELD_SHARING` per field (21 in total). The
+  synthesizer now marks exactly the envelope types it generates `@shareable` — via
+  `federation.shareable_types`, the same mechanism the authored `MutationError` uses — when a
+  federation block is present; a user type that already owns one of those names and the
+  per-mutation `<Name>Payload` types are left alone. Per-subgraph compile and runtime are
+  unchanged (the failure only ever surfaced at supergraph composition); the fix is schema-only.
 
 - **`[changelog] expose = true` and `cascade = true` mutations now compile together (#665).**
   Since 2.12.0 the two features were mutually exclusive. The cascade pass classifies every
