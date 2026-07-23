@@ -59,7 +59,7 @@
   "peerDependencies": {
     "@langchain/core": "^1.1.47",
     "@mastra/core": "^1.35.0",
-    "ai": "^6.0.185"
+    "ai": "^7.0.35"
   },
   "peerDependenciesMeta": {
     "ai": {
@@ -78,7 +78,7 @@
     "@types/node": "^26.1.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
-    "ai": "^6.0.185",
+    "ai": "^7.0.35",
     "eslint": "^10.4.0",
     "msw": "^2.0.0",
     "prettier": "^3.0.0",
