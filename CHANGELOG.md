@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Release: a fully-static `x86_64-unknown-linux-musl` lean binary artifact
+  (`fraiseql-x86_64-unknown-linux-musl.tar.gz`) for Alpine / distroless / scratch
+  containers.
+
+### Fixed
+
+- Release: the Linux `-gnu` binaries are now built with `cargo-zigbuild` against a
+  **glibc 2.28 floor**, so they load on Debian 12 (glibc 2.36) and other older
+  distributions. Previously the umbrella binary was built on `ubuntu-latest`
+  (glibc 2.39) and pulled weak `pidfd_getpid`/`pidfd_spawnp@GLIBC_2.39` symbols that
+  made the dynamic loader refuse to start on any glibc < 2.39. A release-time
+  `objdump` gate now fails the build if any Linux binary would exceed `GLIBC_2.34`.
+
 ## [2.14.0] - 2026-07-22
 
 ### Breaking
