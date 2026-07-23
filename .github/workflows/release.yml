@@ -190,11 +190,26 @@ jobs:
             target: x86_64-unknown-linux-gnu
             binary: fraiseql
             archive_ext: tar.gz
+            # Build against an OLD glibc floor with cargo-zigbuild so the binaries
+            # run on Debian 12 (glibc 2.36) and older. `ubuntu-latest` is glibc 2.39,
+            # and std's weak pidfd spawn symbols (pidfd_getpid/pidfd_spawnp@GLIBC_2.39)
+            # otherwise make the umbrella binary refuse to load on <2.39 (#gh issue).
+            zig_target: x86_64-unknown-linux-gnu.2.28
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             binary: fraiseql
             archive_ext: tar.gz
             use_cross: true
+            lean_only: true   # V8 (-full) does not build under the cross image
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            binary: fraiseql
+            archive_ext: tar.gz
+            # Fully-static lean binary (no libc at all) for Alpine / distroless /
+            # scratch containers. V8 (-full) does not link against musl, so this
+            # target ships the lean artifact only.
+            zig_target: x86_64-unknown-linux-musl
+            lean_only: true
           - os: macos-latest
             target: x86_64-apple-darwin
             binary: fraiseql
@@ -227,6 +242,18 @@ jobs:
         if: matrix.use_cross
         run: cargo install cross
 
+      # cargo-zigbuild pins the target glibc floor (`.2.28`) using zig as the linker,
+      # and produces fully-static musl binaries — the mechanism that keeps the release
+      # binaries runnable on Debian 12 / old distros. Only the `zig_target` matrix rows
+      # use it; native macОS/Windows and the aarch64 `cross` build are unchanged.
+      - name: Install zig + cargo-zigbuild
+        if: matrix.zig_target
+        shell: bash
+        run: |
+          curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar -xJ
+          echo "$PWD/zig-linux-x86_64-0.13.0" >> "$GITHUB_PATH"
+          cargo install cargo-zigbuild --version 0.23.0 --locked
+
       - name: Install system dependencies (Linux AMD64)
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
@@ -238,8 +265,12 @@ jobs:
         run: cross build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
 
       - name: Build binary (cargo)
-        if: '!matrix.use_cross'
+        if: '!matrix.use_cross && !matrix.zig_target'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
+
+      - name: Build binary (zigbuild, glibc-floored / musl)
+        if: matrix.zig_target
+        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql --features cli,server,postgres
 
       - name: Strip binary (Linux/macOS native)
         if: matrix.os != 'windows-latest' && !matrix.use_cross
@@ -278,11 +309,15 @@ jobs:
       # therefore ships the lean artifact only — a documented gap (docs/releases.md),
       # never a silent one.
       - name: Build full binary (cargo)
-        if: '!matrix.use_cross'
+        if: '!matrix.lean_only && !matrix.zig_target'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features release-full
 
+      - name: Build full binary (zigbuild, glibc-floored)
+        if: matrix.zig_target && !matrix.lean_only
+        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql --features release-full
+
       - name: Smoke the full binary's function-invoke harness (phase 08)
-        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        if: matrix.os != 'windows-latest' && !matrix.lean_only
         # `fraiseql functions invoke` exists only when `functions-invoke` is compiled
         # in. Assert the -full artifact ships the author test loop rather than leaving
         # it from-source-only — the same adopter dead-end this -full variant closes for
@@ -303,24 +338,28 @@ jobs:
       # CLI and the server at a single revision — the #507 same-revision contract made
       # physical.
       - name: Build fraiseql-server binary (cargo, -full)
-        if: '!matrix.use_cross'
+        if: '!matrix.lean_only && !matrix.zig_target'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
 
+      - name: Build fraiseql-server binary (zigbuild, glibc-floored, -full)
+        if: matrix.zig_target && !matrix.lean_only
+        run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql-server --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+
       - name: Strip full binaries (Linux/macOS native)
-        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        if: matrix.os != 'windows-latest' && !matrix.lean_only
         run: |
           strip target/${{ matrix.target }}/release/${{ matrix.binary }}
           strip target/${{ matrix.target }}/release/fraiseql-server
 
       - name: Create full archive (tar.gz)
-        if: matrix.archive_ext == 'tar.gz' && !matrix.use_cross
+        if: matrix.archive_ext == 'tar.gz' && !matrix.lean_only
         run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql
           cp target/${{ matrix.target }}/release/fraiseql-server fraiseql-server
           tar czf fraiseql-full-${{ matrix.target }}.tar.gz fraiseql fraiseql-server
 
       - name: Create full archive (zip)
-        if: matrix.archive_ext == 'zip' && !matrix.use_cross
+        if: matrix.archive_ext == 'zip' && !matrix.lean_only
         shell: bash
         run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql.exe
@@ -328,11 +367,37 @@ jobs:
           7z a fraiseql-full-${{ matrix.target }}.zip fraiseql.exe fraiseql-server.exe
 
       - name: Upload full archive to release
-        if: '!matrix.use_cross'
+        if: '!matrix.lean_only'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           files: fraiseql-full-${{ matrix.target }}.${{ matrix.archive_ext }}
           fail_on_unmatched_files: true
+
+      # Fail the release if any Linux binary would refuse to load on Debian 12
+      # (glibc 2.36) — the regression this whole zig_target machinery prevents.
+      # gnu binaries must top out at GLIBC_2.34 (zigbuild pins 2.28; aarch64 `cross`
+      # is ~2.31); musl binaries carry no glibc symbols at all, so they trivially pass.
+      - name: Verify glibc ceiling (Linux)
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        run: |
+          ceiling="2.34"
+          fail=0
+          for b in "${{ matrix.binary }}" fraiseql-server; do
+            p="target/${{ matrix.target }}/release/$b"
+            [ -f "$p" ] || continue
+            max=$(objdump -T "$p" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -1)
+            if [ -z "$max" ]; then
+              echo "✅ $b: no glibc version dependency"
+              continue
+            fi
+            echo "· $b needs up to GLIBC_$max"
+            if [ "$(printf '%s\n%s\n' "$ceiling" "$max" | sort -V | tail -1)" != "$ceiling" ]; then
+              echo "::error::$b requires GLIBC_$max > $ceiling — would not load on Debian 12 (glibc 2.36)"
+              fail=1
+            fi
+          done
+          exit "$fail"
 
   # SBOM generation handled by sbom-generation.yml (Cosign-signed, validated)
 
@@ -767,13 +832,13 @@ jobs:
           mapfile -t ACTUAL < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
 
           # Expected assets are DERIVED from the build-binaries matrix, not a magic
-          # count: 5 lean (one per target) + 4 -full (native targets only —
-          # aarch64-unknown-linux-gnu is use_cross and V8 does not build under cross,
-          # so it ships lean-only: a documented gap). Assert each by NAME — a bare
-          # count would pass a duplicate-plus-missing swap (the old `-ge 5` was also
-          # stale: 9 assets ship).
+          # count: 6 lean (one per target, incl. the static musl one) + 4 -full
+          # (native glibc/darwin/windows targets only — aarch64 `cross` and musl are
+          # lean_only because V8 does not build there: a documented gap). Assert each
+          # by NAME — a bare count would pass a duplicate-plus-missing swap.
           EXPECTED=(
             fraiseql-x86_64-unknown-linux-gnu.tar.gz
+            fraiseql-x86_64-unknown-linux-musl.tar.gz
             fraiseql-aarch64-unknown-linux-gnu.tar.gz
             fraiseql-x86_64-apple-darwin.tar.gz
             fraiseql-aarch64-apple-darwin.tar.gz
