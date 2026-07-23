@@ -127,7 +127,7 @@ toml = "0.8"
 # Arrow Flight server (optional)
 tonic = {version = "0.14", optional = true}
 tower = {version = "0.5", features = ["full"]}
-tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
+tower-http = {version = "0.7", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
 # Tracing
 tracing = "0.1"
 tracing-opentelemetry = {version = "0.33", optional = true}
