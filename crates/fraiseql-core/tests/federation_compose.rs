@@ -11,6 +11,14 @@
 //! individually broke. It is hermetic (no Docker, no composer binary); the
 //! companion real-`composeServices` check lives in the federation-compose CI leg.
 //!
+//! These `catalog`/`reviews` subgraphs are built from `CompiledSchema` builders, which
+//! **bypass the cli's cascade synthesis** — so the #698 cascade-envelope `@shareable`
+//! fix (which lives in `fraiseql-cli`) cannot be exercised here. Its committed compose
+//! fixtures (`cascade_orders.graphql` / `cascade_users.graphql`, beside these) are
+//! rendered from the cli converter and lock-stepped by
+//! `committed_cascade_sdl_fixtures_are_current` in
+//! `crates/fraiseql-cli/tests/cascade_federation_shareable_e2e.rs`.
+//!
 //! The two subgraphs deliberately share everything a real supergraph shares:
 //! - `Money` — a keyless `@shareable` value type defined in *both* subgraphs.
 //! - `Product` — an entity *owned* by `catalog` and *extended* by `reviews` (`extend type Product

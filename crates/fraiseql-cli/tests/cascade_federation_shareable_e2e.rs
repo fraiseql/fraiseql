@@ -22,6 +22,8 @@
 //! `INVALID_FIELD_SHARING` — the real-composer assertion lives in the federation-compose CI
 //! leg; this is its hermetic companion (same split as `federation_compose.rs`).
 
+use std::path::PathBuf;
+
 use fraiseql_cli::schema::{IntermediateSchema, converter::SchemaConverter};
 
 /// The five synthesized graphql-cascade envelope value types that are identical across every
@@ -132,5 +134,131 @@ fn two_cascade_subgraphs_both_mark_the_envelope_types_shareable() {
         let marker = format!("type {name} @shareable");
         assert!(orders.contains(&marker), "`orders` subgraph missing `{marker}`");
         assert!(users.contains(&marker), "`users` subgraph missing `{marker}`");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Real-composer companion (#698): committed cascade subgraph SDL fixtures.
+//
+// The two-subgraph assertion above only checks that each rendered `_service` SDL
+// *contains* the `@shareable` markers — it never actually composes them. The real
+// `composeServices` proof lives in the federation-compose CI leg
+// (`make federation-compose-check` → `tools/federation/run-compose-check.sh`), which
+// composes committed `.graphql` fixtures with Apollo Federation v2.
+//
+// Those fixtures live beside the core golden pair (`catalog`/`reviews`) in
+// `crates/fraiseql-core/tests/fixtures/federation_compose/`, but the core builders
+// there construct `CompiledSchema` directly and so **bypass the CLI cascade
+// synthesis** where the #698 fix lives. A cascade fixture must therefore be rendered
+// from the real CLI path (`SchemaConverter::convert` → `federation_metadata()` →
+// `generate_service_sdl`) and lock-stepped from *this* crate, so the committed SDL the
+// composer validates is exactly what the fix produces. Revert the `shareable_types`
+// addition in `converter/cascade_types.rs` and this test goes RED (live SDL drops the
+// `@shareable` markers, the committed fixtures still carry them); re-blessing then
+// makes the composer leg go RED with `INVALID_FIELD_SHARING`.
+
+/// A cascade subgraph rich enough to *compose*: unlike [`cascade_subgraph_json`] it
+/// exposes a root query, so the rendered `_service` SDL carries a non-empty
+/// `type Query` (Federation rejects a query-less subgraph with `NO_QUERIES`, which
+/// would mask the sharing check this fixture exists to exercise).
+fn cascade_compose_subgraph_json(service_name: &str, entity: &str, sql_source: &str) -> String {
+    let list_field = format!("{}s", entity.to_lowercase()); // Order → orders
+    format!(
+        r#"
+{{
+  "version": "2.0.0",
+  "types": [
+    {{
+      "name": "{entity}",
+      "fields": [
+        {{"name": "id", "type": "ID", "nullable": false}},
+        {{"name": "total", "type": "Float", "nullable": false}}
+      ],
+      "sql_source": "{sql_source}"
+    }}
+  ],
+  "queries": [
+    {{
+      "name": "{list_field}",
+      "return_type": "{entity}",
+      "returns_list": true,
+      "sql_source": "{sql_source}"
+    }}
+  ],
+  "mutations": [
+    {{
+      "name": "create{entity}",
+      "return_type": "{entity}",
+      "cascade": true,
+      "sql_source": "fn_create_{sql_source}",
+      "operation": "CREATE"
+    }}
+  ],
+  "subscriptions": [],
+  "federation": {{
+    "enabled": true,
+    "service_name": "{service_name}",
+    "apollo_version": 2,
+    "entities": [
+      {{"name": "{entity}", "key_fields": ["id"]}}
+    ]
+  }}
+}}
+"#
+    )
+}
+
+/// Path to a committed subgraph SDL fixture in the core crate's
+/// `federation_compose` fixture dir (shared with the `catalog`/`reviews` golden pair).
+fn compose_fixture_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../fraiseql-core/tests/fixtures/federation_compose")
+        .join(name)
+}
+
+/// The committed cascade subgraph SDL fixtures are what the real-`composeServices`
+/// CI leg composes, so they must match what the CLI renders *today* — otherwise the
+/// leg would validate stale SDL while the live output drifted. This renders both
+/// cascade subgraphs through the real CLI path and diffs them against the committed
+/// `.graphql` files, failing on any drift. Re-bless after an intentional rendering
+/// change with (same env var the core `federation_compose` fixtures use):
+///
+/// ```sh
+/// BLESS_FEDERATION_SDL=1 \
+///   cargo test -p fraiseql-cli --test cascade_federation_shareable_e2e --features federation
+/// ```
+#[test]
+fn committed_cascade_sdl_fixtures_are_current() {
+    let cases = [
+        (
+            "cascade_orders.graphql",
+            cascade_compose_subgraph_json("orders", "Order", "v_order"),
+        ),
+        (
+            "cascade_users.graphql",
+            cascade_compose_subgraph_json("users", "User", "v_user"),
+        ),
+    ];
+    let bless = std::env::var_os("BLESS_FEDERATION_SDL").is_some();
+
+    for (file, json) in cases {
+        let rendered = format!("{}\n", service_sdl(&compile(&json)).trim_end());
+        let path = compose_fixture_path(file);
+
+        if bless {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &rendered).unwrap();
+            continue;
+        }
+
+        let committed = std::fs::read_to_string(&path).expect(
+            "missing cascade federation_compose SDL fixture; re-bless with BLESS_FEDERATION_SDL=1",
+        );
+        assert_eq!(
+            committed,
+            rendered,
+            "{} is stale; re-bless with BLESS_FEDERATION_SDL=1",
+            path.display()
+        );
     }
 }
