@@ -334,6 +334,11 @@ jobs:
           introspection_enabled = true
           introspection_require_auth = false
           metrics_enabled = true
+          # metrics_enabled is a boot-time security guard: the server refuses to start unless a
+          # >=16-char metrics_token is set (it gates /metrics behind bearer auth). A CI-only token
+          # here is exactly what a production --config must provide; without it the shipped server
+          # correctly exits before /health (the failure this smoke kept mistaking for a boot bug).
+          metrics_token = "smoke-test-only-metrics-token"
           TOML
           /tmp/full/extract/fraiseql-server --config /tmp/full/server.toml &
           echo $! > /tmp/fraiseql-published.pid
@@ -359,11 +364,16 @@ jobs:
           test "$up" = "1" || { echo "::error::timed out waiting for published fraiseql-server /health" >&2; exit 1; }
           # metrics_enabled=true came ONLY from --config; /metrics responding proves the
           # shipped server honored a platform section from server.toml — unlike
-          # `fraiseql run`, which silently drops them (#643).
-          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8818/metrics)
+          # `fraiseql run`, which silently drops them (#643). metrics_token gates /metrics behind
+          # bearer auth, so assert the guard end-to-end: unauthenticated → 401, authenticated → 200.
+          unauth=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8818/metrics)
+          test "$unauth" = "401" \
+            || { echo "::error::/metrics without a token returned HTTP $unauth (expected 401) — the metrics bearer guard is not enforced" >&2; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer smoke-test-only-metrics-token" http://127.0.0.1:8818/metrics)
           test "$code" = "200" \
-            || { echo "::error::/metrics returned HTTP $code — metrics_enabled from --config was not honored" >&2; exit 1; }
-          echo "Published fraiseql-server honored [metrics] from --config (/metrics HTTP 200)."
+            || { echo "::error::/metrics with the bearer token returned HTTP $code — metrics_enabled from --config was not honored" >&2; exit 1; }
+          echo "Published fraiseql-server honored [metrics] from --config (/metrics: 401 unauth, 200 authed)."
 
       - name: Stop published server
         if: always()
