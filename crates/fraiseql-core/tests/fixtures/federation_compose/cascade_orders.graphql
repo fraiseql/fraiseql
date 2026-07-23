@@ -1,0 +1,601 @@
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends"])
+scalar DateTime
+scalar FloatRange
+scalar JSON
+
+enum CascadeOperation {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum InvalidationStrategy {
+  INVALIDATE
+  REFETCH
+  REMOVE
+}
+
+enum InvalidationScope {
+  EXACT
+  PREFIX
+  PATTERN
+  ALL
+}
+
+interface CascadeNode {
+  id: ID
+}
+
+input EmailAddressWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  domainEq: String
+  domainIn: [String!]
+  domainEndswith: String
+  localPartStartswith: String
+}
+
+input PhoneNumberWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryCodeEq: String
+  countryCodeIn: [String!]
+  isValid: Boolean
+  typeEq: String
+}
+
+input URLWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  protocolEq: String
+  hostEq: String
+  pathStartswith: String
+}
+
+input DomainNameWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  tldEq: String
+  tldIn: [String!]
+}
+
+input HostnameWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  isFqdn: Boolean
+  depthEq: Float
+}
+
+input PostalCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+}
+
+input LatitudeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  withinRange: FloatRange
+  hemisphereEq: String
+}
+
+input LongitudeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  withinRange: FloatRange
+  hemisphereEq: String
+}
+
+input CoordinatesWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  distanceWithin: FloatRange
+}
+
+input TimezoneWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input LocaleCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input LanguageCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input CountryCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input IBANWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+  checkDigitEq: String
+}
+
+input CUSIPWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  issuerEq: String
+}
+
+input ISINWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+}
+
+input SEDOLWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  checkDigitEq: String
+}
+
+input LEIWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+}
+
+input MICWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+}
+
+input CurrencyCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input MoneyWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  currencyEq: String
+  amountWithinRange: FloatRange
+}
+
+input ExchangeCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input ExchangeRateWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  withinRange: FloatRange
+}
+
+input StockSymbolWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input SlugWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input SemanticVersionWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input HashSHA256WhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input APIKeyWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input LicensePlateWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  countryEq: String
+}
+
+input VINWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  wmiEq: String
+  manufacturerEq: String
+}
+
+input TrackingNumberWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  carrierEq: String
+}
+
+input ContainerNumberWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  ownerCodeEq: String
+}
+
+input IPAddressWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  inSubnet: String
+}
+
+input IPv4WhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input IPv6WhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input CIDRWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input PortWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input AirportCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input PortCodeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input FlightNumberWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  airlineCodeEq: String
+}
+
+input MarkdownWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  validFormat: Boolean
+}
+
+input HTMLWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  validXml: Boolean
+}
+
+input MimeTypeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+}
+
+input ColorWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  formatEq: String
+}
+
+input ImageWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  formatEq: String
+}
+
+input FileWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  sizeWithinRange: FloatRange
+}
+
+input DateRangeWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  overlaps: String
+}
+
+input DurationWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  withinRange: FloatRange
+}
+
+input PercentageWhereInput {
+  eq: String
+  neq: String
+  in: [String!]
+  nin: [String!]
+  contains: String
+  isnull: Boolean
+  withinRange: FloatRange
+}
+
+type Order @key(fields: "id") {
+  id: ID
+  total: Float
+}
+
+type UpdatedEntity @shareable {
+  id: ID
+  operation: CascadeOperation
+  entity: CascadeNode
+}
+
+type DeletedEntity @shareable {
+  id: ID
+  deletedAt: DateTime
+}
+
+type CascadeMetadata @shareable {
+  timestamp: DateTime
+  transactionId: ID
+  depth: Int
+  affectedCount: Int
+  truncated: Boolean
+  originalCount: Int
+}
+
+type QueryInvalidation @shareable {
+  queryName: String
+  queryHash: String
+  arguments: JSON
+  queryPattern: String
+  strategy: InvalidationStrategy
+  scope: InvalidationScope
+}
+
+type CascadeUpdates @shareable {
+  updated: [UpdatedEntity]
+  deleted: [DeletedEntity]
+  metadata: CascadeMetadata
+  invalidations: [QueryInvalidation]
+}
+
+type CreateOrderPayload {
+  entity: Order
+  cascade: CascadeUpdates
+  updatedFields: [String]
+}
+
+type Query {
+  orders(where: JSON, orderBy: JSON, limit: Int, offset: Int): [Order!]!
+}
+
+type Mutation {
+  createOrder: CreateOrderPayload!
+}
+
+
+
+directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT
+directive @extends on OBJECT
+directive @external on FIELD_DEFINITION
+directive @requires(fields: String!) on FIELD_DEFINITION
+directive @provides(fields: String!) on FIELD_DEFINITION
+directive @shareable on FIELD_DEFINITION | OBJECT
+directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ARGUMENT_DEFINITION | SCALAR | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+directive @override(from: String!) on FIELD_DEFINITION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+scalar link__Import
+
+type _Service {
+  sdl: String!
+}
+
+scalar _Any
+
+union _Entity = Order
+
+extend type Query {
+  _service: _Service!
+  _entities(representations: [_Any!]!): [_Entity]!
+}

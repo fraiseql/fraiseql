@@ -681,12 +681,19 @@ test-federation: federation-up
 		exit $$EXIT
 
 # Golden two-subgraph compose suite — no Docker. Verifies the committed subgraph SDL
-# fixtures still match live FraiseQL rendering (hermetic Rust test), then composes them
-# with real Apollo Federation v2 composition (positive + the #497 negative case). This
-# is the suite that would have caught the #495/#496/#497/#498 federation cluster.
+# fixtures still match live FraiseQL rendering (hermetic Rust tests), then composes them
+# with real Apollo Federation v2 composition (positive + the #497 negative case + the
+# #698 cascade positive case). This is the suite that would have caught the
+# #495/#496/#497/#498 federation cluster and the #698 cascade-envelope sharing bug.
+#
+# Two lock-step tests keep the committed fixtures honest: the core one guards
+# catalog/reviews (built from CompiledSchema builders); the cli one guards the cascade
+# fixtures, which MUST be rendered through the cli converter where cascade synthesis and
+# the #698 @shareable fix live (the core builders bypass it).
 federation-compose-check:
 	@echo "=== Federation golden compose (SDL invariants + real composition) ==="
 	@cargo test -p fraiseql-core --test federation_compose --features federation
+	@cargo test -p fraiseql-cli --test cascade_federation_shareable_e2e --features federation
 	@bash tools/federation/run-compose-check.sh
 
 # ============================================================================
