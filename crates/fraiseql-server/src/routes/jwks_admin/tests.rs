@@ -12,7 +12,7 @@ use super::refresh_jwks_handler;
 async fn refresh_jwks_fails_closed_when_provider_unreachable() {
     // Validator pointing at an unreachable JWKS endpoint (connection refused).
     let config = OidcConfig {
-        issuer: "http://localhost:8080".to_string(),
+        issuer: Some("http://localhost:8080".to_string()),
         ..Default::default()
     };
     let validator =

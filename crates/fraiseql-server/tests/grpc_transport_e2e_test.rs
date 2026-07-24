@@ -915,7 +915,7 @@ fn build_service_with_auth(
     use fraiseql_core::security::{OidcConfig, OidcValidator};
 
     let config = OidcConfig {
-        issuer: "https://test-issuer.example.com".to_string(),
+        issuer: Some("https://test-issuer.example.com".to_string()),
         audience: Some("test-audience".to_string()),
         required: true,
         ..OidcConfig::default()

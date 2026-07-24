@@ -24,7 +24,7 @@ use crate::security::{
 #[test]
 fn test_oidc_config_default() {
     let config = OidcConfig::default();
-    assert!(config.issuer.is_empty());
+    assert!(config.issuer.is_none());
     assert!(config.audience.is_none());
     // SECURITY: Cache TTL reduced to 5 minutes to prevent token cache poisoning
     assert_eq!(config.jwks_cache_ttl_secs, 300);
@@ -36,59 +36,67 @@ fn test_oidc_config_default() {
 #[test]
 fn test_oidc_config_auth0() {
     let config = OidcConfig::auth0("my-tenant.auth0.com", "my-api");
-    assert_eq!(config.issuer, "https://my-tenant.auth0.com/");
+    assert_eq!(config.issuer.as_deref(), Some("https://my-tenant.auth0.com/"));
     assert_eq!(config.audience, Some("my-api".to_string()));
 }
 
 #[test]
 fn test_oidc_config_keycloak() {
     let config = OidcConfig::keycloak("https://keycloak.example.com", "myrealm", "myclient");
-    assert_eq!(config.issuer, "https://keycloak.example.com/realms/myrealm");
+    assert_eq!(config.issuer.as_deref(), Some("https://keycloak.example.com/realms/myrealm"));
     assert_eq!(config.audience, Some("myclient".to_string()));
 }
 
 #[test]
 fn test_oidc_config_okta() {
     let config = OidcConfig::okta("myorg.okta.com", "api://default");
-    assert_eq!(config.issuer, "https://myorg.okta.com");
+    assert_eq!(config.issuer.as_deref(), Some("https://myorg.okta.com"));
     assert_eq!(config.audience, Some("api://default".to_string()));
 }
 
 #[test]
 fn test_oidc_config_cognito() {
     let config = OidcConfig::cognito("us-east-1", "us-east-1_abc123", "client123");
-    assert_eq!(config.issuer, "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123");
+    assert_eq!(
+        config.issuer.as_deref(),
+        Some("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123")
+    );
     assert_eq!(config.audience, Some("client123".to_string()));
 }
 
 #[test]
 fn test_oidc_config_azure_ad() {
     let config = OidcConfig::azure_ad("tenant-id-123", "client-id-456");
-    assert_eq!(config.issuer, "https://login.microsoftonline.com/tenant-id-123/v2.0");
+    assert_eq!(
+        config.issuer.as_deref(),
+        Some("https://login.microsoftonline.com/tenant-id-123/v2.0")
+    );
     assert_eq!(config.audience, Some("client-id-456".to_string()));
 }
 
 #[test]
 fn test_oidc_config_google() {
     let config = OidcConfig::google("123456.apps.googleusercontent.com");
-    assert_eq!(config.issuer, "https://accounts.google.com");
+    assert_eq!(config.issuer.as_deref(), Some("https://accounts.google.com"));
     assert_eq!(config.audience, Some("123456.apps.googleusercontent.com".to_string()));
 }
 
 #[test]
-fn test_oidc_config_validate_empty_issuer() {
+fn test_oidc_config_validate_default_is_rejected() {
+    // Default config has no issuer, no jwks_uri, and no audience — every guard
+    // must reject it. The first guard reached is the issuer-less/no-jwks check.
     let config = OidcConfig::default();
     let result = config.validate();
     assert!(
         matches!(result, Err(SecurityError::SecurityConfigError(_))),
-        "expected SecurityConfigError for empty issuer, got: {result:?}"
+        "expected SecurityConfigError for an unconfigured OidcConfig, got: {result:?}"
     );
 }
 
 #[test]
 fn test_oidc_config_validate_http_issuer() {
     let config = OidcConfig {
-        issuer: "http://insecure.example.com".to_string(),
+        issuer: Some("http://insecure.example.com".to_string()),
         ..Default::default()
     };
     let result = config.validate();
@@ -98,7 +106,7 @@ fn test_oidc_config_validate_http_issuer() {
 #[test]
 fn test_oidc_config_validate_localhost_allowed() {
     let config = OidcConfig {
-        issuer: "http://localhost:8080".to_string(),
+        issuer: Some("http://localhost:8080".to_string()),
         audience: Some("my-api".to_string()),
         ..Default::default()
     };
@@ -110,7 +118,7 @@ fn test_oidc_config_validate_localhost_allowed() {
 #[test]
 fn test_oidc_config_validate_https_required() {
     let config = OidcConfig {
-        issuer: "https://secure.example.com".to_string(),
+        issuer: Some("https://secure.example.com".to_string()),
         audience: Some("https://api.example.com".to_string()),
         ..Default::default()
     };
@@ -119,10 +127,46 @@ fn test_oidc_config_validate_https_required() {
         .unwrap_or_else(|e| panic!("expected https:// issuer to be valid: {e}"));
 }
 
+// ============================================================================
+// Issuer-less mode: IdPs whose access tokens omit the `iss` claim (e.g. Hanko).
+// `issuer` is optional, symmetric with `audience`; when unset the JWKS URI must
+// be pinned (discovery is impossible without an issuer) and `iss` is not checked.
+// ============================================================================
+
+#[test]
+fn issuerless_config_with_pinned_jwks_and_audience_is_valid() {
+    let config = OidcConfig {
+        issuer: None,
+        audience: Some("relying-party-id".to_string()),
+        jwks_uri: Some("https://hanko.example.com/.well-known/jwks.json".to_string()),
+        ..Default::default()
+    };
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("issuer-less config with pinned jwks_uri must be valid: {e}"));
+}
+
+#[test]
+fn issuerless_config_without_jwks_uri_is_rejected() {
+    // Without an issuer, discovery cannot find the JWKS endpoint, so `jwks_uri`
+    // must be pinned. Audience is set so this isolates the issuer/jwks_uri guard.
+    let config = OidcConfig {
+        issuer: None,
+        audience: Some("relying-party-id".to_string()),
+        jwks_uri: None,
+        ..Default::default()
+    };
+    let result = config.validate();
+    assert!(
+        matches!(result, Err(SecurityError::SecurityConfigError(_))),
+        "issuer-less config without a pinned jwks_uri must be rejected, got: {result:?}"
+    );
+}
+
 #[test]
 fn test_oidc_config_with_custom_cache_ttl() {
     let config = OidcConfig {
-        issuer: "http://localhost:8080".to_string(),
+        issuer: Some("http://localhost:8080".to_string()),
         jwks_cache_ttl_secs: 600, // Custom 10-minute TTL
         ..Default::default()
     };
@@ -145,7 +189,7 @@ fn test_oidc_config_default_cache_ttl_is_short() {
 fn make_validator(issuer: &str) -> OidcValidator {
     OidcValidator {
         config:       OidcConfig {
-            issuer: issuer.to_string(),
+            issuer: Some(issuer.to_string()),
             ..Default::default()
         },
         http_client:  reqwest::Client::new(),
@@ -279,7 +323,7 @@ async fn refresh_jwks_replaces_the_cache_with_freshly_fetched_keys() {
         .await;
 
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         ..Default::default()
     };
     let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
@@ -330,7 +374,7 @@ async fn get_decoding_key_refetch_evicts_rotated_out_keys() {
         .await;
 
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         ..Default::default()
     };
     let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
@@ -418,7 +462,7 @@ async fn oidc_discovery_oversized_response_is_rejected() {
         .await;
 
     let config = OidcConfig {
-        issuer: mock.uri(),
+        issuer: Some(mock.uri()),
         audience: Some("test-audience".to_string()),
         ..Default::default()
     };
@@ -445,7 +489,7 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
         .await;
 
     let config = OidcConfig {
-        issuer: mock.uri(),
+        issuer: Some(mock.uri()),
         audience: Some("test-audience".to_string()),
         ..Default::default()
     };
@@ -468,12 +512,12 @@ fn with_jwks_uri_creates_validator_without_panicking() {
     // with_jwks_uri must not panic even when the client builder is invoked;
     // verifies the fallback unwrap_or_default() path compiles and runs.
     let config = OidcConfig {
-        issuer: "https://example.com".to_string(),
+        issuer: Some("https://example.com".to_string()),
         jwks_uri: Some("https://example.com/.well-known/jwks.json".to_string()),
         ..Default::default()
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks".to_string());
-    assert_eq!(validator.issuer(), "https://example.com");
+    assert_eq!(validator.issuer(), Some("https://example.com"));
 }
 
 // ============================================================================
@@ -574,7 +618,7 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
 
     // ── 4. Create OidcValidator pointing at wiremock ─────────────────
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
@@ -645,7 +689,7 @@ async fn validate_token_rejects_wrong_signing_key() {
     let token: String = chars.into_iter().collect();
 
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
@@ -705,7 +749,7 @@ async fn validate_token_rejects_expired_jwt() {
     let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
 
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
@@ -769,7 +813,7 @@ async fn validate_token_rejects_wrong_audience() {
     let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
 
     let config = OidcConfig {
-        issuer: issuer.clone(),
+        issuer: Some(issuer.clone()),
         audience: Some("fraiseql-test-api".to_string()),
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
@@ -778,6 +822,133 @@ async fn validate_token_rejects_wrong_audience() {
 
     let result = validator.validate_token(&token).await;
     assert!(result.is_err(), "wrong audience must be rejected");
+}
+
+/// Issuer-less end-to-end: a Hanko-shaped access token that carries **no `iss`
+/// claim** must validate when `issuer` is unset and the JWKS URI is pinned.
+/// Signature (against the pinned JWKS) and `audience` still gate the token.
+#[tokio::test]
+async fn validate_token_without_iss_claim_accepted_when_issuer_unset() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let jwks_path = "/.well-known/jwks.json";
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "hanko-key",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    // Hanko 2.x access-token shape: sub/aud/exp/iat (+ session_id, email); no `iss`.
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub":        "hanko-user-1",
+        "aud":        ["relying-party-id"],
+        "exp":        now + 3600,
+        "iat":        now,
+        "email":      "user@example.com",
+        "session_id": "sess-123",
+    });
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("hanko-key".to_string());
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+
+    // Issuer-less config: no `issuer`, pinned `jwks_uri`, mandatory `audience`.
+    let config = OidcConfig {
+        issuer: None,
+        audience: Some("relying-party-id".to_string()),
+        jwks_uri: Some(format!("{}{jwks_path}", mock.uri())),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{}{jwks_path}", mock.uri()));
+
+    let user = validator
+        .validate_token(&token)
+        .await
+        .expect("issuer-less token (no `iss`) must validate against a pinned JWKS");
+    assert_eq!(user.user_id.as_str(), "hanko-user-1");
+    assert_eq!(user.email.as_deref(), Some("user@example.com"));
+}
+
+/// Security boundary: when an `issuer` **is** configured, a token that omits
+/// `iss` must still be rejected — setting an issuer keeps `iss` mandatory
+/// (jsonwebtoken's `set_issuer` requires the claim). This pins that the
+/// issuer-less relaxation only applies when the operator opts out of `iss`.
+#[tokio::test]
+async fn validate_token_missing_iss_rejected_when_issuer_set() {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let jwks_path = "/.well-known/jwks.json";
+    let jwks_body = json!({
+        "keys": [{
+            "kty": "RSA",
+            "kid": "with-issuer-key",
+            "alg": "RS256",
+            "use": "sig",
+            "n":   TEST_RSA_N,
+            "e":   TEST_RSA_E,
+        }]
+    });
+    Mock::given(method("GET"))
+        .and(path(jwks_path))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
+        .expect(1..)
+        .mount(&mock)
+        .await;
+
+    // Token omits `iss`.
+    let now = chrono::Utc::now().timestamp();
+    let claims = json!({
+        "sub": "user-42",
+        "aud": "fraiseql-test-api",
+        "exp": now + 3600,
+        "iat": now,
+    });
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("with-issuer-key".to_string());
+    let encoding_key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+    let token = jsonwebtoken::encode(&header, &claims, &encoding_key).unwrap();
+
+    // Issuer IS configured → `iss` is mandatory, so the token is rejected.
+    let config = OidcConfig {
+        issuer: Some("https://issuer.example.com".to_string()),
+        audience: Some("fraiseql-test-api".to_string()),
+        jwks_uri: Some(format!("{}{jwks_path}", mock.uri())),
+        allowed_algorithms: vec!["RS256".to_string()],
+        ..Default::default()
+    };
+    let validator = OidcValidator::with_jwks_uri(config, format!("{}{jwks_path}", mock.uri()));
+
+    let result = validator.validate_token(&token).await;
+    assert!(
+        result.is_err(),
+        "a token missing `iss` must be rejected when an issuer is configured"
+    );
 }
 
 mod audience_tests {

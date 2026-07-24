@@ -311,7 +311,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
             info!(
-                issuer = %auth_config.issuer,
+                issuer = ?auth_config.issuer,
                 "Initializing OIDC authentication"
             );
             let validator = OidcValidator::new(auth_config.clone())

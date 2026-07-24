@@ -47,7 +47,7 @@ use tower::ServiceExt;
 /// safe for tests because the 401 is returned before the JWKS endpoint is hit.
 fn required_oidc_state() -> OidcAuthState {
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
+        issuer:               Some("https://test.fraiseql.dev".to_string()),
         audience:             Some("https://api.test.fraiseql.dev".to_string()),
         required:             true, // THE CRITICAL FLAG — the E1 fix enforces this
         additional_audiences: vec![],
@@ -68,7 +68,7 @@ fn required_oidc_state() -> OidcAuthState {
 /// Build an `OidcAuthState` where authentication is *optional* (`required=false`).
 fn optional_oidc_state() -> OidcAuthState {
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
+        issuer:               Some("https://test.fraiseql.dev".to_string()),
         audience:             Some("https://api.test.fraiseql.dev".to_string()),
         required:             false, // optional auth
         additional_audiences: vec![],
