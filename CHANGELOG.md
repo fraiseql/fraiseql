@@ -19,7 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (discovery is impossible without an issuer). Signature (against the pinned JWKS)
   and the mandatory `audience` check still gate every token. See
   [docs/auth/issuer-less-jwt.md](docs/auth/issuer-less-jwt.md). Previously the
-  server refused to start without an `issuer` (`missing field \`issuer\``).
+  server refused to start without an `issuer` (`missing field \`issuer\``). The
+  `fraiseql compile` CLI's `[auth]` schema now mirrors the **full** `OidcConfig`
+  JWT-validation surface (`jwks_uri`, optional `issuer`, `additional_audiences`,
+  `allowed_algorithms`, `jwks_cache_ttl_secs`, `clock_skew_secs`, `required`,
+  `scope_claim`, `require_jti`, `[auth.me]`), so any `[auth]` block the server
+  accepts — including issuer-less — validates under `fraiseql compile`/lint. A
+  drift-guard test keeps the CLI and runtime schemas in lockstep.
 
 ### Changed
 
