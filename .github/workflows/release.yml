@@ -386,7 +386,12 @@ jobs:
           for b in "${{ matrix.binary }}" fraiseql-server; do
             p="target/${{ matrix.target }}/release/$b"
             [ -f "$p" ] || continue
-            max=$(objdump -T "$p" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -1)
+            # `|| true`: a fully-static binary (musl) has NO glibc symbols, so `grep`
+            # matches nothing and exits 1. Under `shell: bash` (which runs with
+            # `-eo pipefail`), that non-zero pipeline status would abort the step
+            # before the `-z "$max"` skip below — false-failing every static binary.
+            # Keep the guard so `max` is simply empty when there is no glibc dep.
+            max=$(objdump -T "$p" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -1 || true)
             if [ -z "$max" ]; then
               echo "✅ $b: no glibc version dependency"
               continue
