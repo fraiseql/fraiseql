@@ -32,7 +32,7 @@
  * @packageDocumentation
  */
 
-export const version = "2.14.0";
+export const version = "2.14.1";
 
 // Export type system
 export { typeToGraphQL, extractFieldInfo, extractFunctionSignature } from "./types";

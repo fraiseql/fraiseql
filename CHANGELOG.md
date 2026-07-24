@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-07-24
+
 ### Added
 
 - Release: a fully-static `x86_64-unknown-linux-musl` lean binary artifact
