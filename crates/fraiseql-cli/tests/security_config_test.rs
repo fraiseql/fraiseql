@@ -309,6 +309,53 @@ fn test_auth_issuerless_jwks_uri_compiles() {
     );
 }
 
+// Drift guard: the CLI `[auth]` union schema must accept EVERY field of the
+// server's `OidcConfig`, so a single config file's `[auth]` block that the server
+// accepts never gets rejected by `fraiseql compile`/lint (`deny_unknown_fields`).
+//
+// A fully-populated `OidcConfig` is serialized and re-parsed as `OidcClientConfig`.
+// If `OidcConfig` gains a field, this literal stops compiling (forcing an update
+// here) and — once the field is set — the round-trip rejects it unless the CLI
+// schema mirrors it. This pins CLI/runtime parity against future drift.
+#[test]
+fn cli_auth_schema_mirrors_every_oidcconfig_field() {
+    use fraiseql_cli::config::toml_schema::OidcClientConfig;
+    use fraiseql_core::security::oidc::{MeEndpointConfig, OidcConfig};
+
+    let runtime = OidcConfig {
+        issuer:               Some("https://issuer.example.com".to_string()),
+        audience:             Some("api".to_string()),
+        additional_audiences: vec!["api-2".to_string()],
+        jwks_cache_ttl_secs:  123,
+        allowed_algorithms:   vec!["RS256".to_string(), "ES256".to_string()],
+        clock_skew_secs:      30,
+        jwks_uri:             Some("https://issuer.example.com/.well-known/jwks.json".to_string()),
+        required:             false,
+        scope_claim:          "scp".to_string(),
+        require_jti:          true,
+        me:                   Some(MeEndpointConfig {
+            enabled:       true,
+            expose_claims: vec!["email".to_string()],
+        }),
+    };
+
+    // Serialize as the server would read it, then parse under the CLI union schema.
+    let auth_value = toml::Value::try_from(&runtime).expect("OidcConfig serializes to TOML");
+    let parsed: OidcClientConfig = auth_value
+        .try_into()
+        .expect("every OidcConfig [auth] field must be accepted by the CLI union schema");
+
+    assert_eq!(parsed.issuer.as_deref(), Some("https://issuer.example.com"));
+    assert_eq!(parsed.audience.as_deref(), Some("api"));
+    assert_eq!(
+        parsed.jwks_uri.as_deref(),
+        Some("https://issuer.example.com/.well-known/jwks.json")
+    );
+    assert_eq!(parsed.jwks_cache_ttl_secs, Some(123));
+    assert!(parsed.me.is_some(), "[auth.me] must round-trip through the CLI schema");
+    parsed.validate().expect("a fully-populated JWT [auth] block validates");
+}
+
 // Pinning jwks_uri alongside an issuer (skip discovery, still validate `iss`).
 #[test]
 fn test_auth_issuer_and_jwks_uri_compiles() {

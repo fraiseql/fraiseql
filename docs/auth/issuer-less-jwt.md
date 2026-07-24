@@ -69,8 +69,10 @@ recognised field and `issuer` is optional when `jwks_uri` is pinned. A unified
 config like the one above therefore passes `fraiseql compile`/lint **and** runs
 on the server.
 
-> Note: advanced `OidcConfig` fields (e.g. `allowed_algorithms`,
-> `additional_audiences`, `jwks_cache_ttl_secs`) are not yet mirrored in the
-> CLI's `[auth]` schema, so a config that sets them will be rejected by
-> `fraiseql compile` even though the server accepts them. Omit them (the RS256
-> default suits Hanko) or configure `[auth]` only in a server-only config file.
+The CLI's `[auth]` schema mirrors the **full** `OidcConfig` JWT-validation
+surface — `issuer`, `audience`, `jwks_uri`, `additional_audiences`,
+`allowed_algorithms`, `jwks_cache_ttl_secs`, `clock_skew_secs`, `required`,
+`scope_claim`, `require_jti`, and `[auth.me]` — so any `[auth]` block the server
+accepts also passes `fraiseql compile`/lint. A drift-guard test
+(`cli_auth_schema_mirrors_every_oidcconfig_field`) fails the build if a future
+`OidcConfig` field is not mirrored, keeping the two in lockstep.

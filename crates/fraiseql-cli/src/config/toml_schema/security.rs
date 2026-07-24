@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use fraiseql_core::security::oidc::MeEndpointConfig;
 use serde::{Deserialize, Serialize};
 
 /// Security configuration
@@ -541,9 +542,12 @@ impl Default for TokenRevocationSecurityConfig {
 ///
 /// Two independent groups may be configured, together or separately:
 ///
-/// - **JWT validation** — `issuer` **or** `jwks_uri`, plus `audience`. The server consumes these to
-///   validate incoming bearer tokens. Accepted and functional. `issuer` may be omitted for identity
-///   providers whose access tokens carry no `iss` claim (e.g. self-hosted Hanko); in that
+/// - **JWT validation** — `issuer` **or** `jwks_uri`, plus `audience` and the rest of
+///   `OidcConfig`'s JWT settings (`additional_audiences`, `allowed_algorithms`,
+///   `jwks_cache_ttl_secs`, `clock_skew_secs`, `required`, `scope_claim`, `require_jti`,
+///   `[auth.me]`). The server consumes these to validate incoming bearer tokens; the CLI accepts
+///   them so the same file parses under both. Accepted and functional. `issuer` may be omitted for
+///   identity providers whose access tokens carry no `iss` claim (e.g. self-hosted Hanko); in that
 ///   **issuer-less** mode `jwks_uri` must be pinned, since discovery cannot locate the JWKS
 ///   endpoint without an issuer.
 /// - **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`, `client_secret_env`,
@@ -574,11 +578,11 @@ impl Default for TokenRevocationSecurityConfig {
 pub struct OidcClientConfig {
     /// OIDC issuer URL for JWT validation (e.g. `"https://accounts.google.com"`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub issuer:              Option<String>,
+    pub issuer:   Option<String>,
     /// Expected `aud` claim for JWT validation. Required at runtime by the
     /// server's `OidcConfig` to prevent token-confusion attacks.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub audience:            Option<String>,
+    pub audience: Option<String>,
     /// Pinned JWKS endpoint for JWT validation (skips OIDC discovery).
     ///
     /// Required for **issuer-less** identity providers — IdPs whose access
@@ -586,7 +590,38 @@ pub struct OidcClientConfig {
     /// unset, discovery cannot locate the JWKS endpoint, so it must be pinned
     /// here. May also be set alongside `issuer` to skip discovery.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub jwks_uri:            Option<String>,
+    pub jwks_uri: Option<String>,
+
+    // JWT-validation fields below mirror the server's `OidcConfig` so a single
+    // config file's `[auth]` block parses under both. They are accepted and
+    // structurally validated here but consumed by the server (which re-reads the
+    // same block); the CLI does not act on their values. `cli_auth_schema_...`
+    // in tests pins that this list stays complete as `OidcConfig` evolves.
+    /// Additional accepted `aud` values (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_audiences: Vec<String>,
+    /// Allowed JWT signing algorithms (union-compat; the server defaults to RS256).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_algorithms:   Vec<String>,
+    /// JWKS cache TTL in seconds (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwks_cache_ttl_secs:  Option<u64>,
+    /// Clock-skew tolerance in seconds (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clock_skew_secs:      Option<u64>,
+    /// Require authentication for all requests (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required:             Option<bool>,
+    /// JWT scope-claim name (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_claim:          Option<String>,
+    /// Require the `jti` claim on every token (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_jti:          Option<bool>,
+    /// `[auth.me]` session-identity endpoint config (union-compat with `OidcConfig`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub me:                   Option<MeEndpointConfig>,
+
     /// PKCE: OIDC provider discovery URL. **Not yet functional (#621).**
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discovery_url:       Option<String>,
