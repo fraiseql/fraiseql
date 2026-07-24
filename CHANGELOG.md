@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release: a fully-static `x86_64-unknown-linux-musl` lean binary artifact
   (`fraiseql-x86_64-unknown-linux-musl.tar.gz`) for Alpine / distroless / scratch
   containers.
+- Auth: OIDC `[auth]` now supports **issuer-less identity providers** — IdPs whose
+  signed access tokens omit the `iss` claim (e.g. self-hosted Hanko 2.x). The
+  `issuer` field is now optional, symmetric with `audience`: when it is unset,
+  `iss` is not validated and the JWKS endpoint must be pinned via `jwks_uri`
+  (discovery is impossible without an issuer). Signature (against the pinned JWKS)
+  and the mandatory `audience` check still gate every token. See
+  [docs/auth/issuer-less-jwt.md](docs/auth/issuer-less-jwt.md). Previously the
+  server refused to start without an `issuer` (`missing field \`issuer\``).
+
+### Changed
+
+- Auth: when an OIDC `issuer` **is** configured, the `iss` claim is now **required
+  and matched** — a token that omits `iss` is rejected. Previously `iss` was only
+  checked when present (jsonwebtoken validates the issuer only if the claim
+  exists), so an `iss`-less token could slip past a configured issuer. A provider
+  that omits `iss` should now leave `issuer` unset and pin `jwks_uri` (see above).
 
 ### Fixed
 

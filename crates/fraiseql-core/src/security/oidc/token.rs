@@ -82,9 +82,18 @@ impl OidcValidator {
         let jwks_uri = if let Some(ref uri) = config.jwks_uri {
             uri.clone()
         } else {
+            // No pinned JWKS URI: locate it via OIDC discovery from the issuer.
+            // `config.validate()` above guarantees `issuer` is set whenever
+            // `jwks_uri` is not, so this error is unreachable in practice —
+            // it keeps the discovery path total without an unwrap.
+            let issuer = config.issuer.as_deref().ok_or_else(|| {
+                SecurityError::SecurityConfigError(
+                    "OIDC discovery requires an issuer when `jwks_uri` is not pinned".to_string(),
+                )
+            })?;
             // Perform OIDC discovery
             let discovery_url =
-                format!("{}/.well-known/openid-configuration", config.issuer.trim_end_matches('/'));
+                format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
 
             tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
 
@@ -222,7 +231,21 @@ impl OidcValidator {
 
         // Build validation
         let mut validation = Validation::new(self.get_algorithm(&header)?);
-        validation.set_issuer(&[&self.config.issuer]);
+
+        // Validate the `iss` claim only when an issuer is configured.
+        //
+        // `set_issuer` alone checks `iss` *only if the claim is present*
+        // (jsonwebtoken's default `required_spec_claims` is just `{exp}`), so we
+        // also require `iss` — a configured issuer then means "iss must be
+        // present AND match", matching operator intent.
+        //
+        // In issuer-less mode both are skipped: tokens that omit `iss` (e.g.
+        // Hanko access tokens) are accepted, gated only by signature (against
+        // the pinned JWKS) and `audience`.
+        if let Some(ref issuer) = self.config.issuer {
+            validation.set_issuer(&[issuer]);
+            validation.set_required_spec_claims(&["exp", "iss"]);
+        }
 
         // Set audience validation — always enabled when any audience is configured.
         // The validate() call earlier guarantees at least one audience is set,
@@ -405,10 +428,13 @@ impl OidcValidator {
         self.config.required
     }
 
-    /// Get the configured issuer.
+    /// Get the configured issuer, if any.
+    ///
+    /// Returns `None` in issuer-less mode (`IdPs` whose tokens omit the `iss`
+    /// claim, validated via a pinned `jwks_uri`).
     #[must_use]
-    pub fn issuer(&self) -> &str {
-        &self.config.issuer
+    pub fn issuer(&self) -> Option<&str> {
+        self.config.issuer.as_deref()
     }
 
     /// Clear the JWKS cache.

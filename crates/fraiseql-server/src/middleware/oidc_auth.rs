@@ -19,6 +19,16 @@ use crate::{
     token_revocation::{TokenRejection, TokenRevocationManager},
 };
 
+/// Build the `WWW-Authenticate: Bearer` challenge value.
+///
+/// The `realm` parameter is included only when an issuer is configured. In
+/// issuer-less mode (`IdPs` whose access tokens omit `iss`, validated via a
+/// pinned `jwks_uri`) the bare `Bearer` challenge is returned, since there is
+/// no issuer to advertise as the realm.
+fn bearer_challenge(issuer: Option<&str>) -> String {
+    issuer.map_or_else(|| "Bearer".to_string(), |issuer| format!("Bearer realm=\"{issuer}\""))
+}
+
 /// State for OIDC authentication middleware.
 #[derive(Clone)]
 pub struct OidcAuthState {
@@ -228,10 +238,7 @@ pub async fn oidc_auth_middleware(
                 tracing::debug!("Authentication required but no token found (header or cookie)");
                 return (
                     StatusCode::UNAUTHORIZED,
-                    [(
-                        header::WWW_AUTHENTICATE,
-                        format!("Bearer realm=\"{}\"", auth_state.validator.issuer()),
-                    )],
+                    [(header::WWW_AUTHENTICATE, bearer_challenge(auth_state.validator.issuer()))],
                     "Authentication required",
                 )
                     .into_response();
@@ -343,10 +350,7 @@ async fn authenticate_required(
             tracing::debug!("Admin/required auth: no token (header or cookie)");
             return Err((
                 StatusCode::UNAUTHORIZED,
-                [(
-                    header::WWW_AUTHENTICATE,
-                    format!("Bearer realm=\"{}\"", auth_state.validator.issuer()),
-                )],
+                [(header::WWW_AUTHENTICATE, bearer_challenge(auth_state.validator.issuer()))],
                 "Authentication required",
             )
                 .into_response());
@@ -458,7 +462,7 @@ mod revocation_tests {
 
     fn validator() -> Arc<OidcValidator> {
         let config = OidcConfig {
-            issuer:               "https://test.fraiseql.dev".to_string(),
+            issuer:               Some("https://test.fraiseql.dev".to_string()),
             audience:             Some("https://api.test.fraiseql.dev".to_string()),
             required:             true,
             additional_audiences: vec![],

@@ -203,7 +203,7 @@ async fn test_auth_me_reads_host_cookie() {
 
     // Required auth — will reject invalid tokens with 401
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
+        issuer:               Some("https://test.fraiseql.dev".to_string()),
         audience:             Some("https://api.test.fraiseql.dev".to_string()),
         required:             true,
         additional_audiences: vec![],

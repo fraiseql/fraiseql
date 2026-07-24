@@ -32,7 +32,7 @@ use tower::ServiceExt;
 /// plane) — the configuration under which H5 manifested.
 fn optional_oidc_state() -> OidcAuthState {
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
+        issuer:               Some("https://test.fraiseql.dev".to_string()),
         audience:             Some("https://api.test.fraiseql.dev".to_string()),
         required:             false,
         additional_audiences: vec![],

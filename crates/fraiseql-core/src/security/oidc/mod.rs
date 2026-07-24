@@ -35,7 +35,7 @@
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = OidcConfig {
-//!     issuer: "https://your-tenant.auth0.com/".to_string(),
+//!     issuer: Some("https://your-tenant.auth0.com/".to_string()),
 //!     audience: Some("your-api-identifier".to_string()),
 //!     ..Default::default()
 //! };

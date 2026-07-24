@@ -49,11 +49,21 @@ pub struct MeEndpointConfig {
 /// token confusion attacks. See the `audience` field documentation for details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcConfig {
-    /// Issuer URL (e.g., `https://your-tenant.auth0.com/`)
+    /// Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.
     ///
-    /// Must match the `iss` claim in tokens exactly.
-    /// Should include trailing slash if provider expects it.
-    pub issuer: String,
+    /// When set, it serves two purposes: OIDC discovery (building the
+    /// `.well-known/openid-configuration` URL when `jwks_uri` is not pinned) and
+    /// `iss`-claim validation — tokens must then carry a matching `iss`. Include
+    /// a trailing slash if the provider expects one.
+    ///
+    /// When unset (`None`), `iss` is **not** validated and no discovery is
+    /// performed, so `jwks_uri` must be pinned explicitly. This supports `IdPs`
+    /// whose access tokens omit the `iss` claim (e.g. self-hosted Hanko).
+    /// Signature verification (against the pinned JWKS) and `audience`
+    /// validation still apply, which is sufficient for a single-`IdP`,
+    /// direct-`jwks_uri` deployment.
+    #[serde(default)]
+    pub issuer: Option<String>,
 
     /// Expected audience claim (REQUIRED for security).
     ///
@@ -178,7 +188,7 @@ pub(super) fn default_scope_claim() -> String {
 impl Default for OidcConfig {
     fn default() -> Self {
         Self {
-            issuer:               String::new(),
+            issuer:               None,
             audience:             None,
             additional_audiences: Vec::new(),
             jwks_cache_ttl_secs:  default_jwks_cache_ttl(),
@@ -203,7 +213,7 @@ impl OidcConfig {
     #[must_use]
     pub fn auth0(domain: &str, audience: &str) -> Self {
         Self {
-            issuer: format!("https://{domain}/"),
+            issuer: Some(format!("https://{domain}/")),
             audience: Some(audience.to_string()),
             ..Default::default()
         }
@@ -219,7 +229,7 @@ impl OidcConfig {
     #[must_use]
     pub fn keycloak(base_url: &str, realm: &str, client_id: &str) -> Self {
         Self {
-            issuer: format!("{base_url}/realms/{realm}"),
+            issuer: Some(format!("{base_url}/realms/{realm}")),
             audience: Some(client_id.to_string()),
             ..Default::default()
         }
@@ -234,7 +244,7 @@ impl OidcConfig {
     #[must_use]
     pub fn okta(domain: &str, audience: &str) -> Self {
         Self {
-            issuer: format!("https://{domain}"),
+            issuer: Some(format!("https://{domain}")),
             audience: Some(audience.to_string()),
             ..Default::default()
         }
@@ -250,7 +260,7 @@ impl OidcConfig {
     #[must_use]
     pub fn cognito(region: &str, user_pool_id: &str, client_id: &str) -> Self {
         Self {
-            issuer: format!("https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"),
+            issuer: Some(format!("https://cognito-idp.{region}.amazonaws.com/{user_pool_id}")),
             audience: Some(client_id.to_string()),
             ..Default::default()
         }
@@ -265,7 +275,7 @@ impl OidcConfig {
     #[must_use]
     pub fn azure_ad(tenant_id: &str, client_id: &str) -> Self {
         Self {
-            issuer: format!("https://login.microsoftonline.com/{tenant_id}/v2.0"),
+            issuer: Some(format!("https://login.microsoftonline.com/{tenant_id}/v2.0")),
             audience: Some(client_id.to_string()),
             ..Default::default()
         }
@@ -279,7 +289,7 @@ impl OidcConfig {
     #[must_use]
     pub fn google(client_id: &str) -> Self {
         Self {
-            issuer: "https://accounts.google.com".to_string(),
+            issuer: Some("https://accounts.google.com".to_string()),
             audience: Some(client_id.to_string()),
             ..Default::default()
         }
@@ -290,25 +300,38 @@ impl OidcConfig {
     /// # Errors
     ///
     /// Returns `SecurityError::SecurityConfigError` if:
-    /// - Issuer is empty
-    /// - Issuer does not use HTTPS (except localhost/127.0.0.1)
+    /// - `issuer` is set but does not use HTTPS (except localhost/127.0.0.1)
+    /// - `issuer` is unset and `jwks_uri` is not pinned (discovery is impossible without an issuer)
     /// - Neither `audience` nor `additional_audiences` are configured
     /// - No algorithms are allowed
     pub fn validate(&self) -> Result<()> {
-        if self.issuer.is_empty() {
-            return Err(SecurityError::SecurityConfigError(
-                "OIDC issuer URL is required".to_string(),
-            ));
-        }
-
-        if !self.issuer.starts_with("https://")
-            && !self.issuer.starts_with("http://localhost")
-            && !self.issuer.starts_with("http://127.0.0.1")
-        {
-            return Err(SecurityError::SecurityConfigError(
-                "OIDC issuer must use HTTPS (except localhost/127.0.0.1 for development)"
-                    .to_string(),
-            ));
+        match &self.issuer {
+            Some(issuer) => {
+                if !issuer.starts_with("https://")
+                    && !issuer.starts_with("http://localhost")
+                    && !issuer.starts_with("http://127.0.0.1")
+                {
+                    return Err(SecurityError::SecurityConfigError(
+                        "OIDC issuer must use HTTPS (except localhost/127.0.0.1 for development)"
+                            .to_string(),
+                    ));
+                }
+            },
+            None => {
+                // Issuer-less mode: `iss` is not validated and OIDC discovery is
+                // impossible (the discovery URL is built from the issuer), so the
+                // JWKS endpoint must be pinned. Signature + audience validation
+                // still apply — sufficient for a single-IdP deployment whose
+                // tokens omit `iss` (e.g. Hanko).
+                if self.jwks_uri.is_none() {
+                    return Err(SecurityError::SecurityConfigError(
+                        "OIDC issuer is unset, so `jwks_uri` must be pinned: without an issuer, \
+                         discovery cannot locate the JWKS endpoint. Set `issuer` to your IdP's \
+                         issuer URL, or set `jwks_uri` to its JWKS endpoint directly."
+                            .to_string(),
+                    ));
+                }
+            },
         }
 
         // CRITICAL SECURITY FIX: Audience validation is now mandatory
