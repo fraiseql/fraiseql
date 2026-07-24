@@ -58,10 +58,19 @@ issuer there is no way to *discover* the JWKS endpoint, so it must be provided
 explicitly. Starting the server with neither `issuer` nor `jwks_uri` is a
 configuration error.
 
-## Not available on the compiled-schema path (yet)
+## The CLI accepts the same block
 
-This applies to the server reading `[auth]` from `server.toml` directly (the
-`OidcConfig` path). The `fraiseql compile` CLI's `[auth]` schema does not yet
-carry a `jwks_uri` field, so issuer-less mode cannot be expressed through the
-compiled-schema workflow. Use a direct `server.toml` `[auth]` block for
-issuer-less providers.
+Runtime JWT validation is configured entirely by the server reading `[auth]`
+from its own config file into `OidcConfig` — auth is **not** carried in
+`schema.compiled.json`. When you keep one config file for both `fraiseql compile`
+and the server, the CLI's `[auth]` schema (`OidcClientConfig`) validates the
+*same* block structurally, so it accepts issuer-less mode too: `jwks_uri` is a
+recognised field and `issuer` is optional when `jwks_uri` is pinned. A unified
+config like the one above therefore passes `fraiseql compile`/lint **and** runs
+on the server.
+
+> Note: advanced `OidcConfig` fields (e.g. `allowed_algorithms`,
+> `additional_audiences`, `jwks_cache_ttl_secs`) are not yet mirrored in the
+> CLI's `[auth]` schema, so a config that sets them will be rejected by
+> `fraiseql compile` even though the server accepts them. Omit them (the RS256
+> default suits Hanko) or configure `[auth]` only in a server-only config file.

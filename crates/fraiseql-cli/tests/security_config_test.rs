@@ -280,6 +280,53 @@ fn test_auth_issuer_without_audience_compiles() {
     schema.validate().expect("issuer alone is a valid JWT [auth] block");
 }
 
+// Issuer-less mode: an IdP whose access tokens omit `iss` (e.g. Hanko) pins the
+// JWKS endpoint and omits `issuer`. The union schema must accept it — the server's
+// OidcConfig reads the same [auth] block and validates the same issuer-less shape,
+// so `deny_unknown_fields` must not reject `jwks_uri`, nor must validate() require
+// an issuer.
+#[test]
+fn test_auth_issuerless_jwks_uri_compiles() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+        jwks_uri = "https://hanko.example.com/.well-known/jwks.json"
+        audience = "my-relying-party-id"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    schema
+        .validate()
+        .expect("an issuer-less [auth] block pinning jwks_uri must compile");
+    let auth = schema.auth.expect("auth section should be present");
+    assert!(auth.issuer.is_none(), "issuer is intentionally unset in issuer-less mode");
+    assert_eq!(
+        auth.jwks_uri.as_deref(),
+        Some("https://hanko.example.com/.well-known/jwks.json")
+    );
+}
+
+// Pinning jwks_uri alongside an issuer (skip discovery, still validate `iss`).
+#[test]
+fn test_auth_issuer_and_jwks_uri_compiles() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [auth]
+        issuer   = "https://accounts.example.com"
+        jwks_uri = "https://accounts.example.com/.well-known/jwks.json"
+        audience = "my-api"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    schema.validate().expect("issuer + jwks_uri is a valid JWT [auth] block");
+}
+
 // a complete PKCE client group is rejected loud (recognized, not yet functional).
 #[test]
 fn test_auth_complete_client_group_rejected_loud() {
@@ -340,7 +387,9 @@ fn test_auth_empty_block_rejected() {
 }
 
 #[test]
-fn test_auth_audience_without_issuer_rejected() {
+fn test_auth_audience_without_jwt_group_rejected() {
+    // `audience` alone is not a JWT-validation group: it needs either an issuer
+    // (for discovery / `iss` validation) or a pinned jwks_uri (issuer-less mode).
     let toml = r#"
         [schema]
         name = "test"
@@ -351,8 +400,10 @@ fn test_auth_audience_without_issuer_rejected() {
         audience = "my-api"
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
-    let err = schema.validate().expect_err("audience without issuer must be rejected");
-    assert!(err.to_string().contains("issuer"), "explains issuer is required: {err}");
+    let err = schema.validate().expect_err("audience without a JWT group must be rejected");
+    let msg = err.to_string();
+    assert!(msg.contains("issuer"), "names issuer as an option: {msg}");
+    assert!(msg.contains("jwks_uri"), "names jwks_uri as the issuer-less option: {msg}");
 }
 
 #[test]

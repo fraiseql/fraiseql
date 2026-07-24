@@ -530,10 +530,22 @@ impl Default for TokenRevocationSecurityConfig {
 
 /// OIDC configuration for `[auth]`.
 ///
+/// This is the CLI's **compile-time view** of the `[auth]` block. The server
+/// reads the same `[auth]` block independently into its own
+/// [`OidcConfig`](fraiseql_core::security::OidcConfig) at runtime, so this
+/// schema exists to *accept and structurally validate* the same block the
+/// server consumes — not to lower it into the compiled schema (the compiled
+/// schema carries no auth). Every JWT-validation field here must therefore stay
+/// field-compatible with `OidcConfig`, or `deny_unknown_fields` would reject a
+/// config the server accepts.
+///
 /// Two independent groups may be configured, together or separately:
 ///
-/// - **JWT validation** — `issuer` (required for this group), `audience` (optional). The server
-///   consumes these to validate incoming bearer tokens. Accepted and functional.
+/// - **JWT validation** — `issuer` **or** `jwks_uri`, plus `audience`. The server consumes these to
+///   validate incoming bearer tokens. Accepted and functional. `issuer` may be omitted for identity
+///   providers whose access tokens carry no `iss` claim (e.g. self-hosted Hanko); in that
+///   **issuer-less** mode `jwks_uri` must be pinned, since discovery cannot locate the JWKS
+///   endpoint without an issuer.
 /// - **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`, `client_secret_env`,
 ///   `server_redirect_uri`, configured all four together. **Not yet functional on the compiled path
 ///   (tracked in #621):** the compiled schema carries no `auth`/`auth_endpoints` for the server to
@@ -549,15 +561,32 @@ impl Default for TokenRevocationSecurityConfig {
 /// issuer   = "https://accounts.google.com"
 /// audience = "my-api"
 /// ```
+///
+/// Issuer-less (e.g. Hanko), pinning the JWKS endpoint:
+///
+/// ```toml
+/// [auth]
+/// jwks_uri = "https://hanko.example.com/.well-known/jwks.json"
+/// audience = "my-relying-party-id"
+/// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct OidcClientConfig {
     /// OIDC issuer URL for JWT validation (e.g. `"https://accounts.google.com"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub issuer:              Option<String>,
-    /// Expected `aud` claim for JWT validation (optional; only meaningful with `issuer`).
+    /// Expected `aud` claim for JWT validation. Required at runtime by the
+    /// server's `OidcConfig` to prevent token-confusion attacks.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audience:            Option<String>,
+    /// Pinned JWKS endpoint for JWT validation (skips OIDC discovery).
+    ///
+    /// Required for **issuer-less** identity providers — IdPs whose access
+    /// tokens omit the `iss` claim (e.g. self-hosted Hanko). With `issuer`
+    /// unset, discovery cannot locate the JWKS endpoint, so it must be pinned
+    /// here. May also be set alongside `issuer` to skip discovery.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jwks_uri:            Option<String>,
     /// PKCE: OIDC provider discovery URL. **Not yet functional (#621).**
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discovery_url:       Option<String>,
@@ -578,16 +607,17 @@ pub struct OidcClientConfig {
 impl OidcClientConfig {
     /// Validate the `[auth]` group structure (#612 item 9).
     ///
-    /// The JWT group (`issuer` + optional `audience`) is accepted and functional. The
-    /// PKCE client group is all-four-or-none, and a *complete* client group is rejected
-    /// — it is not yet functional on the compiled path (#621), so it is refused rather
-    /// than silently accepted. At least one group must be present.
+    /// The JWT group (`issuer` or a pinned `jwks_uri`, plus optional `audience`) is
+    /// accepted and functional. The PKCE client group is all-four-or-none, and a
+    /// *complete* client group is rejected — it is not yet functional on the compiled
+    /// path (#621), so it is refused rather than silently accepted. At least one group
+    /// must be present.
     ///
     /// # Errors
     ///
     /// Returns an error naming the specific problem: an incomplete client group (with the
-    /// missing fields), a complete-but-unsupported client group, `audience` without
-    /// `issuer`, or an empty `[auth]` block.
+    /// missing fields), a complete-but-unsupported client group, `audience` without a JWT
+    /// group (neither `issuer` nor `jwks_uri`), or an empty `[auth]` block.
     pub fn validate(&self) -> anyhow::Result<()> {
         let client_fields = [
             ("discovery_url", self.discovery_url.is_some()),
@@ -597,7 +627,10 @@ impl OidcClientConfig {
         ];
         let client_set = client_fields.iter().filter(|(_, set)| *set).count();
         let has_client_group = client_set > 0;
-        let has_jwt_group = self.issuer.is_some();
+        // A JWT-validation group exists if either `issuer` (used for discovery
+        // and `iss` validation) or a pinned `jwks_uri` (issuer-less mode, for
+        // IdPs that omit `iss`) is set. Mirrors the server's `OidcConfig`.
+        let has_jwt_group = self.issuer.is_some() || self.jwks_uri.is_some();
 
         if has_client_group && client_set < client_fields.len() {
             let missing: Vec<&str> =
@@ -622,15 +655,17 @@ impl OidcClientConfig {
 
         if self.audience.is_some() && !has_jwt_group {
             anyhow::bail!(
-                "[auth] audience is set but issuer is not. JWT validation requires issuer — \
-                 add issuer, or remove audience."
+                "[auth] audience is set but neither issuer nor jwks_uri is configured. JWT \
+                 validation needs an issuer (used for discovery and `iss` validation) or a pinned \
+                 jwks_uri (for IdPs whose tokens omit `iss`, e.g. Hanko) — add one, or remove \
+                 audience."
             );
         }
 
         if !has_jwt_group {
             anyhow::bail!(
-                "[auth] is empty. Configure JWT validation with issuer (audience optional). \
-                 An empty [auth] block does nothing."
+                "[auth] is empty. Configure JWT validation with issuer, or with jwks_uri for IdPs \
+                 whose tokens omit `iss` (e.g. Hanko). An empty [auth] block does nothing."
             );
         }
 
