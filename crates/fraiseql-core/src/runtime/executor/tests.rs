@@ -1445,6 +1445,82 @@ mod field_rbac {
         }
     }
 
+    /// #743: an anonymous caller must not out-rank an authenticated-but-unscoped one.
+    /// `salary` carries `requires_scope` + `on_deny = Reject`; the viewer is rejected
+    /// (C16), so a request with no security context at all must be too.
+    ///
+    /// The backing rows deliberately *contain* `salary`: before the fix this query
+    /// returned `200 OK` with the salary projected into the response, so the fixture
+    /// has to carry the secret for the test to witness the leak rather than merely
+    /// the absence of an error.
+    #[tokio::test]
+    async fn test_reject_field_denied_for_anonymous_request() {
+        let schema = schema_with_rbac_fields();
+        let results = vec![
+            JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice", "salary": 120_000})),
+            JsonbValue::new(serde_json::json!({"id": "2", "name": "Bob", "salary": 95_000})),
+        ];
+        let adapter = Arc::new(MockAdapter::new(results));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let result = executor.execute("{ users { id salary } }", None).await;
+
+        assert!(
+            result.is_err(),
+            "a scope-protected field must not be served to an unauthenticated caller, got: {:?}",
+            result.ok()
+        );
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("salary") || err_msg.to_lowercase().contains("authoriz"),
+            "error should name the field or the authorization failure, got: {err_msg}"
+        );
+    }
+
+    /// #743: the `on_deny = Mask` half — an anonymous caller gets null, not the value.
+    #[tokio::test]
+    async fn test_mask_field_returns_null_for_anonymous_request() {
+        let schema = schema_with_rbac_fields();
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "Alice", "email": "alice@example.com"}),
+        )];
+        let adapter = Arc::new(MockAdapter::new(results));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let result = executor.execute("{ users { id email } }", None).await.unwrap();
+
+        let users = &result["data"]["users"];
+        assert!(users.is_array(), "expected users array in response: {result}");
+        for user in users.as_array().unwrap() {
+            assert!(
+                user["email"].is_null(),
+                "masked field 'email' must be null for an anonymous caller, got: {}",
+                user["email"]
+            );
+            assert!(!user["id"].is_null(), "unmasked field 'id' should still have a real value");
+        }
+    }
+
+    /// #743 must not over-reach: fields with no `requires_scope` stay readable
+    /// anonymously.
+    #[tokio::test]
+    async fn test_public_fields_still_served_to_anonymous_request() {
+        let schema = schema_with_rbac_fields();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let config = RuntimeConfig::default();
+        let executor = Executor::with_config(schema, adapter, config);
+
+        let result = executor.execute("{ users { id name } }", None).await;
+
+        assert!(
+            result.is_ok(),
+            "unprotected fields must remain publicly readable: {:?}",
+            result.err()
+        );
+    }
+
     /// C16+C17: Public fields always accessible
     #[tokio::test]
     async fn test_public_fields_always_accessible() {

@@ -596,6 +596,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // 2. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
 
+        // 2a. #743: static field-level RBAC. An anonymous caller has no roles, so any
+        //     selected field carrying `requires_scope` is denied per its own on_deny
+        //     policy — exactly what an authenticated-but-unscoped principal gets from
+        //     apply_field_rbac_filtering. Classifying here (not after the read) means a
+        //     Reject never reaches the database.
+        let access = super::super::support::security::apply_anonymous_field_rbac_filtering(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            &plan.projection_fields,
+        )?;
+
         // 3. Execute SQL query
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
             crate::error::FraiseQLError::Validation {
@@ -713,8 +724,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             })
             .await?;
 
-        // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields)
+        // 4. Project results — masked fields stay in the projection so the response still carries
+        //    the key, then get nulled below (same as the authenticated path).
+        let mut all_projection_fields = access.allowed;
+        all_projection_fields.extend(access.masked.iter().cloned());
+        let projector = ResultProjector::new(all_projection_fields)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -728,6 +742,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
             &self.ctx.schema,
         );
+
+        // 4a. #743: null out fields denied to the anonymous caller under on_deny=Mask.
+        if !access.masked.is_empty() {
+            null_masked_fields(&mut projected, &access.masked);
+        }
 
         // 5. Wrap in GraphQL data envelope
         let response =
