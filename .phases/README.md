@@ -37,6 +37,13 @@ Completed campaigns moved to [_archive/](_archive/).
 
 (Superseded sprint: [2026-05-20-sprint/](2026-05-20-sprint/).)
 
+## Audit handoffs
+
+- [2026-07-25-audit-pass3/](2026-07-25-audit-pass3/) — framework-wide bug-hunting audit.
+  Pass 1 → issues #715–#738, pass 2 → #739–#788. **Pass 3 not started**: the next-agent
+  prompt, the reusable review-workflow script, and the dedup issue-map are checked in there
+  (force-added past the gitignore) so another terminal can carry it on.
+
 ## Convention
 
 - `.phases/<date>-sprint/` — active sprint dirs (one per planning cycle)
