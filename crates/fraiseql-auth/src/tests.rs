@@ -1095,10 +1095,23 @@ mod session_tests {
     }
 }
 
+/// Shape-level coverage of the raw `jwt::generate_*_token` helpers.
+///
+/// These were previously named `session_postgres_tests` /
+/// `test_generate_access_token_*`, which implied they covered
+/// [`crate::session_postgres::PostgresSessionStore::generate_access_token`]. They
+/// never called it — they call the JWT helpers directly with a caller-supplied
+/// key, and assert only that the output has three dot-separated parts and that
+/// two mints differ. Both assertions held throughout #753, when the store signed
+/// every token with a freshly generated key it then dropped, so the misleading
+/// names were a live source of false assurance.
+///
+/// Store-level behaviour (no key configured → refuse; configured key → verifiable
+/// signature) is covered in `session_postgres/tests.rs`.
 #[cfg(test)]
-mod session_postgres_tests {
+mod jwt_token_shape_tests {
     #[test]
-    fn test_generate_access_token_creates_valid_jwt() {
+    fn hs256_helper_emits_distinct_three_part_tokens() {
         let test_pool = std::sync::Arc::new(std::sync::Mutex::new(()));
         let _ = test_pool;
 
@@ -1138,7 +1151,7 @@ mod session_postgres_tests {
     }
 
     #[test]
-    fn test_generate_access_token_with_rs256_key() {
+    fn rs256_helper_emits_a_three_part_token() {
         let test_key = include_bytes!("../test_data/test_rsa_key.pem");
 
         let now = std::time::SystemTime::now()
