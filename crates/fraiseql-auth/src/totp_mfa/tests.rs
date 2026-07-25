@@ -151,6 +151,93 @@ async fn test_challenge_verify_invalid_code_fails() {
 }
 
 #[tokio::test]
+async fn test_challenge_is_consumed_after_repeated_wrong_codes() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+    let challenge_token = store.create_challenge(&user_id).await.unwrap();
+
+    for i in 0..MAX_CHALLENGE_ATTEMPTS {
+        let result = store.verify_challenge(&challenge_token, "000000").await;
+        assert!(result.is_err(), "wrong code #{i} should fail");
+    }
+
+    // The challenge must now be gone — a *correct* code on the same token must
+    // no longer mint a session.
+    let enrollment = store.enrollments.get(&user_id).unwrap();
+    let totp = build_totp(&enrollment.secret_base32, None, "").unwrap();
+    let code = totp.generate_current().unwrap();
+    drop(enrollment);
+
+    let result = store.verify_challenge(&challenge_token, &code).await;
+    assert!(
+        result.is_err(),
+        "challenge must be consumed after {MAX_CHALLENGE_ATTEMPTS} wrong codes, got: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_user_is_locked_out_after_repeated_failures_across_challenges() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+
+    // Burn the per-user budget, re-minting a fresh challenge each time so the
+    // per-challenge cap alone cannot save us.
+    for _ in 0..MAX_USER_FAILURES {
+        let token = store.create_challenge(&user_id).await.unwrap();
+        let _ = store.verify_challenge(&token, "000000").await;
+    }
+
+    // Minting further challenges must now be refused outright.
+    let result = store.create_challenge(&user_id).await;
+    assert!(
+        matches!(result, Err(AuthError::RateLimited { .. })),
+        "user should be locked out after {MAX_USER_FAILURES} failures, got: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_successful_verify_clears_the_failure_budget() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+
+    for _ in 0..MAX_USER_FAILURES - 1 {
+        let token = store.create_challenge(&user_id).await.unwrap();
+        let _ = store.verify_challenge(&token, "000000").await;
+    }
+
+    let token = store.create_challenge(&user_id).await.unwrap();
+    let enrollment = store.enrollments.get(&user_id).unwrap();
+    let totp = build_totp(&enrollment.secret_base32, None, "").unwrap();
+    let code = totp.generate_current().unwrap();
+    drop(enrollment);
+    store.verify_challenge(&token, &code).await.unwrap();
+
+    // A legitimate user who fat-fingered their way to the edge of the budget and
+    // then succeeded must not be locked out afterwards.
+    for _ in 0..MAX_USER_FAILURES - 1 {
+        let token = store.create_challenge(&user_id).await.unwrap();
+        let _ = store.verify_challenge(&token, "000000").await;
+    }
+    assert!(
+        store.create_challenge(&user_id).await.is_ok(),
+        "budget should have reset on success"
+    );
+}
+
+#[tokio::test]
+async fn test_unenroll_is_rate_limited() {
+    let (store, user_id, _) = setup_enrolled_user().await;
+
+    for _ in 0..MAX_USER_FAILURES {
+        let _ = store.unenroll(&user_id, "000000").await;
+    }
+
+    let result = store.unenroll(&user_id, "000000").await;
+    assert!(
+        matches!(result, Err(AuthError::RateLimited { .. })),
+        "unenroll must share the per-user failure budget, got: {result:?}"
+    );
+    assert!(store.is_enrolled(&user_id).await, "user should still be enrolled");
+}
+
+#[tokio::test]
 async fn test_unenroll_with_valid_totp() {
     let (store, user_id, _) = setup_enrolled_user().await;
 
