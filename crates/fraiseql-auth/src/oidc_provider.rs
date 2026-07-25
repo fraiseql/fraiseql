@@ -100,6 +100,18 @@ struct UserInfoRaw {
     extra:          serde_json::Map<String, serde_json::Value>,
 }
 
+/// Maximum redirect hops followed on an OIDC HTTP fetch.
+const OIDC_MAX_REDIRECTS: usize = 5;
+
+/// Whether `FRAISEQL_OIDC_ALLOW_INSECURE` disables the SSRF guards.
+///
+/// Intended for local development and integration testing only — never set in
+/// production. Read in one place so the URL check and the redirect policy agree.
+fn oidc_ssrf_guards_disabled() -> bool {
+    std::env::var("FRAISEQL_OIDC_ALLOW_INSECURE")
+        .is_ok_and(|v| v.eq_ignore_ascii_case("true") || v == "1")
+}
+
 /// Validate an OIDC issuer URL against SSRF-prone destinations.
 ///
 /// Rejects:
@@ -107,20 +119,21 @@ struct UserInfoRaw {
 /// - Loopback addresses (`127.0.0.0/8`, `::1`, `localhost`)
 /// - RFC 1918 private ranges (`10/8`, `172.16/12`, `192.168/16`)
 /// - Link-local addresses (`169.254/16`) — includes AWS IMDSv1/v2
-/// - IPv6 ULA (`fc00::/7`)
+/// - CGNAT (`100.64.0.0/10`) and the unspecified block (`0.0.0.0/8`)
+/// - IPv6 ULA (`fc00::/7`), IPv6 link-local (`fe80::/10`), and `::`
+/// - IPv4-mapped IPv6 (`::ffff:0:0/96`), which the OS routes as the embedded IPv4 address, so the
+///   bracketed mapped spelling of `169.254.169.254` reaches the metadata service exactly as the
+///   bare form does
+///
+/// The address classification is [`crate::jwks::is_ssrf_blocked_ip`], shared with the
+/// JWKS fetch gate so the two cannot drift.
 ///
 /// # Errors
 ///
 /// Returns [`AuthError::OidcMetadataError`] if the URL is invalid, uses a non-HTTPS
 /// scheme, or targets a private/loopback address.
 pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
-    // When `FRAISEQL_OIDC_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // This is intended for local development and integration testing only —
-    // never set in production.
-    let allow_insecure = std::env::var("FRAISEQL_OIDC_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
+    if oidc_ssrf_guards_disabled() {
         return Ok(());
     }
 
@@ -139,16 +152,7 @@ pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
         message: format!("OIDC issuer URL is not a valid URL ({issuer_url}): {e}"),
     })?;
 
-    let host_raw = parsed.host_str().unwrap_or("");
-    // The `url` crate wraps IPv6 literals in brackets in `host_str()`.
-    // Strip them so the IP address can be parsed by `IpAddr::from_str`.
-    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-        &host_raw[1..host_raw.len() - 1]
-    } else {
-        host_raw
-    };
-
-    if is_ssrf_blocked_oidc_host(host) {
+    if is_ssrf_blocked_oidc_url(&parsed) {
         return Err(AuthError::OidcMetadataError {
             message: format!(
                 "OIDC issuer URL targets a private/loopback address (SSRF protection): \
@@ -160,24 +164,54 @@ pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
     Ok(())
 }
 
-fn is_ssrf_blocked_oidc_host(host: &str) -> bool {
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" {
-        return true;
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
-        return addr.is_loopback() || addr.is_private() || addr.is_link_local();
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
-        // Block loopback, unspecified, and ULA (fc00::/7)
-        return addr.is_loopback() || addr.is_unspecified() || is_ula_v6_oidc(addr);
-    }
-    false
+/// Returns `true` if `url`'s host is one that OIDC fetches must not contact.
+fn is_ssrf_blocked_oidc_url(url: &reqwest::Url) -> bool {
+    let host_raw = url.host_str().unwrap_or("");
+    // The `url` crate wraps IPv6 literals in brackets in `host_str()`.
+    // Strip them so the IP address can be parsed by `IpAddr::from_str`.
+    let host = host_raw.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host_raw);
+    is_ssrf_blocked_oidc_host(host)
 }
 
-const fn is_ula_v6_oidc(addr: std::net::Ipv6Addr) -> bool {
-    // fc00::/7
-    (addr.segments()[0] & 0xFE00) == 0xFC00
+/// Returns `true` for hosts an OIDC issuer URL must not target.
+///
+/// Address classification is delegated to [`crate::jwks::is_ssrf_blocked_ip`] so this
+/// gate and the JWKS gate cannot drift (#776). The local predicate this replaced
+/// parsed the host as a plain `Ipv4Addr` *or* a plain `Ipv6Addr` and missed
+/// IPv4-mapped IPv6, IPv6 link-local, `0.0.0.0/8` and CGNAT — so
+/// `https://[::ffff:169.254.169.254]` passed the check and reqwest then connected to
+/// the cloud metadata service this function's own docs claim to block.
+pub(crate) fn is_ssrf_blocked_oidc_host(host: &str) -> bool {
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    host.parse::<std::net::IpAddr>()
+        .is_ok_and(|ip| crate::jwks::is_ssrf_blocked_ip(&ip))
+}
+
+/// Redirect policy that re-applies the SSRF host check to every hop.
+///
+/// A validated issuer could otherwise `3xx` the discovery/token/userinfo fetch onward
+/// to an internal target, which bypasses the check performed on the original URL
+/// (#776). Redirects are still followed — some IdPs use them — but each hop must
+/// clear the same gate, and the chain is bounded.
+fn ssrf_checked_redirect_policy(allow_insecure: bool) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if allow_insecure {
+            return attempt.follow();
+        }
+        if attempt.previous().len() >= OIDC_MAX_REDIRECTS {
+            return attempt.error("too many redirects while fetching OIDC endpoint");
+        }
+        let url = attempt.url();
+        if url.scheme() != "https" {
+            return attempt.error("OIDC redirect to a non-https URL (SSRF protection)");
+        }
+        if is_ssrf_blocked_oidc_url(url) {
+            return attempt.error("OIDC redirect to a private/loopback address (SSRF protection)");
+        }
+        attempt.follow()
+    })
 }
 
 impl OidcProvider {
@@ -204,11 +238,14 @@ impl OidcProvider {
         // Requires https:// scheme and rejects private/loopback destinations.
         validate_oidc_issuer_url(issuer_url)?;
 
-        let client =
-            reqwest::Client::builder().timeout(OIDC_REQUEST_TIMEOUT).build().map_err(|e| {
-                AuthError::OidcMetadataError {
-                    message: format!("Failed to create HTTP client: {}", e),
-                }
+        // SECURITY (#776): re-check every redirect hop. Validating only the issuer URL
+        // let a 3xx bounce the discovery/token/userinfo fetch to an internal target.
+        let client = reqwest::Client::builder()
+            .timeout(OIDC_REQUEST_TIMEOUT)
+            .redirect(ssrf_checked_redirect_policy(oidc_ssrf_guards_disabled()))
+            .build()
+            .map_err(|e| AuthError::OidcMetadataError {
+                message: format!("Failed to create HTTP client: {}", e),
             })?;
 
         // Fetch OIDC discovery document
