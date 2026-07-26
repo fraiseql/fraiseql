@@ -831,6 +831,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// Tier-C migrated (each helper creates + TRUNCATE/DROP its tables for shared-DB isolation).
 		"cargo test -p fraiseql-server --test usage_postgres_backend_test -- --test-threads=1",
 		"cargo test -p fraiseql-server --features observers --test observer_repository_test -- --test-threads=1",
+		// #751: the inbound webhook replay defence is only provable against a real
+		// idempotency claim — the defect it guards lived precisely where no
+		// real-system test reached.
+		"cargo test -p fraiseql-server --features inbound --test webhook_replay_header_dedup_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",
