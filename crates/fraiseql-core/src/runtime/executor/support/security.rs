@@ -7,7 +7,7 @@
 use crate::{
     error::{FraiseQLError, Result},
     runtime::{classify_field_access, field_filter::FieldAccessResult},
-    schema::{CompiledSchema, SessionVariableSource, SessionVariablesConfig},
+    schema::{CompiledSchema, FieldDenyPolicy, SessionVariableSource, SessionVariablesConfig},
     security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
 };
 
@@ -161,4 +161,76 @@ pub(in super::super) fn apply_field_rbac_filtering(
         allowed: projection_fields,
         masked:  Vec::new(),
     })
+}
+
+/// Classify field access for a request that carries **no** principal.
+///
+/// The anonymous path used to skip field RBAC entirely, so a field protected only
+/// by `requires_scope` (and not the dynamic `authorize` flag) was served in full to
+/// unauthenticated callers while authenticated-but-unscoped callers were denied it
+/// — a privilege inversion (#743).
+///
+/// This is [`apply_field_rbac_filtering`] evaluated for a principal with no roles:
+/// [`SecurityContext::can_access_scope`] folds over `roles`, so an empty role set
+/// can never grant a scope, and every `requires_scope` field is denied through its
+/// own `on_deny` policy. Deriving the answer directly avoids fabricating a
+/// stand-in `SecurityContext` that could leak into RLS session variables or
+/// inject-param resolution.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] if a requested field requires a scope
+/// and has `on_deny = Reject`.
+pub(in super::super) fn apply_anonymous_field_rbac_filtering(
+    schema: &CompiledSchema,
+    return_type: &str,
+    projection_fields: &[String],
+) -> Result<FieldAccessResult> {
+    let allow_all = || FieldAccessResult {
+        allowed: projection_fields.to_vec(),
+        masked:  Vec::new(),
+    };
+
+    // Mirror the authenticated path: without a SecurityConfig there are no role
+    // definitions, so it does not classify either. Diverging here would just
+    // re-open the gap in the opposite direction.
+    if schema.security.is_none() {
+        return Ok(allow_all());
+    }
+    let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) else {
+        return Ok(allow_all());
+    };
+
+    let mut allowed = Vec::with_capacity(projection_fields.len());
+    let mut masked = Vec::new();
+
+    for name in projection_fields {
+        // Fields absent from the type definition pass through, as in
+        // classify_field_access — they are built-ins such as `__typename`.
+        let Some(field) = type_def.fields.iter().find(|f| &f.name == name) else {
+            allowed.push(name.clone());
+            continue;
+        };
+
+        if field.requires_scope.is_none() {
+            allowed.push(name.clone());
+            continue;
+        }
+
+        match field.on_deny {
+            FieldDenyPolicy::Mask => masked.push(name.clone()),
+            FieldDenyPolicy::Reject => {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "Access denied: field '{name}' on type '{return_type}' \
+                         requires a scope you do not have"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(format!("{return_type}.{name}")),
+                });
+            },
+        }
+    }
+
+    Ok(FieldAccessResult { allowed, masked })
 }
