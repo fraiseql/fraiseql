@@ -57,6 +57,25 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Generating SBOM for version: $VERSION"
 
+    - name: Check the target release exists (attach only if so)
+      id: release_check
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # On a `release` event the release exists by definition; on workflow_dispatch it
+        # exists when release.yml's trigger-sbom job dispatched us AFTER create-github-release.
+        # Gating attach on this (rather than event name) keeps a manual dispatch with a
+        # version that has no release from CREATING a spurious release — it becomes a safe
+        # generate-only run instead.
+        TAG="v${{ steps.version.outputs.version }}"
+        if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "Release $TAG exists — the SBOM will be attached to it."
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::No release $TAG — generating and signing the SBOM only, not attaching."
+        fi
+
     - name: Generate SBOM (CycloneDX JSON)
       run: |
         cargo cyclonedx --format json --all \
@@ -179,9 +198,14 @@ jobs:
         retention-days: 90
 
     - name: Attach SBOM to Release
-      if: github.event_name == 'release'
+      # Runs for BOTH the `release` event and the workflow_dispatch path (release.yml's
+      # trigger-sbom job), gated on the release actually existing so a manual generate-only
+      # dispatch never creates one. `tag_name` is set explicitly because on workflow_dispatch
+      # there is no `github.event.release` to infer it from.
+      if: steps.release_check.outputs.exists == 'true'
       uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
       with:
+        tag_name: v${{ steps.version.outputs.version }}
         files: |
           fraiseql-${{ steps.version.outputs.version }}-sbom.json
           fraiseql-${{ steps.version.outputs.version }}-sbom.json.bundle
