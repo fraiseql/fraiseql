@@ -246,29 +246,55 @@ fn collect_headers(headers: &HeaderMap) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// The dedup / idempotency key of a delivery: a provider delivery-id header, else
-/// the payload's top-level `id`, else a stable hash of the raw body (so an
-/// identical redelivery still deduplicates).
-fn extract_event_id(payload: &Value, headers: &BTreeMap<String, String>, body: &[u8]) -> String {
-    headers
-        .get("webhook-id")
-        .or_else(|| headers.get("x-github-delivery"))
-        .cloned()
-        .or_else(|| payload.get("id").and_then(Value::as_str).map(str::to_string))
-        .unwrap_or_else(|| {
-            use std::hash::{Hash as _, Hasher as _};
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            body.hash(&mut hasher);
-            format!("body:{:016x}", hasher.finish())
-        })
+/// The dedup / idempotency key of a delivery: the payload's top-level `id`, else a
+/// stable `SHA-256` of the raw body (so an identical redelivery still deduplicates).
+///
+/// # Why request headers are not consulted (#751)
+///
+/// This key is what [`PostgresIdempotencyStore::claim`] and the spine dedup on, and
+/// what decides whether `after:ingest` fires. Every supported provider signs the
+/// **body** only — GitHub/GitLab/Shopify/Postmark/`LemonSqueezy`/generic
+/// `HMAC(body)`, Stripe `HMAC(t.body)`, Paddle `HMAC(ts:body)`. No verifier covers
+/// request headers.
+///
+/// So keying on `webhook-id` / `x-github-delivery`, as this used to, put the entire
+/// replay defence under the control of whoever sends the HTTP request: one captured
+/// signed delivery replayed with a fresh header value passed signature verification,
+/// claimed a fresh key, and re-fired `after:ingest` — indefinitely for providers
+/// without timestamp freshness. Only signed material can key the replay defence.
+///
+/// If Svix-style `webhook-id` support is wanted, it needs a verifier that actually
+/// signs `{id}.{timestamp}.{body}`; the header may be trusted only then.
+fn extract_event_id(payload: &Value, body: &[u8]) -> String {
+    payload.get("id").and_then(Value::as_str).map_or_else(
+        || {
+            use sha2::{Digest as _, Sha256};
+            // SHA-256 rather than DefaultHasher: this key is persisted, and
+            // DefaultHasher's output is explicitly not stable across Rust releases, so a
+            // toolchain bump would silently reset every stored idempotency key.
+            format!("body:{}", hex::encode(Sha256::digest(body)))
+        },
+        str::to_string,
+    )
 }
 
-/// The provider's event type, from a known header or the payload's `type` field.
+/// The provider's event type, from the payload's `type` field, else a known header.
+///
+/// The signed payload wins (#751): for Stripe and friends an injected
+/// `x-github-event` header can no longer relabel a delivery whose body says
+/// otherwise.
+///
+/// The header remains a *fallback* because `GitHub` carries the event type nowhere
+/// else — its body has no `type` field and its `HMAC` does not cover headers, so
+/// there is no signed alternative to prefer. For such providers the type stays
+/// advisory; the replay amplification it used to enable is closed by
+/// [`extract_event_id`] no longer trusting headers.
 fn extract_event_type(payload: &Value, headers: &BTreeMap<String, String>) -> String {
-    headers
-        .get("x-github-event")
-        .cloned()
-        .or_else(|| payload.get("type").and_then(Value::as_str).map(str::to_string))
+    payload
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| headers.get("x-github-event").cloned())
         .unwrap_or_default()
 }
 
@@ -321,7 +347,7 @@ pub async fn webhook_handler(
     };
 
     let header_map = collect_headers(&headers);
-    let event_id = extract_event_id(&payload, &header_map, &body);
+    let event_id = extract_event_id(&payload, &body);
     let event_type = extract_event_type(&payload, &header_map);
 
     // Normalize before the pipeline so the durable payload is the normalized
