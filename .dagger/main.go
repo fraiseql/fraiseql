@@ -1455,7 +1455,8 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 // test container can reach it. Dagger starts the Postgres dependency (and waits for
 // its port) before the server starts, and the caller waits for :8815 before testing.
 func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service {
-	const targetVol = "fraiseql-rust-target-integ3-1-92"
+	// `integ4-` bump (2026-07-27): see the note on the sibling volume below.
+	const targetVol = "fraiseql-rust-target-integ4-1-92"
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
@@ -1668,7 +1669,20 @@ func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dag
 	// `integ3-` bump (2026-06-30): bust the stale integ2 target cache that reused
 	// pre-#501 fraiseql-db artifacts, hiding `execute_function_call_dry_run` → false
 	// E0599 in the integration postgres leg. Mirrors the `test2-` bump above.
-	targetVol := "fraiseql-rust-target-integ3-" + strings.ReplaceAll(toolchain, ".", "-")
+	//
+	// `integ4-` bump (2026-07-27): the same class recurred, and far more dangerously.
+	// The #794/#795 analytics-injection fix was committed, the leg checked out the right
+	// SHA, and cargo then reported EVERY crate fresh — zero `Compiling` lines in the whole
+	// run — so the new test binary linked a pre-fix `fraiseql-core` and the leg reported
+	// the injections still succeeding. Last time this surfaced as a compile error; this
+	// time it silently validated stale code, which is the failure mode that matters:
+	// a green integration leg does not prove the committed source was the source tested.
+	// Reproduced across two dispatches of the same commit before the bump.
+	//
+	// A volume bump only clears the current drift. The durable fix (tracked separately)
+	// is to stop trusting mtime-based freshness across a Dagger mount + persistent
+	// target volume.
+	targetVol := "fraiseql-rust-target-integ4-" + strings.ReplaceAll(toolchain, ".", "-")
 	return m.rustBaseFor(toolchain).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
