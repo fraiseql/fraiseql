@@ -7,18 +7,35 @@ use crate::{
     session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
 };
 
+/// How this store signs the access tokens it issues.
+///
+/// Both variants hold key material that outlives the token, so the corresponding
+/// validator can actually verify what was signed.
+enum SigningKey {
+    /// RSA private key in PEM format; tokens are signed RS256.
+    Rs256(Vec<u8>),
+    /// Shared HMAC secret; tokens are signed HS256. The same secret must be given
+    /// to the validating side (e.g. `Hs256AuthState`).
+    Hs256(Vec<u8>),
+}
+
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
     db:          PgPool,
-    /// Optional RSA private key for JWT signing (None falls back to HMAC)
-    signing_key: Option<Vec<u8>>,
+    /// Key used to sign access tokens. `None` means signing is not configured and
+    /// [`SessionStore::create_session`] will fail rather than mint an unverifiable token.
+    signing_key: Option<SigningKey>,
 }
 
 impl PostgresSessionStore {
-    /// Create a new PostgreSQL session store
+    /// Create a new PostgreSQL session store **without** JWT signing configured.
     ///
-    /// # Errors
-    /// Returns error if database connection fails
+    /// Refresh-token bookkeeping ([`SessionStore::get_session`],
+    /// [`SessionStore::revoke_session`], [`SessionStore::revoke_all_sessions`]) works,
+    /// but [`SessionStore::create_session`] will return
+    /// [`AuthError::ConfigError`] because there is no key to sign the access token
+    /// with. Use [`Self::with_rs256_key`] or [`Self::with_hs256_secret`] for a store
+    /// that can issue sessions.
     #[must_use]
     pub const fn new(db: PgPool) -> Self {
         Self {
@@ -36,7 +53,24 @@ impl PostgresSessionStore {
     pub const fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
         Self {
             db,
-            signing_key: Some(private_key_pem),
+            signing_key: Some(SigningKey::Rs256(private_key_pem)),
+        }
+    }
+
+    /// Create a new PostgreSQL session store with HS256 (HMAC) JWT signing.
+    ///
+    /// The secret is retained for the life of the store and **must** be the same
+    /// secret configured on the validating side, otherwise the issued tokens will
+    /// not verify.
+    ///
+    /// # Arguments
+    /// * `db` - PostgreSQL connection pool
+    /// * `secret` - Shared HMAC secret (use at least 32 bytes of entropy)
+    #[must_use]
+    pub const fn with_hs256_secret(db: PgPool, secret: Vec<u8>) -> Self {
+        Self {
+            db,
+            signing_key: Some(SigningKey::Hs256(secret)),
         }
     }
 
@@ -73,10 +107,13 @@ impl PostgresSessionStore {
         Ok(())
     }
 
-    /// Generate a JWT access token with RS256 or HMAC signing
+    /// Generate a JWT access token with the configured signing key.
     ///
-    /// Uses RS256 if a signing key is configured, otherwise falls back to HMAC with a
-    /// 256-bit randomly-generated key (via `OsRng`) so the secret has full entropy.
+    /// # Errors
+    ///
+    /// Returns [`AuthError::ConfigError`] when no signing key is configured. Minting
+    /// a token nobody can verify is worse than failing: it produces a login that
+    /// "succeeds" and then 401s on every subsequent request.
     fn generate_access_token(&self, user_id: &str, expires_in: u64) -> Result<String> {
         // SECURITY: Propagate clock errors; unwrap_or_default would produce iat=0.
         let now = unix_now()?;
@@ -98,15 +135,17 @@ impl PostgresSessionStore {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        if let Some(private_key) = &self.signing_key {
-            crate::jwt::generate_rs256_token(&claims, private_key)
-        } else {
-            // SECURITY: Generate a 256-bit random HMAC key per token so the secret
-            // has full entropy regardless of user_id length or content.
-            // Using OsRng (backed by the OS CSPRNG) ensures cryptographic quality.
-            use rand::Rng;
-            let key_bytes: [u8; 32] = rand::rng().random();
-            crate::jwt::generate_hs256_token(&claims, &key_bytes)
+        match &self.signing_key {
+            Some(SigningKey::Rs256(private_key)) => {
+                crate::jwt::generate_rs256_token(&claims, private_key)
+            },
+            Some(SigningKey::Hs256(secret)) => crate::jwt::generate_hs256_token(&claims, secret),
+            None => Err(AuthError::ConfigError {
+                message: "JWT signing is not configured for this PostgresSessionStore — \
+                          construct it with with_rs256_key or with_hs256_secret. Refusing to \
+                          issue an access token that no validator could verify."
+                    .to_string(),
+            }),
         }
     }
 }
@@ -122,6 +161,12 @@ impl SessionStore for PostgresSessionStore {
 
         // SECURITY: Propagate clock errors; unwrap_or_default would produce issued_at=0.
         let now = unix_now()?;
+        let expires_in = expires_at.saturating_sub(now);
+
+        // Mint the access token before writing the session row: if signing is not
+        // configured this fails, and doing it first keeps an orphan row out of
+        // _system.sessions for a session that was never handed to anyone.
+        let access_token = self.generate_access_token(user_id, expires_in)?;
 
         sqlx::query(
             r"
@@ -147,9 +192,6 @@ impl SessionStore for PostgresSessionStore {
                 }
             }
         })?;
-
-        let expires_in = expires_at.saturating_sub(now);
-        let access_token = self.generate_access_token(user_id, expires_in)?;
 
         Ok(TokenPair {
             access_token,
@@ -229,3 +271,8 @@ impl SessionStore for PostgresSessionStore {
         Ok(())
     }
 }
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests;
