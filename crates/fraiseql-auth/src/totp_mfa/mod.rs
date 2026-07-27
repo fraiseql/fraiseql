@@ -18,6 +18,11 @@
 //! - Recovery codes are 16 random hex characters (64 bits of entropy) and are `bcrypt`-hashed at
 //!   rest.
 //! - Challenge tokens are 32-byte random values with a 5-minute `TTL`.
+//! - Verification is attempt-limited: a challenge is consumed after 5 wrong codes, and a user who
+//!   accumulates 10 failures inside a 15-minute sliding window can neither mint new challenges nor
+//!   unenroll until the window elapses. Without both limits a 6-digit code is brute-forceable
+//!   inside the challenge `TTL` — the per-challenge cap alone does not bind, because challenges can
+//!   be re-minted freely.
 
 use std::sync::Arc;
 
@@ -53,6 +58,22 @@ const CHALLENGE_TTL_SECS: u64 = 300;
 /// `TOTP` tolerance: ±1 step around the current 30-second window (RFC 6238 §5.2).
 const TOTP_STEP_TOLERANCE: u8 = 1;
 
+/// Wrong codes tolerated against a single challenge before the challenge is consumed.
+///
+/// With `±1` step tolerance a 6-digit `TOTP` has 3 valid codes out of 10^6, so an
+/// unbounded challenge is brute-forceable inside its 5-minute `TTL`.
+const MAX_CHALLENGE_ATTEMPTS: u32 = 5;
+
+/// Failed verifications tolerated per user inside [`FAILURE_WINDOW_SECS`] before
+/// further challenges are refused.
+///
+/// The per-challenge cap alone is not enough: challenges can be re-minted, so the
+/// budget has to be tracked against the user, not the token.
+const MAX_USER_FAILURES: u32 = 10;
+
+/// Sliding-window length for the per-user failure budget (15 minutes).
+const FAILURE_WINDOW_SECS: u64 = 900;
+
 /// `bcrypt` cost factor.
 ///
 /// 12 is the recommended production minimum; lowered to 4 in tests to keep the
@@ -79,9 +100,20 @@ pub struct TotpEnrollment {
 #[derive(Debug, Clone)]
 struct ChallengeRecord {
     /// Which user the challenge was issued for.
-    user_id: String,
+    user_id:  String,
     /// Unix timestamp when the challenge expires.
-    expires: u64,
+    expires:  u64,
+    /// Wrong codes submitted against this challenge so far.
+    attempts: u32,
+}
+
+/// Per-user failed-verification budget over a sliding window.
+#[derive(Debug, Clone)]
+struct FailureRecord {
+    /// Failures recorded since `window_start`.
+    count:        u32,
+    /// Unix timestamp the current window opened at.
+    window_start: u64,
 }
 
 // ─── MfaStore trait ───────────────────────────────────────────────────────────
@@ -161,6 +193,8 @@ pub struct InMemoryMfaStore {
     enrollments: DashMap<String, TotpEnrollment>,
     /// challenge_token → ChallengeRecord
     challenges:  DashMap<String, ChallengeRecord>,
+    /// user_id → FailureRecord (brute-force budget)
+    failures:    DashMap<String, FailureRecord>,
 }
 
 impl InMemoryMfaStore {
@@ -170,6 +204,7 @@ impl InMemoryMfaStore {
         Self {
             enrollments: DashMap::new(),
             challenges:  DashMap::new(),
+            failures:    DashMap::new(),
         }
     }
 
@@ -177,6 +212,28 @@ impl InMemoryMfaStore {
     #[must_use]
     pub fn has_pending_enrollment(&self, user_id: &str) -> bool {
         self.enrollments.get(user_id).is_some_and(|e| !e.confirmed)
+    }
+
+    /// Seconds left in the current lockout, or `None` if the user is not locked out.
+    fn lockout_remaining(&self, user_id: &str, now: u64) -> Option<u64> {
+        let record = self.failures.get(user_id)?;
+        let elapsed = now.saturating_sub(record.window_start);
+        (record.count >= MAX_USER_FAILURES && elapsed < FAILURE_WINDOW_SECS)
+            .then(|| FAILURE_WINDOW_SECS - elapsed)
+    }
+
+    /// Charge one failed verification against `user_id`, opening a fresh window
+    /// if the previous one has elapsed.
+    fn record_failure(&self, user_id: &str, now: u64) {
+        let mut record = self.failures.entry(user_id.to_string()).or_insert(FailureRecord {
+            count:        0,
+            window_start: now,
+        });
+        if now.saturating_sub(record.window_start) >= FAILURE_WINDOW_SECS {
+            record.count = 0;
+            record.window_start = now;
+        }
+        record.count = record.count.saturating_add(1);
     }
 }
 
@@ -316,13 +373,22 @@ impl MfaStore for InMemoryMfaStore {
     }
 
     async fn create_challenge(&self, user_id: &str) -> Result<String> {
-        let expires = unix_now()? + CHALLENGE_TTL_SECS;
+        let now = unix_now()?;
+
+        // Refuse to mint a fresh challenge for a user who has burned through the
+        // failure budget — otherwise the per-challenge cap is trivially reset.
+        if let Some(retry_after_secs) = self.lockout_remaining(user_id, now) {
+            return Err(AuthError::RateLimited { retry_after_secs });
+        }
+
+        let expires = now + CHALLENGE_TTL_SECS;
         let token = generate_challenge_token();
         self.challenges.insert(
             token.clone(),
             ChallengeRecord {
                 user_id: user_id.to_string(),
                 expires,
+                attempts: 0,
             },
         );
         Ok(token)
@@ -347,6 +413,11 @@ impl MfaStore for InMemoryMfaStore {
         let user_id = record.user_id.clone();
         drop(record);
 
+        if let Some(retry_after_secs) = self.lockout_remaining(&user_id, now) {
+            self.challenges.remove(challenge_token);
+            return Err(AuthError::RateLimited { retry_after_secs });
+        }
+
         // Look up the user's TOTP enrollment.
         let mut enrollment =
             self.enrollments.get_mut(&user_id).ok_or_else(|| AuthError::InvalidToken {
@@ -363,6 +434,7 @@ impl MfaStore for InMemoryMfaStore {
         if verify_totp_code(&enrollment.secret_base32, code)? {
             drop(enrollment);
             self.challenges.remove(challenge_token);
+            self.failures.remove(&user_id);
             return Ok(user_id);
         }
 
@@ -373,7 +445,24 @@ impl MfaStore for InMemoryMfaStore {
             enrollment.recovery_code_hashes.remove(i);
             drop(enrollment);
             self.challenges.remove(challenge_token);
+            self.failures.remove(&user_id);
             return Ok(user_id);
+        }
+        drop(enrollment);
+
+        // Wrong code: charge the per-user budget and burn one of the challenge's
+        // attempts, consuming the challenge once they are exhausted.
+        self.record_failure(&user_id, now);
+        // The `get_mut` guard must be released before `remove`, or the two DashMap
+        // operations deadlock on the same shard — hence the separate binding.
+        let exhausted = if let Some(mut challenge) = self.challenges.get_mut(challenge_token) {
+            challenge.attempts = challenge.attempts.saturating_add(1);
+            challenge.attempts >= MAX_CHALLENGE_ATTEMPTS
+        } else {
+            true
+        };
+        if exhausted {
+            self.challenges.remove(challenge_token);
         }
 
         Err(AuthError::InvalidToken {
@@ -382,6 +471,14 @@ impl MfaStore for InMemoryMfaStore {
     }
 
     async fn unenroll(&self, user_id: &str, code: &str) -> Result<()> {
+        let now = unix_now()?;
+
+        // unenroll accepts the same secrets as verify_challenge, so it is the same
+        // brute-force surface and shares the same budget.
+        if let Some(retry_after_secs) = self.lockout_remaining(user_id, now) {
+            return Err(AuthError::RateLimited { retry_after_secs });
+        }
+
         let enrollment = self.enrollments.get(user_id).ok_or_else(|| AuthError::InvalidToken {
             reason: "user has no MFA enrollment".into(),
         })?;
@@ -398,6 +495,8 @@ impl MfaStore for InMemoryMfaStore {
             !totp_ok && check_recovery_code(code, &enrollment.recovery_code_hashes).is_some();
 
         if !totp_ok && !recovery_ok {
+            drop(enrollment);
+            self.record_failure(user_id, now);
             return Err(AuthError::InvalidToken {
                 reason: "re-authentication failed — invalid TOTP or recovery code".into(),
             });
@@ -405,6 +504,7 @@ impl MfaStore for InMemoryMfaStore {
 
         drop(enrollment);
         self.enrollments.remove(user_id);
+        self.failures.remove(user_id);
         Ok(())
     }
 
@@ -480,6 +580,27 @@ pub struct MfaUnenrollRequest {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
+/// Render a lockout as `429 Too Many Requests` with a `Retry-After` header.
+///
+/// Returns `None` for every other error so callers keep their own generic
+/// response — only the retry window is safe to disclose.
+fn rate_limited_response(err: &AuthError) -> Option<Response> {
+    let AuthError::RateLimited { retry_after_secs } = err else {
+        return None;
+    };
+    Some(
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(axum::http::header::RETRY_AFTER, retry_after_secs.to_string())],
+            Json(serde_json::json!({
+                "error":   "too_many_attempts",
+                "message": "too many failed MFA attempts — try again later"
+            })),
+        )
+            .into_response(),
+    )
+}
+
 /// `POST /auth/v1/mfa/enroll`
 ///
 /// Generates a `TOTP` secret and recovery codes for the given user.
@@ -542,6 +663,10 @@ pub async fn mfa_challenge(
         )
             .into_response(),
         Err(e) => {
+            if let Some(resp) = rate_limited_response(&e) {
+                tracing::warn!(user_id = %req.user_id, "MFA challenge refused — user locked out");
+                return resp;
+            }
             tracing::error!(error = %e, "MFA challenge error");
             (StatusCode::INTERNAL_SERVER_ERROR, "challenge creation failed").into_response()
         },
@@ -571,6 +696,9 @@ pub async fn mfa_verify(
                 "mfa_verify",
                 &e.to_string(),
             );
+            if let Some(resp) = rate_limited_response(&e) {
+                return resp;
+            }
             return (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(serde_json::json!({
@@ -636,6 +764,9 @@ pub async fn mfa_unenroll(
                 "mfa_unenroll",
                 &e.to_string(),
             );
+            if let Some(resp) = rate_limited_response(&e) {
+                return resp;
+            }
             (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(serde_json::json!({
