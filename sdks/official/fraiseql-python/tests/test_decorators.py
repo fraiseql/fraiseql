@@ -552,7 +552,12 @@ def test_query_inject_valid_passes_through() -> None:
     schema = SchemaRegistry.get_schema()
     q = schema["queries"][0]
     assert q["name"] == "items"
-    assert q["inject"] == {"org_id": "jwt:org_id"}
+    # The emitted key is `inject_params`, matching the compiled schema. It was
+    # `inject` here and `inject_params` there, and three SDKs copied the compiled
+    # name into their intermediate output where it bound to an empty map — every
+    # query compiling with no tenant predicate and reporting success (#806).
+    assert "inject" not in q
+    assert q["inject_params"] == {"org_id": {"source": "jwt", "claim": "org_id"}}
 
 
 def test_mutation_inject_valid_passes_through() -> None:
@@ -570,7 +575,8 @@ def test_mutation_inject_valid_passes_through() -> None:
     schema = SchemaRegistry.get_schema()
     m = schema["mutations"][0]
     assert m["name"] == "createItem"
-    assert m["inject"] == {"tenant_id": "jwt:tenant_id"}
+    assert "inject" not in m
+    assert m["inject_params"] == {"tenant_id": {"source": "jwt", "claim": "tenant_id"}}
 
 
 def test_query_inject_invalid_source_raises() -> None:
@@ -662,7 +668,11 @@ def test_query_inject_multiple_params() -> None:
 
     schema = SchemaRegistry.get_schema()
     q = schema["queries"][0]
-    assert q["inject"] == {"org_id": "jwt:org_id", "user_id": "jwt:sub"}
+    assert "inject" not in q
+    assert q["inject_params"] == {
+        "org_id": {"source": "jwt", "claim": "org_id"},
+        "user_id": {"source": "jwt", "claim": "sub"},
+    }
 
 
 def test_query_cache_ttl_valid_passes_through() -> None:

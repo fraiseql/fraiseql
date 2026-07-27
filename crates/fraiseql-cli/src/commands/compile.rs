@@ -176,6 +176,14 @@ pub async fn compile_to_schema(
         info!("Parsing intermediate schema...");
         let raw: serde_json::Value =
             serde_json::from_str(&schema_json).context("Failed to parse schema.json")?;
+
+        // Refuse a security control declared under a key that does not bind (#806/#807).
+        // Must run on the raw JSON: after deserialization the evidence is gone, which is
+        // precisely the defect — an unread key becomes an empty default and nothing
+        // downstream can distinguish "no scope declared" from "scope declared and lost".
+        crate::schema::intermediate::reject_drifted_security_keys(&raw)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
         let input_has_federation = ["federation", "federation_config"].iter().any(|key| {
             raw.get(*key)
                 .and_then(serde_json::Value::as_object)

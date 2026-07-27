@@ -3,15 +3,12 @@
 use axum::{Router, middleware, routing::get};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
-use tracing::info;
 
-use super::super::{
-    Server, graphql_get_handler, graphql_handler, oidc_auth_middleware, require_json_content_type,
+use super::{
+    super::{Server, graphql_get_handler, graphql_handler, require_json_content_type},
+    AuthPosture,
 };
-use crate::{
-    middleware::{Hs256AuthState, hs256_auth_middleware},
-    routes::graphql::AppState,
-};
+use crate::routes::graphql::AppState;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build the GraphQL endpoint router with optional auth and compression.
@@ -19,65 +16,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build GraphQL route (possibly with auth + Content-Type enforcement).
         // Supports both GET and POST per GraphQL over HTTP spec.
         // OIDC and HS256 are mutually exclusive (enforced by ServerConfig::validate).
-        let graphql_router = if let Some(ref validator) = self.oidc_validator {
-            info!(
-                graphql_path = %self.config.graphql_path,
-                "GraphQL endpoint protected by OIDC authentication (GET and POST)"
-            );
-            let auth_state = self.oidc_auth_state(validator.clone());
-            let router = Router::new()
-                .route(
-                    &self.config.graphql_path,
-                    get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-                )
-                .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware));
-
-            if self.config.require_json_content_type {
-                router
-                    .route_layer(middleware::from_fn(require_json_content_type))
-                    .with_state(state.clone())
-            } else {
-                router.with_state(state.clone())
-            }
-        } else if let Some(ref validator) = self.hs256_auth {
-            info!(
-                graphql_path = %self.config.graphql_path,
-                "GraphQL endpoint protected by HS256 authentication (GET and POST)"
-            );
-            let realm = self
-                .config
-                .auth_hs256
-                .as_ref()
-                .and_then(|h| h.issuer.clone())
-                .unwrap_or_else(|| "fraiseql".to_string());
-            let auth_state = Hs256AuthState::new(validator.clone(), realm);
-            let router = Router::new()
-                .route(
-                    &self.config.graphql_path,
-                    get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-                )
-                .route_layer(middleware::from_fn_with_state(auth_state, hs256_auth_middleware));
-
-            if self.config.require_json_content_type {
-                router
-                    .route_layer(middleware::from_fn(require_json_content_type))
-                    .with_state(state.clone())
-            } else {
-                router.with_state(state.clone())
-            }
-        } else {
-            let router = Router::new().route(
+        // Authentication is attached by the shared `attach_auth` helper rather than
+        // inline here: `/graphql` and the REST transport had independent mount code, and
+        // REST's omitted the layer entirely (#812). One helper, one posture decision.
+        let router = self.attach_auth(
+            Router::new().route(
                 &self.config.graphql_path,
                 get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-            );
+            ),
+            AuthPosture::Authenticated,
+            "graphql",
+        );
 
-            if self.config.require_json_content_type {
-                router
-                    .route_layer(middleware::from_fn(require_json_content_type))
-                    .with_state(state.clone())
-            } else {
-                router.with_state(state.clone())
-            }
+        let graphql_router = if self.config.require_json_content_type {
+            router
+                .route_layer(middleware::from_fn(require_json_content_type))
+                .with_state(state.clone())
+        } else {
+            router.with_state(state.clone())
         };
 
         // Apply framework-level compression if enabled.

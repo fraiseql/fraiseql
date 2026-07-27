@@ -65,7 +65,7 @@ impl OpenApiGenerator<'_> {
                 "schema": { "type": "string" },
             }));
 
-            map.insert("patch".to_string(), json!({
+            let mut bulk_op = json!({
                 "tags": [capitalize(&resource.name)],
                 "summary": format!("Bulk update {}", resource.name),
                 "operationId": format!("bulk_update_{}", resource.name),
@@ -106,7 +106,9 @@ impl OpenApiGenerator<'_> {
                     "204": { "description": "No content (return=minimal)" },
                     "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
                 }
-            }));
+            });
+            self.apply_security(&mut bulk_op);
+            map.insert("patch".to_string(), bulk_op);
         }
 
         if has_delete && !map.contains_key("delete") {
@@ -119,7 +121,7 @@ impl OpenApiGenerator<'_> {
                 "schema": { "type": "string" },
             }));
 
-            map.insert("delete".to_string(), json!({
+            let mut bulk_op = json!({
                 "tags": [capitalize(&resource.name)],
                 "summary": format!("Bulk delete {}", resource.name),
                 "operationId": format!("bulk_delete_{}", resource.name),
@@ -149,7 +151,9 @@ impl OpenApiGenerator<'_> {
                     "204": { "description": "No content (return=minimal or no matches)" },
                     "400": { "description": "Bad request (missing filter or max-affected exceeded)" }
                 }
-            }));
+            });
+            self.apply_security(&mut bulk_op);
+            map.insert("delete".to_string(), bulk_op);
         }
     }
 }

@@ -15,27 +15,30 @@ impl OpenApiGenerator<'_> {
         let mut paths = Map::new();
 
         // Add the openapi.json self-reference endpoint.
+        //
+        // It carries the same security posture as the data routes — the document is
+        // served by a handler behind the same `require_auth` gate and the same mount
+        // auth layer — so it must be *described* that way too. Emitting it as an
+        // unsecured operation was the last place the document disagreed with what the
+        // server does (#810).
         let openapi_path = "/openapi.json";
-        paths.insert(
-            openapi_path.to_string(),
-            json!({
-                "get": {
-                    "summary": "OpenAPI specification",
-                    "description": "Returns this OpenAPI 3.0.3 specification as JSON.",
-                    "tags": ["Meta"],
-                    "responses": {
-                        "200": {
-                            "description": "OpenAPI specification",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "type": "object" }
-                                }
-                            }
+        let mut meta_get = json!({
+            "summary": "OpenAPI specification",
+            "description": "Returns this OpenAPI 3.0.3 specification as JSON.",
+            "tags": ["Meta"],
+            "responses": {
+                "200": {
+                    "description": "OpenAPI specification",
+                    "content": {
+                        "application/json": {
+                            "schema": { "type": "object" }
                         }
                     }
                 }
-            }),
-        );
+            }
+        });
+        self.apply_security(&mut meta_get);
+        paths.insert(openapi_path.to_string(), json!({ "get": meta_get }));
 
         for resource in &self.route_table.resources {
             for route in &resource.routes {
@@ -94,12 +97,10 @@ impl OpenApiGenerator<'_> {
         // Responses.
         op.insert("responses".to_string(), self.build_responses(resource, route));
 
-        // Security.
-        if let Some(security) = self.build_security(route) {
-            op.insert("security".to_string(), security);
-        }
-
-        Value::Object(op)
+        // Security — via the one helper every operation builder must use.
+        let mut operation = Value::Object(op);
+        self.apply_security(&mut operation);
+        operation
     }
 
     /// Derive a human-readable summary and operation ID for a route.
@@ -180,10 +181,7 @@ impl OpenApiGenerator<'_> {
     ) {
         let stream_path = format!("/{}/stream", resource.name);
 
-        paths.insert(
-            stream_path,
-            json!({
-                "get": {
+        let mut stream_get = json!({
                     "tags": [capitalize(&resource.name)],
                     "summary": format!("Stream {} changes (SSE)", resource.name),
                     "operationId": format!("stream_{}", resource.name),
@@ -221,8 +219,8 @@ impl OpenApiGenerator<'_> {
                             "description": "Not Implemented (observers feature disabled)"
                         }
                     }
-                }
-            }),
-        );
+        });
+        self.apply_security(&mut stream_get);
+        paths.insert(stream_path, json!({ "get": stream_get }));
     }
 }

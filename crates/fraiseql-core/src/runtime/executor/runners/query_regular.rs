@@ -864,26 +864,56 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &query_match.query_def.native_columns,
         );
 
-        // Compose RLS and user WHERE clauses.
-        let composed_where = match (&rls_where_clause, &user_where) {
-            (Some(rls), Some(user)) => {
-                Some(WhereClause::And(vec![rls.as_where_clause().clone(), user.clone()]))
-            },
-            (Some(rls), None) => Some(rls.as_where_clause().clone()),
+        // Compose the security conditions — RLS **and** inject — then AND the
+        // user-supplied WHERE onto them. Security first, so a client-supplied filter can
+        // only ever narrow the result set, never widen it.
+        //
+        // #739: this block previously resolved each inject value into `let _value = …`
+        // and threw it away, with a comment claiming the params were "applied at the SQL
+        // level via WHERE clauses". They were not — no predicate was built and nothing
+        // was AND-ed on. Every other execution path (`execute_regular_query_with_security`,
+        // `count_rows`, `execute_relay_query`, `execute_node_query`) composed them
+        // correctly; this one, the runner behind the entire REST read surface, did not.
+        // The observable symptom was a `Prefer: count=exact` response whose header
+        // (filtered, from `count_rows`) contradicted its own body (unfiltered, from here).
+        let mut security_conditions: Vec<WhereClause> = Vec::new();
+        if let Some(ref rls) = rls_where_clause {
+            security_conditions.push(rls.as_where_clause().clone());
+        }
+        if !query_match.query_def.inject_params.is_empty() {
+            // Fail closed, mirroring `count_rows`: a query that declares row scoping has
+            // no safe reading without a principal to scope it to. Silently skipping the
+            // filter — the previous behaviour for an anonymous caller — returns every
+            // tenant's rows.
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but no security context is available",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            })?;
+            for (param_name, source) in &query_match.query_def.inject_params {
+                let value = resolve_inject_value(param_name, source, ctx)?;
+                security_conditions.push(inject_param_where_clause(
+                    param_name,
+                    value,
+                    &query_match.query_def.native_columns,
+                ));
+            }
+        }
+
+        let security_where = match security_conditions.len() {
+            0 => None,
+            1 => Some(security_conditions.remove(0)),
+            _ => Some(WhereClause::And(security_conditions)),
+        };
+
+        let composed_where = match (security_where, &user_where) {
+            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user.clone()])),
+            (Some(sec), None) => Some(sec),
             (None, Some(user)) => Some(user.clone()),
             (None, None) => None,
         };
-
-        // Inject security-derived params.
-        if !query_match.query_def.inject_params.is_empty() {
-            if let Some(ctx) = security_context {
-                for (param_name, source) in &query_match.query_def.inject_params {
-                    let _value = resolve_inject_value(param_name, source, ctx)?;
-                    // Injected params are applied at the SQL level via WHERE clauses,
-                    // not via GraphQL variables, so no mutation of variables is needed here.
-                }
-            }
-        }
 
         // Execute, pinning session variables to the read's connection (#329).
         let resolved_session_vars = self.resolve_session_vars(security_context)?;

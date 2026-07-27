@@ -25,11 +25,81 @@ mod state;
 
 use std::sync::Arc;
 
-use axum::Router;
+use axum::{Router, middleware::from_fn_with_state};
 use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
+use tracing::info;
 
-use super::{OidcAuthState, Server};
-use crate::routes::graphql::AppState;
+use super::{OidcAuthState, Server, oidc_auth_middleware};
+use crate::{
+    middleware::{Hs256AuthState, hs256_auth_middleware},
+    routes::graphql::AppState,
+};
+
+/// Whether a data-serving transport authenticates its callers.
+///
+/// Every transport that serves schema-backed data must declare one of these when it is
+/// mounted. The variant is not a preference — it is the answer to "who may reach the
+/// handlers on this router", and #812 shipped because that question was simply never
+/// asked for REST: the router was merged with no auth layer at all, so
+/// `security_context` was `None` on every request and the runtime's RLS and
+/// session-variable tenant stamping were skipped in silence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AuthPosture {
+    /// Callers are authenticated by whichever validator the deployment configured
+    /// (OIDC or HS256), exactly as `/graphql` authenticates them. When no validator is
+    /// configured this is a no-op layer and the transport serves anonymous callers —
+    /// which is why every guard downstream must still fail closed on a `None` context
+    /// rather than treat it as "no filter required".
+    Authenticated,
+}
+
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Attach the deployment's configured authentication layer to `router`.
+    ///
+    /// This is the single place any data-serving transport acquires authentication.
+    /// `/graphql` and the REST transport both route through it so the two cannot drift:
+    /// before #812 they had independent mount code and REST's simply omitted the layer.
+    ///
+    /// axum's `route_layer` applies only to routes already registered on the *same*
+    /// `Router` — `Router::merge` does **not** propagate it — so this must be called on
+    /// the transport's own router before it is merged into the application.
+    pub(super) fn attach_auth<S>(
+        &self,
+        router: Router<S>,
+        posture: AuthPosture,
+        transport: &str,
+    ) -> Router<S>
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        let AuthPosture::Authenticated = posture;
+
+        if let Some(ref validator) = self.oidc_validator {
+            info!(transport, "transport protected by OIDC authentication");
+            let auth_state = self.oidc_auth_state(Arc::clone(validator));
+            return router.route_layer(from_fn_with_state(auth_state, oidc_auth_middleware));
+        }
+
+        if let Some(ref validator) = self.hs256_auth {
+            info!(transport, "transport protected by HS256 authentication");
+            let realm = self
+                .config
+                .auth_hs256
+                .as_ref()
+                .and_then(|h| h.issuer.clone())
+                .unwrap_or_else(|| "fraiseql".to_string());
+            let auth_state = Hs256AuthState::new(Arc::clone(validator), realm);
+            return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
+        }
+
+        info!(
+            transport,
+            "no authentication configured — transport serves anonymous callers; row-scoping \
+             guards must fail closed on an absent security context"
+        );
+        router
+    }
+}
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build an [`OidcAuthState`] for `validator`, attaching the configured

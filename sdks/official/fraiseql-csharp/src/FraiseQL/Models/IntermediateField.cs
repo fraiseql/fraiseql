@@ -23,6 +23,13 @@ public record IntermediateField(
     [property: JsonPropertyName("nullable")]    bool Nullable,
     [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("resolver")]    string? Resolver = null,
-    [property: JsonPropertyName("scope")]       string? Scope = null,
-    [property: JsonPropertyName("scopes")]      IReadOnlyList<string>? Scopes = null,
+    // The wire key is `requires_scope` — the key the compiler reads. It was `scope`,
+    // which binds to nothing, so a field the author gated with [GraphQLField(Scope=...)]
+    // compiled with no scope at all and was served to callers holding none (#807).
+    [property: JsonPropertyName("requires_scope")] string? Scope = null,
+    // Multiple required scopes have no representation in the compiled schema or the
+    // runtime field filter, which check exactly one `requires_scope`. The property is
+    // retained for source compatibility but is never serialised: emitting it produced a
+    // key nothing reads. A singleton list is normalised onto Scope by SchemaRegistry.
+    [property: JsonIgnore]                      IReadOnlyList<string>? Scopes = null,
     [property: JsonPropertyName("computed")]    bool? Computed = null);

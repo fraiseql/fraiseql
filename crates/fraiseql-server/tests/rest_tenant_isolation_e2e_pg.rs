@@ -1,0 +1,390 @@
+//! #812 / #739 / #810 regression: the REST read surface must carry an authenticated
+//! security context and an enforced row filter.
+//!
+//! Three independent defects produced the same outcome — unfiltered rows to an
+//! unauthenticated caller — and none of them was visible to the existing REST suite:
+//!
+//! * **#812** the REST router was merged into the app with **no auth middleware**, so
+//!   `security_context` was `None` on every request.
+//! * **#739** `execute_query_direct` resolved each `inject_param` into `let _value = …` and threw
+//!   it away, so the tenant predicate never reached the WHERE clause.
+//! * **#810** `require_auth` was consulted by the SSE route only, while the served `OpenAPI`
+//!   document advertised `BearerAuth` + 401 on every operation.
+//!
+//! **Why this file exists rather than more cases in `rest_transport_e2e_test.rs`:**
+//! that suite builds its router with `rest_router(&state, …)` **directly**. #812 is a
+//! *mount-site* defect — the middleware is attached in `Server::build_router` — so no
+//! test that constructs the sub-router itself could ever have observed it. It tested a
+//! router that is not the one the binary serves. This file drives the real
+//! `Server::serve_on_listener` mount over a real socket against real PostgreSQL, which
+//! is the only shape that can hold all three defects down.
+//!
+//! The `Prefer: count=exact` case is the sharpest of the three: `count_rows` has always
+//! enforced the inject filter while `execute_query_direct` did not, so the response
+//! header and the response body disagreed about how many rows exist. That disagreement
+//! was shipping, and it is asserted here directly.
+//!
+//! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
+//! database-free `test` leg and runs in the Dagger `integration: server` suite.
+//!
+//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
+//! **Parallelism:** creates and drops its own `tf_p03_orders` fixture → run
+//! `--test-threads=1`.
+#![cfg(feature = "rest")]
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+
+use std::sync::Arc;
+
+use fraiseql_core::{
+    db::postgres::PostgresAdapter,
+    prelude::DatabaseAdapter as _,
+    schema::{CompiledSchema, FieldType, InjectedParamSource, RestConfig},
+};
+use fraiseql_server::server_config::{Hs256Config, ServerConfig};
+use fraiseql_test_support::try_database_url;
+use fraiseql_test_utils::schema_builder::{
+    TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+};
+use serde_json::{Value, json};
+
+mod common;
+
+use crate::common::server_harness::TestServer;
+
+/// The fixture table. Deliberately **not** a shared seeded fixture: several suites
+/// introspect `tf_sales` / `v_user`, and dropping one of those here would break them
+/// against the shared test database.
+const TABLE: &str = "tf_p03_orders";
+/// The view the compiled query reads.
+const VIEW: &str = "v_p03_order";
+
+/// 32-byte HS256 secret — meets the minimum key-length requirement.
+const SECRET: &str = "fraiseql-p03-secret-exactly-32by";
+const SECRET_ENV: &str = "FRAISEQL_P03_HS256_SECRET";
+const ISSUER: &str = "https://p03.fraiseql.test";
+const AUDIENCE: &str = "fraiseql-p03-api";
+
+const TENANT_A: &str = "tenant-a";
+const TENANT_B: &str = "tenant-b";
+
+/// Rows seeded per tenant. Deliberately different so a leaked row set is
+/// distinguishable from a correctly-filtered one by length alone.
+const ROWS_A: usize = 2;
+const ROWS_B: usize = 3;
+
+// ---------------------------------------------------------------------------
+// Fixture
+// ---------------------------------------------------------------------------
+
+/// Create the table + view and seed two tenants' rows.
+///
+/// Entity fields live as JSON keys inside `data` (the repo's JSONB data-column model),
+/// so `tenant_id` is **not** a native column and the inject predicate compiles to
+/// `data->>'tenant_id' = $1`.
+async fn seed(adapter: &PostgresAdapter) {
+    let mut stmts = vec![
+        format!("DROP VIEW IF EXISTS {VIEW}"),
+        format!("DROP TABLE IF EXISTS {TABLE}"),
+        format!("CREATE TABLE {TABLE} (id bigint PRIMARY KEY, data jsonb NOT NULL)"),
+    ];
+
+    let mut id = 1;
+    for (tenant, count) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
+        for n in 1..=count {
+            let data = json!({"id": id, "tenant_id": tenant, "label": format!("{tenant}-{n}")});
+            stmts.push(format!("INSERT INTO {TABLE} VALUES ({id}, '{data}'::jsonb)"));
+            id += 1;
+        }
+    }
+    stmts.push(format!("CREATE VIEW {VIEW} AS SELECT id, data FROM {TABLE}"));
+
+    for stmt in stmts {
+        let _: Vec<std::collections::HashMap<String, Value>> =
+            adapter.execute_raw_query(&stmt).await.expect("fixture setup");
+    }
+}
+
+/// A compiled schema whose single query declares a JWT-sourced tenant filter.
+///
+/// `inject_params = { tenant_id: jwt:org_id }` is the whole point: every read of
+/// `orders` must be scoped to the caller's own tenant, with no way for a client to
+/// widen it.
+fn build_schema(require_auth: bool) -> CompiledSchema {
+    let mut query = TestQueryBuilder::new("orders", "P03Order")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .build();
+    query
+        .inject_params
+        .insert("tenant_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
+
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("P03Order", VIEW)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::new("tenant_id", FieldType::String).build())
+                .with_field(TestFieldBuilder::new("label", FieldType::String).build())
+                .build(),
+        )
+        .with_query(query)
+        .build();
+
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        require_auth,
+        ..RestConfig::default()
+    });
+    schema.build_indexes();
+    schema
+}
+
+/// Server config with HS256 auth wired the way an operator would wire it.
+fn auth_config() -> ServerConfig {
+    ServerConfig {
+        auth_hs256: Some(Hs256Config {
+            secret_env: SECRET_ENV.to_string(),
+            issuer:     Some(ISSUER.to_string()),
+            audience:   Some(AUDIENCE.to_string()),
+        }),
+        ..ServerConfig::default()
+    }
+}
+
+/// Mint an HS256 token carrying `org_id`, the claim the query injects from.
+fn token_for(tenant: &str) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system time before epoch")
+        .as_secs();
+
+    let claims = json!({
+        "sub":    format!("user-of-{tenant}"),
+        "iss":    ISSUER,
+        "aud":    AUDIENCE,
+        "org_id": tenant,
+        "iat":    now,
+        "exp":    now + 3600,
+    });
+
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(SECRET.as_bytes()),
+    )
+    .expect("mint HS256 token")
+}
+
+/// Outcome of one REST GET: status, body envelope, and the `Prefer`-reported total.
+struct Read {
+    status: reqwest::StatusCode,
+    body:   Value,
+}
+
+impl Read {
+    /// The `data` array length, or `None` when the response carried no array.
+    fn rows(&self) -> Option<usize> {
+        self.body.get("data").and_then(Value::as_array).map(Vec::len)
+    }
+
+    /// `meta.total`, populated only under `Prefer: count=exact`.
+    fn total(&self) -> Option<u64> {
+        self.body.get("meta").and_then(|m| m.get("total")).and_then(Value::as_u64)
+    }
+}
+
+/// Issue `GET {base}/orders` with an optional bearer token and optional `Prefer` header.
+///
+/// **Why these tests assert row counts and not row contents:** every REST read currently
+/// projects **zero fields** — `{"data":[{},{},{}]}` — with or without `?select=`, because
+/// `QueryMatch::from_operation` builds a flat selection set whose root carries no
+/// `nested_fields` (filed as **#886**). Asserting `tenant_id` values would therefore pass
+/// vacuously against a response full of `{}`, which is precisely the test-theatre this
+/// phase exists to burn. The per-tenant row counts here are deliberately **distinct**
+/// (2 vs 3) so that both "saw everyone's rows" and "saw the wrong tenant's rows" fail.
+/// When #886 lands, strengthen these to assert the returned `tenant_id`s directly.
+async fn get_orders(base: &str, token: Option<&str>, prefer: Option<&str>) -> Read {
+    let mut req = reqwest::Client::new().get(format!("{base}/rest/v1/orders"));
+    if let Some(t) = token {
+        req = req.header("authorization", format!("Bearer {t}"));
+    }
+    if let Some(p) = prefer {
+        req = req.header("prefer", p);
+    }
+    let response = req.send().await.expect("REST GET");
+    let status = response.status();
+    let text = response.text().await.expect("response body");
+    let body = serde_json::from_str(&text).unwrap_or_else(|_| json!({"raw": text}));
+    Read { status, body }
+}
+
+/// Stand up the fixture and a running server. `None` when there is no database.
+///
+/// `authenticated` selects whether the deployment configures HS256 at all. Both shapes
+/// matter and they fail closed for **different** reasons: with auth configured the
+/// middleware refuses an anonymous caller, and with no auth configured at all the
+/// request reaches the executor, where the inject guard must refuse it. A test that
+/// only ever runs the first shape would pass while the second stayed wide open — which
+/// is exactly the state `#739` shipped in.
+async fn start(authenticated: bool, require_auth: bool) -> Option<TestServer> {
+    let url = try_database_url()?;
+    let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    seed(&adapter).await;
+
+    let config = if authenticated {
+        auth_config()
+    } else {
+        ServerConfig::default()
+    };
+    // Boxed: `Server::new`'s future is ~18 KiB and `clippy::large_futures` (pedantic,
+    // denied) rejects awaiting it inline at every call site.
+    Some(
+        Box::pin(TestServer::start_with_config(
+            config,
+            build_schema(require_auth),
+            Arc::new(adapter),
+        ))
+        .await,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// The contract
+// ---------------------------------------------------------------------------
+
+/// #812 + #810: an unauthenticated REST read must not return rows.
+///
+/// With `require_auth = true` the correct answer is 401. The shipped behaviour was
+/// **200 with every tenant's rows** — and the in-repo test asserting that 200 was named
+/// `test_auth_enforcement_with_require_auth`.
+#[tokio::test]
+async fn unauthenticated_rest_read_is_refused_when_require_auth_is_set() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read = get_orders(&server.url, None, None).await;
+
+        assert_eq!(
+            read.status,
+            reqwest::StatusCode::UNAUTHORIZED,
+            "an anonymous REST GET must be refused when require_auth = true, got {} {}",
+            read.status,
+            read.body
+        );
+        assert_eq!(
+            read.rows().unwrap_or(0),
+            0,
+            "a refused request must carry no rows, got {}",
+            read.body
+        );
+    }))
+    .await;
+}
+
+/// #812 + #739: an unauthenticated read of a tenant-scoped query must never return
+/// rows, even when `require_auth` is false.
+///
+/// Absent authentication must not mean absent filtering. The query declares
+/// `inject_params`, so with no principal there is no tenant to scope to and the only
+/// safe answer is an error — never "all rows". `count_rows` has always behaved this
+/// way; `execute_query_direct` returned everything.
+#[tokio::test]
+async fn anonymous_read_of_a_tenant_scoped_query_never_returns_rows() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(false, false).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read = get_orders(&server.url, None, None).await;
+
+        assert!(
+            !read.status.is_success(),
+            "an anonymous read of an inject-scoped query must fail closed, got {} {}",
+            read.status,
+            read.body
+        );
+        assert_eq!(
+            read.rows().unwrap_or(0),
+            0,
+            "no rows may reach an anonymous caller of a tenant-scoped query, got {}",
+            read.body
+        );
+    }))
+    .await;
+}
+
+/// #739: an authenticated read must return only the caller's own tenant's rows.
+///
+/// This is the cross-tenant leak in its plainest form: tenant A asks for `orders` and
+/// receives tenant B's rows too, because the resolved inject value was discarded.
+#[tokio::test]
+async fn authenticated_read_is_scoped_to_the_callers_tenant() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
+            let read = get_orders(&server.url, Some(&token_for(tenant)), None).await;
+
+            assert_eq!(
+                read.status,
+                reqwest::StatusCode::OK,
+                "{tenant}: authenticated read should succeed, got {} {}",
+                read.status,
+                read.body
+            );
+
+            assert_eq!(
+                read.rows(),
+                Some(expected),
+                "{tenant}: expected exactly its own {expected} rows of the {} seeded, got {}",
+                ROWS_A + ROWS_B,
+                read.body
+            );
+        }
+    }))
+    .await;
+}
+
+/// #739's smoking gun: `Prefer: count=exact` and the body must agree.
+///
+/// `count_rows` enforced the inject filter and `execute_query_direct` did not, so the
+/// header reported the tenant's row count while the body carried everyone's. A response
+/// that contradicts its own metadata is the most legible possible proof of the bug.
+#[tokio::test]
+async fn count_exact_header_agrees_with_the_body_under_a_tenant_filter() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read = get_orders(&server.url, Some(&token_for(TENANT_A)), Some("count=exact")).await;
+
+        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+
+        let total = read.total().expect("meta.total must be present under Prefer: count=exact");
+        let rows = read.rows().expect("data must be an array");
+
+        assert_eq!(
+            u64::try_from(rows).unwrap(),
+            total,
+            "body row count ({rows}) and Prefer: count=exact total ({total}) disagree — the \
+             count path enforces the tenant filter and the body path does not: {}",
+            read.body
+        );
+        assert_eq!(
+            total,
+            u64::try_from(ROWS_A).unwrap(),
+            "both must equal the caller's own row count"
+        );
+    }))
+    .await;
+}

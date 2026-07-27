@@ -843,6 +843,13 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// real database and asserts both that the request is refused and that no catalog
 		// data reaches the response.
 		"cargo test -p fraiseql-server --test analytics_injection_e2e_pg -- --test-threads=1",
+		// #812/#739/#810: the REST read surface carried no authentication, discarded the
+		// resolved tenant filter, and honoured `require_auth` on one route out of six.
+		// None of it was visible to the existing REST suite, which builds its router with
+		// `rest_router(...)` directly and so never exercises the server's actual mount.
+		// This boots the real mount over a real socket against a real database and
+		// asserts two tenants' rows stay apart — authenticated and anonymous.
+		"cargo test -p fraiseql-server --features rest --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",

@@ -66,7 +66,10 @@ public sealed class SchemaRegistry
         if (typeAttr.Crud)
         {
             var intermediateFields = fields
-                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver, f.Scope, f.Scopes, f.Computed ? true : null))
+                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver,
+                    // Normalise a singleton Scopes list onto Scope; anything longer is
+                    // unrepresentable downstream and is refused rather than dropped (#807).
+                    NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null))
                 .ToList()
                 .AsReadOnly();
 
@@ -281,5 +284,35 @@ public sealed class SchemaRegistry
             return propertyName;
 
         return char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    }
+
+    /// <summary>
+    /// Reduce a field's scope declaration to the single value the compiled schema and the
+    /// runtime field filter can represent.
+    /// </summary>
+    /// <remarks>
+    /// A singleton <c>Scopes</c> list is the same requirement as a single <c>Scope</c> and
+    /// is accepted. Anything longer has no representation downstream: emitting it produced
+    /// a compiled field with no scope at all, silently public (#807). Refusing is the only
+    /// honest option — an unenforceable declaration must not compile.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when both forms are set, or when more than one scope is required.
+    /// </exception>
+    private static string? NormaliseScope(string? scope, IReadOnlyList<string>? scopes, string fieldName)
+    {
+        if (scopes is null || scopes.Count == 0)
+            return scope;
+
+        if (scope is not null)
+            throw new InvalidOperationException(
+                $"Field '{fieldName}' sets both Scope and Scopes; use one.");
+
+        if (scopes.Count > 1)
+            throw new InvalidOperationException(
+                $"Field '{fieldName}' requires {scopes.Count} scopes; multiple required scopes " +
+                "are not supported — use a single Scope value.");
+
+        return scopes[0];
     }
 }

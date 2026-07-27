@@ -88,7 +88,7 @@ impl OpenApiGenerator<'_> {
         });
 
         // Security schemes.
-        if self.config.require_auth {
+        if self.security_required {
             components["securitySchemes"] = json!({
                 "BearerAuth": {
                     "type": "http",

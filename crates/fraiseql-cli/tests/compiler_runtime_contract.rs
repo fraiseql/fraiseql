@@ -71,7 +71,7 @@ const TYPES_JSON: &str = r#"
       "nullable": false,
       "sql_source": "v_order",
       "cache_ttl_seconds": 300,
-      "inject": {"tenant_id": "jwt:tenant_id"}
+      "inject_params": {"tenant_id": "jwt:tenant_id"}
     }
   ],
   "mutations": [

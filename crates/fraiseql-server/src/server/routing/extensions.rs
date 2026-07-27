@@ -8,6 +8,8 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{BearerAuthState, Server, api, bearer_auth_middleware};
+#[cfg(feature = "rest")]
+use super::AuthPosture;
 use crate::routes::graphql::AppState;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -102,12 +104,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.add_inbound_routes(app, state);
         }
 
-        // REST transport (read-only GET + SSE routes)
+        // REST transport (read-only GET + SSE routes).
+        //
+        // #812: this merge previously attached no authentication at all, so every
+        // `/rest/v1/**` request reached the handlers with `security_context = None` —
+        // disabling RLS-policy evaluation and session-variable tenant stamping — even
+        // when the caller presented a valid bearer token. `route_layer` does not
+        // propagate across `Router::merge`, so the layer must go on the REST router
+        // itself, before it is merged.
         #[cfg(feature = "rest")]
         {
             use crate::routes::rest::rest_query_router;
-            if let Some(rest_app) = rest_query_router(state, self.config.compression_enabled) {
-                app = app.merge(rest_app);
+            // Whether an auth layer will actually be attached below. Passed into the
+            // router so the served OpenAPI advertises the security the server enforces
+            // rather than a static template (#810).
+            let authenticated = self.oidc_validator.is_some() || self.hs256_auth.is_some();
+            if let Some(rest_app) =
+                rest_query_router(state, self.config.compression_enabled, authenticated)
+            {
+                app = app.merge(self.attach_auth(rest_app, AuthPosture::Authenticated, "rest"));
             }
         }
 

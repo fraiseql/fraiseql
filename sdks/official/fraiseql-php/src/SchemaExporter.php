@@ -107,11 +107,38 @@ final class SchemaExporter
             $typeDef = [
                 'name'   => $typeName,
                 'fields' => array_values(array_map(
-                    static fn(FieldDefinition $f) => [
-                        'name'     => $f->name,
-                        'type'     => $f->type,
-                        'nullable' => $f->nullable,
-                    ],
+                    static function (FieldDefinition $f): array {
+                        $field = [
+                            'name'     => $f->name,
+                            'type'     => $f->type,
+                            'nullable' => $f->nullable,
+                        ];
+
+                        // #807: the exporter emitted only name/type/nullable, so a field
+                        // the author gated with #[GraphQLField(scope: '...')] reached the
+                        // compiler with no scope at all and was served to callers holding
+                        // none. The scope was dropped here, one layer earlier than the
+                        // other SDKs' key drift, but with the identical outcome.
+                        //
+                        // The compiled schema and the runtime field filter represent
+                        // exactly one required scope, so a multi-scope declaration cannot
+                        // be honoured and is refused rather than silently discarded.
+                        if ($f->scopes !== null && count($f->scopes) > 1) {
+                            throw new \InvalidArgumentException(sprintf(
+                                'Field "%s" requires %d scopes; multiple required scopes are '
+                                . 'not supported — declare a single scope.',
+                                $f->name,
+                                count($f->scopes),
+                            ));
+                        }
+
+                        $scope = $f->scope ?? ($f->scopes[0] ?? null);
+                        if ($scope !== null) {
+                            $field['requires_scope'] = $scope;
+                        }
+
+                        return $field;
+                    },
                     $fields,
                 )),
             ];

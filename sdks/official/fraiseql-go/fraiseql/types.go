@@ -12,8 +12,11 @@ type FieldInfo struct {
 	Name     string   `json:"name"`
 	Type     string   `json:"type"`
 	Nullable bool     `json:"nullable"`
-	Scope    string   `json:"scope,omitempty"`
-	Scopes   []string `json:"scopes,omitempty"`
+	// Scope is emitted as `requires_scope` — the key the compiler reads. It was
+	// `scope` here, which the compiler does not know, so every field an author
+	// gated with `fraiseql:"...,scope=..."` compiled with no scope at all and was
+	// served to callers holding none (#807).
+	Scope string `json:"requires_scope,omitempty"`
 }
 
 // goToGraphQLType converts a Go type to GraphQL type string and nullable flag
@@ -225,7 +228,17 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 					return FieldInfo{}, err
 				}
 			}
-			fieldInfo.Scopes = scopes
+			// Multiple required scopes have no representation downstream: the
+			// compiled field carries a single `requires_scope`, and the runtime
+			// field filter checks exactly that one. Emitting a `scopes` array
+			// produced a field with no scope at all — silently public. Refuse at
+			// authoring time instead (#807).
+			if len(scopes) > 1 {
+				return FieldInfo{}, fmt.Errorf(
+					"field %s declares %d scopes; multiple required scopes are not supported — "+
+						"use a single scope= value", fieldName, len(scopes))
+			}
+			fieldInfo.Scope = strings.TrimSpace(scopes[0])
 			hasMultipleScopes = true
 		}
 	}
