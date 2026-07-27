@@ -5341,6 +5341,82 @@ mod oidc_provider_tests {
         });
     }
 
+    /// #776: the guard used to parse the host as a plain `Ipv4Addr` *or* a plain
+    /// `Ipv6Addr`, so every address form below slipped through — most dangerously the
+    /// IPv4-mapped IPv6 spelling of the AWS/GCP metadata IP, which the OS routes to
+    /// 169.254.169.254 exactly as the bare form does.
+    #[test]
+    fn oidc_issuer_url_rejects_ssrf_addresses_missed_by_the_naive_parse() {
+        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
+            for issuer in [
+                // IPv4-mapped IPv6 of the cloud metadata service.
+                "https://[::ffff:169.254.169.254]",
+                // IPv4-mapped IPv6 loopback.
+                "https://[::ffff:127.0.0.1]",
+                // IPv6 link-local.
+                "https://[fe80::1]",
+                // Unspecified IPv4 — Linux routes 0.0.0.0 to localhost.
+                "https://0.0.0.0",
+                // CGNAT.
+                "https://100.64.0.1",
+                // Unspecified IPv6.
+                "https://[::]",
+            ] {
+                assert!(
+                    validate_oidc_issuer_url(issuer).is_err(),
+                    "{issuer} must be rejected by the SSRF guard"
+                );
+            }
+        });
+    }
+
+    /// The stricter predicate must not start rejecting legitimate public issuers.
+    #[test]
+    fn oidc_issuer_url_still_accepts_public_addresses() {
+        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
+            for issuer in [
+                "https://accounts.google.com",
+                "https://login.microsoftonline.com/common/v2.0",
+                "https://8.8.8.8",
+                "https://[2606:4700:4700::1111]",
+            ] {
+                assert!(
+                    validate_oidc_issuer_url(issuer).is_ok(),
+                    "{issuer} is public and must still be accepted"
+                );
+            }
+        });
+    }
+
+    /// The OIDC gate and the JWKS gate must classify addresses identically (#776):
+    /// they guard the same threat and previously disagreed on five address forms.
+    #[test]
+    fn oidc_and_jwks_ssrf_gates_agree() {
+        for literal in [
+            "169.254.169.254",
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "100.64.0.1",
+            "0.0.0.0",
+            "::1",
+            "::",
+            "fe80::1",
+            "fc00::1",
+            "::ffff:169.254.169.254",
+            "8.8.8.8",
+            "2606:4700:4700::1111",
+        ] {
+            let ip: std::net::IpAddr = literal.parse().expect("test literal must parse");
+            assert_eq!(
+                super::super::oidc_provider::is_ssrf_blocked_oidc_host(literal),
+                crate::jwks::is_ssrf_blocked_ip(&ip),
+                "OIDC and JWKS SSRF gates disagree on {literal}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn oidc_provider_new_rejects_http_issuer() {
         temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
