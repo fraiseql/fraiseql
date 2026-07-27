@@ -243,3 +243,89 @@ async fn test_built_client_disables_redirects() {
         "client must surface the 302 instead of following the redirect"
     );
 }
+
+// =============================================================================
+// #802 — the IPv6 arm accepts every IPv4-mapped form and the unspecified address
+//
+// Vectors verbatim from the issue's Proof 1. `Ipv6Addr::is_loopback` is true only
+// for `::1`, so a mapped address such as `::ffff:169.254.169.254` matches none of
+// the three predicates the arm tests and is accepted — and a dual-stack socket
+// really does reach the corresponding IPv4 host (issue Proof 3).
+// =============================================================================
+
+#[test]
+fn blocks_ipv4_mapped_and_unspecified_v6() {
+    for s in [
+        "::ffff:127.0.0.1",
+        "::ffff:169.254.169.254",
+        "::ffff:a9fe:a9fe",
+        "::ffff:10.0.0.1",
+        "::ffff:192.168.1.1",
+        "::ffff:0.0.0.0",
+        "::",
+    ] {
+        let ip = s.parse::<IpAddr>().unwrap();
+        assert!(validate_ip(&ip).is_err(), "must block {s}");
+    }
+}
+
+#[tokio::test]
+async fn blocks_mapped_metadata_literal_through_the_url_path() {
+    // The full literal-host route the guest reaches via `fraiseql_http_request`:
+    // Url::parse -> host_str -> parse_ip_from_host -> validate_ip. `"*"` is a
+    // supported allowlist value, and in that configuration this guard is the only
+    // remaining control.
+    let config = HttpClientConfig {
+        allowed_domains: vec!["*".to_string()],
+        ..Default::default()
+    };
+    for url in [
+        "http://[::ffff:169.254.169.254]/latest/meta-data/iam/security-credentials/",
+        "http://[::ffff:127.0.0.1]:5432/",
+        "http://[::]/",
+    ] {
+        assert!(validate_outbound_url(url, &config).await.is_err(), "must block {url}");
+    }
+}
+
+// ── The shared outbound corpus, at this crate's entry point ───────────────────
+//
+// `"*"` is the allowlist setting an operator must reach for when function code
+// calls tenant-supplied URLs. In that configuration this guard is the entire
+// remaining control, which is what made #802 exploitable.
+
+#[tokio::test]
+async fn refuses_every_blocked_corpus_entry() {
+    use fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+    let config = HttpClientConfig {
+        allowed_domains: vec!["*".to_string()],
+        ..Default::default()
+    };
+    for (addr, why) in MUST_BLOCK {
+        let url = format!("http://{}/latest/meta-data/", url_host(addr));
+        assert!(
+            validate_outbound_url(&url, &config).await.is_err(),
+            "must refuse {addr} ({why})"
+        );
+    }
+    for (host, why) in MUST_BLOCK_HOSTS {
+        let url = format!("http://{host}/");
+        assert!(
+            validate_outbound_url(&url, &config).await.is_err(),
+            "must refuse {host} ({why})"
+        );
+    }
+}
+
+#[test]
+fn permits_every_allowed_corpus_entry() {
+    use std::net::IpAddr;
+
+    use fraiseql_guard::net::vectors::MUST_ALLOW;
+    // Asserted against `validate_ip` rather than the URL entry point: the latter
+    // would perform a DNS lookup for non-literal hosts, which a test must not do.
+    for addr in MUST_ALLOW {
+        let ip: IpAddr = addr.parse().unwrap();
+        assert!(validate_ip(&ip).is_ok(), "must permit {addr}");
+    }
+}

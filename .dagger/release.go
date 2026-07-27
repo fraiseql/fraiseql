@@ -33,8 +33,10 @@ import (
 // dependency graph, so a newly-added crate or a new cross-crate edge that would
 // break publish order is caught here rather than mid-release.
 var legacyPublishOrder = []string{
-	// Tier 1: leaf crates (depend on none of the others).
-	"fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
+	// Tier 1: leaf crates (depend on none of the others). fraiseql-guard is first
+	// because auth/federation/observers/functions/arrow/secrets/core/cdc-sinks/server
+	// all depend on it.
+	"fraiseql-guard", "fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
 	"fraiseql-cdc-sinks",
 	// Tier 2: depend on tier 1.
 	"fraiseql-db", "fraiseql-storage",

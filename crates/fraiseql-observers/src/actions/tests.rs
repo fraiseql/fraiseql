@@ -80,62 +80,78 @@ fn signature_is_deterministic_for_fixed_inputs() {
 async fn execute_signs_the_exact_transmitted_bytes() {
     // wiremock binds to 127.0.0.1, which the SSRF guard blocks; allow the
     // insecure bypass for this loopback test only.
-    temp_env::async_with_vars([(ALLOW_INSECURE_ENV, Some("true"))], async {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&server)
-            .await;
+    temp_env::async_with_vars(
+        // The bypass is honoured only in a declared development environment (#836),
+        // and these dispatch to a wiremock on 127.0.0.1.
+        [
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
 
-        let secret = "whsec_gate";
-        WebhookAction::new()
-            .execute(&server.uri(), None, &HashMap::new(), None, Some(secret), &test_event())
-            .await
-            .expect("webhook dispatch should succeed");
+            let secret = "whsec_gate";
+            WebhookAction::new()
+                .execute(&server.uri(), None, &HashMap::new(), None, Some(secret), &test_event())
+                .await
+                .expect("webhook dispatch should succeed");
 
-        let requests = server.received_requests().await.expect("recorded requests");
-        assert_eq!(requests.len(), 1, "exactly one request should be sent");
-        let req = &requests[0];
+            let requests = server.received_requests().await.expect("recorded requests");
+            assert_eq!(requests.len(), 1, "exactly one request should be sent");
+            let req = &requests[0];
 
-        let sig = req
-            .headers
-            .get(WEBHOOK_SIGNATURE_HEADER)
-            .expect("signature header must be present")
-            .to_str()
-            .expect("signature header is valid ASCII");
+            let sig = req
+                .headers
+                .get(WEBHOOK_SIGNATURE_HEADER)
+                .expect("signature header must be present")
+                .to_str()
+                .expect("signature header is valid ASCII");
 
-        // The gate: verify over the bytes the server ACTUALLY received, not a
-        // fresh re-serialization of the struct.
-        let verifier = StripeVerifier::new();
-        assert!(
-            verifier.verify(&req.body, sig, secret, None, None).unwrap(),
-            "signature must verify over the exact transmitted body bytes"
-        );
-    })
+            // The gate: verify over the bytes the server ACTUALLY received, not a
+            // fresh re-serialization of the struct.
+            let verifier = StripeVerifier::new();
+            assert!(
+                verifier.verify(&req.body, sig, secret, None, None).unwrap(),
+                "signature must verify over the exact transmitted body bytes"
+            );
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn execute_without_secret_sends_no_signature_header() {
-    temp_env::async_with_vars([(ALLOW_INSECURE_ENV, Some("true"))], async {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&server)
-            .await;
+    temp_env::async_with_vars(
+        // The bypass is honoured only in a declared development environment (#836),
+        // and these dispatch to a wiremock on 127.0.0.1.
+        [
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
 
-        WebhookAction::new()
-            .execute(&server.uri(), None, &HashMap::new(), None, None, &test_event())
-            .await
-            .expect("unsigned webhook dispatch should succeed");
+            WebhookAction::new()
+                .execute(&server.uri(), None, &HashMap::new(), None, None, &test_event())
+                .await
+                .expect("unsigned webhook dispatch should succeed");
 
-        let requests = server.received_requests().await.expect("recorded requests");
-        assert_eq!(requests.len(), 1);
-        assert!(
-            requests[0].headers.get(WEBHOOK_SIGNATURE_HEADER).is_none(),
-            "no signature header when signing is not configured"
-        );
-    })
+            let requests = server.received_requests().await.expect("recorded requests");
+            assert_eq!(requests.len(), 1);
+            assert!(
+                requests[0].headers.get(WEBHOOK_SIGNATURE_HEADER).is_none(),
+                "no signature header when signing is not configured"
+            );
+        },
+    )
     .await;
 }
 
@@ -143,70 +159,94 @@ async fn execute_without_secret_sends_no_signature_header() {
 
 #[tokio::test]
 async fn execute_uses_the_configured_http_method() {
-    temp_env::async_with_vars([(ALLOW_INSECURE_ENV, Some("true"))], async {
-        let server = MockServer::start().await;
-        // Only a PUT is mocked; a POST would 404 and fail the dispatch.
-        Mock::given(method("PUT"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&server)
-            .await;
+    temp_env::async_with_vars(
+        // The bypass is honoured only in a declared development environment (#836),
+        // and these dispatch to a wiremock on 127.0.0.1.
+        [
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        async {
+            let server = MockServer::start().await;
+            // Only a PUT is mocked; a POST would 404 and fail the dispatch.
+            Mock::given(method("PUT"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
 
-        WebhookAction::new()
-            .execute(&server.uri(), Some("PUT"), &HashMap::new(), None, None, &test_event())
-            .await
-            .expect("webhook dispatch should use PUT and succeed");
+            WebhookAction::new()
+                .execute(&server.uri(), Some("PUT"), &HashMap::new(), None, None, &test_event())
+                .await
+                .expect("webhook dispatch should use PUT and succeed");
 
-        let requests = server.received_requests().await.expect("recorded requests");
-        assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0].method.as_str(), "PUT", "the configured method is used");
-    })
+            let requests = server.received_requests().await.expect("recorded requests");
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].method.as_str(), "PUT", "the configured method is used");
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn execute_defaults_to_post_when_method_is_none() {
-    temp_env::async_with_vars([(ALLOW_INSECURE_ENV, Some("true"))], async {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&server)
-            .await;
+    temp_env::async_with_vars(
+        // The bypass is honoured only in a declared development environment (#836),
+        // and these dispatch to a wiremock on 127.0.0.1.
+        [
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
 
-        WebhookAction::new()
-            .execute(&server.uri(), None, &HashMap::new(), None, None, &test_event())
-            .await
-            .expect("default method is POST");
+            WebhookAction::new()
+                .execute(&server.uri(), None, &HashMap::new(), None, None, &test_event())
+                .await
+                .expect("default method is POST");
 
-        let requests = server.received_requests().await.expect("recorded requests");
-        assert_eq!(requests[0].method.as_str(), "POST");
-    })
+            let requests = server.received_requests().await.expect("recorded requests");
+            assert_eq!(requests[0].method.as_str(), "POST");
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn execute_rejects_an_invalid_http_method() {
-    temp_env::async_with_vars([(ALLOW_INSECURE_ENV, Some("true"))], async {
-        let server = MockServer::start().await;
-        // No mock mounted: an unparseable method must fail before any request.
-        let err = WebhookAction::new()
-            .execute(
-                &server.uri(),
-                Some("not a method"),
-                &HashMap::new(),
-                None,
-                None,
-                &test_event(),
-            )
-            .await
-            .expect_err("an invalid HTTP method must fail loud, not silently POST");
-        assert!(
-            err.to_string().contains("invalid HTTP method"),
-            "error names the bad method: {err}"
-        );
-        assert!(
-            server.received_requests().await.unwrap_or_default().is_empty(),
-            "no request is sent when the method is invalid"
-        );
-    })
+    temp_env::async_with_vars(
+        // The bypass is honoured only in a declared development environment (#836),
+        // and these dispatch to a wiremock on 127.0.0.1.
+        [
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        async {
+            let server = MockServer::start().await;
+            // No mock mounted: an unparseable method must fail before any request.
+            let err = WebhookAction::new()
+                .execute(
+                    &server.uri(),
+                    Some("not a method"),
+                    &HashMap::new(),
+                    None,
+                    None,
+                    &test_event(),
+                )
+                .await
+                .expect_err("an invalid HTTP method must fail loud, not silently POST");
+            assert!(
+                err.to_string().contains("invalid HTTP method"),
+                "error names the bad method: {err}"
+            );
+            assert!(
+                server.received_requests().await.unwrap_or_default().is_empty(),
+                "no request is sent when the method is invalid"
+            );
+        },
+    )
     .await;
 }

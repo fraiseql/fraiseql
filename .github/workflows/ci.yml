@@ -64,6 +64,19 @@ jobs:
       - name: Check axum route capture syntax
         run: bash tools/check-route-syntax.sh
 
+  # Guard-parity gate (#776/#802/#816/#836): exactly one outbound-address guard and
+  # one production detector in the workspace. The workspace previously carried eight
+  # of the former and two of the latter, and the gaps between them were exploitable.
+  guard-parity-check:
+    name: Guard Parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Check for hand-rolled SSRF and production guards
+        run: bash tools/check-guard-parity.sh
+
   # Deployment-security gate (Phase 13 / H46): shipped compose + k8s/deploy
   # manifests must not re-expose backing services, ship unauthenticated Redis,
   # use empty-default secrets, pin :latest, or run a writable root filesystem.

@@ -114,7 +114,12 @@ async fn oidc_discovery_success_with_valid_metadata() {
     // FRAISEQL_OIDC_ALLOW_INSECURE=1 disables the https:// + loopback SSRF guards so the
     // wiremock http:// server can be used as a test fixture.  S39 added these guards for
     // production; in unit/integration tests we relax them via the escape-hatch env var.
+    // The hatch is honoured only in a declared development environment (#882), so the
+    // test has to say which environment it is.
     std::env::set_var("FRAISEQL_OIDC_ALLOW_INSECURE", "1");
+    std::env::set_var("FRAISEQL_ENV", "development");
+    std::env::remove_var("FRAISEQL_PROFILE");
+    std::env::remove_var("KUBERNETES_SERVICE_HOST");
 
     let mock_server = MockServer::start().await;
     Mock::given(method("GET"))

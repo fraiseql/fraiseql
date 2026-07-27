@@ -154,8 +154,43 @@ mod initialization_tests {
 
     #[test]
     fn ssrf_allows_public_ipv6_global() {
-        // 2001:db8:: is documentation range — treated as public by is_manifest_url_ssrf_blocked
-        assert!(!is_manifest_url_ssrf_blocked("http://[2001:db8::1]/manifest.json"));
+        // Google public DNS — a real globally-routable address. Not 2001:db8::, which
+        // this test used to treat as "public": it is the RFC 3849 documentation range
+        // and the shared guard refuses it along with the IPv4 TEST-NETs.
+        assert!(!is_manifest_url_ssrf_blocked("http://[2606:4700:4700::1111]/manifest.json"));
+    }
+
+    #[test]
+    fn manifest_guard_refuses_every_blocked_corpus_entry() {
+        use fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+        for (addr, why) in MUST_BLOCK {
+            let url = format!("http://{}/manifest.json", url_host(addr));
+            assert!(is_manifest_url_ssrf_blocked(&url), "must refuse {addr} ({why})");
+        }
+        for (host, why) in MUST_BLOCK_HOSTS {
+            let url = format!("http://{host}/manifest.json");
+            assert!(is_manifest_url_ssrf_blocked(&url), "must refuse {host} ({why})");
+        }
+    }
+
+    #[test]
+    fn manifest_guard_permits_every_allowed_corpus_entry() {
+        use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+        for addr in MUST_ALLOW {
+            let url = format!("http://{}/manifest.json", url_host(addr));
+            assert!(!is_manifest_url_ssrf_blocked(&url), "must permit {addr}");
+        }
+    }
+
+    #[test]
+    fn ssrf_blocks_mapped_metadata_literal() {
+        // The manifest guard had drifted from the federation and Vault guards it claimed
+        // to mirror: it missed every IPv4-mapped form, so this reached the metadata
+        // service on a dual-stack host.
+        assert!(is_manifest_url_ssrf_blocked("http://[::ffff:169.254.169.254]/manifest.json"));
+        assert!(is_manifest_url_ssrf_blocked("http://[64:ff9b::169.254.169.254]/manifest.json"));
+        assert!(is_manifest_url_ssrf_blocked("http://100.100.100.200/manifest.json"));
+        assert!(is_manifest_url_ssrf_blocked("http://0.0.0.0/manifest.json"));
     }
 
     // #360: PKCE must not be served without [security.state_encryption] in production.

@@ -90,6 +90,18 @@ pub async fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Resu
         });
     }
 
+    // Loopback and metadata hostname aliases, before any lookup. `localhost` was
+    // only ever caught if it happened to resolve to 127.0.0.1, and `api.localhost`
+    // / `localhost.evil.com` were not caught at all — the latter is registrable by
+    // anyone.
+    if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
+        return Err(FraiseQLError::Authorization {
+            message:  format!("host '{host}' not allowed: {reason}"),
+            action:   Some("http_request".to_string()),
+            resource: Some(host.to_string()),
+        });
+    }
+
     // Check for private/reserved IPs in a literal-IP host.
     if let Ok(ip) = parse_ip_from_host(host) {
         validate_ip(&ip)?;
@@ -177,60 +189,23 @@ fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
 }
 
 /// Validate that an IP address is not private/reserved.
-/// Blocks:
-/// - 127.0.0.0/8 (loopback)
-/// - 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (RFC 1918 private)
-/// - 169.254.0.0/16 (link-local)
-/// - `::1` (`IPv6` loopback)
-/// - `fc00::/7` (`IPv6` unique local addresses)
-/// - `fe80::/10` (`IPv6` link-local)
+///
+/// The ranges are [`fraiseql_guard::net`]'s, shared with every other outbound
+/// guard in the workspace. This function owns only the error mapping.
+///
+/// The `IPv6` arm previously tested `is_loopback`/`is_unique_local`/
+/// `is_unicast_link_local` directly, none of which fire for an `IPv4`-mapped
+/// address, so `::ffff:169.254.169.254` was accepted and a dual-stack socket
+/// carried the request to the metadata service (#802).
 fn validate_ip(ip: &IpAddr) -> Result<()> {
-    match ip {
-        IpAddr::V4(v4) => {
-            if v4.is_loopback()
-                || v4.is_private()
-                || v4.is_link_local()
-                || v4.is_broadcast()
-                || is_ipv4_reserved(*v4)
-            {
-                return Err(FraiseQLError::Authorization {
-                    message:  format!("private/reserved IP address not allowed: {}", v4),
-                    action:   Some("http_request".to_string()),
-                    resource: Some(v4.to_string()),
-                });
-            }
-            Ok(())
-        },
-        IpAddr::V6(v6) => {
-            if v6.is_loopback() || v6.is_unique_local() || v6.is_unicast_link_local() {
-                return Err(FraiseQLError::Authorization {
-                    message:  format!("private IPv6 address not allowed: {}", v6),
-                    action:   Some("http_request".to_string()),
-                    resource: Some(v6.to_string()),
-                });
-            }
-            Ok(())
-        },
+    if fraiseql_guard::net::is_blocked_ip(ip) {
+        return Err(FraiseQLError::Authorization {
+            message:  format!("private/reserved IP address not allowed: {ip}"),
+            action:   Some("http_request".to_string()),
+            resource: Some(ip.to_string()),
+        });
     }
-}
-
-/// Check if an `IPv4` address is reserved.
-///
-/// Covers the reserved ranges not already caught by the dedicated
-/// `is_loopback`/`is_private`/`is_link_local` checks in [`validate_ip`]:
-/// - `0.0.0.0/8` "this network"
-/// - `100.64.0.0/10` CGNAT / shared address space (RFC 6598)
-/// - `240.0.0.0/4` reserved-for-future-use (includes the `255.255.255.255` broadcast)
-///
-/// This is a workaround since `Ipv4Addr::is_reserved()` is unstable. It is kept
-/// precise on purpose: an earlier version blocked the whole `100..=127` first
-/// octet, which wrongly rejected large public ranges (e.g. Cloudflare `104.x`).
-/// Loopback `127.0.0.0/8` remains blocked via `is_loopback()`.
-const fn is_ipv4_reserved(ip: std::net::Ipv4Addr) -> bool {
-    let octets = ip.octets();
-    octets[0] == 0                                              // 0.0.0.0/8 this-network
-        || (octets[0] == 100 && (octets[1] & 0b1100_0000) == 0b0100_0000) // 100.64.0.0/10 CGNAT
-        || matches!(octets[0], 240..=255) // 240.0.0.0/4 reserved/future + broadcast
+    Ok(())
 }
 
 #[cfg(test)]

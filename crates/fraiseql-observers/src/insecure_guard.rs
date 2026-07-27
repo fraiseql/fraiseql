@@ -43,32 +43,16 @@ pub const ALLOW_INSECURE_ENV: &str = "FRAISEQL_OBSERVERS_ALLOW_INSECURE";
 /// every time so operators see the bypass attempt at every dispatch.
 static PRODUCTION_REFUSAL_LOGGED: AtomicBool = AtomicBool::new(false);
 
-/// Returns `true` when any production-marker env var is set.
+/// Returns `true` unless the operator has positively declared a development
+/// environment.
 ///
-/// Markers are intentionally broad — false-positives (refusing the
-/// bypass in something that "looks like" production) are acceptable;
-/// false-negatives (silently allowing the bypass in real production)
-/// are not.
-#[must_use]
-pub fn is_production_environment() -> bool {
-    if std::env::var_os("KUBERNETES_SERVICE_HOST").is_some() {
-        return true;
-    }
-    if matches_production(&std::env::var("FRAISEQL_ENV").unwrap_or_default()) {
-        return true;
-    }
-    if matches_production(&std::env::var("FRAISEQL_PROFILE").unwrap_or_default()) {
-        return true;
-    }
-    false
-}
-
-// Reason: `eq_ignore_ascii_case` is not const-stable yet (rust-lang/rust#129041);
-// keeping this fn non-const lets us use the idiomatic str method.
-#[allow(clippy::missing_const_for_fn)]
-fn matches_production(value: &str) -> bool {
-    value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
-}
+/// Re-exported from [`fraiseql_guard::deployment`], the workspace's single
+/// production detector. The local copy this replaced read the same
+/// `FRAISEQL_ENV` variable as `ServerConfig::is_production_mode()` but defaulted
+/// an unset value to *not* production, so on any non-Kubernetes deployment the
+/// server believed it was in production while this guard honoured the bypass
+/// (#836).
+pub use fraiseql_guard::deployment::is_production as is_production_environment;
 
 /// Returns `true` only when the bypass env var is set AND no production
 /// marker is present.
@@ -82,11 +66,7 @@ fn matches_production(value: &str) -> bool {
 /// log aggregator after the first webhook).
 #[must_use]
 pub fn is_outbound_insecure_allowed() -> bool {
-    let requested = std::env::var(ALLOW_INSECURE_ENV)
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-
-    if !requested {
+    if !fraiseql_guard::deployment::env_opt_in(ALLOW_INSECURE_ENV) {
         return false;
     }
 
@@ -137,11 +117,7 @@ static NATS_PLAINTEXT_REFUSAL_LOGGED: AtomicBool = AtomicBool::new(false);
 /// allowing plaintext NATS does not also disable the outbound SSRF guards.
 #[must_use]
 pub fn is_nats_plaintext_allowed() -> bool {
-    let requested = std::env::var(NATS_ALLOW_PLAINTEXT_ENV)
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-
-    if !requested {
+    if !fraiseql_guard::deployment::env_opt_in(NATS_ALLOW_PLAINTEXT_ENV) {
         return false;
     }
 

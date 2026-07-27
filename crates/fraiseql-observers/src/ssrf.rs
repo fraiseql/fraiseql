@@ -1,6 +1,10 @@
 //! SSRF URL validation helpers for outbound HTTP connections.
 //!
-//! Consistent with the guards in `fraiseql-federation` and `fraiseql-core`.
+//! The address ranges and hostname aliases come from [`fraiseql_guard::net`], the
+//! workspace's single outbound guard. This module owns only URL parsing, the
+//! observer error mapping, and the `FRAISEQL_OBSERVERS_ALLOW_INSECURE` policy.
+
+use fraiseql_guard::net::{blocked_host_reason, is_blocked_ip as is_ssrf_blocked_ip};
 
 use crate::error::ObserverError;
 
@@ -25,38 +29,16 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
         message: format!("Invalid URL '{url}': {e}"),
     })?;
 
-    let host_raw = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
+    let host = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
         message: format!("URL has no host: {url}"),
     })?;
 
-    // Strip IPv6 brackets added by the url crate (e.g. "[::1]" → "::1").
-    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-        &host_raw[1..host_raw.len() - 1]
-    } else {
-        host_raw
-    };
-
-    // Block loopback hostnames before attempting IP parsing.
-    // Covers: `localhost`, `subdomain.localhost`, `localhost.localdomain`,
-    // and other `localhost.*` aliases common in /etc/hosts configurations.
-    let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost"
-        || lower_host.ends_with(".localhost")
-        || lower_host.starts_with("localhost.")
-    {
+    // Bracket stripping, loopback/metadata hostname aliases and the literal-IP
+    // range check all live in the shared guard.
+    if let Some(reason) = blocked_host_reason(host) {
         return Err(ObserverError::InvalidConfig {
-            message: format!("URL targets a loopback host ({host}) — SSRF protection blocked"),
+            message: format!("URL targets {host} — SSRF protection blocked ({reason})"),
         });
-    }
-
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if is_ssrf_blocked_ip(&ip) {
-            return Err(ObserverError::InvalidConfig {
-                message: format!(
-                    "URL targets a private/reserved IP ({ip}) — SSRF protection blocked"
-                ),
-            });
-        }
     }
 
     Ok(())
@@ -148,33 +130,6 @@ pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     validate_outbound_url(url)
 }
 
-/// Returns `true` for IP ranges that outbound connections must never target.
-fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127                                          // loopback 127/8
-            || o[0] == 10                                        // RFC 1918 10/8
-            || (o[0] == 172 && (16..=31).contains(&o[1]))       // RFC 1918 172.16/12
-            || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
-            || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
-            || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
-            || o[0] == 0 // 0.0.0.0/8 "this network" (covers 0.0.0.0 unspecified)
-        },
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback()                                     // ::1
-            || v6.is_unspecified()                               // ::
-            || {
-                let s = v6.segments();
-                (s[0] & 0xfe00) == 0xfc00                        // ULA fc00::/7
-                || (s[0] & 0xffc0) == 0xfe80                    // link-local fe80::/10
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0        // ::ffff:0:0/96
-                    && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
-            }
-        },
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod ssrf_tests {
@@ -225,5 +180,57 @@ mod ssrf_tests {
         assert!(validate_outbound_url("https://192.168.1.1/hook").is_err());
         assert!(validate_outbound_url("https://169.254.169.254/hook").is_err());
         assert!(validate_outbound_url("https://[::1]/hook").is_err());
+    }
+}
+
+#[cfg(test)]
+mod corpus {
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+
+    use super::validate_outbound_url;
+
+    /// Clear every bypass so the guard is actually exercised.
+    fn engaged<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
+        let mut out = None;
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_OBSERVERS_ALLOW_INSECURE", None::<&str>),
+                ("FRAISEQL_ENV", None),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || out = Some(f()),
+        );
+        out.expect("temp_env ran the closure")
+    }
+
+    #[test]
+    fn refuses_every_blocked_address_in_the_corpus() {
+        engaged(|| {
+            for (addr, why) in MUST_BLOCK {
+                let url = format!("https://{}/hook", url_host(addr));
+                assert!(validate_outbound_url(&url).is_err(), "must refuse {addr} ({why})");
+            }
+        });
+    }
+
+    #[test]
+    fn refuses_every_blocked_host_in_the_corpus() {
+        engaged(|| {
+            for (host, why) in MUST_BLOCK_HOSTS {
+                let url = format!("https://{host}/hook");
+                assert!(validate_outbound_url(&url).is_err(), "must refuse {host} ({why})");
+            }
+        });
+    }
+
+    #[test]
+    fn permits_every_allowed_address_in_the_corpus() {
+        engaged(|| {
+            for addr in MUST_ALLOW {
+                let url = format!("https://{}/hook", url_host(addr));
+                assert!(validate_outbound_url(&url).is_ok(), "must permit {addr}");
+            }
+        });
     }
 }

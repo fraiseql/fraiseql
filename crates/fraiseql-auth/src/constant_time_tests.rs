@@ -285,3 +285,99 @@ mod constant_time_comparison {
         assert_eq!(result2, result3);
     }
 }
+
+// =============================================================================
+// #725 — the padded comparison reported equality for values that differ
+//
+// `compare_padded` truncated both inputs to `fixed_len` before comparing, so
+// `compare_jwt_constant` (fixed_len = 512) treated any two tokens sharing their
+// first 512 bytes as equal. Real JWTs — Azure AD issues 1-2 KB — carry the
+// signature at the END, which is exactly the region the truncation discarded.
+//
+// Both functions are deleted. Nothing on a production path called them; the one
+// real comparison (`local_password/reset.rs:383`) uses `ConstantTimeOps::compare`,
+// which is correct for values of any length. These tests pin the property the
+// deleted API violated, against the function that replaced it.
+// =============================================================================
+
+#[cfg(test)]
+mod long_token_comparison {
+    use crate::constant_time::ConstantTimeOps;
+
+    /// Two tokens with an identical 512-byte prefix and different tails —
+    /// the shape of two JWTs with the same header+payload and different signatures.
+    fn pair_differing_only_in_the_tail(total_len: usize) -> (String, String) {
+        let prefix = "e".repeat(512);
+        let a = format!("{prefix}{}", "A".repeat(total_len - 512));
+        let b = format!("{prefix}{}", "B".repeat(total_len - 512));
+        (a, b)
+    }
+
+    #[test]
+    fn jwts_differing_only_in_signature_do_not_compare_equal() {
+        for len in [600usize, 1024, 4096] {
+            let (a, b) = pair_differing_only_in_the_tail(len);
+            assert_ne!(a, b, "fixture must actually differ at {len} bytes");
+            assert!(
+                !ConstantTimeOps::compare_str(&a, &b),
+                "two {len}-byte tokens differing only after byte 512 must not compare equal"
+            );
+        }
+    }
+
+    #[test]
+    fn identical_long_tokens_still_compare_equal() {
+        let (a, _) = pair_differing_only_in_the_tail(4096);
+        assert!(ConstantTimeOps::compare_str(&a, &a.clone()));
+    }
+
+    #[test]
+    fn a_trailing_nul_is_not_equality() {
+        assert!(
+            !ConstantTimeOps::compare(b"abc", b"abc\0"),
+            "zero-padding must not make a NUL-suffixed value equal to its stem"
+        );
+    }
+}
+
+// ── The shared outbound corpus, at the OIDC issuer entry point ────────────────
+
+#[cfg(test)]
+mod oidc_issuer_corpus {
+    use fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+
+    /// Clear the bypass and the posture markers so the guard is actually exercised.
+    fn with_guard_engaged<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
+        let mut out = None;
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>),
+                ("FRAISEQL_ENV", None),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || out = Some(f()),
+        );
+        out.expect("temp_env ran the closure")
+    }
+
+    #[test]
+    fn refuses_every_blocked_corpus_entry() {
+        with_guard_engaged(|| {
+            for (addr, why) in MUST_BLOCK {
+                let url = format!("https://{}/", url_host(addr));
+                assert!(
+                    crate::oidc_provider::validate_oidc_issuer_url(&url).is_err(),
+                    "must refuse {addr} ({why})"
+                );
+            }
+            for (host, why) in MUST_BLOCK_HOSTS {
+                let url = format!("https://{host}/");
+                assert!(
+                    crate::oidc_provider::validate_oidc_issuer_url(&url).is_err(),
+                    "must refuse {host} ({why})"
+                );
+            }
+        });
+    }
+}

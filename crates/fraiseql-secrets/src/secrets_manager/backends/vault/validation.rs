@@ -2,6 +2,12 @@
 
 use crate::secrets_manager::SecretsError;
 
+/// Env var that disables the Vault address SSRF guard for local development.
+///
+/// Honoured only when `FRAISEQL_ENV` declares a development environment; refused
+/// in production regardless of its value.
+pub const VAULT_ALLOW_INSECURE_ENV: &str = "FRAISEQL_VAULT_ALLOW_INSECURE";
+
 /// Maximum byte length for a Vault secret name / path.
 ///
 /// Vault's own internal key-value paths top out at a few hundred characters in
@@ -24,13 +30,14 @@ pub const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
 /// Returns [`SecretsError::ValidationError`] if the address uses a non-HTTP(S) scheme,
 /// is not a valid URL, or targets a private/loopback address (SSRF protection).
 pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
-    // When `FRAISEQL_VAULT_ALLOW_INSECURE=true` all SSRF guards are disabled.
-    // This is intended for local development and integration testing only —
-    // never set in production.
-    let allow_insecure = std::env::var("FRAISEQL_VAULT_ALLOW_INSECURE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
-    if allow_insecure {
+    // `FRAISEQL_VAULT_ALLOW_INSECURE=true` disables the SSRF guard for local
+    // development and integration testing. It is honoured only in a declared
+    // development environment: this used to return `Ok(())` on the env var alone,
+    // with no production check of any kind, so a stray `.env` line disabled the
+    // guard on a Vault address in production.
+    if fraiseql_guard::deployment::insecure_bypass_allowed(fraiseql_guard::deployment::env_opt_in(
+        VAULT_ALLOW_INSECURE_ENV,
+    )) {
         return Ok(());
     }
 
@@ -64,32 +71,13 @@ pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
     Ok(())
 }
 
+/// Returns `true` for hostnames/IPs a Vault address must never point at.
+///
+/// Delegates to [`fraiseql_guard::net`]. The copy this replaced accepted
+/// `0.0.0.0/8`, every `IPv4`-mapped address, and the whole `fe80::/10`
+/// link-local range.
 fn is_ssrf_blocked_host_vault(host: &str) -> bool {
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" {
-        return true;
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
-        return addr.is_loopback()
-            || addr.is_private()
-            || addr.is_link_local()
-            || is_cgnat_v4_vault(addr);
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
-        return addr.is_loopback() || addr.is_unspecified() || is_ula_v6_vault(addr);
-    }
-    false
-}
-
-const fn is_cgnat_v4_vault(addr: std::net::Ipv4Addr) -> bool {
-    // 100.64.0.0/10
-    let octets = addr.octets();
-    octets[0] == 100 && (octets[1] & 0xC0) == 64
-}
-
-const fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
-    // fc00::/7
-    (addr.segments()[0] & 0xFE00) == 0xFC00
+    fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
 /// Validate Vault secret name format.

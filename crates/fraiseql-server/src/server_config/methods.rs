@@ -14,15 +14,14 @@ impl ServerConfig {
 
     /// Check if running in production mode.
     ///
-    /// Production mode is detected via `FRAISEQL_ENV` environment variable.
-    /// - `production` or `prod` (or any value other than `development`/`dev`) → production mode
-    /// - `development` or `dev` → development mode
+    /// Delegates to [`fraiseql_guard::deployment::is_production`], the workspace's
+    /// single production detector. Behaviour is unchanged for this crate — unset
+    /// or unrecognised `FRAISEQL_ENV` means production — but `fraiseql-observers`
+    /// used to answer the opposite for the same variable, which is what let an
+    /// SSRF bypass survive into production deployments (#836).
     #[must_use]
     pub fn is_production_mode() -> bool {
-        let env = std::env::var("FRAISEQL_ENV")
-            .unwrap_or_else(|_| "production".to_string())
-            .to_lowercase();
-        env != "development" && env != "dev"
+        fraiseql_guard::deployment::is_production()
     }
 
     /// Validate configuration.

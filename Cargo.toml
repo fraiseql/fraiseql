@@ -33,6 +33,7 @@ members = [
   "crates/fraiseql-core",
   "crates/fraiseql-db",
   "crates/fraiseql-error",
+  "crates/fraiseql-guard",  # Shared outbound-address SSRF guard (one guard, every crate)
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server",
@@ -81,6 +82,7 @@ fraiseql-core = {path = "crates/fraiseql-core", version = "2.14.1", default-feat
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.14.1", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.14.1", default-features = false}
 fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.14.1"}
+fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.14.1"}
 fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.14.1"}
 fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.14.1"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.14.1"}
@@ -337,6 +339,7 @@ fraiseql-cli = 40_000
 fraiseql-core = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
 fraiseql-db = 25_000
 fraiseql-error = 5_000
+fraiseql-guard = 5_000
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
 fraiseql-server = 55_000

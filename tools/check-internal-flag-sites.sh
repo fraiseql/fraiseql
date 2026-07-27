@@ -44,6 +44,7 @@ reads=$(grep -rnP '\.internal\b' crates/*/src/ --include='*.rs' \
   | grep -vE '/tests?\.rs:|_tests\.rs:|/tests/' \
   | grep -vP '\.internal\s*=(?![=>])' \
   | grep -vP '\.internal/' \
+  | grep -vP '"[^"]*\.internal\b[^"]*"' \
   || true)
 
 violations=0

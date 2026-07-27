@@ -1,4 +1,5 @@
 [dependencies]
+fraiseql-guard = {workspace = true}
 aes-gcm = "0.10"
 anyhow = "1.0"
 argon2 = "0.5"

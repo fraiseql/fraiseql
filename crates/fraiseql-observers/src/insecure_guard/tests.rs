@@ -44,9 +44,18 @@ fn no_env_var_means_bypass_refused() {
 
 #[test]
 fn bypass_set_in_dev_is_honored() {
-    run_with_env(&[(ALLOW_INSECURE_ENV, Some("true"))], || {
-        assert!(is_outbound_insecure_allowed());
-    });
+    // "in dev" now means the operator said so. This test previously left
+    // FRAISEQL_ENV unset and asserted the bypass was honoured — encoding the
+    // fail-open default that #836 was about.
+    run_with_env(
+        &[
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        || {
+            assert!(is_outbound_insecure_allowed());
+        },
+    );
 }
 
 #[test]
@@ -109,9 +118,13 @@ fn invalid_bypass_value_is_refused() {
 }
 
 #[test]
-fn is_production_environment_returns_false_without_markers() {
-    run_with_env(&[], || {
+fn is_production_environment_returns_false_only_when_development_is_declared() {
+    run_with_env(&[("FRAISEQL_ENV", Some("development"))], || {
         assert!(!is_production_environment());
+    });
+    // Absence is not a declaration: see `unset_env_is_production` below.
+    run_with_env(&[], || {
+        assert!(is_production_environment());
     });
 }
 
@@ -133,9 +146,15 @@ fn nats_plaintext_refused_without_env_var() {
 
 #[test]
 fn nats_plaintext_honored_in_dev_when_set() {
-    run_with_env(&[(NATS_ALLOW_PLAINTEXT_ENV, Some("true"))], || {
-        assert!(is_nats_plaintext_allowed());
-    });
+    run_with_env(
+        &[
+            (NATS_ALLOW_PLAINTEXT_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        || {
+            assert!(is_nats_plaintext_allowed());
+        },
+    );
 }
 
 #[test]
@@ -175,8 +194,81 @@ fn nats_plaintext_invalid_value_is_refused() {
 fn nats_plaintext_flag_does_not_enable_outbound_ssrf_bypass() {
     // The two escape hatches are independent: allowing plaintext NATS must not
     // also disable the outbound SSRF guards.
-    run_with_env(&[(NATS_ALLOW_PLAINTEXT_ENV, Some("true"))], || {
-        assert!(is_nats_plaintext_allowed());
-        assert!(!is_outbound_insecure_allowed());
+    run_with_env(
+        &[
+            (NATS_ALLOW_PLAINTEXT_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        || {
+            assert!(is_nats_plaintext_allowed());
+            assert!(!is_outbound_insecure_allowed());
+        },
+    );
+}
+
+// =============================================================================
+// #836 — the production default disagrees with the rest of the product
+//
+// `ServerConfig::is_production_mode()` treats an unset `FRAISEQL_ENV` as
+// production, and every server-side safety gate is keyed off that. This module's
+// detector treated unset as NOT production, so on any non-Kubernetes deployment
+// (Docker Compose, systemd, VM, ECS) the bypass was honoured while the server
+// believed it was in production.
+//
+// `crates/fraiseql-server/tests/production_safety_test.rs` asserts the opposite
+// answer for the same variable. Only one of the two can be right; the server's
+// fail-closed default is the one the product documents.
+// =============================================================================
+
+#[test]
+fn unset_env_is_production() {
+    run_with_env(&[], || {
+        assert!(
+            is_production_environment(),
+            "an unset FRAISEQL_ENV must mean production, matching \
+             ServerConfig::is_production_mode(); anything else fails open on every \
+             non-Kubernetes deployment"
+        );
     });
+}
+
+#[test]
+fn bypass_is_refused_when_no_env_markers_are_set() {
+    run_with_env(&[(ALLOW_INSECURE_ENV, Some("true"))], || {
+        assert!(
+            !is_outbound_insecure_allowed(),
+            "the bypass must be inert unless the operator has positively declared a \
+             development environment"
+        );
+    });
+}
+
+#[test]
+fn nats_plaintext_is_refused_when_no_env_markers_are_set() {
+    run_with_env(&[(NATS_ALLOW_PLAINTEXT_ENV, Some("true"))], || {
+        assert!(!is_nats_plaintext_allowed());
+    });
+}
+
+#[test]
+fn explicit_development_still_honours_the_bypass() {
+    // The escape hatch must keep working — it just has to be asked for.
+    run_with_env(
+        &[
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+        ],
+        || {
+            assert!(is_outbound_insecure_allowed());
+        },
+    );
+    run_with_env(
+        &[
+            (ALLOW_INSECURE_ENV, Some("true")),
+            ("FRAISEQL_ENV", Some("dev")),
+        ],
+        || {
+            assert!(is_outbound_insecure_allowed());
+        },
+    );
 }

@@ -46,15 +46,19 @@ impl ConstantTimeOps {
         Self::compare(expected.as_bytes(), actual.as_bytes())
     }
 
-    /// Compare two slices with different lengths in constant time
+    /// Compare two slices of possibly different lengths in constant time.
     ///
-    /// If lengths differ, still compares as much as possible to avoid leaking
-    /// length information through timing.
+    /// Compares the common prefix before checking the lengths, so the duration
+    /// does not depend on *where* the values diverge. It does not hide the
+    /// lengths themselves — an attacker who can time the call learns roughly how
+    /// long the shorter input was.
     ///
-    /// # SECURITY WARNING
-    /// This function is vulnerable to timing attacks that measure comparison duration.
-    /// For JWT tokens or other security-sensitive values, use `compare_padded()` instead
-    /// which always compares at a fixed length to prevent length disclosure.
+    /// # SECURITY
+    /// There is no length-hiding comparison in this module. One used to exist
+    /// (`compare_padded`) and it was not a comparison: it truncated both inputs
+    /// to a fixed length first, so two JWTs sharing a 512-byte prefix and
+    /// differing only in their signatures compared **equal** (#725). If you need
+    /// length hiding, compare digests of the two values rather than the values.
     #[must_use]
     pub fn compare_len_safe(expected: &[u8], actual: &[u8]) -> bool {
         // If lengths differ, still compare constant-time
@@ -64,58 +68,5 @@ impl ConstantTimeOps {
         let length_equal = u8::from(expected.len() == actual.len());
 
         (prefix_equal.unwrap_u8() & length_equal) != 0
-    }
-
-    /// Compare two byte slices at a fixed/padded length for timing attack prevention
-    ///
-    /// Always compares at `fixed_len` bytes, padding with zeros if necessary.
-    /// This prevents timing attacks that measure comparison duration to determine length.
-    ///
-    /// # Arguments
-    /// * `expected` - The expected (correct/known) value
-    /// * `actual` - The actual (untrusted) value from the user/attacker
-    /// * `fixed_len` - The fixed length to use for comparison (e.g., 512 for JWT tokens)
-    ///
-    /// # SECURITY
-    /// Prevents length-based timing attacks. Time is independent of actual input lengths.
-    ///
-    /// # Example
-    /// ```rust
-    /// use fraiseql_auth::constant_time::ConstantTimeOps;
-    /// let stored_jwt = "eyJhbGc...";
-    /// let user_jwt = "eyJhbGc...";
-    /// // Always compares at 512 bytes, padding with zeros if needed
-    /// let result = ConstantTimeOps::compare_padded(
-    ///     stored_jwt.as_bytes(),
-    ///     user_jwt.as_bytes(),
-    ///     512
-    /// );
-    /// ```
-    #[must_use]
-    pub fn compare_padded(expected: &[u8], actual: &[u8], fixed_len: usize) -> bool {
-        // SECURITY: Pad both inputs to fixed_len before comparison.
-        // Using Vec avoids the previous 1024-byte silent cap that produced incorrect
-        // results for tokens longer than 1024 bytes.
-        let mut expected_padded = vec![0u8; fixed_len];
-        let mut actual_padded = vec![0u8; fixed_len];
-
-        let copy_expected = expected.len().min(fixed_len);
-        expected_padded[..copy_expected].copy_from_slice(&expected[..copy_expected]);
-
-        let copy_actual = actual.len().min(fixed_len);
-        actual_padded[..copy_actual].copy_from_slice(&actual[..copy_actual]);
-
-        // Constant-time comparison at fixed length
-        expected_padded.ct_eq(&actual_padded).into()
-    }
-
-    /// Compare JWT tokens in constant time with fixed-length padding
-    ///
-    /// JWT tokens are typically 300-800 bytes. Using 512-byte fixed-length comparison
-    /// prevents attackers from determining token length through timing analysis.
-    #[must_use]
-    pub fn compare_jwt_constant(expected: &str, actual: &str) -> bool {
-        // Use 512-byte fixed length for JWT comparison (typical JWT size)
-        Self::compare_padded(expected.as_bytes(), actual.as_bytes(), 512)
     }
 }

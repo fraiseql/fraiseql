@@ -140,32 +140,10 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
 
 /// Returns `true` for IP addresses the federation engine must not contact.
 ///
-/// Covers: loopback (`127/8`, `::1`), RFC 1918 (`10/8`, `172.16/12`, `192.168/16`),
-/// link-local (`169.254/16`, `fe80::/10`), CGNAT (`100.64/10`), unspecified (`0.0.0.0`),
-/// `IPv4`-mapped `IPv6` (`::ffff:0:0/96`), and ULA (`fc00::/7`).
-#[must_use]
-pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127                                                  // loopback
-                || o[0] == 10                                            // RFC 1918 /8
-                || (o[0] == 172 && (16..=31).contains(&o[1]))            // RFC 1918 /12
-                || (o[0] == 192 && o[1] == 168)                          // RFC 1918 /16
-                || (o[0] == 169 && o[1] == 254)                          // link-local
-                || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000) // CGNAT RFC 6598
-                || o[0] == 0 // unspecified
-        },
-        std::net::IpAddr::V6(v6) => {
-            let s = v6.segments();
-            *v6 == std::net::Ipv6Addr::LOCALHOST                         // ::1
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
-                    && s[4] == 0 && s[5] == 0xffff)                      // IPv4-mapped
-                || (s[0] & 0xfe00) == 0xfc00                             // ULA fc00::/7
-                || (s[0] & 0xffc0) == 0xfe80 // link-local fe80::/10
-        },
-    }
-}
+/// Re-exported from [`fraiseql_guard::net`], which owns the range list for every
+/// outbound guard in the workspace. The local copy this replaced had drifted:
+/// it accepted the unspecified address `::` and every NAT64 address.
+pub use fraiseql_guard::net::is_blocked_ip as is_ssrf_blocked_ip;
 
 /// Resolve the host via DNS and reject if any address is private/reserved.
 ///
@@ -490,3 +468,28 @@ impl HttpEntityResolver {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod corpus {
+    use std::net::IpAddr;
+
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK};
+
+    use super::is_ssrf_blocked_ip;
+
+    #[test]
+    fn refuses_every_blocked_corpus_entry() {
+        for (addr, why) in MUST_BLOCK {
+            let ip: IpAddr = addr.parse().expect("corpus entry parses");
+            assert!(is_ssrf_blocked_ip(&ip), "must refuse {addr} ({why})");
+        }
+    }
+
+    #[test]
+    fn permits_every_allowed_corpus_entry() {
+        for addr in MUST_ALLOW {
+            let ip: IpAddr = addr.parse().expect("corpus entry parses");
+            assert!(!is_ssrf_blocked_ip(&ip), "must permit {addr}");
+        }
+    }
+}
