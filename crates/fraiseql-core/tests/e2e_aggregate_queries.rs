@@ -1115,3 +1115,70 @@ fn test_native_measures_with_where_filter() {
     );
     assert!(result.params.contains(&json!("sensor-42")));
 }
+
+// =============================================================================
+// #795 — the aggregate FROM target must be the resolved fact table
+//
+// `executor/runners/aggregate.rs` resolves `FactTableMetadata` from the GraphQL root
+// field (`sales_aggregate` -> `tf_sales`), but the FROM target was taken from a separate
+// client-controlled `table` key that nothing reconciled against it. Beyond reading an
+// arbitrary relation, `policy.evaluate(ctx, &request.table_name)` is looked up by that
+// same unvalidated name — naming an unpolicied table yields `None`, so no RLS WHERE is
+// composed and the tenant filter disappears.
+// =============================================================================
+
+mod table_reconciliation {
+    use super::*;
+
+    fn plan_with_table(table: &serde_json::Value) -> fraiseql_core::error::Result<()> {
+        let metadata = create_sales_metadata();
+        let query = json!({
+            "table":      table,
+            "aggregates": [{"count": {}}]
+        });
+        let parsed =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())?;
+        fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata)?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_subquery_cannot_substitute_the_relation() {
+        let result = plan_with_table(&json!(
+            "(SELECT jsonb_build_object('category', rolname) AS dimensions FROM pg_authid) AS x"
+        ));
+        assert!(
+            result.is_err(),
+            "a subquery in `table` must be rejected before it reaches `FROM`"
+        );
+    }
+
+    #[test]
+    fn another_relation_cannot_be_named() {
+        let result = plan_with_table(&json!("pg_authid"));
+        assert!(
+            result.is_err(),
+            "`table` must not select a relation other than the resolved one"
+        );
+    }
+
+    /// The RLS-bypass half: another tenant's fact table is a well-formed identifier, so
+    /// only reconciliation against the resolved metadata catches it.
+    #[test]
+    fn another_tenants_fact_table_cannot_be_named() {
+        let result = plan_with_table(&json!("tf_sales_tenant_b"));
+        assert!(
+            result.is_err(),
+            "naming another tenant's fact table must be rejected — the RLS policy is looked \
+             up by this same name, so an unpolicied table silently drops the tenant filter"
+        );
+    }
+
+    #[test]
+    fn the_resolved_fact_table_is_still_accepted() {
+        assert!(
+            plan_with_table(&json!("tf_sales")).is_ok(),
+            "the legitimate table name must still plan"
+        );
+    }
+}

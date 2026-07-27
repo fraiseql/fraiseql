@@ -562,3 +562,183 @@ fn test_resolve_field_rejects_injection_in_order_by() {
         "error should mention invalid characters: {msg}"
     );
 }
+
+// =============================================================================
+// #794 / #795 — SQL injection on the LIVE window path
+//
+// These drive the same three calls the shipped binary makes —
+// `WindowQueryParser::parse` -> `WindowPlanner::plan` -> `WindowSqlGenerator::generate`
+// — with the payloads verbatim from the issue bodies. They are deliberately *not*
+// written against `WindowFunctionPlanner`, the planner that consults `WindowAllowlist`,
+// because nothing in the shipped binary calls it: testing that one is what let this ship.
+// =============================================================================
+
+#[cfg(test)]
+mod live_path_injection {
+    use super::*;
+    use crate::runtime::{WindowQueryParser, window::WindowSqlGenerator};
+
+    /// Everything a client controls arrives as the raw `variables` JSON object.
+    fn plan_from_variables(variables: &serde_json::Value) -> Result<WindowExecutionPlan> {
+        let metadata = create_test_metadata();
+        let request = WindowQueryParser::parse(variables, &metadata)?;
+        WindowPlanner::plan(request, &metadata)
+    }
+
+    fn sql_from_variables(variables: &serde_json::Value) -> Result<String> {
+        let plan = plan_from_variables(variables)?;
+        Ok(WindowSqlGenerator::new(crate::db::DatabaseType::PostgreSQL)
+            .generate(&plan)?
+            .raw_sql)
+    }
+
+    /// #794 sink 3: `alias` on a measure select is cloned through untouched and emitted
+    /// by `write!(sql, "{} AS {}", …)`. The issue's payload appends a whole scalar
+    /// subquery against `pg_authid`.
+    #[test]
+    fn measure_alias_cannot_smuggle_a_subquery() {
+        let variables = serde_json::json!({
+            "table": "tf_sales",
+            "select": [{
+                "type":  "measure",
+                "name":  "revenue",
+                "alias": "c, (SELECT string_agg(rolname, ',') FROM pg_authid) AS leak"
+            }]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a measure alias carrying a subquery must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// #794 sink 1: the Dimension select arm builds `format!("{}->>'{}'", …, path)` with
+    /// no charset check, so a quote in `path` breaks out of the JSONB key literal.
+    #[test]
+    fn dimension_path_cannot_break_out_of_the_jsonb_key() {
+        let variables = serde_json::json!({
+            "table": "tf_sales",
+            "select": [{
+                "type":  "dimension",
+                "path":  "category'||(SELECT rolname FROM pg_authid LIMIT 1)||'",
+                "alias": "d"
+            }]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a dimension path containing a quote must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// #794 sink 3: the window-function `alias` reaches `write!(sql, " AS {}", …)`.
+    #[test]
+    fn window_function_alias_cannot_smuggle_a_subquery() {
+        let variables = serde_json::json!({
+            "table":   "tf_sales",
+            "select":  [],
+            "windows": [{
+                "function": {"type": "row_number"},
+                "alias":    "rank, (SELECT current_user) AS whoami"
+            }]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a window alias carrying a subquery must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// #794 sink 2: `PartitionByColumn::Dimension` repeats the unvalidated `format!`.
+    #[test]
+    fn partition_by_dimension_path_cannot_break_out_of_the_jsonb_key() {
+        let variables = serde_json::json!({
+            "table":   "tf_sales",
+            "select":  [],
+            "windows": [{
+                "function":    {"type": "row_number"},
+                "alias":       "rank",
+                "partitionBy": [{"type": "dimension", "path": "x'||(SELECT version())||'"}]
+            }]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a partitionBy dimension path containing a quote must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// #795: the FROM target comes from the client's `table` key and is never reconciled
+    /// against the fact table the root field already resolved. A subquery substitutes the
+    /// relation outright; naming a different table also drops the RLS policy, which is
+    /// looked up by that same unvalidated name.
+    #[test]
+    fn table_cannot_substitute_the_relation_with_a_subquery() {
+        let variables = serde_json::json!({
+            "table": "(SELECT jsonb_build_object('category', rolname) AS dimensions \
+                      FROM pg_authid) AS x",
+            "select": [{"type": "measure", "name": "revenue", "alias": "r"}]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a subquery in `table` must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// #795: even a plain, well-formed identifier must be refused when it is not the fact
+    /// table the root field resolved — that is the RLS-bypass half of the issue.
+    #[test]
+    fn table_cannot_name_a_different_relation() {
+        let variables = serde_json::json!({
+            "table":  "pg_authid",
+            "select": [{"type": "measure", "name": "revenue", "alias": "r"}]
+        });
+
+        let result = sql_from_variables(&variables);
+
+        assert!(
+            result.is_err(),
+            "a `table` other than the resolved fact table must be rejected, got SQL: {:?}",
+            result.ok()
+        );
+    }
+
+    /// The guard must not break the legitimate query shape it protects.
+    #[test]
+    fn a_well_formed_window_query_still_plans_and_generates() {
+        let variables = serde_json::json!({
+            "table":   "tf_sales",
+            "select":  [
+                {"type": "measure",   "name": "revenue",  "alias": "revenue"},
+                {"type": "dimension", "path": "category", "alias": "category"}
+            ],
+            "windows": [{
+                "function":    {"type": "row_number"},
+                "alias":       "rank",
+                "partitionBy": [{"type": "dimension", "path": "category"}]
+            }]
+        });
+
+        let sql =
+            sql_from_variables(&variables).expect("a legitimate window query must still work");
+
+        assert!(sql.contains("FROM tf_sales"), "expected the resolved fact table: {sql}");
+        assert!(sql.contains("ROW_NUMBER()"), "expected the window function: {sql}");
+    }
+}

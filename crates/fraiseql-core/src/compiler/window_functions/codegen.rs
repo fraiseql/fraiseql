@@ -3,6 +3,7 @@ use super::{
     WindowExecutionPlan, WindowFunction, WindowFunctionRequest, WindowFunctionSpec,
     WindowFunctionType, WindowOrderBy, WindowRequest, WindowSelectColumn,
 };
+use crate::compiler::window_allowlist::WindowAllowlist;
 
 // =============================================================================
 // WindowPlanner - Converts high-level WindowRequest to WindowExecutionPlan
@@ -41,17 +42,40 @@ impl WindowPlanner {
         request: WindowRequest,
         metadata: &FactTableMetadata,
     ) -> Result<WindowExecutionPlan> {
+        // SECURITY (#795): the FROM target must be the fact table the root field already
+        // resolved, never the client's `table` key. Two separate channels selected the
+        // relation; only this one was checked, so a request could name any relation — or a
+        // whole subquery — and, because the RLS policy is looked up by that same name,
+        // naming an unpolicied table dropped the tenant filter entirely.
+        if request.table_name != metadata.table_name {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "window query 'table' ({}) does not match the fact table resolved from the \
+                     query field ({}); the relation is determined by the schema, not the request",
+                    request.table_name, metadata.table_name
+                ),
+                path:    None,
+            });
+        }
+
+        // SECURITY (#794): defence-in-depth on top of the unconditional charset checks
+        // below. Built here, in the planner the shipped binary actually calls — the
+        // allowlist existed but only `WindowFunctionPlanner::plan` consulted it, and
+        // nothing outside tests calls that.
+        let allowlist = WindowAllowlist::from_metadata(metadata);
+
         // Convert select columns to SQL expressions
-        let select = Self::convert_select_columns(&request.select, metadata)?;
+        let select = Self::convert_select_columns(&request.select, metadata, &allowlist)?;
 
         // Convert window functions to SQL expressions
-        let windows = Self::convert_window_functions(&request.windows, metadata)?;
+        let windows = Self::convert_window_functions(&request.windows, metadata, &allowlist)?;
 
         // Convert final ORDER BY to SQL expressions
         let order_by = Self::convert_order_by(&request.order_by, metadata)?;
 
         Ok(WindowExecutionPlan {
-            table: request.table_name,
+            // Use the resolved name, not the request's — belt and braces with the check above.
+            table: metadata.table_name.clone(),
             select,
             windows,
             where_clause: request.where_clause,
@@ -65,17 +89,23 @@ impl WindowPlanner {
     fn convert_select_columns(
         columns: &[WindowSelectColumn],
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<Vec<SelectColumn>> {
         columns
             .iter()
-            .map(|col| Self::convert_single_select_column(col, metadata))
+            .map(|col| Self::convert_single_select_column(col, metadata, allowlist))
             .collect()
     }
 
     fn convert_single_select_column(
         column: &WindowSelectColumn,
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<SelectColumn> {
+        // SECURITY (#794): every arm below emits `<expr> AS <alias>` verbatim, so the alias
+        // is validated once here rather than in each arm — the bug was that one arm carried
+        // a check its siblings did not.
+        Self::validate_alias(column.alias())?;
         match column {
             WindowSelectColumn::Measure { name, alias } => {
                 // Validate measure exists
@@ -95,7 +125,9 @@ impl WindowPlanner {
                 })
             },
             WindowSelectColumn::Dimension { path, alias } => {
-                // Dimension from JSONB - generate extraction expression
+                // SECURITY (#794): `path` is interpolated as a single-quoted JSONB key, so an
+                // embedded quote breaks out of the literal and appends arbitrary SQL.
+                Self::validate_dimension_path(path, metadata, allowlist)?;
                 let expression = format!("{}->>'{}'", metadata.dimensions.name, path);
                 Ok(SelectColumn {
                     expression,
@@ -126,17 +158,22 @@ impl WindowPlanner {
     fn convert_window_functions(
         windows: &[WindowFunctionRequest],
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<Vec<WindowFunction>> {
         windows
             .iter()
-            .map(|w| Self::convert_single_window_function(w, metadata))
+            .map(|w| Self::convert_single_window_function(w, metadata, allowlist))
             .collect()
     }
 
     fn convert_single_window_function(
         request: &WindowFunctionRequest,
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<WindowFunction> {
+        // SECURITY (#794): emitted by `write!(sql, " AS {}", window.alias)`.
+        Self::validate_alias(&request.alias)?;
+
         // Convert function spec to function type
         let function = Self::convert_function_spec(&request.function, metadata)?;
 
@@ -144,7 +181,7 @@ impl WindowPlanner {
         let partition_by = request
             .partition_by
             .iter()
-            .map(|p| Self::convert_partition_by(p, metadata))
+            .map(|p| Self::convert_partition_by(p, metadata, allowlist))
             .collect::<Result<Vec<_>>>()?;
 
         // Convert ORDER BY within window to SQL expressions
@@ -269,9 +306,13 @@ impl WindowPlanner {
     fn convert_partition_by(
         partition: &PartitionByColumn,
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<String> {
         match partition {
             PartitionByColumn::Dimension { path } => {
+                // SECURITY (#794): the same unvalidated JSONB-key interpolation as the
+                // select arm. Both sinks now go through one entry point.
+                Self::validate_dimension_path(path, metadata, allowlist)?;
                 Ok(format!("{}->>'{}'", metadata.dimensions.name, path))
             },
             PartitionByColumn::Filter { name } => {
@@ -336,6 +377,74 @@ impl WindowPlanner {
 
         // Dimension path
         Ok(format!("{}->>'{}'", metadata.dimensions.name, field))
+    }
+
+    /// Validate a result alias before it is emitted as `<expr> AS <alias>` (#794).
+    ///
+    /// Aliases reach `write!(sql, "{} AS {}", …)` in `runtime/window.rs` with no quoting,
+    /// so an alias of `c, (SELECT … FROM pg_authid) AS leak` appends an entire extra
+    /// SELECT column — and `WindowProjector::project` copies every returned column into
+    /// the GraphQL response, so the attacker reads the result.
+    ///
+    /// Rejects rather than quotes: the alias is also the response key, so rejecting keeps
+    /// legitimate keys byte-identical, matching `aggregate_parser::validate_dimension_key`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `alias` is outside `[_A-Za-z][_0-9A-Za-z]*`.
+    fn validate_alias(alias: &str) -> Result<()> {
+        Self::validate_identifier_charset(alias, "window alias")
+    }
+
+    /// Validate a JSONB dimension path before it is interpolated into `data->>'path'` (#794).
+    ///
+    /// Two layers, in this order:
+    /// 1. **Charset** — unconditional, and the load-bearing guard. It has to be, because the
+    ///    allowlist below no-ops when the schema declares no dimension paths, which is the
+    ///    realistic default (the same reasoning `aggregate_parser` records for its own parse-time
+    ///    check).
+    /// 2. **Allowlist** — defence-in-depth against the declared schema, applied only when the
+    ///    schema actually enumerates dimension paths. Where it declares none there is no constraint
+    ///    to enforce, and requiring membership would reject legitimate undeclared paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if `path` is outside `[_A-Za-z][_0-9A-Za-z]*`,
+    /// or is not a declared dimension when the schema enumerates them.
+    fn validate_dimension_path(
+        path: &str,
+        metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
+    ) -> Result<()> {
+        Self::validate_identifier_charset(path, "window dimension path")?;
+        if metadata.dimensions.paths.is_empty() {
+            return Ok(());
+        }
+        allowlist.validate(path, "dimension")
+    }
+
+    /// The single charset check for every client-supplied identifier on the window path.
+    ///
+    /// `[_A-Za-z][_0-9A-Za-z]*`, rejected rather than escaped. Every caller that
+    /// interpolates a request-supplied string into SQL — aliases, dimension paths, order-by
+    /// fields — routes through here, so a new sink cannot quietly acquire a different
+    /// (or absent) rule. #794 existed because `resolve_field_to_sql` had a check and its
+    /// four sibling sinks did not.
+    fn validate_identifier_charset(value: &str, context: &str) -> Result<()> {
+        let mut chars = value.chars();
+        let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+        let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if first_ok && rest_ok {
+            Ok(())
+        } else {
+            Err(FraiseQLError::Validation {
+                message: format!(
+                    "{context} '{value}' contains invalid characters; \
+                     only [_A-Za-z][_0-9A-Za-z]* is allowed"
+                ),
+                path:    None,
+            })
+        }
     }
 
     /// Validate that `field` is a safe GraphQL identifier: `[_A-Za-z][_0-9A-Za-z]*`.

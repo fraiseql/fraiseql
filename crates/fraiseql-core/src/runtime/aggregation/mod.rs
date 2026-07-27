@@ -286,7 +286,10 @@ impl AggregationSqlGenerator {
 
         let select_sql =
             self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
-        let from_sql = format!("FROM {}", plan.request.table_name);
+        // SECURITY (#795): emit the *resolved* fact table, never the request's `table` key.
+        // `AggregationPlanner::plan` rejects a mismatch; sourcing the name from metadata
+        // here means a future planner change cannot silently re-open the sink.
+        let from_sql = format!("FROM {}", plan.metadata.table_name);
 
         let where_sql = if let Some(ref wc) = plan.request.where_clause {
             self.build_where_clause_parameterized(wc, &plan.metadata, &mut params)?
