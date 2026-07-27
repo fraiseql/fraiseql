@@ -1,27 +1,38 @@
 //! Axum router integration for the REST transport.
 //!
-//! [`rest_router`] builds an axum [`Router`] from a [`RestRouteTable`] and
-//! mounts it with middleware (compression, `X-Request-Id`).  Auth, rate
-//! limiting, and CORS are applied at the server level and inherited.
+//! [`rest_router`] builds an axum [`Router`] from a [`RestRouteTable`] and mounts it
+//! with middleware (compression, `X-Request-Id`).
+//!
+//! **Authentication is attached by the caller, on this router, before it is merged.**
+//! `Server::mount_extensions` passes the router through `Server::attach_auth`. This
+//! module doc previously claimed auth was "applied at the server level and inherited"
+//! — it was not, and could not be: axum's `route_layer` binds to the routes already
+//! registered on the same `Router`, and `Router::merge` does not propagate it. Rate
+//! limiting and CORS *are* inherited, because those use a global `.layer()`. The
+//! discrepancy was #812: every REST request reached its handler with no principal.
+//!
+//! `RestConfig.require_auth` is enforced for every route by the [`RestSecurityContext`]
+//! extractor (#810).
 
 pub mod helpers;
 
 #[cfg(test)]
 mod tests;
 
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use axum::{
     Router,
     body::Body,
-    extract::{Request, State},
-    http::StatusCode,
-    response::Response,
+    extract::{FromRequestParts, Request, State},
+    http::{StatusCode, request::Parts},
+    response::{IntoResponse, Response},
     routing::{delete, get, patch, post, put},
 };
 use fraiseql_core::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::Executor,
+    security::SecurityContext,
 };
 use helpers::{
     error_response, parse_query_pairs, rest_result_to_response, strip_base_path, to_axum_path,
@@ -124,13 +135,22 @@ where
 /// as `FraiseWireAdapter` and `SqliteAdapter`.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
-/// application router.  Middleware applied at the server level (auth, rate
-/// limiting, CORS, tracing, body-size limit) is inherited automatically.
+/// application router. Rate limiting, CORS, tracing and the body-size limit are
+/// applied globally by the server and inherited. **Authentication is not**: axum's
+/// `route_layer` does not survive `Router::merge`, so the caller must pass this router
+/// through `Server::attach_auth` before merging it (#812).
+///
+/// `auth_layer_attached` tells the served `OpenAPI` document whether that happened, so
+/// the machine-readable contract matches what is enforced (#810).
 ///
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_query_router<A>(state: &AppState<A>, compression_enabled: bool) -> Option<Router>
+pub fn rest_query_router<A>(
+    state: &AppState<A>,
+    compression_enabled: bool,
+    auth_layer_attached: bool,
+) -> Option<Router>
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
@@ -154,28 +174,23 @@ where
         router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
+    // Serve the OpenAPI specification at {base_path}/openapi.json.
+    //
+    // Registered *before* `with_state` so the handler can take the
+    // `RestSecurityContext` extractor and be covered by `require_auth` like every other
+    // route. A REST surface closed to anonymous callers should not hand those same
+    // callers a full description of its resources, fields and filters; and leaving the
+    // one meta route ungated would make the transport's posture non-uniform, which is
+    // exactly the per-route drift that #810 was.
+    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
+    let openapi_spec = build_openapi_spec(schema, &route_table, auth_layer_attached);
+    let router = router.route(&openapi_path, get(serve_openapi(openapi_spec)));
+
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
     if compression_enabled {
         router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
-
-    // Serve OpenAPI specification at {base_path}/openapi.json.
-    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
-    let openapi_spec = match super::openapi::generate_openapi(schema, &route_table) {
-        Ok(spec) => Arc::new(spec),
-        Err(e) => {
-            tracing::warn!(error = %e, "OpenAPI spec generation failed");
-            Arc::new(json!({"error": "OpenAPI generation failed"}))
-        },
-    };
-    router = router.route(
-        &openapi_path,
-        get(move || {
-            let spec = openapi_spec.clone();
-            async move { axum::Json((*spec).clone()) }
-        }),
-    );
 
     // Log startup summary.
     let resource_count = route_table.resources.len();
@@ -212,13 +227,22 @@ where
 /// `Executor::execute_mutation()` which has the same compile-time bound.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
-/// application router.  Middleware applied at the server level (auth, rate
-/// limiting, CORS, tracing, body-size limit) is inherited automatically.
+/// application router. Rate limiting, CORS, tracing and the body-size limit are
+/// applied globally by the server and inherited. **Authentication is not**: axum's
+/// `route_layer` does not survive `Router::merge`, so the caller must pass this router
+/// through `Server::attach_auth` before merging it (#812).
+///
+/// `auth_layer_attached` tells the served `OpenAPI` document whether that happened, so
+/// the machine-readable contract matches what is enforced (#810).
 ///
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(state: &AppState<A>, compression_enabled: bool) -> Option<Router>
+pub fn rest_router<A>(
+    state: &AppState<A>,
+    compression_enabled: bool,
+    auth_layer_attached: bool,
+) -> Option<Router>
 where
     A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
 {
@@ -282,28 +306,23 @@ where
         router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
+    // Serve the OpenAPI specification at {base_path}/openapi.json.
+    //
+    // Registered *before* `with_state` so the handler can take the
+    // `RestSecurityContext` extractor and be covered by `require_auth` like every other
+    // route. A REST surface closed to anonymous callers should not hand those same
+    // callers a full description of its resources, fields and filters; and leaving the
+    // one meta route ungated would make the transport's posture non-uniform, which is
+    // exactly the per-route drift that #810 was.
+    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
+    let openapi_spec = build_openapi_spec(schema, &route_table, auth_layer_attached);
+    let router = router.route(&openapi_path, get(serve_openapi(openapi_spec)));
+
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
     if compression_enabled {
         router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
-
-    // Serve OpenAPI specification at {base_path}/openapi.json.
-    let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
-    let openapi_spec = match super::openapi::generate_openapi(schema, &route_table) {
-        Ok(spec) => Arc::new(spec),
-        Err(e) => {
-            tracing::warn!(error = %e, "OpenAPI spec generation failed");
-            Arc::new(json!({"error": "OpenAPI generation failed"}))
-        },
-    };
-    router = router.route(
-        &openapi_path,
-        get(move || {
-            let spec = openapi_spec.clone();
-            async move { axum::Json((*spec).clone()) }
-        }),
-    );
 
     // Log startup summary.
     let resource_count = route_table.resources.len();
@@ -322,6 +341,32 @@ where
     );
 
     Some(router)
+}
+
+/// Build the served `OpenAPI` document, degrading to an error object rather than
+/// refusing to mount the transport if generation fails.
+fn build_openapi_spec(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    route_table: &RestRouteTable,
+    auth_layer_attached: bool,
+) -> Arc<serde_json::Value> {
+    match super::openapi::generate_openapi(schema, route_table, auth_layer_attached) {
+        Ok(spec) => Arc::new(spec),
+        Err(e) => {
+            tracing::warn!(error = %e, "OpenAPI spec generation failed");
+            Arc::new(json!({"error": "OpenAPI generation failed"}))
+        },
+    }
+}
+
+/// Handler for `{base_path}/openapi.json`.
+///
+/// Takes [`RestSecurityContext`] purely so the meta route carries the same
+/// `require_auth` posture as the data routes (#810).
+fn serve_openapi(
+    spec: Arc<serde_json::Value>,
+) -> impl Fn(RestSecurityContext) -> std::future::Ready<axum::Json<serde_json::Value>> + Clone {
+    move |RestSecurityContext(_)| std::future::ready(axum::Json((*spec).clone()))
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +396,53 @@ struct RestState<A: DatabaseAdapter> {
 }
 
 // ---------------------------------------------------------------------------
+// Security context extraction
+// ---------------------------------------------------------------------------
+
+/// The request's [`SecurityContext`], with `RestConfig.require_auth` **enforced**.
+///
+/// #810 shipped because `require_auth` was a per-handler responsibility and five of the
+/// six handlers simply did not discharge it: only `rest_sse_handler` read the flag, so
+/// `require_auth = true` closed the stream route and left every data route open, while
+/// the served `OpenAPI` advertised `BearerAuth` + 401 on all of them.
+///
+/// Making the check part of *extracting the context* removes the possibility of
+/// forgetting it: a handler cannot obtain a `SecurityContext` without the guard having
+/// run, and a handler that does not obtain one cannot execute a query. That is the
+/// difference between a rule and a rule that is enforced by the type system.
+struct RestSecurityContext(Option<SecurityContext>);
+
+impl<A> FromRequestParts<RestState<A>> for RestSecurityContext
+where
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    type Rejection = Response;
+
+    #[allow(clippy::manual_async_fn)] // Reason: axum's FromRequestParts requires an explicit Future type in return position
+    fn from_request_parts(
+        parts: &mut Parts,
+        state: &RestState<A>,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let require_auth =
+            state.executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
+        let sanitizer = Arc::clone(&state.error_sanitizer);
+
+        async move {
+            let OptionalSecurityContext(security_ctx) =
+                OptionalSecurityContext::from_request_parts(parts, &())
+                    .await
+                    .map_err(IntoResponse::into_response)?;
+
+            if require_auth && security_ctx.is_none() {
+                return Err(rest_result_to_response(Err(RestError::unauthenticated()), &sanitizer));
+            }
+
+            Ok(Self(security_ctx))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Axum handlers
 // ---------------------------------------------------------------------------
 
@@ -364,7 +456,7 @@ struct RestState<A: DatabaseAdapter> {
 /// - `Accept: application/json` (default) → standard envelope response
 async fn rest_get_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -514,7 +606,7 @@ where
 /// POST handler — create mutation or custom action.
 async fn rest_post_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -544,7 +636,7 @@ where
 /// PUT handler — full update mutation.
 async fn rest_put_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -573,7 +665,7 @@ where
 /// PATCH handler — partial update mutation or bulk update.
 async fn rest_patch_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -612,7 +704,7 @@ where
 /// DELETE handler — single-resource delete or bulk delete.
 async fn rest_delete_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -641,9 +733,14 @@ where
 ///
 /// Returns `501 Not Implemented` when the `observers` feature is disabled.
 /// Otherwise, streams events for the given resource type via SSE.
+///
+/// The extracted context is unused *in the body* but must still be extracted: running
+/// [`RestSecurityContext`]'s extractor **is** the `require_auth` enforcement. Do not
+/// replace it with a bare `_: RestSecurityContext` removal — that would restore the
+/// pre-#810 state where this was the only route honouring the flag, inverted.
 async fn rest_sse_handler<A>(
     State(rest): State<RestState<A>>,
-    OptionalSecurityContext(security_ctx): OptionalSecurityContext,
+    RestSecurityContext(_security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -676,20 +773,9 @@ where
         );
     }
 
-    // Check auth if required
-    if let Some(config) = &schema.rest_config {
-        if config.require_auth && security_ctx.is_none() {
-            return rest_result_to_response(
-                Err(super::handler::RestError {
-                    status:  StatusCode::UNAUTHORIZED,
-                    code:    "UNAUTHENTICATED",
-                    message: "Authentication required".to_string(),
-                    details: None,
-                }),
-                &rest.error_sanitizer,
-            );
-        }
-    }
+    // `require_auth` is enforced during context extraction by `RestSecurityContext`,
+    // uniformly for every REST route. This handler used to carry the workspace's only
+    // copy of that check (#810).
 
     // Read heartbeat interval from REST config (or use default).
     let heartbeat_secs = schema

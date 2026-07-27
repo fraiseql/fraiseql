@@ -34,19 +34,31 @@ use super::resource::RestRouteTable;
 /// Generate an `OpenAPI` 3.0.3 specification from a compiled schema and its
 /// derived REST route table.
 ///
+/// `auth_layer_attached` reports whether the deployment puts an authentication layer in
+/// front of the REST router — which the compiled schema alone cannot know, since it is a
+/// property of the *server* config (`[auth]` / `[auth_hs256]`), not of `[rest]`.
+///
+/// The document's security advertisement is derived from this **and** `require_auth`
+/// together, so it cannot disagree with what the server enforces in either direction.
+/// Before #810 it was derived from `require_auth` alone while `require_auth` was read at
+/// exactly one route, so the spec promised `BearerAuth` and a 401 on operations that
+/// accepted anonymous callers — an operator reading the served contract to confirm the
+/// surface was closed got a document that said yes and a server that said no.
+///
 /// # Errors
 ///
 /// Returns `Err` if the schema is missing REST configuration.
 pub fn generate_openapi(
     schema: &CompiledSchema,
     route_table: &RestRouteTable,
+    auth_layer_attached: bool,
 ) -> Result<Value, String> {
     let config = schema
         .rest_config
         .as_ref()
         .ok_or_else(|| "REST config not found in compiled schema".to_string())?;
 
-    let generator = OpenApiGenerator::new(schema, route_table, config);
+    let generator = OpenApiGenerator::new(schema, route_table, config, auth_layer_attached);
     Ok(generator.generate())
 }
 
@@ -56,9 +68,17 @@ pub fn generate_openapi(
 
 /// Generates an `OpenAPI` 3.0.3 spec from schema metadata.
 struct OpenApiGenerator<'a> {
-    schema:      &'a CompiledSchema,
-    route_table: &'a RestRouteTable,
-    config:      &'a RestConfig,
+    schema:            &'a CompiledSchema,
+    route_table:       &'a RestRouteTable,
+    config:            &'a RestConfig,
+    /// Whether a caller must present a credential to reach *any* REST route.
+    ///
+    /// True when `[rest] require_auth = true` (enforced for every route by the
+    /// `RestSecurityContext` extractor) or when the deployment attaches an auth
+    /// middleware to the REST router (enforced by that middleware). Either way the
+    /// answer to "does this operation need a bearer token" is the same for all
+    /// operations, because both mechanisms are transport-wide.
+    security_required: bool,
 }
 
 impl<'a> OpenApiGenerator<'a> {
@@ -66,11 +86,13 @@ impl<'a> OpenApiGenerator<'a> {
         schema: &'a CompiledSchema,
         route_table: &'a RestRouteTable,
         config: &'a RestConfig,
+        auth_layer_attached: bool,
     ) -> Self {
         Self {
             schema,
             route_table,
             config,
+            security_required: config.require_auth || auth_layer_attached,
         }
     }
 

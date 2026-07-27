@@ -9,6 +9,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Closed the unauthenticated REST read surface (#812, #739, #810).** The REST transport
+  served every row of every tenant to any caller, by three independent routes, none of
+  which the existing REST suite could see.
+
+  - **#812 — REST was mounted with no authentication at all.** Every auth middleware in
+    the crate is attached with `route_layer` on a specific sub-router, and axum's
+    `route_layer` does not survive `Router::merge`. `mount_extensions` merged the REST
+    router without one, so `security_context` was `None` on every `/rest/v1/**` request —
+    disabling RLS-policy evaluation and the `SET LOCAL app.tenant_id` session stamp — even
+    when the caller presented a valid bearer token. The router's own module doc asserted
+    the opposite. `/graphql` and REST now acquire authentication from one shared
+    `Server::attach_auth`, so the two cannot drift again.
+
+  - **#739 — the resolved tenant filter was thrown away.** `execute_query_direct` — the
+    runner behind the whole REST read surface, including CSV/XLSX/NDJSON export and
+    resource embedding — resolved each `inject_param` into `let _value = …` and never
+    composed it, under a comment claiming the params were applied via WHERE clauses. Every
+    sibling path (`count_rows`, `execute_regular_query_with_security`, the relay runners)
+    composed them correctly. The visible symptom shipped for releases: a
+    `Prefer: count=exact` response whose `X-Total-Count` was tenant-filtered while its body
+    was not. Inject params with no security context now fail closed, matching `count_rows`.
+
+  - **#810 — `require_auth` was honoured by one route in six.** Only the SSE handler read
+    it; GET/POST/PUT/PATCH/DELETE never did, while the served OpenAPI advertised
+    `BearerAuth` and a documented 401 on every operation — so an operator who set the flag,
+    read back the machine-readable contract, and shipped, shipped an open endpoint. The
+    check now runs during security-context *extraction*, which a handler cannot skip, and
+    the OpenAPI document derives its security advertisement from what is actually enforced.
+    Three operation builders (the `openapi.json` meta entry, the SSE endpoint, and the two
+    bulk operations) hand-built their JSON and never consulted the security helper; all four
+    now route through one `apply_security`.
+
+- **The compiler no longer discards author-declared security controls (#806, #807).** Two
+  authorization controls were lost at the SDK → compiler seam, both by key drift, both
+  under `✓ Schema compiled successfully`.
+
+  - **#806 — server-side parameter injection.** TypeScript, Go and Java emit
+    `inject_params`; the compiler read `inject`. With `#[serde(default)]` and no
+    `deny_unknown_fields` the map became an empty default, so every query and mutation
+    those SDKs produced compiled with **no tenant predicate**. The root cause was two names
+    for one concept — `inject` in the intermediate format, `inject_params` in the compiled
+    schema — so an SDK author reading a compiled artifact to learn the name got it wrong.
+    The names are now the same.
+
+  - **#807 — field-level scopes.** Go, C# and F# emit `scope`/`scopes`, the Rust authoring
+    SDK emits `requiresScope`, Java and Elixir emit the plural `requires_scopes`; the
+    compiler reads `requires_scope`. The compiled field carried `requires_scope: None`,
+    which the runtime field filter treats as public and always accessible — on a PII column
+    the author gated and the SDK validated the grammar of. PHP dropped the scope one layer
+    earlier, in its exporter, with the same outcome.
+
+  Both are now refused at compile time rather than aliased: an alias would keep six
+  spellings working and leave the seventh SDK free to invent a seventh. The guard runs on
+  the raw JSON at **both** deserialization sites — the JSON workflow and the TOML /
+  multi-file merger — because guarding only one would have left every `--schema-dir` user
+  with the original silent drop.
+
+### Breaking
+
+- **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
+  value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
+  using `inject` is now **refused** with a message naming the replacement, rather than
+  compiling to a query with no injected filter. The Python decorator's `inject=` argument
+  is unchanged; only the emitted JSON key moved.
+
+- **Field scopes must be declared as `requires_scope`** (#807). `scope`, `scopes`,
+  `requiresScope`, `requiresScopes` and `requires_scopes` are refused with a message naming
+  the replacement. The Go, C#, F#, Rust, PHP and Java SDKs now emit the canonical key.
+
+- **Multiple required scopes on one field are unsupported and now say so.** The compiled
+  schema and the runtime field filter represent exactly one `requires_scope`; a multi-scope
+  declaration compiled to a field with *no* scope. The SDKs refuse it at authoring time. A
+  singleton list is normalised to a single scope.
+
+- **`require_auth = true` now applies to every REST route, including
+  `{base}/openapi.json`** (#810). A surface closed to anonymous callers no longer hands
+  those callers a full description of its resources, fields and filters.
+
+- **`rest_query_router` and `rest_router` take an `auth_layer_attached` argument** (#810),
+  and `generate_openapi` takes it too, so the served document reflects the deployment's
+  actual authentication rather than a static template.
+
 - **Unified every outbound-address guard and every production check onto one
   implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
   hand-rolled SSRF address predicates and **two** production detectors. Each was

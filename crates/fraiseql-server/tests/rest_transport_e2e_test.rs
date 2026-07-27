@@ -200,7 +200,7 @@ fn build_router(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(&state, false).expect("REST router should be created")
+    rest_router(&state, false, false).expect("REST router should be created")
 }
 
 fn build_router_with_relay(
@@ -209,7 +209,7 @@ fn build_router_with_relay(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new_with_relay(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(&state, false).expect("REST router should be created")
+    rest_router(&state, false, false).expect("REST router should be created")
 }
 
 async fn send_request(
@@ -683,18 +683,27 @@ async fn test_head_collection_returns_200_empty_body() {
 }
 
 // ---------------------------------------------------------------------------
-// 19. Auth enforcement (403 when require_auth = true and no context)
+// 19. Auth enforcement — require_auth = true refuses an unauthenticated caller
 // ---------------------------------------------------------------------------
+
+/// `require_auth = true` must refuse a request that carries no security context.
+///
+/// **This test previously asserted the opposite** (#810). It set `require_auth: true`,
+/// sent an anonymous `GET /rest/v1/users`, asserted `StatusCode::OK`, and passed — with
+/// a comment explaining that "without auth middleware, the security context is None, but
+/// queries without `requires_role` should still work". The fail-open was codified as the
+/// expected result, under a name that claimed the guarantee it disproved, in the one file
+/// a reviewer would consult to check whether REST auth worked.
+///
+/// It was true, in its way: `require_auth` was read at exactly one site in the whole
+/// workspace — the SSE route — so every data route did serve anonymous callers. The test
+/// documented reality. What it never did was ask whether that reality was correct.
 #[tokio::test]
-async fn test_auth_enforcement_with_require_auth() {
+async fn require_auth_refuses_a_request_with_no_security_context() {
     let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
     let adapter = FailingAdapter::new().with_response("v_user", users);
 
     let mut schema = build_rest_schema();
-    // Enable require_auth but don't set up auth middleware — the
-    // OptionalSecurityContext extractor reads from request extensions.
-    // Without auth middleware, the security context is None, but queries
-    // without requires_role should still work.
     schema.rest_config = Some(RestConfig {
         enabled: true,
         require_auth: true,
@@ -703,9 +712,129 @@ async fn test_auth_enforcement_with_require_auth() {
 
     let router = build_router(adapter, schema);
 
-    // A query without requires_role should still succeed
-    let (status, _headers, _json) = send_get(&router, "/rest/v1/users").await;
-    assert_eq!(status, StatusCode::OK);
+    // `openapi.json` is included deliberately: a surface closed to anonymous callers
+    // must not hand those callers its own full description, and leaving one meta route
+    // ungated is the per-route drift #810 was made of.
+    for path in [
+        "/rest/v1/users",
+        "/rest/v1/users/1",
+        "/rest/v1/users/stream",
+        "/rest/v1/openapi.json",
+    ] {
+        let (status, _headers, json) = send_get(&router, path).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "{path}: require_auth = true must refuse an unauthenticated caller, got {status} \
+             {json}"
+        );
+        assert!(
+            json.get("data").is_none(),
+            "{path}: a refused request must not carry rows, got {json}"
+        );
+    }
+}
+
+/// The served `OpenAPI` must advertise exactly the security the server enforces.
+///
+/// #810: the document was generated from `require_auth` alone, and `require_auth` was
+/// read at exactly one route — so the spec declared `BearerAuth` and a documented 401 on
+/// operations that served anonymous callers. An operator's only machine-readable way to
+/// confirm the surface was closed actively lied, and client codegen built auth headers
+/// for endpoints that never checked them.
+///
+/// This derives the expectation from the *enforcement* inputs rather than restating the
+/// generator's logic, so a future change that closes routes without updating the spec —
+/// or advertises auth it does not apply — fails here.
+/// `require_auth = true` additionally gates the document itself, so the content
+/// assertions here vary only `auth_layer_attached` and leave `require_auth` false — the
+/// refusal case is covered by
+/// [`require_auth_refuses_a_request_with_no_security_context`], which probes
+/// `openapi.json` alongside the data routes.
+#[tokio::test]
+async fn served_openapi_advertises_exactly_the_security_that_is_enforced() {
+    for auth_layer_attached in [false, true] {
+        // A caller must present a credential when a mount-level auth middleware is in
+        // play, exactly as `Server::attach_auth` attaches one.
+        let enforced = auth_layer_attached;
+
+        let adapter = FailingAdapter::new();
+        let mut schema = build_rest_schema();
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: false,
+            ..RestConfig::default()
+        });
+
+        let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
+        let state = AppState::new(executor);
+        let router =
+            rest_router(&state, false, auth_layer_attached).expect("REST router should be created");
+
+        let (status, _headers, spec) = send_get(&router, "/rest/v1/openapi.json").await;
+        assert_eq!(status, StatusCode::OK);
+
+        let label = format!("auth_layer={auth_layer_attached}");
+
+        let scheme_declared = spec.pointer("/components/securitySchemes/BearerAuth").is_some();
+        assert_eq!(
+            scheme_declared, enforced,
+            "{label}: securitySchemes.BearerAuth presence must match enforcement",
+        );
+
+        let operations = spec["paths"]
+            .as_object()
+            .expect("paths object")
+            .values()
+            .filter_map(serde_json::Value::as_object)
+            .flat_map(|methods| methods.values());
+
+        let mut checked = 0;
+        for op in operations {
+            let advertises_bearer = op
+                .get("security")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|reqs| reqs.iter().any(|r| r.get("BearerAuth").is_some()));
+            assert_eq!(
+                advertises_bearer, enforced,
+                "{label}: operation advertises BearerAuth={advertises_bearer} but enforcement \
+                 is {enforced}: {op:?}",
+            );
+
+            let documents_401 = op.pointer("/responses/401").is_some();
+            assert_eq!(
+                documents_401, enforced,
+                "{label}: operation documents a 401 ={documents_401} but enforcement is \
+                 {enforced}: {op:?}",
+            );
+            checked += 1;
+        }
+        assert!(checked > 0, "{label}: no operations found in the served spec");
+    }
+}
+
+/// The counterweight: `require_auth = false` must still serve anonymous callers.
+///
+/// Without this, the fix for #810 could be "refuse everything", which would pass the test
+/// above while breaking every deployment that never asked for REST auth. A guard that
+/// blocks everything is not a guard, it is an outage.
+#[tokio::test]
+async fn require_auth_false_still_serves_an_unauthenticated_caller() {
+    let users = vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Alice"}))];
+    let adapter = FailingAdapter::new().with_response("v_user", users);
+
+    let mut schema = build_rest_schema();
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        require_auth: false,
+        ..RestConfig::default()
+    });
+
+    let router = build_router(adapter, schema);
+
+    let (status, _headers, json) = send_get(&router, "/rest/v1/users").await;
+    assert_eq!(status, StatusCode::OK, "require_auth = false must not refuse: {json}");
+    assert!(json["data"].is_array(), "expected a data array, got {json}");
 }
 
 // ---------------------------------------------------------------------------

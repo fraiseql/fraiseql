@@ -5,6 +5,7 @@
 
 pub mod advanced_types;
 pub mod analytics;
+pub mod drift_guard;
 pub mod fragments;
 pub mod operations;
 pub mod subscriptions;
@@ -17,6 +18,7 @@ pub use analytics::{
     IntermediateAggregateQuery, IntermediateDimensionPath, IntermediateDimensions,
     IntermediateFactTable, IntermediateFilter, IntermediateMeasure,
 };
+pub use drift_guard::reject_drifted_security_keys;
 pub use fragments::{
     IntermediateAppliedDirective, IntermediateDirective, IntermediateFragment,
     IntermediateFragmentField, IntermediateFragmentFieldDef,

@@ -195,20 +195,22 @@ public class ScopeExtractionTest {
     }
 
     @Test
-    @DisplayName("Scopes array is exported to JSON for multiple scopes field")
-    void testScopeExportToJsonMultipleScopes() throws Exception {
+    @DisplayName("Multiple required scopes are refused rather than exported unreadably")
+    void testMultipleScopesAreRefused() {
+        // This test used to assert that a `requires_scopes` array appeared in the
+        // exported JSON. It did — and the compiler reads only `requires_scope`, so the
+        // compiled field carried no scope at all and the runtime served it to callers
+        // holding none (#807). The compiled schema and the runtime field filter represent
+        // exactly one required scope, so the array was asserting the shape of a control
+        // that did not exist downstream.
         FraiseQL.registerType(ExportTestMultipleScopes.class);
 
-        var schema = SchemaFormatter.formatMinimalSchema(registry);
-        assertNotNull(schema);
+        var error = assertThrows(IllegalStateException.class,
+            () -> SchemaFormatter.formatMinimalSchema(registry),
+            "a multi-scope field must be refused, not exported under an unreadable key");
 
-        var json = mapper.readTree(schema);
-        var restrictedField = json.get("types").get("ExportTestMultipleScopes").get("fields").get("restricted");
-
-        var scopesNode = restrictedField.get("requires_scopes");
-        assertNotNull(scopesNode, "JSON should contain requires_scopes array");
-        assertTrue(scopesNode.isArray());
-        assertEquals(2, scopesNode.size());
+        assertTrue(error.getMessage().contains("not supported"),
+            "the error must explain that multiple scopes are unsupported: " + error.getMessage());
     }
 
     @Test

@@ -964,17 +964,31 @@ fn field_to_json_includes_type_and_nullable() {
 }
 
 #[test]
-fn field_to_json_with_requires_scopes_array() {
+#[should_panic(expected = "multiple required scopes are not supported")]
+fn field_to_json_refuses_multiple_required_scopes() {
+    // This test used to assert that a `requiresScopes` array appeared in the emitted
+    // JSON. It did — and the compiler read neither `requiresScopes` nor `requiresScope`,
+    // so the field shipped with no scope at all (#807). Multiple required scopes have no
+    // representation in the compiled schema or the runtime field filter, so emitting the
+    // array was asserting the shape of a control that did not exist.
     let scopes = vec![
         "read:user.email".to_string(),
         "write:user.email".to_string(),
     ];
-    let field = Field::new("email", "String").with_requires_scopes(Some(scopes));
+    let _ = Field::new("email", "String").with_requires_scopes(Some(scopes)).to_json();
+}
+
+#[test]
+fn field_to_json_emits_a_singleton_scopes_list_as_the_canonical_key() {
+    let field = Field::new("email", "String")
+        .with_requires_scopes(Some(vec!["read:user.email".to_string()]));
     let json = field.to_json();
 
-    assert!(json.contains("\"requiresScopes\""));
-    assert!(json.contains("\"read:user.email\""));
-    assert!(json.contains("\"write:user.email\""));
+    assert!(json.contains("\"requires_scope\":\"read:user.email\""), "got: {json}");
+    assert!(
+        !json.contains("requiresScope"),
+        "the drifted camelCase key must be gone: {json}"
+    );
 }
 
 #[test]

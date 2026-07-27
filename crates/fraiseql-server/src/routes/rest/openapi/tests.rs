@@ -76,7 +76,7 @@ fn rest_schema() -> CompiledSchema {
 
 fn generate(schema: &CompiledSchema) -> serde_json::Value {
     let route_table = RestRouteTable::from_compiled_schema(schema).unwrap();
-    generate_openapi(schema, &route_table).unwrap()
+    generate_openapi(schema, &route_table, false).unwrap()
 }
 
 // -- Structural tests --------------------------------------------------------
@@ -448,7 +448,7 @@ fn missing_rest_config_returns_error() {
         resources:   vec![],
         diagnostics: vec![],
     };
-    let result = generate_openapi(&schema, &route_table);
+    let result = generate_openapi(&schema, &route_table, false);
     assert!(result.is_err());
 }
 
@@ -464,7 +464,7 @@ fn empty_route_table_produces_minimal_spec() {
         resources:   vec![],
         diagnostics: vec![],
     };
-    let spec = generate_openapi(&schema, &route_table).unwrap();
+    let spec = generate_openapi(&schema, &route_table, false).unwrap();
     assert_eq!(spec["openapi"], "3.0.3");
     let paths = spec["paths"].as_object().unwrap();
     assert_eq!(paths.len(), 1);

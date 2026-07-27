@@ -64,6 +64,22 @@ impl RestError {
         }
     }
 
+    /// 401 Unauthorized — no authenticated principal on a route that requires one.
+    ///
+    /// The single construction site for the `require_auth` refusal. Before #810 this
+    /// shape existed inline in the SSE handler only, and the GET/POST/PUT/PATCH/DELETE
+    /// handlers never consulted the flag at all — while the served `OpenAPI` advertised
+    /// `BearerAuth` and a documented 401 on every one of them.
+    #[must_use]
+    pub fn unauthenticated() -> Self {
+        Self {
+            status:  StatusCode::UNAUTHORIZED,
+            code:    "UNAUTHENTICATED",
+            message: "Authentication required".to_string(),
+            details: None,
+        }
+    }
+
     /// 403 Forbidden.
     #[must_use]
     pub fn forbidden() -> Self {

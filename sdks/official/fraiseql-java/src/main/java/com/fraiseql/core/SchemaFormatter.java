@@ -121,12 +121,22 @@ public class SchemaFormatter {
                 if (fieldInfo.requiresScope != null) {
                     fieldNode.put("requires_scope", fieldInfo.requiresScope);
                 }
+                // #807: `requires_scopes` is a key the compiler does not read, and the
+                // compiled schema and runtime field filter represent exactly one required
+                // scope. Emitting the array produced a field with no scope at all —
+                // silently public. A singleton list is the same requirement as a single
+                // scope and is emitted as one; anything longer is refused rather than
+                // written as a declaration nothing can honour.
                 if (fieldInfo.requiresScopes != null) {
-                    ArrayNode scopesArray = mapper.createArrayNode();
-                    for (String scope : fieldInfo.requiresScopes) {
-                        scopesArray.add(scope);
+                    if (fieldInfo.requiresScopes.length > 1) {
+                        throw new IllegalStateException(String.format(
+                            "Field %s requires %d scopes; multiple required scopes are not "
+                                + "supported \u2014 use requiresScope with a single value.",
+                            fieldInfo.name, fieldInfo.requiresScopes.length));
                     }
-                    fieldNode.set("requires_scopes", scopesArray);
+                    if (fieldInfo.requiresScopes.length == 1) {
+                        fieldNode.put("requires_scope", fieldInfo.requiresScopes[0]);
+                    }
                 }
                 fieldsNode.set(fieldInfo.name, fieldNode);
             }
@@ -195,12 +205,22 @@ public class SchemaFormatter {
                 if (fieldInfo.requiresScope != null) {
                     fieldNode.put("requires_scope", fieldInfo.requiresScope);
                 }
+                // #807: `requires_scopes` is a key the compiler does not read, and the
+                // compiled schema and runtime field filter represent exactly one required
+                // scope. Emitting the array produced a field with no scope at all —
+                // silently public. A singleton list is the same requirement as a single
+                // scope and is emitted as one; anything longer is refused rather than
+                // written as a declaration nothing can honour.
                 if (fieldInfo.requiresScopes != null) {
-                    ArrayNode scopesArray = mapper.createArrayNode();
-                    for (String scope : fieldInfo.requiresScopes) {
-                        scopesArray.add(scope);
+                    if (fieldInfo.requiresScopes.length > 1) {
+                        throw new IllegalStateException(String.format(
+                            "Field %s requires %d scopes; multiple required scopes are not "
+                                + "supported \u2014 use requiresScope with a single value.",
+                            fieldInfo.name, fieldInfo.requiresScopes.length));
                     }
-                    fieldNode.set("requires_scopes", scopesArray);
+                    if (fieldInfo.requiresScopes.length == 1) {
+                        fieldNode.put("requires_scope", fieldInfo.requiresScopes[0]);
+                    }
                 }
 
                 fieldsNode.set(fieldInfo.name, fieldNode);

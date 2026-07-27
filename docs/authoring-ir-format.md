@@ -172,7 +172,7 @@ The smallest schema that compiles successfully:
 
 ## Server-Injected Parameters
 
-Use `inject` to pass server-side context (e.g. JWT claims) as SQL parameters
+Use `inject_params` to pass server-side context (e.g. JWT claims) as SQL parameters
 without exposing them as GraphQL arguments:
 
 ```json
@@ -181,11 +181,26 @@ without exposing them as GraphQL arguments:
   "return_type": "Order",
   "returns_list": true,
   "sql_source": "v_orders",
-  "inject": {
+  "inject_params": {
     "org_id": "jwt:org_id"
   }
 }
 ```
+
+The value may also be given in the expanded form the SDKs emit, which is what
+`fraiseql compile` writes back out:
+
+```json
+"inject_params": {
+  "org_id": { "source": "jwt", "claim": "org_id" }
+}
+```
+
+This key is the **same name the compiled schema uses**. It was previously `inject`
+here and `inject_params` there, and three SDKs copied the compiled name into their
+intermediate output — where it bound to an empty map, compiling queries with no
+tenant predicate and reporting success. The compiler now refuses a schema that uses
+the old `inject` key rather than silently ignoring it.
 
 ## Subscription
 

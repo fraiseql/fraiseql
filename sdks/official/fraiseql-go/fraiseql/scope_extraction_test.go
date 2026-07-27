@@ -3,6 +3,7 @@ package fraiseql
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -100,11 +101,18 @@ func TestPublicFieldNoScopeExtraction(t *testing.T) {
 }
 
 // ============================================================================
-// HAPPY PATH: MULTIPLE SCOPES ON SINGLE FIELD (3 tests)
+// MULTIPLE SCOPES ON A SINGLE FIELD ARE REFUSED (3 tests)
+//
+// These three tests previously asserted that `scopes=a;b` extracted cleanly into a
+// FieldInfo.Scopes array. It did — and then the array was emitted as a `scopes` key
+// that the compiler does not read, so the compiled field carried no scope at all and
+// the runtime served it to callers holding none (#807). The extraction worked; the
+// gate it was extracting never existed. Multiple required scopes have no
+// representation in the compiled schema or the runtime field filter, so the SDK now
+// refuses them at authoring time rather than accepting a declaration it cannot honour.
 // ============================================================================
 
-func TestMultipleScopesOnSingleField(t *testing.T) {
-	// RED: Field with scopes=scope1;scope2 (semicolon-separated)
+func TestMultipleScopesOnSingleFieldAreRefused(t *testing.T) {
 	Reset()
 	defer Reset()
 
@@ -113,62 +121,59 @@ func TestMultipleScopesOnSingleField(t *testing.T) {
 		AdminNotes string `fraiseql:"adminNotes,type=String,scopes=admin;auditor"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(AdminWithMultipleScopes{}))
-	if err != nil {
-		t.Fatalf("ExtractFields failed: %v", err)
+	_, err := ExtractFields(reflect.TypeOf(AdminWithMultipleScopes{}))
+	if err == nil {
+		t.Fatal("multiple scopes must be refused: the compiled field would carry no scope at all")
 	}
-
-	adminNotesField := fields["adminNotes"]
-	if len(adminNotesField.Scopes) != 2 {
-		t.Errorf("Expected 2 scopes, got %d", len(adminNotesField.Scopes))
-	}
-
-	if !contains(adminNotesField.Scopes, "admin") || !contains(adminNotesField.Scopes, "auditor") {
-		t.Errorf("Scopes array doesn't contain expected values: %v", adminNotesField.Scopes)
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Errorf("error must explain that multiple scopes are unsupported, got: %v", err)
 	}
 }
 
-func TestMixedSingleAndMultipleScopes(t *testing.T) {
-	// RED: Type with both single-scope and multi-scope fields
+func TestSingleScopeSurvivesAndMultipleAreRefused(t *testing.T) {
 	Reset()
 	defer Reset()
 
-	type MixedScopeTypes struct {
-		BasicField    string `fraiseql:"basicField,type=String,scope=read:basic"`
-		AdvancedField string `fraiseql:"advancedField,type=String,scopes=read:advanced;admin"`
+	type SingleScopeType struct {
+		BasicField string `fraiseql:"basicField,type=String,scope=read:basic"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(MixedScopeTypes{}))
+	fields, err := ExtractFields(reflect.TypeOf(SingleScopeType{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
-
 	if fields["basicField"].Scope != "read:basic" {
 		t.Error("Single scope field extraction failed")
 	}
 
-	if len(fields["advancedField"].Scopes) != 2 {
-		t.Error("Multiple scopes extraction failed")
+	type MultiScopeType struct {
+		AdvancedField string `fraiseql:"advancedField,type=String,scopes=read:advanced;admin"`
+	}
+
+	if _, err := ExtractFields(reflect.TypeOf(MultiScopeType{})); err == nil {
+		t.Error("a multi-scope field in the same type must still be refused")
 	}
 }
 
-func TestScopeArrayOrder(t *testing.T) {
-	// RED: Scopes array order must be preserved
+func TestSingletonScopesListIsAcceptedAsASingleScope(t *testing.T) {
+	// `scopes=one` carries exactly one requirement, which the compiled schema and the
+	// runtime can both represent, so it is accepted and normalised onto `Scope`.
+	// Anything longer is refused by TestMultipleScopesOnSingleFieldAreRefused.
 	Reset()
 	defer Reset()
 
-	type OrderedScopes struct {
-		Restricted string `fraiseql:"restricted,type=String,scopes=first;second;third"`
+	type SingletonScopes struct {
+		Restricted string `fraiseql:"restricted,type=String,scopes=only:one"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(OrderedScopes{}))
+	fields, err := ExtractFields(reflect.TypeOf(SingletonScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
 
-	scopes := fields["restricted"].Scopes
-	if len(scopes) != 3 || scopes[0] != "first" || scopes[1] != "second" || scopes[2] != "third" {
-		t.Errorf("Scope order not preserved: %v", scopes)
+	if fields["restricted"].Scope != "only:one" {
+		t.Errorf("a singleton scopes list must normalise onto Scope, got %q",
+			fields["restricted"].Scope)
 	}
 }
 
@@ -271,13 +276,23 @@ func TestScopeExportToJsonSingleScope(t *testing.T) {
 	fields := typeObj["fields"].([]interface{})
 	salaryFieldObj := fields[0].(map[string]interface{})
 
-	if scope, ok := salaryFieldObj["scope"]; !ok || scope != "read:user.salary" {
-		t.Errorf("Scope not exported to JSON or incorrect value: %v", scope)
+	// The exported key must be `requires_scope` — the key the compiler reads. This
+	// assertion used to pin `scope`, so it certified the exact drift that left every
+	// Go-authored field gate off the compiled schema (#807): the SDK's own contract
+	// test agreed with the SDK and neither agreed with the compiler.
+	if scope, ok := salaryFieldObj["requires_scope"]; !ok || scope != "read:user.salary" {
+		t.Errorf("requires_scope not exported to JSON or incorrect value: %v", scope)
+	}
+	if _, drifted := salaryFieldObj["scope"]; drifted {
+		t.Error("the drifted `scope` key must no longer be emitted")
 	}
 }
 
-func TestScopeExportToJsonMultipleScopes(t *testing.T) {
-	// RED: scopes array exported as scopes field in JSON
+func TestMultipleScopesNeverReachTheExportedSchema(t *testing.T) {
+	// This test used to assert that a `scopes` array appeared in the exported JSON.
+	// It did appear — and the compiler ignored it, so the field shipped ungated. The
+	// SDK now refuses the declaration at registration time; the important property is
+	// that no schema is ever exported carrying an unreadable scope key.
 	Reset()
 	defer Reset()
 
@@ -285,25 +300,16 @@ func TestScopeExportToJsonMultipleScopes(t *testing.T) {
 		Restricted string `fraiseql:"restricted,type=String,scopes=scope1;scope2"`
 	}
 
-	RegisterTypes(ExportTestMultipleScopes{})
+	if err := RegisterTypes(ExportTestMultipleScopes{}); err == nil {
+		t.Fatal("registering a multi-scope field must fail rather than export an unreadable key")
+	}
 
 	schemaJSON, err := GetSchemaJSON(false)
 	if err != nil {
 		t.Fatalf("GetSchemaJSON failed: %v", err)
 	}
-	var schema map[string]interface{}
-	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	types := schema["types"].([]interface{})
-	typeObj := types[0].(map[string]interface{})
-	fields := typeObj["fields"].([]interface{})
-	fieldObj := fields[0].(map[string]interface{})
-
-	scopes, ok := fieldObj["scopes"].([]interface{})
-	if !ok || len(scopes) != 2 {
-		t.Errorf("Scopes not exported to JSON or incorrect length: %v", scopes)
+	if strings.Contains(string(schemaJSON), `"scopes"`) {
+		t.Errorf("the exported schema must never carry a `scopes` key: %s", schemaJSON)
 	}
 }
 
@@ -509,15 +515,3 @@ func TestConflictingBothScopeAndScopes(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// TEST HELPERS
-// ============================================================================
-
-func contains(slice []string, item string) bool {
-	for _, v := range slice {
-		if v == item {
-			return true
-		}
-	}
-	return false
-}

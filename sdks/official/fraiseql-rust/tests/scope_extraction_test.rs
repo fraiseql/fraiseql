@@ -229,7 +229,7 @@ fn test_field_to_json() {
     let json = field.to_json();
     assert!(json.contains("\"name\""));
     assert!(json.contains("\"email\""));
-    assert!(json.contains("\"requiresScope\""));
+    assert!(json.contains("\"requires_scope\""));
     assert!(json.contains("\"read:user.email\""));
 }
 
@@ -247,7 +247,7 @@ fn test_schema_registry_export_to_json() {
     let json = registry.export_to_json();
     assert!(json.contains("\"User\""));
     assert!(json.contains("\"email\""));
-    assert!(json.contains("\"requiresScope\""));
+    assert!(json.contains("\"requires_scope\""));
 }
 
 // ============================================================================

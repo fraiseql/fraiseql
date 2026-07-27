@@ -682,7 +682,12 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 raise TypeError(msg)
             arg_names = {arg["name"] for arg in signature["arguments"]}
             _validate_inject(inject, arg_names, f"@fraiseql.query {f.__name__!r}")
-            # Emit structured inject_params alongside raw inject
+            # Emit the structured form under the canonical key and drop the raw
+            # `inject` authoring key. The intermediate wire key is `inject_params`
+            # — the same name the compiled schema uses (#806) — and the compiler
+            # now refuses `inject` rather than ignoring it, so emitting both would
+            # fail the compile. `inject=` remains the decorator argument.
+            del cfg["inject"]
             cfg["inject_params"] = {
                 k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
                 for k, v in inject.items()
@@ -868,7 +873,12 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                 raise TypeError(msg)
             arg_names = {arg["name"] for arg in signature["arguments"]}
             _validate_inject(inject, arg_names, f"@fraiseql.mutation {f.__name__!r}")
-            # Emit structured inject_params alongside raw inject
+            # Emit the structured form under the canonical key and drop the raw
+            # `inject` authoring key. The intermediate wire key is `inject_params`
+            # — the same name the compiled schema uses (#806) — and the compiler
+            # now refuses `inject` rather than ignoring it, so emitting both would
+            # fail the compile. `inject=` remains the decorator argument.
+            del cfg["inject"]
             cfg["inject_params"] = {
                 k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
                 for k, v in inject.items()

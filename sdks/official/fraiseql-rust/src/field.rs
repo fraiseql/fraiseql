@@ -139,9 +139,17 @@ impl Field {
     ///   "name": "email",
     ///   "type": "String",
     ///   "nullable": false,
-    ///   "requiresScope": "read:user.email"
+    ///   "requires_scope": "read:user.email"
     /// }
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics when the field declares more than one required scope. The compiled schema
+    /// and the runtime field filter represent exactly one `requires_scope`, so a
+    /// multi-scope declaration cannot be honoured; emitting it produced a field with no
+    /// scope at all — silently public (#807). Failing loudly at authoring time is the
+    /// only outcome that does not ship an ungated field.
     #[must_use]
     pub fn to_json(&self) -> String {
         let mut fields = vec![
@@ -150,14 +158,28 @@ impl Field {
             format!("\"nullable\":{nullable}", nullable = self.nullable),
         ];
 
+        // The wire key is `requires_scope` — the key the compiler reads. This emitted
+        // camelCase `requiresScope`, which bound to nothing, so a field the author gated
+        // compiled with no scope and was served to callers holding none (#807).
         if let Some(scope) = &self.requires_scope {
-            fields.push(format!("\"requiresScope\":\"{scope}\""));
+            fields.push(format!("\"requires_scope\":\"{scope}\""));
         }
 
+        // Multiple required scopes have no representation in the compiled schema or the
+        // runtime field filter, which check exactly one `requires_scope`. A singleton
+        // list is the same thing as a single scope and is emitted as one; anything longer
+        // is refused rather than emitted as a key nothing reads.
         if let Some(scopes) = &self.requires_scopes {
-            let scopes_json =
-                scopes.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(",");
-            fields.push(format!("\"requiresScopes\":[{scopes_json}]"));
+            match scopes.as_slice() {
+                [] => {},
+                [only] => fields.push(format!("\"requires_scope\":\"{only}\"")),
+                many => panic!(
+                    "field `{}` declares {} required scopes; multiple required scopes are not \
+                     supported — use `with_requires_scope` with a single scope",
+                    self.name,
+                    many.len()
+                ),
+            }
         }
 
         if let Some(desc) = &self.description {

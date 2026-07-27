@@ -172,7 +172,7 @@ impl OpenApiGenerator<'_> {
             responses.insert("400".to_string(), json!({ "description": "Bad request" }));
         }
 
-        if self.config.require_auth {
+        if self.security_required {
             responses.insert("401".to_string(), json!({ "description": "Unauthorized" }));
             responses.insert("403".to_string(), json!({ "description": "Forbidden" }));
         }

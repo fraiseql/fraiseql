@@ -37,10 +37,34 @@ impl TestServer {
     where
         A: DatabaseAdapter + Clone + Send + Sync + 'static,
     {
+        // Boxed so callers of `start` do not await a ~19 KiB future on the stack:
+        // delegating to `start_with_config` nests the `Server::new` future inside this
+        // one, and `clippy::large_futures` (pedantic, denied) rejects the result at every
+        // call site otherwise.
+        Box::pin(Self::start_with_config(ServerConfig::default(), schema, adapter)).await
+    }
+
+    /// Start a server with an explicit [`ServerConfig`].
+    ///
+    /// Needed by suites that must exercise a configured subsystem through the
+    /// real mount — notably authentication, which is attached during
+    /// `build_router` and is therefore invisible to any test that constructs a
+    /// sub-router directly.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the listener cannot be bound or the server fails to start.
+    pub async fn start_with_config<A>(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Self
+    where
+        A: DatabaseAdapter + Clone + Send + Sync + 'static,
+    {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();
 
-        let config = ServerConfig::default();
         let server = Server::new(config, schema, adapter, None).await.expect("Server::new");
 
         let (tx, rx) = oneshot::channel::<()>();

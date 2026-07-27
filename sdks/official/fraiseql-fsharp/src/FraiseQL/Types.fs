@@ -16,6 +16,11 @@ type FieldDefinition =
         /// Optional human-readable description for introspection.
         description: string option
         /// Optional scope required to read this field.
+        ///
+        /// Serialised as `requires_scope` — the key the compiler reads. It was emitted as
+        /// `scope`, which binds to nothing, so a field the author gated compiled with no
+        /// scope at all and was served to callers holding none (#807).
+        [<JsonPropertyName("requires_scope")>]
         scope: string option
         /// When true, this field is server-computed and excluded from CRUD input types.
         /// Computed fields remain visible in query results.

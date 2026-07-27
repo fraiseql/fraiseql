@@ -690,6 +690,17 @@ impl SchemaMerger {
                 .context("Failed to serialize hierarchies config")?;
         }
 
+        // Refuse a security control declared under a key that does not bind (#806/#807).
+        //
+        // This is the TOML / multi-file workflow's *only* deserialization point — all six
+        // `merge_*` entry points funnel through `merge_values` — and it is a genuinely
+        // separate seam from the JSON workflow's guard in `commands::compile`. Guarding
+        // only the JSON path would have left every `--schema-dir` and `types.json` user
+        // with the original silent drop, which is the shape of defect this guard exists
+        // to close: a check that exists and has a call site routing around it.
+        super::intermediate::reject_drifted_security_keys(&merged)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

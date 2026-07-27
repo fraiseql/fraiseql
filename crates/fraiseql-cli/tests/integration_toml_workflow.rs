@@ -512,7 +512,7 @@ audit_logging_enabled = false
     }
 }
 
-/// types.json carries `inject` and `cache_ttl_seconds` on a query, and
+/// types.json carries `inject_params` and `cache_ttl_seconds` on a query, and
 /// `invalidates_views` on a mutation.  We compile via the CLI binary and then
 /// parse the compiled JSON with `CompiledSchema::from_json()` to assert that
 /// those fields reach the output unchanged.
@@ -542,7 +542,7 @@ fn test_field_values_survive_full_cli_pipeline() {
       "nullable": false,
       "sql_source": "v_order",
       "cache_ttl_seconds": 300,
-      "inject": {"tenant_id": "jwt:tenant_id"}
+      "inject_params": {"tenant_id": "jwt:tenant_id"}
     }
   ],
   "mutations": [
@@ -551,7 +551,7 @@ fn test_field_values_survive_full_cli_pipeline() {
       "return_type": "Order",
       "sql_source": "fn_create_order",
       "invalidates_views": ["v_order"],
-      "inject": {"user_id": "jwt:sub"}
+      "inject_params": {"user_id": "jwt:sub"}
     }
   ]
 }

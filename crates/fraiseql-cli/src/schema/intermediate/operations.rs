@@ -7,6 +7,89 @@ use serde::{Deserialize, Serialize};
 
 use super::types::IntermediateDeprecation;
 
+/// Serde representation of the server-injected parameter map.
+///
+/// **The wire key is `inject_params` and it matches the compiled schema's key.** That is
+/// the fix for #806, not a cosmetic choice: the intermediate format used to call this
+/// `inject` while the compiled artifact called it `inject_params`, so every SDK author
+/// who looked at a compiled schema to learn the name got it wrong. TypeScript, Go and
+/// Java all did, independently, and `#[serde(default)]` with no `deny_unknown_fields`
+/// turned each of their injection maps into an empty default — compiling a query with no
+/// tenant predicate and printing `✓ Schema compiled successfully`. Two names for one
+/// concept is what made that mistake available; one name retires it.
+///
+/// Both value shapes are accepted, because both are unambiguous and both are already in
+/// use:
+///
+/// * nested — `{"tenant_id": {"source": "jwt", "claim": "org_id"}}`, what every SDK emits
+/// * flat — `{"tenant_id": "jwt:org_id"}`, which is far pleasanter to hand-author
+///
+/// Serialization always emits the nested form, so a round-tripped intermediate schema is
+/// byte-comparable with SDK output.
+mod inject_params_serde {
+    use indexmap::IndexMap;
+    use serde::{
+        Deserialize, Deserializer, Serializer,
+        de::Error as _,
+        ser::{Error as _, SerializeMap as _},
+    };
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Spec {
+        /// `"jwt:org_id"`
+        Flat(String),
+        /// `{"source": "jwt", "claim": "org_id"}`
+        Nested { source: String, claim: String },
+    }
+
+    /// Deserialize either accepted shape into the internal `"<source>:<claim>"` form.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a flat value with no `<source>:` prefix. A malformed source
+    /// must not become a silently-unfiltered query — the same reasoning as the key.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<IndexMap<String, String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        IndexMap::<String, Spec>::deserialize(deserializer)?
+            .into_iter()
+            .map(|(param, spec)| match spec {
+                Spec::Flat(source) if source.contains(':') => Ok((param, source)),
+                Spec::Flat(source) => Err(D::Error::custom(format!(
+                    "inject_params['{param}'] must be \"<source>:<claim>\" (for example \
+                     \"jwt:org_id\") or {{\"source\": \"jwt\", \"claim\": \"org_id\"}}, got \
+                     \"{source}\""
+                ))),
+                Spec::Nested { source, claim } => Ok((param, format!("{source}:{claim}"))),
+            })
+            .collect()
+    }
+
+    /// Serialize as the nested form every SDK emits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an entry is not in `"<source>:<claim>"` form, which
+    /// [`deserialize`] guarantees but a direct struct construction does not.
+    pub fn serialize<S>(map: &IndexMap<String, String>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut out = serializer.serialize_map(Some(map.len()))?;
+        for (param, spec) in map {
+            let (source, claim) = spec.split_once(':').ok_or_else(|| {
+                S::Error::custom(format!(
+                    "inject_params['{param}'] is not in \"<source>:<claim>\" form: \"{spec}\""
+                ))
+            })?;
+            out.serialize_entry(param, &serde_json::json!({"source": source, "claim": claim}))?;
+        }
+        out.end()
+    }
+}
+
 /// Argument definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateArgument {
@@ -82,7 +165,16 @@ pub struct IntermediateQuery {
 
     /// Server-injected parameters: SQL column name → source expression (e.g. `"jwt:org_id"`).
     /// Not exposed as GraphQL arguments.
-    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    ///
+    /// Wire key is `inject_params`, matching the compiled schema. The two names were
+    /// unified because the split is what let three SDKs emit a key that bound to
+    /// nothing (#806); see the `inject_params_serde` module for the full reasoning.
+    #[serde(
+        default,
+        rename = "inject_params",
+        with = "inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub inject: IndexMap<String, String>,
 
     /// Per-query result cache TTL in seconds. Overrides the global cache TTL for this query.
@@ -145,7 +237,16 @@ pub struct IntermediateMutation {
 
     /// Server-injected parameters: SQL parameter name → source expression (e.g. `"jwt:org_id"`).
     /// Not exposed as GraphQL arguments.
-    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    ///
+    /// Wire key is `inject_params`, matching the compiled schema. The two names were
+    /// unified because the split is what let three SDKs emit a key that bound to
+    /// nothing (#806); see the `inject_params_serde` module for the full reasoning.
+    #[serde(
+        default,
+        rename = "inject_params",
+        with = "inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub inject: IndexMap<String, String>,
 
     /// Role required to execute this mutation and see it in introspection.
