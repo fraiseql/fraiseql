@@ -70,7 +70,8 @@ impl AggregationSqlGenerator {
         if let Some((gte, lt)) = branch_plan.complete_middle {
             let sql = self.build_branch(
                 plan,
-                &plan.request.table_name,
+                // SECURITY (#795): the resolved fact table, not the request's `table` key.
+                &plan.metadata.table_name,
                 &config.time_grain_column,
                 None, // no DATE_TRUNC — already period-aligned
                 gte,

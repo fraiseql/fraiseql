@@ -189,7 +189,12 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         if let Some(ctx) = security_context {
             let rls_where: Option<RlsWhereClause> =
                 if let Some(ref policy) = self.ctx.config.rls_policy {
-                    policy.evaluate(ctx, &request.table_name)?
+                    // SECURITY (#795): look the policy up by the fact table the root field
+                    // resolved, never the client's `table` key. This runs *before* the
+                    // planner's reconciliation check, so it must be correct on its own:
+                    // an unpolicied name returns `None`, which composed no WHERE clause at
+                    // all and silently dropped the tenant filter.
+                    policy.evaluate(ctx, &metadata.table_name)?
                 } else {
                     None
                 };
@@ -394,7 +399,12 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         if let Some(ctx) = security_context {
             let rls_where: Option<RlsWhereClause> =
                 if let Some(ref policy) = self.ctx.config.rls_policy {
-                    policy.evaluate(ctx, &request.table_name)?
+                    // SECURITY (#795): look the policy up by the fact table the root field
+                    // resolved, never the client's `table` key. This runs *before* the
+                    // planner's reconciliation check, so it must be correct on its own:
+                    // an unpolicied name returns `None`, which composed no WHERE clause at
+                    // all and silently dropped the tenant filter.
+                    policy.evaluate(ctx, &metadata.table_name)?
                 } else {
                     None
                 };

@@ -26,10 +26,23 @@ use crate::{
 /// Generated SQL for window function query
 #[derive(Debug, Clone)]
 pub struct WindowSql {
-    /// Parameterized SQL template. WHERE clause values use dialect-specific
-    /// placeholders (`$1`, `?`, `@P1`); column names are schema-derived and
-    /// allowlist-validated via [`crate::compiler::window_allowlist::WindowAllowlist`]
-    /// and are not user-controlled at runtime.
+    /// Parameterized SQL template. WHERE-clause **values** use dialect-specific
+    /// placeholders (`$1`, `?`, `@P1`) and are never interpolated.
+    ///
+    /// **Identifiers here are user-controlled.** Aliases and dimension paths come from the
+    /// request, so they are constrained rather than trusted: every one is rejected unless
+    /// it matches `[_A-Za-z][_0-9A-Za-z]*` (`WindowPlanner::validate_identifier_charset`),
+    /// and dimension paths are additionally checked against
+    /// [`crate::compiler::window_allowlist::WindowAllowlist`] wherever the schema
+    /// enumerates them. The FROM target is the resolved fact table, not the request's
+    /// `table` key.
+    ///
+    /// This comment previously claimed the identifiers were "schema-derived",
+    /// "allowlist-validated" and "not user-controlled at runtime". All three were false on
+    /// this path: the allowlist was only ever consulted by `WindowFunctionPlanner`, which
+    /// nothing outside tests calls, and four sinks interpolated request strings verbatim
+    /// (#794). Keep this description honest — it is load-bearing for anyone auditing the
+    /// emitters below.
     pub raw_sql: String,
 
     /// Bind parameters in placeholder order, passed to

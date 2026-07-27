@@ -835,6 +835,13 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
 		"cargo test -p fraiseql-server --features inbound --test webhook_replay_header_dedup_pg -- --test-threads=1",
+		// #794/#795 (CRITICAL): the analytics injection guards. Both holes were reachable
+		// by any client that can POST a GraphQL query, and both were invisible to unit
+		// tests because the allowlist that "covered" them was only ever consulted by a
+		// planner the shipped binary never calls. This drives the real handler against a
+		// real database and asserts both that the request is refused and that no catalog
+		// data reaches the response.
+		"cargo test -p fraiseql-server --test analytics_injection_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",

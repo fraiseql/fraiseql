@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
+  path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
+  any deployment whose compiled schema declares at least one fact table, and both were
+  verified against live PostgreSQL 16 exfiltrating `pg_authid` contents.
+
+  - **#794 — window aliases and dimension paths were interpolated raw.** Four sinks on the
+    live `*_window` path wrote request-supplied strings straight into the SELECT list: the
+    dimension select arm and the `PARTITION BY` arm both built `format!("{}->>'{}'", …)`
+    with no charset check, and `alias` was cloned through untouched for measure, dimension,
+    filter and window-function selections before being emitted as `<expr> AS <alias>`.
+    Because `WindowProjector::project` copies every returned column into the response, an
+    injected column was handed back to the caller.
+
+    Every alias and dimension path is now rejected unless it matches
+    `[_A-Za-z][_0-9A-Za-z]*`, through a single entry point that all sinks share — the
+    defect existed because one arm carried a check its four siblings did not. The
+    `WindowAllowlist` is additionally consulted wherever the schema enumerates dimension
+    paths. It existed and was documented as the defence for this path, but was only ever
+    called by `WindowFunctionPlanner`, which nothing in the shipped binary invokes; the
+    live planner is `WindowPlanner`, which never built one.
+
+  - **#795 — the `table` request key selected the FROM target.** The relation is already
+    determined by the GraphQL root field (`sales_window` → `tf_sales`), but a second,
+    unchecked channel could name any relation or substitute an entire subquery. Worse, the
+    RLS policy was looked up by that same attacker-controlled name, so naming a table with
+    no configured policy yielded `None` and composed **no tenant WHERE clause at all**.
+
+    Both the aggregate and window planners now reject a `table` that does not match the
+    resolved fact table, every FROM sink emits the resolved name, and the RLS policy is
+    evaluated against the resolved name — which matters independently, because RLS is
+    evaluated before the planner runs.
+
+  Regression coverage runs against real PostgreSQL in the Dagger `integration: server`
+  suite (`analytics_injection_e2e_pg`), driving the real HTTP handler and asserting both
+  that each payload is refused and that no catalog data reaches the response.
+
 ### Breaking
 
 - **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
