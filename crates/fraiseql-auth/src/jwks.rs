@@ -70,28 +70,10 @@ struct JwkKey {
 }
 
 /// Returns `true` for IP addresses that JWKS fetches must not contact.
-pub(crate) fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127
-                || o[0] == 10
-                || (o[0] == 172 && (16..=31).contains(&o[1]))
-                || (o[0] == 192 && o[1] == 168)
-                || (o[0] == 169 && o[1] == 254)
-                || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000)
-                || o[0] == 0
-        },
-        std::net::IpAddr::V6(v6) => {
-            let s = v6.segments();
-            *v6 == std::net::Ipv6Addr::LOCALHOST
-                || *v6 == std::net::Ipv6Addr::UNSPECIFIED
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
-                || (s[0] & 0xfe00) == 0xfc00
-                || (s[0] & 0xffc0) == 0xfe80
-        },
-    }
-}
+///
+/// Re-exported from [`fraiseql_guard::net`] so this crate cannot drift from the
+/// other outbound guards, which is how #776 shipped.
+pub(crate) use fraiseql_guard::net::is_blocked_ip as is_ssrf_blocked_ip;
 
 /// Resolve the host via DNS, reject any private/reserved address, and return the
 /// validated socket addresses.

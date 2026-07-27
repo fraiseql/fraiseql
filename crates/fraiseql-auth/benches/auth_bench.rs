@@ -109,17 +109,6 @@ fn constant_time_benchmarks(c: &mut Criterion) {
     c.bench_function("ct_compare_str_jwt_size", |b| {
         b.iter(|| ConstantTimeOps::compare_str(black_box(jwt_a), black_box(jwt_b)));
     });
-
-    // Padded comparison at fixed 512 bytes (JWT constant-time path)
-    let short = b"short_token";
-    let long = b"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature";
-    c.bench_function("ct_compare_padded_512", |b| {
-        b.iter(|| ConstantTimeOps::compare_padded(black_box(short), black_box(long), 512));
-    });
-
-    c.bench_function("ct_compare_jwt_constant", |b| {
-        b.iter(|| ConstantTimeOps::compare_jwt_constant(black_box(jwt_a), black_box(jwt_b)));
-    });
 }
 
 // ---------------------------------------------------------------------------

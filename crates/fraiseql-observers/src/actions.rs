@@ -174,40 +174,12 @@ pub(crate) fn url_host_only(url: &str) -> String {
 }
 
 /// Returns `true` for hostnames and literal IPs that are blocked as SSRF targets.
+///
+/// Delegates to [`fraiseql_guard::net`]. The copy this replaced lived in the same
+/// crate as `ssrf.rs`'s copy and disagreed with it: it accepted `0.0.0.0/8`,
+/// every `IPv4`-mapped address, and the whole `fe80::/10` link-local range.
 fn is_ssrf_blocked_host_obs(host: &str) -> bool {
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
-        return true;
-    }
-
-    // Literal IPv4
-    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
-        return addr.is_loopback()    // 127.0.0.0/8
-            || addr.is_private()     // 10/8, 172.16/12, 192.168/16
-            || addr.is_link_local()  // 169.254/16
-            || is_cgnat_v4_obs(addr); // 100.64/10
-    }
-
-    // Literal IPv6 (strip optional brackets)
-    let ipv6 = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(addr) = ipv6.parse::<std::net::Ipv6Addr>() {
-        return addr.is_loopback()       // ::1
-            || addr.is_unspecified()    // ::
-            || is_ula_v6_obs(addr); // fc00::/7
-    }
-
-    false
-}
-
-/// Returns `true` for CGNAT range 100.64.0.0/10.
-const fn is_cgnat_v4_obs(addr: std::net::Ipv4Addr) -> bool {
-    let [a, b, ..] = addr.octets();
-    a == 100 && (b & 0xC0) == 64
-}
-
-/// Returns `true` for ULA range `fc00::/7`.
-const fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
-    (addr.segments()[0] & 0xFE00) == 0xFC00
+    fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
 /// Validate that no header name or value contains HTTP header injection characters.

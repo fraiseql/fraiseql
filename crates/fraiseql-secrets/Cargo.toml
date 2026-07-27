@@ -18,6 +18,7 @@ harness = false
 name = "secrets_bench"
 
 [dependencies]
+fraiseql-guard = {workspace = true}
 # Encryption
 aes-gcm = {version = "0.10", features = ["zeroize"]}
 async-trait = "0.1"

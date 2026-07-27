@@ -72,7 +72,7 @@ jobs:
           set +e
           # Plain (uncoloured) cargo output so the log greps below match reliably.
           export CARGO_TERM_COLOR=never
-          CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+          CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
@@ -459,7 +459,19 @@ jobs:
           echo "✅ All crates build successfully"
 
       # Publish in strict topological dependency order
-      # Tier 1: No fraiseql dependencies
+      # Tier 1: No fraiseql dependencies. fraiseql-guard goes first — auth,
+      # federation, observers, functions, arrow, secrets, core, cdc-sinks and
+      # server all depend on it.
+      - name: Publish fraiseql-guard
+        id: publish-guard
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-guard/$VERSION")" = "200" ]; then
+            echo "fraiseql-guard $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-guard --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
       - name: Publish fraiseql-error
         id: publish-error
         run: |
@@ -501,7 +513,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 1)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
 
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
@@ -697,6 +709,7 @@ jobs:
           echo "## 📦 Crates.io Publishing Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          [ "${{ steps.publish-guard.outcome }}" = "success" ] && echo "- ✅ fraiseql-guard" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-guard" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-error" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-auth" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
@@ -815,7 +828,7 @@ jobs:
           # Every crate the `publish-crates` job ships — keep in sync with the CRATES
           # list in the validate-release "Dry-run publish" step. The old step checked
           # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
-          CRATES="fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+          CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"

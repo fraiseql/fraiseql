@@ -868,34 +868,20 @@ fn refuse_or_warn_transport(
 /// Returns `true` when `url` resolves to a private, loopback, or link-local
 /// address that the server must not fetch (SSRF protection).
 ///
-/// This uses the same URL-parser + bracket-strip pattern used in the federation
-/// and Vault SSRF guards (S18-H3, S19-I2b) to correctly handle `IPv6` literals.
+/// The address ranges are [`fraiseql_guard::net`]'s, shared with every other
+/// outbound guard. The copy this replaced claimed to use "the same pattern as the
+/// federation and Vault SSRF guards" and had in fact drifted from both: it missed
+/// CGNAT, `0.0.0.0/8`, `IPv6` link-local and every `IPv4`-mapped form, so
+/// `http://[::ffff:169.254.169.254]/manifest.json` was accepted.
 pub(super) fn is_manifest_url_ssrf_blocked(url: &str) -> bool {
     let Ok(parsed) = reqwest::Url::parse(url) else {
         // Unparseable URL — block it; the actual fetch would fail anyway.
         return true;
     };
-    let host_raw = parsed.host_str().unwrap_or("");
-    // Strip IPv6 brackets: url crate returns "[::1]", IpAddr::parse needs "::1".
-    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-        &host_raw[1..host_raw.len() - 1]
-    } else {
-        host_raw
-    };
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" {
+    let Some(host) = parsed.host_str() else {
         return true;
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
-        return addr.is_loopback() || addr.is_private() || addr.is_link_local();
-    }
-    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
-        // Block loopback (::1), unspecified (::), and ULA (fc00::/7).
-        return addr.is_loopback()
-            || addr.is_unspecified()
-            || (addr.segments()[0] & 0xFE00) == 0xFC00;
-    }
-    false
+    };
+    fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
 /// Refuse to boot when the compiled schema marks any field for at-rest encryption.

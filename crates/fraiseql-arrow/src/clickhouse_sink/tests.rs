@@ -165,7 +165,9 @@ fn test_clickhouse_url_allows_public_addresses() {
     for url in &[
         "http://clickhouse.example.com:8123",
         "https://analytics.production.example.com:8443",
-        "http://203.0.113.10:8123", // TEST-NET-3 (documentation range)
+        // Not a TEST-NET/documentation range: those are not globally routable and the
+        // shared guard refuses them. This is a real public address.
+        "http://93.184.216.34:8123",
     ] {
         assert!(validate_clickhouse_url(url).is_ok(), "Expected SSRF pass for: {url}");
     }
@@ -199,5 +201,29 @@ fn test_clickhouse_url_blocks_ipv6_link_local() {
             validate_clickhouse_url(url).is_err(),
             "Expected SSRF rejection for fe80::/10 link-local: {url}"
         );
+    }
+}
+
+// ── The shared outbound corpus, at this crate's entry point ───────────────────
+
+#[test]
+fn clickhouse_url_refuses_every_blocked_corpus_entry() {
+    use fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+    for (addr, why) in MUST_BLOCK {
+        let url = format!("http://{}:8123", url_host(addr));
+        assert!(validate_clickhouse_url(&url).is_err(), "must refuse {addr} ({why})");
+    }
+    for (host, why) in MUST_BLOCK_HOSTS {
+        let url = format!("http://{host}");
+        assert!(validate_clickhouse_url(&url).is_err(), "must refuse {host} ({why})");
+    }
+}
+
+#[test]
+fn clickhouse_url_permits_every_allowed_corpus_entry() {
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+    for addr in MUST_ALLOW {
+        let url = format!("http://{}:8123", url_host(addr));
+        assert!(validate_clickhouse_url(&url).is_ok(), "must permit {addr}");
     }
 }

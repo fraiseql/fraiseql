@@ -396,7 +396,9 @@ mod actions_tests {
                 .unwrap_or_else(|e| panic!("public slack URL should pass: {e}"));
             validate_outbound_url("https://api.example.com/webhook")
                 .unwrap_or_else(|e| panic!("public API URL should pass: {e}"));
-            validate_outbound_url("http://203.0.113.10/hook")
+            // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range
+            // the shared guard refuses because it is not globally routable.
+            validate_outbound_url("http://93.184.216.34/hook")
                 .unwrap_or_else(|e| panic!("public IP should pass: {e}"));
         });
     }

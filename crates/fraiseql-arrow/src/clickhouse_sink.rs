@@ -144,35 +144,11 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
 }
 
 /// Returns `true` for hostnames/IPs that are blocked as SSRF targets.
+///
+/// Delegates to [`fraiseql_guard::net`]. The copy this replaced accepted
+/// `0.0.0.0/8` and every `IPv4`-mapped address.
 fn is_ssrf_blocked_host_ch(host: &str) -> bool {
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower.ends_with(".localhost") {
-        return true;
-    }
-
-    // Literal IPv4
-    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
-        return addr.is_loopback()    // 127.0.0.0/8
-            || addr.is_private()     // 10/8, 172.16/12, 192.168/16
-            || addr.is_link_local()  // 169.254/16
-            || is_cgnat_v4(addr); // 100.64/10
-    }
-
-    // Literal IPv6 (already bracket-stripped by caller)
-    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
-        return addr.is_loopback()                              // ::1
-            || addr.is_unspecified()                           // ::
-            || (addr.segments()[0] & 0xfe00) == 0xfc00         // ULA fc00::/7
-            || (addr.segments()[0] & 0xffc0) == 0xfe80; // link-local fe80::/10
-    }
-
-    false
-}
-
-/// Returns `true` for addresses in the CGNAT range 100.64.0.0/10.
-const fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
-    let [a, b, ..] = addr.octets();
-    a == 100 && (b & 0xC0) == 64
+    fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
 impl Default for ClickHouseSinkConfig {

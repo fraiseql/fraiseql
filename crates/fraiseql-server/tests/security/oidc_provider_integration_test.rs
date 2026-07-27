@@ -24,6 +24,9 @@ use wiremock::{
 
 /// Wrapper that sets `FRAISEQL_OIDC_ALLOW_INSECURE=1` so wiremock's `http://`
 /// server passes the SSRF scheme check (which otherwise requires `https://`).
+///
+/// The hatch is honoured only in a declared development environment (#882), so this
+/// also declares one — and clears the markers that would force production back on.
 async fn new_provider_insecure(
     name: &str,
     issuer_url: &str,
@@ -32,7 +35,12 @@ async fn new_provider_insecure(
     redirect_uri: &str,
 ) -> Result<OidcProvider, fraiseql_server::auth::AuthError> {
     temp_env::async_with_vars(
-        [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
+        [
+            ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
         OidcProvider::new(name, issuer_url, client_id, client_secret, redirect_uri),
     )
     .await

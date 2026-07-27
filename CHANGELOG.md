@@ -9,6 +9,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Unified every outbound-address guard and every production check onto one
+  implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
+  hand-rolled SSRF address predicates and **two** production detectors. Each was
+  individually reasonable; collectively they disagreed, and the gaps between them were
+  exploitable.
+
+  - **#802 — `IPv4`-mapped `IPv6` bypassed the serverless-function HTTP guard.** Its
+    `IPv6` arm tested `is_loopback`/`is_unique_local`/`is_unicast_link_local`, none of
+    which fire for `::ffff:169.254.169.254`, so a guest function could reach cloud
+    instance metadata over a dual-stack socket — via a bracketed literal, or via an
+    allowlisted hostname with an attacker-controlled AAAA record, which is precisely the
+    rebinding attack the surrounding code claimed to close. Five of the eight predicates
+    shared this gap; it is the same defect as #776 in a different crate.
+
+  - **#836 — the SSRF bypass was honoured in production.** `ServerConfig::is_production_mode()`
+    treated an unset `FRAISEQL_ENV` as production, and every server safety gate is keyed
+    off it. `observers::insecure_guard::is_production_environment()` read the same variable
+    and treated unset as **not** production. On any non-Kubernetes deployment — Docker
+    Compose, systemd, a VM, ECS — the server therefore believed it was in production while
+    the observer subsystem honoured `FRAISEQL_OBSERVERS_ALLOW_INSECURE`, disabling the
+    scheme allow-list, the private-address blocklist and the rebinding defence on a webhook
+    URL that comes from a mutable `tb_observer` row.
+
+  - **#882 — two escape hatches had no production check at all.**
+    `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_OIDC_ALLOW_INSECURE` disabled their SSRF
+    guards on the environment variable alone, under every environment including an explicit
+    `FRAISEQL_ENV=production` and inside a Kubernetes pod. All four of the product's escape
+    hatches now share one policy: honoured only when development is positively declared.
+
+  - **#816 — the CDC NATS plaintext guard was inverted.** It refused plaintext `nats://`
+    only for loopback hosts — the one case that is safe — and accepted every remote
+    plaintext endpoint, publishing full row after-images in the clear. It also skipped
+    every non-`nats://` URL including the scheme-less form that `async-nats` rewrites to
+    plaintext, split the host with `split(['/', ':'])` so `nats://user:pw@host` yielded
+    `"user"`, and compared the host without lower-casing it. It had no unit tests.
+
+  - A **ninth** hand-rolled guard, on the manifest hot-reload URL, was found by the new
+    gate rather than by review. Its doc comment claimed it used "the same pattern as the
+    federation and Vault SSRF guards"; it had drifted from both.
+
+  The shared guard additionally blocks ranges no previous copy covered: the NAT64
+  well-known prefix `64:ff9b::/96` (a live route to the metadata service wherever a NAT64
+  gateway exists), NAT64 local-use `64:ff9b:1::/48`, `IPv4`-compatible `::a.b.c.d`,
+  multicast, site-local `fec0::/10`, discard-only `100::/64`, IETF protocol assignments
+  `192.0.0.0/24` (Oracle Cloud metadata), the RFC 5737 documentation ranges, RFC 2544
+  benchmarking, and the `2001:db8::/32` and `2001:2::/48` `IPv6` equivalents.
+
+  `make lint-guard-parity` now fails the build on a new hand-rolled address predicate, a
+  new `is_production`-shaped helper, or an escape hatch read without a posture check. It
+  runs in the Dagger `preflight` leg and as the `guard-parity-check` CI job.
+
+### Breaking
+
+- **New crate `fraiseql-guard`.** Holds the workspace's single outbound-address guard
+  (`fraiseql_guard::net`) and its single production detector
+  (`fraiseql_guard::deployment`). It is a Tier-1 leaf with no dependencies beyond `std`,
+  published before every crate that depends on it.
+
+- **`fraiseql_auth::constant_time::ConstantTimeOps::compare_padded` and
+  `compare_jwt_constant` are removed (#725).** They truncated both inputs to `fixed_len`
+  before comparing, so `compare_jwt_constant` reported **equality** for any two tokens
+  sharing their first 512 bytes — the shape of two JWTs with identical header and payload
+  and different signatures, since the signature sits at the end and real tokens exceed
+  512 bytes. `"abc"` and `"abc\0"` also compared equal. Nothing on a production path
+  called either; the one real comparison uses `ConstantTimeOps::compare`, which is correct
+  for values of any length. Callers wanting length hiding should compare digests rather
+  than values. `compare`, `compare_str` and `compare_len_safe` are unchanged.
+
+- **Documentation, benchmarking and reserved ranges are now refused by every outbound
+  guard.** A URL targeting `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`,
+  `198.18.0.0/15`, `240.0.0.0/4`, `224.0.0.0/4` or their `IPv6` equivalents is rejected
+  where some guards previously allowed it. These are not globally routable; the practical
+  impact is on test fixtures that used a documentation address as a stand-in for a public
+  one. Conversely, a *mapped public* address such as `::ffff:8.8.8.8` is now allowed
+  rather than blanket-refused: mapped and NAT64 addresses are canonicalised and judged as
+  the `IPv4` address the stack would route to.
+
+- **`FRAISEQL_NATS_ALLOW_PLAINTEXT` now requires a declared development environment**, in
+  both `fraiseql-observers` and `fraiseql-cdc-sinks`, and no longer accepts a remote
+  plaintext endpoint at all. The opt-in permits loopback — its purpose is a local dev
+  broker — but does not disable the address guard for other hosts.
+
+- **`fraiseql_federation::http_resolver::is_ssrf_blocked_ip` is now a re-export** of
+  `fraiseql_guard::net::is_blocked_ip`. The signature is unchanged; the accepted set is
+  strictly smaller.
+
 - **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
   path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
   any deployment whose compiled schema declares at least one fact table, and both were

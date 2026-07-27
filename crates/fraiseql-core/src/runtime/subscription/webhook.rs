@@ -320,58 +320,47 @@ pub fn validate_webhook_url(url: &str) -> Result<(), SubscriptionError> {
     let parsed = reqwest::Url::parse(url)
         .map_err(|e| SubscriptionError::Internal(format!("Invalid webhook URL '{url}': {e}")))?;
 
-    let host_raw = parsed
+    let host = parsed
         .host_str()
         .ok_or_else(|| SubscriptionError::Internal(format!("Webhook URL has no host: {url}")))?;
 
-    // Strip IPv6 brackets added by the url crate (e.g. "[::1]" → "::1").
-    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-        &host_raw[1..host_raw.len() - 1]
-    } else {
-        host_raw
-    };
-
-    let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+    // Bracket stripping, loopback/metadata hostname aliases and the literal-IP
+    // range check all live in the shared guard. The local checks this replaced
+    // matched `localhost` and `*.localhost` but not the `localhost.` *prefix*,
+    // so `localhost.localdomain` — and anything an attacker registers under that
+    // shape — passed.
+    if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
         return Err(SubscriptionError::Internal(format!(
-            "Webhook URL targets a loopback host ({host}) — SSRF protection blocked"
+            "Webhook URL targets {host} — SSRF protection blocked ({reason})"
         )));
-    }
-
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if is_webhook_ssrf_blocked_ip(&ip) {
-            return Err(SubscriptionError::Internal(format!(
-                "Webhook URL targets a private/reserved IP ({ip}) — SSRF protection blocked"
-            )));
-        }
     }
 
     Ok(())
 }
 
-/// Returns `true` for IP ranges that webhook delivery must never contact.
-fn is_webhook_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127                                          // loopback 127/8
-            || o[0] == 10                                        // RFC 1918 10/8
-            || (o[0] == 172 && (16..=31).contains(&o[1]))       // RFC 1918 172.16/12
-            || (o[0] == 192 && o[1] == 168)                     // RFC 1918 192.168/16
-            || (o[0] == 169 && o[1] == 254)                     // link-local 169.254/16
-            || (o[0] == 100 && (64..=127).contains(&o[1]))      // CGNAT 100.64/10
-            || o == [0, 0, 0, 0] // unspecified
-        },
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback()                                     // ::1
-            || v6.is_unspecified()                               // ::
-            || {
-                let s = v6.segments();
-                (s[0] & 0xfe00) == 0xfc00                        // ULA fc00::/7
-                || (s[0] & 0xffc0) == 0xfe80                    // link-local fe80::/10
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0        // ::ffff:0:0/96
-                    && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
-            }
-        },
+#[cfg(test)]
+mod corpus {
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+
+    use super::validate_webhook_url;
+
+    #[test]
+    fn refuses_every_blocked_corpus_entry() {
+        for (addr, why) in MUST_BLOCK {
+            let url = format!("https://{}/hook", url_host(addr));
+            assert!(validate_webhook_url(&url).is_err(), "must refuse {addr} ({why})");
+        }
+        for (host, why) in MUST_BLOCK_HOSTS {
+            let url = format!("https://{host}/hook");
+            assert!(validate_webhook_url(&url).is_err(), "must refuse {host} ({why})");
+        }
+    }
+
+    #[test]
+    fn permits_every_allowed_corpus_entry() {
+        for addr in MUST_ALLOW {
+            let url = format!("https://{}/hook", url_host(addr));
+            assert!(validate_webhook_url(&url).is_ok(), "must permit {addr}");
+        }
     }
 }

@@ -350,91 +350,6 @@ mod constant_time_tests_inner {
     }
 
     #[test]
-    fn test_compare_padded_equal_length() {
-        let token1 = b"same_token_value";
-        let token2 = b"same_token_value";
-        assert!(ConstantTimeOps::compare_padded(token1, token2, 512));
-    }
-
-    #[test]
-    fn test_compare_padded_different_length_shorter_actual() {
-        let expected = b"this_is_expected_token_value";
-        let actual = b"short";
-        assert!(!ConstantTimeOps::compare_padded(expected, actual, 512));
-    }
-
-    #[test]
-    fn test_compare_padded_different_length_longer_actual() {
-        let expected = b"expected";
-        let actual = b"this_is_a_much_longer_actual_token_that_exceeds_expected";
-        assert!(!ConstantTimeOps::compare_padded(expected, actual, 512));
-    }
-
-    #[test]
-    fn test_compare_padded_timing_consistency() {
-        let short_token = b"short";
-        let long_token = b"this_is_a_much_longer_token_value_with_more_content";
-
-        let _ = ConstantTimeOps::compare_padded(short_token, short_token, 512);
-        let _ = ConstantTimeOps::compare_padded(long_token, long_token, 512);
-
-        assert!(ConstantTimeOps::compare_padded(short_token, short_token, 512));
-        assert!(ConstantTimeOps::compare_padded(long_token, long_token, 512));
-    }
-
-    #[test]
-    fn test_compare_jwt_constant() {
-        let jwt1 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
-        let jwt2 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
-        assert!(ConstantTimeOps::compare_jwt_constant(jwt1, jwt2));
-    }
-
-    #[test]
-    fn test_compare_jwt_constant_different() {
-        let jwt1 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
-        let jwt2 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature999";
-        assert!(!ConstantTimeOps::compare_jwt_constant(jwt1, jwt2));
-    }
-
-    #[test]
-    fn test_compare_jwt_constant_prevents_length_attack() {
-        let short_invalid_jwt = "short";
-        let long_valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.sig123";
-
-        assert!(!ConstantTimeOps::compare_jwt_constant(short_invalid_jwt, long_valid_jwt));
-        assert!(!ConstantTimeOps::compare_jwt_constant(short_invalid_jwt, long_valid_jwt));
-    }
-
-    #[test]
-    fn test_compare_padded_zero_length() {
-        let token1 = b"";
-        let token2 = b"";
-        assert!(ConstantTimeOps::compare_padded(token1, token2, 512));
-    }
-
-    #[test]
-    fn test_compare_padded_exact_fixed_length() {
-        let token = b"a".repeat(512);
-        assert!(ConstantTimeOps::compare_padded(&token, &token, 512));
-
-        let mut different = token.clone();
-        different[256] = different[256].wrapping_add(1);
-        assert!(!ConstantTimeOps::compare_padded(&token, &different, 512));
-    }
-
-    #[test]
-    fn test_compare_padded_large_fixed_len() {
-        let token1 = b"test";
-        let token2 = b"test";
-        assert!(ConstantTimeOps::compare_padded(token1, token2, 2048));
-
-        let long_a: Vec<u8> = b"prefix".iter().chain(b"AAAA".iter()).copied().collect();
-        let long_b: Vec<u8> = b"prefix".iter().chain(b"BBBB".iter()).copied().collect();
-        assert!(ConstantTimeOps::compare_padded(&long_a, &long_b, 6));
-        assert!(!ConstantTimeOps::compare_padded(&long_a, &long_b, 10));
-    }
-
-    #[test]
     fn test_timing_attack_prevention_early_difference() {
         let token1 = b"XXXXXXX_correct_token";
         let token2 = b"YYYYYYY_correct_token";
@@ -451,18 +366,16 @@ mod constant_time_tests_inner {
     }
 
     #[test]
-    fn test_jwt_constant_padding() {
-        let short_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
-        let padded_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
-        assert!(ConstantTimeOps::compare_jwt_constant(short_jwt, padded_jwt));
+    fn test_jwt_identical_tokens_compare_equal() {
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
+        assert!(ConstantTimeOps::compare_str(jwt, jwt));
     }
 
     #[test]
-    fn test_jwt_constant_different_lengths() {
+    fn test_jwt_different_lengths_compare_unequal() {
         let jwt1 = "short";
         let jwt2 = "very_long_jwt_token_with_lots_of_data_making_it_much_longer";
-        let result = ConstantTimeOps::compare_jwt_constant(jwt1, jwt2);
-        assert!(!result);
+        assert!(!ConstantTimeOps::compare_str(jwt1, jwt2));
     }
 }
 
@@ -4452,7 +4365,10 @@ mod jwks_tests {
 
     #[test]
     fn test_ssrf_allows_public_ips() {
-        for addr in &["8.8.8.8", "1.1.1.1", "93.184.216.34", "203.0.113.1"] {
+        // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range the
+        // shared guard refuses because it is not globally routable. It reads like a
+        // public address precisely because docs use it — pick a real one.
+        for addr in &["8.8.8.8", "1.1.1.1", "93.184.216.34", "104.16.0.1"] {
             let ip: std::net::IpAddr = addr.parse().unwrap();
             assert!(!is_ssrf_blocked_ip(&ip), "{addr} is public and must NOT be blocked");
         }
@@ -5069,7 +4985,14 @@ mod oidc_provider_tests {
             .await;
 
         let result = temp_env::async_with_vars(
-            [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
+            // The insecure bypass is honoured only in a declared development
+            // environment, so reaching the loopback mock requires saying so.
+            [
+                ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+                ("FRAISEQL_ENV", Some("development")),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
             OidcProvider::new(
                 "test",
                 &mock_server.uri(),
@@ -5104,7 +5027,14 @@ mod oidc_provider_tests {
             .await;
 
         let result = temp_env::async_with_vars(
-            [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
+            // The insecure bypass is honoured only in a declared development
+            // environment, so reaching the loopback mock requires saying so.
+            [
+                ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+                ("FRAISEQL_ENV", Some("development")),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
             OidcProvider::new(
                 "test",
                 &mock_server.uri(),

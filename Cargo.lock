@@ -3663,6 +3663,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-core",
+ "fraiseql-guard",
  "futures",
  "jsonwebtoken",
  "parquet",
@@ -3699,6 +3700,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-error",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "hex",
  "hmac 0.13.0",
@@ -3736,11 +3738,13 @@ version = "2.14.1"
 dependencies = [
  "async-nats",
  "chrono",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "futures",
  "serde",
  "serde_json",
  "sqlx",
+ "temp-env",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -3825,6 +3829,7 @@ dependencies = [
  "fraiseql-db",
  "fraiseql-error",
  "fraiseql-federation",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "fraiseql-test-utils",
  "fraiseql-wire",
@@ -3924,6 +3929,7 @@ dependencies = [
  "deadpool-postgres",
  "fraiseql-db",
  "fraiseql-error",
+ "fraiseql-guard",
  "futures",
  "lru 0.18.1",
  "proptest",
@@ -3953,6 +3959,7 @@ dependencies = [
  "fraiseql-core",
  "fraiseql-db",
  "fraiseql-error",
+ "fraiseql-guard",
  "fraiseql-observers",
  "fraiseql-storage",
  "fraiseql-test-support",
@@ -3973,6 +3980,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-guard"
+version = "2.14.1"
+dependencies = [
+ "temp-env",
+]
+
+[[package]]
 name = "fraiseql-observers"
 version = "2.14.1"
 dependencies = [
@@ -3989,6 +4003,7 @@ dependencies = [
  "dashmap",
  "fraiseql-arrow",
  "fraiseql-error",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "fraiseql-test-utils",
  "fraiseql-webhooks",
@@ -4030,6 +4045,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-core",
+ "fraiseql-guard",
  "mutants",
  "proptest",
  "rand 0.9.4",
@@ -4076,6 +4092,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-federation",
  "fraiseql-functions",
+ "fraiseql-guard",
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-storage",

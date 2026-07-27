@@ -421,7 +421,9 @@ fn test_vault_addr_blocks_private_ranges() {
 fn test_vault_addr_allows_public_addresses() {
     validate_vault_addr("https://vault.example.com:8200")
         .unwrap_or_else(|e| panic!("public vault addr should pass: {e}"));
-    validate_vault_addr("https://203.0.113.10:8200")
+    // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range the shared
+    // guard refuses because it is not globally routable.
+    validate_vault_addr("https://93.184.216.34:8200")
         .unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
     validate_vault_addr("http://vault.local:8200")
         .unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
@@ -668,4 +670,47 @@ fn vault_debug_does_not_expose_token() {
 fn vault_backend_has_rotation_locks_field() {
     let vault = VaultBackend::new("https://vault.example.com:8200", "test-token").unwrap();
     assert_eq!(vault.rotation_locks_len(), 0, "fresh backend should have no locks");
+}
+
+// ── The shared outbound corpus, at this crate's entry point ───────────────────
+
+/// Clear the bypass and the posture markers so the guard is actually exercised.
+fn with_guard_engaged<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
+    let mut out = None;
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_VAULT_ALLOW_INSECURE", None::<&str>),
+            ("FRAISEQL_ENV", None),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        || out = Some(f()),
+    );
+    out.expect("temp_env ran the closure")
+}
+
+#[test]
+fn vault_addr_refuses_every_blocked_corpus_entry() {
+    use fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+    with_guard_engaged(|| {
+        for (addr, why) in MUST_BLOCK {
+            let url = format!("https://{}:8200", url_host(addr));
+            assert!(validate_vault_addr(&url).is_err(), "must refuse {addr} ({why})");
+        }
+        for (host, why) in MUST_BLOCK_HOSTS {
+            let url = format!("https://{host}");
+            assert!(validate_vault_addr(&url).is_err(), "must refuse {host} ({why})");
+        }
+    });
+}
+
+#[test]
+fn vault_addr_permits_every_allowed_corpus_entry() {
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+    with_guard_engaged(|| {
+        for addr in MUST_ALLOW {
+            let url = format!("https://{}:8200", url_host(addr));
+            assert!(validate_vault_addr(&url).is_ok(), "must permit {addr}");
+        }
+    });
 }

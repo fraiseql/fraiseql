@@ -17,6 +17,7 @@ harness = false
 name = "federation_bench"
 
 [dependencies]
+fraiseql-guard = {workspace = true}
 chrono = {workspace = true}
 dashmap = {workspace = true}
 deadpool = {workspace = true}

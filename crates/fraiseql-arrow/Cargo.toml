@@ -7,6 +7,7 @@ harness = false
 name = "arrow_vs_json_serialization"
 
 [dependencies]
+fraiseql-guard = {workspace = true}
 # Arrow ecosystem (with CSV and Parquet support)
 arrow = {version = "59", features = ["csv", "json"]}
 arrow-flight = "59"

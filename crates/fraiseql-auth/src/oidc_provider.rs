@@ -103,13 +103,22 @@ struct UserInfoRaw {
 /// Maximum redirect hops followed on an OIDC HTTP fetch.
 const OIDC_MAX_REDIRECTS: usize = 5;
 
-/// Whether `FRAISEQL_OIDC_ALLOW_INSECURE` disables the SSRF guards.
+/// Env var that disables the OIDC SSRF guards for local development.
 ///
-/// Intended for local development and integration testing only — never set in
-/// production. Read in one place so the URL check and the redirect policy agree.
+/// Honoured only when `FRAISEQL_ENV` declares a development environment; refused
+/// in production regardless of its value.
+pub const OIDC_ALLOW_INSECURE_ENV: &str = "FRAISEQL_OIDC_ALLOW_INSECURE";
+
+/// Whether [`OIDC_ALLOW_INSECURE_ENV`] disables the SSRF guards.
+///
+/// Read in one place so the URL check and the redirect policy agree. This used
+/// to honour the variable on its own, with no production check — the same shape
+/// as #836, and the reason that guard now runs through
+/// [`fraiseql_guard::deployment`].
 fn oidc_ssrf_guards_disabled() -> bool {
-    std::env::var("FRAISEQL_OIDC_ALLOW_INSECURE")
-        .is_ok_and(|v| v.eq_ignore_ascii_case("true") || v == "1")
+    fraiseql_guard::deployment::insecure_bypass_allowed(fraiseql_guard::deployment::env_opt_in(
+        OIDC_ALLOW_INSECURE_ENV,
+    ))
 }
 
 /// Validate an OIDC issuer URL against SSRF-prone destinations.
@@ -175,18 +184,12 @@ fn is_ssrf_blocked_oidc_url(url: &reqwest::Url) -> bool {
 
 /// Returns `true` for hosts an OIDC issuer URL must not target.
 ///
-/// Address classification is delegated to [`crate::jwks::is_ssrf_blocked_ip`] so this
-/// gate and the JWKS gate cannot drift (#776). The local predicate this replaced
-/// parsed the host as a plain `Ipv4Addr` *or* a plain `Ipv6Addr` and missed
-/// IPv4-mapped IPv6, IPv6 link-local, `0.0.0.0/8` and CGNAT — so
-/// `https://[::ffff:169.254.169.254]` passed the check and reqwest then connected to
-/// the cloud metadata service this function's own docs claim to block.
+/// Delegated to [`fraiseql_guard::net`] so this gate and the JWKS gate cannot drift
+/// (#776). Beyond the address ranges, the shared guard also matches the loopback
+/// hostname aliases this predicate missed: it tested `host == "localhost"` exactly,
+/// so `api.localhost` and the attacker-registrable `localhost.evil.com` passed.
 pub(crate) fn is_ssrf_blocked_oidc_host(host: &str) -> bool {
-    if host.eq_ignore_ascii_case("localhost") {
-        return true;
-    }
-    host.parse::<std::net::IpAddr>()
-        .is_ok_and(|ip| crate::jwks::is_ssrf_blocked_ip(&ip))
+    fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
 /// Redirect policy that re-applies the SSRF host check to every hop.

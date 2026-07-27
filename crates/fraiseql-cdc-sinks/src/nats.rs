@@ -22,9 +22,10 @@ pub struct NatsJetStreamSink {
 impl NatsJetStreamSink {
     /// Connect to NATS and build a `JetStream` context for this sink.
     ///
-    /// Plaintext `nats://` to a loopback host is refused unless
-    /// `FRAISEQL_NATS_ALLOW_PLAINTEXT=true` (dev/CI opt-in, mirroring the
-    /// observers transport); use `tls://` in production.
+    /// Plaintext `nats://` is refused — the payload is the full row after-image of
+    /// every mutation. `tls://` is always accepted; a local dev broker needs
+    /// `FRAISEQL_NATS_ALLOW_PLAINTEXT=true` together with a declared development
+    /// environment, mirroring the observers transport.
     ///
     /// # Errors
     ///
@@ -96,19 +97,84 @@ impl CdcSink for NatsJetStreamSink {
     }
 }
 
-/// Refuse plaintext `nats://` to a loopback host unless explicitly opted in.
+/// Env var that permits plaintext `nats://` without transport TLS.
+///
+/// Honoured only when `FRAISEQL_ENV` declares a development environment. Named
+/// and parsed identically to `fraiseql_observers::insecure_guard`'s flag so the
+/// two sinks cannot disagree about what the operator asked for.
+const NATS_ALLOW_PLAINTEXT_ENV: &str = "FRAISEQL_NATS_ALLOW_PLAINTEXT";
+
+/// Refuse any endpoint that would carry change events unencrypted.
+///
+/// `tls://` is always allowed. Plaintext `nats://` is refused unless the operator
+/// has opted in *and* declared a development environment. Every other scheme is
+/// refused outright, including the scheme-less form that `async-nats` silently
+/// rewrites to `nats://`.
+///
+/// The payload on this connection is `serde_json::to_vec(ev)` — the full row
+/// after-image of every mutation — so "refused by default" is the only defensible
+/// posture.
+///
+/// This guard shipped **inverted**: it refused plaintext only for loopback hosts,
+/// the one case that is safe, and accepted every remote plaintext endpoint. It
+/// also skipped all non-`nats://` URLs, split the host with `split(['/', ':'])`
+/// so `nats://user:pw@host` yielded `"user"`, and compared the host without
+/// lower-casing it. It had no unit tests (#816).
 fn guard_nats_url(url: &str) -> Result<()> {
-    if !url.to_ascii_lowercase().starts_with("nats://") {
-        return Ok(()); // tls:// (encrypted) endpoints are always allowed
+    let lower = url.to_ascii_lowercase();
+
+    if lower.starts_with("tls://") {
+        return Ok(());
     }
-    let host = url["nats://".len()..].split(['/', ':']).next().unwrap_or_default();
-    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
-    let allowed = std::env::var("FRAISEQL_NATS_ALLOW_PLAINTEXT").is_ok_and(|v| v == "true");
-    if is_loopback && !allowed {
+
+    if !lower.starts_with("nats://") {
         return Err(CdcError::Config(format!(
-            "refusing plaintext nats:// to loopback host {host:?}; use tls:// in production \
-             or set FRAISEQL_NATS_ALLOW_PLAINTEXT=true for dev/CI"
+            "unsupported NATS scheme in {url:?}: use tls:// for an encrypted connection. \
+             A URL with no scheme is rewritten to plaintext nats:// by the client, so it \
+             is refused here rather than silently downgraded."
         )));
     }
+
+    if !fraiseql_guard::deployment::insecure_bypass_allowed(fraiseql_guard::deployment::env_opt_in(
+        NATS_ALLOW_PLAINTEXT_ENV,
+    )) {
+        return Err(CdcError::Config(format!(
+            "refusing plaintext nats:// endpoint {url:?}: change events would cross the \
+             wire in the clear. Use tls://, or set {NATS_ALLOW_PLAINTEXT_ENV}=true with \
+             FRAISEQL_ENV=development for dev/CI."
+        )));
+    }
+
+    // Opted in and in development. The opt-in exists to reach a broker on
+    // localhost, so loopback is permitted — but it must not double as a licence
+    // to reach the instance-metadata service or an internal network. The host is
+    // parsed rather than string-split so that userinfo cannot mask it.
+    let host = nats_host(&lower);
+    if fraiseql_guard::net::is_loopback_host(host) {
+        return Ok(());
+    }
+    if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
+        return Err(CdcError::Config(format!("refusing NATS endpoint {url:?}: {reason}")));
+    }
+
     Ok(())
 }
+
+/// Extracts the host from a lower-cased `nats://` URL.
+///
+/// Strips any `user:password@` userinfo, then takes everything up to the port,
+/// path or query. `IPv6` literals keep their brackets, which
+/// [`fraiseql_guard::net::blocked_host_reason`] handles.
+fn nats_host(lower_url: &str) -> &str {
+    let after_scheme = &lower_url["nats://".len()..];
+    let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or("");
+    let host_port = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    if let Some(end) = host_port.find(']') {
+        // IPv6 literal: the port sits after the closing bracket.
+        return &host_port[..=end];
+    }
+    host_port.split(':').next().unwrap_or(host_port)
+}
+
+#[cfg(test)]
+mod tests;

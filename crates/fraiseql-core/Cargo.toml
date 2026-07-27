@@ -44,6 +44,7 @@ name = "fed_sdl"
 required-features = ["federation"]
 
 [dependencies]
+fraiseql-guard = {workspace = true}
 ahash = {workspace = true}
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
