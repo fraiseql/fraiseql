@@ -514,4 +514,3 @@ func TestConflictingBothScopeAndScopes(t *testing.T) {
 		t.Error("Should reject field with both scope and scopes")
 	}
 }
-
