@@ -14,23 +14,24 @@ fn test_metrics_summary_shape() {
             p99_ms: 45,
         },
         errors:        fraiseql_server::routes::studio::metrics_summary::ErrorRates {
-            rate_5m:  0.002,
-            rate_1h:  0.001,
-            rate_24h: 0.0008,
+            lifetime: 0.0015,
+            rate_5m:  Some(0.002),
+            rate_1h:  Some(0.001),
+            rate_24h: Some(0.0008),
         },
-        pool:          fraiseql_server::routes::studio::metrics_summary::PoolStats {
+        pool:          Some(fraiseql_server::routes::studio::metrics_summary::PoolStats {
             active:      4,
             idle:        12,
             max:         20,
             utilization: 0.25,
-        },
+        }),
         cache:         fraiseql_server::routes::studio::metrics_summary::CacheStats {
             hit_rate: 0.91,
-            entries:  1024,
+            entries:  Some(1024),
         },
-        subscriptions: fraiseql_server::routes::studio::metrics_summary::SubscriptionStats {
+        subscriptions: Some(fraiseql_server::routes::studio::metrics_summary::SubscriptionStats {
             active: 38,
-        },
+        }),
     };
 
     let json = serde_json::to_string(&resp).unwrap();

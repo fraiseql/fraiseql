@@ -106,7 +106,7 @@ class Post:
 |-----------|------|-------------|
 | `implements` | `list[str] \| None` | Interface names this type implements |
 | `relay` | `bool` | Enable Relay cursor pagination for this type |
-| `requires_role` | `str \| None` | JWT role required to access any field on this type |
+| `requires_role` | `str \| None` | JWT role required to execute any operation returning this type. Lowered onto every query and mutation whose return type it is, so the operation-level role gate enforces it. A gated type reachable as a field of a type that is not gated the same way is a **compile error** — the containing type's operations would carry no role, leaving the gated type ungated. Does **not** hide the type from GraphQL `__schema` introspection (only the REST `/introspection` route filters on it) |
 | `embedded` | `bool` | Mark an embedded value object (no independent identity, nested under a parent). Declares no `sql_source`; exempt from the cascade `CascadeNode` `id: ID!` contract |
 
 ```python

@@ -17,9 +17,9 @@ fn test_admin_health_response_structure() {
     let resp = AdminHealthResponse {
         uptime_secs:    42,
         version:        "2.2.0".to_string(),
-        pool_active:    2,
-        pool_idle:      8,
-        pool_max:       20,
+        pool_active:    Some(2),
+        pool_idle:      Some(8),
+        pool_max:       Some(20),
         cache_hit_rate: Some(0.95),
         cache_entries:  Some(512),
     };

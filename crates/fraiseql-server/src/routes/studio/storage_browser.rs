@@ -7,13 +7,12 @@
 use axum::{
     Json,
     extract::{Query, State},
-    http::StatusCode,
-    response::IntoResponse,
+    response::Response,
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
-use crate::routes::graphql::app_state::AppState;
+use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
 
 // ---------------------------------------------------------------------------
 // Object record
@@ -123,12 +122,15 @@ pub struct DeleteObjectRequest {
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn list_buckets_handler<A>(State(_state): State<AppState<A>>) -> impl IntoResponse
+pub async fn list_buckets_handler<A>(State(_state): State<AppState<A>>) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — not yet wired to StorageBackend.
-    Json(BucketListResponse { buckets: vec![] })
+    not_implemented(
+        "studio.storage.buckets",
+        "The storage browser is not wired to a StorageBackend; an empty bucket list \
+         here would not mean the deployment has no buckets.",
+    )
 }
 
 /// `GET /admin/v1/storage/objects` — paginated object list with prefix filtering.
@@ -140,16 +142,15 @@ where
 pub async fn list_objects_handler<A>(
     State(_state): State<AppState<A>>,
     Query(_params): Query<ObjectListQuery>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(ObjectListResponse {
-        objects:   vec![],
-        total:     0,
-        page:      1,
-        page_size: 50,
-    })
+    not_implemented(
+        "studio.storage.objects",
+        "The storage browser is not wired to a StorageBackend; an empty object list \
+         here would not mean the bucket is empty.",
+    )
 }
 
 /// `POST /admin/v1/storage/objects/sign` — generate a presigned URL.
@@ -159,20 +160,15 @@ where
 /// Returns `401` without valid admin credentials (enforced by middleware).
 pub async fn presign_handler<A>(
     State(_state): State<AppState<A>>,
-    Json(req): Json<PresignRequest>,
-) -> impl IntoResponse
+    Json(_req): Json<PresignRequest>,
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(serde_json::json!({
-            "error": "Not Implemented",
-            "message": format!(
-                "Presign for {}/{} not yet wired",
-                req.bucket, req.key
-            )
-        })),
+    not_implemented(
+        "studio.storage.presign",
+        "The storage browser is not wired to a StorageBackend; no presigned URL was \
+         generated.",
     )
 }
 
@@ -183,19 +179,13 @@ where
 /// Returns `401` without valid admin credentials (enforced by middleware).
 pub async fn delete_object_handler<A>(
     State(_state): State<AppState<A>>,
-    Json(req): Json<DeleteObjectRequest>,
-) -> impl IntoResponse
+    Json(_req): Json<DeleteObjectRequest>,
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(serde_json::json!({
-            "error": "Not Implemented",
-            "message": format!(
-                "Delete {}/{} not yet wired",
-                req.bucket, req.key
-            )
-        })),
+    not_implemented(
+        "studio.storage.delete",
+        "The storage browser is not wired to a StorageBackend; no object was deleted.",
     )
 }

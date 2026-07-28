@@ -388,15 +388,26 @@ impl TenancyTomlConfig {
     }
 
     /// Convert to JSON representation for compiled schema.
+    ///
+    /// Built by serializing the **runtime** type rather than by hand: this used to
+    /// emit `tenantClaim`, which `fraiseql_core::schema::TenancyConfig` does not
+    /// declare, so a configured claim vanished into the untyped catch-all and the
+    /// runtime silently reverted to its `"tenant_id"` default (#757). Compile-time
+    /// `@tenant_id` validation read the camelCase key, so the compiler and the
+    /// server disagreed about which claim carries the tenant.
+    ///
+    /// Going through `TenancyConfig` makes the two agree by construction: a rename
+    /// on either side is a compile error here, not a silent default at runtime.
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "mode": match self.mode {
-                TenancyModeConfig::None => "none",
-                TenancyModeConfig::Row => "row",
-                TenancyModeConfig::Schema => "schema",
+        let runtime = fraiseql_core::schema::TenancyConfig {
+            mode:         match self.mode {
+                TenancyModeConfig::None => fraiseql_core::schema::TenancyMode::None,
+                TenancyModeConfig::Row => fraiseql_core::schema::TenancyMode::Row,
+                TenancyModeConfig::Schema => fraiseql_core::schema::TenancyMode::Schema,
             },
-            "tenantClaim": self.tenant_claim,
-        })
+            tenant_claim: self.tenant_claim.clone(),
+        };
+        serde_json::to_value(runtime).unwrap_or_else(|_| serde_json::json!({}))
     }
 }
 
@@ -480,26 +491,32 @@ impl SecurityConfig {
             "constantTime": self.constant_time.to_json(),
         });
 
-        // Add role definitions if present
+        // Field-level RBAC grants. Emitted as `role_definitions` — the name
+        // `fraiseql_core::schema::SecurityConfig` declares — and built by serializing
+        // the runtime `RoleDefinition` type rather than by hand.
+        //
+        // These were emitted as `roleDefinitions` with hand-written keys, so they
+        // deserialized into the consumer's `#[serde(flatten)] additional` map, nothing
+        // read them back out, and `role_definitions` stayed empty. Since
+        // `role_has_scope` is the *only* input to `can_access_scope`, that made the
+        // documented field-level RBAC feature deny-all on every project-TOML compile:
+        // a member of a role granted a scope was refused the field the role was
+        // created to unlock (#757).
         if !self.role_definitions.is_empty() {
-            json["roleDefinitions"] = serde_json::to_value(
-                self.role_definitions
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "name": r.name,
-                            "description": r.description,
-                            "scopes": r.scopes,
-                        })
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap_or_default();
+            let runtime: Vec<fraiseql_core::schema::RoleDefinition> = self
+                .role_definitions
+                .iter()
+                .map(|r| fraiseql_core::schema::RoleDefinition {
+                    description: r.description.clone(),
+                    ..fraiseql_core::schema::RoleDefinition::new(r.name.clone(), r.scopes.clone())
+                })
+                .collect();
+            json["role_definitions"] = serde_json::to_value(runtime).unwrap_or_default();
         }
 
-        // Add default role if present
+        // Same rename, same consequence: `defaultRole` never reached the typed field.
         if let Some(default_role) = &self.default_role {
-            json["defaultRole"] = serde_json::json!(default_role);
+            json["default_role"] = serde_json::json!(default_role);
         }
 
         json

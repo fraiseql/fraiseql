@@ -107,6 +107,7 @@ impl CompiledSchema {
             // No hash, parse directly from original
             let mut schema: Self = serde_json::from_str(json).map_err(serde_err)?;
             schema.build_indexes();
+            schema.finish_load()?;
             return Ok(schema);
         };
 
@@ -137,7 +138,39 @@ impl CompiledSchema {
         // Now deserialize the schema from the remaining JSON
         let mut schema: Self = serde_json::from_str(&remaining_json).map_err(serde_err)?;
         schema.build_indexes();
+        schema.finish_load()?;
         Ok(schema)
+    }
+
+    /// Normalization every load must perform, and the checks that must hold after it.
+    ///
+    /// Lives here rather than in `build_indexes` because it can fail, and because
+    /// both `from_json` branches must run it — the hashed and the unhashed one. A
+    /// normalization step performed on one load path and not its sibling is the
+    /// shape that produced #748 and #812 in other subsystems.
+    ///
+    /// Today it lowers each type's `requires_role` onto the operations that return
+    /// it (#677) and refuses a schema whose role declarations the runtime cannot
+    /// honour.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when a role-gated type is declared in a
+    /// shape no execution path can enforce — see
+    /// [`CompiledSchema::type_role_violations`].
+    fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
+        self.propagate_type_roles();
+        let violations = self.type_role_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "type-level `requires_role` cannot be enforced as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("security.requires_role".to_string()),
+            });
+        }
+        Ok(())
     }
 
     /// Serialize to JSON string.

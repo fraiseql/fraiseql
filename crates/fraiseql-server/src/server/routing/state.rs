@@ -68,6 +68,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Wire usage aggregator (shared with MutationAuditLayer tracing subscriber).
         state = state.with_usage(self.usage.clone());
 
+        // Thread the revocation manager through so the Studio admin revoke endpoint
+        // can perform the revocation it reports (#749). Without this the manager is
+        // reachable only from `Server`, which is why that handler fabricated success.
+        if let Some(ref rev_mgr) = self.revocation_manager {
+            state = state.with_revocation_manager(rev_mgr.clone());
+        }
+
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {

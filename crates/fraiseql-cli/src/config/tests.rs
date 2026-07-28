@@ -608,7 +608,8 @@ mod security_tests {
         };
         let json = config.to_json();
         assert_eq!(json["mode"], "row");
-        assert_eq!(json["tenantClaim"], "tenant_id");
+        // `tenant_claim`, the name the runtime `TenancyConfig` declares (#757).
+        assert_eq!(json["tenant_claim"], "tenant_id");
     }
 
     #[test]
@@ -619,7 +620,7 @@ mod security_tests {
         };
         let json = config.to_json();
         assert_eq!(json["mode"], "schema");
-        assert_eq!(json["tenantClaim"], "org_id");
+        assert_eq!(json["tenant_claim"], "org_id");
     }
 
     #[test]

@@ -69,9 +69,9 @@ fn test_all_admin_types_importable() {
     let _ = AdminHealthResponse {
         uptime_secs:    0,
         version:        String::new(),
-        pool_active:    0,
-        pool_idle:      0,
-        pool_max:       0,
+        pool_active:    None,
+        pool_idle:      None,
+        pool_max:       None,
         cache_hit_rate: None,
         cache_entries:  None,
     };

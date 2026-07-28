@@ -217,10 +217,17 @@ jobs:
           FRAISEQL_BIND_ADDR: 127.0.0.1:8817
           FRAISEQL_INTROSPECTION_ENABLED: "true"
           FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          # admin_token is the documented switch for the admin API, and setting it makes
+          # boot run the RBAC schema DDL. #748 was a parse error in that DDL, so the
+          # shipped -full binary refused to start under exactly this configuration — the
+          # "compiles but panics on boot" class this workflow exists to catch, missed only
+          # because no smoke config had ever set the token.
+          FRAISEQL_ADMIN_API_ENABLED: "true"
+          FRAISEQL_ADMIN_TOKEN: smoke-test-only-admin-token-32-chars
           FRAISEQL_ENV: development
           RUST_LOG: info
 
-      - name: Wait for /health (native runtime mounted + source scheduler)
+      - name: Wait for /health (native runtime mounted + source scheduler + admin token)
         run: |
           set -eu
           for i in $(seq 1 30); do
@@ -230,13 +237,28 @@ jobs:
               exit 0
             fi
             if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
-              echo "::error::server exited before /health with the full platform surface mounted — a panic in the runtime/inbound/source/mcp/metrics startup path." >&2
+              echo "::error::server exited before /health with the full platform surface mounted — a panic in the runtime/inbound/source/mcp/metrics/RBAC startup path." >&2
               exit 1
             fi
             sleep 1
           done
           echo "::error::Timed out waiting for /health (full platform surface) after 30s." >&2
           exit 1
+
+      # Booting is necessary but not sufficient: the RBAC DDL could "succeed" while
+      # creating nothing usable. Ask the API a question only a real table can answer.
+      - name: Assert the RBAC management API is backed by real tables (#748)
+        run: |
+          set -eu
+          TOKEN=smoke-test-only-admin-token-32-chars
+          unauth=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8817/api/roles)
+          test "$unauth" = "401" \
+            || { echo "::error::/api/roles without the admin token returned HTTP $unauth (expected 401)" >&2; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8817/api/roles)
+          test "$code" = "200" \
+            || { echo "::error::/api/roles with the admin token returned HTTP $code (expected 200) — the RBAC schema was not created at boot (#748)" >&2; exit 1; }
+          echo "RBAC management API answered from real tables (401 unauth, 200 authed)."
 
       - name: Stop server
         if: always()
@@ -339,6 +361,11 @@ jobs:
           # here is exactly what a production --config must provide; without it the shipped server
           # correctly exits before /health (the failure this smoke kept mistaking for a boot bug).
           metrics_token = "smoke-test-only-metrics-token"
+          # admin_token is the documented switch for the admin/RBAC/Studio APIs, and it
+          # makes boot run the RBAC schema DDL. #748 was a parse error in that DDL, so
+          # the published -full binary refused to start under exactly this configuration.
+          admin_api_enabled = true
+          admin_token = "smoke-test-only-admin-token-32-chars"
           TOML
           /tmp/full/extract/fraiseql-server --config /tmp/full/server.toml &
           echo $! > /tmp/fraiseql-published.pid
@@ -374,6 +401,13 @@ jobs:
           test "$code" = "200" \
             || { echo "::error::/metrics with the bearer token returned HTTP $code — metrics_enabled from --config was not honored" >&2; exit 1; }
           echo "Published fraiseql-server honored [metrics] from --config (/metrics: 401 unauth, 200 authed)."
+          # admin_token also came only from --config, and reaching /api/roles proves the
+          # boot-time RBAC DDL both ran and produced usable tables (#748).
+          rbac=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer smoke-test-only-admin-token-32-chars" http://127.0.0.1:8818/api/roles)
+          test "$rbac" = "200" \
+            || { echo "::error::/api/roles with the admin token returned HTTP $rbac (expected 200) — the published binary did not create the RBAC schema at boot (#748)" >&2; exit 1; }
+          echo "Published fraiseql-server created the RBAC schema at boot (/api/roles: 200 authed)."
 
       - name: Stop published server
         if: always()

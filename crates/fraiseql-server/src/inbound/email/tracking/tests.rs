@@ -44,6 +44,22 @@ async fn suppression_and_exactly_once_round_trip_through_postgres() {
     let tracker = PgSendTracker::new(pool.clone());
     tracker.init().await.unwrap();
 
+    // Clear this test's own fixtures first. It asserts "a never-seen send is not
+    // recorded" and then records one, so on a shared database it poisoned itself:
+    // green on a fresh Postgres (which is what CI provisions), red on every local
+    // re-run. A test whose result depends on whether it has been run before is not
+    // reporting what its name says.
+    sqlx::query("DELETE FROM _fraiseql_send_status WHERE send_id = 'send-xyz'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "DELETE FROM _fraiseql_suppression WHERE address_hash IN ('hash-abc', 'hash-expired')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     // A never-seen send is not recorded; a fresh recipient is not suppressed.
     assert_eq!(tracker.recorded_send(None, "send-xyz").await.unwrap(), None);
     assert_eq!(tracker.suppression_reason(None, "hash-abc").await.unwrap(), None);

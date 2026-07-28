@@ -7,13 +7,12 @@
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
+    response::Response,
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
-use crate::routes::graphql::app_state::AppState;
+use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
 
 // ---------------------------------------------------------------------------
 // Function record
@@ -100,14 +99,23 @@ pub struct SecretSetRequest {
 
 /// `GET /admin/v1/functions` — list all deployed functions.
 ///
+/// Answers `501`: the function registry is not exposed here. It used to answer
+/// `{"functions": []}`, which reads as "nothing is deployed" — false for every
+/// deployment that declares functions.
+///
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn list_functions_handler<A>(State(_state): State<AppState<A>>) -> impl IntoResponse
+/// Returns `501` — see above.
+pub async fn list_functions_handler<A>(State(_state): State<AppState<A>>) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(FunctionListResponse { functions: vec![] })
+    not_implemented(
+        "studio.functions.list",
+        "The deployed-function registry is not exposed through the admin API; an \
+         empty list here would not mean no functions are deployed.",
+    )
 }
 
 /// `POST /admin/v1/functions/{name}/invoke` — invoke a function.
@@ -120,16 +128,14 @@ pub async fn invoke_function_handler<A>(
     Path(_name): Path<String>,
     State(_state): State<AppState<A>>,
     Json(_req): Json<InvokeRequest>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(serde_json::json!({
-            "error": "Not Implemented",
-            "message": "Function invocation endpoint available in a future release"
-        })),
+    not_implemented(
+        "studio.functions.invoke",
+        "Ad-hoc function invocation is not exposed through the admin API. Use \
+         `fraiseql functions invoke`.",
     )
 }
 
@@ -141,11 +147,15 @@ where
 pub async fn function_logs_handler<A>(
     Path(_name): Path<String>,
     State(_state): State<AppState<A>>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(serde_json::json!({ "logs": [] }))
+    not_implemented(
+        "studio.functions.logs",
+        "No invocation-log ring buffer is exposed through the admin API; an empty \
+         list here would not mean the function has never run.",
+    )
 }
 
 /// `GET /admin/v1/functions/{name}/secrets` — secret key names (values never returned).
@@ -156,11 +166,15 @@ where
 pub async fn list_secrets_handler<A>(
     Path(_name): Path<String>,
     State(_state): State<AppState<A>>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(SecretsKeysResponse { keys: vec![] })
+    not_implemented(
+        "studio.functions.secrets.list",
+        "Function secrets are not managed through the admin API; an empty key list \
+         here would not mean the function holds no secrets.",
+    )
 }
 
 /// `PUT /admin/v1/functions/{name}/secrets/{key}` — set a secret value.
@@ -172,11 +186,18 @@ pub async fn set_secret_handler<A>(
     Path((_name, _key)): Path<(String, String)>,
     State(_state): State<AppState<A>>,
     Json(_req): Json<SecretSetRequest>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(serde_json::json!({"success": true}))
+    // #749: this answered `{"success": true}` under a doc claiming the value was
+    // "encrypted and stored server-side", storing nothing — so a credential rotation
+    // reported success while the function kept using the leaked secret.
+    not_implemented(
+        "studio.functions.secrets.set",
+        "Function secrets are not writable through the admin API; nothing was \
+         stored. Manage them through the configured secrets backend.",
+    )
 }
 
 /// `DELETE /admin/v1/functions/{name}/secrets/{key}` — delete a secret.
@@ -187,9 +208,13 @@ where
 pub async fn delete_secret_handler<A>(
     Path((_name, _key)): Path<(String, String)>,
     State(_state): State<AppState<A>>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    Json(serde_json::json!({"success": true}))
+    not_implemented(
+        "studio.functions.secrets.delete",
+        "Function secrets are not deletable through the admin API; nothing was \
+         removed. Manage them through the configured secrets backend.",
+    )
 }
