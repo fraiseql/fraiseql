@@ -24,7 +24,6 @@ version = "1.0.0"
 
 [security]
 default_policy = "authenticated"
-
 # Declares the deployment multi-tenant. This activates the subscription
 # tenant fail-closed gate and the cache+RLS boot gate — with it set and
 # `[security.rls]` absent, a cache-enabled server refuses to start rather than
@@ -47,11 +46,11 @@ enabled = true
 # There is no way to spoof these from the client: the value comes from the
 # validated JWT, not from a header or a GraphQL variable.
 [[session_variables.variables]]
+claim = "organization_id"
 name = "app.organization_id"
 source = "jwt"
-claim = "organization_id"
 
 [[session_variables.variables]]
+claim = "tenant_id"
 name = "app.tenant_id"
 source = "jwt"
-claim = "tenant_id"

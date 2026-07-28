@@ -2,9 +2,9 @@
 # Multi-tenant organization with domain-driven architecture
 
 [database]
+connect_timeout_ms = 30000
 pool_max = 10
 ssl_mode = "prefer"
-connect_timeout_ms = 30000
 url = "postgresql://localhost/saas"
 
 # Auto-discover domains
@@ -23,7 +23,6 @@ version = "1.0.0"
 # the full path and sql/01_schema.sql for the policies.
 [security]
 default_policy = "authenticated"
-
 # Every row in this schema belongs to exactly one account, so the deployment is
 # multi-tenant. This activates the subscription tenant fail-closed gate and the
 # cache+RLS boot gate.
@@ -41,16 +40,16 @@ enabled = true
 # `app.user_id` and `app.account_role` are what the write-side `WITH CHECK` policies
 # in sql/01_schema.sql compare against.
 [[session_variables.variables]]
+claim = "account_id"
 name = "app.account_id"
 source = "jwt"
-claim = "account_id"
 
 [[session_variables.variables]]
+claim = "sub"
 name = "app.user_id"
 source = "jwt"
-claim = "sub"
 
 [[session_variables.variables]]
+claim = "account_role"
 name = "app.account_role"
 source = "jwt"
-claim = "account_role"
