@@ -90,13 +90,15 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_db::postgres::PoolPrewarmConfig;
+/// use fraiseql_db::postgres::{PoolPrewarmConfig, PostgresTlsConfig};
 ///
 /// let cfg = PoolPrewarmConfig {
 ///     min_size:     5,
 ///     max_size:     20,
 ///     timeout_secs: Some(30),
 ///     search_path:  None,
+///     // Mandatory: every pool site must state its transport security (#801/#824).
+///     tls:          PostgresTlsConfig::default(),
 /// };
 /// ```
 #[derive(Debug, Clone)]

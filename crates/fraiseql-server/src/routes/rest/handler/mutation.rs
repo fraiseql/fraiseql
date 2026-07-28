@@ -13,7 +13,7 @@ use serde_json::json;
 
 use super::{
     RestHandler,
-    coercion::coerce_path_param_value,
+    coercion::{coerce_path_param_value, declared_arg_type},
     headers::{set_preference_applied, set_request_id},
     prefer::PreferHeader,
     response::{RestError, RestResponse},
@@ -127,7 +127,8 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
         }
 
         // Single POST (existing behavior)
-        let variables = build_mutation_variables(&resolved.path_params, body);
+        let variables =
+            build_mutation_variables(self.schema, mutation_name, &resolved.path_params, body);
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
@@ -272,7 +273,8 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
             }
         }
 
-        let variables = build_mutation_variables(&resolved.path_params, body);
+        let variables =
+            build_mutation_variables(self.schema, mutation_name, &resolved.path_params, body);
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
@@ -349,7 +351,8 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
                     },
                 };
 
-                let variables = build_mutation_variables(&r.path_params, body);
+                let variables =
+                    build_mutation_variables(self.schema, mutation_name, &r.path_params, body);
                 let variables_json = serde_json::Value::Object(variables);
                 let vars_ref = Some(&variables_json);
 
@@ -433,7 +436,8 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
 
                 let mut variables = serde_json::Map::new();
                 for (key, value) in &r.path_params {
-                    variables.insert(key.clone(), coerce_path_param_value(value));
+                    let declared = declared_arg_type(self.schema, mutation_name, key);
+                    variables.insert(key.clone(), coerce_path_param_value(value, declared));
                 }
                 let variables_json = serde_json::Value::Object(variables);
                 let vars_ref = Some(&variables_json);
@@ -550,7 +554,13 @@ pub(super) async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
 }
 
 /// Build mutation variables from path params and request body.
+///
+/// Path params are coerced against the *declared* argument type, which is why
+/// this takes the schema and the mutation name: coercing by parse-ability turned
+/// a string ID `"0123"` into the integer `123` (#731).
 pub(super) fn build_mutation_variables(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    mutation_name: &str,
     path_params: &[(String, String)],
     body: &serde_json::Value,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -558,7 +568,8 @@ pub(super) fn build_mutation_variables(
 
     // Path params first (e.g., `id`)
     for (key, value) in path_params {
-        variables.insert(key.clone(), coerce_path_param_value(value));
+        let declared = declared_arg_type(schema, mutation_name, key);
+        variables.insert(key.clone(), coerce_path_param_value(value, declared));
     }
 
     // Merge body fields

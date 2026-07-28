@@ -358,40 +358,35 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            // Built once, outside the loop: a fresh `reqwest::Client` per tick
+            // discards the connection pool and the TLS session cache, so every
+            // poll paid a full handshake (#731).
+            let client = reqwest::Client::builder()
+                .timeout(MANIFEST_FETCH_TIMEOUT)
+                .build()
+                .expect("reqwest client with timeout should always build");
             loop {
                 ticker.tick().await;
-                let client = reqwest::Client::builder()
-                    .timeout(MANIFEST_FETCH_TIMEOUT)
-                    .build()
-                    .expect("reqwest client with timeout should always build");
 
                 match client.get(&url).send().await {
                     Ok(resp) => {
                         let status = resp.status();
                         if status.is_success() {
-                            match resp.bytes().await {
+                            match read_capped_body(resp, MAX_TRUSTED_DOCS_RESPONSE_BYTES).await {
                                 Ok(body_bytes) => {
-                                    if body_bytes.len() > MAX_TRUSTED_DOCS_RESPONSE_BYTES {
-                                        warn!(
-                                            bytes = body_bytes.len(),
-                                            max = MAX_TRUSTED_DOCS_RESPONSE_BYTES,
-                                            "Trusted documents manifest response too large — skipping reload"
-                                        );
-                                    } else {
-                                        #[derive(serde::Deserialize)]
-                                        struct Manifest {
-                                            documents: std::collections::HashMap<String, String>,
-                                        }
-                                        match serde_json::from_slice::<Manifest>(&body_bytes) {
-                                            Ok(manifest) => {
-                                                let count = manifest.documents.len();
-                                                store.replace_documents(manifest.documents);
-                                                info!(count, "Trusted documents manifest reloaded");
-                                            },
-                                            Err(e) => {
-                                                warn!(error = %e, "Failed to parse trusted documents manifest");
-                                            },
-                                        }
+                                    #[derive(serde::Deserialize)]
+                                    struct Manifest {
+                                        documents: std::collections::HashMap<String, String>,
+                                    }
+                                    match serde_json::from_slice::<Manifest>(&body_bytes) {
+                                        Ok(manifest) => {
+                                            let count = manifest.documents.len();
+                                            store.replace_documents(manifest.documents);
+                                            info!(count, "Trusted documents manifest reloaded");
+                                        },
+                                        Err(e) => {
+                                            warn!(error = %e, "Failed to parse trusted documents manifest");
+                                        },
                                     }
                                 },
                                 Err(e) => {
@@ -1002,6 +997,34 @@ fn refuse_or_warn_transport(
     Ok(())
 }
 
+/// Read a response body, refusing as soon as it exceeds `max_bytes`.
+///
+/// `Response::bytes()` buffers the **whole** body and only then can the caller
+/// check its size, so a hostile or misbehaving manifest server could make the
+/// server allocate arbitrarily much before the 10 `MiB` cap was consulted (#731).
+/// Streaming the chunks and bailing at the ceiling makes the cap an actual limit
+/// on memory rather than a post-hoc verdict — the `Content-Length` header is only
+/// an advisory pre-check because a chunked response has none.
+async fn read_capped_body(
+    response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    if let Some(declared) = response.content_length() {
+        if declared > max_bytes as u64 {
+            return Err(format!("response declares {declared} bytes, max {max_bytes}"));
+        }
+    }
+    let mut body = Vec::new();
+    let mut response = response;
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if body.len() + chunk.len() > max_bytes {
+            return Err(format!("response exceeds {max_bytes} bytes"));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
 // ── SSRF guard for manifest hot-reload URL ────────────────────────────────────
 
 /// Returns `true` when `url` resolves to a private, loopback, or link-local
@@ -1041,7 +1064,7 @@ pub(super) fn is_manifest_url_ssrf_blocked(url: &str) -> bool {
 ///
 /// Returns `ServerError::ConfigError` when the schema is multi-tenant, caching is
 /// on, and no RLS is declared.
-pub(super) fn tenant_isolation_declaration_check(
+pub fn tenant_isolation_declaration_check(
     schema: &CompiledSchema,
     cache_enabled: bool,
 ) -> crate::Result<()> {
@@ -1119,7 +1142,7 @@ pub(super) async fn verify_declared_rls<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ServerError::ConfigError` when any field in the schema declares `encryption`.
-pub(super) fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Result<()> {
+pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Result<()> {
     let encrypted: Vec<String> = schema
         .types
         .iter()

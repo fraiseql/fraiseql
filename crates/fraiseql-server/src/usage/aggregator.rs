@@ -13,8 +13,13 @@
 //!
 //! # Restarts
 //!
-//! Counters are **in-memory only**; they reset to zero on process restart.
-//! The aggregator is wired into `AppState` and exposed via `GET /api/v1/admin/usage`.
+//! With the default [`NoopBackend`] counters are in-memory only and reset to zero
+//! on process restart. With a durable backend configured (`[usage]`), startup
+//! loads the persisted counters and a periodic task flushes the **increments**
+//! since the last flush — never the process-local totals, which would destroy the
+//! stored value after a failed load and make multi-replica totals last-writer-wins
+//! (#861). The aggregator is wired into `AppState` and exposed via
+//! `GET /api/v1/admin/usage`.
 
 use std::{
     collections::HashMap,
@@ -140,6 +145,15 @@ pub struct UsageAggregator {
     /// is available at server startup, after the tracing subscriber has already
     /// taken a reference via [`global_aggregator`]).
     backend:  std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
+    /// Per-key high-water mark: how much of each counter the current backend has
+    /// already been told about. `counters - flushed` is the delta a flush sends.
+    flushed:  DashMap<(String, String, String), AtomicU64>,
+    /// Whether the current backend's contents were read successfully.
+    ///
+    /// `false` between `set_backend` and a successful `load_from_backend`. While
+    /// false the aggregator refuses to flush: a process that could not read the
+    /// persisted counters must not write to them (#861).
+    loaded:   std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for UsageAggregator {
@@ -157,6 +171,10 @@ impl UsageAggregator {
         Self {
             counters: DashMap::new(),
             backend:  std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
+            flushed:  DashMap::new(),
+            // The default backend holds nothing, so there is nothing that could
+            // have failed to load and nothing a flush could destroy.
+            loaded:   std::sync::atomic::AtomicBool::new(true),
         }
     }
 
@@ -166,6 +184,9 @@ impl UsageAggregator {
         Self {
             counters: DashMap::new(),
             backend:  std::sync::RwLock::new(backend),
+            flushed:  DashMap::new(),
+            // A durable backend that has not been read yet.
+            loaded:   std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -179,7 +200,18 @@ impl UsageAggregator {
     ///
     /// Panics if the backend `RwLock` is poisoned (unrecoverable state).
     pub fn set_backend(&self, backend: std::sync::Arc<dyn UsageBackend>) {
+        // A new backend has not been read yet, so flushing to it would be writing
+        // over contents this process has never seen. `load_from_backend` re-arms.
+        self.loaded.store(false, Ordering::Release);
         *self.backend.write().expect("backend lock poisoned") = backend;
+    }
+
+    /// Whether the current backend's persisted counters were read successfully.
+    ///
+    /// `false` disables flushing — see [`Self::flush_to_backend`].
+    #[must_use]
+    pub fn is_loaded(&self) -> bool {
+        self.loaded.load(Ordering::Acquire)
     }
 
     /// Record one mutation audit event, incrementing the appropriate counter.
@@ -215,37 +247,80 @@ impl UsageAggregator {
         self.counters.len()
     }
 
-    /// Flush all current counters to the persistence backend.
+    /// Send the counts recorded since the last successful flush to the backend.
+    ///
+    /// Sends **deltas**, not totals, and advances the per-key watermark only after
+    /// the backend confirms the write — so a failed flush is retried on the next
+    /// tick rather than lost, and N replicas sum rather than overwrite each other.
     ///
     /// A no-op when using the default [`NoopBackend`].
     ///
     /// # Errors
     ///
-    /// Propagates errors from the underlying [`UsageBackend::flush`].
+    /// Refuses with an error when the current backend's startup load failed: a
+    /// process that could not read the persisted counters must not write to them
+    /// (#861). Otherwise propagates errors from [`UsageBackend::flush_deltas`].
     ///
     /// # Panics
     ///
     /// Panics if the backend `RwLock` is poisoned (unrecoverable state).
     pub async fn flush_to_backend(&self) -> Result<(), String> {
-        let snapshot: HashMap<(String, String, String), u64> = self
-            .counters
-            .iter()
-            .map(|entry| (entry.key().clone(), entry.value().load(Ordering::Relaxed)))
-            .collect();
+        if !self.is_loaded() {
+            return Err("refusing to flush usage counters: the startup load from the configured \
+                 backend failed, so this process does not know the persisted totals. \
+                 Restart once the store is reachable; counters accumulated meanwhile are \
+                 in-memory only."
+                .to_string());
+        }
+
+        // Snapshot totals and derive the delta against the watermark. Counts
+        // recorded between here and the watermark advance below are simply picked
+        // up by the next flush — the watermark is only ever moved to a value that
+        // was actually sent.
+        let mut deltas: HashMap<(String, String, String), u64> = HashMap::new();
+        let mut sent: Vec<((String, String, String), u64)> = Vec::new();
+        for entry in &self.counters {
+            let total = entry.value().load(Ordering::Relaxed);
+            let already =
+                self.flushed.get(entry.key()).map_or(0, |w| w.value().load(Ordering::Relaxed));
+            let delta = total.saturating_sub(already);
+            if delta > 0 {
+                deltas.insert(entry.key().clone(), delta);
+                sent.push((entry.key().clone(), total));
+            }
+        }
+        if deltas.is_empty() {
+            return Ok(());
+        }
+
         // Clone the Arc before awaiting so we don't hold the RwLock across await points.
         let backend = self.backend.read().expect("backend lock poisoned").clone();
-        backend.flush(&snapshot).await
+        backend.flush_deltas(&deltas).await?;
+
+        for (key, total) in sent {
+            self.flushed
+                .entry(key)
+                .or_insert_with(|| AtomicU64::new(0))
+                .store(total, Ordering::Relaxed);
+        }
+        Ok(())
     }
 
     /// Load persisted counters from the backend into the in-memory map.
     ///
     /// Existing in-memory counters are **merged** (not replaced): the loaded
     /// value is added to any in-flight in-memory count so that events recorded
-    /// between the last flush and this load are not lost.
+    /// between the last flush and this load are not lost. The watermark is
+    /// advanced by the same amount, so the next flush sends only what this
+    /// process counted itself.
+    ///
+    /// On success the aggregator is armed for flushing; see
+    /// [`Self::flush_to_backend`].
     ///
     /// # Errors
     ///
-    /// Propagates errors from the underlying [`UsageBackend::load`].
+    /// Propagates errors from the underlying [`UsageBackend::load`]. On error the
+    /// aggregator stays disarmed and will refuse to flush.
     ///
     /// # Panics
     ///
@@ -256,10 +331,16 @@ impl UsageAggregator {
         let persisted = backend.load().await?;
         for (key, count) in persisted {
             self.counters
+                .entry(key.clone())
+                .or_insert_with(|| AtomicU64::new(0))
+                .fetch_add(count, Ordering::Relaxed);
+            // The store already holds this much, so it is not part of any delta.
+            self.flushed
                 .entry(key)
                 .or_insert_with(|| AtomicU64::new(0))
                 .fetch_add(count, Ordering::Relaxed);
         }
+        self.loaded.store(true, Ordering::Release);
         Ok(())
     }
 }
@@ -279,16 +360,27 @@ impl Default for UsageAggregator {
 /// that preserves current in-memory-only behaviour.
 #[async_trait::async_trait]
 pub trait UsageBackend: Send + Sync {
-    /// Flush all current counter values to the backing store.
+    /// Add the given **deltas** to the backing store.
     ///
-    /// The `counters` map has the form `(tenant_id, period_yyyy_mm, entity_type) → count`.
+    /// The `deltas` map has the form
+    /// `(tenant_id, period_yyyy_mm, entity_type) → increment-since-last-flush`, and
+    /// an implementation must **add** each value to whatever is already stored.
+    ///
+    /// This was previously an absolute `flush` of the process-local totals, which
+    /// was only coherent as a strict load-then-overwrite pair: if the startup load
+    /// failed, the first tick wrote a fresh process's small count over the
+    /// accumulated persisted total and destroyed it; and with more than one replica
+    /// — the shipped Kubernetes manifests say `replicas: 3` — the replicas
+    /// overwrote each other every interval, so totals were last-writer-wins rather
+    /// than summed (#861). The method was renamed along with the semantics so no
+    /// implementation could keep the old absolute write by accident.
     ///
     /// # Errors
     ///
     /// Returns an error if the backing store is unavailable or the write fails.
-    async fn flush(
+    async fn flush_deltas(
         &self,
-        counters: &std::collections::HashMap<(String, String, String), u64>,
+        deltas: &std::collections::HashMap<(String, String, String), u64>,
     ) -> Result<(), String>;
 
     /// Load all persisted counters from the backing store.
@@ -338,27 +430,25 @@ impl RedisBackend {
 #[cfg(feature = "redis-usage")]
 #[async_trait::async_trait]
 impl UsageBackend for RedisBackend {
-    async fn flush(
+    async fn flush_deltas(
         &self,
-        counters: &std::collections::HashMap<(String, String, String), u64>,
+        deltas: &std::collections::HashMap<(String, String, String), u64>,
     ) -> Result<(), String> {
         use ::redis::AsyncCommands as _;
 
-        // Group counters by (tenant, period) so we can HSET per Redis key
-        let mut grouped: std::collections::HashMap<String, Vec<(&str, u64)>> =
-            std::collections::HashMap::new();
-        for ((tenant, period, entity), &count) in counters {
-            let key = Self::redis_key(tenant, period);
-            grouped.entry(key).or_default().push((entity.as_str(), count));
-        }
-
+        // `HINCRBY`, not `HSET`: the values are increments since the last flush.
+        // The absolute `hset_multiple` this replaced made a shared Redis store —
+        // the one backend whose whole point is being shared — last-writer-wins
+        // across replicas (#861).
         let mut conn = self.client.clone();
-        for (key, fields) in &grouped {
-            if !fields.is_empty() {
-                conn.hset_multiple::<_, _, _, ()>(key, fields.as_slice())
-                    .await
-                    .map_err(|e| format!("Redis flush error: {e}"))?;
+        for ((tenant, period, entity), &delta) in deltas {
+            if delta == 0 {
+                continue;
             }
+            let key = Self::redis_key(tenant, period);
+            conn.hincr::<_, _, _, ()>(&key, entity.as_str(), delta)
+                .await
+                .map_err(|e| format!("Redis flush error: {e}"))?;
         }
         Ok(())
     }
@@ -401,9 +491,9 @@ impl UsageBackend for RedisBackend {
 
 #[async_trait::async_trait]
 impl UsageBackend for NoopBackend {
-    async fn flush(
+    async fn flush_deltas(
         &self,
-        _counters: &std::collections::HashMap<(String, String, String), u64>,
+        _deltas: &std::collections::HashMap<(String, String, String), u64>,
     ) -> Result<(), String> {
         Ok(())
     }
@@ -467,28 +557,33 @@ impl PostgresBackend {
 
 #[async_trait::async_trait]
 impl UsageBackend for PostgresBackend {
-    async fn flush(
+    async fn flush_deltas(
         &self,
-        counters: &std::collections::HashMap<(String, String, String), u64>,
+        deltas: &std::collections::HashMap<(String, String, String), u64>,
     ) -> Result<(), String> {
-        if counters.is_empty() {
+        if deltas.is_empty() {
             return Ok(());
         }
 
-        // UPSERT each counter — SET count = excluded.count so repeated flushes
-        // of the same snapshot are idempotent (last writer wins per key).
-        for ((tenant_id, period, entity_type), &count) in counters {
+        // Additive UPSERT. `count = fraiseql_usage_counters.count + EXCLUDED.count`
+        // is correct under both hazards the absolute write got wrong: a process
+        // whose startup load failed adds only what it counted itself, and N
+        // replicas each add their own interval instead of overwriting each other
+        // (#861). The aggregator only advances its watermark after this returns
+        // Ok, so a failed flush is retried rather than lost.
+        for ((tenant_id, period, entity_type), &delta) in deltas {
             sqlx::query(
                 "INSERT INTO fraiseql_usage_counters
                     (tenant_id, period, entity_type, count, updated_at)
                  VALUES ($1, $2, $3, $4, NOW())
                  ON CONFLICT (tenant_id, period, entity_type)
-                 DO UPDATE SET count = EXCLUDED.count, updated_at = NOW()",
+                 DO UPDATE SET count = fraiseql_usage_counters.count + EXCLUDED.count,
+                               updated_at = NOW()",
             )
             .bind(tenant_id)
             .bind(period)
             .bind(entity_type)
-            .bind(count.cast_signed())
+            .bind(delta.cast_signed())
             .execute(&self.pool)
             .await
             .map_err(|e| format!("PostgresBackend flush error: {e}"))?;

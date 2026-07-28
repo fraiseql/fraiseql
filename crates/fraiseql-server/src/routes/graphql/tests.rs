@@ -520,6 +520,87 @@ mod app_state_tests {
         AppState::new(executor)
     }
 
+    // ── #730: client-supplied data must not reach the log ────────────────────
+
+    /// Renders an event's fields as `name=value` pairs.
+    struct FieldRenderer<'a>(&'a mut String);
+
+    impl tracing::field::Visit for FieldRenderer<'_> {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            use std::fmt::Write as _;
+            let _ = write!(self.0, "{}={value:?} ", field.name());
+        }
+    }
+
+    /// A tracing layer that records the formatted body of every event at
+    /// `WARN` or above, so a test can assert what a deployment's log sink would
+    /// actually have received.
+    #[derive(Clone, Default)]
+    struct WarnCapture(Arc<std::sync::Mutex<Vec<String>>>);
+
+    impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for WarnCapture {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ) {
+            if *event.metadata().level() > tracing::Level::WARN {
+                return;
+            }
+            let mut rendered = String::new();
+            event.record(&mut FieldRenderer(&mut rendered));
+            if let Ok(mut sink) = self.0.lock() {
+                sink.push(rendered);
+            }
+        }
+    }
+
+    /// The GET handler used to log the entire raw `variables` string at `warn!`
+    /// on a JSON parse failure — up to `max_get_query_bytes` (100 `KiB` by default)
+    /// of client-controlled data, which is exactly where a bearer token or PII
+    /// ends up. The parse error and the byte length are what a diagnosis needs.
+    #[tokio::test]
+    async fn a_malformed_get_variables_string_is_never_logged() {
+        use tracing_subscriber::layer::SubscriberExt as _;
+
+        const SECRET: &str = "eyJhbGciOiJIUzI1NiJ9.super-secret-bearer.payload";
+
+        let capture = WarnCapture::default();
+        let subscriber = tracing_subscriber::registry().with(capture.clone());
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let state = make_state();
+        let params = crate::routes::graphql::GraphQLGetParams {
+            query:          "{ __typename }".to_string(),
+            // Unbalanced brace: serde_json rejects it, taking the warn! path.
+            variables:      Some(format!(r#"{{"token": "{SECRET}""#)),
+            operation_name: None,
+        };
+        let result = crate::routes::graphql::handler::graphql_get_handler::<StubAdapter>(
+            axum::extract::State(state),
+            axum::http::HeaderMap::new(),
+            crate::extractors::PeerIp("127.0.0.1".to_string()),
+            crate::extractors::OptionalSecurityContext(None),
+            axum::extract::Query(params),
+        )
+        .await;
+        assert!(result.is_err(), "precondition: malformed variables JSON is rejected");
+
+        let logged = capture.0.lock().unwrap().join("\n");
+        assert!(
+            !logged.is_empty(),
+            "precondition: the parse failure must still be logged, just without the payload"
+        );
+        assert!(
+            !logged.contains(SECRET),
+            "#730: the raw client-supplied variables string must not reach the log: {logged}"
+        );
+        assert!(
+            logged.contains("variables_bytes"),
+            "the log must still carry the payload size for diagnosis: {logged}"
+        );
+    }
+
     #[test]
     fn test_arcswap_executor_load() {
         let state = make_state();
@@ -555,8 +636,11 @@ mod app_state_tests {
 
     #[tokio::test]
     async fn test_reload_schema_nonexistent_file_returns_error() {
-        let state = make_state()
-            .with_reload_config("/nonexistent/schema.json".into(), Arc::new(StubAdapter));
+        let state = make_state().with_reload_config(
+            "/nonexistent/schema.json".into(),
+            Arc::new(StubAdapter),
+            Some(Arc::new(Executor::with_config)),
+        );
         let result = state.reload_schema(std::path::Path::new("/nonexistent/schema.json")).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Failed to read schema file"));
@@ -570,7 +654,11 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(schema, adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+        let state = AppState::new(executor).with_reload_config(
+            schema_path.clone(),
+            adapter,
+            Some(Arc::new(Executor::with_config)),
+        );
 
         let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
         std::fs::write(&schema_path, &schema_json).unwrap();
@@ -586,7 +674,11 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+        let state = AppState::new(executor).with_reload_config(
+            schema_path.clone(),
+            adapter,
+            Some(Arc::new(Executor::with_config)),
+        );
 
         let _guard = state.reload_lock.lock().await;
 
@@ -674,7 +766,11 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+        let state = AppState::new(executor).with_reload_config(
+            schema_path.clone(),
+            adapter,
+            Some(Arc::new(Executor::with_config)),
+        );
 
         let mut new_schema = CompiledSchema::default();
         new_schema
@@ -697,7 +793,11 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+        let state = AppState::new(executor).with_reload_config(
+            schema_path.clone(),
+            adapter,
+            Some(Arc::new(Executor::with_config)),
+        );
 
         let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
         std::fs::write(&schema_path, &schema_json).unwrap();
@@ -1439,4 +1539,30 @@ mod tenant_registry_tests {
         let pb = registry.try_acquire_concurrency("tenant-b").unwrap();
         assert!(pb.is_some());
     }
+}
+
+// ── #731: the GET size ceiling returns the status it documents ───────────────
+
+/// `graphql_get_handler`'s docs promise `413 Payload Too Large` for the
+/// `max_get_query_bytes` ceiling; the code returned 400 via `RequestError`.
+#[test]
+fn the_get_size_ceiling_maps_to_413() {
+    use crate::error::ErrorCode;
+    assert_eq!(
+        ErrorCode::PayloadTooLarge.status_code(),
+        axum::http::StatusCode::PAYLOAD_TOO_LARGE,
+        "#731: the documented contract for the GET size ceiling is 413"
+    );
+}
+
+/// 408 means "the client took too long to send its request". A server-side
+/// execution timeout is a gateway timeout.
+#[test]
+fn an_execution_timeout_maps_to_504_not_408() {
+    use crate::error::ErrorCode;
+    assert_eq!(
+        ErrorCode::Timeout.status_code(),
+        axum::http::StatusCode::GATEWAY_TIMEOUT,
+        "#731: a server-side execution timeout is 504, not 408"
+    );
 }

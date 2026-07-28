@@ -45,6 +45,37 @@ pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthM
     Ok(Some(Arc::new(AuthMiddleware::from_config(auth_config))))
 }
 
+/// Every subsystem a constructor reads out of the compiled schema (and the
+/// resolved server config) before the schema is moved into the executor.
+///
+/// This exists so the three public constructors cannot disagree about *which*
+/// subsystems a compiled schema produces. Each one used to build this set
+/// inline, and `with_flight_service`'s copy had drifted: it gated the OIDC
+/// validator behind `#[cfg(feature = "auth")]` where the others did not, so a
+/// lean arrow build silently discarded `[auth]` and served every request
+/// anonymously (#783).
+pub(super) struct SchemaSubsystems {
+    #[cfg(feature = "federation")]
+    pub circuit_breaker:
+        Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    pub error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    #[cfg(feature = "auth")]
+    pub state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    #[cfg(feature = "auth")]
+    pub pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
+    #[cfg(feature = "auth")]
+    pub oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
+    pub rate_limiter: Option<Arc<RateLimiter>>,
+    pub api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    pub service_account_authenticator:
+        Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    pub revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    pub trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+    /// Lifecycle tasks spawned during subsystem construction; moved onto the
+    /// `Server` so graceful shutdown can await them.
+    pub tasks: tokio::task::JoinSet<()>,
+}
+
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
     /// Create new server.
     ///
@@ -104,51 +135,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         // than silently storing sensitive data unencrypted.
         crate::server::initialization::field_encryption_unsupported_check(&schema)?;
 
-        // Read security configs from compiled schema BEFORE schema is moved.
-        #[cfg(feature = "federation")]
-        let circuit_breaker = schema.federation.as_ref().and_then(
-            crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
-        );
-        #[cfg(not(feature = "federation"))]
-        let circuit_breaker: Option<()> = None;
-        #[cfg(not(feature = "federation"))]
-        let _ = &schema.federation;
-        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
-        #[cfg(feature = "auth")]
-        let state_encryption = Self::state_encryption_from_schema(&schema)?;
-        #[cfg(not(feature = "auth"))]
-        let state_encryption: Option<
-            std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>,
-        > = None;
-        #[cfg(feature = "auth")]
-        let pkce_store = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await?;
-        #[cfg(not(feature = "auth"))]
-        let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
-        #[cfg(feature = "auth")]
-        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
-        #[cfg(not(feature = "auth"))]
-        let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
-        // Both configuration sources resolved together, so the boot guards run on
-        // whatever actually takes effect (#837) and CLI/env overrides win (#774).
-        let schema_rate_limiter =
-            super::initialization::resolve_rate_limiter(&schema, &config).await?;
-        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
-        if api_key_authenticator.is_some() {
-            info!("API key authentication enabled");
-        }
-        let service_account_authenticator =
-            crate::service_account::service_account_authenticator_from_schema(&schema);
-        if service_account_authenticator.is_some() {
-            info!("Service-account authentication enabled");
-        }
-        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema)?;
-        if revocation_manager.is_some() {
-            info!("Token revocation enabled");
-        }
-        // Collect lifecycle task handles into a JoinSet that will be moved onto
-        // the `Server` so graceful shutdown can await them.
-        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
-        let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
+        // Read every schema-derived subsystem through the one shared seam.
+        let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
         // Validate cache + RLS safety at startup. One shared check for every
         // constructor — see `tenant_isolation_declaration_check`.
@@ -172,9 +160,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         } else {
             tracing::info!("Query result cache: disabled");
         }
-
-        // Read subscription config from compiled schema (hooks, limits).
-        let subscriptions_config = schema.subscriptions_config.clone();
 
         // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
         let inner = Arc::into_inner(adapter)
@@ -201,107 +186,200 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             config,
             executor,
             subscription_manager,
-            circuit_breaker,
-            error_sanitizer,
-            state_encryption,
-            pkce_store,
-            oidc_server_client,
-            schema_rate_limiter,
-            api_key_authenticator,
-            service_account_authenticator,
-            revocation_manager,
-            trusted_docs,
+            subsystems,
             db_pool,
-            tasks,
+            #[cfg(feature = "arrow")]
+            None,
         )
         .await?;
 
         server.adapter_cache_enabled = cache_config.enabled;
 
-        // Apply pool tuning config from ServerConfig (if present).
-        if let Some(pt) = server.config.pool_tuning.clone() {
-            if pt.enabled {
-                server = server
-                    .with_pool_tuning(pt)
-                    .map_err(|e| ServerError::ConfigError(format!("pool_tuning: {e}")))?;
-            }
-        }
+        server.apply_compiled_config()
+    }
+}
 
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Build every subsystem the compiled schema declares.
+    ///
+    /// The **one** place a compiled schema is turned into subsystems. Every
+    /// public constructor calls it, so none can quietly build a different set —
+    /// which is how `with_flight_service` came to gate the OIDC validator behind
+    /// `#[cfg(feature = "auth")]` while `Server::new` did not (#783).
+    ///
+    /// # Errors
+    ///
+    /// Propagates every boot-time refusal these subsystems raise: an invalid
+    /// state-encryption key, a rate-limiter guard violation (#837/#774), an
+    /// unusable token-revocation backend.
+    pub(super) async fn schema_subsystems(
+        schema: &CompiledSchema,
+        config: &ServerConfig,
+    ) -> Result<SchemaSubsystems> {
+        #[cfg(feature = "federation")]
+        let circuit_breaker = schema.federation.as_ref().and_then(
+            crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
+        );
+        let error_sanitizer = Self::error_sanitizer_from_schema(schema);
+        #[cfg(feature = "auth")]
+        let state_encryption = Self::state_encryption_from_schema(schema)?;
+        #[cfg(feature = "auth")]
+        let pkce_store = Self::pkce_store_from_schema(schema, state_encryption.as_ref()).await?;
+        #[cfg(feature = "auth")]
+        let oidc_server_client = Self::oidc_server_client_from_schema(schema);
+        // Both configuration sources resolved together, so the boot guards run on
+        // whatever actually takes effect (#837) and CLI/env overrides win (#774).
+        let rate_limiter = super::initialization::resolve_rate_limiter(schema, config).await?;
+        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(schema);
+        if api_key_authenticator.is_some() {
+            info!("API key authentication enabled");
+        }
+        let service_account_authenticator =
+            crate::service_account::service_account_authenticator_from_schema(schema);
+        if service_account_authenticator.is_some() {
+            info!("Service-account authentication enabled");
+        }
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(schema)?;
+        if revocation_manager.is_some() {
+            info!("Token revocation enabled");
+        }
+        // Collect lifecycle task handles into a JoinSet that will be moved onto
+        // the `Server` so graceful shutdown can await them.
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+        let trusted_docs = Self::trusted_docs_from_schema(schema, &mut tasks);
+
+        Ok(SchemaSubsystems {
+            #[cfg(feature = "federation")]
+            circuit_breaker,
+            error_sanitizer,
+            #[cfg(feature = "auth")]
+            state_encryption,
+            #[cfg(feature = "auth")]
+            pkce_store,
+            #[cfg(feature = "auth")]
+            oidc_server_client,
+            rate_limiter,
+            api_key_authenticator,
+            service_account_authenticator,
+            revocation_manager,
+            trusted_docs,
+            tasks,
+        })
+    }
+
+    /// Apply every setting that lands on the `Server` *after* the executor is
+    /// built: the compiled `[mcp]` and `[subscriptions]` blocks, and the server
+    /// config's APQ and `[pool_tuning]` switches.
+    ///
+    /// The **one** place these are applied. `Server::new` used to do it inline
+    /// and its two siblings each applied a different subset — `with_relay_pagination`
+    /// and `with_flight_service` both dropped `[subscriptions]` (turning the
+    /// documented fail-closed `on_connect`/`on_subscribe` webhook gates into a
+    /// silent fail-open) and `[pool_tuning]` (#754).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when `[pool_tuning]` fails validation.
+    pub(super) fn apply_compiled_config(mut self) -> Result<Self> {
         // Initialize MCP config from compiled schema when the feature is compiled in.
         #[cfg(feature = "mcp")]
-        if let Some(ref cfg) = server.executor.schema().mcp_config {
+        if let Some(cfg) = self.executor.schema().mcp_config.clone() {
             if cfg.enabled {
                 let tool_count =
-                    crate::mcp::tools::schema_to_tools(server.executor.schema(), cfg).len();
+                    crate::mcp::tools::schema_to_tools(self.executor.schema(), &cfg).len();
                 info!(
                     path = %cfg.path,
                     transport = %cfg.transport,
                     tools = tool_count,
                     "MCP server configured"
                 );
-                server.mcp_config = Some(cfg.clone());
+                self.mcp_config = Some(cfg);
             }
         }
 
         // Initialize APQ store when enabled.
-        if server.config.apq_enabled {
+        if self.config.apq_enabled {
             let apq_store: fraiseql_core::apq::ArcApqStorage =
                 Arc::new(fraiseql_core::apq::InMemoryApqStorage::default());
-            server.apq_store = Some(apq_store);
+            self.apq_store = Some(apq_store);
             info!("APQ (Automatic Persisted Queries) enabled — in-memory backend");
         }
 
         // Apply subscription lifecycle/limits from compiled schema.
-        if let Some(ref subs) = subscriptions_config {
+        if let Some(subs) = self.executor.schema().subscriptions_config.clone() {
             if let Some(max) = subs.max_subscriptions_per_connection {
-                server.max_subscriptions_per_connection = Some(max);
+                self.max_subscriptions_per_connection = Some(max);
             }
-            if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_config(subs) {
-                server.subscription_lifecycle = Arc::new(lifecycle);
+            if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_config(&subs) {
+                info!(
+                    "Subscription lifecycle webhooks enabled (on_connect/on_subscribe are \
+                     fail-closed)"
+                );
+                self.subscription_lifecycle = Arc::new(lifecycle);
             }
         }
 
-        Ok(server)
-    }
-}
+        // Apply pool tuning config from ServerConfig (if present).
+        if let Some(pt) = self.config.pool_tuning.clone() {
+            if pt.enabled {
+                self = self
+                    .with_pool_tuning(pt)
+                    .map_err(|e| ServerError::ConfigError(format!("pool_tuning: {e}")))?;
+            }
+        }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Shared initialization path used by both `new` and `with_relay_pagination`.
+        Ok(self)
+    }
+
+    /// Shared initialization path used by every public constructor.
     ///
-    /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
-    /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)]
-    // Reason: internal constructor collects all pre-built subsystems; a builder struct would not
-    // reduce call-site clarity
+    /// Accepts a pre-built executor so that relay vs. non-relay vs. Flight
+    /// constructors can supply the appropriate variant without duplicating
+    /// auth/rate-limiter/observer setup.
+    ///
+    /// `flight_service` is the caller-supplied Arrow Flight service (`None` to
+    /// build a fresh one). Whichever it is, the OIDC validator built here is
+    /// installed into it — the single place that wiring happens, so a service
+    /// handed in by `main.rs` cannot be mounted without authentication (#783).
     #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
     pub(super) async fn from_executor(
         config: ServerConfig,
         executor: Arc<Executor<A>>,
         subscription_manager: Arc<SubscriptionManager>,
-        #[cfg(feature = "federation")] circuit_breaker: Option<
-            Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
-        >,
-        #[cfg(not(feature = "federation"))] _circuit_breaker: Option<()>,
-        error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
-        state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
-        pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
-        oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
-        schema_rate_limiter: Option<Arc<RateLimiter>>,
-        api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
-        service_account_authenticator: Option<
-            Arc<crate::service_account::ServiceAccountAuthenticator>,
-        >,
-        revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-        trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+        subsystems: SchemaSubsystems,
         // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
         #[cfg_attr(
             not(any(feature = "observers", feature = "auth")),
             allow(unused_variables)
         )]
         db_pool: Option<sqlx::PgPool>,
-        mut tasks: tokio::task::JoinSet<()>,
+        #[cfg(feature = "arrow")] flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
-        // Initialize OIDC validator if auth is configured
+        let SchemaSubsystems {
+            #[cfg(feature = "federation")]
+            circuit_breaker,
+            error_sanitizer,
+            #[cfg(feature = "auth")]
+            state_encryption,
+            #[cfg(feature = "auth")]
+            pkce_store,
+            #[cfg(feature = "auth")]
+            oidc_server_client,
+            rate_limiter,
+            api_key_authenticator,
+            service_account_authenticator,
+            revocation_manager,
+            trusted_docs,
+            mut tasks,
+        } = subsystems;
+
+        // Initialize OIDC validator if auth is configured.
+        //
+        // Deliberately *not* `#[cfg(feature = "auth")]`-gated: `OidcValidator`
+        // lives in `fraiseql-core` and does not depend on the server's `auth`
+        // feature. `with_flight_service` used to gate it, so a
+        // `--no-default-features --features cli,arrow` build silently discarded
+        // `config.auth` and served every request as an anonymous principal (#783).
         let oidc_validator = if let Some(ref auth_config) = config.auth {
             info!(
                 issuer = ?auth_config.issuer,
@@ -318,18 +396,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Initialize HS256 validator if configured (mutually exclusive with OIDC).
         let hs256_auth = build_hs256_auth(&config)?;
 
-        // Resolved by `resolve_rate_limiter` at the call site, where both the compiled
-        // schema and the server config are in scope; the guards have already run.
-        let rate_limiter = schema_rate_limiter;
-
         // Initialize observer runtime
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await?;
 
-        // Initialize Flight service with OIDC authentication if configured
+        // Install the OIDC validator into the Flight service — the caller's when
+        // one was supplied, otherwise a fresh one. The Flight handshake is
+        // fail-closed on a missing validator, so skipping this leaves the whole
+        // Arrow Flight surface unreachable no matter how `[auth]` is set (#783).
         #[cfg(feature = "arrow")]
         let flight_service = {
-            let mut service = FraiseQLFlightService::new();
+            let mut service = flight_service.unwrap_or_default();
             if let Some(ref validator) = oidc_validator {
                 info!("Enabling OIDC authentication for Arrow Flight");
                 service.set_oidc_validator(validator.clone());
@@ -359,10 +436,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         Self::spawn_pkce_cleanup(pkce_store.as_ref(), &mut tasks);
 
-        // Reason: state_encryption/pkce_store/oidc_server_client are only stored when
-        //         feature = "auth" is enabled; without it they are legitimately unused.
-        #[cfg(not(feature = "auth"))]
-        let _ = (state_encryption, pkce_store, oidc_server_client);
         Ok(Self {
             config,
             executor,
@@ -417,6 +490,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "functions")]
             function_runtime: None,
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
+            // The default construction path. `with_relay_pagination` overrides it
+            // with the relay-capable one; nothing else may set it, so a reload
+            // always rebuilds exactly what boot built (#750).
+            executor_rebuilder: Arc::new(Executor::with_config),
             tasks,
         })
     }

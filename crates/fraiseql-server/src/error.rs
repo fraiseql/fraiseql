@@ -60,6 +60,12 @@ pub enum ErrorCode {
     DocumentNotFound,
     /// Operation not allowed for the HTTP method (e.g. a mutation sent over GET).
     MethodNotAllowed,
+    /// The request exceeded a configured size ceiling (HTTP 413).
+    ///
+    /// Distinct from [`RequestError`](Self::RequestError): the request was
+    /// well-formed, it was simply too large. `graphql_get_handler` documents 413
+    /// for the `max_get_query_bytes` ceiling and used to return 400 (#731).
+    PayloadTooLarge,
     /// Introspection query rejected by the configured introspection policy
     /// (`{ __schema }` / `{ __type }` blocked, or permitted only for
     /// authenticated users). A well-formed GraphQL request, so it returns
@@ -101,7 +107,10 @@ impl ErrorCode {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
             Self::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
-            Self::Timeout => StatusCode::REQUEST_TIMEOUT,
+            // 408 means "the client took too long to send its request". A
+            // server-side execution timeout is a 504 (#731).
+            Self::Timeout => StatusCode::GATEWAY_TIMEOUT,
+            Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen | Self::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
             // GraphQL-over-HTTP: a mutation sent over GET is rejected at the transport
@@ -320,6 +329,11 @@ impl GraphQLError {
     /// Timeout error - operation took too long and was cancelled.
     pub fn timeout(operation: impl Into<String>) -> Self {
         Self::new(format!("{} exceeded timeout", operation.into()), ErrorCode::Timeout)
+    }
+
+    /// Payload-too-large error — a request exceeded a configured size ceiling.
+    pub fn payload_too_large(message: impl Into<String>) -> Self {
+        Self::new(message, ErrorCode::PayloadTooLarge)
     }
 
     /// Rate limit error - too many requests from client.

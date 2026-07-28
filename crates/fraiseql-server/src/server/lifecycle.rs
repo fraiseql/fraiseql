@@ -114,30 +114,46 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             // Upgrade global aggregator's backend from NoopBackend.
                             global_aggregator().set_backend(backend.clone());
                             // Restore persisted counters before serving requests.
+                            // A failed load is NOT recoverable-by-continuing: the
+                            // flush loop would then be writing to a store this
+                            // process could not read. Revert to the in-memory
+                            // NoopBackend and do not arm the loop at all, so
+                            // billing counters are never touched by a process that
+                            // does not know what they were (#861).
                             if let Err(e) = global_aggregator().load_from_backend().await {
-                                warn!(error = %e, "Usage persistence: startup load failed — continuing with in-memory counters");
+                                tracing::error!(
+                                    error = %e,
+                                    "Usage persistence: startup load failed — persistence is \
+                                     DISABLED for this process. Counters are in-memory only and \
+                                     will not be written back. Restart once the store is \
+                                     reachable."
+                                );
+                                global_aggregator().set_backend(std::sync::Arc::new(
+                                    crate::usage::aggregator::NoopBackend,
+                                ));
                             } else {
                                 info!("Usage persistence: loaded counters from PostgreSQL");
-                            }
-                            // Spawn background flush task on the server's JoinSet
-                            // so graceful shutdown can await its termination.
-                            let flush_interval = Duration::from_secs(usage_cfg.flush_interval_secs);
-                            let agg = std::sync::Arc::clone(global_aggregator());
-                            self.tasks.spawn(async move {
-                                let mut ticker = tokio::time::interval(flush_interval);
-                                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
-                                ticker.tick().await; // skip immediate first tick
-                                loop {
-                                    ticker.tick().await;
-                                    if let Err(e) = agg.flush_to_backend().await {
-                                        warn!(error = %e, "Usage persistence: background flush failed");
+                                // Spawn background flush task on the server's JoinSet
+                                // so graceful shutdown can await its termination.
+                                let flush_interval =
+                                    Duration::from_secs(usage_cfg.flush_interval_secs);
+                                let agg = std::sync::Arc::clone(global_aggregator());
+                                self.tasks.spawn(async move {
+                                    let mut ticker = tokio::time::interval(flush_interval);
+                                    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                                    ticker.tick().await; // skip immediate first tick
+                                    loop {
+                                        ticker.tick().await;
+                                        if let Err(e) = agg.flush_to_backend().await {
+                                            warn!(error = %e, "Usage persistence: background flush failed");
+                                        }
                                     }
-                                }
-                            });
-                            info!(
-                                flush_interval_secs = usage_cfg.flush_interval_secs,
-                                "Usage persistence: PostgreSQL backend active"
-                            );
+                                });
+                                info!(
+                                    flush_interval_secs = usage_cfg.flush_interval_secs,
+                                    "Usage persistence: PostgreSQL backend active"
+                                );
+                            }
                         },
                         Err(e) => {
                             warn!(

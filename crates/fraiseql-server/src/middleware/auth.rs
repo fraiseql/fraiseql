@@ -38,6 +38,10 @@ pub(crate) struct FailureLimiter {
 }
 
 impl FailureLimiter {
+    /// The window length, exposed so tests age records by a real multiple of it.
+    #[cfg(test)]
+    pub(super) const WINDOW_SECS: u64 = ADMIN_AUTH_WINDOW_SECS;
+
     pub(crate) fn new(max_failures: u32) -> Self {
         Self {
             records: Arc::new(DashMap::new()),
@@ -49,9 +53,33 @@ impl FailureLimiter {
         SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
     }
 
+    /// Drop records whose window expired long enough ago to be irrelevant.
+    ///
+    /// The map is keyed by client IP and only ever had entries removed on a
+    /// *successful* auth, so a stream of failed attempts from changing source
+    /// addresses grew it without bound — a slow memory leak reachable by any
+    /// unauthenticated caller (#731). Sweeping is amortised: it runs on insert,
+    /// and only once the map is large enough for the scan to be worth it.
+    pub(super) fn evict_expired(&self, now: u64) {
+        /// Only sweep once the map is big enough that a scan is worth its cost.
+        const EVICTION_THRESHOLD: usize = 1024;
+        /// Keep an expired window around for one further window, so a burst that
+        /// straddles the boundary is still counted against the same IP.
+        const RETENTION_WINDOWS: u64 = 2;
+
+        if self.records.len() < EVICTION_THRESHOLD {
+            return;
+        }
+        let cutoff = ADMIN_AUTH_WINDOW_SECS * RETENTION_WINDOWS;
+        self.records
+            .retain(|_, record| now.saturating_sub(record.window_start) < cutoff);
+    }
+
     /// Record a failed attempt and return `true` if the IP is now rate-limited.
     pub(crate) fn record_failure(&self, ip: &str) -> bool {
         let now = Self::now_secs();
+        // Before inserting a potentially new key, drop the dead ones.
+        self.evict_expired(now);
         let mut entry = self.records.entry(ip.to_string()).or_insert_with(|| FailureRecord {
             count:        0,
             window_start: now,
@@ -88,6 +116,25 @@ impl FailureLimiter {
     #[cfg(test)]
     pub(crate) fn failure_count(&self, ip: &str) -> u32 {
         self.records.get(ip).map_or(0, |e| e.count)
+    }
+
+    /// Number of per-IP records held (used in tests to pin eviction).
+    #[cfg(test)]
+    pub(super) fn record_count(&self) -> usize {
+        self.records.len()
+    }
+
+    /// Record a failure with an explicit clock reading (used in tests to age
+    /// records without sleeping).
+    #[cfg(test)]
+    pub(super) fn record_failure_at(&self, ip: &str, now: u64) {
+        self.records.insert(
+            ip.to_string(),
+            FailureRecord {
+                count:        1,
+                window_start: now,
+            },
+        );
     }
 }
 

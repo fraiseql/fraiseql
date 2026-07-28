@@ -244,8 +244,16 @@ mod cli_tests {
         assert!(config.metrics_enabled);
     }
 
+    // #774 changed the contract these two pin: rate-limit CLI/env overrides are
+    // *recorded* on `config.rate_limit_overrides` rather than merged into
+    // `config.rate_limiting`, because a merged `RateLimitConfig` made an
+    // overridden field indistinguishable from a defaulted one — so the resolver
+    // could not apply the override *over* the compiled schema and let the schema
+    // win, leaving `FRAISEQL_RATE_LIMITING_ENABLED=false` with no effect. Both
+    // tests still asserted the old merge and had been red since that change.
+
     #[test]
-    fn apply_rate_limit_creates_config_when_absent() {
+    fn apply_rate_limit_records_the_override_without_inventing_a_config() {
         let args = ServerArgs {
             rate_limit_rps_per_ip: Some(50),
             ..Default::default()
@@ -253,14 +261,21 @@ mod cli_tests {
         let mut config = ServerConfig::default();
         config.rate_limiting = None;
         args.apply_to_config(&mut config);
-        let rl = config.rate_limiting.unwrap();
-        assert_eq!(rl.rps_per_ip, 50);
-        assert!(rl.enabled);
-        assert_eq!(rl.burst_size, 500);
+
+        assert_eq!(
+            config.rate_limit_overrides.rps_per_ip,
+            Some(50),
+            "the override must be recorded so the resolver can apply it over the schema"
+        );
+        assert!(
+            config.rate_limiting.is_none(),
+            "#774: an override must not fabricate a whole [rate_limiting] block — the \
+             compiled schema is the base and the override is applied on top of it"
+        );
     }
 
     #[test]
-    fn apply_rate_limit_preserves_existing_fields() {
+    fn apply_rate_limit_records_only_the_fields_supplied() {
         let args = ServerArgs {
             rate_limit_burst_size: Some(999),
             ..Default::default()
@@ -277,10 +292,17 @@ mod cli_tests {
             max_buckets:           100_000,
         });
         args.apply_to_config(&mut config);
-        let rl = config.rate_limiting.unwrap();
-        assert_eq!(rl.burst_size, 999);
+
+        assert_eq!(config.rate_limit_overrides.burst_size, Some(999));
+        assert_eq!(
+            config.rate_limit_overrides.rps_per_ip, None,
+            "a field not supplied on the command line must stay unset, not be \
+             back-filled from the config"
+        );
+        // The base config is untouched; the resolver composes the two.
+        let rl = config.rate_limiting.as_ref().unwrap();
+        assert_eq!(rl.burst_size, 100);
         assert_eq!(rl.rps_per_ip, 42);
-        assert_eq!(rl.rps_per_user, 420);
         assert!(rl.trust_proxy_headers);
     }
 
@@ -529,7 +551,10 @@ mod error_tests {
         assert_eq!(ErrorCode::NotFound.status_code(), StatusCode::NOT_FOUND);
         assert_eq!(ErrorCode::Conflict.status_code(), StatusCode::CONFLICT);
         assert_eq!(ErrorCode::RateLimitExceeded.status_code(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::REQUEST_TIMEOUT);
+        // #731: a server-side execution timeout is a gateway timeout, not a
+        // "the client took too long to send its request" 408.
+        assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::GATEWAY_TIMEOUT);
+        assert_eq!(ErrorCode::PayloadTooLarge.status_code(), StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(ErrorCode::InternalServerError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(ErrorCode::PersistedQueryMismatch.status_code(), StatusCode::BAD_REQUEST);
         assert_eq!(ErrorCode::ForbiddenQuery.status_code(), StatusCode::BAD_REQUEST);
@@ -606,7 +631,7 @@ mod error_tests {
         let response =
             ErrorResponse::from_error(GraphQLError::new("timed out", ErrorCode::Timeout))
                 .into_response();
-        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+        assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     }
 
     #[test]

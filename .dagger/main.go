@@ -1267,6 +1267,12 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithServiceBinding(vaultBindHost, m.vaultService()).
 		WithEnvVariable("VAULT_ADDR", vaultAddr).
 		WithEnvVariable("VAULT_TOKEN", vaultToken).
+		// Every insecure-mode escape hatch below is honoured only outside a
+		// production environment, and an *unset* FRAISEQL_ENV now reads as
+		// production (secure by default, #816). A leg that opts into a hatch has
+		// to declare the environment too, or the hatch is silently refused and
+		// the suite fails on a guard it thought it had opted out of.
+		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
@@ -1604,6 +1610,12 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithEnvVariable("MAILHOG_SMTP_HOST", mailhogBindHost).
 		WithEnvVariable("MAILHOG_SMTP_PORT", "1025").
 		WithEnvVariable("MAILHOG_API", fmt.Sprintf("http://%s:8025", mailhogBindHost)).
+		// Every insecure-mode escape hatch below is honoured only outside a
+		// production environment, and an *unset* FRAISEQL_ENV now reads as
+		// production (secure by default, #816). A leg that opts into a hatch has
+		// to declare the environment too, or the hatch is silently refused and
+		// the suite fails on a guard it thought it had opted out of.
+		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true").
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
 		// The bound JetStream service speaks plaintext nats:// (bridge_integration);
@@ -1630,6 +1642,12 @@ func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directo
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(natsBindHost, m.natsService()).
 		WithEnvVariable("NATS_URL", natsURL).
+		// Every insecure-mode escape hatch below is honoured only outside a
+		// production environment, and an *unset* FRAISEQL_ENV now reads as
+		// production (secure by default, #816). A leg that opts into a hatch has
+		// to declare the environment too, or the hatch is silently refused and
+		// the suite fails on a guard it thought it had opted out of.
+		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
 		// The bound JetStream service speaks plaintext nats://; the transport now
 		// refuses plaintext by default (L-nats-plaintext), so opt in for the test

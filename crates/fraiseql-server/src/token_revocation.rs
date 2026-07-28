@@ -604,6 +604,54 @@ pub enum TokenRejection {
 // Builder from compiled schema
 // ───────────────────────────────────────────────────────────────
 
+/// Refuse a configured-but-unavailable Redis revocation store.
+///
+/// An operator who wrote `backend = "redis"` asked for revocation state shared
+/// across replicas. An in-memory store is not a degraded version of that: a token
+/// revoked on one replica stays valid on every other replica for its full
+/// lifetime, while `/auth` keeps reporting the revocation succeeded. Both ways of
+/// reaching the fallback — the `redis-rate-limiting` feature not compiled in, and
+/// the Redis connection failing — used to `warn!` and carry on.
+///
+/// In production this is a hard error so the server refuses to boot with a false
+/// "revocation is enforced" posture; in development
+/// (`FRAISEQL_ENV=development`/`dev`) it is downgraded to a warning so local runs
+/// still come up. Same shape as `observer_transport_check` (#350).
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `is_production` is true.
+pub(crate) fn redis_revocation_unavailable_check(
+    cause: &str,
+    is_production: bool,
+) -> crate::Result<()> {
+    if is_production {
+        return Err(crate::ServerError::ConfigError(format!(
+            "FraiseQL failed to start\n\n  \
+             [security.token_revocation] backend = \"redis\" but the Redis store is \
+             unavailable: {cause}.\n  \
+             Falling back to in-memory would make revocation per-process: a token revoked \
+             on\n  one replica would stay valid on every other replica until it expires, \
+             while the\n  admin API reported success.\n\n  \
+             To fix, choose one:\n    \
+             - make Redis reachable (and build with `--features redis-rate-limiting`)\n    \
+             - [security.token_revocation] backend = \"postgres\"\n    \
+             - [security.token_revocation] backend = \"memory\" to accept per-process \
+             revocation\n    \
+             - [security.token_revocation] enabled = false\n\n  \
+             For local development only:\n    \
+             Set FRAISEQL_ENV=development to downgrade this to a warning."
+        )));
+    }
+    warn!(
+        cause,
+        "[security.token_revocation] backend = \"redis\" is unavailable — falling back to \
+         in-memory. Revocation is per-process: a token revoked here stays valid on other \
+         replicas. Allowed only because FRAISEQL_ENV=development."
+    );
+    Ok(())
+}
+
 /// Build a `TokenRevocationManager` for the DB-agnostic backends (`memory`, `redis`)
 /// from the compiled schema's `security.token_revocation` JSON.
 ///
@@ -652,17 +700,20 @@ pub fn revocation_manager_from_schema(
                     Arc::new(s)
                 },
                 Err(e) => {
-                    warn!(error = %e, "Failed to init Redis revocation store — falling back to in-memory");
+                    redis_revocation_unavailable_check(
+                        &e.to_string(),
+                        crate::ServerConfig::is_production_mode(),
+                    )?;
                     Arc::new(InMemoryRevocationStore::new())
                 },
             }
         },
         #[cfg(not(feature = "redis-rate-limiting"))]
         "redis" => {
-            warn!(
-                "token_revocation.backend = \"redis\" but the `redis-rate-limiting` feature is \
-                 not compiled in. Falling back to in-memory."
-            );
+            redis_revocation_unavailable_check(
+                "the `redis-rate-limiting` Cargo feature is not compiled into this binary",
+                crate::ServerConfig::is_production_mode(),
+            )?;
             Arc::new(InMemoryRevocationStore::new())
         },
         "memory" | "env" => {

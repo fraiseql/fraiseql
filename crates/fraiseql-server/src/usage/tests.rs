@@ -181,13 +181,14 @@ mod aggregator_tests {
 
     #[async_trait::async_trait]
     impl UsageBackend for InMemoryPersistenceBackend {
-        async fn flush(
+        async fn flush_deltas(
             &self,
-            counters: &HashMap<(String, String, String), u64>,
+            deltas: &HashMap<(String, String, String), u64>,
         ) -> Result<(), String> {
             let mut store = self.store.lock().map_err(|e| e.to_string())?;
-            for (key, &count) in counters {
-                *store.entry(key.clone()).or_insert(0) = count;
+            // ADD, mirroring the additive UPSERT the PostgreSQL backend runs.
+            for (key, &delta) in deltas {
+                *store.entry(key.clone()).or_insert(0) += delta;
             }
             Ok(())
         }
@@ -198,12 +199,120 @@ mod aggregator_tests {
         }
     }
 
+    /// A backend whose `load` always fails — the mid-boot fault (`statement_timeout`,
+    /// failover, `PgBouncer` restart) that lands in the window between the DDL and the
+    /// SELECT. Records every flush it is asked to perform so a test can assert it
+    /// was asked for none.
+    struct UnreadableBackend {
+        flushes: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl UsageBackend for UnreadableBackend {
+        async fn flush_deltas(
+            &self,
+            _deltas: &HashMap<(String, String, String), u64>,
+        ) -> Result<(), String> {
+            self.flushes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        }
+
+        async fn load(&self) -> Result<HashMap<(String, String, String), u64>, String> {
+            Err("connection reset by peer".to_string())
+        }
+    }
+
+    // ── #861: the flush is additive and gated on a successful load ───────────
+
+    /// The headline scenario: a process whose startup load failed must not write
+    /// its small process-local count over the persisted total.
+    #[tokio::test]
+    async fn a_failed_startup_load_blocks_the_flush() {
+        let backend = std::sync::Arc::new(UnreadableBackend {
+            flushes: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let agg = UsageAggregator::new_with_backend(backend.clone());
+
+        agg.load_from_backend().await.expect_err("the fixture backend cannot be read");
+        assert!(!agg.is_loaded(), "a failed load must leave the aggregator disarmed");
+
+        agg.record(&event("acme", "2026-07", "Order"));
+        let err = agg
+            .flush_to_backend()
+            .await
+            .expect_err("#861: a process that could not read the counters must not write them");
+        assert!(err.contains("startup load"), "the refusal must say why: {err}");
+        assert_eq!(
+            backend.flushes.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "#861: the backend must not be written to at all"
+        );
+    }
+
+    /// Two replicas sharing one store must sum, not overwrite. With an absolute
+    /// flush the persisted total was whichever replica wrote last.
+    #[tokio::test]
+    async fn concurrent_replicas_sum_rather_than_overwrite() {
+        let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
+
+        // Seed the shared store with an accumulated total.
+        let seed = UsageAggregator::new_with_backend(backend.clone());
+        seed.load_from_backend().await.expect("load");
+        for _ in 0..1000 {
+            seed.record(&event("acme", "2026-07", "Order"));
+        }
+        seed.flush_to_backend().await.expect("flush");
+
+        // Three replicas each load that total, then count their own interval.
+        let replicas = [7_u32, 5, 3];
+        for own in replicas {
+            let r = UsageAggregator::new_with_backend(backend.clone());
+            r.load_from_backend().await.expect("load");
+            for _ in 0..own {
+                r.record(&event("acme", "2026-07", "Order"));
+            }
+            r.flush_to_backend().await.expect("flush");
+        }
+
+        let reader = UsageAggregator::new_with_backend(backend.clone());
+        reader.load_from_backend().await.expect("load");
+        assert_eq!(
+            reader.query("acme", "2026-07").mutations["Order"],
+            1000 + 7 + 5 + 3,
+            "#861: every replica's interval must be added; an absolute write kept only the last"
+        );
+    }
+
+    /// A flush with nothing new must be a no-op, and a repeated flush must not
+    /// double-count — the watermark only advances over what was actually sent.
+    #[tokio::test]
+    async fn repeated_flushes_do_not_double_count() {
+        let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
+        let agg = UsageAggregator::new_with_backend(backend.clone());
+        agg.load_from_backend().await.expect("load");
+
+        agg.record(&event("t1", "2026-07", "User"));
+        agg.record(&event("t1", "2026-07", "User"));
+        agg.flush_to_backend().await.expect("flush");
+        agg.flush_to_backend().await.expect("flush again");
+        agg.flush_to_backend().await.expect("and again");
+
+        let reader = UsageAggregator::new_with_backend(backend.clone());
+        reader.load_from_backend().await.expect("load");
+        assert_eq!(
+            reader.query("t1", "2026-07").mutations["User"],
+            2,
+            "three flushes of two events must persist two, not six"
+        );
+    }
+
     #[tokio::test]
     async fn test_flush_and_load_round_trip() {
         let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
 
         // Record events and flush
         let agg = UsageAggregator::new_with_backend(backend.clone());
+        agg.load_from_backend().await.expect("load before flush (#861)");
         agg.record(&event("tenant_a", "2026-05", "User"));
         agg.record(&event("tenant_a", "2026-05", "User"));
         agg.record(&event("tenant_b", "2026-05", "Order"));
@@ -224,6 +333,7 @@ mod aggregator_tests {
         let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
 
         let agg = UsageAggregator::new_with_backend(backend.clone());
+        agg.load_from_backend().await.expect("load before flush (#861)");
         agg.record(&event("t1", "2026-05", "User"));
         agg.flush_to_backend().await.expect("flush"); // persists count=1
 

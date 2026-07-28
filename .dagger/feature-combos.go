@@ -79,6 +79,13 @@ var featureCombos = []featureCombo{
 	{name: "server-observers-rate-limiting", crate: "fraiseql-server", features: []string{"observers", "redis-rate-limiting"}},
 	{name: "server-observers-enterprise-otel", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-rate-limiting", "tracing-opentelemetry"}},
 	{name: "server-arrow-wire", crate: "fraiseql-server", features: []string{"arrow", "wire-backend"}},
+	// Arrow WITHOUT wire-backend and without the crate defaults: the only shape in
+	// which `run_postgres`'s `#[cfg(feature = "arrow")]` branch is the compiled one.
+	// Nothing built it, so a signature change to `make_executor_factory` (#801)
+	// updated the non-arrow call site and left this one uncompilable, and
+	// `with_flight_service`'s `cfg(not(auth))` OIDC drift (#783) had no build that
+	// would have shown it.
+	{name: "server-arrow-no-auth", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"cli", "arrow"}},
 	{name: "server-mcp-auth", crate: "fraiseql-server", features: []string{"mcp", "auth"}},
 	{name: "server-observers-enterprise-redis", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-apq", "redis-pkce"}},
 	{name: "server-federation", crate: "fraiseql-server", features: []string{"federation"}},

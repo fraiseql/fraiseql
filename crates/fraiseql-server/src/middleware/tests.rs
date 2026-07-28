@@ -246,6 +246,56 @@ mod auth_tests {
         assert!(!limiter.is_blocked("10.0.0.2"));
     }
 
+    // ── #731: the per-IP map must not grow without bound ────────────────────
+
+    /// Records were only ever removed on a *successful* authentication, so a
+    /// stream of failures from changing source addresses grew the `DashMap`
+    /// forever — a slow memory leak any unauthenticated caller could drive.
+    #[test]
+    fn expired_records_are_evicted_once_the_map_is_large() {
+        use super::super::auth::FailureLimiter;
+
+        let limiter = FailureLimiter::new(3);
+        let now = 10 * FailureLimiter::WINDOW_SECS;
+
+        // 2000 distinct IPs whose windows expired long ago — a botnet's worth of
+        // one-shot failed attempts.
+        for i in 0..2000 {
+            limiter.record_failure_at(&format!("10.0.{}.{}", i / 256, i % 256), 0);
+        }
+        assert_eq!(limiter.record_count(), 2000, "precondition: the records are present");
+
+        limiter.evict_expired(now);
+        assert_eq!(
+            limiter.record_count(),
+            0,
+            "#731: records older than the retention window must be evicted"
+        );
+    }
+
+    /// Counterweight: eviction must not drop a record whose window is still live,
+    /// or an attacker could clear their own counter by flooding the map.
+    #[test]
+    fn eviction_keeps_records_still_inside_their_window() {
+        use super::super::auth::FailureLimiter;
+
+        let limiter = FailureLimiter::new(3);
+        let now = 10 * FailureLimiter::WINDOW_SECS;
+
+        for i in 0..2000 {
+            limiter.record_failure_at(&format!("10.0.{}.{}", i / 256, i % 256), 0);
+        }
+        limiter.record_failure_at("192.0.2.7", now);
+
+        limiter.evict_expired(now);
+        assert_eq!(
+            limiter.record_count(),
+            1,
+            "#731: the live record must survive the sweep that clears the dead ones"
+        );
+        assert_eq!(limiter.failure_count("192.0.2.7"), 1);
+    }
+
     #[tokio::test]
     async fn test_middleware_returns_429_after_max_failures() {
         // Use max_failures = 2 so the test does not send too many requests.

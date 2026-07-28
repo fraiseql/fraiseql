@@ -324,16 +324,19 @@ fn test_security_context() -> SecurityContext {
     }
 }
 
-/// Build a schema whose compiled security config has a non-empty RLS policy
-/// list, so [`CompiledSchema::has_rls_configured`] returns `true`.
+/// Build a schema that declares RLS, so [`CompiledSchema::has_rls_configured`]
+/// returns `true`.
+///
+/// This used to stuff `security.additional["policies"]` — *authorization* policies,
+/// which #612 turned into a hard compile error and #758 removed as a producer of
+/// `has_rls_configured()`. The fixture therefore stopped producing the state its
+/// name claims, and its own precondition assert is what caught it. `[security.rls]`
+/// is the producer now.
 fn build_rls_schema() -> CompiledSchema {
     let mut schema = build_test_schema();
-    let mut additional = HashMap::new();
-    additional.insert("policies".to_string(), serde_json::json!([{ "name": "tenant_isolation" }]));
-    schema.security = Some(SecurityConfig {
-        additional,
-        ..SecurityConfig::default()
-    });
+    let mut security = SecurityConfig::default();
+    security.rls.enabled = true;
+    schema.security = Some(security);
     assert!(schema.has_rls_configured(), "test schema must report RLS configured");
     schema
 }
