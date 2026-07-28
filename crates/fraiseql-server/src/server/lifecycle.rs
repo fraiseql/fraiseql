@@ -243,8 +243,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     std::sync::Arc::clone(&tracker) as std::sync::Arc<dyn email::SendCorrelator>;
                 let address_hash_key = self.build_address_hash_key();
 
-                let sink = self.storage_backend.as_ref().map(|backend| {
-                    std::sync::Arc::new(email::LegacyStorageSink::new(backend.clone()))
+                // The attachment sink is the server's one configured storage
+                // backend. It used to hang off a separate `with_storage` builder
+                // method that no binary ever called, so `[mailbox]
+                // attachment_bucket` was unreachable from the shipped server and
+                // attachments were dropped with a warning.
+                let sink = self.storage_state.as_ref().map(|state| {
+                    std::sync::Arc::new(email::StorageAttachmentSink::new(state.backend.clone()))
                         as std::sync::Arc<
                             dyn fraiseql_functions::host::live::storage::StorageBackend,
                         >

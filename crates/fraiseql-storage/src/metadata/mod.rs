@@ -40,6 +40,13 @@ pub struct StorageMetadataRow {
     pub etag:              Option<String>,
     /// Owner identifier (user sub claim).
     pub owner_id:          Option<String>,
+    /// An upload is in flight for this key and has not been confirmed.
+    ///
+    /// Set when a presigned upload URL is signed (#866): the client writes the
+    /// object straight to the backend, so the server records ownership up front
+    /// and leaves `size_bytes` / `etag` as placeholders until a read reconciles
+    /// them against the stored object.
+    pub pending:           bool,
     /// Row creation time.
     pub created_at:        DateTime<Utc>,
     /// Last update time.
@@ -118,7 +125,7 @@ impl StorageMetadataRepo {
     ) -> Result<Option<StorageMetadataRow>, FraiseQLError> {
         let row = sqlx::query_as::<_, MetadataQueryRow>(
             "SELECT pk_storage_object, bucket, key, content_type, \
-                    size_bytes, etag, owner_id, created_at, updated_at \
+                    size_bytes, etag, owner_id, pending, created_at, updated_at \
              FROM _fraiseql_storage_objects \
              WHERE bucket = $1 AND key = $2",
         )
@@ -182,7 +189,7 @@ impl StorageMetadataRepo {
                 // literally and cannot be used to widen the match.
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, created_at, updated_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 AND key LIKE $2 ESCAPE '\\' \
                      ORDER BY key ASC \
@@ -198,7 +205,7 @@ impl StorageMetadataRepo {
             None => {
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, created_at, updated_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 \
                      ORDER BY key ASC \
@@ -237,6 +244,7 @@ impl StorageMetadataRepo {
                  content_type = EXCLUDED.content_type, \
                  size_bytes   = EXCLUDED.size_bytes, \
                  etag         = EXCLUDED.etag, \
+                 pending      = FALSE, \
                  updated_at   = now() \
              RETURNING pk_storage_object",
         )
@@ -257,6 +265,140 @@ impl StorageMetadataRepo {
 
         Ok(pk)
     }
+
+    /// Claim `(bucket, key)` for an upload that will bypass the server.
+    ///
+    /// A presigned PUT sends the bytes straight to the object store, so the
+    /// server's only chance to record who owns the resulting object is *before*
+    /// it signs the URL (#866). Without this the object had no metadata row at
+    /// all: it was unreadable through `GET`, invisible to `list`, and — because
+    /// `can_write_object` reads a missing row as "create" — any authenticated
+    /// user could take it over.
+    ///
+    /// `expected_pk` carries the caller's view of the current row, so the claim
+    /// is safe against a concurrent writer:
+    /// - `None` — the caller saw no row. Inserts, and returns `Ok(None)` if a row appeared in the
+    ///   meantime rather than overwriting whoever won.
+    /// - `Some(pk)` — the caller saw that row and its authorization has already been checked
+    ///   against it. Re-marks it pending, and returns `Ok(None)` if it has since changed identity.
+    ///
+    /// Returns the claimed row's primary key, or `Ok(None)` when the claim lost
+    /// a race and the caller must re-authorize.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the database query fails.
+    pub async fn reserve(
+        &self,
+        row: &NewStorageObject,
+        expected_pk: Option<i64>,
+    ) -> Result<Option<i64>, FraiseQLError> {
+        let query = match expected_pk {
+            // Create: lose the race rather than clobber the winner.
+            None => sqlx::query_as::<_, (i64,)>(
+                "INSERT INTO _fraiseql_storage_objects \
+                     (bucket, key, content_type, size_bytes, etag, owner_id, pending) \
+                 VALUES ($1, $2, $3, 0, NULL, $4, TRUE) \
+                 ON CONFLICT (bucket, key) DO NOTHING \
+                 RETURNING pk_storage_object",
+            )
+            .bind(&row.bucket)
+            .bind(&row.key)
+            .bind(&row.content_type)
+            .bind(&row.owner_id),
+            // Overwrite: the caller proved owner-or-admin against exactly this
+            // row, so pin the update to it. `owner_id` is deliberately left
+            // alone — an admin re-signing does not become the owner.
+            Some(pk) => sqlx::query_as::<_, (i64,)>(
+                "UPDATE _fraiseql_storage_objects SET \
+                     content_type = $3, \
+                     pending      = TRUE, \
+                     updated_at   = now() \
+                 WHERE bucket = $1 AND key = $2 AND pk_storage_object = $4 \
+                 RETURNING pk_storage_object",
+            )
+            .bind(&row.bucket)
+            .bind(&row.key)
+            .bind(&row.content_type)
+            .bind(pk),
+        };
+
+        let claimed = query.fetch_optional(&self.pool).await.map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+
+        Ok(claimed.map(|(pk,)| pk))
+    }
+
+    /// Release a reservation that was never used.
+    ///
+    /// Called when signing fails after [`reserve`](Self::reserve) claimed a
+    /// *new* row: leaving it behind would hold the key against its owner
+    /// forever for an upload that can never happen. Scoped to the primary key
+    /// and to `pending`, so it can never delete a confirmed object.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the database query fails.
+    pub async fn release_reservation(&self, pk: i64) -> Result<bool, FraiseQLError> {
+        let result = sqlx::query(
+            "DELETE FROM _fraiseql_storage_objects WHERE pk_storage_object = $1 AND pending",
+        )
+        .bind(pk)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Reconcile a claimed row against the object that actually landed.
+    ///
+    /// A reservation records ownership but cannot record size or etag, because
+    /// the bytes never passed through the server. The first successful read
+    /// has them, so it settles the row. Scoped to the primary key so a
+    /// concurrent server-side upload's own metadata is never overwritten by a
+    /// stale read.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the database query fails.
+    pub async fn confirm(
+        &self,
+        pk: i64,
+        size_bytes: i64,
+        etag: Option<&str>,
+    ) -> Result<(), FraiseQLError> {
+        sqlx::query(
+            "UPDATE _fraiseql_storage_objects SET \
+                 size_bytes = $2, \
+                 etag       = $3, \
+                 pending    = FALSE, \
+                 updated_at = now() \
+             WHERE pk_storage_object = $1 AND pending",
+        )
+        .bind(pk)
+        .bind(size_bytes)
+        .bind(etag)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +418,7 @@ struct MetadataQueryRow {
     size_bytes:        i64,
     etag:              Option<String>,
     owner_id:          Option<String>,
+    pending:           bool,
     created_at:        DateTime<Utc>,
     updated_at:        DateTime<Utc>,
 }
@@ -290,6 +433,7 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
             size_bytes:        row.size_bytes,
             etag:              row.etag,
             owner_id:          row.owner_id,
+            pending:           row.pending,
             created_at:        row.created_at,
             updated_at:        row.updated_at,
         }

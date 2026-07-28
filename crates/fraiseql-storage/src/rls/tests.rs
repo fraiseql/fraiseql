@@ -37,6 +37,7 @@ fn object_owned_by(owner: &str) -> StorageMetadataRow {
         size_bytes:        100,
         etag:              None,
         owner_id:          Some(owner.to_string()),
+        pending:           false,
         created_at:        Utc::now(),
         updated_at:        Utc::now(),
     }
@@ -209,6 +210,7 @@ fn test_rls_list_filters_to_visible_objects() {
                 size_bytes:        100,
                 etag:              None,
                 owner_id:          Some(owner.to_string()),
+                pending:           false,
                 created_at:        Utc::now(),
                 updated_at:        Utc::now(),
             }
@@ -233,6 +235,7 @@ fn test_rls_list_public_bucket_shows_all() {
             size_bytes:        100,
             etag:              None,
             owner_id:          Some("someone".to_string()),
+            pending:           false,
             created_at:        Utc::now(),
             updated_at:        Utc::now(),
         })

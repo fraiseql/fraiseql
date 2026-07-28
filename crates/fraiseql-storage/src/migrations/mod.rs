@@ -22,8 +22,15 @@ mod tests;
 /// | `size_bytes` | `BIGINT NOT NULL` | Object size |
 /// | `etag` | `TEXT` | Entity tag |
 /// | `owner_id` | `TEXT` | Uploader's sub claim |
+/// | `pending` | `BOOLEAN NOT NULL DEFAULT FALSE` | An upload is in flight for this key |
 /// | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Row creation |
 /// | `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Last modification |
+///
+/// `pending` exists because a presigned upload writes the object *directly to
+/// the backend*, so the server never sees the bytes (#866). The row is claimed
+/// when the URL is signed — which is what gives the object an owner and keeps
+/// the H9/B4 overwrite gate applicable — and carries `size_bytes = 0` /
+/// `etag IS NULL` until a read reconciles it against the stored object.
 ///
 /// # Example
 ///
@@ -42,6 +49,7 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
     size_bytes        BIGINT      NOT NULL,
     etag              TEXT,
     owner_id          TEXT,
+    pending           BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (bucket, key)
@@ -49,6 +57,9 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
 
 CREATE INDEX IF NOT EXISTS idx_storage_objects_bucket_key
     ON _fraiseql_storage_objects (bucket, key);
+
+ALTER TABLE _fraiseql_storage_objects
+    ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_storage_objects_owner
     ON _fraiseql_storage_objects (owner_id)

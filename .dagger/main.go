@@ -1034,25 +1034,31 @@ func (m *FraiseqlCi) integrationCrossDb(ctx context.Context, source *dagger.Dire
 		Stdout(ctx)
 }
 
-// integrationServerStorage binds a MinIO (S3-compatible) service and runs the S3 backend
-// against it from two angles:
-//   - fraiseql-server's storage_minio integration test (Tier-C migrated off the MinIO
-//     testcontainer), which reads MINIO_ENDPOINT via the harness; and
+// integrationServerStorage binds a MinIO (S3-compatible) service AND Postgres, and runs
+// the S3 backend against them from two angles:
+//   - the storage object-safety gate (storage_minio_integration_test), which drives the
+//     `fraiseql-storage` HTTP router end to end over MinIO + a real metadata table: the
+//     presigned-upload ownership record (#866), the cross-owner overwrite refusal, the
+//     orphan-object refusal, and the key-aliasing rejection (#813); and
 //   - fraiseql-storage's own backend::s3 unit tests (audit #440), previously triple-gated
 //     (aws-s3 not in any CI feature set, #[ignore], skip-if-no-S3_ENDPOINT) and therefore
 //     never executed in CI — this is what let H40 (S3 NotFound detection) survive. Those
 //     tests read S3_ENDPOINT and create their own per-test bucket.
 //
-// Both authenticate with the minioadmin/minioadmin dev credentials. The storage run is
-// filtered to backend::s3 so an --include-ignored sweep does not also pull in the crate's
-// DB-backed metadata/migrations/routes tests (no Postgres is bound in this leg).
+// Both authenticate with the minioadmin/minioadmin dev credentials. Postgres is bound
+// because the object-safety gate needs the metadata table: ownership, the overwrite gate
+// and orphan refusal are all properties OF the metadata row, so without a database the
+// gate would skip and report exactly like a pass. The fraiseql-storage run stays filtered
+// to backend::s3 so an --include-ignored sweep does not also pull in that crate's own
+// DB-backed metadata/migrations/routes tests, which the storage leg owns.
 func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagger.Directory) (string, error) {
 	minioEndpoint := fmt.Sprintf("http://%s:9000", minioBindHost)
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: server-storage (Dagger-bound MinIO; tests read MINIO_ENDPOINT / S3_ENDPOINT)'",
+		"echo '### integration: server-storage (Dagger-bound MinIO + Postgres; tests read MINIO_ENDPOINT / S3_ENDPOINT / DATABASE_URL)'",
 		"cargo test -p fraiseql-server --features aws-s3 --test storage_minio_integration_test -- --test-threads=1",
 		"echo '### integration: storage backend::s3 unit tests (audit #440; read S3_ENDPOINT)'",
 		"cargo test -p fraiseql-storage --features aws-s3 backend::s3 -- --include-ignored --test-threads=1",
@@ -1061,7 +1067,9 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 
 	return m.integrationBase(source, rustMsrv).
 		WithServiceBinding(minioBindHost, m.minioService()).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("MINIO_ENDPOINT", minioEndpoint).
+		WithEnvVariable("DATABASE_URL", dbURL).
 		// fraiseql-storage's s3/tests.rs reads S3_ENDPOINT (or AWS_ENDPOINT_URL), whereas
 		// the server test reads MINIO_ENDPOINT; both point at the same bound MinIO.
 		WithEnvVariable("S3_ENDPOINT", minioEndpoint).

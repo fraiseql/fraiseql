@@ -16,7 +16,6 @@ pub mod introspection;
 pub mod jwks_admin;
 pub mod metrics;
 pub mod playground;
-pub mod storage;
 pub mod studio;
 pub mod subscriptions;
 pub mod well_known;

@@ -34,39 +34,6 @@ async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<Faili
     .expect("Server::new should succeed for an empty schema + default config")
 }
 
-// ── M-storage-legacy: legacy backend fails closed without a storage_token ──
-
-#[tokio::test]
-async fn legacy_storage_backend_not_mounted_without_token() {
-    let backend = Arc::new(crate::storage::LocalStorageBackend::new("/tmp/fraiseql-c6-test-unused"))
-        as Arc<dyn crate::storage::StorageBackend>;
-    // Default config has no storage_token → the legacy (no-RLS) backend must not mount.
-    let server = server_with(ServerConfig::default()).await.with_storage(backend);
-    let state = server.build_app_state();
-    let app: Router = server.mount_extensions(Router::new(), &state);
-
-    // PATCH is not registered by the storage router (GET/POST/DELETE only). A
-    // mounted router answers 405; 404 proves the storage routes are absent. (A
-    // plain GET for a missing object would also be 404, so it could not tell
-    // "not mounted" from "object not found" — hence the method probe.)
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("PATCH")
-                .uri("/storage/v1/object/secret.txt")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(
-        response.status(),
-        StatusCode::NOT_FOUND,
-        "legacy storage backend (no RLS) must fail closed when storage_token is unset",
-    );
-}
-
 /// Build a minimal hardened `StorageState`. The lazy pool and backend are never
 /// touched: the refuse-to-mount decision happens before any request reaches a
 /// handler, so no DB connection is opened.
@@ -115,31 +82,35 @@ async fn hardened_storage_state_not_mounted_without_any_auth() {
 }
 
 #[tokio::test]
-async fn legacy_storage_backend_is_mounted_with_token() {
-    let backend = Arc::new(crate::storage::LocalStorageBackend::new("/tmp/fraiseql-c6-test-unused"))
-        as Arc<dyn crate::storage::StorageBackend>;
+async fn storage_state_is_mounted_with_a_storage_token() {
+    // The positive control for `hardened_storage_state_not_mounted_without_any_auth`:
+    // without it, that test would still pass if the storage mount were broken
+    // outright rather than deliberately refusing.
     let config = ServerConfig {
         storage_token: Some("storage-admin-token-32chars-minimum".to_string()),
         ..ServerConfig::default()
     };
-    let server = server_with(config).await.with_storage(backend);
+    let server = server_with(config).await.with_storage_state(minimal_storage_state());
     let state = server.build_app_state();
     let app: Router = server.mount_extensions(Router::new(), &state);
 
+    // A PATCH the storage router does not register: 405 proves the path IS
+    // mounted, where the refuse-to-mount case answers 404.
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/storage/v1/object/secret.txt")
+                .method("PATCH")
+                .uri("/storage/v1/object/docs/secret.txt")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    // Mounted but bearer-protected → 401 (NOT 404). Contrast with the refuse-to-mount case.
     assert_eq!(
         response.status(),
-        StatusCode::UNAUTHORIZED,
-        "with a storage_token the route must be mounted and reject the anonymous request (401, not 404)",
+        StatusCode::METHOD_NOT_ALLOWED,
+        "with a storage_token the storage routes must be mounted (405 for an unregistered \
+         method), not absent (404)",
     );
 }

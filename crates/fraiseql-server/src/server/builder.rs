@@ -483,7 +483,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             mcp_config: None,
             pool_tuning_config: None,
             adapter_cache_enabled: false,
-            storage_backend: None,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             #[cfg(feature = "functions")]
             function_store: None,
@@ -626,20 +625,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self
     }
 
-    /// Attach an object storage backend and mount `/storage/v1/` routes.
-    ///
-    /// When set, the server mounts `GET`, `POST`, `DELETE /storage/v1/object/*key`
-    /// and `GET /storage/v1/object/sign/*key` endpoints backed by the given backend.
-    ///
-    /// Use [`StorageConfig`](crate::config::StorageConfig) and
-    /// [`create_backend`](crate::storage::create_backend) to construct the backend
-    /// from a TOML configuration block.
-    #[must_use]
-    pub fn with_storage(mut self, backend: Arc<dyn crate::storage::StorageBackend>) -> Self {
-        self.storage_backend = Some(backend);
-        self
-    }
-
     /// Override the maximum allowed upload size for storage endpoints.
     ///
     /// Defaults to 100 `MiB`. Uploads exceeding this size are rejected with HTTP 413
@@ -654,12 +639,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// mount the bucket-scoped `/storage/v1/*` routes (object upload/download/
     /// delete, list, presign) with per-bucket access policy and RLS.
     ///
-    /// This is the full storage path (metadata-backed, bucket-aware); it differs
-    /// from [`with_storage`](Self::with_storage), which mounts the simpler legacy
-    /// object router. Authentication is applied by `mount_storage_state`: a
-    /// configured `storage_token` acts as an admin bearer and, when an OIDC
-    /// validator is present, per-user tokens populate the request's
-    /// `StorageUser` for RLS.
+    /// This is the **only** storage path. Until #813/#866 there was a second one
+    /// — `with_storage`, mounting a metadata-less router with no per-object
+    /// ownership — which duplicated the key validator and the Azure key encoder
+    /// and carried its own copy of both defects. It has been removed; see the
+    /// `### Breaking` note in the changelog.
+    ///
+    /// The attached backend also serves as the inbound-email attachment sink
+    /// when `[mailbox]` names an `attachment_bucket`.
+    ///
+    /// Authentication is applied by `mount_storage_state`: a configured
+    /// `storage_token` acts as an admin bearer and, when an OIDC validator is
+    /// present, per-user tokens populate the request's `StorageUser` for RLS.
     #[must_use]
     pub fn with_storage_state(mut self, state: fraiseql_storage::StorageState) -> Self {
         self.storage_state = Some(state);

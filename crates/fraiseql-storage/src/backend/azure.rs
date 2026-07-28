@@ -107,7 +107,7 @@ impl AzureBackend {
         if key.is_empty() {
             format!("{base}/{}", self.container)
         } else {
-            format!("{base}/{}/{key}", self.container)
+            format!("{base}/{}/{}", self.container, Self::encode_key_path(key))
         }
     }
 
@@ -121,6 +121,12 @@ impl AzureBackend {
     /// so the account legitimately appears twice
     /// (`/devstoreaccount1/devstoreaccount1/...`). Deriving the resource from
     /// the actual URL path reproduces that exactly.
+    ///
+    /// The key is percent-encoded exactly as [`blob_url`](Self::blob_url)
+    /// encodes it. Azure's Shared Key scheme signs the *encoded* URI path, and
+    /// what matters is that the string signed and the path actually sent are
+    /// byte-identical — which is precisely what #876 broke by interpolating the
+    /// key raw into both and letting the URL parser rewrite only one of them.
     fn canonicalized_resource(&self, key: &str) -> String {
         let path = match &self.endpoint {
             Some(ep) => reqwest::Url::parse(ep)
@@ -132,8 +138,29 @@ impl AzureBackend {
         if key.is_empty() {
             format!("/{}{path}/{}", self.account, self.container)
         } else {
-            format!("/{}{path}/{}/{key}", self.account, self.container)
+            format!("/{}{path}/{}/{}", self.account, self.container, Self::encode_key_path(key))
         }
+    }
+
+    /// Percent-encode a storage key for use as a URL path.
+    ///
+    /// #876: the key used to be interpolated raw, so reqwest parsed URL syntax
+    /// out of it — `#` began a fragment (silently truncating the request path),
+    /// `?` began a query, and an existing `%41` was decoded by Azure to `A`.
+    /// The `SharedKey` string-to-sign, built from the *unencoded* key, then
+    /// described a different resource than the request did, and Azure answered
+    /// `403 AuthenticationFailed` for what is really a perfectly ordinary
+    /// filename.
+    ///
+    /// Each `/`-separated segment is encoded independently so the key stays a
+    /// path. [`canonicalized_resource`](Self::canonicalized_resource)
+    /// deliberately keeps the *decoded* form, because Azure computes the
+    /// canonicalized resource from the decoded request path.
+    fn encode_key_path(key: &str) -> String {
+        key.split('/')
+            .map(|segment| urlencoding::encode(segment))
+            .collect::<Vec<_>>()
+            .join("/")
     }
 
     /// Creates the configured container if it does not already exist.
