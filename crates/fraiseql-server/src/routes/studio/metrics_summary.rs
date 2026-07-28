@@ -27,15 +27,23 @@ pub struct LatencyStats {
     pub p99_ms: u64,
 }
 
-/// Error rates over sliding windows.
+/// Error rates.
+///
+/// The three windowed rates used to be served as three distinct numbers that were
+/// all the *same* lifetime ratio. A dashboard showing "5m error rate" that is really
+/// the all-time average is at its most misleading during an incident, which is the
+/// only time anyone reads it. They are `Option` and `None` until windowed counters
+/// exist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorRates {
-    /// Errors per request, averaged over the last 5 minutes.
-    pub rate_5m:  f64,
-    /// Errors per request, averaged over the last 1 hour.
-    pub rate_1h:  f64,
-    /// Errors per request, averaged over the last 24 hours.
-    pub rate_24h: f64,
+    /// Errors per request over the process lifetime.
+    pub lifetime: f64,
+    /// Errors per request over the last 5 minutes, or `None` if not tracked.
+    pub rate_5m:  Option<f64>,
+    /// Errors per request over the last hour, or `None` if not tracked.
+    pub rate_1h:  Option<f64>,
+    /// Errors per request over the last 24 hours, or `None` if not tracked.
+    pub rate_24h: Option<f64>,
 }
 
 /// Database connection pool stats.
@@ -56,8 +64,9 @@ pub struct PoolStats {
 pub struct CacheStats {
     /// Cache hit rate (0–1).
     pub hit_rate: f64,
-    /// Current number of cached entries.
-    pub entries:  u64,
+    /// Current number of cached entries, or `None` — `MetricsCollector` does not
+    /// track it, and `0` would read as "the cache is empty".
+    pub entries:  Option<u64>,
 }
 
 /// Active subscription stats.
@@ -74,16 +83,19 @@ pub struct MetricsSummary {
     pub latency:       LatencyStats,
     /// Error rates over sliding windows.
     pub errors:        ErrorRates,
-    /// Database pool health.
-    pub pool:          PoolStats,
+    /// Database pool health, or `None` when the summary has no pool handle.
+    pub pool:          Option<PoolStats>,
     /// Query cache stats.
     pub cache:         CacheStats,
-    /// Subscription stats.
-    pub subscriptions: SubscriptionStats,
+    /// Subscription stats, or `None` when not tracked.
+    pub subscriptions: Option<SubscriptionStats>,
 }
 
 impl MetricsSummary {
-    /// Build a zero-value summary (used as placeholder until real collectors are wired).
+    /// A summary for a process that has served nothing yet.
+    ///
+    /// Genuine zeros where zero is the truth (no requests ⇒ no latency, no errors),
+    /// `None` where the number is simply not collected.
     #[must_use]
     pub const fn zero() -> Self {
         Self {
@@ -93,21 +105,17 @@ impl MetricsSummary {
                 p99_ms: 0,
             },
             errors:        ErrorRates {
-                rate_5m:  0.0,
-                rate_1h:  0.0,
-                rate_24h: 0.0,
+                lifetime: 0.0,
+                rate_5m:  None,
+                rate_1h:  None,
+                rate_24h: None,
             },
-            pool:          PoolStats {
-                active:      0,
-                idle:        0,
-                max:         0,
-                utilization: 0.0,
-            },
+            pool:          None,
             cache:         CacheStats {
                 hit_rate: 0.0,
-                entries:  0,
+                entries:  None,
             },
-            subscriptions: SubscriptionStats { active: 0 },
+            subscriptions: None,
         }
     }
 }
@@ -139,7 +147,7 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         p99_ms: m.http_request_duration.estimate_quantile_us(0.99) / 1_000,
     };
 
-    // Lifetime error rate (approximate — windowed rates deferred to v2.4.0)
+    // Lifetime error rate. Windowed rates are reported as absent, not as this value.
     let total = m.queries_total.load(Ordering::Relaxed);
     let errors = m.queries_error.load(Ordering::Relaxed);
     #[allow(clippy::cast_precision_loss)] // Reason: counter values in practice are < 2^53
@@ -149,9 +157,10 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         0.0
     };
     let errors_stats = ErrorRates {
-        rate_5m:  error_rate,
-        rate_1h:  error_rate,
-        rate_24h: error_rate,
+        lifetime: error_rate,
+        rate_5m:  None,
+        rate_1h:  None,
+        rate_24h: None,
     };
 
     // Cache stats
@@ -165,19 +174,16 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
     };
     let cache = CacheStats {
         hit_rate,
-        entries: 0, // Not tracked by MetricsCollector
+        entries: None, // Not tracked by MetricsCollector — `0` would mean "empty".
     };
 
-    // Pool stats — not available from MetricsCollector (requires adapter-level access)
-    let pool = PoolStats {
-        active:      0,
-        idle:        0,
-        max:         0,
-        utilization: 0.0,
-    };
+    // Pool stats need adapter-level access this handler does not have. `None` says
+    // "unknown"; the previous all-zero PoolStats said "no connections, no capacity",
+    // which is what a saturated pool also looks like.
+    let pool = None;
 
-    // Subscription count — not tracked in AppState metrics
-    let subscriptions = SubscriptionStats { active: 0 };
+    // Subscription count is not tracked in AppState metrics.
+    let subscriptions = None;
 
     MetricsSummary {
         latency,

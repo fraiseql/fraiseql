@@ -23,19 +23,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self.serve_with_shutdown(Self::shutdown_signal()).await
     }
 
-    /// Start server with a custom shutdown future.
+    /// Provision the persistent schemas the router is about to depend on.
     ///
-    /// Enables programmatic shutdown (e.g., for `--watch` hot-reload) by accepting any
-    /// future that resolves when the server should stop.
+    /// Everything here is async, must happen before the first request is served, and
+    /// must **fail the boot** rather than leave an endpoint mounted over a table that
+    /// does not exist. `build_router` is synchronous, so it cannot do any of it.
+    ///
+    /// Shared by [`Self::serve_with_shutdown`] and [`Self::serve_on_listener`]
+    /// deliberately. It used to be inlined in the former only, so the in-process test
+    /// harness — which serves on a listener — reached the routes without ever running
+    /// the DDL behind them. #748 (a parse error in the RBAC schema that aborted boot
+    /// outright) was therefore invisible to every integration test in the workspace:
+    /// they got a happily-running server that answered `500` on the RBAC routes. A
+    /// boot step that only one of two entry points performs is the same class of
+    /// defect as a guard only one of two call sites consults.
+    ///
+    /// **Scope is deliberately "tables the mounted routes read from", not "every
+    /// startup step".** Subsystem startup that re-reads the compiled schema from disk
+    /// or opens external connections — the functions runtime, the observer runtime,
+    /// Flight, the IMAP/cron/source pollers — stays in `serve_with_shutdown`, which
+    /// `serve_on_listener` documents itself as skipping.
     ///
     /// # Errors
     ///
-    /// Returns error if server fails to bind or encounters runtime errors.
-    #[allow(clippy::cognitive_complexity)] // Reason: server lifecycle with TLS/non-TLS binding, signal handling, and graceful shutdown
-    pub async fn serve_with_shutdown<F>(mut self, shutdown: F) -> Result<()>
-    where
-        F: std::future::Future<Output = ()> + Send + 'static,
-    {
+    /// Returns [`ServerError::ConfigError`] if any subsystem's schema cannot be
+    /// created. Usage persistence is the one deliberate exception: it degrades to
+    /// in-memory counters with a warning, because losing metering is not worth
+    /// refusing to serve traffic.
+    async fn provision_persistent_schemas(&mut self) -> Result<()> {
         // Ensure RBAC schema exists before the router mounts RBAC endpoints.
         // Must run here (async context) rather than inside build_router() (sync).
         #[cfg(feature = "observers")]
@@ -143,11 +158,31 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Start server with a custom shutdown future.
+    ///
+    /// Enables programmatic shutdown (e.g., for `--watch` hot-reload) by accepting any
+    /// future that resolves when the server should stop.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if server fails to bind or encounters runtime errors.
+    #[allow(clippy::cognitive_complexity)] // Reason: server lifecycle with TLS/non-TLS binding, signal handling, and graceful shutdown
+    pub async fn serve_with_shutdown<F>(mut self, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.provision_persistent_schemas().await?;
+
         // Prepare functions-runtime dispatch (load modules, register runtimes,
         // attach the send_email wiring) before the router is built, so
         // `build_app_state` mounts the before-mutation hooks. Async + fail-loud,
-        // like the RBAC/inbound schema init above; a no-op when no functions are
-        // declared or the feature is off.
+        // like the schema provisioning above. It re-reads the compiled schema from
+        // `config.schema_path`, so it belongs to this entry point rather than to the
+        // shared provisioning step: `serve_on_listener` is driven with an in-memory
+        // schema and no file on disk.
         #[cfg(feature = "functions-runtime")]
         self.prepare_functions_runtime().await?;
 
@@ -628,13 +663,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Used in tests to discover the bound port before serving.
     /// Skips TLS, Flight, and observer startup — suitable for unit/integration tests only.
     ///
+    /// It does **not** skip `provision_persistent_schemas`: the tables the
+    /// mounted routes read from are created here exactly as they are under
+    /// [`Self::serve_with_shutdown`], so a boot-time provisioning failure fails this
+    /// entry point too. Skipping it was how #748 reached a release — the RBAC DDL did
+    /// not parse, and every test in the workspace served the RBAC routes over tables
+    /// that had never been created.
+    ///
     /// # Errors
     ///
-    /// Returns error if the server encounters a runtime error.
-    pub async fn serve_on_listener<F>(self, listener: TcpListener, shutdown: F) -> Result<()>
+    /// Returns error if the server encounters a runtime error, or if
+    /// `provision_persistent_schemas` cannot provision a configured subsystem.
+    pub async fn serve_on_listener<F>(mut self, listener: TcpListener, shutdown: F) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
+        self.provision_persistent_schemas().await?;
+
         let (app, _app_state) = self.build_router();
         axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
             .with_graceful_shutdown(shutdown)

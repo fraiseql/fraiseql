@@ -9,6 +9,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The authorization and administration surfaces now do what they report doing
+  (#748, #749, #768, #769, #757, #677).** An operator could revoke a session, set a
+  secret, invite a user, read an audit trail and grant a field-level role — and none of
+  those operations happened, while all of them reported success.
+
+  - **#748 — the RBAC schema DDL was a PostgreSQL parse error, so setting `admin_token`
+    bricked boot.** `ensure_schema` put `UNIQUE(name, COALESCE(tenant_id, …))` inside a
+    `CREATE TABLE`; a table-level `UNIQUE` constraint accepts column names, never
+    expressions. Boot runs that DDL unconditionally whenever `admin_token` is set, so the
+    shipped `-full` binary with a PostgreSQL `database_url` and the documented admin token
+    exited at startup — and the RBAC management API had therefore never executed a single
+    statement against a real database. Per-tenant name uniqueness is now a unique index
+    over the expression (the `COALESCE` is load-bearing: a plain `UNIQUE (name, tenant_id)`
+    would let two identically-named global roles coexist, because NULLs compare distinct).
+
+    Its four test files were ~90 `#[test]` functions with **empty bodies**, which is why
+    `cargo test` was green throughout; they are deleted rather than extended.
+
+  - **#749 — five Studio admin write endpoints returned fabricated success.**
+    `POST /admin/v1/users/{id}/revoke` answered `{"success": true, "message": "All sessions
+    revoked"}` without touching any revocation store, so during an account-compromise
+    response the attacker's tokens kept validating. Function-secret set/delete, row mutate
+    and user invite did the same, and six read endpoints answered a hard-coded empty
+    collection — which asserts "there are none" rather than "this is not wired". Revocation
+    is now performed for real (the `TokenRevocationManager` is reachable from `AppState`);
+    everything else answers `501` naming the missing subsystem.
+
+  - **#768 — `GET /api/audit/permissions` was a façade.** It ignored its documented
+    parameters and returned a hard-coded `[]` while no handler recorded anything, so a
+    compliance reviewer was told no permission changes had occurred regardless of activity.
+    Every mutating store method now writes an audit row **inside its own transaction**, so
+    a recorded event cannot outlive a rolled-back change and a committed change cannot go
+    unrecorded, and the endpoint reads them back with its filters applied.
+
+  - **#769 — tenant scoping was inert and role listing truncated silently.** Every handler
+    passed `None` for tenant and `list_roles` hard-coded `limit 100, offset 0` with no
+    query parameters, so the 101st role was unreachable with no indication and
+    `RoleDto.tenant_id` was always null. `create_role` mapped *every* failure — a malformed
+    permission string and an unreachable database alike — to `409 role_duplicate`.
+
+  - **#757 — `[fraiseql.security]` role grants evaporated between compiler and runtime.**
+    The compiler emitted `roleDefinitions`/`defaultRole`/`tenantClaim`; the runtime
+    declares `role_definitions`/`default_role`/`tenant_claim` with a `#[serde(flatten)]`
+    catch-all, so the keys landed in the untyped map and the typed fields kept their
+    defaults. Since `role_has_scope` is the only input to `can_access_scope`, **field-level
+    RBAC was deny-all on every project-TOML compile**: a member of a role granted a scope
+    was refused the field the role existed to unlock. `tenant_claim` disagreed in the other
+    direction — compile-time `@tenant_id` validation read the camelCase key while the
+    runtime read the snake_case one.
+
+  - **#677 — type-level `requires_role` was documented as an access gate and enforced
+    nowhere.** It had two non-test readers, neither an execution gate; all five real gates
+    read the *operation*'s role and nothing seeded it from the returned type. The
+    repository's own golden fixture shows the hole: type `Order` and query `orders` both
+    carry `"admin"`, and `orderSummary` — which also returns `Order` — carries none. A
+    type's role is now lowered onto the operations returning it when the compiled schema
+    loads, so the existing gates enforce it with no sixth check to keep in step.
+
+### Breaking
+
+- **RBAC list endpoints return a page envelope, not a bare array** (#769).
+  `GET /api/roles`, `/api/permissions` and `/api/user-roles` now answer
+  `{"items": [...], "total": N, "limit": N, "offset": N, "has_more": bool}` and accept
+  `limit` (default 100, max 1000), `offset` and — where the resource is tenant-scoped —
+  `tenant_id`. Unknown query parameters are refused rather than ignored, so a mistyped
+  `tenant_id` cannot silently widen a read. `GET /api/user-roles` now **requires**
+  `user_id`; omitting it used to answer `200 []`, indistinguishable from "this user holds
+  no roles". The RBAC API could never have been used before this release — its tables
+  could not be created (#748) — so there are no existing consumers.
+
+- **`POST /api/roles` and `POST /api/user-roles` refuse unknown body fields** (#769), and
+  accept an explicit `tenant_id`. A misspelled `tenantId` used to be silently dropped,
+  creating a *global* role while the caller believed it was tenant-scoped.
+
+- **Studio admin endpoints that perform no operation answer `501`** (#749) instead of
+  `{"success": true}` or an empty collection: `/admin/v1/users`, `/admin/v1/users/invite`,
+  `/admin/v1/data/{entity}/query`, `/admin/v1/data/{entity}/mutate`,
+  `/admin/v1/storage/buckets`, `/admin/v1/storage/objects`, `/admin/v1/functions`,
+  `/admin/v1/functions/{name}/logs` and the function-secret routes. The response carries
+  `{"error": "not_implemented", "feature": "...", "message": "..."}`.
+
+- **`GET /admin/v1/health/detailed` and `/admin/v1/metrics/summary` report `null` for
+  figures they cannot measure** (#749), where they previously reported `0`. A zero pool
+  size reads as an exhausted pool and a zero hit rate as a cache that never hits.
+  `uptime_secs` was `SystemTime::now() - UNIX_EPOCH` — the current Unix timestamp — so a
+  four-second-old server claimed ~1.8 billion seconds of uptime; it is now time since
+  boot. `errors.rate_5m`/`rate_1h`/`rate_24h` were three copies of the lifetime ratio
+  under three window names; the lifetime value moved to `errors.lifetime` and the windows
+  report `null` until windowed counters exist.
+
+- **`[fraiseql.security]` compiles `role_definitions`, `default_role` and
+  `tenant_claim` under those names** (#757), replacing `roleDefinitions`, `defaultRole`
+  and `tenantClaim`. Recompile; no runtime consumer ever read the old spellings.
+
+- **A schema whose type-level `requires_role` cannot be enforced is refused at load**
+  (#677). Two shapes: an operation whose own role disagrees with its return type's (both
+  are required, and a compiled operation carries only one role), and a gated type
+  reachable as a field of a type that is not gated the same way (operations returning the
+  container carry no role, so the gated type travels out ungated). Subscriptions carry no
+  role gate at all, so a subscription returning a gated type is refused.
+
+### Security
+
 - **Tenant isolation is now an enforced property, not a documented intention (#809, #859,
   #758, #762).** Four mechanisms were supposed to keep tenants apart. Three did not run
   and the fourth passed vacuously.

@@ -13,12 +13,12 @@ use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
-use crate::routes::graphql::app_state::AppState;
+use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
 
 // ---------------------------------------------------------------------------
 // Query types
@@ -156,8 +156,8 @@ pub struct DataQueryResponse {
 pub async fn query_handler<A>(
     Path(entity): Path<String>,
     State(state): State<AppState<A>>,
-    Json(req): Json<DataBrowserQuery>,
-) -> impl IntoResponse
+    Json(_req): Json<DataBrowserQuery>,
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
@@ -175,14 +175,14 @@ where
             .into_response();
     }
 
-    // Return empty paginated result — real query execution not yet wired.
-    Json(DataQueryResponse {
-        rows:      Vec::new(),
-        total:     0,
-        page:      req.page,
-        page_size: req.page_size,
-    })
-    .into_response()
+    // `{"rows": [], "total": 0}` is the answer "this entity has no rows" — for a
+    // browser pointed at a populated database, a false one. Until the query path is
+    // wired, say what is true.
+    not_implemented(
+        "studio.data.query",
+        "The data browser's query path is not wired to the executor; it cannot read \
+         rows. Query the entity through /graphql.",
+    )
 }
 
 /// `POST /admin/v1/data/{entity}/mutate` — insert, update, or delete a single row.
@@ -198,7 +198,7 @@ pub async fn mutate_handler<A>(
     Path(entity): Path<String>,
     State(state): State<AppState<A>>,
     Json(_req): Json<DataMutateRequest>,
-) -> impl IntoResponse
+) -> Response
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
@@ -216,7 +216,17 @@ where
             .into_response();
     }
 
-    // Read-only mode guard — not yet wired to config.
-    // For now, always allow; the guard will check `studio.read_only` from config.
-    Json(serde_json::json!({"success": true})).into_response()
+    // This answered `{"success": true}` with the insert/update/delete never executed,
+    // under a comment that said the read-only guard was "not yet wired... For now,
+    // always allow" (#749) — so a data editor reported a saved row over an unchanged
+    // database.
+    //
+    // Not wired up rather than merely reported: a generic admin row-mutation surface
+    // is a new write path, and activating one is a decision to take deliberately, not
+    // a side effect of repairing a fabricated response.
+    not_implemented(
+        "studio.data.mutate",
+        "The data browser's mutation path is not wired to the executor; no row was \
+         inserted, updated or deleted. Use a declared GraphQL mutation.",
+    )
 }

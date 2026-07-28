@@ -863,6 +863,19 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// and asserts two tenants never cross — connecting as the examples' own
 		// unprivileged role, because the harness role bypasses RLS entirely.
 		"cargo test -p fraiseql-server --test example_multitenant_rls_e2e_pg -- --test-threads=1",
+		// #748/#769/#768: the RBAC management API had never executed one statement
+		// against PostgreSQL — its schema DDL did not parse, so setting `admin_token`
+		// made the shipped -full binary refuse to boot. Its four test files were ~90
+		// empty-bodied `#[test]` functions, which is why `cargo test` was green
+		// throughout. Needs a real database (the subject is SQL PostgreSQL either
+		// accepts or rejects) and a real boot (the DDL runs in the serve prologue).
+		"cargo test -p fraiseql-server --features observers --test rbac_admin_e2e_pg -- --test-threads=1",
+		// #749: five Studio admin write endpoints answered `{"success": true}` having
+		// performed no side effect, and six reads answered a hard-coded empty
+		// collection. The corpus derives its route list from the router source at
+		// compile time, so the next handler that drifts from the 501 convention fails
+		// here rather than shipping.
+		"cargo test -p fraiseql-server --features observers --test studio_admin_no_fabricated_success_e2e -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",

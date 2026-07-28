@@ -286,9 +286,13 @@ pub async fn compile_to_schema(
         let tenancy = sec.get("tenancy")?;
         let mode = tenancy.get("mode").and_then(|m| m.as_str()).unwrap_or("none");
         if mode == "row" {
+            // `tenant_claim`, matching `fraiseql_core::schema::TenancyConfig`. This
+            // read `tenantClaim` while the runtime read `tenant_claim`, so the
+            // compiler validated `@tenant_id` against one claim and the server
+            // injected another (#757).
             Some(
                 tenancy
-                    .get("tenantClaim")
+                    .get("tenant_claim")
                     .and_then(|c| c.as_str())
                     .unwrap_or("tenant_id")
                     .to_string(),

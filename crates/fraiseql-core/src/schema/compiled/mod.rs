@@ -11,6 +11,7 @@ pub mod schema;
 mod schema_domain;
 mod schema_lookup;
 mod schema_serde;
+mod type_roles;
 pub mod validation;
 
 #[cfg(test)]

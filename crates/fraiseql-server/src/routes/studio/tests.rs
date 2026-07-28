@@ -25,9 +25,9 @@ mod admin_tests {
         let resp = AdminHealthResponse {
             uptime_secs:    10,
             version:        "test".to_string(),
-            pool_active:    1,
-            pool_idle:      4,
-            pool_max:       5,
+            pool_active:    Some(1),
+            pool_idle:      Some(4),
+            pool_max:       Some(5),
             cache_hit_rate: Some(0.8),
             cache_entries:  Some(100),
         };
@@ -143,6 +143,12 @@ mod metrics_summary_tests {
         assert!(json.contains("\"pool\""));
         assert!(json.contains("\"cache\""));
         assert!(json.contains("\"subscriptions\""));
+        // Unmeasured figures serialize as null, never as a plausible-looking zero.
+        assert!(json.contains("\"pool\":null"), "unmeasured pool must be null: {json}");
+        assert!(
+            json.contains("\"subscriptions\":null"),
+            "unmeasured subscription count must be null: {json}"
+        );
     }
 
     #[test]
@@ -180,7 +186,13 @@ mod metrics_summary_tests {
         collector.queries_error.store(10, Ordering::Relaxed);
 
         let summary = build_summary(&collector);
-        assert!((summary.errors.rate_5m - 0.1).abs() < f64::EPSILON);
+        assert!((summary.errors.lifetime - 0.1).abs() < f64::EPSILON);
+        // The windowed rates are absent, not a copy of the lifetime rate. This test
+        // used to assert `rate_5m == 0.1` — naming a five-minute window over a value
+        // that was the all-time average.
+        assert_eq!(summary.errors.rate_5m, None);
+        assert_eq!(summary.errors.rate_1h, None);
+        assert_eq!(summary.errors.rate_24h, None);
     }
 
     #[test]
@@ -197,7 +209,7 @@ mod metrics_summary_tests {
     fn test_build_summary_zero_division_safe() {
         let collector = MetricsCollector::new();
         let summary = build_summary(&collector);
-        assert_eq!(summary.errors.rate_5m, 0.0);
+        assert_eq!(summary.errors.lifetime, 0.0);
         assert_eq!(summary.cache.hit_rate, 0.0);
     }
 }

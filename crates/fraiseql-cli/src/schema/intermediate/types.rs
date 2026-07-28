@@ -36,7 +36,17 @@ pub struct IntermediateType {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
 
-    /// Role required to see this type in introspection and access queries returning it.
+    /// Role required to execute any operation returning this type.
+    ///
+    /// Lowered onto every query and mutation whose `return_type` is this type when the
+    /// compiled schema loads, so the runtime's operation-level role gate enforces it —
+    /// there is no separate type-level check to keep in step (#677). A gated type
+    /// reachable as a *field* of a type that is not gated the same way is refused at
+    /// load: operations returning the container carry no role, so the gated type would
+    /// travel out ungated.
+    ///
+    /// It also filters the REST `/introspection` route. It does **not** filter GraphQL
+    /// `__schema` introspection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
 

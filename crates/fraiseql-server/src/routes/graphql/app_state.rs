@@ -139,6 +139,22 @@ pub struct AppState<A: DatabaseAdapter> {
     /// before dispatch (read-scoping via the `fraiseql.enriched.*` namespace).
     #[cfg(feature = "auth")]
     pub identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
+
+    /// Token revocation manager, when `[security.token_revocation]` is configured.
+    ///
+    /// Reachable from `AppState` so `POST /admin/v1/users/{id}/revoke` can actually
+    /// revoke. It used to answer `{"success": true, "message": "All sessions
+    /// revoked"}` without touching any store, because the manager lived on `Server`
+    /// and the handler had no way to reach it (#749). `None` is now an explicit
+    /// `501`, never a fabricated success.
+    pub revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+
+    /// When this state was constructed — i.e. when the server started.
+    ///
+    /// `GET /admin/v1/health/detailed` reported `uptime_secs` as *seconds since the
+    /// Unix epoch*, so a freshly-booted server claimed roughly 1.8 billion seconds
+    /// of uptime. A real instant is the only way to answer the question asked.
+    pub started_at: std::time::Instant,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -196,7 +212,19 @@ impl<A: DatabaseAdapter> AppState<A> {
             before_mutation_hooks: None,
             #[cfg(feature = "auth")]
             identity_resolver: None,
+            revocation_manager: None,
+            started_at: std::time::Instant::now(),
         }
+    }
+
+    /// Attach the token revocation manager so the admin revoke endpoint can use it.
+    #[must_use]
+    pub fn with_revocation_manager(
+        mut self,
+        manager: Arc<crate::token_revocation::TokenRevocationManager>,
+    ) -> Self {
+        self.revocation_manager = Some(manager);
+        self
     }
 
     /// Attach the enrichment-profile identity resolver (#539).

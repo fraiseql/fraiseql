@@ -153,6 +153,34 @@ pub async fn studio_asset_handler(Path(file): Path<String>) -> Response {
     }
 }
 
+/// The one way an admin endpoint declines to do something it cannot do.
+///
+/// Five Studio write endpoints used to answer `{"success": true}` while performing
+/// no side effect at all — session revocation, secret set/delete, row mutation and
+/// user invitation (#749) — and six read endpoints answered with a hard-coded empty
+/// collection, which asserts "there are none" rather than "this is not wired". An
+/// operator responding to an account compromise was told every session was revoked
+/// while the attacker's tokens kept validating.
+///
+/// Routing every unwired endpoint through one helper means the honest answer is the
+/// path of least resistance, and `git grep not_implemented` is the inventory of what
+/// the Studio API does not yet do.
+///
+/// `501` rather than `404`: the route exists and is documented; what is missing is
+/// the subsystem behind it. A `404` would be indistinguishable from a typo in the
+/// path.
+pub(crate) fn not_implemented(what: &str, detail: &str) -> Response {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        axum::Json(serde_json::json!({
+            "error":   "not_implemented",
+            "feature": what,
+            "message": detail,
+        })),
+    )
+        .into_response()
+}
+
 /// Derive MIME type from file extension.
 pub(crate) fn mime_for_filename(name: &str) -> &'static str {
     let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("");
