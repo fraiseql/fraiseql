@@ -27,7 +27,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::extract::{Path, Query, State};
 use fraiseql_core::{
-    db::postgres::PostgresAdapter, prelude::DatabaseAdapter as _, runtime::Executor,
+    db::postgres::{PostgresAdapter, PostgresTlsConfig},
+    prelude::DatabaseAdapter as _,
+    runtime::Executor,
     schema::CompiledSchema,
 };
 use fraiseql_server::{
@@ -68,6 +70,7 @@ fn registration(url: &str) -> TenantRegistrationRequest {
             connect_timeout_secs: 10,
             idle_timeout_secs:    300,
             search_path:          None,
+            tls:                  PostgresTlsConfig::default(),
         },
         max_requests_per_sec:       None,
         max_concurrent:             None,
@@ -91,7 +94,9 @@ async fn setup() -> Option<(String, PostgresAdapter, AppState<PostgresAdapter>)>
     let state =
         AppState::new(Arc::new(Executor::new(CompiledSchema::default(), Arc::new(admin.clone()))))
             .with_tenant_registry(registry)
-            .with_tenant_executor_factory(make_executor_factory::<PostgresAdapter>());
+            .with_tenant_executor_factory(make_executor_factory::<PostgresAdapter>(
+                PostgresTlsConfig::default(),
+            ));
 
     Some((url, admin, state))
 }

@@ -276,21 +276,29 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
 /// Create the PostgreSQL adapter.
 #[cfg(not(feature = "wire-backend"))]
 async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
+    // `[database_tls]` is consumed *here*, at the site that opens the connections it
+    // describes. It used to be read only by a log line inside `serve()`, several hundred
+    // lines after this pool had already been built with `NoTls` (#801).
+    let tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
+    tls.warn_if_unverified();
+
     tracing::info!(
         pool_min_size = config.pool_min_size,
         pool_max_size = config.pool_max_size,
         pool_timeout_secs = config.pool_timeout_secs,
+        postgres_ssl_mode = %tls.effective_mode(),
         "Initializing PostgreSQL connection pool"
     );
     let adapter = PostgresAdapter::with_pool_config(
         &config.database_url,
         fraiseql_core::db::postgres::PoolPrewarmConfig {
-            min_size:     config.pool_min_size,
-            max_size:     config.pool_max_size,
+            min_size: config.pool_min_size,
+            max_size: config.pool_max_size,
             timeout_secs: Some(config.pool_timeout_secs),
             // Single-tenant server pool: relation resolution follows the server default.
             // Per-tenant schema isolation is installed by `create_tenant_executor`.
-            search_path:  None,
+            search_path: None,
+            tls,
         },
     )
     .await?;
@@ -682,6 +690,10 @@ async fn run_postgres(
     // moved into the constructor.
     let tenancy_runtime_enabled = config.tenancy.runtime.enabled;
 
+    // Captured before `config` is moved into the constructor, for the same reason.
+    // Validated already by `build_postgres_adapter`, so this cannot be a new failure.
+    let database_tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
+
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
     {
@@ -723,11 +735,13 @@ async fn run_postgres(
         // Non-arrow path: `Server::new`/`with_relay_pagination` wrap the adapter in
         // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
         // to match the server's adapter type.
-        let tenant_factory = tenancy_runtime_enabled.then(
+        // Tenant pools inherit the server's `[database_tls]`; the registration request
+        // body cannot influence it (see `make_executor_factory`).
+        let tenant_factory = tenancy_runtime_enabled.then(|| {
             fraiseql_server::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-            >,
-        );
+            >(database_tls.clone())
+        });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
             None => server,

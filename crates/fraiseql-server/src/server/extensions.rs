@@ -20,7 +20,6 @@ use tracing::info;
 use tracing::warn;
 
 #[cfg(feature = "arrow")]
-use super::RateLimiter;
 #[cfg(all(feature = "arrow", feature = "auth"))]
 use super::ServerError;
 #[cfg(feature = "observers")]
@@ -110,7 +109,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         #[cfg(not(feature = "auth"))]
         let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await?;
+        // Both configuration sources resolved together, so the boot guards run on
+        // whatever actually takes effect (#837) and CLI/env overrides win (#774).
+        let schema_rate_limiter =
+            super::initialization::resolve_rate_limiter(&schema, &config).await?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let service_account_authenticator =
             crate::service_account::service_account_authenticator_from_schema(&schema);
@@ -248,7 +250,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         #[cfg(not(feature = "auth"))]
         let _oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await?;
+        // Both configuration sources resolved together, so the boot guards run on
+        // whatever actually takes effect (#837) and CLI/env overrides win (#774).
+        let schema_rate_limiter =
+            super::initialization::resolve_rate_limiter(&schema, &config).await?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let service_account_authenticator =
             crate::service_account::service_account_authenticator_from_schema(&schema);
@@ -284,24 +289,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Initialize HS256 validator if configured (mutually exclusive with OIDC).
         let hs256_auth = super::builder::build_hs256_auth(&config)?;
 
-        // Initialize rate limiter: compiled schema config takes priority over server config.
-        let rate_limiter = if let Some(rl) = schema_rate_limiter {
-            Some(rl)
-        } else if let Some(ref rate_config) = config.rate_limiting {
-            if rate_config.enabled {
-                info!(
-                    rps_per_ip = rate_config.rps_per_ip,
-                    rps_per_user = rate_config.rps_per_user,
-                    "Initializing rate limiting from server config"
-                );
-                Some(Arc::new(RateLimiter::new(rate_config.clone())))
-            } else {
-                info!("Rate limiting disabled by configuration");
-                None
-            }
-        } else {
-            None
-        };
+        // Resolved by `resolve_rate_limiter` at the call site, where both the compiled
+        // schema and the server config are in scope; the guards have already run.
+        let rate_limiter = schema_rate_limiter;
 
         // Initialize observer runtime
         #[cfg(feature = "observers")]

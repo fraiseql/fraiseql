@@ -49,7 +49,7 @@ const MAX_SECURITY_CONFIG_SIZE: usize = 100 * 1024; // 100 KB
 /// // Requires: compiled schema JSON string loaded from disk or a schema loader.
 /// # fn example() -> fraiseql_auth::error::Result<()> {
 /// use fraiseql_auth::security_init::init_security_config;
-/// let json_str = r#"{"security":{"auditLogging":{"enabled":true}}}"#;
+/// let json_str = r#"{"security":{"audit_logging":{"enabled":true}}}"#;
 /// let security_config = init_security_config(json_str)?;
 /// # Ok(())
 /// # }

@@ -5,7 +5,7 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::print_stderr)] // Reason: test code.
 
-use fraiseql_core::db::postgres::PostgresAdapter;
+use fraiseql_core::db::postgres::{PostgresAdapter, PostgresTlsConfig};
 use fraiseql_server::tenancy::{FromPoolConfig, TenantPoolConfig};
 
 #[tokio::test]
@@ -21,6 +21,7 @@ async fn postgres_adapter_builds_from_tenant_pool_config() {
         connect_timeout_secs: 5,
         idle_timeout_secs:    300,
         search_path:          None,
+        tls:                  PostgresTlsConfig::default(),
     };
 
     // `from_pool_config` opens a connection (the startup health check inside

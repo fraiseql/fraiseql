@@ -146,9 +146,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!(
                 max_concurrent = admission_cfg.max_concurrent,
                 max_queue_depth = admission_cfg.max_queue_depth,
-                "Admission controller enabled and attached to request extensions"
+                "Admission control enabled — requests above the concurrency limit receive 503"
             );
-            app = app.layer(Extension(controller));
+            // A real gate, not an `Extension`. Inserting the controller into the request
+            // extension map stored a value that nothing read back out, so the limit was
+            // never applied while the log said it was (#860). The Extension stays for
+            // embedders that inspect the controller.
+            app = app
+                .layer(axum::middleware::from_fn_with_state(
+                    Arc::clone(&controller),
+                    crate::resilience::admission_middleware,
+                ))
+                .layer(Extension(controller));
         }
 
         app

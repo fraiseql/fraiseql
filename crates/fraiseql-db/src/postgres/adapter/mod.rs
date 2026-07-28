@@ -16,7 +16,10 @@ use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::{NoTls, Row};
 
-use super::where_generator::PostgresWhereGenerator;
+use super::{
+    tls::{PostgresConnector, PostgresSslMode, PostgresTlsConfig},
+    where_generator::PostgresWhereGenerator,
+};
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
@@ -124,6 +127,15 @@ pub struct PoolPrewarmConfig {
     /// to grow the pool, and replacements it creates after a backend dies. See
     /// [`SearchPath`] for why the session-`SET` alternative is unsound.
     pub search_path: Option<SearchPath>,
+
+    /// Transport security for every connection this pool opens.
+    ///
+    /// Mandatory, and deliberately not `Option`: the pool used to be built with
+    /// `NoTls` unconditionally while three separate configuration surfaces claimed
+    /// to control database TLS, so each caller must now state what it wants and a
+    /// new pool site cannot compile without deciding (#801, #824). Callers with no
+    /// opinion pass [`PostgresTlsConfig::default`] (libpq's `prefer`).
+    pub tls: PostgresTlsConfig,
 }
 
 /// A validated PostgreSQL `search_path`, applied at connection establishment.
@@ -243,6 +255,7 @@ fn build_pool(
     max_size: usize,
     timeout_secs: Option<u64>,
     search_path: Option<&SearchPath>,
+    tls: &PostgresTlsConfig,
 ) -> Result<Pool> {
     let mut cfg = Config::new();
     cfg.url = Some(connection_string.to_string());
@@ -266,18 +279,35 @@ fn build_pool(
     }
     cfg.pool = Some(pool_cfg);
 
-    // Connections use `NoTls` by design (#445). FraiseQL's deployment model terminates
-    // transport security outside the adapter: the database is reached over a trusted
-    // network — a TLS-terminating proxy (pgbouncer, cloud-sql-proxy, a service mesh) or a
-    // loopback/private link (the prod compose stacks bind Postgres to loopback, #436/H46).
-    // This mirrors the server-side TLS stance (terminated at the ingress/proxy, not the app).
-    // A `sslmode=require` in the connection string is therefore NOT honored here; wiring a
-    // rustls `MakeTlsConnect` through deadpool is a deliberate future extension, not a
-    // silent partial one.
-    cfg.create_pool(Some(Runtime::Tokio1), NoTls)
-        .map_err(|e| FraiseQLError::ConnectionPool {
-            message: format!("Failed to create connection pool: {e}"),
-        })
+    // Transport security is a property of the connection, so it is decided here, at
+    // the one place connections are made, rather than by a log line elsewhere (#801).
+    //
+    // `ssl_mode` is applied by deadpool *after* it parses `cfg.url`, so an explicit
+    // setting overrides a `?sslmode=` in the URL while leaving the URL authoritative
+    // when the caller expressed no preference. Both routes now reach a connector that
+    // can actually negotiate TLS; previously the hard-coded `NoTls` made the driver's
+    // own sslmode handling unreachable no matter which surface set it.
+    // Only when the operator actually chose one: deadpool applies `ssl_mode` after
+    // parsing the URL, so setting it unconditionally would override an explicit
+    // `?sslmode=require` with this struct's default and silently downgrade it. The
+    // URL form is the one surface that already refused a plaintext server, so it
+    // must keep outranking a default nobody wrote.
+    cfg.ssl_mode = tls.mode.map(|mode| match mode {
+        PostgresSslMode::Disable => deadpool_postgres::SslMode::Disable,
+        PostgresSslMode::Prefer => deadpool_postgres::SslMode::Prefer,
+        PostgresSslMode::Require | PostgresSslMode::VerifyFull => {
+            deadpool_postgres::SslMode::Require
+        },
+    });
+
+    let pool = match tls.connector()? {
+        PostgresConnector::Plaintext => cfg.create_pool(Some(Runtime::Tokio1), NoTls),
+        PostgresConnector::Tls(connector) => cfg.create_pool(Some(Runtime::Tokio1), *connector),
+    };
+
+    pool.map_err(|e| FraiseQLError::ConnectionPool {
+        message: format!("Failed to create connection pool: {e}"),
+    })
 }
 
 /// Escape a JSONB key for use in a PostgreSQL string literal (`data->>'key'`).
@@ -367,6 +397,9 @@ impl PostgresAdapter {
                 max_size:     DEFAULT_POOL_SIZE,
                 timeout_secs: None,
                 search_path:  None,
+                // libpq's default: negotiate TLS when the server offers it. Callers
+                // that need a guarantee go through `with_pool_config`.
+                tls:          PostgresTlsConfig::default(),
             },
         )
         .await
@@ -392,6 +425,7 @@ impl PostgresAdapter {
             cfg.max_size,
             cfg.timeout_secs,
             cfg.search_path.as_ref(),
+            &cfg.tls,
         )?;
 
         // Startup health check — establishes the first connection.
@@ -441,6 +475,7 @@ impl PostgresAdapter {
                 max_size,
                 timeout_secs: None,
                 search_path: None,
+                tls: PostgresTlsConfig::default(),
             },
         )
         .await

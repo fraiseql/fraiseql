@@ -113,10 +113,15 @@ impl SecurityConfigFromSchema {
     /// # Errors
     ///
     /// Returns an error if the JSON structure contains invalid or unparseable fields.
+    /// The section names are snake_case, matching every other consumer and both
+    /// compile paths. They were camelCase here while `schema/merger.rs` emitted
+    /// snake_case, so which keys survived a compile depended on which of the two
+    /// producers ran — and `[fraiseql.security.rate_limiting]` from a project TOML
+    /// reached no consumer at all (#893).
     pub fn from_json(value: &JsonValue) -> anyhow::Result<Self> {
         let mut config = Self::default();
 
-        if let Some(audit) = value.get("auditLogging").and_then(|v| v.as_object()) {
+        if let Some(audit) = value.get("audit_logging").and_then(|v| v.as_object()) {
             config.audit_logging.enabled =
                 audit.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             config.audit_logging.log_level =
@@ -135,7 +140,7 @@ impl SecurityConfigFromSchema {
             }
         }
 
-        if let Some(error_san) = value.get("errorSanitization").and_then(|v| v.as_object()) {
+        if let Some(error_san) = value.get("error_sanitization").and_then(|v| v.as_object()) {
             config.error_sanitization.enabled =
                 error_san.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             config.error_sanitization.generic_messages =
@@ -155,7 +160,7 @@ impl SecurityConfigFromSchema {
         // key by the server middleware (`RateLimitingSecurityConfig`), not here. The
         // former nested-camelCase reader was removed under #612 (item 5b).
 
-        if let Some(state_enc) = value.get("stateEncryption").and_then(|v| v.as_object()) {
+        if let Some(state_enc) = value.get("state_encryption").and_then(|v| v.as_object()) {
             config.state_encryption.enabled =
                 state_enc.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             config.state_encryption.algorithm = state_enc

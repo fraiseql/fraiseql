@@ -198,102 +198,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         crate::auth::OidcServerClient::from_compiled_schema(&schema_json)
     }
 
-    /// Build a `RateLimiter` from the `security.rate_limiting` key embedded in the
-    /// compiled schema, if present and `enabled = true`.
-    ///
-    /// When `redis_url` is set and the `redis-rate-limiting` feature is compiled in,
-    /// initialises a Redis-backed distributed limiter; otherwise falls back to the
-    /// in-memory backend (with a warning when `redis_url` is set but the feature is
-    /// absent).
-    ///
-    /// # Errors
-    ///
-    /// Returns `ServerError::ConfigError` when the `failed_login_*` brute-force
-    /// settings are tuned away from their defaults while running in production — the
-    /// binary has no first-factor login surface to enforce them (#356). See
-    /// [`failed_login_lockout_check`].
-    pub(super) async fn rate_limiter_from_schema(
-        schema: &CompiledSchema,
-    ) -> crate::Result<Option<Arc<RateLimiter>>> {
-        let Some(sec): Option<crate::middleware::RateLimitingSecurityConfig> = schema
-            .security
-            .as_ref()
-            .and_then(|s| s.additional.get("rate_limiting"))
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-        else {
-            return Ok(None);
-        };
-
-        if !sec.enabled {
-            return Ok(None);
-        }
-
-        // SECURITY (#356): the binary performs no first-factor login, so it cannot
-        // honour failed_login_max_attempts / failed_login_lockout_secs. Refuse to
-        // boot in production when an operator has tuned them away from the defaults
-        // (development downgrades to a warning).
-        failed_login_lockout_check(
-            sec.failed_login_max_attempts,
-            sec.failed_login_lockout_secs,
-            crate::ServerConfig::is_production_mode(),
-        )?;
-
-        // Refuse to boot in production when trust_proxy_headers is enabled without
-        // restricting which IPs are trusted proxies — any client could then spoof
-        // X-Forwarded-For and bypass per-IP rate limits (#609/#618). Explicit
-        // ["0.0.0.0/0"] opts into trust-all deliberately; development downgrades to a warning.
-        proxy_trust_check(
-            sec.trust_proxy_headers,
-            sec.trusted_proxy_cidrs.as_deref(),
-            crate::ServerConfig::is_production_mode(),
-        )?;
-
-        let config = crate::middleware::RateLimitConfig::from_security_config(&sec);
-
-        let limiter: RateLimiter = if let Some(ref redis_url) = sec.redis_url {
-            #[cfg(feature = "redis-rate-limiting")]
-            {
-                match RateLimiter::new_redis(redis_url, config.clone()).await {
-                    Ok(rl) => {
-                        info!(
-                            url = redis_url.as_str(),
-                            rps_per_ip = config.rps_per_ip,
-                            burst_size = config.burst_size,
-                            "Rate limiting: using Redis distributed backend"
-                        );
-                        rl.with_path_rules_from_security(&sec)
-                    },
-                    Err(e) => {
-                        tracing::error!(
-                            error = %e,
-                            "Failed to connect to Redis for rate limiting — \
-                             falling back to in-memory backend"
-                        );
-                        RateLimiter::new(config).with_path_rules_from_security(&sec)
-                    },
-                }
-            }
-            #[cfg(not(feature = "redis-rate-limiting"))]
-            {
-                let _ = redis_url;
-                warn!(
-                    "rate_limiting.redis_url is set but the server was compiled without the \
-                     'redis-rate-limiting' feature. Using in-memory backend."
-                );
-                RateLimiter::new(config).with_path_rules_from_security(&sec)
-            }
-        } else {
-            info!(
-                rps_per_ip = config.rps_per_ip,
-                burst_size = config.burst_size,
-                "Rate limiting: using in-memory backend"
-            );
-            RateLimiter::new(config).with_path_rules_from_security(&sec)
-        };
-
-        Ok(Some(Arc::new(limiter)))
-    }
-
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
     /// compiled schema's security blob (if present).
     ///
@@ -693,6 +597,241 @@ pub(super) fn failed_login_lockout_check(
 ///
 /// Returns `ServerError::ConfigError` when `trust_proxy_headers = true`, the resolved CIDR
 /// list is empty, and `is_production` is true.
+/// Resolve the rate limiter both server constructors use.
+///
+/// Replaces a block that was duplicated verbatim in `builder.rs` and
+/// `extensions.rs` and that carried two defects between them:
+///
+/// * the boot guards ran only inside `rate_limiter_from_schema`, so a `[rate_limiting]` table in
+///   `fraiseql.toml` reached `RateLimiter::new` with no gate at all — `trust_proxy_headers = true`
+///   and an empty `trusted_proxy_cidrs` booted happily in production and trusted every peer's
+///   `X-Real-IP`, while the identical intent expressed in the compiled schema refused to boot
+///   (#837); and
+/// * the compiled schema won unconditionally, so the documented CLI > env > config precedence was
+///   inverted and `FRAISEQL_RATE_LIMITING_ENABLED=false` could not turn throttling off (#774).
+///
+/// Resolution order, lowest to highest: server `[rate_limiting]`, compiled
+/// schema `[security.rate_limiting]`, then CLI/env overrides — each applied
+/// over the last, with the guards run once on whatever comes out.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the compiled section is malformed, a
+/// CIDR does not parse, or a boot guard refuses the effective configuration.
+pub(super) async fn resolve_rate_limiter(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+) -> crate::Result<Option<Arc<RateLimiter>>> {
+    resolve_rate_limiter_in(schema, config, crate::ServerConfig::is_production_mode()).await
+}
+
+/// [`resolve_rate_limiter`] with the deployment mode passed in.
+///
+/// `is_production` is a parameter rather than an `env::var` read so the guards can be
+/// exercised for both modes without mutating process-global state — the same shape
+/// `proxy_trust_check` and `failed_login_lockout_check` already use.
+pub(super) async fn resolve_rate_limiter_in(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+    is_production: bool,
+) -> crate::Result<Option<Arc<RateLimiter>>> {
+    let schema_sec = rate_limiting_from_schema(schema)?;
+    let overrides = &config.rate_limit_overrides;
+
+    // Base: compiled schema first, then the server's own table. Both are checked, so
+    // whichever supplies the values also faces the guards.
+    let (mut effective, path_rules_source) = match (&schema_sec, &config.rate_limiting) {
+        (Some(sec), _) => (rate_limit_config_checked(sec, is_production)?, Some(sec)),
+        (None, Some(server_cfg)) => {
+            proxy_trust_check_parsed(
+                server_cfg.trust_proxy_headers,
+                &server_cfg.trusted_proxy_cidrs,
+                is_production,
+            )?;
+            (server_cfg.clone(), None)
+        },
+        // Nothing configured anywhere. An override may still switch it on, in which
+        // case the defaults apply.
+        (None, None) if overrides.enables() => {
+            (crate::middleware::RateLimitConfig::default(), None)
+        },
+        (None, None) => return Ok(None),
+    };
+
+    overrides.apply_to(&mut effective);
+
+    if !effective.enabled {
+        info!("Rate limiting disabled by configuration");
+        return Ok(None);
+    }
+
+    // A limiter enabled with a budget of zero denies every request. Nobody configures
+    // that on purpose — it is what a producer omitting `requests_per_second` used to
+    // yield, since the consumer struct's derived `Default` made the missing key `0`
+    // (#893). Refusing is the difference between a boot error naming the key and a
+    // deployment that 429s all traffic with a healthy-looking startup log.
+    if effective.rps_per_ip == 0 || effective.burst_size == 0 {
+        return Err(crate::ServerError::ConfigError(format!(
+            "rate limiting is enabled but its budget is zero (rps_per_ip = {}, burst_size = {}), \
+             so every request would be rejected. Set a positive requests_per_second and \
+             burst_size, or disable rate limiting.",
+            effective.rps_per_ip, effective.burst_size
+        )));
+    }
+
+    // Re-check: an override can turn proxy-header trust on over a base that was
+    // clean, and a guard that only ran on the base would miss it.
+    proxy_trust_check_parsed(
+        effective.trust_proxy_headers,
+        &effective.trusted_proxy_cidrs,
+        is_production,
+    )?;
+
+    let limiter = build_rate_limiter(effective, path_rules_source).await;
+    Ok(Some(Arc::new(limiter)))
+}
+
+/// Construct the limiter, choosing the Redis or in-memory backend.
+async fn build_rate_limiter(
+    config: crate::middleware::RateLimitConfig,
+    sec: Option<&crate::middleware::RateLimitingSecurityConfig>,
+) -> RateLimiter {
+    let with_rules = |limiter: RateLimiter| match sec {
+        Some(sec) => limiter.with_path_rules_from_security(sec),
+        None => limiter,
+    };
+
+    let redis_url = sec.and_then(|s| s.redis_url.as_deref());
+
+    #[cfg(feature = "redis-rate-limiting")]
+    if let Some(url) = redis_url {
+        match RateLimiter::new_redis(url, config.clone()).await {
+            Ok(rl) => {
+                info!(
+                    url,
+                    rps_per_ip = config.rps_per_ip,
+                    burst_size = config.burst_size,
+                    "Rate limiting: using Redis distributed backend"
+                );
+                return with_rules(rl);
+            },
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "Failed to connect to Redis for rate limiting — falling back to in-memory \
+                     backend. Limits are now per-process, so a deployment of N replicas \
+                     enforces N times the configured rate."
+                );
+            },
+        }
+    }
+
+    #[cfg(not(feature = "redis-rate-limiting"))]
+    if redis_url.is_some() {
+        warn!(
+            "rate_limiting.redis_url is set but the server was compiled without the \
+             'redis-rate-limiting' feature. Using in-memory backend."
+        );
+    }
+
+    info!(
+        rps_per_ip = config.rps_per_ip,
+        burst_size = config.burst_size,
+        "Rate limiting: using in-memory backend"
+    );
+    with_rules(RateLimiter::new(config))
+}
+
+/// Read `security.rate_limiting` out of the compiled schema.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the key is present but does not
+/// deserialize.
+///
+/// This used to end in `.ok()`, which turned any type mismatch — a
+/// string-typed number from a hand edit, an external generator, or a
+/// CLI/server version skew — into `None`. `None` is indistinguishable from
+/// "no rate limiting configured", so the server booted with throttling
+/// silently off *and* skipped the `#609`/`#618` proxy-trust and `#356`
+/// failed-login boot guards that live behind this parse, while the operator
+/// had a successful compile as evidence the section was in effect (#778).
+fn rate_limiting_from_schema(
+    schema: &CompiledSchema,
+) -> crate::Result<Option<crate::middleware::RateLimitingSecurityConfig>> {
+    let Some(value) = schema.security.as_ref().and_then(|s| s.additional.get("rate_limiting"))
+    else {
+        return Ok(None);
+    };
+
+    // An explicit JSON null is the compiler's way of writing "absent".
+    if value.is_null() {
+        return Ok(None);
+    }
+
+    serde_json::from_value(value.clone()).map(Some).map_err(|e| {
+        crate::ServerError::ConfigError(format!(
+            "invalid [security.rate_limiting] in the compiled schema: {e}. Rate limiting and the \
+             proxy-trust boot guard both depend on this section, so it is refused rather than \
+             skipped."
+        ))
+    })
+}
+
+/// Lower a security-block rate-limit section onto a `RateLimitConfig`, running every
+/// boot guard that applies to it.
+///
+/// The single place the `#356` failed-login and `#609`/`#618` proxy-trust checks run,
+/// so that a config reaching the limiter by any route faces the same gate.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when a CIDR does not parse, when
+/// `trust_proxy_headers` is on without a trusted-proxy list in production, or when
+/// the `failed_login_*` settings are tuned away from their defaults in production.
+fn rate_limit_config_checked(
+    sec: &crate::middleware::RateLimitingSecurityConfig,
+    is_production: bool,
+) -> crate::Result<crate::middleware::RateLimitConfig> {
+    // SECURITY (#356): the binary performs no first-factor login, so it cannot
+    // honour failed_login_max_attempts / failed_login_lockout_secs. Refuse to
+    // boot in production when an operator has tuned them away from the defaults
+    // (development downgrades to a warning).
+    failed_login_lockout_check(
+        sec.failed_login_max_attempts,
+        sec.failed_login_lockout_secs,
+        is_production,
+    )?;
+
+    // Parse before checking. `proxy_trust_check` reads the *string* list, so an
+    // unparseable entry would make it look non-empty while the parsed list the
+    // middleware actually consults came out empty — trusting every peer.
+    let config = crate::middleware::RateLimitConfig::try_from_security_config(sec)
+        .map_err(crate::ServerError::ConfigError)?;
+
+    // Refuse to boot in production when trust_proxy_headers is enabled without
+    // restricting which IPs are trusted proxies — any client could then spoof
+    // X-Forwarded-For and bypass per-IP rate limits (#609/#618). Explicit
+    // ["0.0.0.0/0"] opts into trust-all deliberately; development downgrades to a warning.
+    proxy_trust_check_parsed(
+        config.trust_proxy_headers,
+        &config.trusted_proxy_cidrs,
+        is_production,
+    )?;
+
+    Ok(config)
+}
+
+/// [`proxy_trust_check`] over the parsed CIDR list the middleware will actually use.
+pub(super) fn proxy_trust_check_parsed(
+    trust_proxy_headers: bool,
+    trusted_proxy_cidrs: &[ipnet::IpNet],
+    is_production: bool,
+) -> crate::Result<()> {
+    let as_strings: Vec<String> = trusted_proxy_cidrs.iter().map(ToString::to_string).collect();
+    proxy_trust_check(trust_proxy_headers, Some(&as_strings), is_production)
+}
+
 pub(super) fn proxy_trust_check(
     trust_proxy_headers: bool,
     trusted_proxy_cidrs: Option<&[String]>,

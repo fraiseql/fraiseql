@@ -433,7 +433,7 @@ ssl_mode = "require"
         assert_eq!(schema.database.url, Some("postgresql://localhost/mydb".to_string()));
         assert_eq!(schema.database.pool_min, 5);
         assert_eq!(schema.database.pool_max, 30);
-        assert_eq!(schema.database.ssl_mode, "require");
+        assert_eq!(schema.database.ssl_mode.as_deref(), Some("require"));
     }
 
     #[test]

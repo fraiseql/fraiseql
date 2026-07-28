@@ -63,6 +63,7 @@ async fn test_postgres_adapter_with_pool_config() {
             max_size,
             timeout_secs: None,
             search_path: None,
+            tls: fraiseql_core::db::postgres::PostgresTlsConfig::default(),
         },
     )
     .await;

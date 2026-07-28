@@ -156,6 +156,7 @@ mod pool_factory_tests {
     use fraiseql_core::{
         db::{
             WhereClause,
+            postgres::PostgresTlsConfig,
             traits::DatabaseAdapter,
             types::{DatabaseType, JsonbValue, PoolMetrics},
         },
@@ -237,6 +238,7 @@ mod pool_factory_tests {
             connect_timeout_secs: 5,
             idle_timeout_secs:    300,
             search_path:          None,
+            tls:                  PostgresTlsConfig::default(),
         }
     }
 

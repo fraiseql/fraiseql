@@ -10,7 +10,7 @@ use std::sync::Arc;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{
-        postgres::{PoolPrewarmConfig, PostgresAdapter, SearchPath},
+        postgres::{PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath},
         traits::DatabaseAdapter,
     },
     runtime::Executor,
@@ -49,6 +49,18 @@ pub struct TenantPoolConfig {
     /// yet" — the defect the removed `configure_search_path` used to have (#809).
     #[serde(skip)]
     pub search_path:          Option<SearchPath>,
+    /// Transport security for this tenant's connections, inherited from the
+    /// server's `[database_tls]` settings — never supplied by the caller.
+    ///
+    /// `#[serde(skip)]` for the same reason as [`search_path`](Self::search_path):
+    /// the struct is deserialised straight from an admin-API request body, so an
+    /// attacker-controlled registration could otherwise send
+    /// `{"tls": {"mode": "disable"}}` and downgrade its own tenant's database
+    /// traffic to cleartext — turning a server-wide `verify-full` into a
+    /// per-tenant opt-out. [`create_tenant_executor`] populates it from the
+    /// server configuration before the adapter is built.
+    #[serde(skip)]
+    pub tls:                  PostgresTlsConfig,
 }
 
 const fn default_max_connections() -> u32 {
@@ -92,6 +104,7 @@ impl FromPoolConfig for PostgresAdapter {
                 max_size: config.max_connections as usize,
                 timeout_secs: Some(config.connect_timeout_secs),
                 search_path: config.search_path.clone(),
+                tls: config.tls.clone(),
             },
         )
         .await

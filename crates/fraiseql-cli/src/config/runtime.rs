@@ -6,6 +6,7 @@
 //! to work unchanged.
 
 use anyhow::Result;
+use fraiseql_core::db::postgres::{PostgresSslMode, PostgresTlsConfig};
 use serde::{Deserialize, Serialize};
 
 // ─── TLS ─────────────────────────────────────────────────────────────────────
@@ -199,9 +200,20 @@ pub struct DatabaseRuntimeConfig {
     /// Idle connection lifetime in milliseconds.  Default: `600 000` (10 min).
     pub idle_timeout_ms: u64,
 
-    /// PostgreSQL SSL mode: `"disable"`, `"allow"`, `"prefer"`, or `"require"`.
-    /// Default: `"prefer"`.
-    pub ssl_mode: String,
+    /// PostgreSQL SSL mode: `"disable"`, `"prefer"`, `"require"`, or
+    /// `"verify-full"`. Default: `"prefer"`.
+    ///
+    /// Reaches the connection pool through
+    /// [`postgres_tls`](Self::postgres_tls). It was previously validated here and
+    /// then dropped by `build_config_from`, so `fraiseql run` connected in
+    /// cleartext under `ssl_mode = "require"` while a typo in the same field
+    /// failed loudly — the rejected typo being the reason an operator believed the
+    /// setting was live (#824).
+    ///
+    /// Unset means "whatever the connection URL says", not "prefer": a concrete
+    /// default here would override an explicit `?sslmode=require` in `url` with a
+    /// value the operator never wrote.
+    pub ssl_mode: Option<String>,
 }
 
 impl Default for DatabaseRuntimeConfig {
@@ -212,7 +224,7 @@ impl Default for DatabaseRuntimeConfig {
             pool_max:           20,
             connect_timeout_ms: 5_000,
             idle_timeout_ms:    600_000,
-            ssl_mode:           "prefer".to_string(),
+            ssl_mode:           None,
         }
     }
 }
@@ -226,8 +238,6 @@ impl DatabaseRuntimeConfig {
     /// - `pool_min > pool_max`
     /// - `ssl_mode` is not one of the recognised values
     pub fn validate(&self) -> Result<()> {
-        const VALID_SSL: &[&str] = &["disable", "allow", "prefer", "require"];
-
         if self.pool_min > self.pool_max {
             anyhow::bail!(
                 "[database] pool_min ({}) must be <= pool_max ({})",
@@ -236,14 +246,49 @@ impl DatabaseRuntimeConfig {
             );
         }
 
-        if !VALID_SSL.contains(&self.ssl_mode.as_str()) {
+        if self.connect_timeout_ms == 0 {
             anyhow::bail!(
-                "[database] ssl_mode must be one of {:?}, got \"{}\"",
-                VALID_SSL,
-                self.ssl_mode
+                "[database] connect_timeout_ms must be greater than 0; a zero timeout makes \
+                 every connection attempt fail immediately"
             );
         }
 
+        // Validated by parsing rather than against a local allow-list. The list here
+        // accepted "allow", which no connector can honour — so validation succeeding
+        // told the operator nothing about whether the mode could take effect (#824).
+        self.postgres_tls()?;
+
         Ok(())
+    }
+
+    /// Transport security for the pool `fraiseql run` builds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `ssl_mode` names a mode the connector cannot honour.
+    pub fn postgres_tls(&self) -> Result<PostgresTlsConfig> {
+        let mode: Option<PostgresSslMode> =
+            self.ssl_mode.as_deref().map(str::parse).transpose().map_err(
+                |e: fraiseql_core::error::FraiseQLError| {
+                    anyhow::anyhow!("[database] ssl_mode: {e}")
+                },
+            )?;
+        Ok(PostgresTlsConfig {
+            mode,
+            ca_bundle_path: None,
+        })
+    }
+
+    /// Pool acquisition timeout in whole seconds, rounded up and floored at one.
+    ///
+    /// `connect_timeout_ms / 1000` truncated any sub-second value to `0`, which
+    /// deadpool applies to its `create` slot as `Duration::ZERO`; a TCP connect plus
+    /// the PostgreSQL startup handshake cannot finish on the first poll, so every
+    /// connection attempt failed with a pool timeout against a perfectly healthy
+    /// server, naming a timeout the operator never configured (#824).
+    #[must_use]
+    pub const fn pool_timeout_secs(&self) -> u64 {
+        let secs = self.connect_timeout_ms.div_ceil(1_000);
+        if secs == 0 { 1 } else { secs }
     }
 }

@@ -17,6 +17,12 @@ futures = {workspace = true}
 regex = {workspace = true}
 # Exact-precision NUMERIC/DECIMAL decoding (PostgreSQL adapter only)
 rust_decimal = {workspace = true, optional = true}
+# PostgreSQL transport security (#801/#824). Not optional within the `postgres`
+# feature: a cfg-gated TLS stack means a build where `ssl_mode = "require"` has to
+# either fail at runtime or downgrade, and the second is the bug being fixed.
+rustls = {version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true}
+rustls-native-certs = {version = "0.8.3", optional = true}
+rustls-pemfile = {version = "2.2", optional = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
 # Database — MySQL/SQLite (via sqlx, optional)
@@ -26,6 +32,7 @@ tiberius = {version = "0.12", default-features = false, features = ["tds73", "na
 tokio = {workspace = true}
 # Database — PostgreSQL (optional; enabled by the "postgres" feature)
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"], optional = true}
+tokio-postgres-rustls = {version = "0.14", default-features = false, features = ["ring"], optional = true}
 tokio-util = "0.7"
 tracing = {workspace = true}
 uuid = {workspace = true}
@@ -44,7 +51,16 @@ serde_json = {workspace = true}
 [features]
 default = ["postgres"]
 mysql = ["sqlx/mysql"]
-postgres = ["dep:tokio-postgres", "dep:deadpool", "dep:deadpool-postgres", "dep:rust_decimal"]
+postgres = [
+    "dep:tokio-postgres",
+    "dep:deadpool",
+    "dep:deadpool-postgres",
+    "dep:rust_decimal",
+    "dep:rustls",
+    "dep:rustls-native-certs",
+    "dep:rustls-pemfile",
+    "dep:tokio-postgres-rustls",
+]
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
 test-mysql = ["mysql"]

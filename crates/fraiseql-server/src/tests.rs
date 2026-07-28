@@ -1077,33 +1077,46 @@ mod metrics_server_tests {
 
 mod tls_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
     #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
+
+    use fraiseql_core::db::postgres::PostgresSslMode;
 
     use crate::{
+        ServerConfig,
         server_config::{DatabaseTlsConfig, TlsServerConfig},
-        tls::*,
+        tls::TlsSetup,
     };
 
+    fn db_tls(mode: &str) -> DatabaseTlsConfig {
+        DatabaseTlsConfig {
+            postgres_ssl_mode:   Some(mode.to_string()),
+            verify_certificates: true,
+            ca_bundle_path:      None,
+            redis_ssl:           None,
+            clickhouse_https:    None,
+            elasticsearch_https: None,
+        }
+    }
+
+    fn config_with(db_tls: Option<DatabaseTlsConfig>) -> ServerConfig {
+        ServerConfig {
+            database_tls: db_tls,
+            ..ServerConfig::default()
+        }
+    }
+
+    // ── server-side [tls] refusal ────────────────────────────────────────────
+
     #[test]
-    fn test_tls_setup_disabled() {
-        let setup = TlsSetup::new(None, None);
-        assert!(!setup.is_tls_enabled());
+    fn tls_setup_reports_server_tls_disabled_when_absent() {
+        assert!(!TlsSetup::new(None).is_tls_enabled());
     }
 
     #[test]
-    fn test_server_tls_enabled_is_detected_for_boot_refusal() {
-        // M-tls-enforce: an enabled server-side [tls] config is detectable so the boot path
-        // can refuse to start (FraiseQL does not terminate TLS; it serves plaintext).
-        let tls_config = TlsServerConfig {
+    fn tls_setup_reports_server_tls_enabled_so_boot_can_refuse() {
+        let cfg = TlsServerConfig {
             enabled:             true,
             cert_path:           PathBuf::from("/etc/ssl/cert.pem"),
             key_path:            PathBuf::from("/etc/ssl/key.pem"),
@@ -1111,163 +1124,112 @@ mod tls_tests {
             client_ca_path:      None,
             min_version:         "1.2".to_string(),
         };
-        let setup = TlsSetup::new(Some(tls_config), None);
-        assert!(setup.is_tls_enabled(), "an enabled [tls] config must be detected");
+        assert!(TlsSetup::new(Some(cfg)).is_tls_enabled());
+    }
+
+    // ── [database_tls] reaches the pool ──────────────────────────────────────
+
+    #[test]
+    fn absent_database_tls_section_defers_to_the_connection_url() {
+        let tls = config_with(None).postgres_tls().unwrap();
+        // Not `Some(Prefer)`: an unset section must leave `?sslmode=` in the URL in
+        // charge. Pinning a concrete default here would override an operator's
+        // explicit `?sslmode=require` with a value they never wrote — silently
+        // downgrading the one surface that already refused a plaintext server.
+        assert_eq!(tls.mode, None);
+        assert_eq!(tls.effective_mode(), PostgresSslMode::Prefer);
+        assert!(tls.ca_bundle_path.is_none());
     }
 
     #[test]
-    fn test_database_tls_defaults() {
-        let setup = TlsSetup::new(None, None);
-
-        assert_eq!(setup.postgres_ssl_mode(), "prefer");
-        assert!(!setup.redis_ssl_enabled());
-        assert!(!setup.clickhouse_https_enabled());
-        assert!(!setup.elasticsearch_https_enabled());
-        assert!(setup.verify_certificates());
+    fn each_supported_mode_lowers_onto_the_connector() {
+        for (spelling, expected) in [
+            ("disable", PostgresSslMode::Disable),
+            ("prefer", PostgresSslMode::Prefer),
+            ("require", PostgresSslMode::Require),
+            ("verify-full", PostgresSslMode::VerifyFull),
+        ] {
+            let tls = config_with(Some(db_tls(spelling)))
+                .postgres_tls()
+                .unwrap_or_else(|e| panic!("{spelling} must be accepted: {e}"));
+            assert_eq!(tls.mode, Some(expected), "{spelling}");
+        }
     }
 
     #[test]
-    fn test_postgres_url_tls_application() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
-            elasticsearch_https: false,
-            verify_certificates: true,
-            ca_bundle_path:      None,
-        };
+    fn ca_bundle_reaches_the_verifying_mode() {
+        let mut section = db_tls("verify-full");
+        section.ca_bundle_path = Some(PathBuf::from("/etc/ssl/rds-ca.pem"));
+        let tls = config_with(Some(section)).postgres_tls().unwrap();
+        assert_eq!(tls.ca_bundle_path, Some(PathBuf::from("/etc/ssl/rds-ca.pem")));
+    }
 
-        let setup = TlsSetup::new(None, Some(db_config));
+    // ── modes the connector cannot honour are refused, not approximated ──────
 
-        let url = "postgresql://localhost/fraiseql";
-        let tls_url = setup.apply_postgres_tls(url);
-
-        assert!(tls_url.contains("sslmode=require"));
+    #[test]
+    fn allow_is_refused_and_names_the_alternative() {
+        let err = config_with(Some(db_tls("allow"))).postgres_tls().unwrap_err();
+        assert!(err.contains("prefer"), "must point at the working mode: {err}");
     }
 
     #[test]
-    fn test_redis_url_tls_application() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    false,
-            elasticsearch_https: false,
-            verify_certificates: true,
-            ca_bundle_path:      None,
-        };
-
-        let setup = TlsSetup::new(None, Some(db_config));
-
-        let url = "redis://localhost:6379";
-        let tls_url = setup.apply_redis_tls(url);
-
-        assert_eq!(tls_url, "rediss://localhost:6379");
+    fn verify_ca_is_refused_and_names_the_alternative() {
+        let err = config_with(Some(db_tls("verify-ca"))).postgres_tls().unwrap_err();
+        assert!(err.contains("verify-full"), "must point at the working mode: {err}");
     }
 
     #[test]
-    fn test_clickhouse_url_tls_application() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    true,
-            elasticsearch_https: false,
-            verify_certificates: true,
-            ca_bundle_path:      None,
-        };
-
-        let setup = TlsSetup::new(None, Some(db_config));
-
-        let url = "http://localhost:8123";
-        let tls_url = setup.apply_clickhouse_tls(url);
-
-        assert_eq!(tls_url, "https://localhost:8123");
+    fn an_unknown_mode_is_refused() {
+        assert!(config_with(Some(db_tls("requre"))).postgres_tls().is_err());
     }
 
     #[test]
-    fn test_elasticsearch_url_tls_application() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "prefer".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
-            elasticsearch_https: true,
-            verify_certificates: true,
-            ca_bundle_path:      None,
-        };
-
-        let setup = TlsSetup::new(None, Some(db_config));
-
-        let url = "http://localhost:9200";
-        let tls_url = setup.apply_elasticsearch_tls(url);
-
-        assert_eq!(tls_url, "https://localhost:9200");
+    fn verify_certificates_false_contradicting_verify_full_is_refused() {
+        // Previously both were accepted and neither took effect. Silently honouring
+        // one over the other would leave the operator believing the stricter reading.
+        let mut section = db_tls("verify-full");
+        section.verify_certificates = false;
+        let err = config_with(Some(section)).postgres_tls().unwrap_err();
+        assert!(err.contains("verify_certificates"), "{err}");
     }
 
     #[test]
-    fn test_all_database_tls_enabled() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    true,
-            elasticsearch_https: true,
-            verify_certificates: true,
-            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
-        };
+    fn a_ca_bundle_on_a_non_verifying_mode_is_refused() {
+        // The bundle would have no effect, and "CA pinned" is exactly the belief an
+        // operator would take away from the config file.
+        let mut section = db_tls("require");
+        section.ca_bundle_path = Some(PathBuf::from("/etc/ssl/rds-ca.pem"));
+        assert!(config_with(Some(section)).postgres_tls().is_err());
+    }
 
-        let setup = TlsSetup::new(None, Some(db_config));
+    // ── removed switches are refused, not ignored ────────────────────────────
 
-        assert_eq!(setup.postgres_ssl_mode(), "require");
-        assert!(setup.redis_ssl_enabled());
-        assert!(setup.clickhouse_https_enabled());
-        assert!(setup.elasticsearch_https_enabled());
-        assert!(setup.verify_certificates());
-        assert!(
-            setup.ca_bundle_path().is_some(),
-            "ca_bundle_path should be propagated from DatabaseTlsConfig"
-        );
+    #[test]
+    fn the_removed_scheme_switches_are_refused_with_a_pointer() {
+        type Setter = fn(&mut DatabaseTlsConfig);
+        let cases: [(&str, Setter, &str); 3] = [
+            ("redis_ssl", |s| s.redis_ssl = Some(true), "rediss://"),
+            ("clickhouse_https", |s| s.clickhouse_https = Some(true), "https://"),
+            ("elasticsearch_https", |s| s.elasticsearch_https = Some(true), "https://"),
+        ];
+
+        for (name, set, scheme) in cases {
+            let mut section = db_tls("prefer");
+            set(&mut section);
+            let err = config_with(Some(section))
+                .postgres_tls()
+                .expect_err(&format!("{name} must be refused, not silently ignored"));
+            assert!(err.contains(name), "the message must name the field: {err}");
+            assert!(err.contains(scheme), "the message must name the replacement: {err}");
+        }
     }
 
     #[test]
-    fn test_postgres_url_with_existing_params() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "require".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
-            elasticsearch_https: false,
-            verify_certificates: true,
-            ca_bundle_path:      None,
-        };
-
-        let setup = TlsSetup::new(None, Some(db_config));
-
-        let url = "postgresql://localhost/fraiseql?application_name=fraiseql";
-        let tls_url = setup.apply_postgres_tls(url);
-
-        assert!(tls_url.contains("application_name=fraiseql"));
-        assert!(tls_url.contains("sslmode=require"));
-    }
-
-    #[test]
-    fn test_database_tls_config_getters() {
-        let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode:   "verify-full".to_string(),
-            redis_ssl:           true,
-            clickhouse_https:    true,
-            elasticsearch_https: false,
-            verify_certificates: true,
-            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
-        };
-
-        let setup = TlsSetup::new(None, Some(db_config));
-
-        assert!(
-            setup.db_config().is_some(),
-            "db_config should be present when constructed with a DatabaseTlsConfig"
-        );
-        assert_eq!(setup.postgres_ssl_mode(), "verify-full");
-        assert!(setup.redis_ssl_enabled());
-        assert!(setup.clickhouse_https_enabled());
-        assert!(!setup.elasticsearch_https_enabled());
-        assert_eq!(setup.ca_bundle_path(), Some(Path::new("/etc/ssl/certs/ca.pem")));
+    fn validate_rejects_a_database_tls_section_that_cannot_take_effect() {
+        // `validate()` used to check the ssl mode against its own allow-list, which
+        // accepted `allow` and `verify-ca` — so passing validation said nothing about
+        // whether the setting could reach a connection (#801).
+        assert!(config_with(Some(db_tls("verify-ca"))).validate().is_err());
     }
 }
 

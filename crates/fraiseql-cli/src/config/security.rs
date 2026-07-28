@@ -131,10 +131,29 @@ pub struct RateLimitConfig {
     /// Time window for auth logout in seconds
     pub auth_logout_window_secs:  u64,
 
-    /// Max failed login attempts per IP
+    /// Max failed login attempts per IP.
+    ///
+    /// Emitted as the consumer's `failed_login_max_attempts`. The binary performs no
+    /// first-factor login, so a value tuned away from the default is refused at boot
+    /// in production (#356) — hence the default matching the consumer's, so an
+    /// untouched config signals no intent and boots.
     pub failed_login_max_requests: u32,
-    /// Time window for failed login tracking in seconds
+    /// Time window for failed login tracking in seconds. See
+    /// [`failed_login_max_requests`](Self::failed_login_max_requests).
     pub failed_login_window_secs:  u64,
+
+    /// Global per-IP request rate (requests/second) for the GraphQL surface.
+    pub requests_per_second: u32,
+    /// Burst allowance above `requests_per_second`.
+    pub burst_size:          u32,
+
+    /// Trust `X-Real-IP` / `X-Forwarded-For` for the client IP.
+    ///
+    /// Only safe behind a proxy named in `trusted_proxy_cidrs`; the server refuses to
+    /// boot in production if this is on and that list is empty (#618).
+    pub trust_proxy_headers: bool,
+    /// CIDR ranges trusted as proxies, e.g. `["10.0.0.0/8"]`.
+    pub trusted_proxy_cidrs: Vec<String>,
 }
 
 impl Default for RateLimitConfig {
@@ -149,8 +168,16 @@ impl Default for RateLimitConfig {
             auth_refresh_window_secs:   60,
             auth_logout_max_requests:   20,
             auth_logout_window_secs:    60,
-            failed_login_max_requests:  5,
-            failed_login_window_secs:   3600,
+            // Matching `DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS` / `_LOCKOUT_SECS` in the
+            // consumer, so an untouched config is recognisably untouched. The previous
+            // 5 / 3600 read as deliberately tuned, and now that this section actually
+            // reaches the runtime that would refuse every production boot (#356).
+            failed_login_max_requests:  10,
+            failed_login_window_secs:   900,
+            requests_per_second:        100,
+            burst_size:                 500,
+            trust_proxy_headers:        false,
+            trusted_proxy_cidrs:        Vec::new(),
         }
     }
 }
@@ -193,28 +220,27 @@ impl RateLimitConfig {
 
     /// Convert to JSON representation for schema
     pub fn to_json(&self) -> serde_json::Value {
+        // Flat, snake_case, one key per field of the consumer's
+        // `RateLimitingSecurityConfig`. The nested camelCase shape below
+        // (`authStart.maxRequests`) matched no reader anywhere, so a project
+        // `fraiseql.toml` that configured rate limiting produced a section the server
+        // could not use even after the section name was corrected (#893).
         serde_json::json!({
             "enabled": self.enabled,
-            "authStart": {
-                "maxRequests": self.auth_start_max_requests,
-                "windowSecs": self.auth_start_window_secs,
-            },
-            "authCallback": {
-                "maxRequests": self.auth_callback_max_requests,
-                "windowSecs": self.auth_callback_window_secs,
-            },
-            "authRefresh": {
-                "maxRequests": self.auth_refresh_max_requests,
-                "windowSecs": self.auth_refresh_window_secs,
-            },
-            "authLogout": {
-                "maxRequests": self.auth_logout_max_requests,
-                "windowSecs": self.auth_logout_window_secs,
-            },
-            "failedLogin": {
-                "maxRequests": self.failed_login_max_requests,
-                "windowSecs": self.failed_login_window_secs,
-            },
+            "requests_per_second": self.requests_per_second,
+            "burst_size": self.burst_size,
+            "trust_proxy_headers": self.trust_proxy_headers,
+            "trusted_proxy_cidrs": self.trusted_proxy_cidrs,
+            "auth_start_max_requests": self.auth_start_max_requests,
+            "auth_start_window_secs": self.auth_start_window_secs,
+            "auth_callback_max_requests": self.auth_callback_max_requests,
+            "auth_callback_window_secs": self.auth_callback_window_secs,
+            "auth_refresh_max_requests": self.auth_refresh_max_requests,
+            "auth_refresh_window_secs": self.auth_refresh_window_secs,
+            "auth_logout_max_requests": self.auth_logout_max_requests,
+            "auth_logout_window_secs": self.auth_logout_window_secs,
+            "failed_login_max_attempts": self.failed_login_max_requests,
+            "failed_login_lockout_secs": self.failed_login_window_secs,
         })
     }
 }
@@ -460,6 +486,7 @@ impl SecurityConfig {
         self.error_sanitization.validate()?;
         self.rate_limiting.validate()?;
         self.state_encryption.validate()?;
+        self.reject_constant_time_section()?;
 
         // Validate role definitions if present
         for role in &self.role_definitions {
@@ -474,21 +501,58 @@ impl SecurityConfig {
         Ok(())
     }
 
+    /// Refuse `[fraiseql.security.constant_time]`, which configures something that is
+    /// not configurable.
+    ///
+    /// Constant-time comparison is applied unconditionally wherever a secret is
+    /// compared, so there is nothing for these toggles to switch. They were emitted as
+    /// `constantTime`, which no consumer read in either casing — and one of the keys
+    /// inside was misspelled `applytoCsrfTokens`, which nothing noticed precisely
+    /// because nothing read it (#893).
+    ///
+    /// Refused rather than dropped: an operator who writes `apply_to_jwt = false`
+    /// should learn that the setting does not exist, not have it silently accepted.
+    fn reject_constant_time_section(&self) -> Result<()> {
+        let defaults = ConstantTimeConfig::default();
+        let configured = self.constant_time.enabled != defaults.enabled
+            || self.constant_time.apply_to_jwt != defaults.apply_to_jwt
+            || self.constant_time.apply_to_session_tokens != defaults.apply_to_session_tokens
+            || self.constant_time.apply_to_csrf_tokens != defaults.apply_to_csrf_tokens
+            || self.constant_time.apply_to_refresh_tokens != defaults.apply_to_refresh_tokens;
+
+        if configured {
+            anyhow::bail!(
+                "[security.constant_time] is accepted but not consumed: FraiseQL always compares \
+                 tokens and secrets in constant time, and there is no code path that reads these \
+                 toggles — so a `false` here would not disable anything, and a `true` does not \
+                 enable anything that was off. Remove the section."
+            );
+        }
+        Ok(())
+    }
+
     /// Convert to JSON representation for schema.json
     pub fn to_json(&self) -> serde_json::Value {
-        // `multi_tenant` and `rls` are spelled exactly as
-        // `fraiseql_core::schema::SecurityConfig` names them. The camelCase keys
-        // around them land in that struct's `#[serde(flatten)] additional` map and
-        // are read back out by name; these two bind to typed fields, so a rename
-        // here would silently restore the #758 default rather than fail.
+        // Every key here is spelled the way its consumer reads it, and the section
+        // names are snake_case throughout — matching `schema/merger.rs`, the other
+        // compile path, which had drifted to the opposite convention.
+        //
+        // These five sub-sections were emitted as `auditLogging`, `errorSanitization`,
+        // `rateLimiting`, `stateEncryption` and `constantTime`, which land in
+        // `fraiseql_core::schema::SecurityConfig`'s `#[serde(flatten)] additional` map
+        // under those names. The server looks for `rate_limiting` and
+        // `error_sanitization`, so a project `fraiseql.toml` that configured rate
+        // limiting produced a key nothing read: no limiter was mounted, and the #618
+        // proxy-trust boot guard behind it never ran (#893). Same defect as #757, one
+        // level up: a hand-written producer whose key names are maintained separately
+        // from the consumer's.
         let mut json = serde_json::json!({
             "multi_tenant": self.multi_tenant,
             "rls": self.rls,
-            "auditLogging": self.audit_logging.to_json(),
-            "errorSanitization": self.error_sanitization.to_json(),
-            "rateLimiting": self.rate_limiting.to_json(),
-            "stateEncryption": self.state_encryption.to_json(),
-            "constantTime": self.constant_time.to_json(),
+            "audit_logging": self.audit_logging.to_json(),
+            "error_sanitization": self.error_sanitization.to_json(),
+            "rate_limiting": self.rate_limiting.to_json(),
+            "state_encryption": self.state_encryption.to_json(),
         });
 
         // Field-level RBAC grants. Emitted as `role_definitions` — the name
@@ -520,5 +584,111 @@ impl SecurityConfig {
         }
 
         json
+    }
+}
+
+#[cfg(test)]
+mod security_seam_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+
+    use super::*;
+
+    /// Every section name `SecurityConfig::to_json` emits, and the consumer that reads it.
+    ///
+    /// Hand-written producer keys drift from the consumer struct's field names, which
+    /// is the whole of #757 and #893. The list is asserted rather than described so a
+    /// rename on either side has to come here.
+    const EXPECTED_SECTIONS: &[&str] = &[
+        "multi_tenant",
+        "rls",
+        "audit_logging",
+        "error_sanitization",
+        "rate_limiting",
+        "state_encryption",
+    ];
+
+    #[test]
+    fn to_json_emits_exactly_the_sections_consumers_read() {
+        let json = SecurityConfig::default().to_json();
+        let obj = json.as_object().expect("an object");
+
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        let mut expected: Vec<&str> = EXPECTED_SECTIONS.to_vec();
+        expected.sort_unstable();
+
+        assert_eq!(
+            keys, expected,
+            "the compiled security block must carry exactly the sections consumers read; a \
+             camelCase spelling here reaches nothing (#893)"
+        );
+    }
+
+    #[test]
+    fn no_section_name_is_camel_case() {
+        let json = SecurityConfig::default().to_json();
+        for key in json.as_object().unwrap().keys() {
+            assert!(
+                !key.chars().any(char::is_uppercase),
+                "section {key:?} is camelCase; the consumers and the other compile path \
+                 (schema/merger.rs) both use snake_case (#893)"
+            );
+        }
+    }
+
+    #[test]
+    fn rate_limiting_is_flat_and_carries_a_usable_budget() {
+        let json = SecurityConfig::default().to_json();
+        let rl = json.get("rate_limiting").expect("rate_limiting section").clone();
+
+        // Flat, not the old nested `authStart: { maxRequests }` shape, which matched
+        // no reader even once the section name was right.
+        assert!(rl.get("authStart").is_none(), "the nested camelCase shape must be gone");
+        assert_eq!(
+            rl.get("auth_start_max_requests").and_then(serde_json::Value::as_u64),
+            Some(100)
+        );
+
+        // The trap in #893: a section emitted without these two keys deserializes them
+        // to zero on the consumer side, giving a limiter that denies every request.
+        let rps = rl.get("requests_per_second").and_then(serde_json::Value::as_u64).unwrap();
+        let burst = rl.get("burst_size").and_then(serde_json::Value::as_u64).unwrap();
+        assert!(rps > 0, "a default project config must not compile to a zero-rps limiter");
+        assert!(burst > 0, "a default project config must not compile to a zero-burst limiter");
+    }
+
+    #[test]
+    fn failed_login_defaults_match_the_runtimes_so_an_untouched_config_boots() {
+        // The runtime refuses to boot in production when these are tuned away from its
+        // defaults (#356), because the binary has no first-factor login to enforce
+        // them. An untouched project config must therefore emit exactly those defaults.
+        let json = SecurityConfig::default().to_json();
+        let rl = json.get("rate_limiting").unwrap();
+        assert_eq!(
+            rl.get("failed_login_max_attempts").and_then(serde_json::Value::as_u64),
+            Some(10)
+        );
+        assert_eq!(
+            rl.get("failed_login_lockout_secs").and_then(serde_json::Value::as_u64),
+            Some(900)
+        );
+    }
+
+    #[test]
+    fn a_configured_constant_time_section_is_refused() {
+        let config = SecurityConfig {
+            constant_time: ConstantTimeConfig {
+                apply_to_jwt: !ConstantTimeConfig::default().apply_to_jwt,
+                ..ConstantTimeConfig::default()
+            },
+            ..SecurityConfig::default()
+        };
+        let err = config.validate().expect_err("an inert section must be refused, not ignored");
+        assert!(err.to_string().contains("constant_time"), "{err}");
+    }
+
+    #[test]
+    fn an_untouched_constant_time_section_still_validates() {
+        SecurityConfig::default().validate().expect("defaults must validate");
     }
 }

@@ -602,9 +602,10 @@ watch-check:
 # and wait until each service is healthy.
 db-up:
 	@echo "Starting test infrastructure..."
+	@bash docker/tls/gen-certs.sh
 	@docker compose -f docker/docker-compose.test.yml up -d
 	@echo "Waiting for all services to be healthy..."
-	@for svc in postgres-test mysql-test sqlserver-test redis-test nats-test vault-test; do \
+	@for svc in postgres-test postgres-tls-test mysql-test sqlserver-test redis-test nats-test vault-test; do \
 		printf "  Waiting for %-20s" "$$svc..."; \
 		for i in $$(seq 1 60); do \
 			status=$$(docker inspect --format='{{.State.Health.Status}}' \
