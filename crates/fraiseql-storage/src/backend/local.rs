@@ -23,9 +23,105 @@ impl LocalBackend {
         }
     }
 
-    fn key_path(&self, key: &str) -> Result<PathBuf> {
+    /// Resolve a storage key to its path under the backend root.
+    ///
+    /// Purely lexical: [`validate_key`] has already rejected every key shape
+    /// that could name a path outside the root or alias onto another key, so
+    /// the join below cannot escape. Symlink containment is checked separately,
+    /// against the filesystem, by [`Self::ensure_contained`].
+    pub(crate) fn key_path(&self, key: &str) -> Result<PathBuf> {
         validate_key(key)?;
         Ok(self.root.join(key))
+    }
+
+    /// Reject a resolved path that leaves the backend root, or whose final
+    /// component is a symlink.
+    ///
+    /// [`validate_key`] guarantees the *lexical* join stays inside the root, but
+    /// it cannot see the filesystem: a directory symlink planted under the root
+    /// redirects the whole subtree, and a symlinked leaf redirects a single
+    /// object — in both cases `tokio::fs` follows the link and reads or writes
+    /// a file the storage system does not own. Resolving the parent and
+    /// comparing it against the resolved root closes the first; refusing a
+    /// symlinked leaf closes the second (`fs::write` writes *through* a link,
+    /// so checking the parent alone is not enough).
+    ///
+    /// Called on every I/O path, after any directory creation so the parent
+    /// exists to be resolved.
+    async fn ensure_contained(&self, path: &std::path::Path) -> Result<()> {
+        let Some(parent) = path.parent() else {
+            return Err(FraiseQLError::File(FileError::InvalidKey {
+                message: "Invalid storage key: resolves outside the storage root".to_string(),
+            }));
+        };
+
+        let root = tokio::fs::canonicalize(&self.root).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to resolve the storage root: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        let parent = tokio::fs::canonicalize(parent).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                FraiseQLError::File(FileError::NotFound {
+                    id: path.to_string_lossy().into_owned(),
+                })
+            } else {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to resolve the object path: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            }
+        })?;
+
+        if !parent.starts_with(&root) {
+            return Err(FraiseQLError::File(FileError::InvalidKey {
+                message: "Invalid storage key: resolves outside the storage root".to_string(),
+            }));
+        }
+
+        // The leaf itself: `symlink_metadata` does not follow the link, so a
+        // present-and-symlinked object is refused rather than followed.
+        match tokio::fs::symlink_metadata(path).await {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                Err(FraiseQLError::File(FileError::InvalidKey {
+                    message: "Invalid storage key: the object path is a symlink".to_string(),
+                }))
+            },
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to inspect the object path: {e}"),
+                source:  Some(Box::new(e)),
+            })),
+        }
+    }
+
+    /// Reject a resolved directory that leaves the backend root.
+    ///
+    /// The listing path joins a caller-supplied `prefix` rather than a key, so
+    /// it cannot reuse [`Self::ensure_contained`] (which checks a *parent* and
+    /// a leaf). Same guarantee, one level up.
+    async fn ensure_contained_dir(&self, dir: &std::path::Path) -> Result<()> {
+        let root = tokio::fs::canonicalize(&self.root).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to resolve the storage root: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        let resolved = tokio::fs::canonicalize(dir).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to resolve the listing prefix: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        if resolved.starts_with(&root) {
+            Ok(())
+        } else {
+            Err(FraiseQLError::File(FileError::InvalidKey {
+                message: "Invalid listing prefix: resolves outside the storage root".to_string(),
+            }))
+        }
     }
 
     /// Uploads data and returns the storage key.
@@ -43,6 +139,7 @@ impl LocalBackend {
                 })
             })?;
         }
+        self.ensure_contained(&path).await?;
         tokio::fs::write(&path, data).await.map_err(|e| {
             FraiseQLError::File(FileError::IoError {
                 message: format!("Failed to write file: {e}"),
@@ -60,6 +157,7 @@ impl LocalBackend {
     /// or `FileError::IoError` on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         let path = self.key_path(key)?;
+        self.ensure_contained(&path).await?;
         tokio::fs::read(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 FraiseQLError::File(FileError::NotFound {
@@ -81,6 +179,7 @@ impl LocalBackend {
     /// Returns `FraiseQLError::File` on backend failures.
     pub async fn delete(&self, key: &str) -> Result<()> {
         let path = self.key_path(key)?;
+        self.ensure_contained(&path).await?;
         tokio::fs::remove_file(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 FraiseQLError::File(FileError::NotFound {
@@ -102,6 +201,14 @@ impl LocalBackend {
     /// Returns `FraiseQLError::File(FileError::IoError)` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         let path = self.key_path(key)?;
+        // A missing parent directory means the object does not exist — that is
+        // `Ok(false)`, not an error, so the containment check's `NotFound` is
+        // absorbed here rather than propagated.
+        match self.ensure_contained(&path).await {
+            Ok(()) => {},
+            Err(FraiseQLError::File(FileError::NotFound { .. })) => return Ok(false),
+            Err(e) => return Err(e),
+        }
         match tokio::fs::metadata(&path).await {
             Ok(_) => Ok(true),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
@@ -146,6 +253,13 @@ impl LocalBackend {
                 next_cursor: None,
             });
         }
+
+        // `prefix` is caller-supplied and is joined onto the root without going
+        // through `key_path` (a prefix legitimately ends in `/`, which
+        // `validate_key` rejects). Resolve it and require containment so a
+        // `..` prefix — or a symlinked directory under the root — cannot list
+        // outside the backend.
+        self.ensure_contained_dir(&prefix_path).await?;
 
         // Walk the directory and collect matching files
         for entry in walkdir::WalkDir::new(&prefix_path)

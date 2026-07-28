@@ -352,23 +352,103 @@ impl StorageBackend {
     }
 }
 
-/// Validates that a storage key is safe (no path traversal).
+/// Build a `FileError::InvalidKey` rejection.
+fn invalid_key(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
+    fraiseql_error::FraiseQLError::File(FileError::InvalidKey {
+        message: message.into(),
+    })
+}
+
+/// Decode the two hex digits following a `%` at `bytes[i]`, if they are present
+/// and well-formed.
+fn percent_escape_at(bytes: &[u8], i: usize) -> Option<u8> {
+    let hi = bytes.get(i + 1)?;
+    let lo = bytes.get(i + 2)?;
+    let hi = char::from(*hi).to_digit(16)?;
+    let lo = char::from(*lo).to_digit(16)?;
+    // Both digits are < 16, so the combination fits in a u8.
+    u8::try_from(hi * 16 + lo).ok()
+}
+
+/// Validates that a storage key is safe.
+///
+/// The guarantee this function exists to provide is **injectivity**: two keys
+/// that differ as strings must never name the same stored object. Ownership,
+/// the overwrite gate and the audit trail are all keyed on the metadata string
+/// `(bucket, key)`, while the backing store resolves a path — so any pair of
+/// spellings that collapse to one object silently defeats per-object ownership
+/// (#813: `docs/./secret.txt`, `docs//secret.txt` and `docs/secret.txt` were
+/// three metadata rows over one file).
+///
+/// Keys are **rejected, never canonicalised**. Rewriting `a/./b` to `a/b` would
+/// make two keys the client believes are distinct into one object, which is the
+/// same collision arriving through the front door.
+///
+/// A key must be a non-empty, `/`-separated relative path whose every segment
+/// is non-empty, is not `.` or `..`, has no leading or trailing ASCII
+/// whitespace and no trailing `.`, and which contains no backslash, no control
+/// byte, and no percent-escape that decodes to path syntax.
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::File` if the key is empty, contains `..`,
-/// or starts with `/` or `\`.
+/// Returns `FraiseQLError::File(FileError::InvalidKey)` naming the rule the key
+/// broke.
 pub fn validate_key(key: &str) -> Result<()> {
     if key.is_empty() {
-        return Err(fraiseql_error::FraiseQLError::File(FileError::InvalidKey {
-            message: "Storage key must not be empty".to_string(),
-        }));
+        return Err(invalid_key("Storage key must not be empty"));
     }
-    if key.contains("..") || key.starts_with('/') || key.starts_with('\\') {
-        return Err(fraiseql_error::FraiseQLError::File(FileError::InvalidKey {
-            message: "Invalid storage key: must be a relative path without '..'".to_string(),
-        }));
+
+    let bytes = key.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b < 0x20 || b == 0x7f {
+            return Err(invalid_key(
+                "Invalid storage key: control characters (including NUL) are not allowed",
+            ));
+        }
+        if b == b'\\' {
+            return Err(invalid_key(
+                "Invalid storage key: '\\' is not allowed; use '/' as the separator",
+            ));
+        }
+        // A percent-escape that decodes to path syntax is rejected outright: a
+        // backend that decodes the key again (Azure builds a URL from it) would
+        // turn `%2e` back into `.` and re-open the aliasing this function closes.
+        if b == b'%' {
+            if let Some(decoded) = percent_escape_at(bytes, i) {
+                if matches!(decoded, b'.' | b'/' | b'\\' | b'%')
+                    || decoded < 0x20
+                    || decoded == 0x7f
+                {
+                    return Err(invalid_key(
+                        "Invalid storage key: percent-escaped path syntax is not allowed",
+                    ));
+                }
+            }
+        }
     }
+
+    for segment in key.split('/') {
+        if segment.is_empty() {
+            return Err(invalid_key(
+                "Invalid storage key: empty path segment (a leading, trailing or doubled '/')",
+            ));
+        }
+        if segment == "." || segment == ".." {
+            return Err(invalid_key(
+                "Invalid storage key: '.' and '..' path segments are not allowed",
+            ));
+        }
+        if segment.starts_with(char::is_whitespace)
+            || segment.ends_with(char::is_whitespace)
+            || segment.ends_with('.')
+        {
+            return Err(invalid_key(
+                "Invalid storage key: a path segment must not start or end with whitespace, or \
+                 end with '.'",
+            ));
+        }
+    }
+
     Ok(())
 }
 

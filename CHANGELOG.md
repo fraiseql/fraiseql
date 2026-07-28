@@ -9,6 +9,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Two keys can no longer name one stored object (#813).** `validate_key` rejected only
+  `..` and a leading separator, so `docs/./secret.txt`, `docs//secret.txt` and
+  `docs/secret.txt` were three distinct metadata rows over one file on the local backend.
+  Ownership is enforced against the metadata string and the filesystem collapses the
+  spelling, so an attacker's write to an alias found no existing row, took
+  `can_write_object`'s *create* branch — which any authenticated user passes — and
+  destroyed another user's object while that user's row still named them as owner and
+  reported the old size and etag.
+
+  Keys are now **rejected rather than canonicalised**: normalising `a/./b` to `a/b` would
+  merge two keys the client believes are distinct, which is the same collision arriving
+  through the front door. A key must be a non-empty `/`-separated relative path whose
+  every segment is non-empty, is not `.` or `..`, and has no surrounding whitespace or
+  trailing `.`; backslashes, control bytes and percent-escapes that decode to path syntax
+  are refused. The rule is one function, enforced at the route boundary on the raw key —
+  previously it ran only deep inside the backends, on the already-composed
+  `"{bucket}/{key}"`, so `GET`/`DELETE` answered from their metadata probe and `presign`
+  never consulted it at all. A bounded-exhaustive test asserts the property the bug
+  violated: **key → path is injective**.
+
+  The local backend additionally resolves each path before any I/O and refuses one that
+  leaves the storage root or whose final component is a symlink. Key validation is
+  lexical and cannot see a symlink planted inside the root; both a symlinked directory
+  and a symlinked leaf previously redirected reads and writes outside it.
+
+- **A presigned upload now owns the object it creates (#866).** `presign_handler` signed an
+  S3 `PUT` URL and recorded nothing. The bytes went straight to the object store, so the
+  object had no owner and no metadata: it was permanently `404` through
+  `GET /storage/v1/object/...`, invisible to `list`, and — because `can_write_object`
+  reads a missing row as *create* — any authenticated user could overwrite it or claim it.
+  The H9/B4 overwrite-IDOR guard was void for precisely the door its own doc comment
+  names, and every existing regression test for that guard began with a server-side
+  `PUT`, the one path that did create metadata.
+
+  Signing now claims the object first, recording the caller as owner and marking the row
+  `pending`; a lost race refuses with `409` rather than signing against a stale
+  authorization decision, and a signing failure releases a claim it created. The first
+  successful read settles the row against the object that actually landed. `list` reports
+  the `pending` flag rather than hiding the claim.
+
+- **A `DELETE` releases an ownership claim whose upload never happened.** Reservations
+  record ownership before the bytes exist, so `DELETE` has a case the upload path never
+  produced: a metadata row with nothing behind it. The backend's `NotFound` is tolerated
+  there — the caller is already authorised and the outcome it asks for is "gone" — so an
+  abandoned claim cannot squat a key against its own owner. Every other backend error
+  still refuses, so a genuine failure cannot orphan the bytes by dropping their metadata.
+
+- **Object bytes with no metadata row are not served.** An orphan — a rolled-back
+  reservation, a manual copy into the bucket, a leftover from a deleted row — has no
+  ownership record, so there is nothing for the access rules to evaluate. It is refused,
+  not treated as public.
+
+- **The storage read paths are no longer an existence oracle (#876).** `get_handler`
+  answered `404` for a missing object and `403` for one the caller may not read, so an
+  unauthenticated attacker could enumerate a private bucket's keys — often themselves
+  sensitive — with no credentials. `presign(download)` had the same split while its own
+  inline comment claimed the opposite. Both now answer identically in the two cases, as
+  `put_handler` already did.
+
+### Breaking
+
+- **The second storage stack is gone (#813, #866).** `fraiseql_server::storage` (a
+  duplicate `StorageBackend` trait with its own local/S3/GCS/Azure implementations) and
+  `fraiseql_server::routes::storage` (a `/storage/v1/object/{*key}` router) have been
+  removed, along with `ServerBuilder::with_storage`. It was a parallel object API with no
+  metadata, no per-object ownership and no RLS — its download handler served any file in
+  the backing store to any holder of a single shared token — and it carried its own copy
+  of both defects fixed above: a byte-identical weak `validate_key`, and the same Azure
+  key-encoding bug. No binary mounted it and no configuration key reached it.
+
+  Use `ServerBuilder::with_storage_state` and a `[storage.<name>]` section; that backend
+  now also serves as the inbound-email attachment sink, which previously hung off the
+  removed builder method and was therefore unreachable from the shipped server.
+
+- **`allowed_mime_types = []` now allows nothing**, as documented, instead of being read
+  by the upload handler as "no restriction".
+
+- **The object-metadata table gains a `pending` column.** The DDL is idempotent and
+  applies on startup.
+
+### Fixed
+
+- **Azure Blob rejected ordinary filenames (#876).** The object key was interpolated raw
+  into both the blob URL and the `SharedKey` string-to-sign, so the URL parser rewrote one
+  of them and not the other: `#` began a fragment and silently truncated the request path,
+  `?` began a query, and `%41` was decoded to `A`. Every key containing one of those
+  characters failed with a `403 AuthenticationFailed` surfaced as a `500`, pointing at
+  credentials rather than at the key. Both are now percent-encoded per path segment, and
+  an Azurite round-trip covers `#`, `?`, `%` and spaces.
+
+- **The bucket MIME allow-list ignores `Content-Type` parameters (#876).** `text/plain`
+  rejected the browser-standard `text/plain;charset=UTF-8`. Matching is now on the media
+  type alone and case-insensitive. The two enforcement points that had drifted — the
+  upload handler honoured `image/*` wildcards but misread an empty list, `BucketService`
+  read the empty list correctly but ignored wildcards — are now one method on
+  `BucketConfig`.
+
+- **`docs/architecture/storage.md` describes the system that exists (#867).** It
+  documented three endpoints that 404, a TOML example that fails to deserialize at boot,
+  "per-tenant isolation" from an evaluator with no tenant concept, and EXIF stripping that
+  no code performs. Rewritten against the router, the config type and the access rules,
+  with the GCS/Azure presign and list gaps marked and the transform gap recorded as #901.
+
+- **The storage metadata suite ran against a hand-copied schema**, not the shipped
+  migration, so a column added to the DDL could not redden it. It now executes
+  `storage_migration_sql()`.
+
+### Security
+
 - **Every way of constructing the runtime now produces the same configured runtime
   (#750, #754, #783).** `Server::new`, `with_relay_pagination`, `with_flight_service` and
   the hot-reload rebuild were four construction paths, and each one that was not

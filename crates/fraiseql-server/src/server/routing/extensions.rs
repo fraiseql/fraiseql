@@ -1,8 +1,6 @@
 //! Extension route mounting: MCP, API, RBAC, observers, storage, functions, REST,
 //! and admission control.
 
-use std::sync::Arc;
-
 use axum::{Router, middleware};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
@@ -63,9 +61,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             self.config.admin_token.as_ref(),
             self.build_address_hash_key(),
         ) {
-            let tracker = Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
-            let suppression_state =
-                Arc::new(crate::inbound::email::SuppressionAdminState::new(tracker, key));
+            let tracker =
+                std::sync::Arc::new(crate::inbound::email::PgSendTracker::new(pool.clone()));
+            let suppression_state = std::sync::Arc::new(
+                crate::inbound::email::SuppressionAdminState::new(tracker, key),
+            );
             let auth_state = BearerAuthState::with_max_failures(
                 token.clone(),
                 self.config.admin_auth_max_failures,
@@ -88,9 +88,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Object storage routes (legacy backend)
-        if let Some(ref backend) = self.storage_backend {
-            app = self.mount_storage_backend(app, backend);
-        }
 
         // Edge-function routes
         #[cfg(feature = "functions")]
@@ -254,7 +251,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let mcp_service = StreamableHttpService::new(
                     move || {
                         let executor = executor_swap.load_full();
-                        let schema = Arc::new(executor.schema().clone());
+                        let schema = std::sync::Arc::new(executor.schema().clone());
                         Ok(crate::mcp::handler::FraiseQLMcpService::new(
                             schema,
                             executor,
@@ -262,7 +259,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         )
                         .with_oidc_validator(validator.clone()))
                     },
-                    Arc::new(LocalSessionManager::default()),
+                    std::sync::Arc::new(LocalSessionManager::default()),
                     StreamableHttpServerConfig::default(),
                 );
                 app = app.nest_service(&mcp_cfg.path, mcp_service);
@@ -276,7 +273,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     fn mount_rbac(&self, mut app: Router, db_pool: &sqlx::PgPool) -> Router {
         if let Some(ref token) = self.config.admin_token {
             info!("RBAC Management API endpoints enabled (admin bearer token required)");
-            let rbac_backend = Arc::new(
+            let rbac_backend = std::sync::Arc::new(
                 crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
             );
             let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
@@ -293,42 +290,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                  Set admin_token in server configuration to enable RBAC management endpoints."
             );
         }
-        app
-    }
-
-    fn mount_storage_backend(
-        &self,
-        mut app: Router,
-        backend: &Arc<dyn crate::storage::StorageBackend>,
-    ) -> Router {
-        use crate::routes::storage::{StorageRouteState, storage_router};
-
-        // Fail closed (M-storage-legacy): this legacy backend mount has NO RLS
-        // evaluator, so without an auth layer every object in every bucket is
-        // world-readable and world-writable. Refuse to mount rather than expose
-        // an unauthenticated storage API.
-        let Some(ref token) = self.config.storage_token else {
-            tracing::error!(
-                "SECURITY: legacy storage API NOT mounted — storage_token is not set and this \
-                 backend has no row-level security. Set storage_token in config to enable the \
-                 storage API (mounting it unauthenticated would expose all objects)."
-            );
-            return app;
-        };
-
-        let storage_state = StorageRouteState::new(backend.clone())
-            .with_max_upload_bytes(self.storage_max_upload_bytes);
-        let base_router = storage_router(storage_state);
-
-        info!(
-            max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
-            "Storage API mounted at /storage/v1/ (bearer token required)"
-        );
-        let auth_state =
-            BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
-        let storage_app = base_router
-            .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
-        app = app.merge(storage_app);
         app
     }
 

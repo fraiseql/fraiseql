@@ -242,9 +242,6 @@ pub mod inbound;
 // Connection pool management and auto-tuning
 pub mod pool;
 
-// Object storage backends (local, S3, GCS, Azure Blob)
-pub mod storage;
-
 // Server subsystem assembly and lifecycle management
 pub mod subsystems;
 

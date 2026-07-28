@@ -6,7 +6,9 @@
 //! - `DELETE /storage/v1/object/{bucket}/{*key}` — delete
 //! - `GET /storage/v1/list/{bucket}` — list
 //! - `POST /storage/v1/presign/{bucket}/{*key}` — presigned URL
-//! - `GET /storage/v1/render/{bucket}/{*key}` — image transform
+//!
+//! There is no transform/render route: `ImageTransformer` is a library-level
+//! capability with no HTTP surface (#901).
 
 #[cfg(test)]
 mod tests;
@@ -182,6 +184,10 @@ async fn put_handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+
     let Some(bucket) = state.buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
@@ -240,21 +246,19 @@ async fn put_handler(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream");
 
-    // Validate MIME type
-    if let Some(ref allowed) = bucket.allowed_mime_types {
-        if !allowed.is_empty() && !allowed.iter().any(|m| mime_matches(m, content_type)) {
-            tracing::warn!(
-                bucket = %bucket_name,
-                key = %key,
-                content_type = %content_type,
-                "Storage upload rejected: MIME type not allowed"
-            );
-            return error_response(
-                StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                "mime_type_rejected",
-                "Content type not allowed for this bucket",
-            );
-        }
+    // Validate MIME type against the bucket's single policy (#876).
+    if !bucket.allows_mime(content_type) {
+        tracing::warn!(
+            bucket = %bucket_name,
+            key = %key,
+            content_type = %content_type,
+            "Storage upload rejected: MIME type not allowed"
+        );
+        return error_response(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "mime_type_rejected",
+            "Content type not allowed for this bucket",
+        );
     }
 
     // Upload to backend. #336: scope the backend key by bucket so two buckets
@@ -295,18 +299,24 @@ async fn get_handler(
     user: Option<Extension<StorageUser>>,
     Path((bucket_name, key)): Path<(String, String)>,
 ) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+
     let Some(bucket) = state.buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
-    // Look up metadata for RLS check
+    let user = user.map(|Extension(u)| u).unwrap_or_default();
+
+    // Look up metadata for RLS check. Missing and not-yours are the same
+    // answer (#876), so neither reveals which one it was.
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
-        Ok(None) => return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
+        Ok(None) => return object_not_visible(bucket, &user),
         Err(e) => return storage_error_response(&e),
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
     if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
@@ -314,17 +324,38 @@ async fn get_handler(
             user_id = ?user.user_id,
             "Storage download denied: access forbidden"
         );
-        return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
+        return object_not_visible(bucket, &user);
     }
 
     // Download from backend (#336: bucket-scoped key).
     match state.backend.download(&backend_object_key(&bucket_name, &key)).await {
         Ok(data) => {
+            // #866: a presigned upload wrote these bytes straight to the
+            // backend, so the reservation made at signing time carries
+            // placeholder size/etag. This is the first point at which the
+            // server has the object, so settle the row here rather than serve
+            // metadata that contradicts the body.
+            let etag = if row.pending {
+                let etag = object_etag(&data);
+                // Reason: `data.len()` is bounded by the bucket's max_object_bytes and by
+                // the route body limit; i64 capacity is 9.2 EB, so the cast cannot wrap.
+                #[allow(clippy::cast_possible_wrap)]
+                let size = data.len() as i64;
+                if let Err(e) =
+                    state.metadata.confirm(row.pk_storage_object, size, Some(&etag)).await
+                {
+                    return storage_error_response(&e);
+                }
+                Some(etag)
+            } else {
+                row.etag.clone()
+            };
+
             let mut headers = HeaderMap::new();
             if let Ok(ct) = row.content_type.parse() {
                 headers.insert(header::CONTENT_TYPE, ct);
             }
-            if let Some(ref etag) = row.etag {
+            if let Some(ref etag) = etag {
                 if let Ok(val) = etag.parse() {
                     headers.insert(header::ETAG, val);
                 }
@@ -366,6 +397,10 @@ async fn delete_handler(
     user: Option<Extension<StorageUser>>,
     Path((bucket_name, key)): Path<(String, String)>,
 ) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+
     let Some(bucket) = state.buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
@@ -389,8 +424,26 @@ async fn delete_handler(
     }
 
     // Delete from backend (#336: bucket-scoped key).
+    //
+    // A `NotFound` from the backend is not a failure here. #866's reservations
+    // record ownership *before* the bytes exist, so a claim whose upload never
+    // happened is a metadata row with nothing behind it — propagating the
+    // backend's 404 would leave that row in place and squat the key against its
+    // own owner permanently. The caller has already been authorised to delete
+    // this object; the outcome it asks for is "gone", which is satisfied. Every
+    // other backend error still refuses, so a genuine failure cannot silently
+    // orphan the bytes by dropping their metadata.
     if let Err(e) = state.backend.delete(&backend_object_key(&bucket_name, &key)).await {
-        return storage_error_response(&e);
+        if matches!(e, FraiseQLError::File(FileError::NotFound { .. })) {
+            tracing::debug!(
+                bucket = %bucket_name,
+                key = %key,
+                pending = row.pending,
+                "Storage delete: no object in the backing store; releasing the metadata row"
+            );
+        } else {
+            return storage_error_response(&e);
+        }
     }
 
     // Remove metadata
@@ -476,6 +529,10 @@ async fn presign_handler(
     Path((bucket_name, key)): Path<(String, String)>,
     axum::Json(request): axum::Json<PresignRequest>,
 ) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+
     let Some(bucket) = state.buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
@@ -500,9 +557,14 @@ async fn presign_handler(
         );
     }
 
-    // RLS gate.  Mirrors put_handler / get_handler.  Done before any S3 work
-    // so unauthorised callers cannot observe whether the object exists.
-    if operation == "upload" {
+    // RLS gate.  Mirrors put_handler / get_handler.  Done before any S3 work,
+    // and answering identically whether the object is missing or merely not
+    // the caller's, so unauthorised callers cannot observe which it is (#876).
+    //
+    // Yields the row the decision was made against — `None` meaning "no object
+    // here", which is what makes the claim below a create rather than an
+    // overwrite.
+    let authorised_against: Option<i64> = if operation == "upload" {
         // B4: a presign(upload) that would overwrite an existing object must be gated
         // on ownership, exactly like put_handler — otherwise a leaked/guessed key lets
         // any authenticated user presign-overwrite another user's object.
@@ -529,13 +591,14 @@ async fn presign_handler(
                 error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
             };
         }
+
+        existing.as_ref().map(|row| row.pk_storage_object)
     } else {
         // download: look up metadata so can_read can apply per-row policy.
+        // Missing and not-yours give the same answer (#876).
         let row = match state.metadata.get(&bucket_name, &key).await {
             Ok(Some(row)) => row,
-            Ok(None) => {
-                return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found");
-            },
+            Ok(None) => return object_not_visible(bucket, &user),
             Err(e) => return storage_error_response(&e),
         };
         if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
@@ -545,9 +608,10 @@ async fn presign_handler(
                 user_id = ?user.user_id,
                 "Storage presign(download) denied by RLS"
             );
-            return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
+            return object_not_visible(bucket, &user);
         }
-    }
+        None
+    };
 
     #[cfg(feature = "aws-s3")]
     {
@@ -557,7 +621,15 @@ async fn presign_handler(
         // same backend object the PUT/GET handlers use.
         let object_key = backend_object_key(&bucket_name, &key);
 
+        // The row claimed for this upload, and whether this request created it —
+        // a signing failure must release a claim it made, but leave one that was
+        // already there.
+        let mut reservation: Option<(i64, bool)> = None;
+
         let result = if operation == "upload" {
+            // Every remaining way to refuse comes first: nothing may be claimed
+            // for a request that cannot be signed, or the key is squatted under
+            // the caller's name for an upload that never happens.
             let Some(content_type) = request.content_type else {
                 return error_response(
                     StatusCode::BAD_REQUEST,
@@ -565,6 +637,41 @@ async fn presign_handler(
                     "content_type required for upload",
                 );
             };
+
+            // #866: claim the object BEFORE handing out the URL. The upload
+            // bypasses the server entirely, so this is the last moment at which
+            // the owner can be recorded — and without a row `can_write_object`
+            // reads the next caller as a creator, voiding the H9/B4 overwrite
+            // gate for exactly the door it is named after.
+            let claim = NewStorageObject {
+                bucket:       bucket_name.clone(),
+                key:          key.clone(),
+                content_type: content_type.clone(),
+                size_bytes:   0,
+                etag:         None,
+                owner_id:     user.user_id.clone(),
+            };
+            match state.metadata.reserve(&claim, authorised_against).await {
+                Ok(Some(pk)) => reservation = Some((pk, authorised_against.is_none())),
+                Ok(None) => {
+                    // Another writer changed the row between the gate and the
+                    // claim. Refuse rather than sign against an authorization
+                    // decision that is no longer true.
+                    tracing::warn!(
+                        bucket = %bucket_name,
+                        key = %key,
+                        user_id = ?user.user_id,
+                        "Storage presign(upload) lost a race for the object; refusing"
+                    );
+                    return error_response(
+                        StatusCode::CONFLICT,
+                        "conflict",
+                        "The object changed while the request was being authorized; retry",
+                    );
+                },
+                Err(e) => return storage_error_response(&e),
+            }
+
             state.backend.presign_put(&object_key, &content_type, expires_in).await
         } else {
             state.backend.presign_get(&object_key, expires_in).await
@@ -572,13 +679,31 @@ async fn presign_handler(
 
         match result {
             Ok(url) => axum::Json(PresignResponse::from(url)).into_response(),
-            Err(e) => storage_error_response(&e),
+            Err(e) => {
+                // Signing failed, so the upload can never happen. A claim we
+                // *created* would hold the key against its owner forever;
+                // release it. A claim over a pre-existing object stays put —
+                // those bytes are still there, and the next read settles it.
+                if let Some((pk, created)) = reservation {
+                    if created {
+                        if let Err(release) = state.metadata.release_reservation(pk).await {
+                            tracing::error!(
+                                bucket = %bucket_name,
+                                key = %key,
+                                error = %release,
+                                "Failed to release a storage reservation after a signing error"
+                            );
+                        }
+                    }
+                }
+                storage_error_response(&e)
+            },
         }
     }
 
     #[cfg(not(feature = "aws-s3"))]
     {
-        let _ = (key, operation, request);
+        let _ = (key, operation, request, authorised_against);
         error_response(
             StatusCode::NOT_IMPLEMENTED,
             "not_supported",
@@ -598,6 +723,12 @@ struct ListItem {
     size:         i64,
     content_type: String,
     etag:         Option<String>,
+    /// The key is claimed by an in-flight presigned upload (#866): it has an
+    /// owner, but `size`/`etag` are placeholders until the object is first read.
+    /// Reported rather than hidden — an owner who has just presigned an upload
+    /// must be able to see the claim, and a caller must be able to tell a
+    /// settled object from an unsettled one.
+    pending:      bool,
     created_at:   String,
     updated_at:   String,
 }
@@ -609,6 +740,7 @@ impl From<&StorageMetadataRow> for ListItem {
             size:         row.size_bytes,
             content_type: row.content_type.clone(),
             etag:         row.etag.clone(),
+            pending:      row.pending,
             created_at:   row.created_at.to_rfc3339(),
             updated_at:   row.updated_at.to_rfc3339(),
         }
@@ -689,6 +821,48 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
     }
 }
 
+/// The response for "you cannot see this object", whether it is missing or
+/// merely not yours.
+///
+/// #876: `get_handler` answered `404` for a missing object and `403` for one
+/// the caller may not read, so an unauthenticated attacker could enumerate a
+/// private bucket's keys — often themselves sensitive (customer names, invoice
+/// numbers) — with no credentials. `presign(download)` had the same split, and
+/// its own comment claimed the opposite ("unauthorised callers cannot observe
+/// whether the object exists"). Both now collapse the two cases, exactly as
+/// `put_handler` already did.
+///
+/// A `PublicRead` bucket has no boundary to leak — `can_read` is unconditional
+/// there — so it keeps the plain `404`.
+fn object_not_visible(bucket: &BucketConfig, user: &StorageUser) -> Response {
+    if matches!(bucket.access, crate::config::BucketAccess::Private) && user.user_id.is_none() {
+        error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+    } else {
+        error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
+    }
+}
+
+/// Reject a client-supplied object key that is unsafe or aliasing, before any
+/// metadata or backend work.
+///
+/// #813: the backends validate the *composed* `"{bucket}/{key}"` deep inside
+/// their I/O methods, which leaves the handlers' own metadata lookups — keyed
+/// on the raw string — reachable with a key the backend would later refuse.
+/// `GET`/`DELETE` answered `404` from the metadata probe and `presign` signed
+/// (or 501'd) without ever consulting the validator. Validating the raw key
+/// here means the metadata key and the backend key are the same canonical
+/// string on every path, and an unusable key costs one 400 instead of a
+/// partially-applied request.
+fn reject_unsafe_key(key: &str) -> Option<Response> {
+    match crate::backend::validate_key(key) {
+        Ok(()) => None,
+        Err(e) => {
+            tracing::warn!(key = %key, error = %e, "Storage request rejected: unsafe object key");
+            Some(storage_error_response(&e))
+        },
+    }
+}
+
 /// Compose the backend object key from the bucket name and the object key.
 ///
 /// Buckets are an isolation boundary (#336): two objects with the same key in
@@ -698,6 +872,22 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
 /// bucket cannot overwrite or shadow the same key in another.
 fn backend_object_key(bucket: &str, key: &str) -> String {
     format!("{bucket}/{key}")
+}
+
+/// Content hash used as the etag when reconciling a presign-uploaded object.
+///
+/// The bytes never passed through the server at upload time, so there is no
+/// backend-reported etag to record; this is computed from the object the read
+/// actually served, which is the thing the etag has to identify.
+fn object_etag(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(data);
+    // The first 16 bytes of the digest: plenty for an entity tag, and short
+    // enough to read. `get` rather than a slice so the crate-wide
+    // `indexing_slicing` deny holds; SHA-256 is always 32 bytes, so the
+    // fallback is unreachable.
+    let truncated = digest.get(..16).unwrap_or(&digest);
+    format!("\"{}\"", hex::encode(truncated))
 }
 
 /// Content types a browser may execute as active content when rendered
@@ -710,17 +900,4 @@ fn is_inline_unsafe(content_type: &str) -> bool {
         base.as_str(),
         "text/html" | "application/xhtml+xml" | "image/svg+xml" | "application/xml" | "text/xml"
     )
-}
-
-/// Check if a MIME type pattern matches a content type.
-/// Supports wildcard patterns like "image/*".
-fn mime_matches(pattern: &str, content_type: &str) -> bool {
-    if pattern == "*/*" || pattern == content_type {
-        return true;
-    }
-    if let Some(prefix) = pattern.strip_suffix("/*") {
-        return content_type.starts_with(prefix)
-            && content_type.as_bytes().get(prefix.len()) == Some(&b'/');
-    }
-    false
 }

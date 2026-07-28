@@ -19,22 +19,6 @@ fn escape_like_prefix_escapes_metacharacters() {
     assert_eq!(escape_like_prefix("docs/"), "docs/");
 }
 
-/// DDL for the metadata table, used by tests and later exposed as migration SQL.
-const CREATE_TABLE_DDL: &str = r"
-CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
-    pk_storage_object BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    bucket            TEXT        NOT NULL,
-    key               TEXT        NOT NULL,
-    content_type      TEXT        NOT NULL,
-    size_bytes        BIGINT      NOT NULL,
-    etag              TEXT,
-    owner_id          TEXT,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (bucket, key)
-);
-";
-
 /// Connect to the harness Postgres (Dagger-bound in CI; a local spawn with the
 /// `local-testcontainers` feature), create the schema, and truncate it so each test
 /// starts from a clean table. The storage suite runs these with --test-threads=1, so
@@ -45,7 +29,14 @@ async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
         .await
         .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
     let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
-    sqlx::query(CREATE_TABLE_DDL).execute(&pool).await.unwrap();
+    // The SHIPPED DDL, not a copy of it. This suite used to carry its own
+    // hand-written `CREATE TABLE`, so every assertion here was made against a
+    // schema no deployment runs — a column added to the migration would not
+    // have reddened a single metadata test.
+    sqlx::raw_sql(crate::migrations::storage_migration_sql())
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
     (pool, svc)
 }

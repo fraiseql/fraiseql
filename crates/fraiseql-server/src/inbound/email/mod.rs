@@ -255,19 +255,19 @@ pub async fn run_startup_probes<S: std::hash::BuildHasher + Sync>(
     }
 }
 
-/// An attachment sink backed by the server's legacy storage.
+/// An attachment sink backed by the server's configured object storage.
 ///
-/// Bridges the object-storage [`StorageBackend`] writes to the server's
-/// [`StorageBackend`](crate::storage::StorageBackend), folding the logical bucket
-/// into the object key (`<bucket>/<key>`).
-pub struct LegacyStorageSink {
-    backend: Arc<dyn crate::storage::StorageBackend>,
+/// Bridges the functions host's `StorageBackend` sink trait onto
+/// [`fraiseql_storage::StorageBackend`], folding the logical bucket into the
+/// object key (`<bucket>/<key>`).
+pub struct StorageAttachmentSink {
+    backend: Arc<fraiseql_storage::StorageBackend>,
 }
 
-impl LegacyStorageSink {
-    /// Wrap a legacy storage backend as an attachment sink.
+impl StorageAttachmentSink {
+    /// Wrap the server's configured storage backend as an attachment sink.
     #[must_use]
-    pub fn new(backend: Arc<dyn crate::storage::StorageBackend>) -> Self {
+    pub const fn new(backend: Arc<fraiseql_storage::StorageBackend>) -> Self {
         Self { backend }
     }
 
@@ -277,7 +277,7 @@ impl LegacyStorageSink {
     }
 }
 
-impl StorageBackend for LegacyStorageSink {
+impl StorageBackend for StorageAttachmentSink {
     fn get(
         &self,
         bucket: &str,
@@ -285,7 +285,7 @@ impl StorageBackend for LegacyStorageSink {
     ) -> Pin<Box<dyn Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>> {
         let full = Self::flat_key(bucket, key);
         let backend = Arc::clone(&self.backend);
-        Box::pin(async move { backend.download(&full).await.map_err(Into::into) })
+        Box::pin(async move { backend.download(&full).await })
     }
 
     fn put(
@@ -299,12 +299,6 @@ impl StorageBackend for LegacyStorageSink {
         let body = body.to_vec();
         let content_type = content_type.to_string();
         let backend = Arc::clone(&self.backend);
-        Box::pin(async move {
-            backend
-                .upload(&full, &body, &content_type)
-                .await
-                .map(|_| ())
-                .map_err(Into::into)
-        })
+        Box::pin(async move { backend.upload(&full, &body, &content_type).await.map(|_| ()) })
     }
 }

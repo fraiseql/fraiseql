@@ -63,17 +63,14 @@ impl BucketService {
             }
         }
 
-        // Validate MIME type
-        if let Some(ref allowed) = self.config.allowed_mime_types {
-            let is_allowed = allowed.iter().any(|m| m == content_type || m == "*/*");
-            if !is_allowed {
-                return Err(FraiseQLError::File(FileError::MimeTypeNotAllowed {
-                    message: format!(
-                        "Content type '{content_type}' is not allowed for this bucket"
-                    ),
-                    mime:    Some(content_type.to_string()),
-                }));
-            }
+        // Validate MIME type against the bucket's single policy (#876). This
+        // used to be a second, differently-wrong implementation: it honoured
+        // neither `image/*` wildcards nor `Content-Type` parameters.
+        if !self.config.allows_mime(content_type) {
+            return Err(FraiseQLError::File(FileError::MimeTypeNotAllowed {
+                message: format!("Content type '{content_type}' is not allowed for this bucket"),
+                mime:    Some(content_type.to_string()),
+            }));
         }
 
         self.backend.upload(key, data, content_type).await

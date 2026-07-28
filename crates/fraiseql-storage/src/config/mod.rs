@@ -45,7 +45,11 @@ pub struct BucketConfig {
     /// Maximum object size in bytes (None = unlimited).
     pub max_object_bytes: Option<u64>,
 
-    /// Allowed MIME types (None = any; Some([]) = none allowed).
+    /// Allowed MIME types (`None` = any; `Some([])` = none allowed).
+    ///
+    /// Entries may be an exact media type (`application/pdf`), a subtype
+    /// wildcard (`image/*`) or `*/*`. Matching is case-insensitive and ignores
+    /// `Content-Type` parameters — see [`BucketConfig::allows_mime`].
     pub allowed_mime_types: Option<Vec<String>>,
 
     /// Access control policy.
@@ -95,3 +99,55 @@ pub struct StorageConfig {
     /// Azure account name
     pub account_name: Option<String>,
 }
+
+impl BucketConfig {
+    /// Whether this bucket accepts an upload with the given `Content-Type`.
+    ///
+    /// The single enforcement point for `allowed_mime_types`. It used to be two
+    /// (#876): `put_handler` matched the *raw* header value, so an allow-list
+    /// entry `text/plain` rejected the browser-standard
+    /// `text/plain;charset=UTF-8`, and it read `Some([])` as "no restriction"
+    /// — the opposite of the documented meaning — while `BucketService::upload`
+    /// read `Some([])` correctly but ignored `image/*` wildcards entirely. Two
+    /// implementations of one policy, disagreeing in both directions.
+    ///
+    /// Rules:
+    /// - `None` — no restriction.
+    /// - `Some(list)` — the media type must match an entry. An empty list therefore allows nothing,
+    ///   as documented.
+    /// - Parameters are stripped (`text/plain; charset=utf-8` matches `text/plain`) and comparison
+    ///   is ASCII-case-insensitive, per RFC 9110 §8.3.
+    /// - An entry of `*/*` matches anything; `type/*` matches that type.
+    #[must_use]
+    pub fn allows_mime(&self, content_type: &str) -> bool {
+        let Some(ref allowed) = self.allowed_mime_types else {
+            return true;
+        };
+        let actual = normalize_media_type(content_type);
+        allowed.iter().any(|pattern| mime_pattern_matches(pattern, &actual))
+    }
+}
+
+/// Reduce a `Content-Type` header value to its lowercase media type.
+///
+/// `text/plain; charset=UTF-8` → `text/plain`.
+fn normalize_media_type(content_type: &str) -> String {
+    content_type.split(';').next().unwrap_or("").trim().to_ascii_lowercase()
+}
+
+/// Match one allow-list entry against an already-normalised media type.
+fn mime_pattern_matches(pattern: &str, actual: &str) -> bool {
+    let pattern = normalize_media_type(pattern);
+    if pattern == "*/*" || pattern == actual {
+        return true;
+    }
+    match pattern.strip_suffix("/*") {
+        Some(prefix) => {
+            actual.starts_with(prefix) && actual.as_bytes().get(prefix.len()) == Some(&b'/')
+        },
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod mime_policy_tests;

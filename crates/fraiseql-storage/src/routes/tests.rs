@@ -14,7 +14,7 @@ use super::{StorageState, StorageUser, storage_router};
 use crate::{
     backend::LocalBackend,
     config::{BucketAccess, BucketConfig},
-    metadata::StorageMetadataRepo,
+    metadata::{NewStorageObject, StorageMetadataRepo},
     rls::StorageRlsEvaluator,
 };
 
@@ -788,15 +788,29 @@ async fn test_anonymous_read_on_private_bucket_denied() {
         .unwrap();
     app.oneshot(upload).await.unwrap();
 
-    // Read as anonymous — should be denied on private bucket
-    let app = anonymous_router(state);
+    // Read as anonymous — denied on a private bucket, and #876: with the same
+    // answer an anonymous read of a key that does not exist gets, so the status
+    // is not an existence oracle.
+    let app = anonymous_router(state.clone());
     let download = Request::builder()
         .method("GET")
         .uri("/storage/v1/object/private-files/secret.txt")
         .body(Body::empty())
         .unwrap();
-    let resp = app.oneshot(download).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let existing = app.oneshot(download).await.unwrap().status();
+    assert_eq!(existing, StatusCode::UNAUTHORIZED);
+
+    let app = anonymous_router(state);
+    let missing = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/no-such-key.txt")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.oneshot(missing).await.unwrap().status(),
+        existing,
+        "an existing object and a missing one must be indistinguishable to an anonymous caller"
+    );
 }
 
 #[tokio::test]
@@ -854,19 +868,29 @@ async fn test_different_user_denied_on_private_bucket() {
         .unwrap();
     app.oneshot(upload).await.unwrap();
 
-    // Read as different user — should be denied
-    let other_user = StorageUser {
-        user_id: Some("other-user".to_string()),
-        roles:   vec!["user".to_string()],
-    };
-    let app = storage_router(state).layer(Extension(other_user));
+    // Read as a different user — denied, and #876: indistinguishable from a
+    // key that does not exist, so the status cannot be used to enumerate a
+    // private bucket.
+    let app = router_for(state.clone(), "other-user", &["user"]);
     let download = Request::builder()
         .method("GET")
         .uri("/storage/v1/object/private-files/owned.txt")
         .body(Body::empty())
         .unwrap();
-    let resp = app.oneshot(download).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let existing = app.oneshot(download).await.unwrap().status();
+    assert_eq!(existing, StatusCode::NOT_FOUND);
+
+    let app = router_for(state, "other-user", &["user"]);
+    let missing = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/no-such-key.txt")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.oneshot(missing).await.unwrap().status(),
+        existing,
+        "another user's object and a missing one must return the same status"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -946,7 +970,7 @@ async fn test_presign_download_other_users_object_is_forbidden_on_private_bucket
         user_id: Some("other-user".to_string()),
         roles:   vec!["user".to_string()],
     };
-    let app = storage_router(state).layer(Extension(other_user));
+    let app = storage_router(state.clone()).layer(Extension(other_user));
     let body = serde_json::json!({
         "operation": "download",
         "expires_in_secs": 3600,
@@ -958,7 +982,408 @@ async fn test_presign_download_other_users_object_is_forbidden_on_private_bucket
         .body(Body::from(body.to_string()))
         .unwrap();
 
-    let resp = app.oneshot(req).await.unwrap();
-    // Cross-user presign(download) on a Private bucket must yield 403.
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let existing = app.oneshot(req).await.unwrap().status();
+    // #876: cross-user presign(download) on a Private bucket answers exactly as
+    // a missing object does, so it is not an existence oracle either.
+    assert_eq!(existing, StatusCode::NOT_FOUND);
+
+    let app = router_for(state, "other-user", &["user"]);
+    let missing = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/presign/private-files/no-such-key.txt")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    assert_eq!(
+        app.oneshot(missing).await.unwrap().status(),
+        existing,
+        "presign(download) must not distinguish another user's object from a missing one"
+    );
+}
+
+// ── #813: aliasing keys are refused at the route boundary ───────────────────
+
+/// Every spelling of `f.txt` that the local backend resolves to one file.
+///
+/// The metadata table keys on the exact `(bucket, key)` string, so before #813
+/// each of these was a *distinct* row over the *same* bytes: user B's write to
+/// an alias found `existing == None`, took `can_write_object`'s create branch
+/// (any authenticated user) and clobbered user A's object while A's row still
+/// named A as owner.
+const ALIAS_KEYS: &[&str] = &["./f.txt", "a/./f.txt", "a//f.txt", "f.txt/", "%2e/f.txt"];
+
+#[tokio::test]
+async fn put_rejects_aliasing_keys_before_touching_metadata_or_backend() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    for alias in ALIAS_KEYS {
+        let router = router_for(state.clone(), "user-a", &["user"]);
+        let status = router.oneshot(put_req("docs", alias, b"x")).await.unwrap().status();
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "PUT with aliasing key {alias:?} must be refused with 400, got {status}"
+        );
+
+        // Nothing was recorded: the refusal happens before any metadata write.
+        assert!(
+            state.metadata.get("docs", alias).await.unwrap().is_none(),
+            "aliasing key {alias:?} must not create a metadata row"
+        );
+    }
+}
+
+#[tokio::test]
+async fn get_and_delete_reject_aliasing_keys() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    for alias in ALIAS_KEYS {
+        let router = router_for(state.clone(), "user-a", &["user"]);
+        let get = Request::builder()
+            .method("GET")
+            .uri(format!("/storage/v1/object/docs/{alias}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router.oneshot(get).await.unwrap().status(),
+            StatusCode::BAD_REQUEST,
+            "GET with aliasing key {alias:?} must be refused with 400"
+        );
+
+        let router = router_for(state.clone(), "user-a", &["user"]);
+        let delete = Request::builder()
+            .method("DELETE")
+            .uri(format!("/storage/v1/object/docs/{alias}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router.oneshot(delete).await.unwrap().status(),
+            StatusCode::BAD_REQUEST,
+            "DELETE with aliasing key {alias:?} must be refused with 400"
+        );
+    }
+}
+
+#[tokio::test]
+async fn presign_rejects_aliasing_keys() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    for alias in ALIAS_KEYS {
+        let router = router_for(state.clone(), "user-a", &["user"]);
+        let status = router.oneshot(presign_upload_req("docs", alias)).await.unwrap().status();
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "presign(upload) with aliasing key {alias:?} must be refused with 400, got {status}"
+        );
+    }
+}
+
+/// The whole point of the refusal: the alias must not become a second owner of
+/// user A's bytes.
+#[tokio::test]
+async fn an_alias_cannot_take_ownership_of_another_users_object() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.oneshot(put_req("docs", "secret.txt", b"ALICE")).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    // B writes to every alias of A's key.
+    for alias in ["./secret.txt", "a/../secret.txt", "%2e/secret.txt"] {
+        let b = router_for(state.clone(), "user-b", &["user"]);
+        assert_eq!(
+            b.oneshot(put_req("docs", alias, b"PWNED")).await.unwrap().status(),
+            StatusCode::BAD_REQUEST,
+            "alias {alias:?} must not reach the create branch"
+        );
+    }
+
+    // A's row still names A, and A's bytes are intact.
+    let row = state
+        .metadata
+        .get("docs", "secret.txt")
+        .await
+        .unwrap()
+        .expect("A's row survives");
+    assert_eq!(row.owner_id.as_deref(), Some("user-a"));
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let resp = a
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/storage/v1/object/docs/secret.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+    assert_eq!(&body[..], b"ALICE", "A's bytes must be untouched");
+}
+
+// ── #866: a presigned upload owns its object ───────────────────────────────
+
+/// Simulate what a presigned upload does: the bytes land in the backend
+/// directly (bypassing the server) and the only thing the server can have
+/// recorded is the reservation it made when it signed the URL.
+async fn plant_presigned_upload(
+    state: &StorageState,
+    bucket: &str,
+    key: &str,
+    owner: &str,
+    body: &[u8],
+) {
+    state
+        .metadata
+        .reserve(
+            &NewStorageObject {
+                bucket:       bucket.to_string(),
+                key:          key.to_string(),
+                content_type: "text/plain".to_string(),
+                size_bytes:   0,
+                etag:         None,
+                owner_id:     Some(owner.to_string()),
+            },
+            None,
+        )
+        .await
+        .expect("reservation succeeds")
+        .expect("no row existed, so the reservation is granted");
+
+    state
+        .backend
+        .upload(&format!("{bucket}/{key}"), body, "text/plain")
+        .await
+        .expect("the client uploads straight to the backend");
+}
+
+#[tokio::test]
+async fn a_presigned_upload_is_readable_by_its_owner() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    plant_presigned_upload(&state, "docs", "report.pdf", "user-a", b"REPORT").await;
+
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let resp = a
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/storage/v1/object/docs/report.pdf")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "an object uploaded through the presign door must be readable through the API"
+    );
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+    assert_eq!(&body[..], b"REPORT");
+
+    // Reading it reconciles the placeholder metadata against the real object.
+    let row = state.metadata.get("docs", "report.pdf").await.unwrap().unwrap();
+    assert_eq!(row.size_bytes, 6, "size must be reconciled from the stored object");
+    assert!(row.etag.is_some(), "etag must be reconciled from the stored object");
+    assert!(!row.pending, "a successfully read object is no longer an in-flight upload");
+}
+
+#[tokio::test]
+async fn a_presigned_upload_cannot_be_overwritten_by_another_user() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    plant_presigned_upload(&state, "docs", "report.pdf", "user-a", b"REPORT").await;
+
+    // B tries the direct write door…
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    assert_eq!(
+        b.oneshot(put_req("docs", "report.pdf", b"PWNED")).await.unwrap().status(),
+        StatusCode::FORBIDDEN,
+        "H9: the overwrite gate must see user-a's ownership of a presign-uploaded object"
+    );
+
+    // …and the presign door.
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    let status = b.oneshot(presign_upload_req("docs", "report.pdf")).await.unwrap().status();
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "B4: presign(upload) over another user's object must be refused, got {status}"
+    );
+
+    // A's bytes and ownership survive.
+    let row = state.metadata.get("docs", "report.pdf").await.unwrap().unwrap();
+    assert_eq!(row.owner_id.as_deref(), Some("user-a"));
+    assert_eq!(
+        state.backend.download("docs/report.pdf").await.unwrap(),
+        b"REPORT",
+        "A's bytes must be untouched"
+    );
+}
+
+#[tokio::test]
+async fn a_reservation_cannot_be_stolen_by_a_concurrent_creator() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    let first = state
+        .metadata
+        .reserve(
+            &NewStorageObject {
+                bucket:       "docs".to_string(),
+                key:          "race.txt".to_string(),
+                content_type: "text/plain".to_string(),
+                size_bytes:   0,
+                etag:         None,
+                owner_id:     Some("user-a".to_string()),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(first.is_some(), "the first claim wins");
+
+    let second = state
+        .metadata
+        .reserve(
+            &NewStorageObject {
+                bucket:       "docs".to_string(),
+                key:          "race.txt".to_string(),
+                content_type: "text/plain".to_string(),
+                size_bytes:   0,
+                etag:         None,
+                owner_id:     Some("user-b".to_string()),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(
+        second.is_none(),
+        "a create-shaped reservation must not overwrite a row that appeared in the meantime"
+    );
+
+    let row = state.metadata.get("docs", "race.txt").await.unwrap().unwrap();
+    assert_eq!(row.owner_id.as_deref(), Some("user-a"));
+}
+
+// ── #866 / phase success criterion: an orphan object is not a public object ──
+
+#[tokio::test]
+async fn an_object_with_no_metadata_row_is_not_served() {
+    let (state, _keep) = test_state("docs", BucketAccess::PublicRead).await;
+
+    // Bytes in the backing store that the metadata table knows nothing about —
+    // an abandoned reservation that was rolled back, a manual copy into the
+    // bucket, or a leftover from a deleted row.
+    state.backend.upload("docs/orphan.txt", b"ORPHAN", "text/plain").await.unwrap();
+
+    let anon = anonymous_router(state.clone());
+    let resp = anon
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/storage/v1/object/docs/orphan.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "an object with no ownership record must be unreachable, even on a public-read bucket"
+    );
+}
+
+/// A presign request that cannot be signed must not leave an ownership claim
+/// behind. Without the `aws-s3` feature — the default build — the handler
+/// answers `501`, and a claim recorded on the way there would squat the key
+/// under the caller's name for an upload that can never happen.
+#[cfg(not(feature = "aws-s3"))]
+#[tokio::test]
+async fn an_unsignable_presign_leaves_no_claim() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let status = a.oneshot(presign_upload_req("docs", "never.txt")).await.unwrap().status();
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "presign needs the aws-s3 backend");
+
+    assert!(
+        state.metadata.get("docs", "never.txt").await.unwrap().is_none(),
+        "a presign that could not be signed must not claim the key"
+    );
+}
+
+/// Same shape, reached a different way: an upload presign with no
+/// `content_type` is a `400`, and must not claim the key either.
+#[tokio::test]
+async fn a_presign_rejected_for_a_missing_content_type_leaves_no_claim() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/presign/docs/never.txt")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(r#"{"operation":"upload","expires_in_secs":300}"#))
+        .unwrap();
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let status = a.oneshot(req).await.unwrap().status();
+    assert!(
+        status == StatusCode::BAD_REQUEST || status == StatusCode::NOT_IMPLEMENTED,
+        "an upload presign without a content_type cannot be signed, got {status}"
+    );
+
+    assert!(
+        state.metadata.get("docs", "never.txt").await.unwrap().is_none(),
+        "a presign that could not be signed must not claim the key"
+    );
+}
+
+/// An owner must be able to release a claim whose upload never happened.
+///
+/// A reservation records ownership before the bytes exist, so `DELETE` has a
+/// case `put_handler` never produced: a metadata row with nothing behind it.
+/// If the backend's `NotFound` propagates, the row survives and the key is
+/// squatted against its own owner for good.
+#[tokio::test]
+async fn an_owner_can_delete_an_abandoned_reservation() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+
+    state
+        .metadata
+        .reserve(
+            &NewStorageObject {
+                bucket:       "docs".to_string(),
+                key:          "abandoned.txt".to_string(),
+                content_type: "text/plain".to_string(),
+                size_bytes:   0,
+                etag:         None,
+                owner_id:     Some("user-a".to_string()),
+            },
+            None,
+        )
+        .await
+        .unwrap()
+        .expect("the claim is granted");
+
+    // The client never uploaded, so there is nothing in the backing store.
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let delete = Request::builder()
+        .method("DELETE")
+        .uri("/storage/v1/object/docs/abandoned.txt")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        a.oneshot(delete).await.unwrap().status(),
+        StatusCode::NO_CONTENT,
+        "deleting a claim with no object behind it must succeed"
+    );
+
+    assert!(
+        state.metadata.get("docs", "abandoned.txt").await.unwrap().is_none(),
+        "the claim must be released, or the key stays squatted against its owner"
+    );
 }
