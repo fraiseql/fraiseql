@@ -254,32 +254,20 @@ impl ServerArgs {
         self.apply_rate_limit_overrides(config);
     }
 
-    /// Apply rate-limiting CLI/env overrides to `config`.
-    fn apply_rate_limit_overrides(&self, config: &mut ServerConfig) {
-        if self.rate_limiting_enabled.is_none()
-            && self.rate_limit_rps_per_ip.is_none()
-            && self.rate_limit_rps_per_user.is_none()
-            && self.rate_limit_burst_size.is_none()
-        {
-            return;
-        }
-
-        let mut rate_config = config.rate_limiting.take().unwrap_or_default();
-
-        if let Some(enabled) = self.rate_limiting_enabled {
-            rate_config.enabled = enabled;
-        }
-        if let Some(v) = self.rate_limit_rps_per_ip {
-            rate_config.rps_per_ip = v;
-        }
-        if let Some(v) = self.rate_limit_rps_per_user {
-            rate_config.rps_per_user = v;
-        }
-        if let Some(v) = self.rate_limit_burst_size {
-            rate_config.burst_size = v;
-        }
-
-        config.rate_limiting = Some(rate_config);
+    /// Record the rate-limiting CLI/env overrides on `config`.
+    ///
+    /// Recorded rather than merged into `config.rate_limiting`: the merge produced a
+    /// `RateLimitConfig` in which an overridden field was indistinguishable from a
+    /// defaulted one, so the resolver could not apply the overrides *over* the
+    /// compiled schema and simply let the schema win — leaving
+    /// `FRAISEQL_RATE_LIMITING_ENABLED=false` with no effect (#774).
+    const fn apply_rate_limit_overrides(&self, config: &mut ServerConfig) {
+        config.rate_limit_overrides = crate::middleware::RateLimitOverrides {
+            enabled:      self.rate_limiting_enabled,
+            rps_per_ip:   self.rate_limit_rps_per_ip,
+            rps_per_user: self.rate_limit_rps_per_user,
+            burst_size:   self.rate_limit_burst_size,
+        };
     }
 
     /// Whether the log format is JSON.

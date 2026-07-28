@@ -1,0 +1,33 @@
+{
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "mutations": [],
+  "naming_convention": "preserve",
+  "queries": [],
+  "security": {
+    "audit_logging": {
+      "enabled": true
+    },
+    "error_sanitization": {
+      "enabled": true
+    },
+    "rate_limiting": {
+      "enabled": true
+    }
+  },
+  "session_variables": {
+    "inject_started_at": false,
+    "variables": []
+  },
+  "subscriptions": [],
+  "types": [
+    {
+      "fields": [],
+      "jsonb_column": "data",
+      "name": "User",
+      "sql_source": "v_user"
+    }
+  ],
+  "unions": []
+}

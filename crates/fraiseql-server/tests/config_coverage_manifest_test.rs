@@ -89,6 +89,22 @@ const MANIFEST: &[(&str, &str)] = &[
     ),
     ("schema_path", "compiled schema file path"),
     ("security_contact", "security.txt contact (Option)"),
+    // ── Leaves that had real consumers but no manifest entry (#883) ──────────
+    // Each was reachable from `serve_with_shutdown`; the gate was red on `dev` for
+    // long enough that four remediation phases recorded it as a pre-existing failure
+    // rather than a missing row. Naming the consumer is the whole job.
+    ("flight_bind_addr", "Arrow Flight gRPC listener (lifecycle.rs, `arrow` feature)"),
+    ("mailbox", "inbound email IMAP pollers + startup probes (lifecycle.rs)"),
+    (
+        "send.challenge_suppress_after",
+        "delivery-feedback suppression threshold (inbound::email::sink)",
+    ),
+    ("send.verp_probe_on_start", "VERP startup probe toggle (lifecycle.rs)"),
+    ("sources", "scheduled ingress source runtime (#573; lifecycle.rs)"),
+    (
+        "webhooks",
+        "inbound webhook route mounting (lifecycle.rs, routing::add_inbound_routes)",
+    ),
 ];
 
 fn collect_leaves(value: &Value, prefix: &str, out: &mut Vec<String>) {

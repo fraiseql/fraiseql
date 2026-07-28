@@ -81,6 +81,15 @@ impl InMemoryRateLimiter {
             });
         }
 
+        if sec.auth_logout_max_requests > 0 && sec.auth_logout_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/logout".to_string(),
+                tokens_per_sec: f64::from(sec.auth_logout_max_requests)
+                    / sec.auth_logout_window_secs as f64,
+                burst:          f64::from(sec.auth_logout_max_requests),
+            });
+        }
+
         self.path_rules = rules;
         self
     }

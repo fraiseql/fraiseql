@@ -55,10 +55,32 @@ impl AdmissionController {
                 _phantom: std::marker::PhantomData,
             })
         } else {
-            // No permits available, increment queue depth
-            self.queue_depth.fetch_add(1, Ordering::Relaxed);
+            // Deliberately no `queue_depth` increment here.
+            //
+            // It used to increment on this path and never decrement, so `queue_depth`
+            // ratcheted monotonically with every miss: after `max_queue_depth`
+            // cumulative rejections the first check above would be permanently true
+            // and the controller would reject *all* traffic forever, with no way back
+            // short of a restart. Nothing noticed because nothing called this (#860).
+            // A non-blocking miss enters no queue, so there is nothing to count.
             None
         }
+    }
+
+    /// Acquire a permit that does not borrow the controller.
+    ///
+    /// The middleware holds a permit across an `await` while the handler runs and
+    /// therefore cannot hold a borrow of the controller; the semaphore permit is
+    /// already owned internally, so this exposes what was there all along.
+    pub fn try_acquire_owned(&self) -> Option<OwnedAdmissionPermit> {
+        if self.queue_depth.load(Ordering::Relaxed) >= self.max_queue_depth {
+            return None;
+        }
+        self.semaphore
+            .clone()
+            .try_acquire_owned()
+            .ok()
+            .map(|permit| OwnedAdmissionPermit { _permit: permit })
     }
 
     /// Acquire a permit with timeout.
@@ -109,4 +131,11 @@ impl Drop for AdmissionPermit<'_> {
     fn drop(&mut self) {
         // Permit is automatically released by drop
     }
+}
+
+/// An admission permit with no lifetime tie to the issuing controller.
+///
+/// Released when dropped, which for the middleware is when the request finishes.
+pub struct OwnedAdmissionPermit {
+    _permit: tokio::sync::OwnedSemaphorePermit,
 }

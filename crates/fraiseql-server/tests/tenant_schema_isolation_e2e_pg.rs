@@ -28,7 +28,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
-    db::postgres::PostgresAdapter, prelude::DatabaseAdapter as _, runtime::Executor,
+    db::postgres::{PostgresAdapter, PostgresTlsConfig},
+    prelude::DatabaseAdapter as _,
+    runtime::Executor,
 };
 use fraiseql_server::tenancy::{TenantPoolConfig, create_tenant_executor};
 use fraiseql_test_support::try_database_url;
@@ -77,6 +79,9 @@ fn pool_config(url: &str) -> TenantPoolConfig {
         // compiled schema's tenancy mode. A test that pre-set it would prove
         // nothing about the registration path.
         search_path:          None,
+        // Likewise stamped by `make_executor_factory` in the binary; the harness
+        // Postgres speaks no TLS, so the default (`prefer`) is what applies.
+        tls:                  PostgresTlsConfig::default(),
     }
 }
 

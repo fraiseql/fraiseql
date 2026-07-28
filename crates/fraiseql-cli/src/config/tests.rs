@@ -217,7 +217,7 @@ ssl_mode = "require"
         assert_eq!(config.database.url, Some("postgresql://localhost/testdb".to_string()));
         assert_eq!(config.database.pool_min, 3);
         assert_eq!(config.database.pool_max, 15);
-        assert_eq!(config.database.ssl_mode, "require");
+        assert_eq!(config.database.ssl_mode.as_deref(), Some("require"));
     }
 
     #[test]
@@ -420,7 +420,8 @@ enabled = false
         assert_eq!(cfg.pool_max, 20);
         assert_eq!(cfg.connect_timeout_ms, 5_000);
         assert_eq!(cfg.idle_timeout_ms, 600_000);
-        assert_eq!(cfg.ssl_mode, "prefer");
+        // Unset, so the connection URL decides — see `DatabaseRuntimeConfig::ssl_mode`.
+        assert_eq!(cfg.ssl_mode, None);
     }
 
     #[test]
@@ -444,7 +445,7 @@ enabled = false
     #[test]
     fn test_database_runtime_config_validate_ssl_mode() {
         let cfg = DatabaseRuntimeConfig {
-            ssl_mode: "bogus".to_string(),
+            ssl_mode: Some("bogus".to_string()),
             ..Default::default()
         };
         let err = cfg.validate().unwrap_err();
@@ -463,7 +464,7 @@ ssl_mode = "require"
         assert_eq!(cfg.url, Some("postgresql://localhost/mydb".to_string()));
         assert_eq!(cfg.pool_min, 5);
         assert_eq!(cfg.pool_max, 50);
-        assert_eq!(cfg.ssl_mode, "require");
+        assert_eq!(cfg.ssl_mode.as_deref(), Some("require"));
     }
 }
 
@@ -586,9 +587,15 @@ mod security_tests {
     fn test_security_config_serialization() {
         let config = SecurityConfig::default();
         let json = config.to_json();
-        assert!(json["auditLogging"]["enabled"].is_boolean());
-        assert!(json["rateLimiting"]["authStart"]["maxRequests"].is_number());
-        assert!(json["stateEncryption"]["algorithm"].is_string());
+        assert!(json["audit_logging"]["enabled"].is_boolean());
+        assert!(json["state_encryption"]["algorithm"].is_string());
+
+        // Flat, not `rate_limiting.authStart.maxRequests`. This assertion used to pin
+        // the nested camelCase shape, which matched no reader anywhere — so the test
+        // passed for the whole time a project TOML's rate-limit configuration was
+        // reaching nothing (#893). `security_seam_tests` covers the rest of the seam.
+        assert!(json["rate_limiting"]["auth_start_max_requests"].is_number());
+        assert!(json["rate_limiting"]["requests_per_second"].is_number());
     }
 
     // ── TenancyTomlConfig ───────────────────────────────────────────────

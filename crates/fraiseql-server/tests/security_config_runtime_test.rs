@@ -28,7 +28,7 @@ mod tests {
             "types": [],
             "queries": [],
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": true,
                     "logLevel": "info",
                     "includeSensitiveData": false,
@@ -36,14 +36,14 @@ mod tests {
                     "bufferSize": 1000,
                     "flushIntervalSecs": 5
                 },
-                "errorSanitization": {
+                "error_sanitization": {
                     "enabled": true,
                     "genericMessages": true,
                     "internalLogging": true,
                     "leakSensitiveDetails": false,
                     "userFacingFormat": "generic"
                 },
-                "stateEncryption": {
+                "state_encryption": {
                     "enabled": true,
                     "algorithm": "chacha20-poly1305",
                     "keyRotationEnabled": false,
@@ -88,7 +88,7 @@ mod tests {
         // Test initialization when schema has security config
         let schema_json_str = r#"{
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": true,
                     "logLevel": "debug"
                 }
@@ -167,14 +167,14 @@ mod tests {
                 }
             ],
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": true,
                     "logLevel": "warn"
                 },
-                "errorSanitization": {
+                "error_sanitization": {
                     "enabled": true
                 },
-                "stateEncryption": {
+                "state_encryption": {
                     "enabled": true,
                     "algorithm": "chacha20-poly1305"
                 }
@@ -196,7 +196,7 @@ mod tests {
         // Test that missing optional fields use defaults
         let minimal_schema = json!({
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": false
                 }
             }

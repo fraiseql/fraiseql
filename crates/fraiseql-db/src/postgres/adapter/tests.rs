@@ -5,7 +5,7 @@
 use fraiseql_error::FraiseQLError;
 
 use super::{
-    PoolPrewarmConfig, PostgresAdapter, SearchPath, build_where_select_sql,
+    PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath, build_where_select_sql,
     compose_startup_options, escape_jsonb_key,
 };
 
@@ -48,6 +48,7 @@ fn pool_prewarm_config_carries_all_fields() {
         max_size:     20,
         timeout_secs: Some(30),
         search_path:  None,
+        tls:          PostgresTlsConfig::default(),
     };
     assert_eq!(cfg.min_size, 5);
     assert_eq!(cfg.max_size, 20);
@@ -61,6 +62,7 @@ fn pool_prewarm_config_no_timeout_is_none() {
         max_size:     10,
         timeout_secs: None,
         search_path:  None,
+        tls:          PostgresTlsConfig::default(),
     };
     assert!(cfg.timeout_secs.is_none());
 }
@@ -72,6 +74,7 @@ fn pool_prewarm_config_min_zero_is_valid() {
         max_size:     5,
         timeout_secs: None,
         search_path:  None,
+        tls:          PostgresTlsConfig::default(),
     };
     assert_eq!(cfg.min_size, 0);
     assert_eq!(cfg.max_size, 5);
@@ -84,6 +87,7 @@ fn pool_prewarm_config_min_equals_max_is_valid() {
         max_size:     10,
         timeout_secs: Some(60),
         search_path:  None,
+        tls:          PostgresTlsConfig::default(),
     };
     assert_eq!(cfg.min_size, cfg.max_size);
 }

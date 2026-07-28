@@ -1,4 +1,6 @@
-use super::ServerConfig;
+use fraiseql_core::db::postgres::PostgresTlsConfig;
+
+use super::{DatabaseTlsConfig, ServerConfig};
 
 impl ServerConfig {
     /// Load server configuration from a TOML file.
@@ -24,12 +26,31 @@ impl ServerConfig {
         fraiseql_guard::deployment::is_production()
     }
 
+    /// Transport security for the PostgreSQL connection pool.
+    ///
+    /// The single reader of `[database_tls]`. Absent the section, this is libpq's
+    /// `prefer`: negotiate TLS when the server offers it, fall back to cleartext
+    /// otherwise — the behaviour a deployment that terminates TLS at a proxy
+    /// already relies on.
+    ///
+    /// # Errors
+    ///
+    /// Returns a human-readable message when the section names an ssl mode the
+    /// connector cannot honour, contradicts itself, or still sets one of the
+    /// removed URL-scheme switches.
+    pub fn postgres_tls(&self) -> Result<PostgresTlsConfig, String> {
+        self.database_tls
+            .as_ref()
+            .map_or_else(|| Ok(PostgresTlsConfig::default()), DatabaseTlsConfig::postgres_tls)
+    }
+
     /// Validate configuration.
     ///
     /// # Errors
     ///
     /// Returns error if:
     /// - `metrics_enabled` is true but `metrics_token` is not set
+    /// - `[database_tls]` cannot be lowered onto a working connector
     /// - `metrics_token` is set but too short (< 16 characters)
     /// - `auth` config is set but invalid (e.g., empty issuer)
     /// - `tls` is enabled but cert or key path is missing
@@ -157,25 +178,12 @@ impl ServerConfig {
                 .to_string());
         }
 
-        // Validate database TLS config if present
+        // Validate database TLS config by *building* it, rather than by checking the
+        // ssl mode against a second, hand-maintained allow-list. The old list accepted
+        // `allow` and `verify-ca`, which the connector cannot honour, so validation
+        // passing said nothing about whether the setting could take effect (#801).
+        self.postgres_tls()?;
         if let Some(ref db_tls) = self.database_tls {
-            // Validate PostgreSQL SSL mode
-            if ![
-                "disable",
-                "allow",
-                "prefer",
-                "require",
-                "verify-ca",
-                "verify-full",
-            ]
-            .contains(&db_tls.postgres_ssl_mode.as_str())
-            {
-                return Err("Invalid postgres_ssl_mode. Must be one of: \
-                     disable, allow, prefer, require, verify-ca, verify-full"
-                    .to_string());
-            }
-
-            // Validate CA bundle path if provided
             if let Some(ref ca_path) = db_tls.ca_bundle_path {
                 if !ca_path.exists() {
                     return Err(format!("CA bundle file not found: {}", ca_path.display()));

@@ -23,7 +23,8 @@ pub use oidc_auth::{
     required_auth_middleware,
 };
 pub use rate_limit::{
-    RateLimitConfig, RateLimiter, RateLimitingSecurityConfig, rate_limit_middleware,
+    RateLimitConfig, RateLimitOverrides, RateLimiter, RateLimitingSecurityConfig,
+    rate_limit_middleware,
 };
 pub use tenant::{TenantContext, tenant_middleware};
 pub use trace::trace_layer;

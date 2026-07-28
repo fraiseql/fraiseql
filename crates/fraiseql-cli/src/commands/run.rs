@@ -31,7 +31,7 @@ use fraiseql_core::{
 };
 use fraiseql_server::{
     Server, ServerConfig,
-    server_config::TlsServerConfig,
+    server_config::{DatabaseTlsConfig, TlsServerConfig},
     url_guard::{DatabaseScheme, parse_database_url},
 };
 use notify::{
@@ -220,6 +220,9 @@ async fn serve_postgres(
     schema: CompiledSchema,
     shutdown: ShutdownFuture,
 ) -> Result<()> {
+    let tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
+    tls.warn_if_unverified();
+
     let adapter = Arc::new(
         PostgresAdapter::with_pool_config(
             &config.database_url,
@@ -228,10 +231,16 @@ async fn serve_postgres(
                 max_size:     config.pool_max_size,
                 timeout_secs: Some(config.pool_timeout_secs),
                 search_path:  None,
+                // `[database] ssl_mode` arrives here through `ServerConfig.database_tls`,
+                // the single seam both binaries read. It used to stop at `validate()`
+                // (#824).
+                tls:          tls.clone(),
             },
         )
         .await
-        .context("Failed to connect to database")?,
+        .with_context(|| {
+            format!("Failed to connect to database (ssl_mode = {})", tls.effective_mode())
+        })?,
     );
     let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
         // Box the server-init future: it exceeds clippy's `large_futures` stack
@@ -531,9 +540,21 @@ pub(crate) fn build_config_from(
         cors_enabled: true,
         cors_origins: server.cors.origins.clone(),
         tls,
+        // `[database] ssl_mode` is carried as a `[database_tls]` section so both the
+        // `fraiseql run` launcher and the `fraiseql-server` binary reach the pool
+        // through one seam (`ServerConfig::postgres_tls`) rather than two that can
+        // disagree — which is how one of them came to drop the setting entirely (#824).
+        database_tls: Some(DatabaseTlsConfig {
+            postgres_ssl_mode:   db_cfg.ssl_mode.clone(),
+            verify_certificates: true,
+            ca_bundle_path:      None,
+            redis_ssl:           None,
+            clickhouse_https:    None,
+            elasticsearch_https: None,
+        }),
         pool_min_size: db_cfg.pool_min,
         pool_max_size: db_cfg.pool_max,
-        pool_timeout_secs: db_cfg.connect_timeout_ms / 1000,
+        pool_timeout_secs: db_cfg.pool_timeout_secs(),
         introspection_enabled: introspection,
         // When introspection is requested via CLI flag, serve it without requiring auth
         // (development convenience; production setups use fraiseql-server directly).

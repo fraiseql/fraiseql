@@ -36,7 +36,7 @@ use serde::{Deserialize, Serialize};
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 
-use crate::middleware::RateLimitConfig;
+use crate::middleware::{RateLimitConfig, RateLimitOverrides};
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -463,6 +463,16 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub rate_limiting: Option<RateLimitConfig>,
+
+    /// Rate-limit values supplied by CLI flags or environment variables.
+    ///
+    /// Not a config-file key — `#[serde(skip)]` — because it exists to record what
+    /// the *operator* overrode at launch, which is the layer that must win over both
+    /// `[rate_limiting]` above and the compiled schema's `[security.rate_limiting]`.
+    /// These used to be merged into `rate_limiting` on arrival, which erased which
+    /// fields were set and left the compiled schema shadowing them entirely (#774).
+    #[serde(skip)]
+    pub rate_limit_overrides: RateLimitOverrides,
 
     /// Observer runtime configuration (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
@@ -897,6 +907,7 @@ impl Default for ServerConfig {
             max_header_count: default_max_header_count(), // 100 headers
             max_header_bytes: default_max_header_bytes(), // 32 KiB
             rate_limiting: None,             // Rate limiting uses defaults
+            rate_limit_overrides: RateLimitOverrides::default(), // Set from CLI flags / env vars
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
             #[cfg(feature = "sources")]

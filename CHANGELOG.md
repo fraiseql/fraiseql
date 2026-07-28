@@ -9,6 +9,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Database TLS is now a property of the connection rather than a log line
+  (#801, #824).** `build_pool` called `create_pool(.., NoTls)` unconditionally. Both
+  configuration surfaces that claimed to control database TLS — the server's
+  `[database_tls] postgres_ssl_mode` and the CLI's `[database] ssl_mode` — were parsed
+  and whitelist-validated, so a typo failed loudly and convinced the operator the
+  setting was live; then they were discarded. `serve()` printed
+  `postgres_ssl_mode=verify-full … Database connection TLS configuration applied` over a
+  pool that had been built in cleartext several hundred lines earlier. An operator had
+  documented, validated, log-confirmed evidence that their database traffic, including
+  the connection password, was encrypted, and it was not.
+
+  The pool now takes a required `PostgresTlsConfig` (a rustls connector via
+  `tokio-postgres-rustls`), so every site that opens a pool has to state its transport
+  security and a new one cannot compile without deciding. `require` refuses a server
+  that cannot encrypt; `verify-full` refuses a certificate it cannot chain to a trusted
+  root and accepts it once `ca_bundle_path` supplies the CA. Two suites assert this
+  against real PostgreSQL — one without TLS, one with — and read `pg_stat_ssl` back out
+  of the server rather than inferring encryption from the connection having succeeded.
+
+  Per-tenant pools inherit the server's setting through `make_executor_factory`;
+  `TenantPoolConfig.tls` is `#[serde(skip)]` like `search_path`, so a tenant-registration
+  request body cannot downgrade its own tenant to cleartext.
+
+  The false "applied" log line is gone; the pool reports its own mode from the site that
+  builds it, and `require` (which encrypts without authenticating the peer) warns at boot
+  and names `verify-full`.
+
+- **The `#618` proxy-trust boot guard can no longer be reached around (#837, #778).**
+  It ran only inside the compiled-schema branch, so the same configuration expressed as
+  `[rate_limiting]` in `fraiseql.toml` reached `RateLimiter::new` with no gate:
+  `trust_proxy_headers = true` with an empty `trusted_proxy_cidrs` booted happily in
+  production and honoured `X-Real-IP` from every peer, defeating per-IP rate limiting.
+  Separately, the compiled section was deserialized with `.ok()`, so one wrong-typed
+  field made it vanish — turning rate limiting off *and* skipping the guards behind the
+  parse — while the operator had a successful compile as evidence it was in effect.
+
+  Both constructors now resolve the limiter through one function that runs the guards on
+  whatever configuration actually takes effect, and a malformed section refuses to boot.
+
+  A third bypass was found while fixing these and is closed too: `trusted_proxy_cidrs`
+  entries that failed to parse were dropped with a warning *after* the guard inspected
+  the string list, so `["10.0.0.0/8typo"]` passed the non-empty check and produced an
+  empty trust list — the trust-everyone posture the guard exists to refuse. An
+  unparseable entry is now a boot error naming it.
+
+- **`[fraiseql.security]` sub-sections reached their consumers (#893).**
+  `SecurityConfig::to_json` emitted `auditLogging` / `errorSanitization` /
+  `rateLimiting` / `stateEncryption` while the server read snake_case and the other
+  compile path (`schema/merger.rs`) emitted snake_case — so which keys survived depended
+  on which producer ran, and `[fraiseql.security.rate_limiting]` from a project TOML
+  reached nothing at all: no limiter was mounted and the proxy-trust guard behind it
+  never ran. All producers and consumers now use one spelling, and the rate-limit
+  section is emitted in the flat shape the consumer deserializes.
+
+  `RateLimitingSecurityConfig` gained a real `Default`: it derived one, so a producer
+  omitting `requests_per_second` yielded a limiter with a budget of zero that denies
+  every request. A limiter enabled with a zero budget is now refused at boot.
+
+- **`fraiseql analyze` no longer fabricates a security attestation (#818).** It read the
+  schema, discarded it, and emitted a fixed list stating that rate limiting was
+  "configured and active" and audit logging "enabled for compliance", with
+  `health_score` pinned at 100 for every possible input — an empty `{}` and a schema
+  explicitly disabling both controls produced byte-identical output. The report is now
+  computed from the schema, in the `{category, severity, message, suggestion}` shape the
+  published `--show-output-schema analyze` contract already described but the command
+  never emitted.
+
+### Fixed
+
+- **`[admission_control]` enforces admission (#860).** The controller was constructed,
+  inserted into the request extension map — which stores a value and gates nothing — and
+  announced in the boot log as "enabled", while `ServerConfig::admission_control`'s
+  documentation promised that over-limit requests "receive 503 Service Unavailable
+  immediately". Every `try_acquire` caller in the workspace was a test. It is now a real
+  middleware holding a permit for the duration of the request. `try_acquire` also
+  incremented `queue_depth` on the reject path and never decremented it, so once wired it
+  would have ratcheted to permanent rejection after `max_queue_depth` cumulative misses;
+  a non-blocking miss enters no queue and is no longer counted.
+
+- **`fraiseql run` sub-second `connect_timeout_ms` no longer breaks every connection
+  (#824).** `pool_timeout_secs: connect_timeout_ms / 1000` truncated `1..=999` to `0`,
+  which deadpool applies to its `create` slot as `Duration::ZERO`; a TCP connect plus the
+  PostgreSQL handshake cannot finish on the first poll, so every attempt failed with a
+  pool timeout against a healthy server, naming a timeout the operator never configured.
+
+- **Six `ServerConfig` leaves had real consumers but no manifest entry (#883)**, leaving
+  `config_coverage_manifest_test` red on `dev` for long enough that four remediation
+  phases recorded it as a pre-existing failure. Registered, so the gate protects new keys
+  again.
+
+### Breaking
+
+- `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
+  **removed**. They only ever rewrote a URL scheme, in a helper with no production
+  caller. A config still setting one is refused with a message naming the replacement
+  (put `rediss://` / `https://` in the URL, which is what the client library reads) —
+  refused rather than dropped, because an unknown key in that struct is discarded
+  silently.
+- `postgres_ssl_mode` / `[database] ssl_mode`: libpq's `allow` and `verify-ca` are
+  **refused** rather than approximated. `allow` has no expression in the driver, and
+  `verify-ca` would need a bespoke verifier whose only purpose is to check less than the
+  default. Each error names the mode to use instead.
+- `postgres_ssl_mode` and `[database] ssl_mode` are now **unset by default** rather than
+  `"prefer"`. Unset means "whatever `?sslmode=` in the connection URL says"; a concrete
+  default would override an operator's explicit `?sslmode=require` with a value they
+  never wrote.
+- `[security.constant_time]` is **refused**. Constant-time comparison is applied
+  unconditionally, so the toggles switched nothing — and one key inside was misspelled
+  `applytoCsrfTokens`, which nothing noticed because nothing read it.
+- `[security.rate_limiting] failed_login_max_attempts` / `failed_login_lockout_secs`
+  defaults change from 5 / 3600 to 10 / 900, matching the runtime's. The old values read
+  as deliberately tuned, and now that this section actually reaches the runtime, a tuned
+  value refuses to boot in production (#356).
+- `fraiseql analyze` output shape changed from `categories` (a map of constant strings)
+  to `recommendations` — the shape its published machine contract already documented.
+
+### Security
+
 - **The authorization and administration surfaces now do what they report doing
   (#748, #749, #768, #769, #757, #677).** An operator could revoke a session, set a
   secret, invite a user, read an audit trail and grant a field-level role — and none of

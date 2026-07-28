@@ -443,3 +443,315 @@ mod lifecycle_tests {
         assert!(drain.is_ok(), "drain on an empty JoinSet must be a no-op");
     }
 }
+
+// ── rate_limit_boot_guard_tests ───────────────────────────────────────────────
+
+/// The `#618` proxy-trust boot guard must be unreachable-around, and the documented
+/// CLI > env > compiled-config precedence must hold (#778, #837, #774).
+///
+/// Three defects met in the rate-limiter construction path, none of them visible
+/// from a successful boot:
+///
+/// * `#778` — the compiled `security.rate_limiting` was deserialized with `.ok()`, so one
+///   wrong-typed field made the whole section vanish. `None` is indistinguishable from "not
+///   configured", so rate limiting silently turned off *and* the boot guards sitting behind that
+///   parse never ran.
+/// * `#837` — those guards lived in the compiled-schema branch only, so the same configuration
+///   expressed as `[rate_limiting]` in `fraiseql.toml` reached the limiter ungated:
+///   `trust_proxy_headers = true` with no trusted CIDRs booted happily in production and honoured
+///   `X-Real-IP` from every peer.
+/// * `#774` — the compiled schema won unconditionally, so `FRAISEQL_RATE_LIMITING_ENABLED=false`
+///   and the three numeric overrides were discarded without a word, inverting the precedence the
+///   CLI documents.
+///
+/// A fourth was found while fixing them and is fixed here too: `trusted_proxy_cidrs`
+/// entries that failed to parse were dropped with a warning *after* the guard had
+/// inspected the string list, so `["10.0.0.0/8typo"]` passed the non-empty check and
+/// yielded an empty trust list — the trust-everyone posture the guard exists to refuse.
+mod rate_limit_boot_guard_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+
+    use fraiseql_core::schema::CompiledSchema;
+    use serde_json::json;
+
+    use super::super::initialization::resolve_rate_limiter_in;
+    use crate::{
+        ServerConfig,
+        middleware::{RateLimitConfig, RateLimitOverrides},
+    };
+
+    const PRODUCTION: bool = true;
+    const DEVELOPMENT: bool = false;
+
+    fn schema_with_rate_limiting(section: serde_json::Value) -> CompiledSchema {
+        let mut security = fraiseql_core::schema::SecurityConfig::default();
+        security.additional.insert("rate_limiting".to_string(), section);
+        CompiledSchema {
+            security: Some(security),
+            ..CompiledSchema::default()
+        }
+    }
+
+    fn bare_schema() -> CompiledSchema {
+        CompiledSchema::default()
+    }
+
+    /// A schema section that trusts proxy headers without naming any trusted proxy.
+    fn trust_all_by_omission() -> serde_json::Value {
+        json!({
+            "enabled": true,
+            "requests_per_second": 100,
+            "burst_size": 50,
+            "trust_proxy_headers": true,
+            "trusted_proxy_cidrs": [],
+        })
+    }
+
+    // ── #778: a malformed section refuses to boot ────────────────────────────
+
+    #[tokio::test]
+    async fn a_malformed_compiled_section_refuses_to_boot() {
+        // `requests_per_second` as a string is what an external generator or a hand
+        // edit produces, and is exactly what `.ok()` used to swallow whole.
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true,
+            "requests_per_second": "100",
+            "trust_proxy_headers": true,
+        }));
+
+        let err = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .err()
+            .expect("a present-but-unparseable [security.rate_limiting] must refuse to boot");
+
+        assert!(
+            err.to_string().contains("security.rate_limiting"),
+            "the error must name the section so an operator can find it; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_absent_section_is_not_an_error() {
+        let limiter = resolve_rate_limiter_in(&bare_schema(), &ServerConfig::default(), PRODUCTION)
+            .await
+            .expect("no rate-limit configuration anywhere is a valid deployment");
+        assert!(limiter.is_none());
+    }
+
+    #[tokio::test]
+    async fn an_explicit_json_null_section_is_not_an_error() {
+        // The compiler serialises an absent `SecurityConfig.rate_limiting` as null.
+        let schema = schema_with_rate_limiting(serde_json::Value::Null);
+        let limiter = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .expect("a null section means absent, not malformed");
+        assert!(limiter.is_none());
+    }
+
+    // ── #837: the guard runs whichever source configures the limiter ─────────
+
+    #[tokio::test]
+    async fn the_proxy_trust_guard_runs_when_the_compiled_schema_configures_it() {
+        let schema = schema_with_rate_limiting(trust_all_by_omission());
+        assert!(
+            resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn the_proxy_trust_guard_runs_when_the_server_table_configures_it() {
+        // The #837 branch: `[rate_limiting]` in the server's own fraiseql.toml built
+        // a `RateLimiter` directly and never reached a guard.
+        let config = ServerConfig {
+            rate_limiting: Some(RateLimitConfig {
+                enabled: true,
+                trust_proxy_headers: true,
+                trusted_proxy_cidrs: vec![],
+                ..RateLimitConfig::default()
+            }),
+            ..ServerConfig::default()
+        };
+
+        assert!(
+            resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION).await.is_err(),
+            "trust_proxy_headers = true with no trusted CIDRs must refuse to boot in production \
+             regardless of which source declares it (#837)"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_proxy_trust_guard_runs_after_overrides_are_applied() {
+        // An override can switch the limiter on over a base that was disabled, so the
+        // guard has to run on the merged result, not only on the base.
+        let config = ServerConfig {
+            rate_limiting: Some(RateLimitConfig {
+                enabled: false,
+                trust_proxy_headers: true,
+                trusted_proxy_cidrs: vec![],
+                ..RateLimitConfig::default()
+            }),
+            rate_limit_overrides: RateLimitOverrides {
+                enabled: Some(true),
+                ..RateLimitOverrides::default()
+            },
+            ..ServerConfig::default()
+        };
+
+        assert!(resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn the_proxy_trust_guard_is_a_warning_in_development() {
+        let schema = schema_with_rate_limiting(trust_all_by_omission());
+        assert!(
+            resolve_rate_limiter_in(&schema, &ServerConfig::default(), DEVELOPMENT)
+                .await
+                .is_ok(),
+            "development downgrades the guard to a warning"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unparseable_trusted_proxy_cidr_refuses_to_boot() {
+        // Non-empty as a string list, so the guard's own check passes; empty once
+        // parsed, which is the trust-everyone posture. Skipping it with a warning made
+        // the guard inspect a list the middleware would never see.
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true,
+            "requests_per_second": 100,
+            "burst_size": 50,
+            "trust_proxy_headers": true,
+            "trusted_proxy_cidrs": ["10.0.0.0/8", "not-a-cidr"],
+        }));
+
+        let err = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .err()
+            .expect("an entry that is not a CIDR must refuse to boot, not be skipped");
+        assert!(
+            err.to_string().contains("not-a-cidr"),
+            "the error must name the offending entry; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_restricted_proxy_list_boots() {
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true,
+            "requests_per_second": 100,
+            "burst_size": 50,
+            "trust_proxy_headers": true,
+            "trusted_proxy_cidrs": ["10.0.0.0/8"],
+        }));
+
+        let limiter = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .expect("a restricted trusted-proxy list is the sanctioned configuration");
+        assert!(limiter.is_some());
+    }
+
+    // ── #774: CLI/env overrides outrank the compiled schema ──────────────────
+
+    #[tokio::test]
+    async fn an_env_override_can_disable_compiled_schema_rate_limiting() {
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true, "requests_per_second": 1, "burst_size": 1,
+        }));
+        let config = ServerConfig {
+            rate_limit_overrides: RateLimitOverrides {
+                enabled: Some(false),
+                ..RateLimitOverrides::default()
+            },
+            ..ServerConfig::default()
+        };
+
+        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap();
+        assert!(
+            limiter.is_none(),
+            "FRAISEQL_RATE_LIMITING_ENABLED=false is the documented off-switch; the compiled \
+             schema must not shadow it (#774)"
+        );
+    }
+
+    #[tokio::test]
+    async fn numeric_overrides_win_over_the_compiled_schema() {
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true, "requests_per_second": 1, "burst_size": 1,
+        }));
+        let config = ServerConfig {
+            rate_limit_overrides: RateLimitOverrides {
+                rps_per_ip: Some(1000),
+                burst_size: Some(500),
+                ..RateLimitOverrides::default()
+            },
+            ..ServerConfig::default()
+        };
+
+        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION)
+            .await
+            .unwrap()
+            .expect("enabled");
+        assert_eq!(limiter.config().rps_per_ip, 1000, "the override must reach the limiter");
+        assert_eq!(limiter.config().burst_size, 500);
+    }
+
+    #[tokio::test]
+    async fn an_unset_override_leaves_the_compiled_value_alone() {
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true, "requests_per_second": 7, "burst_size": 9,
+        }));
+        let config = ServerConfig {
+            rate_limit_overrides: RateLimitOverrides {
+                // Only one field overridden; the others must not fall back to struct
+                // defaults, which is what a whole-struct merge would have done.
+                rps_per_ip: Some(1000),
+                ..RateLimitOverrides::default()
+            },
+            ..ServerConfig::default()
+        };
+
+        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap().unwrap();
+        assert_eq!(limiter.config().rps_per_ip, 1000);
+        assert_eq!(limiter.config().burst_size, 9, "an unset override must not clobber the schema");
+    }
+
+    #[tokio::test]
+    async fn the_compiled_schema_still_wins_over_the_server_table() {
+        // Unchanged precedence between the two file-based sources, pinned so the
+        // override work above cannot quietly reorder it.
+        let schema = schema_with_rate_limiting(json!({
+            "enabled": true, "requests_per_second": 42, "burst_size": 1,
+        }));
+        let config = ServerConfig {
+            rate_limiting: Some(RateLimitConfig {
+                enabled: true,
+                rps_per_ip: 7,
+                ..RateLimitConfig::default()
+            }),
+            ..ServerConfig::default()
+        };
+
+        let limiter = resolve_rate_limiter_in(&schema, &config, PRODUCTION).await.unwrap().unwrap();
+        assert_eq!(limiter.config().rps_per_ip, 42);
+    }
+
+    #[tokio::test]
+    async fn overrides_alone_can_enable_rate_limiting() {
+        let config = ServerConfig {
+            rate_limit_overrides: RateLimitOverrides {
+                enabled: Some(true),
+                rps_per_ip: Some(250),
+                ..RateLimitOverrides::default()
+            },
+            ..ServerConfig::default()
+        };
+
+        let limiter = resolve_rate_limiter_in(&bare_schema(), &config, PRODUCTION)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(limiter.config().rps_per_ip, 250);
+    }
+}

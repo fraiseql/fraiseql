@@ -409,8 +409,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
-        // Initialize TLS setup (database connection TLS; server-side TLS is unsupported).
-        let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone());
+        // Server-side TLS is unsupported; database TLS is applied where the pool is built.
+        let tls_setup = TlsSetup::new(self.config.tls.clone());
 
         // Refuse to boot if server-side `[tls]` is enabled. FraiseQL does not terminate TLS
         // itself — it serves plaintext and expects a reverse proxy / load balancer / service
@@ -554,14 +554,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        // Log database TLS configuration
-        info!(
-            postgres_ssl_mode = tls_setup.postgres_ssl_mode(),
-            redis_ssl = tls_setup.redis_ssl_enabled(),
-            clickhouse_https = tls_setup.clickhouse_https_enabled(),
-            elasticsearch_https = tls_setup.elasticsearch_https_enabled(),
-            "Database connection TLS configuration applied"
-        );
+        // Deliberately no "database TLS applied" line here. `serve()` does not build the
+        // connection pool — it is handed one — so it is in no position to report what
+        // transport security that pool negotiated. The line that used to be here read
+        // `postgres_ssl_mode=verify-full … Database connection TLS configuration applied`
+        // over a pool constructed with `NoTls`, which is the whole of #801. The pool now
+        // reports its own mode from the site that builds it.
 
         info!("Server listening on http://{}", self.config.bind_addr);
 

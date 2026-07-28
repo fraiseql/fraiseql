@@ -292,7 +292,7 @@ fn diagnostic_tls_invalid_min_version() {
 #[test]
 fn diagnostic_database_invalid_ssl_mode() {
     let mut schema = base_schema_with_user();
-    schema.database.ssl_mode = "bogus".to_string();
+    schema.database.ssl_mode = Some("bogus".to_string());
 
     let err = schema.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());

@@ -85,7 +85,7 @@ mod security_config_tests {
     #[test]
     fn test_parse_from_json() {
         let json = serde_json::json!({
-            "auditLogging": {
+            "audit_logging": {
                 "enabled": true,
                 "logLevel": "debug",
                 "includeSensitiveData": false
@@ -149,7 +149,7 @@ mod security_init_tests {
     fn test_init_security_config_from_json() {
         let json = serde_json::json!({
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": true,
                     "logLevel": "debug"
                 }
@@ -165,11 +165,11 @@ mod security_init_tests {
     fn test_init_security_config_from_string() {
         let json_str = r#"{
             "security": {
-                "auditLogging": {
+                "audit_logging": {
                     "enabled": true,
                     "logLevel": "info"
                 },
-                "errorSanitization": {
+                "error_sanitization": {
                     "enabled": true,
                     "genericMessages": true
                 }

@@ -675,6 +675,7 @@ async fn pool_prewarms_to_min_size() {
             max_size:     20,
             timeout_secs: None,
             search_path:  None,
+            tls:          PostgresTlsConfig::default(),
         },
     )
     .await
@@ -697,6 +698,7 @@ async fn pool_prewarm_zero_min_size_creates_one_connection() {
             max_size:     10,
             timeout_secs: None,
             search_path:  None,
+            tls:          PostgresTlsConfig::default(),
         },
     )
     .await
@@ -718,6 +720,7 @@ async fn pool_prewarm_min_capped_at_max() {
             max_size:     3,
             timeout_secs: None,
             search_path:  None,
+            tls:          PostgresTlsConfig::default(),
         },
     )
     .await
@@ -740,6 +743,7 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
             max_size:     1,
             timeout_secs: Some(1),
             search_path:  None,
+            tls:          PostgresTlsConfig::default(),
         },
     )
     .await
@@ -771,6 +775,7 @@ async fn acquire_does_not_retry_on_timeout_error() {
             max_size:     1,
             timeout_secs: Some(1),
             search_path:  None,
+            tls:          PostgresTlsConfig::default(),
         },
     )
     .await

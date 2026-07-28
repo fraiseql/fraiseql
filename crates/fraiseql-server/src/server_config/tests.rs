@@ -170,18 +170,15 @@ fn test_tls_config_defaults() {
 #[test]
 fn test_database_tls_config_defaults() {
     let db_tls = DatabaseTlsConfig {
-        postgres_ssl_mode:   "prefer".to_string(),
-        redis_ssl:           false,
-        clickhouse_https:    false,
-        elasticsearch_https: false,
+        postgres_ssl_mode:   Some("prefer".to_string()),
         verify_certificates: true,
         ca_bundle_path:      None,
+        redis_ssl:           None,
+        clickhouse_https:    None,
+        elasticsearch_https: None,
     };
 
-    assert_eq!(db_tls.postgres_ssl_mode, "prefer");
-    assert!(!db_tls.redis_ssl);
-    assert!(!db_tls.clickhouse_https);
-    assert!(!db_tls.elasticsearch_https);
+    assert_eq!(db_tls.postgres_ssl_mode.as_deref(), Some("prefer"));
     assert!(db_tls.verify_certificates);
 }
 
@@ -252,19 +249,19 @@ fn test_validate_tls_invalid_min_version() {
 fn test_validate_database_tls_invalid_postgres_ssl_mode() {
     let config = ServerConfig {
         database_tls: Some(DatabaseTlsConfig {
-            postgres_ssl_mode:   "invalid_mode".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
-            elasticsearch_https: false,
+            postgres_ssl_mode:   Some("invalid_mode".to_string()),
             verify_certificates: true,
             ca_bundle_path:      None,
+            redis_ssl:           None,
+            clickhouse_https:    None,
+            elasticsearch_https: None,
         }),
         ..ServerConfig::default()
     };
 
     let result = config.validate();
     assert!(result.is_err(), "expected Err, got: {result:?}");
-    assert!(result.unwrap_err().contains("Invalid postgres_ssl_mode"));
+    assert!(result.unwrap_err().contains("unknown postgres ssl mode"));
 }
 
 #[test]
@@ -296,12 +293,12 @@ fn test_validate_tls_requires_client_ca() {
 #[test]
 fn test_database_tls_serialization() {
     let db_tls = DatabaseTlsConfig {
-        postgres_ssl_mode:   "require".to_string(),
-        redis_ssl:           true,
-        clickhouse_https:    true,
-        elasticsearch_https: true,
+        postgres_ssl_mode:   Some("require".to_string()),
         verify_certificates: true,
         ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+        redis_ssl:           None,
+        clickhouse_https:    None,
+        elasticsearch_https: None,
     };
 
     let json = serde_json::to_string(&db_tls).expect(
@@ -312,10 +309,8 @@ fn test_database_tls_serialization() {
     );
 
     assert_eq!(restored.postgres_ssl_mode, db_tls.postgres_ssl_mode);
-    assert_eq!(restored.redis_ssl, db_tls.redis_ssl);
-    assert_eq!(restored.clickhouse_https, db_tls.clickhouse_https);
-    assert_eq!(restored.elasticsearch_https, db_tls.elasticsearch_https);
     assert_eq!(restored.ca_bundle_path, db_tls.ca_bundle_path);
+    assert_eq!(restored.verify_certificates, db_tls.verify_certificates);
 }
 
 #[test]

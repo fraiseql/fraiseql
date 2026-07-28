@@ -108,22 +108,6 @@ pub fn default_tls_min_version() -> String {
     "1.2".to_string()
 }
 
-pub fn default_postgres_ssl_mode() -> String {
-    "prefer".to_string()
-}
-
-pub const fn default_redis_ssl() -> bool {
-    false
-}
-
-pub const fn default_clickhouse_https() -> bool {
-    false
-}
-
-pub const fn default_elasticsearch_https() -> bool {
-    false
-}
-
 pub const fn default_verify_certs() -> bool {
     true
 }

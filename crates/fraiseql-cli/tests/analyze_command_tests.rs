@@ -64,9 +64,9 @@ fn analyze_json_output_is_valid_json() {
     assert!(parsed.is_object(), "JSON output must be an object");
 }
 
-/// JSON output contains a `categories` field with analysis sections.
+/// JSON output contains the `recommendations` array the published contract describes.
 #[test]
-fn analyze_json_output_contains_categories() {
+fn analyze_json_output_contains_recommendations() {
     let out = cli()
         .args(["analyze", &fixture("empty_schema.json"), "--json"])
         .output()
@@ -76,15 +76,17 @@ fn analyze_json_output_contains_categories() {
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     // data wrapper or top-level
     let data = parsed.get("data").unwrap_or(&parsed);
+    // `categories` was a map of constant strings; `recommendations` is the shape
+    // `--show-output-schema analyze` has always published (#818).
     assert!(
-        data.get("categories").is_some(),
-        "JSON output must contain `categories`; got: {parsed}"
+        data.get("recommendations").and_then(serde_json::Value::as_array).is_some(),
+        "JSON output must contain a `recommendations` array; got: {parsed}"
     );
 }
 
-/// JSON output `categories` contains at least the 6 expected sections.
+/// Every recommendation carries the four fields the published contract declares.
 #[test]
-fn analyze_json_output_has_six_categories() {
+fn analyze_recommendations_match_the_published_contract() {
     let out = cli()
         .args(["analyze", &fixture("empty_schema.json"), "--json"])
         .output()
@@ -93,13 +95,13 @@ fn analyze_json_output_has_six_categories() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let data = parsed.get("data").unwrap_or(&parsed);
-    let cats = data["categories"].as_object().expect("categories must be object");
-    assert!(
-        cats.len() >= 6,
-        "analyze must return at least 6 categories, got {}; keys: {:?}",
-        cats.len(),
-        cats.keys().collect::<Vec<_>>()
-    );
+    let recs = data["recommendations"].as_array().expect("recommendations must be an array");
+    assert!(!recs.is_empty(), "an analysed schema must produce findings");
+    for rec in recs {
+        for key in ["category", "severity", "message", "suggestion"] {
+            assert!(rec.get(key).is_some(), "recommendation missing `{key}`: {rec}");
+        }
+    }
 }
 
 /// JSON output `summary` contains a `health_score` field.
@@ -122,26 +124,13 @@ fn analyze_json_output_has_health_score() {
 
 // ── Category presence ─────────────────────────────────────────────────────────
 
-/// Output mentions expected categories: performance, security, federation.
+/// A schema that configures no security controls is reported as such, and does not
+/// score full marks.
 #[test]
-fn analyze_output_mentions_key_categories() {
-    let out = cli()
-        .args(["analyze", &fixture("empty_schema.json"), "--json"])
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    for cat in &["performance", "security", "federation"] {
-        assert!(
-            stdout.contains(cat),
-            "analyze output must mention category `{cat}`; output: {stdout}"
-        );
-    }
-}
-
-/// Each category in JSON output has at least one recommendation.
-#[test]
-fn analyze_each_category_has_recommendations() {
+fn analyze_reports_an_unconfigured_schema_honestly() {
+    // `empty_schema.json` is literally `{}`. It used to produce the same 100/100 report
+    // as every other input, affirming that rate limiting and audit logging were active
+    // (#818).
     let out = cli()
         .args(["analyze", &fixture("empty_schema.json"), "--json"])
         .output()
@@ -150,19 +139,72 @@ fn analyze_each_category_has_recommendations() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let data = parsed.get("data").unwrap_or(&parsed);
-    let cats = data["categories"].as_object().expect("categories must be object");
-    for (name, recs) in cats {
-        let arr = recs.as_array().unwrap_or_else(|| panic!("category {name} must be an array"));
-        assert!(!arr.is_empty(), "category {name} must have at least one recommendation");
-    }
+
+    assert!(
+        stdout.contains("security"),
+        "the report must still cover security; output: {stdout}"
+    );
+    assert!(
+        !stdout.contains("Rate limiting configured and active"),
+        "an empty schema must not be told its rate limiting is active; output: {stdout}"
+    );
+    let score = data["summary"]["health_score"].as_u64().expect("health_score");
+    assert!(score < 100, "an empty schema cannot be in perfect health, got {score}");
+}
+
+/// Two schemas with different contents produce different reports.
+#[test]
+fn analyze_output_depends_on_the_schema_it_is_given() {
+    // The single most important property, and the one the old implementation failed:
+    // `{}` and a real schema produced byte-identical output (#818).
+    let empty = cli()
+        .args(["analyze", &fixture("empty_schema.json"), "--json"])
+        .output()
+        .unwrap();
+    let minimal = cli()
+        .args([
+            "analyze",
+            &fixture("analyze_compiled_schema.json"),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(empty.status.success() && minimal.status.success());
+
+    let strip = |out: &std::process::Output| {
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        let mut v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        // The echoed path differs by construction; remove it so the comparison is
+        // about the analysis.
+        if let Some(data) = v.get_mut("data").and_then(serde_json::Value::as_object_mut) {
+            data.remove("schema_file");
+        }
+        v
+    };
+
+    assert_ne!(
+        strip(&empty),
+        strip(&minimal),
+        "analyze must report on the schema it was given, not a constant"
+    );
 }
 
 // ── Exit code contract ────────────────────────────────────────────────────────
 
-/// `analyze` exits with code 0 on a valid schema.
+/// `analyze` exits with code 0 on a real compiled schema.
+///
+/// Deliberately not `minimal_schema.json`: that fixture is a hand-written
+/// approximation (`type` where `FieldDefinition` declares `field_type`) which never
+/// deserialized into a `CompiledSchema`. `analyze` used to accept it because it parsed
+/// into an untyped `serde_json::Value` and then discarded it (#818).
+/// `analyze_compiled_schema.json` is emitted from the real types — see the
+/// `emit_integration_fixture` test in the crate.
 #[test]
 fn analyze_exit_code_zero_on_success() {
-    let out = cli().args(["analyze", &fixture("minimal_schema.json")]).output().unwrap();
+    let out = cli()
+        .args(["analyze", &fixture("analyze_compiled_schema.json")])
+        .output()
+        .unwrap();
     let code = out.status.code().unwrap_or(-1);
     assert_eq!(code, 0, "analyze on valid schema must exit with code 0, got {code}");
 }

@@ -1387,6 +1387,11 @@ func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Director
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: tls (fraiseql-wire over TLS to a Dagger-bound postgres-tls)'",
 		"cargo test -p fraiseql-wire --test tls_integration -- --test-threads=1",
+		// #801/#824: the connection pool's own TLS. Proves verify-full rejects an
+		// untrusted chain, accepts it once the CA is supplied, and that the session
+		// is encrypted according to pg_stat_ssl rather than according to the client.
+		"echo '### integration: tls (fraiseql-db connection pool)'",
+		"cargo test -p fraiseql-db --features postgres,test-postgres --test postgres_tls_verify_test -- --test-threads=1",
 		"echo 'test-integration OK: tls suite passed'",
 	}, "\n")
 

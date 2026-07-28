@@ -37,9 +37,19 @@ pub type TenantExecutorFactory<A> = Arc<
 /// can be stored as a type-erased closure in `AppState`.
 ///
 /// The first argument is the tenant key, used for schema isolation naming.
+///
+/// `database_tls` is the server's own `[database_tls]` setting, stamped onto every
+/// tenant pool here rather than read from the registration request. Tenant pool
+/// configuration arrives as an admin-API request body, so the transport security of
+/// a tenant's connections must be decided by the operator who configured the server,
+/// not by the payload that registers the tenant (#801). This mirrors the way
+/// `search_path` is recomputed rather than trusted.
 #[must_use]
-pub fn make_executor_factory<A: FromPoolConfig + 'static>() -> TenantExecutorFactory<A> {
-    Arc::new(|tenant_key, schema_json, pool_config| {
+pub fn make_executor_factory<A: FromPoolConfig + 'static>(
+    database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
+) -> TenantExecutorFactory<A> {
+    Arc::new(move |tenant_key, schema_json, mut pool_config| {
+        pool_config.tls = database_tls.clone();
         Box::pin(async move {
             create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config).await
         })
