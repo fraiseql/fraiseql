@@ -73,3 +73,49 @@ fn absent_token_revocation_key_builds_nothing() {
             .is_none()
     );
 }
+
+// ── The `cfg`-off arm must refuse, not downgrade ─────────────────────────────
+//
+// A revocation store that is per-process instead of shared is not a degraded
+// service — it is a silently absent one: a token revoked on replica A stays
+// valid on replicas B and C for its full lifetime. The two ways to reach an
+// in-memory store while `backend = "redis"` was configured (the feature not
+// compiled in, and the Redis connection failing) both used to `warn!` and carry
+// on. In production both now refuse to boot, mirroring `observer_transport_check`.
+
+#[test]
+fn redis_backend_refuses_in_production_when_it_cannot_be_provided() {
+    assert!(
+        super::redis_revocation_unavailable_check(
+            "the `redis-rate-limiting` feature is not compiled in",
+            true
+        )
+        .is_err(),
+        "an unusable Redis revocation store must refuse to boot in production rather than \
+         silently downgrading to per-process state"
+    );
+}
+
+#[test]
+fn redis_backend_downgrades_with_a_warning_in_development() {
+    assert!(
+        super::redis_revocation_unavailable_check(
+            "the `redis-rate-limiting` feature is not compiled in",
+            false
+        )
+        .is_ok(),
+        "development must still boot on the in-memory fallback"
+    );
+}
+
+#[test]
+fn the_refusal_names_the_cause_and_the_way_out() {
+    let err = super::redis_revocation_unavailable_check("connection refused", true)
+        .expect_err("production refuses");
+    let msg = err.to_string();
+    assert!(msg.contains("connection refused"), "the refusal must name the cause: {msg}");
+    assert!(
+        msg.contains("token_revocation"),
+        "the refusal must name the config section: {msg}"
+    );
+}

@@ -9,6 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Every way of constructing the runtime now produces the same configured runtime
+  (#750, #754, #783).** `Server::new`, `with_relay_pagination`, `with_flight_service` and
+  the hot-reload rebuild were four construction paths, and each one that was not
+  `Server::new` had drifted. `with_flight_service` did not call the shared
+  `from_executor` at all — it hand-built the `Server` struct literal, which is why its
+  OIDC block was `#[cfg(feature = "auth")]`-gated where the others were not: a
+  `--no-default-features --features cli,arrow` build discarded a configured `[auth]`
+  block and served every request as an anonymous principal, with the same signature and
+  no warning.
+
+  Concretely dropped, and now carried on every path: the compiled `[subscriptions]`
+  block, whose `on_connect`/`on_subscribe` webhooks are *documented fail-closed
+  authorization gates* — losing them left a `NoopLifecycle` that accepts every
+  WebSocket connection, and `main.rs` selects `with_relay_pagination` for any schema
+  with a single relay query and `with_flight_service` for every Arrow build, so the
+  guards were off in both shipped binaries; the per-connection subscription limit
+  (unbounded fan-out); `[pool_tuning]`; and the OIDC validator that `main.rs`'s Flight
+  service needs — the Flight handshake is fail-closed on a missing validator, so the
+  entire Arrow Flight surface answered `Authentication not configured` no matter how
+  `[auth]` was set, pointing at `FLIGHT_OIDC_*` environment variables that do not exist
+  anywhere in the workspace.
+
+  The prologue is now one `schema_subsystems()`, the assembly one `from_executor()`, and
+  the epilogue one `apply_compiled_config()`. A construction-parity matrix builds every
+  path from one fully-populated compiled schema and asserts the same properties on each —
+  including that the fail-closed `on_connect` hook actually *rejects*, rather than that
+  the lifecycle has the right type name.
+
+- **A schema hot-reload no longer silently reverts the runtime's security settings
+  (#750, #782).** Both reload entry points — `SIGUSR1` and
+  `POST /api/v1/admin/reload-schema` — rebuilt the executor with
+  `RuntimeConfig::default()`, so a reload advertised as zero-downtime turned off mutation
+  audit logging in a compliance deployment, reset the #421 page-size ceiling from a
+  configured 100 back to 1000, re-enabled the change-log outbox write against a table the
+  operator had deliberately not installed, and dropped relay dispatch so every relay
+  query failed validation until the process restarted. It also ran none of the boot-time
+  safety gates, so a reload could move a running server into a state boot refuses: a
+  field marked for at-rest encryption (whose write path stores plaintext), or a
+  multi-tenant schema with caching and no RLS.
+
+  Reload now re-derives the schema-owned settings on top of the live config, rebuilds
+  through the same constructor that booted the server, and runs both boot gates. Where it
+  *cannot* apply a change it refuses and says which section needs a restart, rather than
+  reporting success and serving the previous configuration.
+
+- **A configured-but-unavailable Redis token-revocation store refuses to boot in
+  production.** Both routes to the fallback — the `redis-rate-limiting` feature not
+  compiled in, and the Redis connection failing — logged a warning and downgraded to a
+  per-process in-memory store. That is not a degraded revocation service but an absent
+  one: a token revoked on one replica stays valid on every other replica for its full
+  lifetime while the admin API reports success. Development still boots on the fallback.
+
+- **Client-supplied data no longer reaches the log on a GET parse failure (#730).** A
+  malformed `variables` query parameter was logged in full at `warn!` — up to
+  `max_get_query_bytes` (100 KiB by default) of client-controlled text, which is where a
+  bearer token or PII ends up, in every log sink the deployment ships to. The parse error
+  and the byte length are logged instead.
+
+
 - **Database TLS is now a property of the connection rather than a log line
   (#801, #824).** `build_pool` called `create_pool(.., NoTls)` unconditionally. Both
   configuration surfaces that claimed to control database TLS — the server's
@@ -78,6 +137,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Usage counters survive a failed startup load, and multiple replicas sum (#861).**
+  `PostgresBackend::flush` wrote `SET count = EXCLUDED.count` — an absolute overwrite —
+  while a failed startup load was a `warn!`-and-continue that still armed the periodic
+  flush. A transient database fault in the window between the schema DDL and the
+  restoring `SELECT` therefore destroyed the month's accumulated per-tenant counters at
+  the next tick: a row holding 41 300 became whatever the fresh process had counted since
+  boot, permanently, with no error surfaced and billing reporting off it. The same
+  absolute write made the shipped three-replica manifests last-writer-wins rather than
+  summed, silently discarding most of every interval.
+
+  The flush is now additive — renamed `UsageBackend::flush` → `flush_deltas` so no
+  implementation could keep the old semantics by accident — carrying the increment since
+  the last *confirmed* write, with the per-key watermark advanced only after the backend
+  acknowledges. A failed startup load disarms persistence for the process: the aggregator
+  refuses to flush and the server reverts to the in-memory backend rather than writing to
+  a store it could not read.
+
+- **Seven server edge cases (#731).** The GET size ceiling returns the `413 Payload Too
+  Large` its published `# Errors` contract documents, instead of 400. A server-side
+  execution timeout maps to `504 Gateway Timeout`; 408 means the *client* took too long to
+  send its request, which tells a caller to retry the wrong thing. REST path parameters
+  are coerced by the argument type the schema declares rather than by what they look
+  like — the string ID `"0123"` used to become the integer `123` and `"true"` a boolean,
+  so the row a client addressed and the row the server updated could differ. The
+  database-URL guard rejects a scheme-less string: `"postgres"` has no `://`, so
+  `split("://").next()` returned the whole string and it was accepted as a valid
+  PostgreSQL URL, surfacing later as exactly the opaque driver error the guard exists to
+  replace. The trusted-documents manifest poller builds its HTTP client once instead of
+  per tick, and enforces its 10 MiB cap while streaming rather than after buffering the
+  whole body. The admin brute-force limiter evicts expired per-IP records, which were only
+  ever removed on a *successful* authentication — an unbounded map any unauthenticated
+  caller could grow. The manifest SSRF item was already closed by the guard unification
+  earlier in this release.
+
+
 - **`[admission_control]` enforces admission (#860).** The controller was constructed,
   inserted into the request extension map — which stores a value and gates nothing — and
   announced in the boot log as "enabled", while `ServerConfig::admission_control`'s
@@ -100,6 +194,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   again.
 
 ### Breaking
+
+- `ErrorCode::Timeout` now maps to **504 Gateway Timeout** (was 408 Request Timeout), and
+  the GET size ceilings return the new `ErrorCode::PayloadTooLarge` → **413** (was 400 via
+  `RequestError`). Clients branching on those statuses need updating.
+- `UsageBackend::flush` is renamed **`flush_deltas`** and its contract inverted: the map
+  now carries increments to be **added**, not absolute totals to be written. Any external
+  implementation must be updated — the rename is deliberate so it cannot compile
+  unchanged. `UsageAggregator::flush_to_backend` also now *errors* when the backend's
+  startup load failed.
+- A schema hot-reload **refuses** a schema whose boot-frozen configuration differs from
+  the running one — `[security]`, `[validation]`, `[subscriptions]`, `[mcp]`, `[rest]`,
+  `[grpc]`, federation, observers, sources, `[fraiseql.naming]`, `[debug]`, fact tables
+  and per-query `cache_ttl_seconds`. These are read once by subsystems that are immutable
+  afterwards, so the previous behaviour was to report success and keep serving the old
+  configuration. Reloads that change only types, queries, mutations or session variables
+  are unaffected; the rest now need a restart, and the refusal says which section.
+- `AppState::with_reload_config` takes a third argument, the executor rebuilder recorded
+  by the booting constructor. An `AppState` assembled directly (without a `Server`)
+  refuses to reload rather than guessing how to rebuild.
+
 
 - `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
   **removed**. They only ever rewrote a URL scheme, in a helper with no production

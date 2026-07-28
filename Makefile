@@ -300,7 +300,11 @@ lint-expect:
 # async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425).
 # Phase 0 baseline: 128 (crates/*/src/ only, matching the convention used by lint-unwrap/lint-expect).
 # Run `make lint-async-trait` to detect regressions (e.g. a new dyn-dispatch trait added without tracking comment).
-ASYNC_TRAIT_LIMIT := 189
+# 189 → 190: the construction-parity fixture adapter in
+# `fraiseql-server/src/server/parity_tests.rs` implements `DatabaseAdapter`, which is
+# itself declared `#[async_trait]`, so the impl has no choice. It lives in `src/`
+# rather than `tests/` because it asserts on private `Server` fields.
+ASYNC_TRAIT_LIMIT := 190
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

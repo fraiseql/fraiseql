@@ -148,7 +148,8 @@ fn test_example_timeout_error() {
     let error = GraphQLError::timeout("Query execution");
 
     assert_eq!(error.code, ErrorCode::Timeout);
-    assert_eq!(error.code.status_code(), StatusCode::REQUEST_TIMEOUT);
+    // #731: server-side execution timeout → 504, not the client-upload 408.
+    assert_eq!(error.code.status_code(), StatusCode::GATEWAY_TIMEOUT);
     assert!(error.message.contains("exceeded timeout"));
 }
 
@@ -260,7 +261,7 @@ fn test_example_error_code_status_mapping() {
         },
         ErrorMapping {
             code:   ErrorCode::Timeout,
-            status: StatusCode::REQUEST_TIMEOUT,
+            status: StatusCode::GATEWAY_TIMEOUT,
         },
         ErrorMapping {
             code:   ErrorCode::RateLimitExceeded,
@@ -385,7 +386,7 @@ fn test_example_error_recovery_patterns() {
         let error = GraphQLError::timeout("Query execution");
         let status = error.code.status_code();
         // Timeout is retryable
-        assert_eq!(status, StatusCode::REQUEST_TIMEOUT);
+        assert_eq!(status, StatusCode::GATEWAY_TIMEOUT);
     }
 
     // Retryable error (service unavailable)
@@ -463,7 +464,7 @@ fn test_example_federation_error_handling() {
         .with_request_id("req-fed-001");
 
     assert_eq!(orders_timeout.code, ErrorCode::Timeout);
-    assert_eq!(orders_timeout.code.status_code(), StatusCode::REQUEST_TIMEOUT);
+    assert_eq!(orders_timeout.code.status_code(), StatusCode::GATEWAY_TIMEOUT);
 
     // Client can retry just the Orders subgraph using request ID
     assert!(orders_timeout.extensions.is_some());

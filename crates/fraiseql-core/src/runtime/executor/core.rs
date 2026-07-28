@@ -197,6 +197,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self.ctx.config
     }
 
+    /// Whether this executor can dispatch relay (cursor) pagination.
+    ///
+    /// `true` only for executors built by [`Executor::new_with_relay`] or
+    /// [`Executor::with_config_and_relay`]; a relay query issued against any
+    /// other executor returns a `Validation` error. Exposed so a rebuild of the
+    /// executor — a hot-reload, a per-tenant provision — can assert it preserved
+    /// the capability rather than silently downgrading it (#750).
+    #[must_use]
+    pub fn relay_enabled(&self) -> bool {
+        self.ctx.relay.is_some()
+    }
+
     /// Get database adapter reference.
     #[must_use]
     pub fn adapter(&self) -> &Arc<A> {

@@ -528,6 +528,18 @@ impl FraiseQLFlightService {
         self.oidc_validator = Some(validator);
     }
 
+    /// Whether a validator is installed, i.e. whether the handshake can succeed.
+    ///
+    /// The Flight handshake is fail-closed: without a validator every handshake
+    /// returns `Authentication not configured`, and no data-plane call can mint
+    /// the session token it requires. Exposed so the server's construction path
+    /// can assert it wired the validator it built rather than mounting a Flight
+    /// surface that is permanently unreachable (#783).
+    #[must_use]
+    pub const fn has_oidc_validator(&self) -> bool {
+        self.oidc_validator.is_some()
+    }
+
     /// Convert this service into a gRPC server.
     #[must_use]
     pub fn into_server(self) -> FlightServiceServer<Self> {

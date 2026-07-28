@@ -33,14 +33,31 @@ mod backpressure_tests {
     }
 
     #[test]
-    fn queue_depth_tracked_on_semaphore_exhaustion() {
+    fn a_non_blocking_miss_does_not_ratchet_queue_depth() {
+        // #860 removed the increment this used to assert. `try_acquire` never
+        // waits, so a miss enters no queue — and the increment had no matching
+        // decrement, so `queue_depth` ratcheted monotonically: after
+        // `max_queue_depth` cumulative misses the depth check at the top of
+        // `try_acquire` was permanently true and the controller rejected *all*
+        // traffic until the process restarted. This test pinned that behaviour;
+        // it now pins its absence.
         let ac = AdmissionController::new(1, 10);
-        let _p = ac.try_acquire().expect("first permit");
+        let permit = ac.try_acquire().expect("first permit");
         assert_eq!(ac.queue_depth(), 0, "no queueing yet");
 
-        // Second try_acquire: semaphore exhausted → queue_depth incremented, returns None
-        assert!(ac.try_acquire().is_none());
-        assert_eq!(ac.queue_depth(), 1, "queue_depth must be 1 after one failed acquire");
+        for _ in 0..50 {
+            assert!(ac.try_acquire().is_none(), "the single permit is held");
+        }
+        assert_eq!(
+            ac.queue_depth(),
+            0,
+            "#860: 50 non-blocking misses must not fill the queue — the controller \
+             would then reject every request forever"
+        );
+
+        // And the controller is still usable once the permit is released.
+        drop(permit);
+        assert!(ac.try_acquire().is_some(), "a released permit must be re-acquirable");
     }
 
     #[test]

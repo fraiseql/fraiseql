@@ -113,7 +113,11 @@ pub fn guard_sqlite_mutations(
 /// of the supported four. The message names the observed scheme so the
 /// operator can correct their `fraiseql.toml` or `DATABASE_URL`.
 pub fn parse_database_url(url: &str) -> anyhow::Result<DatabaseScheme> {
-    let scheme = url.split("://").next().unwrap_or("");
+    // `split("://").next()` on a string with no separator returns the whole
+    // string, so a bare `"postgres"` used to parse as a valid PostgreSQL URL and
+    // the failure resurfaced later as the opaque driver error this guard exists
+    // to prevent (#731). Require the separator.
+    let scheme = url.split_once("://").map_or("", |(scheme, _)| scheme);
     match scheme {
         "postgresql" | "postgres" => Ok(DatabaseScheme::Postgres),
         "mysql" => Ok(DatabaseScheme::MySql),

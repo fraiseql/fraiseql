@@ -95,6 +95,7 @@ mod postgres_adapter_tests {
                 max_size:     20,
                 timeout_secs: None,
                 search_path:  None,
+                tls:          fraiseql_core::db::postgres::PostgresTlsConfig::default(),
             },
         )
         .await;
@@ -199,6 +200,7 @@ async fn test_feature_gated_main_initialization_postgres() {
             max_size:     20,
             timeout_secs: None,
             search_path:  None,
+            tls:          fraiseql_core::db::postgres::PostgresTlsConfig::default(),
         },
     )
     .await;

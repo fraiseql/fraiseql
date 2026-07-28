@@ -705,8 +705,11 @@ async fn run_postgres(
                 .await?;
         // Arrow path: the server holds the raw `PostgresAdapter`, so the tenant
         // factory must produce `PostgresAdapter` executors to match its adapter type.
-        let tenant_factory = tenancy_runtime_enabled
-            .then(fraiseql_server::tenancy::make_executor_factory::<PostgresAdapter>);
+        // Tenant pools inherit the server's `[database_tls]`; the registration request
+        // body cannot influence it (see `make_executor_factory`).
+        let tenant_factory = tenancy_runtime_enabled.then(|| {
+            fraiseql_server::tenancy::make_executor_factory::<PostgresAdapter>(database_tls.clone())
+        });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
             None => server,

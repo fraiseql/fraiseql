@@ -68,7 +68,10 @@ fn test_database_timeout_returns_error() {
         GraphQLError::new("Database query exceeded timeout of 30 seconds", ErrorCode::Timeout);
 
     assert_eq!(error.code, ErrorCode::Timeout);
-    assert_eq!(error.code.status_code(), StatusCode::REQUEST_TIMEOUT);
+    // #731: a server-side execution timeout is 504 Gateway Timeout. 408 means
+    // "the client took too long to send its request", which is a different fault
+    // and tells a caller to retry the *upload*.
+    assert_eq!(error.code.status_code(), StatusCode::GATEWAY_TIMEOUT);
 }
 
 #[test]
@@ -173,7 +176,10 @@ fn test_query_execution_timeout() {
     let error = GraphQLError::new("Query execution exceeded 30-second timeout", ErrorCode::Timeout);
 
     assert_eq!(error.code, ErrorCode::Timeout);
-    assert_eq!(error.code.status_code(), StatusCode::REQUEST_TIMEOUT);
+    // #731: a server-side execution timeout is 504 Gateway Timeout. 408 means
+    // "the client took too long to send its request", which is a different fault
+    // and tells a caller to retry the *upload*.
+    assert_eq!(error.code.status_code(), StatusCode::GATEWAY_TIMEOUT);
 }
 
 #[test]
@@ -361,7 +367,7 @@ fn test_http_status_codes_correct() {
     assert_eq!(ErrorCode::ParseError.status_code(), StatusCode::OK);
     assert_eq!(ErrorCode::ValidationError.status_code(), StatusCode::OK);
     assert_eq!(ErrorCode::Unauthenticated.status_code(), StatusCode::UNAUTHORIZED);
-    assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::REQUEST_TIMEOUT);
+    assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::GATEWAY_TIMEOUT);
     assert_eq!(ErrorCode::RequestError.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(ErrorCode::InternalServerError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(ErrorCode::RateLimitExceeded.status_code(), StatusCode::TOO_MANY_REQUESTS);

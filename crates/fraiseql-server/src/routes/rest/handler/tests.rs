@@ -617,32 +617,95 @@ mod response {
 
 #[cfg(test)]
 mod coercion {
+    use fraiseql_core::schema::{
+        ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition,
+    };
     use serde_json::json;
 
-    use super::super::coercion::coerce_path_param_value;
+    use super::super::coercion::{coerce_path_param_value, declared_arg_type};
 
-    #[test]
-    fn coerce_path_param_value_integer() {
-        let val = coerce_path_param_value("42");
-        assert_eq!(val, json!(42i64));
+    /// A schema whose `update_thing` mutation declares one argument per type the
+    /// coercion has to distinguish.
+    fn schema() -> CompiledSchema {
+        let mut mutation = MutationDefinition::new("update_thing", "Thing");
+        for (name, ty) in [
+            ("id", FieldType::Id),
+            ("code", FieldType::String),
+            ("seq", FieldType::Int),
+            ("ratio", FieldType::Float),
+            ("active", FieldType::Boolean),
+            ("price", FieldType::Decimal),
+        ] {
+            mutation.arguments.push(ArgumentDefinition::new(name, ty));
+        }
+        let mut schema = CompiledSchema {
+            mutations: vec![mutation],
+            ..CompiledSchema::default()
+        };
+        schema.build_indexes();
+        schema
+    }
+
+    fn coerce(arg: &str, value: &str) -> serde_json::Value {
+        let schema = schema();
+        coerce_path_param_value(value, declared_arg_type(&schema, "update_thing", arg))
     }
 
     #[test]
-    fn coerce_path_param_value_boolean_true() {
-        let val = coerce_path_param_value("true");
-        assert_eq!(val, json!(true));
+    fn an_int_argument_is_coerced_to_a_number() {
+        assert_eq!(coerce("seq", "42"), json!(42i64));
     }
 
     #[test]
-    fn coerce_path_param_value_boolean_false() {
-        let val = coerce_path_param_value("false");
-        assert_eq!(val, json!(false));
+    fn a_float_argument_is_coerced_to_a_number() {
+        assert_eq!(coerce("ratio", "1.5"), json!(1.5f64));
     }
 
     #[test]
-    fn coerce_path_param_value_string() {
-        let val = coerce_path_param_value("hello");
-        assert_eq!(val, json!("hello"));
+    fn a_boolean_argument_is_coerced_to_a_bool() {
+        assert_eq!(coerce("active", "true"), json!(true));
+        assert_eq!(coerce("active", "false"), json!(false));
+    }
+
+    // ── #731: the defect — coercing by parse-ability, not by declared type ───
+
+    /// The headline case: a leading-zero string ID survives. Under the old
+    /// parse-ability heuristic `"0123"` became the integer `123`, so the row the
+    /// client addressed and the row the server updated were different rows.
+    #[test]
+    fn a_numeric_looking_id_stays_a_string() {
+        assert_eq!(coerce("id", "0123"), json!("0123"));
+        assert_eq!(coerce("code", "42"), json!("42"));
+    }
+
+    /// `"true"` is a perfectly ordinary string ID.
+    #[test]
+    fn a_boolean_looking_string_stays_a_string() {
+        assert_eq!(coerce("code", "true"), json!("true"));
+        assert_eq!(coerce("id", "false"), json!("false"));
+    }
+
+    /// `Decimal` is carried as a string for precision; parsing it to a float
+    /// would silently drop digits.
+    #[test]
+    fn a_decimal_argument_keeps_its_precision_as_a_string() {
+        assert_eq!(coerce("price", "10.000000000000000001"), json!("10.000000000000000001"));
+    }
+
+    /// An argument the schema does not declare is not a licence to guess.
+    #[test]
+    fn an_undeclared_argument_stays_a_string() {
+        assert_eq!(coerce("nonexistent", "42"), json!("42"));
+        assert_eq!(coerce_path_param_value("42", None), json!("42"));
+    }
+
+    /// Counterweight: a value that does not parse as its declared type is passed
+    /// through unchanged so the input validator can report it, rather than being
+    /// silently replaced.
+    #[test]
+    fn an_unparseable_value_reaches_the_validator_intact() {
+        assert_eq!(coerce("seq", "not-a-number"), json!("not-a-number"));
+        assert_eq!(coerce("active", "yes"), json!("yes"));
     }
 }
 

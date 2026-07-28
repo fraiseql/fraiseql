@@ -152,6 +152,12 @@ use crate::security::{
 ///         .protect_field("User", "ssn"),
 /// );
 /// ```
+///
+/// `Clone` is derived (the trait-object fields are behind `Arc`) so a rebuild —
+/// a hot-reload, a per-tenant executor — can start from the live config and
+/// re-apply only what the new compiled schema owns, via
+/// [`with_compiled_schema`](Self::with_compiled_schema).
+#[derive(Clone)]
 pub struct RuntimeConfig {
     /// Enable query plan caching.
     pub cache_query_plans: bool,
@@ -487,6 +493,27 @@ impl RuntimeConfig {
     /// Returns the validation message when the schema's `schema_format_version`
     /// is incompatible with this runtime.
     pub fn from_compiled_schema(schema: &crate::schema::CompiledSchema) -> Result<Self, String> {
+        Self::default().with_compiled_schema(schema)
+    }
+
+    /// Re-apply every schema-derived setting on top of an existing config.
+    ///
+    /// [`from_compiled_schema`](Self::from_compiled_schema) is this method over
+    /// [`Self::default`]. The split exists for **rebuilds**: a hot-reload must
+    /// re-derive the settings the new compiled schema owns while preserving the
+    /// ones the embedder installed programmatically (authorizers, RLS policy,
+    /// field filter, validator). Reconstructing from `default()` on reload is
+    /// what silently reverted audit logging, the page-size ceiling and the
+    /// change-log toggle on every `SIGUSR1` (#750).
+    ///
+    /// # Errors
+    ///
+    /// Returns the validation message when the schema's `schema_format_version`
+    /// is incompatible with this runtime.
+    pub fn with_compiled_schema(
+        self,
+        schema: &crate::schema::CompiledSchema,
+    ) -> Result<Self, String> {
         if schema.schema_format_version.is_none() {
             tracing::warn!(
                 "Loaded schema has no schema_format_version (pre-v2.1 format). \
@@ -528,11 +555,52 @@ impl RuntimeConfig {
             );
         }
 
+        // Exhaustive destructuring, deliberately without `..`: adding a field to
+        // `RuntimeConfig` is a compile error here until it is classified as
+        // schema-derived (recomputed above, so the binding is discarded) or
+        // caller-owned (carried through unchanged). A `..Self::default()` tail
+        // would instead make a new schema-derived field silently revert to its
+        // default on every construction and every reload — the H16 drift this
+        // seam exists to prevent, one level down.
+        // Declaration order throughout (clippy::inconsistent_struct_constructor).
+        // `_`-bound fields are the schema-derived ones, recomputed above; every
+        // other field is caller-owned and carried through unchanged.
+        let Self {
+            cache_query_plans,
+            max_query_depth,
+            max_query_complexity,
+            max_page_size: _, // schema-derived
+            enable_tracing,
+            field_filter,
+            rls_policy,
+            field_authorizer,
+            authorizer,
+            query_timeout_ms,
+            jsonb_optimization,
+            query_validation,
+            audit_mutations: _,   // schema-derived
+            changelog_enabled: _, // schema-derived
+            dry_run_mutations,
+            cascade_limits,
+        } = self;
+
         Ok(Self {
+            cache_query_plans,
+            max_query_depth,
+            max_query_complexity,
             max_page_size,
+            enable_tracing,
+            field_filter,
+            rls_policy,
+            field_authorizer,
+            authorizer,
+            query_timeout_ms,
+            jsonb_optimization,
+            query_validation,
             audit_mutations,
             changelog_enabled,
-            ..Self::default()
+            dry_run_mutations,
+            cascade_limits,
         })
     }
 }

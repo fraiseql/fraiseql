@@ -8,9 +8,12 @@ use crate::routes::graphql::AppState;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build the shared `AppState` with all configured subsystems attached.
-    pub(super) fn build_app_state(&self) -> AppState<A> {
-        let mut state = AppState::new(self.executor.clone())
-            .with_reload_config(self.config.schema_path.clone(), self.executor.adapter().clone());
+    pub(crate) fn build_app_state(&self) -> AppState<A> {
+        let mut state = AppState::new(self.executor.clone()).with_reload_config(
+            self.config.schema_path.clone(),
+            self.executor.adapter().clone(),
+            Some(self.executor_rebuilder.clone()),
+        );
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]

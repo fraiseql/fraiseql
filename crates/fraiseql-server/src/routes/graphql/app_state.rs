@@ -6,7 +6,7 @@ use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
-    runtime::Executor,
+    runtime::{Executor, RuntimeConfig},
     schema::CompiledSchema,
     security::IntrospectionPolicy,
 };
@@ -19,6 +19,16 @@ use crate::{
     config::error_sanitization::ErrorSanitizer, error::GraphQLError,
     metrics_server::MetricsCollector, usage::aggregator::UsageAggregator,
 };
+
+/// How to rebuild the executor for a new compiled schema, preserving whatever
+/// capability the booting constructor gave it.
+///
+/// `Executor::with_config` for the plain path, `Executor::with_config_and_relay`
+/// for the relay path. `Server` records one at construction and threads it into
+/// [`AppState`], so a hot-reload is the *same* construction path rather than a
+/// fourth one that drifted (#750).
+pub type ExecutorRebuilder<A> =
+    Arc<dyn Fn(CompiledSchema, Arc<A>, RuntimeConfig) -> Executor<A> + Send + Sync>;
 
 /// Server state containing executor and configuration.
 #[derive(Clone)]
@@ -97,6 +107,15 @@ pub struct AppState<A: DatabaseAdapter> {
     pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
     pub(crate) reload_adapter: Option<Arc<A>>,
+    /// How the booting constructor built its executor, so a reload rebuilds the
+    /// *same kind*.
+    ///
+    /// Relay dispatch requires `A: RelayDatabaseAdapter`, a bound `AppState` does
+    /// not carry — so only the constructor that had it can say how to rebuild.
+    /// Reload used to call `Executor::new` unconditionally, which dropped relay
+    /// dispatch and made every relay query fail validation until the process
+    /// restarted (#750).
+    pub(crate) reload_rebuilder: Option<ExecutorRebuilder<A>>,
     /// Reload mutex to serialize concurrent reload attempts.
     pub(crate) reload_lock: Arc<tokio::sync::Mutex<()>>,
     /// Whether the adapter-level query result cache is active.
@@ -202,6 +221,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             introspection_policy: IntrospectionPolicy::Disabled,
             schema_path: None,
             reload_adapter: None,
+            reload_rebuilder: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
             adapter_cache_enabled: false,
             tenant_registry: None,
@@ -350,82 +370,48 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
-    /// Configure reload support with a schema file path and database adapter.
+    /// Configure reload support with a schema file path, database adapter, and
+    /// the constructor's executor rebuilder.
+    ///
+    /// `rebuilder` is how the booting constructor built its executor; a reload
+    /// uses the same one so it cannot silently downgrade the runtime's
+    /// capabilities (#750). Pass `None` only where no such constructor exists —
+    /// a directly-assembled test `AppState` — in which case reload refuses
+    /// rather than guessing.
     #[must_use]
-    pub fn with_reload_config(mut self, schema_path: PathBuf, adapter: Arc<A>) -> Self {
+    pub fn with_reload_config(
+        mut self,
+        schema_path: PathBuf,
+        adapter: Arc<A>,
+        rebuilder: Option<ExecutorRebuilder<A>>,
+    ) -> Self {
         self.schema_path = Some(schema_path);
         self.reload_adapter = Some(adapter);
+        self.reload_rebuilder = rebuilder;
         self
     }
 
     /// Reload the compiled schema from a file path.
     ///
-    /// Reads the schema file, validates it, constructs a new `Executor<A>`,
-    /// and atomically swaps it into the shared state. In-flight requests
-    /// continue using the previous executor until their handler returns.
-    ///
-    /// When the adapter supports cache configuration (e.g. `CachedDatabaseAdapter`),
-    /// per-view TTL overrides from the new schema are applied immediately and the
-    /// query cache is cleared to prevent stale entries.
+    /// Reads the schema file and hands it to the shared `swap_in_schema` seam.
     ///
     /// # Errors
     ///
-    /// Returns an error if the file cannot be read, the JSON is invalid, or
-    /// schema validation fails. On error, the current executor is unchanged.
+    /// Returns an error if the file cannot be read, the JSON is invalid, schema
+    /// validation fails, a boot-time safety gate refuses the new schema, or the
+    /// new schema changes configuration that only a restart can apply. On error,
+    /// the current executor is unchanged.
     pub async fn reload_schema(&self, path: &std::path::Path) -> Result<(), String> {
-        // Serialize concurrent reloads
-        let _guard = self
-            .reload_lock
-            .try_lock()
-            .map_err(|_| "Reload already in progress".to_string())?;
-
-        let adapter = self
-            .reload_adapter
-            .as_ref()
-            .ok_or_else(|| "Reload not configured: no adapter available".to_string())?;
-
-        // 1. Read schema file
+        // Take the lock and check the preconditions before touching the disk: the
+        // lock exists to serialize *reloads*, and a second reload must be refused
+        // before it starts reading, not after.
+        let guard = self.begin_reload()?;
         let json = tokio::fs::read_to_string(path)
             .await
             .map_err(|e| format!("Failed to read schema file {}: {e}", path.display()))?;
-
-        // 2. Parse and validate
         let schema = CompiledSchema::from_json(&json, false)
             .map_err(|e| format!("Invalid schema JSON: {e}"))?;
-
-        // 3. Validate format version
-        schema
-            .validate_format_version()
-            .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
-
-        // 4. Check if schema actually changed
-        let current = self.executor.load();
-        if current.schema().content_hash() == schema.content_hash() {
-            return Ok(()); // Same schema, no-op
-        }
-
-        // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
-        // so operators know already-connected streams must reconnect to apply the change.
-        warn_on_subscription_policy_reload(current.schema(), &schema);
-
-        // 5. Notify adapter of schema change (clears query result cache if applicable)
-        adapter.on_schema_reload();
-
-        // 6. Construct new executor (reuses same adapter/connection pool)
-        let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
-
-        // 7. Atomic swap
-        self.executor.store(new_executor);
-
-        // 8. Clear query plan caches (reference old schema)
-        #[cfg(feature = "arrow")]
-        if let Some(cache) = &self.cache {
-            cache.clear();
-        }
-
-        info!("Schema executor swapped successfully");
-
-        Ok(())
+        self.swap_in_schema(schema, &guard).await
     }
 
     /// Reload the compiled schema from already-validated JSON bytes.
@@ -436,56 +422,128 @@ impl<A: DatabaseAdapter> AppState<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the JSON is invalid, schema validation fails, or
-    /// a reload is already in progress.  On error, the current executor is
-    /// unchanged.
+    /// Returns an error if the JSON is invalid, schema validation fails, a
+    /// boot-time safety gate refuses the new schema, the new schema changes
+    /// configuration that only a restart can apply, or a reload is already in
+    /// progress. On error, the current executor is unchanged.
     pub async fn reload_schema_from_json(&self, json: &str) -> Result<(), String> {
-        // Serialize concurrent reloads
-        let _guard = self
+        let guard = self.begin_reload()?;
+        let schema = CompiledSchema::from_json(json, false)
+            .map_err(|e| format!("Invalid schema JSON: {e}"))?;
+        self.swap_in_schema(schema, &guard).await
+    }
+
+    /// Acquire the reload lock and check that reload is configured at all.
+    ///
+    /// Both preconditions are cheap and both are refusals rather than failures,
+    /// so they run before any I/O: a concurrent reload must be told "already in
+    /// progress" rather than racing on the file read, and an `AppState` with no
+    /// adapter must say so rather than reporting a read error for a reload it
+    /// could never have performed.
+    fn begin_reload(&self) -> Result<tokio::sync::MutexGuard<'_, ()>, String> {
+        let guard = self
             .reload_lock
             .try_lock()
             .map_err(|_| "Reload already in progress".to_string())?;
+        if self.reload_adapter.is_none() {
+            return Err("Reload not configured: no adapter available".to_string());
+        }
+        if self.reload_rebuilder.is_none() {
+            return Err("Reload not configured: no executor rebuilder available. Reload is only \
+                 supported on an AppState built by a Server constructor, which records how \
+                 the executor must be rebuilt."
+                .to_string());
+        }
+        Ok(guard)
+    }
 
-        let adapter = self
-            .reload_adapter
-            .as_ref()
-            .ok_or_else(|| "Reload not configured: no adapter available".to_string())?;
+    /// The single hot-reload seam: validate, gate, rebuild, swap.
+    ///
+    /// This is a **construction path**, and it must produce the same configured
+    /// runtime as boot does. It previously did not: it called `Executor::new`,
+    /// which uses `RuntimeConfig::default()`, so a successful reload silently
+    /// reverted mutation audit logging, the #421 page-size ceiling, the
+    /// change-log toggle and relay dispatch (#750); and it ran none of the
+    /// boot-time safety gates, so it could move a running server into a state
+    /// boot would have refused (#782).
+    ///
+    /// # Errors
+    ///
+    /// Returns the operator-facing message for every refusal: an incompatible
+    /// format version, a field marked for at-rest encryption (H12), a
+    /// multi-tenant schema that cannot isolate its tenants under caching (#758),
+    /// or boot-frozen configuration drift that requires a restart.
+    async fn swap_in_schema(
+        &self,
+        schema: CompiledSchema,
+        // Held by the caller for the whole reload — taken in `begin_reload`,
+        // before any I/O. Threaded through so this seam cannot be reached without
+        // it.
+        _guard: &tokio::sync::MutexGuard<'_, ()>,
+    ) -> Result<(), String> {
+        let (Some(adapter), Some(rebuilder)) =
+            (self.reload_adapter.as_ref(), self.reload_rebuilder.as_ref())
+        else {
+            // `begin_reload` already refused this case; unreachable in practice.
+            return Err("Reload not configured".to_string());
+        };
 
-        // 1. Parse and validate
-        let schema = CompiledSchema::from_json(json, false)
-            .map_err(|e| format!("Invalid schema JSON: {e}"))?;
-
-        // 2. Validate format version
         schema
             .validate_format_version()
             .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
 
-        // 3. Check if schema actually changed
         let current = self.executor.load();
         if current.schema().content_hash() == schema.content_hash() {
             return Ok(()); // Same schema, no-op
         }
 
+        // The boot-time safety gates, run again. A reload that skips them is a
+        // way to reach, at runtime, a configuration the server refused to start
+        // in — which for the encryption gate means writing plaintext into a field
+        // declared encrypted, and for the tenancy gate means serving one tenant's
+        // cached rows to another (#782).
+        crate::server::initialization::field_encryption_unsupported_check(&schema)
+            .map_err(|e| e.to_string())?;
+        crate::server::initialization::tenant_isolation_declaration_check(
+            &schema,
+            self.adapter_cache_enabled,
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Refuse rather than half-apply: everything a boot-time subsystem read
+        // once cannot be changed by swapping the executor.
+        super::reload_gate::check_reloadable(current.schema(), &schema)?;
+
         // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
         // so operators know already-connected streams must reconnect to apply the change.
         warn_on_subscription_policy_reload(current.schema(), &schema);
 
-        // 4. Notify adapter of schema change (clears query result cache if applicable)
+        // Re-derive the schema-owned runtime settings on top of the *live* config,
+        // so programmatically-installed pieces (authorizers, RLS policy, field
+        // filter, query validation) survive the swap while the compiled and
+        // environment-derived ones are recomputed — exactly what boot does.
+        let config = current
+            .config()
+            .clone()
+            .with_compiled_schema(&schema)
+            .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
+
+        // Notify adapter of schema change (clears query result cache if applicable)
         adapter.on_schema_reload();
 
-        // 5. Construct new executor (reuses same adapter/connection pool)
-        let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
+        // Rebuild through the constructor's own path, preserving relay dispatch.
+        let new_executor = Arc::new(rebuilder(schema, adapter.clone(), config));
 
-        // 6. Atomic swap
+        // Atomic swap
         self.executor.store(new_executor);
 
-        // 7. Clear query plan caches (reference old schema)
+        // Clear query plan caches (reference old schema)
         #[cfg(feature = "arrow")]
         if let Some(cache) = &self.cache {
             cache.clear();
         }
 
-        info!("Schema executor swapped successfully (from validated JSON)");
+        info!("Schema executor swapped successfully");
 
         Ok(())
     }

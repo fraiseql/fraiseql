@@ -72,7 +72,11 @@ fn rejects_url_without_scheme() {
     let err = parse_database_url("localhost:5432")
         .expect_err("URL without a scheme must be rejected")
         .to_string();
-    assert!(err.contains("\"localhost:5432\""), "{err}");
+    // Before #731 the whole string was reported as the "observed scheme", because
+    // `split("://").next()` returns the input when there is no separator. That is
+    // also why a bare `"postgres"` was *accepted*. The refusal now names the real
+    // fault: there is no scheme at all.
+    assert!(err.contains("no scheme"), "{err}");
 }
 
 #[test]
@@ -171,4 +175,32 @@ mod sqlite_guard {
         assert!(!err.contains("m4"), "must truncate beyond sample window: {err}");
         assert!(err.contains("+2 more"), "missing overflow suffix: {err}");
     }
+}
+
+// ── #731: a scheme-less string is not a valid database URL ───────────────────
+
+/// `"postgres"` has no `://`, so `split("://").next()` handed back the whole
+/// string and it matched the `"postgres"` arm — the guard accepted it and the
+/// failure resurfaced later as the opaque driver error the guard exists to
+/// replace.
+#[test]
+fn a_scheme_less_string_is_refused() {
+    for input in ["postgres", "postgresql", "mysql", "sqlite", "sqlserver"] {
+        let err = super::parse_database_url(input)
+            .expect_err("#731: a string with no `://` is not a database URL");
+        assert!(
+            err.to_string().contains("no scheme"),
+            "the refusal must say the scheme is missing, for {input:?}: {err}"
+        );
+    }
+}
+
+/// Counterweight: the same schemes with a separator still parse.
+#[test]
+fn the_supported_schemes_still_parse_with_a_separator() {
+    assert!(super::parse_database_url("postgres://host/db").is_ok());
+    assert!(super::parse_database_url("postgresql://host/db").is_ok());
+    assert!(super::parse_database_url("mysql://host/db").is_ok());
+    assert!(super::parse_database_url("sqlite://file.db").is_ok());
+    assert!(super::parse_database_url("sqlserver://host/db").is_ok());
 }

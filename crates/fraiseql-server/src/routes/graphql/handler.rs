@@ -105,7 +105,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Reject oversized GET queries early to prevent DoS via query parsing.
     let max_get_bytes = state.max_get_query_bytes;
     if params.query.len() > max_get_bytes {
-        return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+        return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
             "GET query string exceeds maximum allowed length ({max_get_bytes} bytes)"
         ))));
     }
@@ -116,16 +116,21 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // explicitly to prevent parser DoS from a very large variables value.
     let variables = if let Some(vars_str) = params.variables {
         if vars_str.len() > max_get_bytes {
-            return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+            return Err(ErrorResponse::from_error(GraphQLError::payload_too_large(format!(
                 "GET variables string exceeds maximum allowed length ({max_get_bytes} bytes)"
             ))));
         }
         match serde_json::from_str::<serde_json::Value>(&vars_str) {
             Ok(v) => Some(v),
             Err(e) => {
+                // Log the fault, never the payload. `variables` is client-supplied
+                // and may hold PII or bearer tokens; emitting up to
+                // `max_get_query_bytes` of it at `warn!` put that into every log
+                // sink the deployment ships to (#730). The serde error already
+                // carries the line/column, which is what a diagnosis needs.
                 warn!(
                     error = %e,
-                    variables = %vars_str,
+                    variables_bytes = vars_str.len(),
                     "Failed to parse variables JSON in GET request"
                 );
                 return Err(ErrorResponse::from_error(GraphQLError::request(format!(
