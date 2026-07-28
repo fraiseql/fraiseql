@@ -215,6 +215,30 @@ pub struct TomlSchema {
     /// ```
     #[serde(default)]
     pub hierarchies: Option<std::collections::HashMap<String, HierarchyConfig>>,
+
+    /// Per-request PostgreSQL session variables resolved from the request identity.
+    ///
+    /// The runtime applies each mapping with `set_config(name, value, true)` before
+    /// every query and mutation, so RLS policies can read it with
+    /// `current_setting('app.tenant_id', true)`. This is the mechanism that makes
+    /// database-layer tenant isolation work.
+    ///
+    /// ```toml
+    /// [[session_variables.variables]]
+    /// name = "app.tenant_id"
+    /// source = "jwt"
+    /// claim = "tenant_id"
+    /// ```
+    ///
+    /// The compiled-schema field has documented itself as "compiled from the
+    /// `[session_variables]` TOML section" since it was introduced; until #628 no
+    /// such section existed in either TOML format, so the only way to declare the
+    /// mapping was to hand-author `schema.json`.
+    ///
+    /// Deliberately the *same* type the runtime consumes: a CLI-side mirror struct
+    /// is exactly the producer↔consumer seam that keeps dropping declarations.
+    #[serde(default)]
+    pub session_variables: fraiseql_core::schema::SessionVariablesConfig,
 }
 
 /// Configuration for a single hierarchy used by ID-based ltree operators.

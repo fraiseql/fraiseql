@@ -288,6 +288,9 @@ async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<Pos
             min_size:     config.pool_min_size,
             max_size:     config.pool_max_size,
             timeout_secs: Some(config.pool_timeout_secs),
+            // Single-tenant server pool: relation resolution follows the server default.
+            // Per-tenant schema isolation is installed by `create_tenant_executor`.
+            search_path:  None,
         },
     )
     .await?;

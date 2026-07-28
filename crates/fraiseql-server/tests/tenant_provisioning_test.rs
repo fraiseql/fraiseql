@@ -20,6 +20,7 @@ async fn postgres_adapter_builds_from_tenant_pool_config() {
         max_connections:      4,
         connect_timeout_secs: 5,
         idle_timeout_secs:    300,
+        search_path:          None,
     };
 
     // `from_pool_config` opens a connection (the startup health check inside

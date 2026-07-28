@@ -21,10 +21,17 @@ use crate::{server::Server, server_config::ServerConfig};
 /// Build a `Server` from the given config with an empty schema and a healthy
 /// mock adapter (no OIDC validator unless the config requests one — which these
 /// tests deliberately never do).
+/// Boxed at the delegation point: `Server::new`'s future is large enough to trip
+/// `clippy::large_futures` (pedantic, denied) at every call site otherwise.
 async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
-    Server::new(config, CompiledSchema::new(), Arc::new(FailingAdapter::new()), None)
-        .await
-        .expect("Server::new should succeed for an empty schema + default config")
+    Box::pin(Server::new(
+        config,
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        None,
+    ))
+    .await
+    .expect("Server::new should succeed for an empty schema + default config")
 }
 
 // ── M-storage-legacy: legacy backend fails closed without a storage_token ──

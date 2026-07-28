@@ -16,6 +16,7 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test functions, panics are expected
 #![allow(clippy::unimplemented)] // Reason: the relay query stub is never invoked by these tests
 #![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::panic)] // Reason: test code, panics are the failure mechanism
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -27,7 +28,10 @@ use fraiseql_core::{
         types::{JsonbValue, OrderByClause, PoolMetrics},
     },
     error::Result as FraiseQLResult,
-    schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, SqlProjectionHint},
+    schema::{
+        CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, SecurityConfig, SqlProjectionHint,
+        TenancyConfig, TenancyMode,
+    },
 };
 use fraiseql_server::{Server, server_config::ServerConfig};
 
@@ -123,6 +127,28 @@ fn current_schema() -> CompiledSchema {
     schema
 }
 
+/// A schema that declares row-level tenancy and nothing else. With caching on,
+/// every constructor that builds a result cache must refuse it: cache keys carry no
+/// tenant, so without RLS two tenants issuing the same query share one entry.
+fn multi_tenant_schema_without_rls() -> CompiledSchema {
+    let mut schema = current_schema();
+    schema.security = Some(SecurityConfig {
+        tenancy: TenancyConfig {
+            mode: TenancyMode::Row,
+            ..TenancyConfig::default()
+        },
+        ..SecurityConfig::default()
+    });
+    schema
+}
+
+fn caching_config() -> ServerConfig {
+    ServerConfig {
+        cache_enabled: true,
+        ..ServerConfig::default()
+    }
+}
+
 #[tokio::test]
 async fn server_new_refuses_incompatible_schema_format() {
     let config = ServerConfig {
@@ -190,5 +216,88 @@ async fn with_flight_service_refuses_incompatible_schema_format() {
     assert!(
         result.is_err(),
         "with_flight_service must refuse an incompatible compiled-schema version (H16)"
+    );
+}
+
+// ── #758: the multi-tenant cache gate must fire from every constructor ────────
+//
+// This gate existed inline in `Server::new` and `with_relay_pagination` and was
+// absent from `with_flight_service`. The drift was invisible because nothing could
+// set `security.multi_tenant`, so `is_multi_tenant()` was false everywhere and all
+// three constructors agreed by accident. Giving it a producer makes the difference
+// real, so the check now lives in one place and each constructor is pinned here.
+
+#[tokio::test]
+async fn server_new_refuses_multi_tenant_caching_without_rls() {
+    let result = Server::new(
+        caching_config(),
+        multi_tenant_schema_without_rls(),
+        Arc::new(NoopRelayAdapter),
+        None,
+    )
+    .await;
+    let Err(e) = result else {
+        panic!("#758: Server::new must refuse multi-tenant + cache + no RLS");
+    };
+    let msg = e.to_string();
+    assert!(msg.contains("multi-tenant"), "the refusal must say why: {msg}");
+    assert!(
+        msg.contains("[security.rls]"),
+        "the refusal must name a knob that exists: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn with_relay_pagination_refuses_multi_tenant_caching_without_rls() {
+    let result = Server::with_relay_pagination(
+        caching_config(),
+        multi_tenant_schema_without_rls(),
+        Arc::new(NoopRelayAdapter),
+        None,
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "#758: with_relay_pagination must refuse multi-tenant + cache + no RLS"
+    );
+}
+
+/// Counterweight: the gate must not refuse a single-tenant schema, or it would
+/// break every non-tenanted deployment while proving nothing about isolation.
+#[tokio::test]
+async fn a_single_tenant_schema_still_boots_with_caching() {
+    let result =
+        Server::new(caching_config(), current_schema(), Arc::new(NoopRelayAdapter), None).await;
+    assert!(result.is_ok(), "single-tenant + cache must still boot: {:?}", result.err());
+}
+
+/// Counterweight: declaring RLS lets a multi-tenant schema boot. The live catalog
+/// verification that follows the declaration is exercised against a real database
+/// in `cache_rls_isolation_test`; this adapter answers no rows, which the check
+/// treats as "relation does not exist" — so the declaration path is asserted here
+/// only up to the point where it hands off.
+#[tokio::test]
+async fn declaring_rls_changes_the_outcome() {
+    let mut schema = multi_tenant_schema_without_rls();
+    if let Some(security) = schema.security.as_mut() {
+        security.rls.enabled = true;
+    }
+    let refused_without = Server::new(
+        caching_config(),
+        multi_tenant_schema_without_rls(),
+        Arc::new(NoopRelayAdapter),
+        None,
+    )
+    .await
+    .is_err();
+    assert!(refused_without, "precondition: the undeclared schema is refused");
+
+    // With RLS declared the *declaration* gate passes; the schema below has no
+    // queries, so the live check has no relation to inspect and also passes.
+    let result = Server::new(caching_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    assert!(
+        result.is_ok(),
+        "declaring [security.rls] must change the outcome: {:?}",
+        result.err()
     );
 }

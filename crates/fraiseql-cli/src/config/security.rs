@@ -425,6 +425,17 @@ pub struct SecurityConfig {
     /// Default role when user has no explicit role assignment
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_role:       Option<String>,
+    /// Declare that this schema serves multiple tenants (`multi_tenant = true`).
+    ///
+    /// A non-`none` `[fraiseql.tenancy] mode` implies it. Activates the
+    /// subscription tenant fail-closed gate and the cache+RLS boot gate — both of
+    /// which named this key in their error messages while `deny_unknown_fields`
+    /// made it a compile error to set (#758).
+    pub multi_tenant:       bool,
+    /// Declare that database Row-Level Security isolates this schema's data
+    /// (`[fraiseql.security.rls] enabled = true`). Verified against the live
+    /// catalog at boot.
+    pub rls:                fraiseql_core::schema::RlsConfig,
 }
 
 impl SecurityConfig {
@@ -454,7 +465,14 @@ impl SecurityConfig {
 
     /// Convert to JSON representation for schema.json
     pub fn to_json(&self) -> serde_json::Value {
+        // `multi_tenant` and `rls` are spelled exactly as
+        // `fraiseql_core::schema::SecurityConfig` names them. The camelCase keys
+        // around them land in that struct's `#[serde(flatten)] additional` map and
+        // are read back out by name; these two bind to typed fields, so a rename
+        // here would silently restore the #758 default rather than fail.
         let mut json = serde_json::json!({
+            "multi_tenant": self.multi_tenant,
+            "rls": self.rls,
             "auditLogging": self.audit_logging.to_json(),
             "errorSanitization": self.error_sanitization.to_json(),
             "rateLimiting": self.rate_limiting.to_json(),

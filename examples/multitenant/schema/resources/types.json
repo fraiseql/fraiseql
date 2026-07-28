@@ -15,16 +15,10 @@
     {
       "name": "listResources",
       "return_type": "Resource",
-      "return_array": true,
-      "description": "List resources in tenant"
+      "returns_list": true,
+      "sql_source": "v_resource",
+      "description": "Resources in the caller's tenant (scoped by RLS on app.tenant_id)"
     }
   ],
-  "mutations": [
-    {
-      "name": "createResource",
-      "return_type": "Resource",
-      "operation": "INSERT",
-      "description": "Create resource in tenant"
-    }
-  ]
+  "mutations": []
 }

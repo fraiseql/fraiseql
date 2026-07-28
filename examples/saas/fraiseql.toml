@@ -2,9 +2,9 @@
 # Multi-tenant organization with domain-driven architecture
 
 [database]
-pool_size = 10
+pool_max = 10
 ssl_mode = "prefer"
-timeout_seconds = 30
+connect_timeout_ms = 30000
 url = "postgresql://localhost/saas"
 
 # Auto-discover domains
@@ -18,14 +18,39 @@ description = "SaaS platform with account management, billing, teams, and integr
 name = "saas"
 version = "1.0.0"
 
-# `[security.rules]` is declared-but-unenforced by the FraiseQL runtime (the
-# operation/field authorizers are pinned to None; see #612 / #626). The two
-# `[[security.rules]]` blocks that used to sit here ("only account owners can modify
-# Account", "only billing admins can manage Subscription") compiled but enforced
-# nothing, so they were removed rather than ship a false authorization claim.
-# `default_policy = "authenticated"` only closes the anonymous path. Enforce
-# per-owner / per-role write rules at the database layer (RLS policies + the session
-# variables FraiseQL sets from the request identity via `set_config()`; see
-# `resolve_session_variables` in fraiseql-core). A worked example is tracked in #628.
+# Account isolation is enforced in PostgreSQL, by Row-Level Security reading the
+# session variables FraiseQL sets from the caller's validated JWT. See README.md for
+# the full path and sql/01_schema.sql for the policies.
 [security]
 default_policy = "authenticated"
+
+# Every row in this schema belongs to exactly one account, so the deployment is
+# multi-tenant. This activates the subscription tenant fail-closed gate and the
+# cache+RLS boot gate.
+multi_tenant = true
+
+# The isolation is RLS. The server verifies this declaration against the live
+# catalog at boot: each relation a query reads must be an RLS-protected table or a
+# `security_invoker` view, or it refuses to start.
+[security.rls]
+enabled = true
+
+# What the removed `[[security.rules]]` blocks pretended to do — "only account
+# owners can modify Account", "only billing admins can manage Subscription" — is
+# expressible here and enforced by the database. `app.account_id` scopes every read;
+# `app.user_id` and `app.account_role` are what the write-side `WITH CHECK` policies
+# in sql/01_schema.sql compare against.
+[[session_variables.variables]]
+name = "app.account_id"
+source = "jwt"
+claim = "account_id"
+
+[[session_variables.variables]]
+name = "app.user_id"
+source = "jwt"
+claim = "sub"
+
+[[session_variables.variables]]
+name = "app.account_role"
+source = "jwt"
+claim = "account_role"

@@ -93,6 +93,7 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 ///     min_size:     5,
 ///     max_size:     20,
 ///     timeout_secs: Some(30),
+///     search_path:  None,
 /// };
 /// ```
 #[derive(Debug, Clone)]
@@ -113,6 +114,123 @@ pub struct PoolPrewarmConfig {
     /// `create` (time to open a new TCP connection to PostgreSQL) deadpool slots.
     /// When `None`, acquisition can block indefinitely on pool exhaustion.
     pub timeout_secs: Option<u64>,
+
+    /// Schema search path every connection in this pool must resolve unqualified
+    /// relations against. `None` leaves the server default in force.
+    ///
+    /// This is a **pool** property, not a session one: it is lowered into the
+    /// PostgreSQL startup `options` parameter, so the server applies it while
+    /// establishing each connection — including connections deadpool opens later
+    /// to grow the pool, and replacements it creates after a backend dies. See
+    /// [`SearchPath`] for why the session-`SET` alternative is unsound.
+    pub search_path: Option<SearchPath>,
+}
+
+/// A validated PostgreSQL `search_path`, applied at connection establishment.
+///
+/// # Why this is a type and not a `SET` statement
+///
+/// `SET search_path` is *session*-scoped, and a connection pool is N independent
+/// sessions. Issuing the `SET` through a pooled query configures whichever single
+/// connection was checked out and leaves every other connection — including ones
+/// the pool opens later, and every replacement created after a backend
+/// disconnects — on the server default. Schema-per-tenant isolation built that way
+/// resolves most queries against `public`: silently wrong rows where `public`
+/// shadows the relation, an intermittent `relation ... does not exist` where it does
+/// not (#809).
+///
+/// Lowering the path into the startup `options` parameter instead makes it a
+/// property of *how connections are made*, so it cannot be missed by a connection
+/// and cannot be lost to recycling — `RESET`/`DISCARD ALL` restore the startup
+/// value, not the server default.
+///
+/// # Example
+///
+/// ```rust
+/// use fraiseql_db::postgres::SearchPath;
+///
+/// let path = SearchPath::new(["tenant_acme", "public"])?;
+/// assert_eq!(path.as_str(), "tenant_acme,public");
+///
+/// // Anything that is not a bare identifier is refused rather than escaped.
+/// assert!(SearchPath::new(["public; DROP SCHEMA x"]).is_err());
+/// # Ok::<(), fraiseql_error::FraiseQLError>(())
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchPath(String);
+
+impl SearchPath {
+    /// Build a search path from schema names, in resolution order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the list is empty or any entry is
+    /// not a bare, unquoted PostgreSQL identifier (`[A-Za-z_][A-Za-z0-9_]*`, at most
+    /// 63 characters). Rejecting rather than quoting keeps the emitted startup
+    /// option free of characters that could terminate it.
+    pub fn new<I, S>(schemas: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut parts: Vec<String> = Vec::new();
+        for schema in schemas {
+            let name = schema.as_ref();
+            let mut chars = name.chars();
+            let valid = match chars.next() {
+                Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+                    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+                },
+                _ => false,
+            };
+            if !valid || name.len() > MAX_PG_IDENTIFIER_LEN {
+                return Err(FraiseQLError::validation(format!(
+                    "Schema name '{name}' is not a bare PostgreSQL identifier and cannot be \
+                     used in a search path"
+                )));
+            }
+            parts.push(name.to_string());
+        }
+        if parts.is_empty() {
+            return Err(FraiseQLError::validation("A search path needs at least one schema"));
+        }
+        Ok(Self(parts.join(",")))
+    }
+
+    /// The comma-separated path, as it is written into `-c search_path=…`.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for SearchPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// Maximum length of a PostgreSQL identifier.
+const MAX_PG_IDENTIFIER_LEN: usize = 63;
+
+/// Compose the PostgreSQL startup `options` string for a pool.
+///
+/// Appends `-c search_path=…` to whatever `options` the operator already put in the
+/// connection string, rather than replacing it: deadpool's struct-level `options`
+/// field overrides the URL-parsed value outright, so building this by assignment
+/// alone would silently discard an operator's own `-c` settings.
+fn compose_startup_options(connection_string: &str, search_path: &SearchPath) -> String {
+    let existing = connection_string
+        .parse::<tokio_postgres::Config>()
+        .ok()
+        .and_then(|c| c.get_options().map(str::to_owned))
+        .unwrap_or_default();
+    let existing = existing.trim();
+    if existing.is_empty() {
+        format!("-c search_path={search_path}")
+    } else {
+        format!("{existing} -c search_path={search_path}")
+    }
 }
 
 /// Build a `deadpool-postgres` pool with an optional wait/create timeout.
@@ -120,12 +238,24 @@ pub struct PoolPrewarmConfig {
 /// # Errors
 ///
 /// Returns `FraiseQLError::ConnectionPool` if pool creation fails (e.g., unparseable URL).
-fn build_pool(connection_string: &str, max_size: usize, timeout_secs: Option<u64>) -> Result<Pool> {
+fn build_pool(
+    connection_string: &str,
+    max_size: usize,
+    timeout_secs: Option<u64>,
+    search_path: Option<&SearchPath>,
+) -> Result<Pool> {
     let mut cfg = Config::new();
     cfg.url = Some(connection_string.to_string());
     cfg.manager = Some(ManagerConfig {
         recycling_method: RecyclingMethod::Fast,
     });
+
+    // Schema isolation is a property of connection *establishment*, so it rides the
+    // startup packet and applies to every connection this pool ever opens — see
+    // `SearchPath` for why a pooled `SET` is unsound (#809).
+    if let Some(path) = search_path {
+        cfg.options = Some(compose_startup_options(connection_string, path));
+    }
 
     let mut pool_cfg = deadpool_postgres::PoolConfig::new(max_size);
     if let Some(secs) = timeout_secs {
@@ -236,6 +366,7 @@ impl PostgresAdapter {
                 min_size:     0,
                 max_size:     DEFAULT_POOL_SIZE,
                 timeout_secs: None,
+                search_path:  None,
             },
         )
         .await
@@ -256,7 +387,12 @@ impl PostgresAdapter {
     /// Returns `FraiseQLError::ConnectionPool` if pool creation or the startup
     /// health check fails.
     pub async fn with_pool_config(connection_string: &str, cfg: PoolPrewarmConfig) -> Result<Self> {
-        let pool = build_pool(connection_string, cfg.max_size, cfg.timeout_secs)?;
+        let pool = build_pool(
+            connection_string,
+            cfg.max_size,
+            cfg.timeout_secs,
+            cfg.search_path.as_ref(),
+        )?;
 
         // Startup health check — establishes the first connection.
         let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
@@ -304,6 +440,7 @@ impl PostgresAdapter {
                 min_size: 0,
                 max_size,
                 timeout_secs: None,
+                search_path: None,
             },
         )
         .await

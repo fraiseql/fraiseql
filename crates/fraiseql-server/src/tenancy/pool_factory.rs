@@ -10,7 +10,7 @@ use std::sync::Arc;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{
-        postgres::{PoolPrewarmConfig, PostgresAdapter},
+        postgres::{PoolPrewarmConfig, PostgresAdapter, SearchPath},
         traits::DatabaseAdapter,
     },
     runtime::Executor,
@@ -36,6 +36,19 @@ pub struct TenantPoolConfig {
     /// Idle connection timeout in seconds.
     #[serde(default = "default_idle_timeout")]
     pub idle_timeout_secs:    u64,
+    /// Schema isolation for this tenant, derived from the compiled schema's
+    /// tenancy mode and the tenant key — never supplied by the caller.
+    ///
+    /// `#[serde(skip)]` is load-bearing: this field is the isolation boundary, and
+    /// the struct is deserialised straight from an admin-API request body. Letting
+    /// a registration request name its own search path would let a caller point a
+    /// tenant at another tenant's schema.
+    ///
+    /// [`create_tenant_executor`] populates it before the adapter is built, so an
+    /// adapter cannot exist in a state where the isolation "has not been applied
+    /// yet" — the defect the removed `configure_search_path` used to have (#809).
+    #[serde(skip)]
+    pub search_path:          Option<SearchPath>,
 }
 
 const fn default_max_connections() -> u32 {
@@ -78,6 +91,7 @@ impl FromPoolConfig for PostgresAdapter {
                 #[allow(clippy::cast_possible_truncation)]
                 max_size: config.max_connections as usize,
                 timeout_secs: Some(config.connect_timeout_secs),
+                search_path: config.search_path.clone(),
             },
         )
         .await
@@ -108,15 +122,23 @@ impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
 /// validates its format version, creates a database pool, and assembles an
 /// `Executor<A>` with both baked in.
 ///
-/// When the compiled schema specifies `tenancy.mode = "schema"`, this function
-/// also provisions the tenant's PostgreSQL schema (`CREATE SCHEMA IF NOT EXISTS
-/// tenant_{key}`) and configures the adapter's search path.
+/// When the compiled schema specifies `tenancy.mode = "schema"`, the tenant's
+/// search path is baked into the pool **before** it is built, so every connection
+/// the pool ever opens carries it, and the tenant's PostgreSQL schema is then
+/// provisioned (`CREATE SCHEMA IF NOT EXISTS tenant_{key}`).
+///
+/// The ordering matters and is the fix for #809: isolation is a property of the
+/// pool, established at construction, not a statement issued afterwards against
+/// one borrowed connection. Registration then *verifies* the isolation actually
+/// took (see [`schema_isolation::verify_search_path`]) and refuses to hand back an
+/// executor that would serve `public`.
 ///
 /// # Arguments
 ///
 /// * `tenant_key` - The tenant identifier used for schema naming
 /// * `schema_json` - Compiled schema JSON string
-/// * `pool_config` - Database connection configuration
+/// * `pool_config` - Database connection configuration. Its `search_path` is ignored and recomputed
+///   here; the tenant key is the only source of truth.
 ///
 /// # Errors
 ///
@@ -124,7 +146,8 @@ impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
 /// Returns `FraiseQLError::Validation` if the schema format version is unsupported
 /// or the tenant key would produce an invalid PostgreSQL schema name.
 /// Returns `FraiseQLError::ConnectionPool` / `FraiseQLError::Database` if the pool
-/// cannot be created or schema DDL fails.
+/// cannot be created, schema DDL fails, or the pool's connections do not carry the
+/// tenant search path.
 #[doc(hidden)] // Internal-pub: tenant pool builder used by TenantExecutorRegistry; downstream wires tenants via TenancyConfig, not this fn directly.
 pub async fn create_tenant_executor<A: FromPoolConfig>(
     tenant_key: &str,
@@ -144,17 +167,29 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
 
     let tenancy_mode = schema.tenancy_mode();
 
-    // 2. Create database adapter/pool
-    let adapter = A::from_pool_config(pool_config).await?;
+    // 2. Derive the isolation the tenancy mode calls for, and put it in the config the pool is
+    //    built from. Recomputed rather than trusted: `search_path` is `#[serde(skip)]`, but an
+    //    in-process caller could still have set it.
+    let pool_config = TenantPoolConfig {
+        search_path: if tenancy_mode == TenancyMode::Schema {
+            Some(schema_isolation::tenant_search_path(tenant_key)?)
+        } else {
+            None
+        },
+        ..pool_config.clone()
+    };
 
-    // 3. Schema isolation: provision schema + configure search_path
+    // 3. Create database adapter/pool — isolation applies from the first connection
+    let adapter = A::from_pool_config(&pool_config).await?;
+
+    // 4. Schema isolation: provision the schema, then prove the isolation is live
     if tenancy_mode == TenancyMode::Schema {
         info!(tenant_key, "provisioning schema for tenant (schema isolation mode)");
         schema_isolation::provision_tenant_schema(tenant_key, &adapter).await?;
-        schema_isolation::configure_search_path(tenant_key, &adapter).await?;
+        schema_isolation::verify_search_path(tenant_key, &adapter).await?;
     }
 
-    // 4. Assemble executor
+    // 5. Assemble executor
     Ok(Arc::new(Executor::new(schema, Arc::new(adapter))))
 }
 

@@ -70,23 +70,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Validate cache + RLS safety (mirrors Server::new).
-        if config.cache_enabled && !schema.has_rls_configured() {
-            if schema.is_multi_tenant() {
-                return Err(super::ServerError::ConfigError(
-                    "Cache is enabled in a multi-tenant schema but no Row-Level Security \
-                     policies are declared. This would allow cross-tenant cache hits and \
-                     data leakage. In fraiseql.toml, either disable caching with \
-                     [cache] enabled = false, declare [security.rls] policies, or set \
-                     [security] multi_tenant = false to acknowledge single-tenant mode."
-                        .to_string(),
-                ));
-            }
-            tracing::warn!(
-                "Query-result caching is enabled but no Row-Level Security policies are \
-                 declared in the compiled schema. This is safe for single-tenant deployments."
-            );
-        }
+        // Validate cache + RLS safety — the same shared check `Server::new` runs.
+        crate::server::initialization::tenant_isolation_declaration_check(
+            &schema,
+            config.cache_enabled,
+        )?;
 
         // Same boot gates as `Server::new` — these must not drift by constructor (H16).
         // Refuse to boot if any field is marked for at-rest encryption (H12); the write
@@ -136,7 +124,14 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema);
+            .with_ttl_overrides_from_schema(&schema)
+            .with_rls(schema.has_rls_configured());
+        crate::server::initialization::verify_declared_rls(
+            &schema,
+            &cached,
+            cache_config.rls_enforcement,
+        )
+        .await?;
         let executor = Arc::new(Executor::with_config_and_relay(
             schema.clone(),
             Arc::new(cached),
@@ -261,6 +256,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
         let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
+        // No `CachedDatabaseAdapter` is built on this path — the arrow/Flight
+        // constructor keeps the raw adapter — so the cache+RLS gate that
+        // `Server::new` and `with_relay_pagination` run has nothing to guard here.
+        // (`config.cache_enabled` is consequently ignored on this path, which is a
+        // config-honesty defect of its own; tracked separately.)
         let executor = Arc::new(Executor::with_config(schema.clone(), adapter, executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 

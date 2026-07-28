@@ -94,6 +94,7 @@ mod postgres_adapter_tests {
                 min_size:     5,
                 max_size:     20,
                 timeout_secs: None,
+                search_path:  None,
             },
         )
         .await;
@@ -197,6 +198,7 @@ async fn test_feature_gated_main_initialization_postgres() {
             min_size:     5,
             max_size:     20,
             timeout_secs: None,
+            search_path:  None,
         },
     )
     .await;

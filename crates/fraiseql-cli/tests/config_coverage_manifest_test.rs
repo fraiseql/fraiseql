@@ -92,6 +92,25 @@ const MANIFEST: &[(&str, &str)] = &[
     ("security.trusted_documents", "server trusted-documents allowlist"),
     ("security.default_policy", "server default authorization policy"),
     (
+        "security.multi_tenant",
+        "CompiledSchema::is_multi_tenant → subscription tenant fail-closed gate + \
+         cache/RLS boot gate (#758)",
+    ),
+    (
+        "security.rls.enabled",
+        "CompiledSchema::has_rls_configured → boot gate + live catalog verification \
+         via CachedDatabaseAdapter::validate_rls_active (#758/#762)",
+    ),
+    (
+        "session_variables.variables",
+        "runtime resolve_session_variables → set_config before every query/mutation \
+         (the mechanism RLS policies read, #628)",
+    ),
+    (
+        "session_variables.inject_started_at",
+        "runtime mutation path — stamps fraiseql.started_at from the DB clock",
+    ),
+    (
         "security.enterprise.*",
         "server enterprise security aggregate (rate-limit/pkce/audit/sanitization)",
     ),

@@ -74,34 +74,24 @@
     {
       "name": "listIntegrations",
       "return_type": "Integration",
-      "return_array": true,
-      "description": "List account integrations"
+      "description": "List account integrations",
+      "returns_list": true,
+      "sql_source": "v_integration"
     },
     {
       "name": "getIntegration",
       "return_type": "Integration",
-      "return_array": false,
-      "description": "Get integration by ID"
+      "description": "Get integration by ID",
+      "returns_list": false,
+      "sql_source": "v_integration"
     },
     {
       "name": "listWebhookLogs",
       "return_type": "WebhookLog",
-      "return_array": true,
-      "description": "List webhook delivery logs"
+      "description": "List webhook delivery logs",
+      "returns_list": true,
+      "sql_source": "v_webhook_log"
     }
   ],
-  "mutations": [
-    {
-      "name": "addIntegration",
-      "return_type": "Integration",
-      "operation": "INSERT",
-      "description": "Configure new integration"
-    },
-    {
-      "name": "removeIntegration",
-      "return_type": "Integration",
-      "operation": "DELETE",
-      "description": "Remove integration"
-    }
-  ]
+  "mutations": []
 }

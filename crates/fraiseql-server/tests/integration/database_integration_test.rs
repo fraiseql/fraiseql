@@ -62,6 +62,7 @@ async fn test_postgres_adapter_with_pool_config() {
             min_size,
             max_size,
             timeout_secs: None,
+            search_path: None,
         },
     )
     .await;

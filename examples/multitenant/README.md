@@ -1,78 +1,112 @@
 # Multi-Tenant Example
 
-A minimal FraiseQL v2 example showing multi-tenant architecture.
+A FraiseQL v2 example whose tenant isolation is **enforced and tested**, not
+documented. The isolation lives in PostgreSQL Row-Level Security; FraiseQL's job is
+to put the caller's identity where the policies can read it.
 
 ## Structure
 
 ```
 schema/
-├── core/        # Shared types (Organization)
-├── tenants/     # Tenant management
-└── resources/   # Tenant-specific resources
+├── core/        # Organization
+├── tenants/     # Tenant (organizationId)
+└── resources/   # Resource (tenantId)
+sql/
+└── 01_schema.sql   # tables, RLS policies, security_invoker views, app role
 ```
 
-## Domains
+## How isolation actually works
 
-**Core**: Shared Organization type
-**Tenants**: Workspace/tenant management
-**Resources**: Application resources per tenant
+Three pieces, none of which works alone.
 
-## Key Pattern
+**1. FraiseQL maps JWT claims to PostgreSQL session variables.**
+`fraiseql.toml` declares:
 
-All tenant-specific types include `tenantId`:
-
-```
-Organization
-└── Tenant (organizationId)
-    └── Resource (tenantId)
+```toml
+[[session_variables.variables]]
+name = "app.tenant_id"
+source = "jwt"
+claim = "tenant_id"
 ```
 
-## Tenant isolation
+Before every query and mutation the runtime calls
+`set_config('app.tenant_id', <claim value>, true)` — transaction-scoped, so it
+cannot leak to the next request on a pooled connection. The value comes from the
+*validated* JWT, so a client cannot supply it in a header or a GraphQL variable.
 
-> **Correction (#612).** Earlier revisions of this example claimed
-> `[[security.rules]]` in `fraiseql.toml` scoped each query to the caller's tenant.
-> That was false: FraiseQL does **not** enforce `[security.rules]` at runtime (the
-> operation/field authorizers are pinned to `None` — see #612 / #626). Those blocks
-> compiled but scoped nothing, so they have been removed. Do not rely on
-> `[security.rules]` for isolation.
+**2. The database decides which rows exist.**
 
-Per-tenant isolation must be enforced **at the database layer**. The schema itself
-is unaware of who is calling — every type carries a `tenantId` (`organizationId`
-for `Tenant`), but nothing scopes a query to one tenant on its own.
+```sql
+CREATE POLICY resource_isolation ON tb_resource
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+```
 
-`default_policy = "authenticated"` closes the anonymous read path (no unauthenticated
-access) — but it does **not** scope rows to a tenant. To scope rows:
+A request with no tenant claim sets nothing, `current_setting` returns the empty
+string, `NULLIF` makes it NULL, and the comparison matches no rows. Fail-closed by
+construction — there is no code path that "forgets" the filter, because the filter
+is not in the code.
 
-1. **Set a session variable from the identity.** FraiseQL resolves configured session
-   variables from the request (JWT claims / headers) and injects them as
-   transaction-scoped PostgreSQL session variables via `set_config()` before each
-   query — see `resolve_session_variables`
-   (`crates/fraiseql-core/src/runtime/executor/support/security.rs`). Map e.g.
-   `app.tenant_id` to the `tenant_id` claim.
-2. **Enforce with RLS.** Define row-level-security policies on the views/tables that
-   read that variable with `current_setting('app.tenant_id')`, so PostgreSQL itself
-   rejects cross-tenant rows.
+**3. The views must defer to the caller.**
+`v_resource` is declared `WITH (security_invoker = true)`. A default view executes
+with its *owner's* privileges and bypasses the caller's policies entirely, so a view
+over a perfectly protected table would hand back every tenant's rows. This is the
+single easiest way to build a multi-tenant deployment that looks isolated and is not.
 
-Without database-layer RLS, `listTenants` and `listResources` return **every**
-tenant's rows to **any** authenticated caller. A worked end-to-end example
-(session-var mapping + RLS policy + a two-tenant proof) is tracked in
-[#628](https://github.com/fraiseql/fraiseql/issues/628).
+## Two things that will silently defeat this
 
-## Compiling
+**Connecting as a superuser or a `BYPASSRLS` role.** PostgreSQL skips every policy
+for such roles. The application must connect as an ordinary role —
+`sql/01_schema.sql` creates `multitenant_app` for exactly this. This is why the
+example ships an application role at all.
+
+**Being the table owner without `FORCE ROW LEVEL SECURITY`.** `ENABLE` alone exempts
+the owner. Every table here uses `FORCE`.
+
+## What FraiseQL checks for you
+
+`fraiseql.toml` declares both halves:
+
+```toml
+[security]
+multi_tenant = true
+
+[security.rls]
+enabled = true
+```
+
+`multi_tenant = true` turns on the subscription tenant fail-closed gate and the
+cache+RLS boot gate: with caching enabled and no RLS declared, the server refuses to
+start rather than risk serving one tenant a response computed for another.
+
+`[security.rls] enabled = true` is a claim, so the server checks it at boot against
+the live catalog: every relation a query reads must be an RLS-protected table or a
+`security_invoker` view. A missing policy, a view that forgot `security_invoker`, or
+a relation that does not exist is a startup failure naming the relation — not a leak
+discovered in production.
+
+## Running it
 
 ```bash
+createdb multitenant
+psql "postgresql://localhost/multitenant" -f sql/01_schema.sql
 fraiseql compile fraiseql.toml
+DATABASE_URL="postgresql://multitenant_app:multitenant_app@localhost/multitenant" \
+  fraiseql run --config fraiseql.toml
 ```
 
-## Scaling
+## The proof
 
-Add more domains:
+`crates/fraiseql-server/tests/example_multitenant_rls_e2e_pg.rs` compiles this
+example, applies `sql/01_schema.sql` to a real PostgreSQL, seeds two tenants, and
+asserts that each sees only its own rows and an unauthenticated caller sees none.
+It runs in CI's `integration` leg. If the isolation story here stops being true, that
+test goes red.
 
-- `schema/documents/` - Document management
-- `schema/workflows/` - Workflow automation
-- `schema/analytics/` - Usage analytics
-- `schema/audit/` - Audit logging
+## Historical note (#612, #628)
 
-Each new domain is automatically discovered!
-
-See `../../docs/DOMAIN_ORGANIZATION.md` for details.
+Earlier revisions of this example claimed `[[security.rules]]` in `fraiseql.toml`
+scoped each query to the caller's tenant. That was false — FraiseQL pins the
+operation/field authorizers to `None`, so the blocks compiled and enforced nothing.
+They were removed under #612, leaving the example with an honest description of a
+mechanism it did not demonstrate. #628 is the other half: the mechanism, wired,
+with a test.

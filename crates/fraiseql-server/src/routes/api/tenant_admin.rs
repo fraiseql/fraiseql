@@ -10,7 +10,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, security::ActorType};
+use fraiseql_core::{db::traits::DatabaseAdapter, schema::TenancyMode, security::ActorType};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -51,38 +51,85 @@ fn audit_actor(ctx: &OptionalSecurityContext) -> AuditActor {
 // ── Request / Response types ─────────────────────────────────────────────
 
 /// Body for `PUT /api/v1/admin/tenants/{key}`.
+///
+/// `deny_unknown_fields`: a registration that names a setting this server does not
+/// have must fail, not silently register a tenant configured differently from what
+/// the caller asked for.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema:               serde_json::Value,
+    pub schema:                     serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection:           TenantPoolConfig,
+    pub connection:                 TenantPoolConfig,
     /// Maximum requests per second (token bucket rate). `None` = unlimited.
     #[serde(default)]
-    pub max_requests_per_sec: Option<u32>,
+    pub max_requests_per_sec:       Option<u32>,
     /// Maximum concurrent in-flight requests. `None` = unlimited.
     #[serde(default)]
-    pub max_concurrent:       Option<u32>,
-    /// Maximum storage in bytes. **Advisory only — accepted and stored but NOT
-    /// enforced** (#612 item 13): FraiseQL has no usage-metering path, so no
-    /// request is ever rejected on the basis of this value. It is retained as an
-    /// operator annotation. Metering + enforcement is tracked at
-    /// <https://github.com/fraiseql/fraiseql/issues/633>. `None` = unset.
+    pub max_concurrent:             Option<u32>,
+    /// Maximum storage in bytes — **advisory**, stored and reported, never
+    /// enforced. `None` = unset.
+    ///
+    /// The `_advisory` suffix is the point: FraiseQL has no usage-metering path, so
+    /// no request is ever rejected on the basis of this value, and a field called
+    /// `max_storage_bytes` reads as a boundary that does not exist. Sending the old
+    /// unsuffixed key is now a 400 rather than a silently-ignored setting —
+    /// `deny_unknown_fields` on this struct makes an operator's stale request fail
+    /// loudly instead of appearing to configure a quota. Metering and enforcement
+    /// are tracked at <https://github.com/fraiseql/fraiseql/issues/633>.
     #[serde(default)]
-    pub max_storage_bytes:    Option<u64>,
+    pub max_storage_bytes_advisory: Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` = no
     /// cost budget.
     #[serde(default)]
-    pub cost_budget:          Option<usize>,
+    pub cost_budget:                Option<usize>,
 }
 
 /// Response for tenant write operations.
 #[derive(Debug, Serialize)]
 pub struct TenantResponse {
     /// The tenant key.
-    pub key:    String,
-    /// Whether this was `"created"`, `"updated"`, or `"removed"`.
-    pub status: &'static str,
+    pub key:             String,
+    /// What happened: `"created"`, `"updated"`, `"removed_schema_retained"`, or
+    /// `"removed_and_purged"`.
+    pub status:          &'static str,
+    /// The PostgreSQL schema this tenant's data lives in, when deletion left it in
+    /// place. Present precisely when an operator still has data to deal with —
+    /// deletion used to answer `"removed"` and say nothing about the surviving
+    /// schema, which read as a completed erasure (#859).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_retained: Option<String>,
+    /// The PostgreSQL schema that was dropped, when `?purge=true` was given.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_dropped:  Option<String>,
+}
+
+impl TenantResponse {
+    /// An outcome that touches no schema: registration, suspension, resumption.
+    const fn status_only(key: String, status: &'static str) -> Self {
+        Self {
+            key,
+            status,
+            schema_retained: None,
+            schema_dropped: None,
+        }
+    }
+}
+
+/// Query parameters for `DELETE /api/v1/admin/tenants/{key}`.
+#[derive(Debug, Deserialize)]
+pub struct DeleteTenantQuery {
+    /// Also drop the tenant's PostgreSQL schema and everything in it.
+    ///
+    /// Defaults to `false`, and deliberately so: `DROP SCHEMA … CASCADE` is
+    /// irreversible and there is no undo. Deletion without this flag deregisters
+    /// the tenant and reports `schema_retained` so the operator knows the data is
+    /// still there. Only in `tenancy.mode = "schema"` does this have any meaning;
+    /// in other modes the tenant owns no schema and the flag is refused rather
+    /// than silently ignored.
+    #[serde(default)]
+    pub purge: bool,
 }
 
 /// Response for `GET /api/v1/admin/tenants/{key}`.
@@ -228,10 +275,10 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         })?;
 
     let quota = TenantQuota {
-        max_requests_per_sec: body.max_requests_per_sec,
-        max_concurrent:       body.max_concurrent,
-        max_storage_bytes:    body.max_storage_bytes,
-        cost_budget:          body.cost_budget,
+        max_requests_per_sec:       body.max_requests_per_sec,
+        max_concurrent:             body.max_concurrent,
+        max_storage_bytes_advisory: body.max_storage_bytes_advisory,
+        cost_budget:                body.cost_budget,
     };
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);
@@ -251,35 +298,95 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         }
     }
 
-    Ok(Json(TenantResponse { key, status }))
+    Ok(Json(TenantResponse::status_only(key, status)))
 }
 
 /// `DELETE /api/v1/admin/tenants/{key}` — remove a tenant.
 ///
 /// In-flight requests on the old executor complete via Arc semantics.
 ///
+/// # What this does and does not destroy
+///
+/// By default this deregisters the tenant and **retains its data**. In
+/// `tenancy.mode = "schema"` the response then carries `schema_retained` naming
+/// the PostgreSQL schema that is still there, so an operator cannot read the
+/// result as a completed erasure — which is exactly what the previous
+/// `{"status":"removed"}` invited, while `destroy_tenant_schema` sat in the
+/// codebase with no callers (#859).
+///
+/// `?purge=true` additionally runs `DROP SCHEMA … CASCADE`. That is irreversible,
+/// so it is opt-in, it is resolved through the tenant's own adapter **before** the
+/// registry entry is dropped, and a failure aborts the whole operation with the
+/// tenant left registered — never a success response over surviving data.
+///
 /// # Errors
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
-/// key is not found.
+/// key is not found; 400 if `?purge=true` is given for a tenant that owns no
+/// schema; 500 if the schema drop fails.
 pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Path(key): Path<String>,
+    Query(params): Query<DeleteTenantQuery>,
     ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let registry = state
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
+    // Resolve the executor first: it owns the only adapter that can reach the
+    // tenant's database, and `registry.remove` would drop it.
+    let executor = registry
+        .executor_for_admin(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+    let owns_a_schema = executor.schema().tenancy_mode() == TenancyMode::Schema;
+
+    if params.purge && !owns_a_schema {
+        return Err(ApiError::validation_error(format!(
+            "tenant '{key}' does not use schema isolation (tenancy.mode is not \"schema\"), \
+             so there is no schema to purge. Remove ?purge=true."
+        )));
+    }
+
+    let schema_name = owns_a_schema
+        .then(|| crate::tenancy::schema_isolation::tenant_schema_name(&key))
+        .transpose()
+        .map_err(|e| ApiError::validation_error(e.to_string()))?;
+
+    let dropped = if params.purge {
+        // Irreversible, and explicitly asked for. Do it before deregistering, so a
+        // failure leaves the tenant intact and retryable through this same endpoint.
+        crate::tenancy::destroy_tenant_schema(&key, executor.adapter().as_ref())
+            .await
+            .map_err(|e| ApiError::internal_error(format!("failed to drop tenant schema: {e}")))?;
+        schema_name.clone()
+    } else {
+        None
+    };
+    drop(executor);
+
     registry
         .remove(&key)
         .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
-    info!(tenant_key = %key, "tenant executor removed");
+    let retained = if params.purge { None } else { schema_name };
+    info!(
+        tenant_key = %key,
+        purged = params.purge,
+        schema_retained = ?retained,
+        "tenant executor removed"
+    );
 
     if let Some(audit_log) = state.tenant_audit_log() {
+        // The audit record must distinguish "deregistered" from "data destroyed";
+        // they are very different events to be reading back a year later.
+        let payload = serde_json::json!({
+            "purged": params.purge,
+            "schema_retained": retained,
+            "schema_dropped": dropped,
+        });
         if let Err(e) = audit_log
-            .record(&key, TenantEventKind::Deleted, Some(&audit_actor(&ctx)), None)
+            .record(&key, TenantEventKind::Deleted, Some(&audit_actor(&ctx)), Some(payload))
             .await
         {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
@@ -287,8 +394,16 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     }
 
     Ok(Json(TenantResponse {
+        status: if params.purge {
+            "removed_and_purged"
+        } else if retained.is_some() {
+            "removed_schema_retained"
+        } else {
+            "removed"
+        },
         key,
-        status: "removed",
+        schema_retained: retained,
+        schema_dropped: dropped,
     }))
 }
 
@@ -325,10 +440,7 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
         }
     }
 
-    Ok(Json(TenantResponse {
-        key,
-        status: "suspended",
-    }))
+    Ok(Json(TenantResponse::status_only(key, "suspended")))
 }
 
 /// `POST /api/v1/admin/tenants/{key}/resume` — resume a suspended tenant.
@@ -363,10 +475,7 @@ pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         }
     }
 
-    Ok(Json(TenantResponse {
-        key,
-        status: "resumed",
-    }))
+    Ok(Json(TenantResponse::status_only(key, "resumed")))
 }
 
 /// `GET /api/v1/admin/tenants/{key}` — get tenant metadata.

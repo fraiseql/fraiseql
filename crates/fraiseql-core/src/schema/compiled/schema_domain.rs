@@ -261,10 +261,16 @@ impl CompiledSchema {
     /// query result caching is enabled. Without RLS, all tenants sharing the same
     /// query parameters would receive the same cached response.
     ///
-    /// Detection is based on `security.multi_tenant` in the compiled schema JSON.
+    /// True when `[security] multi_tenant = true` **or** a non-`none`
+    /// `[tenancy] mode`. The second clause is load-bearing: `tenancy.mode` is the
+    /// knob operators actually set, and reading only `security.multi_tenant` — which
+    /// no compile path could produce — left both dependent gates permanently off
+    /// (#758).
     #[must_use]
     pub fn is_multi_tenant(&self) -> bool {
-        self.security.as_ref().is_some_and(|s| s.multi_tenant)
+        self.security
+            .as_ref()
+            .is_some_and(|s| s.multi_tenant || s.tenancy.mode != crate::schema::TenancyMode::None)
     }
 
     /// Returns the tenancy isolation mode configured for this schema.
@@ -336,11 +342,24 @@ impl CompiledSchema {
             .is_some_and(|config| config.role_has_scope(role_name, scope))
     }
 
-    /// Returns `true` if Row-Level Security policies are declared in this schema.
+    /// Returns `true` if this schema declares that database Row-Level Security
+    /// isolates its data (`[security.rls] enabled = true`).
     ///
     /// Used at server startup to validate that caching is safe for multi-tenant
-    /// deployments. When caching is enabled and no RLS policies are configured,
-    /// the server emits a startup warning about potential data leakage.
+    /// deployments, and to decide whether to verify the declaration against the
+    /// live database catalog.
+    ///
+    /// This is a *declaration*, not a proof: FraiseQL does not author RLS policies,
+    /// so nothing in the compiled schema can establish that they exist. That is what
+    /// [`CachedDatabaseAdapter::validate_rls_active`] checks against the real
+    /// database (#762).
+    ///
+    /// It previously counted `security.additional["policies"]` — authorization
+    /// policies, not RLS, and a section #612 made a hard compile error — so it
+    /// answered `false` for every schema any supported workflow could produce
+    /// (#758).
+    ///
+    /// [`CachedDatabaseAdapter::validate_rls_active`]: crate::cache::CachedDatabaseAdapter::validate_rls_active
     ///
     /// # Example
     ///
@@ -352,12 +371,7 @@ impl CompiledSchema {
     /// ```
     #[must_use]
     pub fn has_rls_configured(&self) -> bool {
-        self.security.as_ref().is_some_and(|s| {
-            !s.additional
-                .get("policies")
-                .and_then(|p: &serde_json::Value| p.as_array())
-                .is_none_or(|a| a.is_empty())
-        })
+        self.security.as_ref().is_some_and(|s| s.rls.enabled)
     }
 
     /// Get raw GraphQL schema SDL.

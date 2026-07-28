@@ -11,7 +11,7 @@ use fraiseql_core::{
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
 };
-use tracing::{info, warn};
+use tracing::info;
 
 use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
 
@@ -147,30 +147,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
         let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
-        // Validate cache + RLS safety at startup.
-        // Cache isolation relies entirely on per-user WHERE clauses in the cache key.
-        // Without RLS, users with the same query and variables share the same cached
-        // response, which can leak data across tenants.
-        if config.cache_enabled && !schema.has_rls_configured() {
-            if schema.is_multi_tenant() {
-                // Multi-tenant + cache + no RLS is a hard safety violation.
-                return Err(ServerError::ConfigError(
-                    "Cache is enabled in a multi-tenant schema but no Row-Level Security \
-                     policies are declared. This would allow cross-tenant cache hits and \
-                     data leakage. In fraiseql.toml, either disable caching with \
-                     [cache] enabled = false, declare [security.rls] policies, or set \
-                     [security] multi_tenant = false to acknowledge single-tenant mode."
-                        .to_string(),
-                ));
-            }
-            // Single-tenant with cache and no RLS: safe, but warn in case of misconfiguration.
-            warn!(
-                "Query-result caching is enabled but no Row-Level Security policies are \
-                 declared in the compiled schema. This is safe for single-tenant deployments. \
-                 For multi-tenant deployments, declare RLS policies and set \
-                 `security.multi_tenant = true` in your schema."
-            );
-        }
+        // Validate cache + RLS safety at startup. One shared check for every
+        // constructor — see `tenant_isolation_declaration_check`.
+        crate::server::initialization::tenant_isolation_declaration_check(
+            &schema,
+            config.cache_enabled,
+        )?;
 
         // Build cache from config.
         let cache_config = CacheConfig::from(config.cache_enabled);
@@ -197,6 +179,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
             .with_ttl_overrides_from_schema(&schema)
             .with_rls(schema.has_rls_configured());
+
+        // Turn the RLS *declaration* into a checked claim against the live catalog.
+        crate::server::initialization::verify_declared_rls(
+            &schema,
+            &cached,
+            cache_config.rls_enforcement,
+        )
+        .await?;
 
         // `executor_config` was built from the compiled schema at the top of this
         // constructor (the H16 seam — audit flag, #421 page-size, change-log toggle).

@@ -139,9 +139,17 @@ pub enum TenancyMode {
 
     /// Schema-level isolation: per-tenant PostgreSQL schemas.
     ///
-    /// The adapter issues `SET search_path TO tenant_{key}, public` on
-    /// connection acquisition. `TenantExecutorFactory` provisions/drops
-    /// schemas via DDL.
+    /// Each tenant's connection pool is *established* with
+    /// `search_path = tenant_{key},public` (lowered into the PostgreSQL startup
+    /// `options` parameter), so every connection the pool opens carries it —
+    /// including ones opened later to grow the pool and replacements created
+    /// after a backend disconnects. `TenantExecutorFactory` provisions the
+    /// schema via DDL at registration and verifies the isolation took before
+    /// returning an executor.
+    ///
+    /// It is deliberately **not** a `SET search_path` statement: that is
+    /// session-scoped, so it configures one pooled connection and leaves the
+    /// rest resolving against `public` (#809).
     Schema,
 }
 
@@ -194,6 +202,36 @@ fn is_default_tenancy(t: &TenancyConfig) -> bool {
     *t == TenancyConfig::default()
 }
 
+/// Declaration that this deployment relies on database Row-Level Security.
+///
+/// Compiled from `[security.rls]` in `fraiseql.toml`. FraiseQL does not author RLS
+/// policies — they live in the database, keyed on the session variables the runtime
+/// sets from the request identity — so the compiled schema can only carry the
+/// operator's *declaration* that they exist. The server turns that declaration into
+/// a checkable claim: when a multi-tenant schema declares RLS, boot verifies against
+/// the live catalog that policies really are in force, and refuses to start if they
+/// are not (#762).
+///
+/// Before this section existed, [`CompiledSchema::has_rls_configured`] counted
+/// `security.additional["policies"]` — a key #612 made a hard compile error — so it
+/// answered `false` for every schema any supported workflow could produce, and the
+/// gates that depend on it were inert (#758).
+///
+/// [`CompiledSchema::has_rls_configured`]: crate::schema::CompiledSchema::has_rls_configured
+// Deliberately not `Copy`: the serde `skip_serializing_if` predicate must take a
+// reference, and a config struct that gains a second field would lose `Copy` anyway.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RlsConfig {
+    /// Whether database Row-Level Security is relied upon for data isolation.
+    pub enabled: bool,
+}
+
+/// Returns `true` when the RLS declaration carries no information.
+fn is_default_rls(r: &RlsConfig) -> bool {
+    *r == RlsConfig::default()
+}
+
 /// Security configuration from fraiseql.toml.
 ///
 /// Contains role definitions and other security-related settings
@@ -210,14 +248,24 @@ pub struct SecurityConfig {
 
     /// Whether this schema serves multiple tenants with data isolation via RLS.
     ///
-    /// When `true` and caching is enabled, FraiseQL verifies that Row-Level Security
-    /// is active on the database at startup. This prevents silent cross-tenant data
-    /// leakage through the cache.
+    /// Declared as `[security] multi_tenant = true`. A non-`none`
+    /// [`tenancy.mode`](TenancyConfig::mode) implies it, so this flag is only needed
+    /// by deployments that separate tenants without FraiseQL's own tenancy
+    /// machinery — read [`CompiledSchema::is_multi_tenant`], never this field, when
+    /// asking whether a deployment is multi-tenant.
     ///
-    /// Set `rls_enforcement` in `CacheConfig` to control whether a missing RLS check
-    /// causes a startup failure or only emits a warning.
+    /// [`CompiledSchema::is_multi_tenant`]: crate::schema::CompiledSchema::is_multi_tenant
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub multi_tenant: bool,
+
+    /// Declaration that database Row-Level Security isolates this schema's data.
+    ///
+    /// Compiled from `[security.rls]`. Consumed by the boot gate: a multi-tenant
+    /// schema with caching enabled and no RLS declaration refuses to start, and one
+    /// that *does* declare RLS has the declaration verified against the live
+    /// database catalog.
+    #[serde(default, skip_serializing_if = "is_default_rls")]
+    pub rls: RlsConfig,
 
     /// Tenancy isolation configuration for multi-tenant deployments.
     ///

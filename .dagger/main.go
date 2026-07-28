@@ -850,6 +850,19 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// This boots the real mount over a real socket against a real database and
 		// asserts two tenants' rows stay apart — authenticated and anonymous.
 		"cargo test -p fraiseql-server --features rest --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
+		// #809: schema-per-tenant isolation was a single session `SET search_path` on
+		// one pooled connection. Every other connection resolved against `public`, so
+		// the leak is only visible under concurrency — a single-connection test passes
+		// against the broken code, which is why it shipped.
+		"cargo test -p fraiseql-server --test tenant_schema_isolation_e2e_pg -- --test-threads=1",
+		// #859: DELETE /admin/tenants answered "removed" while every row survived, and
+		// `destroy_tenant_schema` had no callers. Needs real DDL against a real database.
+		"cargo test -p fraiseql-server --test tenant_lifecycle_e2e_pg -- --test-threads=1",
+		// #628: the shipped multi-tenant examples now carry real RLS + session-variable
+		// wiring. This applies their SQL, compiles them through the real compile path,
+		// and asserts two tenants never cross — connecting as the examples' own
+		// unprivileged role, because the harness role bypasses RLS entirely.
+		"cargo test -p fraiseql-server --test example_multitenant_rls_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",

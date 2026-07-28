@@ -630,11 +630,26 @@ pub enum SessionVariableSource {
 }
 
 /// One session variable declaration.
+///
+/// The source is flattened, so a mapping is one flat table in both JSON and TOML:
+///
+/// ```toml
+/// [[session_variables.variables]]
+/// name = "app.tenant_id"
+/// source = "jwt"
+/// claim = "tenant_id"
+/// ```
+///
+/// Flat is what lets `[session_variables]` be declared in `fraiseql.toml` against
+/// this exact type, rather than through a CLI-side mirror struct — and a mirror
+/// struct at a producer↔consumer seam is how declarations get silently dropped
+/// (#806/#807/#758).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionVariableMapping {
     /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
     pub name:   String,
     /// Where the value comes from.
+    #[serde(flatten)]
     pub source: SessionVariableSource,
 }
 
