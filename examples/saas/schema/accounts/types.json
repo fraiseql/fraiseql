@@ -70,34 +70,24 @@
     {
       "name": "getAccount",
       "return_type": "Account",
-      "return_array": false,
-      "description": "Get account by ID"
+      "description": "Get account by ID",
+      "returns_list": false,
+      "sql_source": "v_account"
     },
     {
       "name": "getAccountBySlug",
       "return_type": "Account",
-      "return_array": false,
-      "description": "Get account by URL slug"
+      "description": "Get account by URL slug",
+      "returns_list": false,
+      "sql_source": "v_account"
     },
     {
       "name": "listAccountUsers",
       "return_type": "AccountUser",
-      "return_array": true,
-      "description": "List users in an account"
+      "description": "List users in an account",
+      "returns_list": true,
+      "sql_source": "v_account_user"
     }
   ],
-  "mutations": [
-    {
-      "name": "createAccount",
-      "return_type": "Account",
-      "operation": "INSERT",
-      "description": "Create new SaaS account"
-    },
-    {
-      "name": "updateAccount",
-      "return_type": "Account",
-      "operation": "UPDATE",
-      "description": "Update account settings"
-    }
-  ]
+  "mutations": []
 }

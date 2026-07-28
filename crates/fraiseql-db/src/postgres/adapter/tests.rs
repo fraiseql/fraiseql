@@ -4,7 +4,10 @@
 
 use fraiseql_error::FraiseQLError;
 
-use super::{PoolPrewarmConfig, PostgresAdapter, build_where_select_sql, escape_jsonb_key};
+use super::{
+    PoolPrewarmConfig, PostgresAdapter, SearchPath, build_where_select_sql,
+    compose_startup_options, escape_jsonb_key,
+};
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
 
@@ -44,6 +47,7 @@ fn pool_prewarm_config_carries_all_fields() {
         min_size:     5,
         max_size:     20,
         timeout_secs: Some(30),
+        search_path:  None,
     };
     assert_eq!(cfg.min_size, 5);
     assert_eq!(cfg.max_size, 20);
@@ -56,6 +60,7 @@ fn pool_prewarm_config_no_timeout_is_none() {
         min_size:     0,
         max_size:     10,
         timeout_secs: None,
+        search_path:  None,
     };
     assert!(cfg.timeout_secs.is_none());
 }
@@ -66,6 +71,7 @@ fn pool_prewarm_config_min_zero_is_valid() {
         min_size:     0,
         max_size:     5,
         timeout_secs: None,
+        search_path:  None,
     };
     assert_eq!(cfg.min_size, 0);
     assert_eq!(cfg.max_size, 5);
@@ -77,8 +83,76 @@ fn pool_prewarm_config_min_equals_max_is_valid() {
         min_size:     10,
         max_size:     10,
         timeout_secs: Some(60),
+        search_path:  None,
     };
     assert_eq!(cfg.min_size, cfg.max_size);
+}
+
+// ── SearchPath / startup options (#809) ────────────────────────────────────
+
+#[test]
+fn search_path_joins_schemas_in_order() {
+    let path = SearchPath::new(["tenant_acme", "public"]).unwrap();
+    assert_eq!(path.as_str(), "tenant_acme,public");
+}
+
+#[test]
+fn search_path_rejects_non_identifiers() {
+    // Rejected, never escaped: the value is emitted into a startup option where
+    // whitespace is a separator and quoting has no meaning.
+    for bad in [
+        "public; DROP SCHEMA x",
+        "a b",
+        "\"quoted\"",
+        "1leading",
+        "",
+        "with-dash",
+    ] {
+        assert!(SearchPath::new([bad]).is_err(), "`{bad}` must be refused");
+    }
+}
+
+#[test]
+fn search_path_rejects_an_empty_list() {
+    assert!(SearchPath::new(Vec::<&str>::new()).is_err());
+}
+
+#[test]
+fn search_path_rejects_an_over_long_identifier() {
+    assert!(SearchPath::new(["a".repeat(64)]).is_err());
+    assert!(SearchPath::new(["a".repeat(63)]).is_ok());
+}
+
+#[test]
+fn startup_options_are_composed_when_the_url_carries_none() {
+    let path = SearchPath::new(["tenant_acme", "public"]).unwrap();
+    assert_eq!(
+        compose_startup_options("postgres://u:p@h:5432/db", &path),
+        "-c search_path=tenant_acme,public"
+    );
+}
+
+/// deadpool's struct-level `options` field *overrides* whatever the URL carried, so
+/// composing by assignment alone would silently drop an operator's own `-c` settings.
+#[test]
+fn startup_options_preserve_operator_supplied_options() {
+    let path = SearchPath::new(["tenant_acme", "public"]).unwrap();
+    let composed = compose_startup_options(
+        "postgres://u:p@h:5432/db?options=-c%20statement_timeout%3D5000",
+        &path,
+    );
+    assert_eq!(composed, "-c statement_timeout=5000 -c search_path=tenant_acme,public");
+}
+
+/// An unparseable connection string must not panic here — the pool builder that
+/// follows produces the real, actionable error.
+#[test]
+fn startup_options_tolerate_an_unparseable_url() {
+    let path = SearchPath::new(["tenant_acme"]).unwrap();
+    assert_eq!(
+        compose_startup_options("not-a-postgres-url", &path),
+        "-c search_path=tenant_acme"
+    );
 }
 
 // ── EP-5: Connection pool failure paths ───────────────────────────────────

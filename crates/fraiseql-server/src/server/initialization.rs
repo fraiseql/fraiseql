@@ -884,6 +884,85 @@ pub(super) fn is_manifest_url_ssrf_blocked(url: &str) -> bool {
     fraiseql_guard::net::blocked_host_reason(host).is_some()
 }
 
+/// Refuse to boot when a multi-tenant schema cannot isolate its tenants.
+///
+/// This is the static half of the gate — declarations only, no database access.
+/// Multi-tenant + caching + no RLS declaration is a hard refusal: cache keys carry
+/// no tenant, so isolation rests entirely on RLS producing different WHERE clauses
+/// per caller. Without it, two tenants issuing the same query share one cache entry.
+///
+/// It lives here, and every constructor calls it, because it previously existed
+/// twice inline (`Server::new` and `with_relay_pagination`) and **not at all** in
+/// `with_flight_service`. That drift was invisible while the gate was dead: nothing
+/// could set `security.multi_tenant`, so `is_multi_tenant()` was universally false
+/// and all three constructors behaved identically (#758). Giving the flag a producer
+/// makes the drift live, so the duplication had to go with it.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the schema is multi-tenant, caching is
+/// on, and no RLS is declared.
+pub(super) fn tenant_isolation_declaration_check(
+    schema: &CompiledSchema,
+    cache_enabled: bool,
+) -> crate::Result<()> {
+    if !cache_enabled || schema.has_rls_configured() {
+        return Ok(());
+    }
+
+    if schema.is_multi_tenant() {
+        return Err(crate::ServerError::ConfigError(format!(
+            "Cache is enabled for a multi-tenant schema (tenancy.mode = {}) but no \
+             Row-Level Security is declared. Cache keys do not carry a tenant, so two \
+             tenants issuing the same query would share one cached response. In \
+             fraiseql.toml either declare `[security.rls] enabled = true` (and define the \
+             policies in the database), disable caching with `[cache] enabled = false`, or \
+             set `[security] multi_tenant = false` with `[tenancy] mode = \"none\"` to \
+             acknowledge single-tenant mode.",
+            schema.tenancy_mode()
+        )));
+    }
+
+    // Single-tenant with cache and no RLS: safe, but warn in case of misconfiguration.
+    warn!(
+        "Query-result caching is enabled but no Row-Level Security is declared in the \
+         compiled schema. This is safe for single-tenant deployments. For multi-tenant \
+         deployments, declare `[security.rls] enabled = true` and set `[security] \
+         multi_tenant = true`."
+    );
+    Ok(())
+}
+
+/// Verify a declared RLS posture against the live database, and refuse to boot when
+/// the declaration is not true.
+///
+/// A declaration in the compiled schema is only an operator's claim — FraiseQL does
+/// not author RLS policies. This turns the claim into something checkable:
+/// [`CachedDatabaseAdapter::validate_rls_active`] reads the catalog and reports every
+/// source relation that is not actually protected.
+///
+/// Only runs when the schema is multi-tenant *and* declares RLS; a schema that
+/// declares nothing has already been handled by
+/// [`tenant_isolation_declaration_check`].
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `enforcement` is
+/// [`RlsEnforcement::Error`] and any source relation is unprotected.
+pub(super) async fn verify_declared_rls<A: DatabaseAdapter>(
+    schema: &CompiledSchema,
+    cached: &fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    enforcement: fraiseql_core::cache::RlsEnforcement,
+) -> crate::Result<()> {
+    if !schema.is_multi_tenant() || !schema.has_rls_configured() {
+        return Ok(());
+    }
+    cached
+        .enforce_rls(schema, enforcement)
+        .await
+        .map_err(|e| crate::ServerError::ConfigError(e.to_string()))
+}
+
 /// Refuse to boot when the compiled schema marks any field for at-rest encryption.
 ///
 /// Write-path field encryption is **not implemented** in this release (H12): the mutation

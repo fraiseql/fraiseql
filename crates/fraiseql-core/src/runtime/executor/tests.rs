@@ -1302,6 +1302,7 @@ mod field_rbac {
             ],
             default_role:     None,
             multi_tenant:     false,
+            rls:              crate::schema::RlsConfig::default(),
             tenancy:          TenancyConfig::default(),
             additional:       HashMap::default(),
         });
@@ -1830,6 +1831,7 @@ mod field_authz {
             }],
             default_role:     None,
             multi_tenant:     false,
+            rls:              crate::schema::RlsConfig::default(),
             tenancy:          TenancyConfig::default(),
             additional:       HashMap::default(),
         });

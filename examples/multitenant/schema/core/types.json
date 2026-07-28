@@ -13,10 +13,11 @@
   ],
   "queries": [
     {
-      "name": "getOrganization",
+      "name": "listOrganizations",
       "return_type": "Organization",
-      "return_array": false,
-      "description": "Get organization by ID"
+      "returns_list": true,
+      "sql_source": "v_organization",
+      "description": "Organizations the caller belongs to (RLS scopes this to one)"
     }
   ],
   "mutations": []

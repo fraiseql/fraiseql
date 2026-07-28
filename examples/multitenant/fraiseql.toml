@@ -1,8 +1,15 @@
 # FraiseQL v2 Multi-Tenant Example
-# Shared core types + tenant-specific domains
+#
+# Shared core types + tenant-specific domains, with tenant isolation enforced
+# where it can actually be enforced: in PostgreSQL, by Row-Level Security reading
+# session variables FraiseQL sets from the caller's JWT.
+#
+# See README.md for the full JWT → session variable → RLS path, and
+# sql/01_schema.sql for the policies. `make db-up && psql -f sql/01_schema.sql`
+# reproduces it locally.
 
 [database]
-pool_size = 10
+pool_max = 10
 url = "postgresql://localhost/multitenant"
 
 [domain_discovery]
@@ -15,19 +22,36 @@ description = "Multi-tenant application with shared core and isolated tenant dom
 name = "multitenant"
 version = "1.0.0"
 
-# Per-tenant isolation is NOT enforced by FraiseQL configuration. `[security.rules]`
-# is declared-but-unenforced — the runtime pins the operation/field authorizers to
-# None (see #612 / #626) — so the two `[[security.rules]]` blocks that used to sit
-# here were removed rather than ship a false security claim (they compiled but scoped
-# nothing). `default_policy = "authenticated"` below only closes the anonymous path;
-# it does NOT scope rows to a tenant.
-#
-# Enforce tenant isolation at the database layer: define RLS policies on the
-# views/tables that read a session variable FraiseQL sets from the request identity.
-# FraiseQL injects configured session variables via `set_config()` before each query
-# (`resolve_session_variables`,
-# crates/fraiseql-core/src/runtime/executor/support/security.rs), and the RLS policy
-# reads it with `current_setting(...)`. A worked end-to-end example (session-var
-# mapping + RLS policy + two-tenant proof) is tracked in #628.
 [security]
 default_policy = "authenticated"
+
+# Declares the deployment multi-tenant. This activates the subscription
+# tenant fail-closed gate and the cache+RLS boot gate — with it set and
+# `[security.rls]` absent, a cache-enabled server refuses to start rather than
+# risk serving one tenant a cached response computed for another.
+multi_tenant = true
+
+# Declares that isolation is enforced by database Row-Level Security. FraiseQL
+# does not author the policies (they live in sql/01_schema.sql), so at boot the
+# server verifies the declaration against the live catalog: every relation a
+# query reads must be an RLS-protected table or a `security_invoker` view, or
+# the server refuses to start.
+[security.rls]
+enabled = true
+
+# The mechanism the policies read. FraiseQL resolves each mapping from the
+# request identity and applies it with `set_config(name, value, true)` — a
+# transaction-scoped setting — before every query and mutation. The RLS policies
+# then read it with `current_setting('app.tenant_id', true)`.
+#
+# There is no way to spoof these from the client: the value comes from the
+# validated JWT, not from a header or a GraphQL variable.
+[[session_variables.variables]]
+name = "app.organization_id"
+source = "jwt"
+claim = "organization_id"
+
+[[session_variables.variables]]
+name = "app.tenant_id"
+source = "jwt"
+claim = "tenant_id"

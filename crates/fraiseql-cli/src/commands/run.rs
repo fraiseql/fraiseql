@@ -227,6 +227,7 @@ async fn serve_postgres(
                 min_size:     config.pool_min_size,
                 max_size:     config.pool_max_size,
                 timeout_secs: Some(config.pool_timeout_secs),
+                search_path:  None,
             },
         )
         .await

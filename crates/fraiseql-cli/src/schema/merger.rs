@@ -549,8 +549,17 @@ impl SchemaMerger {
             }
         }
 
-        // Add security configuration if available in TOML
+        // Add security configuration if available in TOML.
+        //
+        // Key names here must match `fraiseql_core::schema::SecurityConfig`'s field
+        // names exactly: that struct carries `#[serde(flatten)] additional`, so a
+        // misspelled or camelCased key deserialises into the catch-all map and the
+        // typed field silently keeps its default. `tenancy_gate_seam_test` asks the
+        // consumer's questions of a compiled file rather than checking key presence,
+        // which is what makes that class of drift visible.
         merged["security"] = json!({
+            "multi_tenant": toml_schema.security.multi_tenant,
+            "rls": toml_schema.security.rls,
             "default_policy": toml_schema.security.default_policy,
             "rules": toml_schema.security.rules.iter().map(|r| json!({
                 "name": r.name,
@@ -688,6 +697,15 @@ impl SchemaMerger {
         if let Some(ref hierarchies) = toml_schema.hierarchies {
             merged["hierarchies_config"] = serde_json::to_value(hierarchies)
                 .context("Failed to serialize hierarchies config")?;
+        }
+
+        // Embed per-request session variables. Serialized from the same type the
+        // runtime deserializes, so the mapping an RLS policy depends on cannot be
+        // lost to a key rename here (#628).
+        if toml_schema.session_variables != fraiseql_core::schema::SessionVariablesConfig::default()
+        {
+            merged["session_variables"] = serde_json::to_value(&toml_schema.session_variables)
+                .context("Failed to serialize session_variables")?;
         }
 
         // Refuse a security control declared under a key that does not bind (#806/#807).

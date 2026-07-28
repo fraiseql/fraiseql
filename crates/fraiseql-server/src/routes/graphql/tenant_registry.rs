@@ -6,7 +6,7 @@
 
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, AtomicU8, Ordering},
+    atomic::{AtomicU8, Ordering},
 };
 
 use arc_swap::ArcSwap;
@@ -77,26 +77,38 @@ impl<A: DatabaseAdapter> TenantStatusSource for TenantExecutorRegistry<A> {
 pub struct TenantQuota {
     /// Maximum requests per second (token bucket rate).
     #[serde(default)]
-    pub max_requests_per_sec: Option<u32>,
+    pub max_requests_per_sec:       Option<u32>,
     /// Maximum concurrent in-flight requests (semaphore capacity).
     #[serde(default)]
-    pub max_concurrent:       Option<u32>,
-    /// Maximum storage in bytes (soft limit, checked periodically).
+    pub max_concurrent:             Option<u32>,
+    /// Maximum storage in bytes — **advisory**, stored and reported, never
+    /// enforced.
+    ///
+    /// The name carries the `_advisory` suffix because the previous one did not,
+    /// and a field called `max_storage_bytes` reads as a boundary. There is no
+    /// usage-metering path in FraiseQL: nothing measures per-tenant storage, so no
+    /// request is ever refused on the basis of this value. It is retained as an
+    /// operator annotation — an intent an external metering system can read back
+    /// out of the admin API.
+    ///
+    /// Metering and enforcement are a subsystem, tracked at
+    /// <https://github.com/fraiseql/fraiseql/issues/633>. When it lands, this field
+    /// gets its unsuffixed name back.
     #[serde(default)]
-    pub max_storage_bytes:    Option<u64>,
+    pub max_storage_bytes_advisory: Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` means
     /// no cost budget. A request whose `estimate_query_cost` exceeds this is
     /// rejected at the same chokepoint as the rate/concurrency quotas (429).
     #[serde(default)]
-    pub cost_budget:          Option<usize>,
+    pub cost_budget:                Option<usize>,
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
 struct TenantEntry<A: DatabaseAdapter> {
-    executor:       Arc<ArcSwap<Executor<A>>>,
-    status:         AtomicU8,
+    executor:    Arc<ArcSwap<Executor<A>>>,
+    status:      AtomicU8,
     /// Concurrency semaphore — `None` when `max_concurrent` is unset.
-    concurrency:    Option<Arc<Semaphore>>,
+    concurrency: Option<Arc<Semaphore>>,
     /// Per-second request-rate limiter — `None` when `max_requests_per_sec` is
     /// unset. Built from `max_requests_per_sec` as a fixed one-second window.
     ///
@@ -106,11 +118,9 @@ struct TenantEntry<A: DatabaseAdapter> {
     /// but not enforced; [`with_quota`](TenantEntry::with_quota) logs a warning
     /// in that case so the gap is never silent.
     #[cfg(feature = "auth")]
-    rps:            Option<Arc<KeyedRateLimiter>>,
-    /// Soft quota exceeded flag (set by background task, blocks mutations).
-    quota_exceeded: AtomicBool,
+    rps:         Option<Arc<KeyedRateLimiter>>,
     /// Quota configuration (cloned from registration request).
-    quota:          TenantQuota,
+    quota:       TenantQuota,
 }
 
 impl<A: DatabaseAdapter> TenantEntry<A> {
@@ -121,7 +131,6 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
             concurrency: None,
             #[cfg(feature = "auth")]
             rps: None,
-            quota_exceeded: AtomicBool::new(false),
             quota: TenantQuota::default(),
         }
     }
@@ -397,29 +406,13 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         }
     }
 
-    /// Returns `true` if the tenant's storage-quota flag has been set.
-    ///
-    /// NOTE (#612 item 13): nothing sets this flag in production — there is no
-    /// usage-metering path that measures storage and calls
-    /// [`Self::set_quota_exceeded`], so `max_storage_bytes` is advisory only and
-    /// this always returns `false` outside tests. Metering + enforcement is
-    /// tracked at <https://github.com/fraiseql/fraiseql/issues/633>.
-    #[must_use]
-    pub fn is_quota_exceeded(&self, key: &str) -> bool {
-        self.tenants
-            .get(key)
-            .is_some_and(|e| e.value().quota_exceeded.load(Ordering::Relaxed))
-    }
-
-    /// Set the quota-exceeded flag for a tenant.
-    ///
-    /// No production caller exists yet (see [`Self::is_quota_exceeded`]); this is
-    /// the seam a future storage-metering task (#633) would drive.
-    pub fn set_quota_exceeded(&self, key: &str, exceeded: bool) {
-        if let Some(entry) = self.tenants.get(key) {
-            entry.value().quota_exceeded.store(exceeded, Ordering::Relaxed);
-        }
-    }
+    // `is_quota_exceeded` / `set_quota_exceeded` are gone. They were a public pair
+    // with no production caller on either side: nothing measured storage, so nothing
+    // ever set the flag, and reading it always answered `false`. A quota API that is
+    // permanently off is worse than no quota API — it reads as an enforced boundary
+    // to anyone who greps for one. The metering subsystem that would drive it is
+    // tracked at <https://github.com/fraiseql/fraiseql/issues/633> and re-adds the
+    // seam when it lands.
 
     /// Returns the quota configuration for a tenant.
     ///

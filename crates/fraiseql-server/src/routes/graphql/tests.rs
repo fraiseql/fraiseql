@@ -1265,10 +1265,10 @@ mod tenant_registry_tests {
     fn test_upsert_with_quota_sets_concurrency_limit() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:       Some(2),
-            max_requests_per_sec: None,
-            max_storage_bytes:    None,
-            cost_budget:          None,
+            max_concurrent:             Some(2),
+            max_requests_per_sec:       None,
+            max_storage_bytes_advisory: None,
+            cost_budget:                None,
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1291,10 +1291,10 @@ mod tenant_registry_tests {
     fn test_cost_budget_rejects_over_budget_and_admits_within() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:       None,
-            max_requests_per_sec: None,
-            max_storage_bytes:    None,
-            cost_budget:          Some(100),
+            max_concurrent:             None,
+            max_requests_per_sec:       None,
+            max_storage_bytes_advisory: None,
+            cost_budget:                Some(100),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1332,10 +1332,10 @@ mod tenant_registry_tests {
     fn test_concurrency_permit_released_on_drop() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:       Some(1),
-            max_requests_per_sec: None,
-            max_storage_bytes:    None,
-            cost_budget:          None,
+            max_concurrent:             Some(1),
+            max_requests_per_sec:       None,
+            max_storage_bytes_advisory: None,
+            cost_budget:                None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1350,41 +1350,54 @@ mod tenant_registry_tests {
         assert!(permit2.is_some());
     }
 
+    // `test_quota_exceeded_flag` and `test_quota_exceeded_unknown_tenant_returns_false`
+    // are gone with the flag they exercised. They asserted that an AtomicBool
+    // round-trips, which was true and told nobody anything: no production code set
+    // the flag or read it, so the tests passed identically whether tenant storage
+    // quotas were enforced or entirely absent — and they were entirely absent (#633).
+
+    /// #633 / #612 item 13: `max_storage_bytes` never bounded anything. Renaming it
+    /// to `max_storage_bytes_advisory` is only honest if the old spelling *fails*.
+    /// A silently-ignored key would leave an operator believing they configured a
+    /// quota — the exact belief the rename exists to correct.
     #[test]
-    fn test_quota_exceeded_flag() {
-        let registry = TenantExecutorRegistry::new(default_executor());
-        registry.upsert("tenant-abc", tenant_executor("abc"));
+    fn the_unsuffixed_storage_quota_key_is_refused() {
+        use crate::routes::api::tenant_admin::TenantRegistrationRequest;
 
-        assert!(!registry.is_quota_exceeded("tenant-abc"));
+        let body = serde_json::json!({
+            "schema": {},
+            "connection": {"connection_string": "postgres://localhost/x"},
+            "max_storage_bytes": 1_000_000,
+        });
+        let err = serde_json::from_value::<TenantRegistrationRequest>(body)
+            .expect_err("the unsuffixed key must be refused, not ignored");
+        assert!(err.to_string().contains("max_storage_bytes"), "{err}");
 
-        registry.set_quota_exceeded("tenant-abc", true);
-        assert!(registry.is_quota_exceeded("tenant-abc"));
-
-        registry.set_quota_exceeded("tenant-abc", false);
-        assert!(!registry.is_quota_exceeded("tenant-abc"));
-    }
-
-    #[test]
-    fn test_quota_exceeded_unknown_tenant_returns_false() {
-        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
-        assert!(!registry.is_quota_exceeded("unknown"));
+        let accepted = serde_json::json!({
+            "schema": {},
+            "connection": {"connection_string": "postgres://localhost/x"},
+            "max_storage_bytes_advisory": 1_000_000,
+        });
+        let parsed = serde_json::from_value::<TenantRegistrationRequest>(accepted)
+            .expect("the suffixed key is the supported spelling");
+        assert_eq!(parsed.max_storage_bytes_advisory, Some(1_000_000));
     }
 
     #[test]
     fn test_tenant_quota_retrieval() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_requests_per_sec: Some(100),
-            max_concurrent:       Some(10),
-            max_storage_bytes:    Some(1_000_000),
-            cost_budget:          None,
+            max_requests_per_sec:       Some(100),
+            max_concurrent:             Some(10),
+            max_storage_bytes_advisory: Some(1_000_000),
+            cost_budget:                None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
         let retrieved = registry.tenant_quota("tenant-abc").unwrap();
         assert_eq!(retrieved.max_requests_per_sec, Some(100));
         assert_eq!(retrieved.max_concurrent, Some(10));
-        assert_eq!(retrieved.max_storage_bytes, Some(1_000_000));
+        assert_eq!(retrieved.max_storage_bytes_advisory, Some(1_000_000));
     }
 
     #[test]

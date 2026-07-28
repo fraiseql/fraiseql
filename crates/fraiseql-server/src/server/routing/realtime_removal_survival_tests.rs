@@ -38,10 +38,16 @@ use crate::{server::Server, server_config::ServerConfig};
 /// schema and a healthy mock adapter — no OIDC validator. This is the same base + admin +
 /// extension mount path the binary assembles.
 async fn prod_router(config: ServerConfig) -> Router {
-    let server: Server<CachedDatabaseAdapter<FailingAdapter>> =
-        Server::new(config, CompiledSchema::new(), Arc::new(FailingAdapter::new()), None)
-            .await
-            .expect("Server::new should succeed for an empty schema + default config");
+    // Boxed at the delegation point: `Server::new`'s future is large enough to trip
+    // `clippy::large_futures` (pedantic, denied) at every call site otherwise.
+    let server: Server<CachedDatabaseAdapter<FailingAdapter>> = Box::pin(Server::new(
+        config,
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        None,
+    ))
+    .await
+    .expect("Server::new should succeed for an empty schema + default config");
     let state = server.build_app_state();
     let app = server.mount_base_and_admin_routes(Router::new(), &state);
     server.mount_extensions(app, &state)

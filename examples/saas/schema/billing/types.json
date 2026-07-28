@@ -91,28 +91,17 @@
     {
       "name": "getSubscription",
       "return_type": "Subscription",
-      "return_array": false,
-      "description": "Get account subscription"
+      "description": "Get account subscription",
+      "returns_list": false,
+      "sql_source": "v_subscription"
     },
     {
       "name": "listInvoices",
       "return_type": "Invoice",
-      "return_array": true,
-      "description": "List account invoices"
+      "description": "List account invoices",
+      "returns_list": true,
+      "sql_source": "v_invoice"
     }
   ],
-  "mutations": [
-    {
-      "name": "updateSubscription",
-      "return_type": "Subscription",
-      "operation": "UPDATE",
-      "description": "Update subscription plan or cycle"
-    },
-    {
-      "name": "cancelSubscription",
-      "return_type": "Subscription",
-      "operation": "UPDATE",
-      "description": "Cancel account subscription"
-    }
-  ]
+  "mutations": []
 }

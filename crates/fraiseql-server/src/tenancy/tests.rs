@@ -236,6 +236,7 @@ mod pool_factory_tests {
             max_connections:      5,
             connect_timeout_secs: 5,
             idle_timeout_secs:    300,
+            search_path:          None,
         }
     }
 
@@ -494,13 +495,13 @@ mod schema_isolation_tests {
     // ── search_path ─────────────────────────────────────────────────────
 
     #[test]
-    fn search_path_sql_generates_correct_statement() {
-        assert_eq!(search_path_sql("acme").unwrap(), "SET search_path TO tenant_acme, public");
+    fn tenant_search_path_puts_the_tenant_schema_first() {
+        assert_eq!(tenant_search_path("acme").unwrap().as_str(), "tenant_acme,public");
     }
 
     #[test]
-    fn search_path_sql_rejects_invalid_key() {
-        assert!(search_path_sql("").is_err());
+    fn tenant_search_path_rejects_invalid_key() {
+        assert!(tenant_search_path("").is_err());
     }
 
     // ── Row mode skips DDL ──────────────────────────────────────────────
@@ -508,16 +509,32 @@ mod schema_isolation_tests {
 
     // ── Async adapter functions ────────────────────────────────────────
 
-    /// Spy adapter that records all SQL passed to `execute_raw_query`.
+    /// Spy adapter that records all SQL passed to `execute_raw_query`, and can
+    /// answer the isolation probe with a canned `reset_val` — standing in for a
+    /// pool whose connections were established with that search path.
+    ///
+    /// One adapter rather than two: the `make lint-async-trait` ratchet counts
+    /// async-trait attribute sites across `crates/*/src/` by grep, so a second test
+    /// double would spend budget meant for production dyn-dispatch traits — and
+    /// naming the attribute in prose spends it too.
     #[derive(Debug)]
     struct SpyAdapter {
-        queries: Mutex<Vec<String>>,
+        queries:   Mutex<Vec<String>>,
+        reset_val: Option<String>,
     }
 
     impl SpyAdapter {
         fn new() -> Self {
             Self {
-                queries: Mutex::new(Vec::new()),
+                queries:   Mutex::new(Vec::new()),
+                reset_val: None,
+            }
+        }
+
+        fn with_reset_val(value: &str) -> Self {
+            Self {
+                queries:   Mutex::new(Vec::new()),
+                reset_val: Some(value.to_string()),
             }
         }
 
@@ -568,7 +585,16 @@ mod schema_isolation_tests {
             sql: &str,
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             self.queries.lock().unwrap().push(sql.to_string());
-            Ok(vec![])
+            Ok(self
+                .reset_val
+                .as_ref()
+                .map(|v| {
+                    vec![std::collections::HashMap::from([(
+                        "reset_val".to_string(),
+                        serde_json::Value::String(v.clone()),
+                    )])]
+                })
+                .unwrap_or_default())
         }
 
         async fn execute_parameterized_aggregate(
@@ -585,8 +611,10 @@ mod schema_isolation_tests {
         let adapter = SpyAdapter::new();
         provision_tenant_schema("acme", &adapter).await.unwrap();
         let queries = adapter.recorded_queries();
-        assert_eq!(queries.len(), 1);
-        assert_eq!(queries[0], "CREATE SCHEMA IF NOT EXISTS tenant_acme");
+        // The adoption probe runs first, then the DDL.
+        assert_eq!(queries.len(), 2, "{queries:?}");
+        assert!(queries[0].contains("pg_class"), "{}", queries[0]);
+        assert_eq!(queries[1], "CREATE SCHEMA IF NOT EXISTS tenant_acme");
     }
 
     #[tokio::test]
@@ -598,13 +626,41 @@ mod schema_isolation_tests {
         assert_eq!(queries[0], "DROP SCHEMA IF EXISTS tenant_acme CASCADE");
     }
 
+    /// The verification probe must read the *established* value, not the current
+    /// one. `SpyAdapter` returns no rows, so the check must refuse — an adapter
+    /// that cannot answer the question is an adapter that cannot prove isolation.
     #[tokio::test]
-    async fn configure_search_path_executes_set_statement() {
+    async fn verify_search_path_refuses_when_the_adapter_cannot_answer() {
         let adapter = SpyAdapter::new();
-        configure_search_path("acme", &adapter).await.unwrap();
+        let err = verify_search_path("acme", &adapter).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Configuration { .. }),
+            "expected Configuration, got: {err:?}"
+        );
         let queries = adapter.recorded_queries();
         assert_eq!(queries.len(), 1);
-        assert_eq!(queries[0], "SET search_path TO tenant_acme, public");
+        assert!(
+            queries[0].contains("reset_val") && queries[0].contains("pg_settings"),
+            "isolation must be verified against the connection's established value, \
+             not `current_setting`, which a session `SET` would also satisfy: {}",
+            queries[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_search_path_accepts_the_established_tenant_path() {
+        let adapter = SpyAdapter::with_reset_val("tenant_acme, public");
+        verify_search_path("acme", &adapter).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn verify_search_path_rejects_a_foreign_path() {
+        let adapter = SpyAdapter::with_reset_val("tenant_other,public");
+        let err = verify_search_path("acme", &adapter).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Configuration { .. }),
+            "expected Configuration, got: {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -612,11 +668,14 @@ mod schema_isolation_tests {
         let adapter = SpyAdapter::new();
         provision_tenant_schema("acme", &adapter).await.unwrap();
         provision_tenant_schema("acme", &adapter).await.unwrap();
-        let queries = adapter.recorded_queries();
-        assert_eq!(queries.len(), 2);
+        let ddl: Vec<String> = adapter
+            .recorded_queries()
+            .into_iter()
+            .filter(|q| q.starts_with("CREATE SCHEMA"))
+            .collect();
+        assert_eq!(ddl.len(), 2);
         // Both should be IF NOT EXISTS — idempotent
-        assert!(queries[0].contains("IF NOT EXISTS"));
-        assert!(queries[1].contains("IF NOT EXISTS"));
+        assert!(ddl.iter().all(|q| q.contains("IF NOT EXISTS")), "{ddl:?}");
     }
 
     #[tokio::test]
@@ -626,6 +685,14 @@ mod schema_isolation_tests {
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         // No SQL should have been executed
         assert!(adapter.recorded_queries().is_empty());
+    }
+
+    /// The adoption probe is advisory. An adapter that cannot answer it must not
+    /// block provisioning — the DDL is the operation that has to happen.
+    #[tokio::test]
+    async fn provision_still_runs_when_the_adoption_probe_cannot_answer() {
+        let adapter = SpyAdapter::with_reset_val("irrelevant");
+        provision_tenant_schema("acme", &adapter).await.unwrap();
     }
 
     #[tokio::test]

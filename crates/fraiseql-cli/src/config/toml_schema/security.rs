@@ -9,6 +9,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
+    /// Declare that this schema serves multiple tenants.
+    ///
+    /// Activates the subscription tenant fail-closed gate and the cache+RLS boot
+    /// gate. Both gates named this key in their own error messages while
+    /// `deny_unknown_fields` made it a compile error to set (#758).
+    pub multi_tenant:           bool,
+    /// Declare that database Row-Level Security isolates this schema's data.
+    ///
+    /// `[security.rls] enabled = true`. Verified against the live catalog at boot.
+    pub rls:                    fraiseql_core::schema::RlsConfig,
     /// Default policy to apply if none specified
     pub default_policy:         Option<String>,
     /// Custom authorization rules
@@ -44,6 +54,8 @@ pub struct SecuritySettings {
 impl Default for SecuritySettings {
     fn default() -> Self {
         Self {
+            multi_tenant:           false,
+            rls:                    fraiseql_core::schema::RlsConfig::default(),
             default_policy:         Some("authenticated".to_string()),
             rules:                  vec![],
             policies:               vec![],

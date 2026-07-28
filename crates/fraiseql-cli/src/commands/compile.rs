@@ -244,6 +244,15 @@ pub async fn compile_to_schema(
 
                 intermediate.security = Some(security_json);
 
+                // Session variables are the mechanism RLS policies read; carry them
+                // through rather than leaving `schema.json` as the only way to
+                // declare them (#628).
+                if config.fraiseql.session_variables
+                    != fraiseql_core::schema::SessionVariablesConfig::default()
+                {
+                    intermediate.session_variables = Some(config.fraiseql.session_variables);
+                }
+
                 info!("Security configuration applied successfully");
             },
             Err(e) => {

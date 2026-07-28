@@ -64,34 +64,24 @@
     {
       "name": "listTeams",
       "return_type": "Team",
-      "return_array": true,
-      "description": "List all teams in account"
+      "description": "List all teams in account",
+      "returns_list": true,
+      "sql_source": "v_team"
     },
     {
       "name": "getTeam",
       "return_type": "Team",
-      "return_array": false,
-      "description": "Get team by ID"
+      "description": "Get team by ID",
+      "returns_list": false,
+      "sql_source": "v_team"
     },
     {
       "name": "listTeamMembers",
       "return_type": "TeamMember",
-      "return_array": true,
-      "description": "List team members"
+      "description": "List team members",
+      "returns_list": true,
+      "sql_source": "v_team_member"
     }
   ],
-  "mutations": [
-    {
-      "name": "createTeam",
-      "return_type": "Team",
-      "operation": "INSERT",
-      "description": "Create new team"
-    },
-    {
-      "name": "addTeamMember",
-      "return_type": "TeamMember",
-      "operation": "INSERT",
-      "description": "Add user to team"
-    }
-  ]
+  "mutations": []
 }

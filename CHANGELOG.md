@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Tenant isolation is now an enforced property, not a documented intention (#809, #859,
+  #758, #762).** Four mechanisms were supposed to keep tenants apart. Three did not run
+  and the fourth passed vacuously.
+
+  - **#809 — schema-per-tenant isolation applied to one connection out of N.** Tenant
+    registration issued a single session-scoped `SET search_path TO tenant_x, public`
+    through `execute_raw_query`, which borrows one connection from the pool and returns
+    it. `RecyclingMethod::Fast` performs no `DISCARD ALL` and no `post_create` hook
+    existed, so every other connection the pool opened kept the server default and
+    resolved unqualified relations against `public` — silently wrong rows where `public`
+    shadowed the relation, an intermittent `relation … does not exist` where it did not,
+    and **zero** correct connections after any backend restart. `TenancyMode::Schema`'s own
+    doc claimed the path was set "on connection acquisition".
+
+    The search path is now a property of the pool, lowered into the PostgreSQL startup
+    `options` parameter (`SearchPath` in `fraiseql-db`), so the server applies it while
+    establishing *every* connection, including replacements — and `RESET`/`DISCARD ALL`
+    restore it rather than clearing it. Registration then verifies the isolation actually
+    took by reading `pg_settings.reset_val` (the *established* value, which a session `SET`
+    cannot fake) and refuses to register a tenant whose connections would serve `public`.
+
+  - **#859 — `DELETE /api/v1/admin/tenants/{key}` reported "removed" over surviving data.**
+    The handler dropped the registry entry and recorded a `Deleted` audit event;
+    `destroy_tenant_schema`, whose doc comment claimed the handler called it, had no callers
+    anywhere in the workspace. Because provisioning is `CREATE SCHEMA IF NOT EXISTS`,
+    registering a new tenant under a recycled key adopted the previous tenant's schema.
+    Deletion now reports `schema_retained` by default and takes `?purge=true` to drop the
+    schema — resolved through the tenant's own adapter *before* deregistration, so a failed
+    drop leaves the tenant registered rather than answering success over live data.
+    Registration additionally warns when it adopts a schema that already holds relations.
+
+  - **#758 — `security.multi_tenant` had no producer.** `is_multi_tenant()` read
+    `security.multi_tenant`; both TOML security structs are `deny_unknown_fields` and no
+    SDK emitted the key, so the flag was false for every schema any supported workflow
+    could produce — and the two gates that depend on it (the subscription tenant
+    fail-closed gate, the cache+RLS boot gate) were permanently inert, while the boot
+    gate's own error text told operators to set it. Both TOML formats now accept
+    `multi_tenant`, and a non-`none` `[tenancy] mode` implies it.
+
+  - **#762 — the RLS gate checked a GUC that is on by default.** `validate_rls_active`
+    read `current_setting('row_security')`, which governs whether *existing* policies apply
+    and says nothing about whether any policy exists — so `RlsEnforcement::Error`, the
+    documented "safest" setting, approved caching on a database with no RLS at all. It now
+    inspects each of the schema's source relations: a table must have `relrowsecurity` and
+    at least one `pg_policy` row; a view must be `security_invoker`, because a default view
+    runs with its owner's privileges and bypasses the caller's policies entirely. A missing
+    relation fails the check.
+
+  - **The boot gate now exists once and runs everywhere.** The cache+RLS check was inlined
+    in `Server::new` and `with_relay_pagination` and absent from `with_flight_service`;
+    the drift was invisible only because the flag it read could never be true. It is now
+    `tenant_isolation_declaration_check`, called by each constructor, and a multi-tenant
+    schema that declares RLS has the declaration verified against the live catalog at boot.
+
 - **Closed the unauthenticated REST read surface (#812, #739, #810).** The REST transport
   served every row of every tenant to any caller, by three independent routes, none of
   which the existing REST suite could see.
@@ -67,6 +121,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the original silent drop.
 
 ### Breaking
+
+- **`[security.rls]` is the RLS declaration; `security.policies` no longer implies it.**
+  `has_rls_configured()` counted `security.additional["policies"]` — *authorization*
+  policies, a section #612 made a hard compile error — so it answered `false` for every
+  producible schema. Declare `[security.rls] enabled = true` (or
+  `[fraiseql.security.rls]`) to state that database RLS isolates the deployment. With
+  `multi_tenant` also set, the server verifies the claim against the live catalog at boot
+  and refuses to start when it is not true.
+
+- **`[security] multi_tenant` and `[session_variables]` are declarable in TOML.**
+  `multi_tenant` was rejected as an unknown field by both TOML security structs.
+  `[session_variables]` had no TOML producer at all, though the compiled field documented
+  itself as "compiled from the `[session_variables]` TOML section" — the only way to
+  declare the mechanism RLS policies read was to hand-author `schema.json`.
+
+- **A session-variable mapping is one flat table.** `SessionVariableMapping` now flattens
+  its source, so a mapping is `{name, source, claim}` in JSON and
+
+  ```toml
+  [[session_variables.variables]]
+  name = "app.tenant_id"
+  source = "jwt"
+  claim = "tenant_id"
+  ```
+
+  in TOML — against the same type the runtime consumes, with no CLI-side mirror struct to
+  drift. No SDK emitted `session_variables`, so nothing in the wild produced the old
+  nested shape.
+
+- **`CachedDatabaseAdapter::validate_rls_active` and `enforce_rls` take the compiled
+  schema.** They need the relation list to check anything; the previous signatures could
+  only read a GUC (#762).
+
+- **`PoolPrewarmConfig` carries a `search_path`.** Every pool construction site must now
+  state whether its connections are schema-isolated. `PostgresAdapter::new` and
+  `with_pool_size` are unchanged.
+
+- **`DELETE /api/v1/admin/tenants/{key}` reports what it did.** `status` is now
+  `removed_schema_retained` or `removed_and_purged` rather than `removed`, with
+  `schema_retained` / `schema_dropped` naming the schema (#859).
+
+- **`max_storage_bytes` is renamed `max_storage_bytes_advisory`** (#633). Nothing meters
+  per-tenant storage, so nothing was ever rejected on the basis of this value; a field
+  called `max_storage_bytes` reads as a boundary that does not exist. The registration
+  body is now `deny_unknown_fields`, so the old key is a 400 rather than a silently
+  ignored setting. `TenantExecutorRegistry::is_quota_exceeded` / `set_quota_exceeded` are
+  removed — a public quota API with no producer on either side reads as an enforced limit
+  to anyone who greps for one. Metering remains tracked at #633.
+
+- **`examples/saas` declares queries only.** Its eight mutations named no input type and
+  no backing SQL function; the compiler accepted them and none could ever execute. See
+  `examples/mutation-patterns` for the mutation story.
 
 - **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
   value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
@@ -223,6 +329,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--database` is now long-only on all three subcommands — the global `-d` (debug) is
   consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
   against reintroduction. Use `--database <url>` (the long form always worked).
+
+### Fixed
+
+- **The shipped multi-tenant examples now demonstrate isolation they actually have
+  (#628).** `examples/multitenant` and `examples/saas` described a tenant-isolation
+  mechanism and shipped none of it. Both now carry the whole path: JWT claim →
+  `[[session_variables.variables]]` → `set_config` → RLS policy, plus
+  `sql/01_schema.sql` with `FORCE ROW LEVEL SECURITY`, `security_invoker` views, and an
+  unprivileged application role — because PostgreSQL skips every policy for a superuser or
+  `BYPASSRLS` role, which is the most common way a correctly-policied database leaks.
+  `example_multitenant_rls_e2e_pg` applies that SQL to a real database, compiles both
+  examples through the production compile path, and asserts two tenants never cross and an
+  unauthenticated caller sees nothing.
+
+- **Three shipped examples had never been compiled by CI.** `integration_domain_discovery`
+  looked its examples up on paths relative to the crate directory rather than the
+  repository root, so every case took its `if !path.exists() { return; }` branch and passed
+  without doing anything. All three were in fact failing to compile (`pool_size` is not a
+  `[database]` key), the multitenant and saas domain files declared queries with
+  `return_array` — a key the intermediate schema does not read, so every list query
+  compiled as a single-object query — and none declared a `sql_source`. The lookup is
+  fixed, a missing example is now a failure rather than a skip, and the examples compile.
+  `examples/ecommerce`, removed in `0ef37210c`, is no longer referenced.
+
+- **`cache_rls_isolation_test` had never run either.** It was gated on
+  `TEST_DATABASE_URL`, which the `integration: postgres` leg does not set, which is how
+  `test_validate_rls_active_fails_without_rls` could ship accepting either outcome ("we
+  assert the return type is correct either way"). It now uses the harness's
+  `DATABASE_URL`, its fixture view is `security_invoker` (it was not, in the file whose
+  subject is tenant isolation), and its isolation assertions connect as an unprivileged
+  role and drive real session variables rather than comparing two different WHERE clauses.
 
 ## [2.14.1] - 2026-07-24
 

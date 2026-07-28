@@ -11,6 +11,25 @@ use std::{
 
 use tempfile::TempDir;
 
+/// Path to a shipped example, resolved from the repository root.
+///
+/// `cargo test` runs with the *package* directory as the working directory, so the
+/// bare relative paths this file used (`examples/multitenant/fraiseql.toml`) never
+/// existed — every example test took its `if !path.exists() { return; }` branch and
+/// silently passed. All three shipped examples were in fact failing to compile.
+/// Resolving from `CARGO_MANIFEST_DIR` fixes the lookup; the assertion below turns a
+/// missing example into a failure rather than a skip.
+fn example_path(name: &str) -> PathBuf {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("crates/<pkg> is two levels below the repository root")
+        .to_path_buf();
+    let path = root.join("examples").join(name).join("fraiseql.toml");
+    assert!(path.exists(), "shipped example is missing: {}", path.display());
+    path
+}
+
 /// Helper to compile a schema and verify success
 fn compile_schema(toml_path: &Path) -> Result<String, String> {
     let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
@@ -31,52 +50,36 @@ fn compile_schema(toml_path: &Path) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Test ecommerce example with 4 domains
-#[test]
-fn test_ecommerce_example_compiles() {
-    let ecommerce_path = PathBuf::from("examples/ecommerce/fraiseql.toml");
-    if !ecommerce_path.exists() {
-        println!("Skipping test - examples not found");
-        return;
-    }
-
-    let output = compile_schema(&ecommerce_path).expect("Failed to compile ecommerce example");
-    assert!(output.contains("Schema compiled successfully"), "Expected success message");
-    assert!(output.contains("Types: 8"), "Expected 8 types");
-    assert!(output.contains("Queries: 12"), "Expected 12 queries");
-    assert!(output.contains("Mutations: 8"), "Expected 8 mutations");
-}
+// `examples/ecommerce` was removed in 0ef37210c (Python-ecosystem removal). The test
+// that compiled it survived the deletion and skipped silently for every release
+// since, because it looked the example up on a path that could not resolve. It is
+// deleted rather than repointed: `examples/ecommerce_api` is a SQL-only example with
+// no `fraiseql.toml` to compile.
 
 /// Test `SaaS` example with 4 domains
 #[test]
 fn test_saas_example_compiles() {
-    let saas_path = PathBuf::from("examples/saas/fraiseql.toml");
-    if !saas_path.exists() {
-        println!("Skipping test - examples not found");
-        return;
-    }
+    let saas_path = example_path("saas");
 
     let output = compile_schema(&saas_path).expect("Failed to compile saas example");
     assert!(output.contains("Schema compiled successfully"), "Expected success message");
     assert!(output.contains("Types: 8"), "Expected 8 types");
     assert!(output.contains("Queries: 11"), "Expected 11 queries");
-    assert!(output.contains("Mutations: 8"), "Expected 8 mutations");
+    // Queries only: the example's eight mutations declared no input type and no
+    // backing SQL function, so none could ever execute. See its README.
+    assert!(output.contains("Mutations: 0"), "Expected 0 mutations");
 }
 
 /// Test multi-tenant example with 3 domains
 #[test]
 fn test_multitenant_example_compiles() {
-    let multitenant_path = PathBuf::from("examples/multitenant/fraiseql.toml");
-    if !multitenant_path.exists() {
-        println!("Skipping test - examples not found");
-        return;
-    }
+    let multitenant_path = example_path("multitenant");
 
     let output = compile_schema(&multitenant_path).expect("Failed to compile multitenant example");
     assert!(output.contains("Schema compiled successfully"), "Expected success message");
     assert!(output.contains("Types: 3"), "Expected 3 types");
     assert!(output.contains("Queries: 3"), "Expected 3 queries");
-    assert!(output.contains("Mutations: 2"), "Expected 2 mutations");
+    assert!(output.contains("Mutations: 0"), "Expected 0 mutations");
 }
 
 /// Test domain discovery with simple schema

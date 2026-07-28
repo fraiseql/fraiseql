@@ -78,11 +78,11 @@ use crate::{
     cache::config::RlsEnforcement,
     db::{
         ChangeLogWrite, DatabaseAdapter, DatabaseType, DirectMutationContext, MutationStrategy,
-        PoolMetrics, SupportsMutations, WhereClause,
+        PoolMetrics, SupportsMutations, WhereClause, quote_postgres_identifier,
         types::{JsonbValue, OrderByClause},
     },
     error::{FraiseQLError, Result},
-    schema::CompiledSchema,
+    schema::{CompiledSchema, SourceKind, SourceProbe, sql_source_probes},
 };
 
 mod mutation;
@@ -91,6 +91,45 @@ mod query;
 mod tests;
 
 pub use query::view_name_to_entity_type;
+
+/// One source relation's Row-Level Security posture, as read from `pg_class`.
+#[derive(Debug, Clone, Copy)]
+struct RelationRls {
+    /// `relkind = 'v'` — a view, which carries no policies of its own.
+    is_view:          bool,
+    /// `relrowsecurity` — RLS switched on for the relation.
+    rls_enabled:      bool,
+    /// At least one `pg_policy` row targets it.
+    has_policy:       bool,
+    /// `security_invoker = true` in `reloptions` (views only, PG 15+).
+    security_invoker: bool,
+}
+
+impl RelationRls {
+    /// A view protects rows only by deferring to the caller's policies; a table
+    /// protects rows only when RLS is on *and* a policy exists — RLS enabled with
+    /// no policy denies everything to non-owners and is silently bypassed by the
+    /// owner, so it is not an isolation mechanism either way.
+    const fn is_protected(self) -> bool {
+        if self.is_view {
+            self.security_invoker
+        } else {
+            self.rls_enabled && self.has_policy
+        }
+    }
+
+    /// Why it is not protected, in the operator's terms.
+    const fn explain(self) -> &'static str {
+        if self.is_view {
+            "view is not `security_invoker`, so it runs with its owner's privileges and \
+             bypasses the caller's RLS policies"
+        } else if !self.rls_enabled {
+            "row level security is not enabled on this table"
+        } else {
+            "row level security is enabled but no policy is defined, so it isolates nothing"
+        }
+    }
+}
 
 /// Cached database adapter wrapper.
 ///
@@ -519,49 +558,110 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         &self.version_provider
     }
 
-    /// Verify that Row-Level Security is active on the database connection.
+    /// Verify that Row-Level Security is genuinely enforceable on the relations
+    /// this schema reads.
     ///
-    /// Call this during server initialization when both caching and multi-tenancy
-    /// (`schema.is_multi_tenant()`) are enabled. Without RLS, users sharing the same
-    /// query parameters will receive the same cached response regardless of tenant.
+    /// Call this during server initialization when a multi-tenant schema declares
+    /// `[security.rls] enabled = true`. Without real RLS, users sharing the same
+    /// query parameters receive the same cached response regardless of tenant.
     ///
     /// # What this checks
     ///
-    /// Runs `SELECT current_setting('row_security', true) AS rls_setting`. The result
-    /// must be `'on'` or `'force'` for the check to pass. Non-PostgreSQL databases
-    /// (which return an error or unsupported) are treated as "RLS not active".
+    /// Every relation named by a query's `sql_source`, resolved through
+    /// `to_regclass`, must be one of:
+    ///
+    /// * a **table** with `relrowsecurity` set and at least one `pg_policy` row, or
+    /// * a **`security_invoker` view** — a default view executes with its owner's privileges and
+    ///   bypasses the caller's RLS entirely, so a non-invoker view over an RLS-protected table
+    ///   provides no isolation at all.
+    ///
+    /// A relation that does not exist fails the check: an absent relation cannot be
+    /// protected.
+    ///
+    /// # What it used to check, and why that was worthless
+    ///
+    /// It ran `SELECT current_setting('row_security', true)` and passed on `'on'` or
+    /// `'force'`. `row_security` governs whether *existing* policies are applied; it
+    /// defaults to `on` and says nothing about whether any policy exists. So the
+    /// documented "refuse startup if RLS appears inactive" gate returned `Ok(())` on
+    /// a stock PostgreSQL with no RLS anywhere — reporting success for a guarantee it
+    /// never checked (#762).
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Configuration`] if RLS appears inactive.
-    pub async fn validate_rls_active(&self) -> Result<()> {
-        let result = self
-            .adapter
-            .execute_raw_query("SELECT current_setting('row_security', true) AS rls_setting")
-            .await;
+    /// Returns [`FraiseQLError::Configuration`] naming every relation that is not
+    /// RLS-protected, or [`FraiseQLError::Database`] if the catalog cannot be read
+    /// (including on non-PostgreSQL adapters, which have no equivalent mechanism and
+    /// therefore fail closed).
+    pub async fn validate_rls_active(&self, schema: &CompiledSchema) -> Result<()> {
+        let mut unprotected: Vec<String> = Vec::new();
 
-        let rls_active = match result {
-            Ok(rows) => rows
-                .first()
-                .and_then(|row| row.get("rls_setting"))
-                .and_then(serde_json::Value::as_str)
-                .is_some_and(|s| s == "on" || s == "force"),
-            Err(_) => false, // Non-PostgreSQL or query failure: RLS not active
-        };
-
-        if rls_active {
-            Ok(())
-        } else {
-            Err(FraiseQLError::Configuration {
-                message: "Caching is enabled in a multi-tenant schema but Row-Level Security \
-                          does not appear to be active on the database. This would allow \
-                          cross-tenant data leakage through the cache. \
-                          Either disable caching, enable RLS, or set \
-                          `rls_enforcement = \"off\"` in CacheConfig for single-tenant \
-                          deployments."
-                    .to_string(),
-            })
+        for probe in sql_source_probes(schema) {
+            if probe.kind != SourceKind::Relation {
+                continue;
+            }
+            let display = probe.display_name();
+            match self.relation_rls_status(&probe).await? {
+                None => unprotected.push(format!("{display} — relation does not exist")),
+                Some(status) if status.is_protected() => {},
+                Some(status) => unprotected.push(format!("{display} — {}", status.explain())),
+            }
         }
+
+        if unprotected.is_empty() {
+            return Ok(());
+        }
+
+        Err(FraiseQLError::Configuration {
+            message: format!(
+                "Row-Level Security is declared for this multi-tenant schema but is not in                  force on {} of its source relation(s), so tenants are not isolated and                  cached responses can cross tenant boundaries:\n  - {}\n\
+                 Enable RLS and declare a policy on each source table                  (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` + `CREATE POLICY …`), define                  views `WITH (security_invoker = true)` so they honour the caller's                  policies, or remove `[security.rls] enabled = true` if this deployment                  does not rely on database RLS.",
+                unprotected.len(),
+                unprotected.join("\n  - ")
+            ),
+        })
+    }
+
+    /// Read one relation's RLS posture from the catalog. `None` = no such relation.
+    async fn relation_rls_status(&self, probe: &SourceProbe) -> Result<Option<RelationRls>> {
+        // `execute_raw_query` takes no bind parameters, so the identifier is embedded.
+        // It comes from the compiled schema, and single quotes are doubled defensively —
+        // the same posture `sql_source_check` takes for the existence probe.
+        let ident = match &probe.schema {
+            Some(s) => format!(
+                "{}.{}",
+                quote_postgres_identifier(s),
+                quote_postgres_identifier(&probe.name)
+            ),
+            None => quote_postgres_identifier(&probe.name),
+        };
+        let literal = ident.replace('\'', "''");
+        let sql = format!(
+            "SELECT c.relkind::text AS kind, \
+                    c.relrowsecurity AS rls_enabled, \
+                    (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid)::text \
+                      AS policy_count, \
+                    COALESCE((SELECT bool_or(lower(o.option_value) IN ('true','on','1')) \
+                              FROM pg_options_to_table(c.reloptions) o \
+                              WHERE o.option_name = 'security_invoker'), false) \
+                      AS security_invoker \
+             FROM pg_class c WHERE c.oid = to_regclass('{literal}')"
+        );
+
+        let rows = self.adapter.execute_raw_query(&sql).await?;
+        let Some(row) = rows.first() else {
+            return Ok(None);
+        };
+        let cell_bool = |k: &str| row.get(k).and_then(serde_json::Value::as_bool).unwrap_or(false);
+        Ok(Some(RelationRls {
+            is_view:          row.get("kind").and_then(serde_json::Value::as_str) == Some("v"),
+            rls_enabled:      cell_bool("rls_enabled"),
+            has_policy:       row
+                .get("policy_count")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|n| n != "0"),
+            security_invoker: cell_bool("security_invoker"),
+        }))
     }
 
     /// Apply the RLS enforcement policy from `CacheConfig`.
@@ -575,12 +675,16 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Errors
     ///
     /// Returns the error from `validate_rls_active` when enforcement is `Error`.
-    pub async fn enforce_rls(&self, enforcement: RlsEnforcement) -> Result<()> {
+    pub async fn enforce_rls(
+        &self,
+        schema: &CompiledSchema,
+        enforcement: RlsEnforcement,
+    ) -> Result<()> {
         if enforcement == RlsEnforcement::Off {
             return Ok(());
         }
 
-        match self.validate_rls_active().await {
+        match self.validate_rls_active(schema).await {
             Ok(()) => Ok(()),
             Err(e) => match enforcement {
                 RlsEnforcement::Error => Err(e),

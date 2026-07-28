@@ -299,7 +299,23 @@ fn test_has_rls_configured_with_empty_policies() {
 }
 
 #[test]
-fn test_has_rls_configured_with_policies() {
+fn test_has_rls_configured_with_rls_declaration() {
+    let sec = SecurityConfig {
+        rls: crate::schema::RlsConfig { enabled: true },
+        ..SecurityConfig::default()
+    };
+    let schema = CompiledSchema {
+        security: Some(sec),
+        ..CompiledSchema::default()
+    };
+    assert!(schema.has_rls_configured(), "`[security.rls] enabled = true` must return true");
+}
+
+/// `security.policies` is *authorization* policy, not RLS, and #612 made a
+/// non-empty `[security.policies]` a hard compile error — so counting it made
+/// `has_rls_configured()` unconditionally false for every producible schema (#758).
+#[test]
+fn test_has_rls_configured_ignores_authorization_policies() {
     let mut sec = SecurityConfig::default();
     sec.additional.insert(
         "policies".to_string(),
@@ -309,7 +325,7 @@ fn test_has_rls_configured_with_policies() {
         security: Some(sec),
         ..CompiledSchema::default()
     };
-    assert!(schema.has_rls_configured(), "Non-empty policies array must return true");
+    assert!(!schema.has_rls_configured());
 }
 
 #[test]
@@ -963,15 +979,33 @@ fn has_rls_configured_false_when_policies_empty() {
 }
 
 #[test]
-fn has_rls_configured_true_when_policies_present() {
+fn has_rls_configured_true_when_declared() {
     let mut schema = CompiledSchema::new();
     let mut sec = SecurityConfig::new();
-    sec.additional.insert(
-        "policies".to_string(),
-        serde_json::json!([{"table": "orders", "using": "tenant_id = current_setting('app.tenant_id')"}]),
-    );
+    sec.rls.enabled = true;
     schema.security = Some(sec);
     assert!(schema.has_rls_configured());
+}
+
+/// A non-`none` tenancy mode is itself a multi-tenant declaration; requiring a
+/// second boolean to say so is what left both dependent gates permanently off
+/// (#758).
+#[test]
+fn tenancy_mode_implies_multi_tenant() {
+    for mode in [
+        crate::schema::TenancyMode::Row,
+        crate::schema::TenancyMode::Schema,
+    ] {
+        let mut schema = CompiledSchema::new();
+        let mut sec = SecurityConfig::new();
+        sec.tenancy.mode = mode;
+        schema.security = Some(sec);
+        assert!(schema.is_multi_tenant(), "{mode} must imply multi-tenant");
+    }
+
+    let mut single = CompiledSchema::new();
+    single.security = Some(SecurityConfig::new());
+    assert!(!single.is_multi_tenant(), "mode = none without the flag is single-tenant");
 }
 
 // -------------------------------------------------------------------------

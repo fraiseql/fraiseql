@@ -15,16 +15,10 @@
     {
       "name": "listTenants",
       "return_type": "Tenant",
-      "return_array": true,
-      "description": "List tenants in organization"
+      "returns_list": true,
+      "sql_source": "v_tenant",
+      "description": "Tenants in the caller's organization (scoped by RLS on app.organization_id)"
     }
   ],
-  "mutations": [
-    {
-      "name": "createTenant",
-      "return_type": "Tenant",
-      "operation": "INSERT",
-      "description": "Create new tenant"
-    }
-  ]
+  "mutations": []
 }
