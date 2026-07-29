@@ -2,6 +2,12 @@
 
 use super::*;
 
+/// These tests exercise cache mechanics, not principal separation, so they all
+/// run under one scope. Cross-principal behaviour is asserted separately in
+/// `scoped_by_principal` below and end-to-end in
+/// `tests/flight_cache_principal_isolation_test.rs`.
+const SCOPE: CacheScope = 0;
+
 #[test]
 fn test_cache_put_and_get() {
     let cache = QueryCache::new(60);
@@ -11,9 +17,9 @@ fn test_cache_put_and_get() {
         ("name".to_string(), serde_json::json!("Alice")),
     ])];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
-    let cached = cache.get(query);
+    let cached = cache.get(SCOPE, query);
     assert!(cached.is_some());
     let cached = cached.unwrap();
     assert_eq!(cached.len(), 1);
@@ -24,7 +30,7 @@ fn test_cache_put_and_get() {
 #[test]
 fn test_cache_miss() {
     let cache = QueryCache::new(60);
-    let result = cache.get("SELECT * FROM nonexistent");
+    let result = cache.get(SCOPE, "SELECT * FROM nonexistent");
     assert!(result.is_none());
 }
 
@@ -37,23 +43,23 @@ fn test_cache_expiration() {
         serde_json::json!("99.99"),
     )])];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Should be cached immediately
-    assert!(cache.get(query).is_some());
+    assert!(cache.get(SCOPE, query).is_some());
 
     // Wait for expiration
     std::thread::sleep(std::time::Duration::from_secs(2));
 
     // Should be expired now
-    assert!(cache.get(query).is_none());
+    assert!(cache.get(SCOPE, query).is_none());
 }
 
 #[test]
 fn test_cache_clear() {
     let cache = QueryCache::new(60);
-    cache.put("query1", Arc::new(vec![]));
-    cache.put("query2", Arc::new(vec![]));
+    cache.put(SCOPE, "query1", Arc::new(vec![]));
+    cache.put(SCOPE, "query2", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 2);
     cache.clear();
@@ -73,12 +79,12 @@ fn test_cache_multiple_queries() {
         serde_json::json!("100.00"),
     )])];
 
-    cache.put("SELECT * FROM users", Arc::new(result1));
-    cache.put("SELECT * FROM orders", Arc::new(result2));
+    cache.put(SCOPE, "SELECT * FROM users", Arc::new(result1));
+    cache.put(SCOPE, "SELECT * FROM orders", Arc::new(result2));
 
     assert_eq!(cache.len(), 2);
-    assert!(cache.get("SELECT * FROM users").is_some());
-    assert!(cache.get("SELECT * FROM orders").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM users").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM orders").is_some());
 }
 
 #[test]
@@ -90,54 +96,54 @@ fn test_cache_default_ttl() {
 #[test]
 fn test_invalidate_views() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user WHERE id = 1", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_user WHERE id = 2", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order WHERE id = 1", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user WHERE id = 1", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user WHERE id = 2", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order WHERE id = 1", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 3);
 
     let removed = cache.invalidate_views(&["v_user"]);
     assert_eq!(removed, 2);
     assert_eq!(cache.len(), 1);
-    assert!(cache.get("SELECT * FROM v_order WHERE id = 1").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM v_order WHERE id = 1").is_some());
 }
 
 #[test]
 fn test_invalidate_views_multiple() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_product", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_product", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 3);
 
     let removed = cache.invalidate_views(&["v_user", "v_product"]);
     assert_eq!(removed, 2);
     assert_eq!(cache.len(), 1);
-    assert!(cache.get("SELECT * FROM v_order").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM v_order").is_some());
 }
 
 #[test]
 fn test_invalidate_pattern_wildcard() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user_detail", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_user_summary", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user_detail", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user_summary", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 3);
 
     let removed = cache.invalidate_pattern("*v_user*");
     assert_eq!(removed, 2);
     assert_eq!(cache.len(), 1);
-    assert!(cache.get("SELECT * FROM v_order").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM v_order").is_some());
 }
 
 #[test]
 fn test_invalidate_pattern_prefix() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put("INSERT INTO v_user VALUES", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(SCOPE, "INSERT INTO v_user VALUES", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 3);
 
@@ -149,8 +155,8 @@ fn test_invalidate_pattern_prefix() {
 #[test]
 fn test_invalidate_pattern_no_match() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
 
     assert_eq!(cache.len(), 2);
 
@@ -174,12 +180,12 @@ fn test_put_overwrites_existing_entry() {
         serde_json::json!("99"),
     )])]);
 
-    cache.put(q, Arc::clone(&result1));
+    cache.put(SCOPE, q, Arc::clone(&result1));
     assert_eq!(cache.len(), 1);
-    cache.put(q, Arc::clone(&result2));
+    cache.put(SCOPE, q, Arc::clone(&result2));
     // Should still be 1 entry (overwritten)
     assert_eq!(cache.len(), 1);
-    let got = cache.get(q).unwrap();
+    let got = cache.get(SCOPE, q).unwrap();
     let id_val = got[0].get("id").unwrap();
     assert_eq!(id_val.as_str().unwrap(), "99");
 }
@@ -193,7 +199,7 @@ fn test_is_empty_true_initially() {
 #[test]
 fn test_is_empty_false_after_put() {
     let cache = QueryCache::new(30);
-    cache.put("q", Arc::new(vec![]));
+    cache.put(SCOPE, "q", Arc::new(vec![]));
     assert!(!cache.is_empty());
 }
 
@@ -201,7 +207,7 @@ fn test_is_empty_false_after_put() {
 fn test_len_increments_with_each_distinct_query() {
     let cache = QueryCache::new(60);
     for i in 0..5 {
-        cache.put(format!("SELECT {i}"), Arc::new(vec![]));
+        cache.put(SCOPE, format!("SELECT {i}"), Arc::new(vec![]));
     }
     assert_eq!(cache.len(), 5);
 }
@@ -209,7 +215,7 @@ fn test_len_increments_with_each_distinct_query() {
 #[test]
 fn test_invalidate_views_empty_view_list_removes_nothing() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
     let removed = cache.invalidate_views(&[]);
     assert_eq!(removed, 0);
     assert_eq!(cache.len(), 1);
@@ -219,21 +225,21 @@ fn test_invalidate_views_empty_view_list_removes_nothing() {
 fn test_invalidate_pattern_exact_no_wildcard() {
     // Pattern with no wildcard acts as exact match
     let cache = QueryCache::new(60);
-    cache.put("exact_query", Arc::new(vec![]));
-    cache.put("other_query", Arc::new(vec![]));
+    cache.put(SCOPE, "exact_query", Arc::new(vec![]));
+    cache.put(SCOPE, "other_query", Arc::new(vec![]));
 
     let removed = cache.invalidate_pattern("exact_query");
     assert_eq!(removed, 1);
     assert_eq!(cache.len(), 1);
-    assert!(cache.get("other_query").is_some());
+    assert!(cache.get(SCOPE, "other_query").is_some());
 }
 
 #[test]
 fn test_invalidate_pattern_star_only_removes_all() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM users", Arc::new(vec![]));
-    cache.put("SELECT * FROM orders", Arc::new(vec![]));
-    cache.put("SELECT id FROM items", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM users", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM orders", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT id FROM items", Arc::new(vec![]));
 
     let removed = cache.invalidate_pattern("*");
     assert_eq!(removed, 3);
@@ -243,26 +249,26 @@ fn test_invalidate_pattern_star_only_removes_all() {
 #[test]
 fn test_invalidate_views_does_not_affect_non_matching_entries() {
     let cache = QueryCache::new(60);
-    cache.put("SELECT * FROM v_user", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_order", Arc::new(vec![]));
-    cache.put("SELECT * FROM v_product", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_user", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_order", Arc::new(vec![]));
+    cache.put(SCOPE, "SELECT * FROM v_product", Arc::new(vec![]));
 
     let removed = cache.invalidate_views(&["v_order"]);
     assert_eq!(removed, 1);
     assert_eq!(cache.len(), 2);
-    assert!(cache.get("SELECT * FROM v_user").is_some());
-    assert!(cache.get("SELECT * FROM v_product").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM v_user").is_some());
+    assert!(cache.get(SCOPE, "SELECT * FROM v_product").is_some());
 }
 
 #[test]
 fn test_zero_ttl_expires_immediately() {
     // With TTL=0, entries should expire immediately since expires_at == now
     let cache = QueryCache::new(0);
-    cache.put("q", Arc::new(vec![]));
+    cache.put(SCOPE, "q", Arc::new(vec![]));
     // The entry was put at `now + 0`, so current time >= expires_at
     // In practice the comparison is `now < expires_at`, so with TTL=0
     // the entry expires immediately.
-    let result = cache.get("q");
+    let result = cache.get(SCOPE, "q");
     // Either None (immediately expired) or Some (same second); both are valid
     // but we just verify no panic and that the cache is functional
     let _ = result; // no assertion; behavior is time-dependent
@@ -282,8 +288,77 @@ fn test_result_is_shared_via_arc() {
         "k".to_string(),
         serde_json::json!("v"),
     )])]);
-    cache.put("q", Arc::clone(&original));
-    let retrieved = cache.get("q").unwrap();
+    cache.put(SCOPE, "q", Arc::clone(&original));
+    let retrieved = cache.get(SCOPE, "q").unwrap();
     // Both Arcs point to the same allocation
     assert!(Arc::ptr_eq(&original, &retrieved));
+}
+
+/// Entries are addressed by `(principal, query)`, never by query alone (#716).
+mod scoped_by_principal {
+    use std::sync::Arc;
+
+    use super::{CacheScope, QueryCache};
+
+    const ALICE: CacheScope = 0xA11CE;
+    const BOB: CacheScope = 0xB0B;
+
+    fn rows(marker: &str) -> Arc<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Arc::new(vec![std::collections::HashMap::from([(
+            "name".to_string(),
+            serde_json::json!(marker),
+        )])])
+    }
+
+    #[test]
+    fn one_principals_entry_is_not_visible_to_another() {
+        let cache = QueryCache::new(60);
+        let sql = "SELECT * FROM va_orders";
+
+        cache.put(ALICE, sql, rows("alice-rows"));
+
+        assert!(cache.get(ALICE, sql).is_some(), "alice reads her own entry back");
+        assert!(
+            cache.get(BOB, sql).is_none(),
+            "#716: identical SQL from another principal must miss, not hit"
+        );
+    }
+
+    #[test]
+    fn each_principal_keeps_its_own_rows_for_the_same_query() {
+        let cache = QueryCache::new(60);
+        let sql = "SELECT * FROM va_orders";
+
+        cache.put(ALICE, sql, rows("alice-rows"));
+        cache.put(BOB, sql, rows("bob-rows"));
+
+        assert_eq!(cache.get(ALICE, sql).unwrap()[0]["name"], "alice-rows");
+        assert_eq!(cache.get(BOB, sql).unwrap()[0]["name"], "bob-rows");
+        assert_eq!(cache.len(), 2, "both entries are resident");
+    }
+
+    /// Invalidation is a property of the data, so it must reach every principal.
+    #[test]
+    fn view_invalidation_sweeps_all_principals() {
+        let cache = QueryCache::new(60);
+        let sql = "SELECT * FROM va_orders";
+
+        cache.put(ALICE, sql, rows("alice-rows"));
+        cache.put(BOB, sql, rows("bob-rows"));
+
+        assert_eq!(cache.invalidate_views(&["va_orders"]), 2);
+        assert!(cache.get(ALICE, sql).is_none());
+        assert!(cache.get(BOB, sql).is_none());
+    }
+
+    #[test]
+    fn pattern_invalidation_sweeps_all_principals() {
+        let cache = QueryCache::new(60);
+
+        cache.put(ALICE, "SELECT * FROM va_orders", rows("alice-rows"));
+        cache.put(BOB, "SELECT * FROM va_users", rows("bob-rows"));
+
+        assert_eq!(cache.invalidate_pattern("SELECT * FROM va_*"), 2);
+        assert!(cache.is_empty());
+    }
 }

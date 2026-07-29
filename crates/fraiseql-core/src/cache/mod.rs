@@ -240,7 +240,7 @@ pub use fraiseql_db::ViewName;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
     extract_accessed_views, generate_cache_key, generate_projection_query_key,
-    generate_view_query_key,
+    generate_response_cache_key, generate_view_query_key,
 };
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use response_cache::{ResponseCache, ResponseCacheConfig};

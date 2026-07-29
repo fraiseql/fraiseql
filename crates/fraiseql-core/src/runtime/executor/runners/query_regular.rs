@@ -133,7 +133,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let response_cache_key = if !gated_present
             && self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled())
         {
-            let query_key = Self::compute_response_cache_key(&query_match)?;
+            let query_key = Self::compute_response_cache_key(&query_match);
             let sec_hash =
                 crate::cache::response_cache::hash_security_context(Some(security_context));
             Some((query_key, sec_hash))
@@ -481,9 +481,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
-            let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
+            // Every view this query reads, primary and declared secondary — the
+            // same definition the row cache registers under (#761).
+            let accessed = crate::cache::extract_accessed_views(&query_match.query_def);
             let cached = Arc::new(response);
-            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), vec![sql_source.to_string()]);
+            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), accessed);
             return Ok(Arc::unwrap_or_clone(cached));
         }
 
@@ -492,47 +494,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
     /// Compute a response cache key from a query match.
     ///
-    /// Hashes the query name, matched fields, and arguments to produce
-    /// a u64 key. Combined with the security context hash, this forms
+    /// Delegates to [`crate::cache::generate_response_cache_key`], which owns
+    /// every cache-key derivation in the workspace, so a new dimension added there
+    /// reaches this cache too. Combined with the security-context hash, this forms
     /// the full response cache key.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`FraiseQLError::Validation`] when any argument value fails
-    /// JSON serialization. The previous implementation silently collapsed
-    /// failures to an empty string, which could cause two distinct argument
-    /// trees to map to the same cache key (F044).
-    fn compute_response_cache_key(
-        query_match: &crate::runtime::matcher::QueryMatch,
-    ) -> Result<u64> {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = ahash::AHasher::default();
-        query_match.query_def.name.hash(&mut hasher);
-        for field in &query_match.fields {
-            field.hash(&mut hasher);
-        }
-        // Hash arguments (sorted keys for determinism)
-        let mut keys: Vec<&String> = query_match.arguments.keys().collect();
-        keys.sort();
-        // F044: stream the serialized JSON straight into the hasher via a
-        // scratch buffer; this avoids the intermediate `String` allocation
-        // *and* satisfies clippy's `collection_is_never_read` lint (the prior
-        // `let serialized = ...; serialized.hash(...)` shape was flagged).
-        let mut scratch: Vec<u8> = Vec::new();
-        for key in keys {
-            key.hash(&mut hasher);
-            scratch.clear();
-            serde_json::to_writer(&mut scratch, &query_match.arguments[key]).map_err(|e| {
-                FraiseQLError::Validation {
-                    message: format!(
-                        "failed to serialize argument '{key}' for response cache key: {e}"
-                    ),
-                    path:    Some(format!("arguments.{key}")),
-                }
-            })?;
-            scratch.hash(&mut hasher);
-        }
-        Ok(hasher.finish())
+    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+        crate::cache::generate_response_cache_key(
+            &query_match.query_def.name,
+            query_match.operation_name.as_deref(),
+            &query_match.selections,
+            &query_match.arguments,
+        )
     }
 
     /// Execute a regular query, applying RLS/role/inject enforcement when a

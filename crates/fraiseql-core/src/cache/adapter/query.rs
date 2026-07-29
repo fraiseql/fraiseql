@@ -110,12 +110,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         // Store in cache; derive entity type from view name so that
         // selective entity-level invalidation can target precise entries.
+        // The entry is registered under the view AND every secondary view a
+        // query over it declares, so a mutation on a joined view evicts it (#761).
         let ttl = self.view_ttl_overrides.get(view).copied();
         let entity_type = view_name_to_entity_type(view);
         self.cache.put_arc(
             cache_key,
             Arc::clone(&arc),
-            vec![view.to_string()],
+            self.accessed_views_for(view),
             ttl,
             entity_type.as_deref(),
         )?;
@@ -185,12 +187,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // fetched a specific entity, rather than all entries for the view.
         // Cascade invalidation via CascadeInvalidator still expands the view
         // list to transitively dependent views when invalidate_views() is called.
+        // `accessed_views_for` adds the query's declared secondary views (#761).
         let ttl = self.view_ttl_overrides.get(view).copied();
         let entity_type = view_name_to_entity_type(view);
         self.cache.put_arc(
             cache_key,
             Arc::clone(&arc),
-            vec![view.to_string()],
+            self.accessed_views_for(view),
             ttl,
             entity_type.as_deref(),
         )?;

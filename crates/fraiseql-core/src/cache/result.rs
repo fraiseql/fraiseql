@@ -22,12 +22,31 @@
 //! invalidation rely on two `DashMap` reverse indexes maintained alongside the store:
 //!
 //! ```text
-//! view_index:   DashMap<view_name,   DashSet<cache_key>>
-//! entity_index: DashMap<entity_type, DashMap<entity_id, DashSet<cache_key>>>
+//! view_index:   DashMap<view_name,   DashSet<(cache_key, epoch)>>
+//! entity_index: DashMap<entity_type, DashMap<entity_id, DashSet<(cache_key, epoch)>>>
 //! ```
 //!
-//! Indexes are populated in `put()` and pruned via moka's eviction listener (fired
-//! asynchronously). `clear()` resets all indexes synchronously.
+//! Indexes are populated in `put()` and pruned via moka's eviction listener.
+//! `clear()` resets all indexes synchronously.
+//!
+//! ### Why the indexes key on `(cache_key, epoch)` and not on `cache_key` alone (#740)
+//!
+//! `put_arc()` registers the key in the reverse indexes *before* `store.insert()`,
+//! deliberately: an `invalidate_views()` racing the insert must not miss the key.
+//! The consequence is that moka fires the eviction listener for the entry the insert
+//! just displaced — while the replacement is already live under the same key. A
+//! listener that pruned by `cache_key` would delete the registrations the *live*
+//! entry depends on, detaching it from every invalidation path: it would then be
+//! served until TTL expiry, or forever for the `cache_ttl_seconds = 0` entries
+//! documented as "mutation-invalidated only".
+//!
+//! Each cached entry therefore carries a process-unique [`CachedResult::epoch`] and
+//! registers/deregisters itself under `(cache_key, epoch)`. Registration and removal
+//! are symmetric per *entry instance* rather than per key, so the listener needs no
+//! knowledge of moka's [`moka::notification::RemovalCause`] taxonomy — `Replaced`,
+//! `Expired`, `Size` and `Explicit` are all handled by the same arithmetic. Keep it
+//! that way: a cause-inspecting listener is only as correct as the exact set of
+//! causes the current moka version reports for a displaced entry.
 
 use std::{
     collections::HashSet,
@@ -87,12 +106,18 @@ pub struct CachedResult {
     /// Used by the eviction listener to clean up `entity_index` on eviction.
     pub entity_refs: Box<[(String, String)]>,
 
-    /// True when `result.len() > 1` at put time.
+    /// Process-unique identity of this cached *entry instance*.
     ///
-    /// Used by `invalidate_list_queries()` to avoid evicting single-entity
-    /// point-lookup entries on CREATE mutations.
-    pub is_list_query: bool,
+    /// Distinguishes an entry from its own replacement under the same cache key.
+    /// The reverse indexes register `(cache_key, epoch)` pairs so the eviction
+    /// listener can deregister exactly the instance being evicted and never the
+    /// live one that displaced it — see the module docs (#740).
+    pub epoch: u64,
 }
+
+/// A reverse-index registration: the cache key plus the epoch of the entry
+/// instance that registered it.
+type IndexRef = (u64, u64);
 
 /// Moka `Expiry` implementation: reads TTL from `CachedResult.ttl_seconds`.
 struct CacheEntryExpiry;
@@ -186,22 +211,19 @@ pub struct QueryResultCache {
     /// can hold a clone and decrement on eviction.
     memory_bytes: Arc<AtomicUsize>,
 
-    /// Reverse index: view name → set of cache keys accessing that view.
+    /// Reverse index: view name → set of `(cache key, epoch)` accessing that view.
     ///
     /// Keys are [`ViewName`] (`Arc<str>` inside) so inserts share the same
     /// allocation as the names stored in [`CachedResult::accessed_views`].
     /// Lookup by `&str` still works via the `Borrow<str>` impl on `ViewName`.
-    view_index: Arc<DashMap<ViewName, DashSet<u64>>>,
+    view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
 
-    /// Reverse index: entity type → entity id → set of cache keys.
-    entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
+    /// Reverse index: entity type → entity id → set of `(cache key, epoch)`.
+    entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
 
-    /// Reverse index: view name → set of cache keys for list (multi-row) entries only.
-    ///
-    /// Populated in `put_arc()` when `result.len() > 1`. Used by
-    /// `invalidate_list_queries()` for CREATE-targeted eviction that leaves
-    /// point-lookup entries intact.
-    list_index: Arc<DashMap<ViewName, DashSet<u64>>>,
+    /// Source of [`CachedResult::epoch`] values. Monotonic for the process
+    /// lifetime; wrap-around at 2^64 puts is not reachable.
+    next_epoch: AtomicU64,
 }
 
 /// Cache metrics for monitoring.
@@ -241,15 +263,13 @@ const fn entry_overhead() -> usize {
 fn build_store(
     config: &CacheConfig,
     memory_bytes: Arc<AtomicUsize>,
-    view_index: Arc<DashMap<ViewName, DashSet<u64>>>,
-    entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
-    list_index: Arc<DashMap<ViewName, DashSet<u64>>>,
+    view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
+    entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
     let vi = view_index;
     let ei = entity_index;
-    let li = list_index;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -258,19 +278,16 @@ fn build_store(
             // Decrement memory budget so put()'s byte-gate stays accurate.
             mb.fetch_sub(entry_overhead(), Ordering::Relaxed);
 
-            // Remove key from view index.
+            // Deregister exactly THIS entry instance. `_cause` is deliberately
+            // unused: `(key, epoch)` already distinguishes a displaced entry from
+            // the live replacement that displaced it, so `Replaced` needs no
+            // special case and no future moka cause can detach a live entry (#740).
+            let reference: IndexRef = (*key, value.epoch);
+
+            // Remove this instance from the view index.
             for view in &value.accessed_views {
                 if let Some(keys) = vi.get(view) {
-                    keys.remove(&*key);
-                }
-            }
-
-            // Remove key from list index (only populated for multi-row entries).
-            if value.is_list_query {
-                for view in &value.accessed_views {
-                    if let Some(keys) = li.get(view) {
-                        keys.remove(&*key);
-                    }
+                    keys.remove(&reference);
                 }
             }
 
@@ -278,7 +295,7 @@ fn build_store(
             for (et, id) in &*value.entity_refs {
                 if let Some(by_type) = ei.get(et) {
                     if let Some(keys) = by_type.get(id) {
-                        keys.remove(&*key);
+                        keys.remove(&reference);
                     }
                 }
             }
@@ -305,17 +322,15 @@ impl QueryResultCache {
         assert!(config.max_entries > 0, "max_entries must be > 0");
 
         let memory_bytes = Arc::new(AtomicUsize::new(0));
-        let view_index: Arc<DashMap<ViewName, DashSet<u64>>> = Arc::new(DashMap::new());
-        let entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>> =
+        let view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> = Arc::new(DashMap::new());
+        let entity_index: Arc<DashMap<String, DashMap<String, DashSet<IndexRef>>>> =
             Arc::new(DashMap::new());
-        let list_index: Arc<DashMap<ViewName, DashSet<u64>>> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
             Arc::clone(&memory_bytes),
             Arc::clone(&view_index),
             Arc::clone(&entity_index),
-            Arc::clone(&list_index),
         );
 
         Self {
@@ -328,7 +343,7 @@ impl QueryResultCache {
             memory_bytes,
             view_index,
             entity_index,
-            list_index,
+            next_epoch: AtomicU64::new(0),
         }
     }
 
@@ -419,8 +434,6 @@ impl QueryResultCache {
             }
         }
 
-        let is_list_query = result.len() > 1;
-
         // Extract entity refs from ALL rows (not just the first).
         let entity_refs: Box<[(String, String)]> = if let Some(et) = entity_type {
             result
@@ -439,21 +452,19 @@ impl QueryResultCache {
         };
 
         // Promote owned `String` view names into `ViewName(Arc<str>)` exactly
-        // once. The same Arc is then shared by `view_index`, `list_index`,
-        // and `accessed_views` (the slice stored on the cached entry).
+        // once. The same Arc is then shared by `view_index` and
+        // `accessed_views` (the slice stored on the cached entry).
         let accessed_views: Box<[ViewName]> =
             accessed_views.into_iter().map(ViewName::from).collect();
 
+        // Identity of this entry instance, so the eviction listener can
+        // deregister it without touching a replacement under the same key (#740).
+        let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed);
+        let reference: IndexRef = (cache_key, epoch);
+
         // Register in view index.
         for view in &accessed_views {
-            self.view_index.entry(view.clone()).or_default().insert(cache_key);
-        }
-
-        // Register in list index (only for multi-row results).
-        if is_list_query {
-            for view in &accessed_views {
-                self.list_index.entry(view.clone()).or_default().insert(cache_key);
-            }
+            self.view_index.entry(view.clone()).or_default().insert(reference);
         }
 
         // Register ALL entity refs in entity index.
@@ -463,7 +474,7 @@ impl QueryResultCache {
                 .or_default()
                 .entry(id.clone())
                 .or_default()
-                .insert(cache_key);
+                .insert(reference);
         }
 
         let cached = CachedResult {
@@ -474,7 +485,7 @@ impl QueryResultCache {
                 .map_or(0, |d| d.as_secs()),
             ttl_seconds,
             entity_refs,
-            is_list_query,
+            epoch,
         };
 
         self.memory_bytes.fetch_add(entry_overhead(), Ordering::Relaxed);
@@ -575,9 +586,10 @@ impl QueryResultCache {
             // without materialising a fresh ViewName.
             if let Some(keys) = self.view_index.get(view.as_str()) {
                 // Dedup: a query accessing multiple views in `views` would
-                // otherwise be counted and invalidated once per view.
-                for key in keys.iter() {
-                    keys_to_invalidate.insert(*key);
+                // otherwise be counted and invalidated once per view, and a
+                // key mid-replacement is registered under two epochs.
+                for reference in keys.iter() {
+                    keys_to_invalidate.insert(reference.0);
                 }
             }
             // Guard dropped here — safe to proceed
@@ -592,42 +604,6 @@ impl QueryResultCache {
             // Index cleanup handled by eviction listener.
         }
 
-        self.invalidations.fetch_add(count, Ordering::Relaxed);
-        Ok(count)
-    }
-
-    /// Evict only list (multi-row) cache entries for the given views.
-    ///
-    /// Unlike `invalidate_views()`, this method leaves single-entity point-lookup
-    /// entries intact. Used for CREATE mutations: creating a new entity does not
-    /// affect queries that fetch a *different* existing entity by UUID, but it
-    /// does invalidate queries that return a variable-length list of entities.
-    ///
-    /// Uses the `list_index` for O(k) lookup.
-    ///
-    /// # Errors
-    ///
-    /// This method is infallible. The `Result` return type is kept for API compatibility.
-    pub fn invalidate_list_queries(&self, views: &[ViewName]) -> Result<u64> {
-        if !self.config.enabled {
-            return Ok(0);
-        }
-
-        let mut keys_to_invalidate: HashSet<u64> = HashSet::new();
-        for view in views {
-            if let Some(keys) = self.list_index.get(view.as_str()) {
-                for k in keys.iter() {
-                    keys_to_invalidate.insert(*k);
-                }
-            }
-        }
-
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: entry count never exceeds u64
-        let count = keys_to_invalidate.len() as u64;
-        for key in keys_to_invalidate {
-            self.store.invalidate(&key);
-        }
         self.invalidations.fetch_add(count, Ordering::Relaxed);
         Ok(count)
     }
@@ -666,11 +642,11 @@ impl QueryResultCache {
         // we must NOT hold any DashMap shard guard when calling store.invalidate() —
         // the listener itself calls entity_index.get() on the same shard, which
         // would deadlock on a non-re-entrant parking_lot::RwLock.
-        let keys_to_invalidate: Vec<u64> = self
+        let keys_to_invalidate: HashSet<u64> = self
             .entity_index
             .get(entity_type)
             .and_then(|by_type| {
-                by_type.get(entity_id).map(|keys| keys.iter().map(|k| *k).collect())
+                by_type.get(entity_id).map(|keys| keys.iter().map(|r| r.0).collect())
             })
             .unwrap_or_default();
 
@@ -747,7 +723,6 @@ impl QueryResultCache {
         // async eviction listener to do this.
         self.view_index.clear();
         self.entity_index.clear();
-        self.list_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
     }

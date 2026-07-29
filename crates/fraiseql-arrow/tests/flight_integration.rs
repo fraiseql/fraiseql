@@ -28,6 +28,10 @@ use std::sync::Arc;
 
 use sqlx::postgres::PgPoolOptions;
 
+/// Cache mechanics under a single principal; cross-principal separation is
+/// covered by `flight_cache_principal_isolation_test.rs`.
+const SCOPE: fraiseql_arrow::cache::CacheScope = 0;
+
 /// Test database setup and teardown.
 struct TestDb {
     #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
@@ -554,13 +558,13 @@ mod tests {
         ])];
 
         // Cache miss initially
-        assert!(cache.get(query).is_none());
+        assert!(cache.get(SCOPE, query).is_none());
 
         // Store result
-        cache.put(query, Arc::new(result));
+        cache.put(SCOPE, query, Arc::new(result));
 
         // Cache hit
-        let cached = cache.get(query).unwrap();
+        let cached = cache.get(SCOPE, query).unwrap();
         assert_eq!(cached.len(), 1);
         assert_eq!(cached[0].get("name").unwrap().as_str().unwrap(), "Alice");
 
@@ -582,16 +586,16 @@ mod tests {
             serde_json::json!("order-1"),
         )])];
 
-        cache.put(query, Arc::new(result));
+        cache.put(SCOPE, query, Arc::new(result));
 
         // Should be cached immediately
-        assert!(cache.get(query).is_some());
+        assert!(cache.get(SCOPE, query).is_some());
 
         // Wait for expiration
         std::thread::sleep(std::time::Duration::from_secs(2));
 
         // Should be expired now
-        assert!(cache.get(query).is_none());
+        assert!(cache.get(SCOPE, query).is_none());
 
         tracing::info!("✓ Query cache expiration test passed");
         Ok(())

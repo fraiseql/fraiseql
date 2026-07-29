@@ -338,16 +338,17 @@ async fn test_schema_version_change_invalidates_cache() {
     // Adapter with version 1.0.0
     let mock1 = MockAdapter::new();
     let adapter_v1 = CachedDatabaseAdapter {
-        adapter:             mock1,
-        cache:               Arc::clone(&cache),
-        schema_version:      "1.0.0".to_string(),
-        view_ttl_overrides:  HashMap::new(),
-        cacheable_views:     std::collections::HashSet::new(),
-        opt_in_mode:         false,
-        has_rls:             false,
-        fact_table_config:   FactTableCacheConfig::default(),
-        version_provider:    Arc::clone(&version_provider),
-        cascade_invalidator: None,
+        adapter:              mock1,
+        cache:                Arc::clone(&cache),
+        schema_version:       "1.0.0".to_string(),
+        view_ttl_overrides:   HashMap::new(),
+        cacheable_views:      std::collections::HashSet::new(),
+        view_secondary_views: HashMap::new(),
+        opt_in_mode:          false,
+        has_rls:              false,
+        fact_table_config:    FactTableCacheConfig::default(),
+        version_provider:     Arc::clone(&version_provider),
+        cascade_invalidator:  None,
     };
 
     // Query with v1
@@ -356,16 +357,17 @@ async fn test_schema_version_change_invalidates_cache() {
     // Create new adapter with version 2.0.0 (same cache!)
     let mock2 = MockAdapter::new();
     let adapter_v2 = CachedDatabaseAdapter {
-        adapter:             mock2,
-        cache:               Arc::clone(&cache),
-        schema_version:      "2.0.0".to_string(),
-        view_ttl_overrides:  HashMap::new(),
-        cacheable_views:     std::collections::HashSet::new(),
-        opt_in_mode:         false,
-        has_rls:             false,
-        fact_table_config:   FactTableCacheConfig::default(),
-        version_provider:    Arc::clone(&version_provider),
-        cascade_invalidator: None,
+        adapter:              mock2,
+        cache:                Arc::clone(&cache),
+        schema_version:       "2.0.0".to_string(),
+        view_ttl_overrides:   HashMap::new(),
+        cacheable_views:      std::collections::HashSet::new(),
+        view_secondary_views: HashMap::new(),
+        opt_in_mode:          false,
+        has_rls:              false,
+        fact_table_config:    FactTableCacheConfig::default(),
+        version_provider:     Arc::clone(&version_provider),
+        cascade_invalidator:  None,
     };
 
     // Query with v2 - should miss cache (different schema version)
@@ -952,7 +954,7 @@ fn test_view_name_to_entity_type_empty_after_prefix() {
 
 /// Views with no TTL annotation bypass key-generation entirely when
 /// opt-in mode is active (i.e. `with_view_ttl_overrides` or
-/// `with_ttl_overrides_from_schema` was called).  This eliminates the
+/// `with_cache_metadata_from_schema` was called).  This eliminates the
 /// allocation overhead that caused the 2.4× throughput regression on
 /// TV-table and on-the-fly JSONB workloads.
 #[tokio::test]
@@ -1053,7 +1055,7 @@ async fn test_schema_without_ttl_annotations_bypasses_cache() {
     );
 }
 
-/// `with_ttl_overrides_from_schema` activates opt-in mode unconditionally.
+/// `with_cache_metadata_from_schema` activates opt-in mode unconditionally.
 /// When the schema has no `cache_ttl_seconds` annotations, `cacheable_views`
 /// is empty and every query bypasses the cache entirely — zero overhead and no
 /// stale-data risk from unconfigured caching.
@@ -1064,7 +1066,7 @@ async fn test_ttl_overrides_from_empty_schema_bypasses_cache() {
     // Schema with no cache_ttl_seconds annotations on any query.
     let schema = CompiledSchema::default();
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
-        .with_ttl_overrides_from_schema(&schema);
+        .with_cache_metadata_from_schema(&schema);
 
     // First call — cache bypass, hits DB.
     adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
@@ -1075,7 +1077,7 @@ async fn test_ttl_overrides_from_empty_schema_bypasses_cache() {
     assert_eq!(
         adapter.inner().call_count(),
         2,
-        "with_ttl_overrides_from_schema on unannotated schema must bypass cache entirely"
+        "with_cache_metadata_from_schema on unannotated schema must bypass cache entirely"
     );
 }
 

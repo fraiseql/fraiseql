@@ -192,19 +192,16 @@ async fn mutation_invalidates_listed_views_in_cache() {
     );
     let views = m.invalidates_views.clone();
 
-    // Build an enabled cache and pre-populate stale list entries for each view.
-    // Use 2 rows so `is_list_query = true` — CREATE mutations evict only list
-    // entries via `invalidate_list_queries`, leaving point-lookup entries intact.
+    // Build an enabled cache and pre-populate a stale entry for each view. One
+    // row is deliberate: row count must not decide whether a mutation reaches
+    // an entry (#742).
     let cache = QueryResultCache::new(CacheConfig::enabled());
     for (i, view) in views.iter().enumerate() {
         let key = (i + 1) as u64;
         cache
             .put(
                 key,
-                vec![
-                    JsonbValue::new(json!({"stale": true})),
-                    JsonbValue::new(json!({"stale": true})),
-                ],
+                vec![JsonbValue::new(json!({"stale": true}))],
                 vec![view.clone()],
                 None,
                 None,

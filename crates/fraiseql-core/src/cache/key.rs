@@ -273,6 +273,111 @@ pub fn generate_projection_query_key(
     h.finish()
 }
 
+/// Cache key for a **projected GraphQL response**.
+///
+/// The response cache stores the final envelope — the exact fields, in the exact
+/// shape, under the exact response keys the document asked for. Its key must
+/// therefore cover the whole operation, not just the parts that reach SQL:
+///
+/// - the compiled query name, so two queries never share a slot;
+/// - the operation name, when the document supplies one;
+/// - the **full selection tree** — every field's name, alias, arguments and directives,
+///   recursively;
+/// - the request variables, hashed canonically.
+///
+/// # Why the whole tree (#760)
+///
+/// The previous derivation hashed `QueryMatch::fields`, the *top-level* selection
+/// names. For `{ users { id } }` that is `["users"]`: the sub-selection never
+/// reached the hash, so `{ users { id } }` and `{ users { id name email } }`
+/// mapped to one entry and whichever ran first decided the shape the other
+/// client received. Aliases were invisible for the same reason — `fields` holds
+/// the field *name*, so `{ people: users { id } }` replayed the envelope keyed
+/// under `users` and answered nothing at all under `people`.
+///
+/// Domain tag `"r:"` separates these from view (`"v:"`), projection (`"p:"`) and
+/// generic query (`"q:"`) keys.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+// Reason: called with the executor's std HashMap; a generic S would leak into
+// every caller for no benefit (house pattern, see `value_json::resolve_variables`).
+pub fn generate_response_cache_key(
+    query_name: &str,
+    operation_name: Option<&str>,
+    selections: &[crate::graphql::FieldSelection],
+    variables: &std::collections::HashMap<String, JsonValue>,
+) -> u64 {
+    let mut h = new_hasher();
+    h.write(b"r:");
+    h.write(query_name.as_bytes());
+
+    h.write(b"\0n:");
+    match operation_name {
+        Some(name) => {
+            h.write_u8(1);
+            h.write(name.as_bytes());
+        },
+        None => h.write_u8(0),
+    }
+
+    h.write(b"\0f:");
+    hash_selections(&mut h, selections);
+
+    h.write(b"\0v:");
+    h.write_usize(variables.len());
+    let mut keys: Vec<&String> = variables.keys().collect();
+    keys.sort_unstable();
+    for key in keys {
+        h.write(key.as_bytes());
+        h.write_u8(0); // separator
+        hash_json_value(&mut h, &variables[key]);
+    }
+
+    h.finish()
+}
+
+/// Hash a selection set: every field's response key, name, arguments,
+/// directives and children, recursively.
+///
+/// Order is significant — the response echoes the document's field order — so
+/// the slice is hashed as written, not sorted.
+fn hash_selections(h: &mut impl Hasher, selections: &[crate::graphql::FieldSelection]) {
+    h.write_usize(selections.len());
+    for field in selections {
+        h.write(b"|");
+        h.write(field.name.as_bytes());
+        h.write(b"@");
+        h.write(field.response_key().as_bytes());
+        h.write(b"(");
+        hash_graphql_arguments(h, &field.arguments);
+        h.write(b")d:");
+        h.write_usize(field.directives.len());
+        for directive in &field.directives {
+            h.write(directive.name.as_bytes());
+            h.write(b"(");
+            hash_graphql_arguments(h, &directive.arguments);
+            h.write(b")");
+        }
+        h.write(b"{");
+        hash_selections(h, &field.nested_fields);
+        h.write(b"}");
+    }
+}
+
+/// Hash literal GraphQL arguments in document order.
+fn hash_graphql_arguments(h: &mut impl Hasher, arguments: &[crate::graphql::GraphQLArgument]) {
+    h.write_usize(arguments.len());
+    for arg in arguments {
+        h.write(arg.name.as_bytes());
+        h.write_u8(b'=');
+        // `value_json` is the parser's rendering of the literal, including a
+        // `$var` reference, so a variable used at a nested position is covered
+        // here and its *value* is covered by the variables section.
+        h.write(arg.value_json.as_bytes());
+        h.write_u8(0); // separator
+    }
+}
+
 /// Recursively hash a `serde_json::Value` into the given hasher.
 ///
 /// Object keys are sorted before hashing so that insertion order does not

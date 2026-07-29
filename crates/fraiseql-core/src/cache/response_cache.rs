@@ -69,10 +69,21 @@ struct ResponseEntry {
     /// Views accessed by this query (for invalidation).
     ///
     /// Stored as a boxed slice of [`ViewName`] (each backed by `Arc<str>`)
-    /// so cloning a name into [`Self::view_index`] is a cheap atomic
-    /// ref-count bump rather than a fresh heap allocation.
+    /// so cloning a name into the view index is a cheap atomic ref-count
+    /// bump rather than a fresh heap allocation.
     accessed_views: Box<[ViewName]>,
+
+    /// Process-unique identity of this entry instance.
+    ///
+    /// See [`crate::cache::result`]'s module docs: the reverse index registers
+    /// `(key, epoch)` so the eviction listener deregisters the displaced entry
+    /// and never the live replacement under the same key (#740).
+    epoch: u64,
 }
+
+/// A reverse-index registration: the `(query_hash, security_hash)` cache key
+/// plus the epoch of the entry instance that registered it.
+type IndexRef = ((u64, u64), u64);
 
 /// Executor-level cache for projected GraphQL responses.
 ///
@@ -87,32 +98,39 @@ struct ResponseEntry {
 pub struct ResponseCache {
     store: MokaCache<(u64, u64), Arc<ResponseEntry>>,
 
-    /// Reverse index: view name → set of `(query_hash, sec_hash)` keys.
+    /// Reverse index: view name → set of `((query_hash, sec_hash), epoch)`.
     ///
     /// Maintained in `put()` and pruned by the moka eviction listener.
     /// Enables O(k) invalidation without scanning the full cache.
     /// Keyed by [`ViewName`] so the entry shares its `Arc<str>` allocation
     /// with the names stored on each cache entry.
-    view_index: Arc<DashMap<ViewName, DashSet<(u64, u64)>>>,
+    view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>>,
 
-    enabled: bool,
-    hits:    AtomicU64,
-    misses:  AtomicU64,
+    enabled:    bool,
+    hits:       AtomicU64,
+    misses:     AtomicU64,
+    next_epoch: AtomicU64,
 }
 
 impl ResponseCache {
     /// Create a new response cache from configuration.
     #[must_use]
     pub fn new(config: ResponseCacheConfig) -> Self {
-        let view_index: Arc<DashMap<ViewName, DashSet<(u64, u64)>>> = Arc::new(DashMap::new());
+        let view_index: Arc<DashMap<ViewName, DashSet<IndexRef>>> = Arc::new(DashMap::new());
         let vi = Arc::clone(&view_index);
 
         let mut builder = MokaCache::builder()
             .max_capacity(config.max_entries as u64)
             .eviction_listener(move |key: Arc<(u64, u64)>, value: Arc<ResponseEntry>, _cause| {
+                // Deregister this entry INSTANCE, not the key: a re-cached
+                // response is live under the same key while moka reports the
+                // displaced one, and pruning by key alone would detach it from
+                // every invalidation path (#740). `_cause` is deliberately
+                // unused — see `crate::cache::result`'s module docs.
+                let reference: IndexRef = (*key, value.epoch);
                 for view in &value.accessed_views {
                     if let Some(keys) = vi.get(view) {
-                        keys.remove(&*key);
+                        keys.remove(&reference);
                     }
                 }
             });
@@ -129,6 +147,7 @@ impl ResponseCache {
             enabled: config.enabled,
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
+            next_epoch: AtomicU64::new(0),
         }
     }
 
@@ -184,13 +203,16 @@ impl ResponseCache {
 
         // Update view → key reverse index before inserting into the store,
         // so invalidate_views() called concurrently won't miss the key.
+        let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed);
+        let reference: IndexRef = (key, epoch);
         for view in &accessed_views {
-            self.view_index.entry(view.clone()).or_default().insert(key);
+            self.view_index.entry(view.clone()).or_default().insert(reference);
         }
 
         let entry = Arc::new(ResponseEntry {
             response,
             accessed_views,
+            epoch,
         });
 
         self.store.insert(key, entry);
@@ -205,20 +227,26 @@ impl ResponseCache {
     ///
     /// This method is infallible with the moka backend and always returns `Ok`.
     pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
-        let mut total = 0_u64;
+        // Dedup by cache key: an entry mid-replacement is registered under two
+        // epochs, and one reading several of `views` is registered once per view.
+        let mut to_remove: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();
 
         for view in views {
             // ViewName: Borrow<str> — look up by &str without allocating a
             // fresh ViewName.
             if let Some(keys) = self.view_index.get(view.as_str()) {
-                let to_remove: Vec<(u64, u64)> = keys.iter().map(|k| *k).collect();
-                drop(keys);
-                for key in to_remove {
-                    self.store.invalidate(&key);
-                    // The eviction listener handles index cleanup.
-                    total += 1;
+                for reference in keys.iter() {
+                    to_remove.insert(reference.0);
                 }
             }
+        }
+
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: entry count never exceeds u64
+        let total = to_remove.len() as u64;
+        for key in to_remove {
+            self.store.invalidate(&key);
+            // The eviction listener handles index cleanup.
         }
 
         Ok(total)
