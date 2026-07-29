@@ -229,9 +229,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             );
 
             let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_typed_projection_sql(&typed_fields)
-                .unwrap_or_else(|_| "data".to_string());
+            // A projection that cannot be built is an error, not a licence to
+            // select every column: the Rust projector subsets top-level keys but
+            // returns nested objects whole, so the fallback leaked sub-blobs the
+            // client never asked for (#827's family).
+            let projection_sql =
+                generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
+                    FraiseQLError::Internal {
+                        message: format!(
+                            "could not build a projection for type '{}': {e}",
+                            query_match.query_def.return_type
+                        ),
+                        source:  None,
+                    }
+                })?;
 
             Some(SqlProjectionHint::new(
                 self.ctx.adapter.database_type(),
@@ -378,10 +389,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             security_context,
         )?;
 
-        // 11. Project results — include both allowed and masked fields in projection
-        let mut all_projection_fields = access.allowed;
-        all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields)
+        // 11. Project results. Masked fields stay in the projection, in their requested position,
+        //     and are nulled below — GraphQL requires the response's field order to follow the
+        //     query's.
+        let projector = ResultProjector::new(access.projected.clone())
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -457,7 +468,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 12. Wrap in GraphQL data envelope
         let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
 
         // 13. Store in response cache (if enabled) and return value.
         //
@@ -639,9 +650,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 0,
             );
             let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_typed_projection_sql(&typed_fields)
-                .unwrap_or_else(|_| "data".to_string());
+            // A projection that cannot be built is an error, not a licence to
+            // select every column: the Rust projector subsets top-level keys but
+            // returns nested objects whole, so the fallback leaked sub-blobs the
+            // client never asked for (#827's family).
+            let projection_sql =
+                generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
+                    FraiseQLError::Internal {
+                        message: format!(
+                            "could not build a projection for type '{}': {e}",
+                            query_match.query_def.return_type
+                        ),
+                        source:  None,
+                    }
+                })?;
 
             Some(SqlProjectionHint::new(
                 self.ctx.adapter.database_type(),
@@ -736,10 +758,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .await?;
 
         // 4. Project results — masked fields stay in the projection so the response still carries
-        //    the key, then get nulled below (same as the authenticated path).
-        let mut all_projection_fields = access.allowed;
-        all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields)
+        //    the key in its requested position, then get nulled below (same as the authenticated
+        //    path).
+        let projector = ResultProjector::new(access.projected.clone())
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -761,7 +782,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 5. Wrap in GraphQL data envelope
         let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
 
         // 6. Serialize to JSON string
         Ok(response)
@@ -968,7 +989,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Wrap in GraphQL data envelope.
         let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
 
         Ok(response)
     }

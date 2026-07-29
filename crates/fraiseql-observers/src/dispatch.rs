@@ -133,10 +133,16 @@ impl DispatchSource {
 ///   zero-config default); the keyed form is opt-in via the server HMAC secret.
 ///
 /// The output is 32 lowercase hex characters (128 bits): URL-safe and short
-/// enough for a 64-character email local part. The payload is hashed via its
-/// canonical JSON form — `serde_json::Value` orders object keys — so a resume that
-/// re-serialises the payload produces the same token. Each field is
-/// length-prefixed so no two distinct field tuples can collide by concatenation.
+/// enough for a 64-character email local part. The payload is hashed via an
+/// explicitly key-sorted form, so a resume that re-serialises it — through NATS,
+/// through Postgres `NOTIFY`, through any producer that builds the object in a
+/// different order — recomputes the same token. It used to hash
+/// `payload.to_string()` and rely on `serde_json::Value` sorting keys, which is
+/// true only of a build without `serde_json/preserve_order` (#900): with it on,
+/// two orderings of one payload produced two tokens and the ledger stopped
+/// de-duplicating — silently, because a token that matches nothing simply looks
+/// like a first delivery. Each field is length-prefixed so no two distinct field
+/// tuples can collide by concatenation.
 #[must_use]
 pub fn derive_idempotency_token(
     key: Option<&[u8]>,
@@ -145,7 +151,7 @@ pub fn derive_idempotency_token(
     trigger_type: &str,
     payload: &serde_json::Value,
 ) -> String {
-    let payload_json = payload.to_string();
+    let payload_json = canonical_json(payload).to_string();
     // Length-prefix each field so no two distinct field tuples collide by
     // concatenation (e.g. ("ab","c") vs ("a","bc")).
     let mut buf = Vec::new();
@@ -161,6 +167,29 @@ pub fn derive_idempotency_token(
     match key {
         Some(key) => hex::encode(&hmac_sha256(key, &buf)[..16]),
         None => hex::encode(&Sha256::digest(&buf)[..16]),
+    }
+}
+
+/// Recursively sort object keys so a value's rendered form depends only on its
+/// content.
+///
+/// `serde_json::Map` is insertion-ordered in this workspace, so `to_string()` on
+/// a `Value` is a rendering of how the value was *built*, not of what it holds.
+/// Anything that hashes or compares a rendered payload has to normalise first.
+fn canonical_json(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            serde_json::Value::Object(
+                keys.into_iter().map(|k| (k.clone(), canonical_json(&map[k]))).collect(),
+            )
+        },
+        // Array order is content, not formatting — `[1, 2]` is not `[2, 1]`.
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.iter().map(canonical_json).collect())
+        },
+        other => other.clone(),
     }
 }
 

@@ -7,7 +7,7 @@ use std::{fs, path::Path, process::Command};
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
     CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, InputStyle, MutationOperation,
-    NamingConvention, canonicalize_json,
+    NamingConvention, content_hash_of,
 };
 use tracing::{info, warn};
 
@@ -515,15 +515,12 @@ pub async fn run(
     let output_json = if skip_hash {
         serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?
     } else {
-        use sha2::{Digest, Sha256};
-
         let body =
             serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
         let value: serde_json::Value = serde_json::from_str(&body)?;
-        // Canonicalize (recursively sort keys) before hashing — matches from_json verifier
-        let canonical = serde_json::to_string_pretty(&canonicalize_json(&value))?;
-        let hash = Sha256::digest(canonical.as_bytes());
-        let hash_hex = hex::encode(&hash[..16]);
+        // One routine, shared with the `from_json` verifier, so writer and reader
+        // cannot drift (#899).
+        let hash_hex = content_hash_of(&value);
 
         let obj = value.as_object().context("schema must serialise as JSON object")?;
 

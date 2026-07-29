@@ -1437,17 +1437,17 @@ fn naming_convention_serde_in_compiled_schema() {
 
 #[test]
 fn schema_integrity_verification() {
-    use sha2::{Digest, Sha256};
-
     let schema = CompiledSchema::new();
     let body = schema.to_json().unwrap();
 
-    // Simulate CLI: parse to Value, serialize without hash to get canonical form,
-    // then compute hash on that canonical form (matches what from_json verifies against).
+    // Embed the hash exactly as `fraiseql-cli compile` does — through the shared
+    // routine, not a hand-copy of it. The previous version of this test hashed
+    // the *uncanonicalized* value and agreed with the verifier only because
+    // `serde_json::Map` happened to be a sorted `BTreeMap` in the build it ran
+    // in, so it failed under `--workspace --all-features` and passed under
+    // `-p fraiseql-core` (#899).
     let value: serde_json::Value = serde_json::from_str(&body).unwrap();
-    let canonical = serde_json::to_string_pretty(&value).unwrap();
-    let hash = Sha256::digest(canonical.as_bytes());
-    let hash_hex = hex::encode(&hash[..16]);
+    let hash_hex = super::content_hash_of(&value);
 
     // Build wrapped JSON with _content_hash as first field
     let obj = value.as_object().unwrap();
@@ -1480,6 +1480,33 @@ fn schema_integrity_verification() {
     // Test missing hash with non-strict
     let restored = CompiledSchema::from_json(&body, false).unwrap();
     assert_eq!(restored.types.len(), schema.types.len());
+}
+
+/// The hash must be a property of the schema, not of the build that computed it.
+///
+/// `serde_json::Map` is insertion-ordered here, so a digest taken over a
+/// serialized `Value` is only stable if the value is canonicalized first. This
+/// drives the same content through two different key orderings and requires one
+/// answer — the property #899 says the integrity check must have.
+#[test]
+fn content_hash_is_independent_of_key_order() {
+    let a: serde_json::Value =
+        serde_json::from_str(r#"{"b": 1, "a": {"y": [2, {"q": 3, "p": 4}], "x": 5}}"#).unwrap();
+    let b: serde_json::Value =
+        serde_json::from_str(r#"{"a": {"x": 5, "y": [2, {"p": 4, "q": 3}]}, "b": 1}"#).unwrap();
+    assert_eq!(super::content_hash_of(&a), super::content_hash_of(&b));
+
+    // …and still distinguishes different content.
+    let c: serde_json::Value = serde_json::from_str(r#"{"a": 1, "b": 2}"#).unwrap();
+    assert_ne!(super::content_hash_of(&a), super::content_hash_of(&c));
+}
+
+/// Array order is content, not formatting: reordering `types` must change the hash.
+#[test]
+fn content_hash_is_sensitive_to_array_order() {
+    let a: serde_json::Value = serde_json::from_str(r#"{"types": [{"n": 1}, {"n": 2}]}"#).unwrap();
+    let b: serde_json::Value = serde_json::from_str(r#"{"types": [{"n": 2}, {"n": 1}]}"#).unwrap();
+    assert_ne!(super::content_hash_of(&a), super::content_hash_of(&b));
 }
 
 // -------------------------------------------------------------------------

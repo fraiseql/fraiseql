@@ -117,6 +117,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub(super) async fn execute_mutation_query(
         &self,
         mutation_name: &str,
+        response_key: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         selections: &[FieldSelection],
@@ -141,6 +142,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         runners::mutation::execute_mutation_impl(
             &self.ctx,
             mutation_name,
+            response_key,
             variables,
             security_context,
             selections,

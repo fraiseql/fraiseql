@@ -142,8 +142,18 @@ impl FragmentResolver {
                 visited_fragments.insert(fragment_name.clone());
 
                 // Recursively resolve the fragment's selections
-                let resolved =
+                let mut resolved =
                     self.resolve_selections(&fragment.selections, depth + 1, visited_fragments)?;
+
+                // Carry the spread's own directives onto every field it
+                // contributes. `@skip`/`@include` are spec-valid on
+                // `FRAGMENT_SPREAD`, and expansion is the last moment at which
+                // the association still exists: once the fragment's fields are
+                // flattened into the parent set they are indistinguishable from
+                // fields written there directly (#826).
+                for field in &mut resolved {
+                    field.inherit_directives(&selection.directives);
+                }
                 result.extend(resolved);
 
                 // Unmark for other paths

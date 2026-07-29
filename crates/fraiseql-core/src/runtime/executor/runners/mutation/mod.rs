@@ -625,7 +625,16 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
     ) -> Result<serde_json::Value> {
         // The typed SupportsMutations API supplies the input via `variables`; it
         // has no inline-literal root arguments to resolve.
-        execute_mutation_impl(&self.ctx, mutation_name, variables, None, selections, &[]).await
+        execute_mutation_impl(
+            &self.ctx,
+            mutation_name,
+            mutation_name,
+            variables,
+            None,
+            selections,
+            &[],
+        )
+        .await
     }
 }
 
@@ -784,9 +793,14 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 /// * [`FraiseQLError::Validation`] — mutation not found, no `sql_source`, missing security context
 ///   for `inject` params, or database function returned no rows.
 /// * [`FraiseQLError::Database`] — the adapter's `execute_function_call` failed.
+///
+/// `response_key` is the key the result appears under in `data` — the document's
+/// alias when it has one, otherwise `mutation_name`. Two roots calling the same
+/// mutation are told apart only by it.
 pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
     mutation_name: &str,
+    response_key: &str,
     variables: Option<&serde_json::Value>,
     security_ctx: Option<&SecurityContext>,
     selections: &[FieldSelection],
@@ -1416,7 +1430,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 
     // Clone name and return_type to avoid borrow issues after schema lookups
     let mutation_return_type = mutation_def.return_type.clone();
-    let mutation_name_owned = mutation_name.to_string();
+    let response_key_owned = response_key.to_string();
     // Whether this mutation exposes the typed cascade payload surface.
     let is_cascade = mutation_def.cascade;
 
@@ -1646,7 +1660,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         );
     }
 
-    let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
+    let response = ResultProjector::wrap_in_data_envelope(result_json, &response_key_owned);
     Ok(response)
 }
 

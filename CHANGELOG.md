@@ -213,6 +213,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`@skip`/`@include` on a named fragment spread did nothing (#826).** The parser preserves
+  a spread's directives, and both production paths then ran `FragmentResolver` *before* the
+  directive evaluator — expanding `...HeavyFields @skip(if: $lite)` into its fields and
+  discarding the `@skip` on the way, so the fields came back regardless. `@skip` and
+  `@include` are spec-valid on `FRAGMENT_SPREAD`, and conditional fragments are how every
+  real client turns a heavy subtree on and off.
+
+  Reordering the two passes is not available: the executor memoises classification against
+  the query string alone, so evaluating a `$variable` condition during expansion would let
+  one request's variables decide the next request's field set. Expansion now **carries the
+  spread's directives onto every field it contributes** instead, so the evaluator downstream
+  still sees them. The conditions compose rather than replace: `...F @include(if: true)`
+  cannot resurrect a field that `@skip(if: true)` inside `F` withheld. The inline-fragment
+  lift in the `node` classifier had the same bug in miniature and gets the same treatment.
+
+- **`node(id:)` dropped named fragment spreads, and an empty selection returned the whole
+  row (#827).** The Relay `node` branch lifted `nested_fields` out of every child whose name
+  starts with `"..."` — right for an inline fragment, wrong for a named spread, whose
+  pseudo-field always has an *empty* `nested_fields`. `query($id: ID!) { node(id: $id) { id
+  ...Container_data } }` is the shape Relay Modern issues for every lookup, and it projected
+  `id` alone. When the selection collapsed to nothing the projection hint became `None` and
+  the adapter returned the untouched `data` JSONB — every column in the view, for a client
+  that had asked for none of them.
+
+  The `node` path now resolves spreads through the same routine as the query matcher and
+  evaluates `@skip`/`@include` in its runner, which it never did at all. "Nothing requested"
+  now projects nothing rather than everything, matching the regular query path; three
+  separate blob fallbacks are gone, including one inside `generate_typed_projection_sql`
+  itself and two `unwrap_or_else(|_| "data")` arms that served every column when projection
+  generation failed.
+
+- **A multi-root mutation executed only its first root (#759).** `classify_query_with_parse`
+  built the mutation from `parsed.selections.first()`, so `mutation { createUser(…) { id }
+  createAuditLog(…) { id } }` ran the first write, silently discarded the second, and
+  answered with a success envelope naming only the first — the client's only clue was a
+  missing key. Every root now executes serially in document order, per the spec. A root that
+  fails contributes `null` at its key plus an entry in `errors` and the remaining roots still
+  run, so a client that issued three writes learns which of them landed.
+
+- **A multi-root query using a fragment was a hard error, and its directives were ignored.**
+  The multi-root fan-out re-serializes each root into its own query string, and that string
+  carried neither the document's fragment definitions — `{ users { ...F } posts { id } }`
+  failed the whole request with `Fragment not found: F` — nor any `@skip`/`@include`, at the
+  root or nested, which were simply dropped. The selection set is now resolved before the
+  fan-out, and the serializer emits directives rather than silently discarding part of what
+  it was given.
+
+- **Root-field aliases were dropped on queries.** `{ a: users { id } }` answered under
+  `users`, because the response envelope was keyed by the *compiled query definition's* name
+  rather than the document's response key; two aliased selections of one query collapsed into
+  a single key. `QueryMatch::response_key()` is now the one answer, used by the regular,
+  relay and mutation envelopes alike.
+
+- **GraphQL responses came back with their fields alphabetised.** The spec requires a
+  response's fields to appear in the order the query asked for them. Without
+  `serde_json/preserve_order` a `serde_json::Map` is a `BTreeMap`, so they were sorted — and
+  whether the feature was on depended on *feature unification*: `deno_core` enables it, so a
+  `-full` build and a default build disagreed about the meaning of every `serde_json::Value`
+  in the workspace. It is now declared in the workspace manifest and inherited by every
+  crate. Field-level RBAC separately moved masked fields to the end of the object by building
+  the projection as `allowed` then `extend(masked)`; masked fields now keep their requested
+  position and are nulled in place.
+
+- **The observer idempotency token depended on JSON key order in any build pulling
+  `deno_core` (#900).** `derive_idempotency_token` hashed `payload.to_string()` and relied on
+  `serde_json::Value` sorting object keys — true only without `preserve_order`. In the
+  shipped `-full` binary a payload re-serialised by a transport hashed differently, the
+  ledger found no prior entry, and the observer ran a second time: a duplicate email, a
+  duplicate charge, with nothing logged. The payload is now key-sorted explicitly and
+  recursively before hashing; array order is left alone, because it is content.
+
+- **The schema content-hash test verified something the product does not do (#899).** Both
+  real paths — the CLI writer and the `from_json` verifier — already canonicalized before
+  hashing, and were correct. Only `schema_integrity_verification` hashed the
+  *uncanonicalized* value, agreeing with the verifier by accident of `Map` being sorted in
+  the build it ran in, and failing under `--workspace --all-features`. There is now one
+  `content_hash_of` used by the writer, the verifier, `CompiledSchema::content_hash` and the
+  test, plus properties asserting the digest ignores key order and respects array order.
+
+- **A property test asserted a stale operator vocabulary.** `prop_operator_rejects_unknown`
+  excluded known operators from a list maintained inside the test, which went stale when #828
+  unified the vocabularies and added `ne`. The generator draws `[a-z]{1,10}`, so it failed
+  only when it happened to produce that string — passing CI on the commit that broke it. The
+  exclusion is now read from `WHERE_OPERATORS`, and a companion property asserts every
+  advertised name parses.
+
 - **Every date, timestamp, UUID and string range filter was a hard SQL error (#798).**
   `gt`/`gte`/`lt`/`lte` cast both sides to `::numeric` regardless of the field's declared
   type, so `events(where: { createdAt: { gte: "2024-01-01" } })` aborted the statement with

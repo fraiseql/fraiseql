@@ -22,5 +22,5 @@ pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
 pub use query::{CursorType, QueryDefinition};
 pub use schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, SubscribableEntity};
-pub use schema_serde::canonicalize_json;
+pub use schema_serde::{canonicalize_json, content_hash_of};
 pub use validation::is_safe_sql_identifier;

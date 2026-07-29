@@ -121,6 +121,24 @@ impl FieldSelection {
     pub fn response_key(&self) -> &str {
         self.alias.as_deref().unwrap_or(&self.name)
     }
+
+    /// Prepend an enclosing selection's directives to this field's own.
+    ///
+    /// Flattening a fragment spread or an inline fragment into its parent
+    /// selection set destroys the only place its `@skip`/`@include` was
+    /// recorded; carrying the conditions onto each contributed field preserves
+    /// them (#826, #827). They are *prepended* so the enclosing condition is
+    /// evaluated first, and they compose with — never replace — the field's own:
+    /// `...F @include(if: true)` cannot resurrect a field that `@skip(if: true)`
+    /// inside `F` withheld.
+    pub fn inherit_directives(&mut self, enclosing: &[Directive]) {
+        if enclosing.is_empty() {
+            return;
+        }
+        let mut directives = enclosing.to_vec();
+        directives.append(&mut self.directives);
+        self.directives = directives;
+    }
 }
 
 impl PartialEq for FieldSelection {

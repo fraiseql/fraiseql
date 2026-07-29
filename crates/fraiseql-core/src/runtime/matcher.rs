@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::{FraiseQLError, Result},
-    graphql::{DirectiveEvaluator, FieldSelection, FragmentResolver, ParsedQuery, parse_query},
+    graphql::{FieldSelection, ParsedQuery, parse_query, selection_set},
     schema::{CompiledSchema, QueryDefinition},
 };
 
@@ -31,6 +31,23 @@ pub struct QueryMatch {
 }
 
 impl QueryMatch {
+    /// The key this query's result appears under in `data`.
+    ///
+    /// The document's alias when it supplies one, otherwise the field name as
+    /// written. The envelope used to be keyed by the *compiled* query
+    /// definition's name, so `{ a: users { id } }` answered under `users` and two
+    /// aliased selections of one query collapsed into a single key.
+    ///
+    /// Falls back to the definition name when there is no selection to read —
+    /// the REST transport builds a `QueryMatch` with no GraphQL document behind
+    /// it.
+    #[must_use]
+    pub fn response_key(&self) -> &str {
+        self.selections
+            .first()
+            .map_or(self.query_def.name.as_str(), FieldSelection::response_key)
+    }
+
     /// Build a `QueryMatch` directly from a query definition and arguments,
     /// bypassing GraphQL string parsing.
     ///
@@ -151,23 +168,14 @@ impl QueryMatcher {
         //    `arguments`, so we never pay for a second clone of the JSON tree.
         let variables_map = Self::variables_to_map(variables);
 
-        // 3. Resolve fragment spreads
-        let resolver = FragmentResolver::new(&parsed.fragments);
-        let resolved_selections = resolver.resolve_spreads(&parsed.selections).map_err(|e| {
-            FraiseQLError::Validation {
-                message: e.to_string(),
-                path:    Some("fragments".to_string()),
-            }
-        })?;
-
-        // 4. Evaluate directives (@skip, @include) and filter selections
-        let final_selections =
-            DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map).map_err(
-                |e| FraiseQLError::Validation {
-                    message: e.to_string(),
-                    path:    Some("directives".to_string()),
-                },
-            )?;
+        // 3. Reduce the document to the fields the client asked for: expand fragment spreads, then
+        //    evaluate `@skip`/`@include`. Shared with the multi-root fan-out, `node(id:)` and
+        //    mutations so no entry point can answer this question differently (#826, #827).
+        let final_selections = selection_set::resolve_and_filter(
+            &parsed.selections,
+            &parsed.fragments,
+            &variables_map,
+        )?;
 
         // 5. Find matching query definition using root field
         let query_def = self
@@ -242,11 +250,7 @@ impl QueryMatcher {
     fn variables_to_map(
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
-        if let Some(serde_json::Value::Object(map)) = variables {
-            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        } else {
-            HashMap::new()
-        }
+        selection_set::variables_map(variables)
     }
 
     /// Extract field names from selections (for backward compatibility).

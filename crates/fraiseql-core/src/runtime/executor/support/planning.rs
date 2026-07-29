@@ -40,7 +40,18 @@ impl<A: DatabaseAdapter> Executor<A> {
                     query_type:     "regular".to_string(),
                 })
             },
-            QueryType::Mutation { ref name, .. } => {
+            QueryType::Mutation { ref roots } => {
+                // EXPLAIN reports the first root. A multi-root mutation executes
+                // every one of them serially (#759); a single-statement plan
+                // cannot describe that, and inventing a merged one would be a
+                // plan no execution ever follows.
+                let name = &roots
+                    .first()
+                    .ok_or_else(|| FraiseQLError::Validation {
+                        message: "mutation operation has no root field".to_string(),
+                        path:    None,
+                    })?
+                    .name;
                 let mutation_def =
                     self.ctx.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(
                         || {

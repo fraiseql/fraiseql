@@ -23,20 +23,29 @@
 //!   └──────┬──────┘
 //!          │
 //!          ▼
-//!   ┌─────────────┐
-//!   │  Fragment   │  ← Spread expansion
-//!   │  Resolver   │
-//!   └──────┬──────┘
-//!          │ Resolved selections
-//!          ▼
-//!   ┌─────────────┐
-//!   │  Directive  │  ← @skip/@include
-//!   │  Evaluator  │
-//!   └──────┬──────┘
+//!   ┌───────────────────────────────┐
+//!   │        selection_set          │  ← the one routine every entry point
+//!   │                               │    uses: `/graphql`, the multi-root
+//!   │  Fragment Resolver            │    fan-out, `node(id:)`, mutations
+//!   │    ← spread expansion, with   │
+//!   │      the spread's directives  │
+//!   │      carried onto the fields  │
+//!   │      it contributes (#826)    │
+//!   │             │                 │
+//!   │             ▼                 │
+//!   │  Directive Evaluator          │
+//!   │    ← @skip/@include           │
+//!   └──────────────┬────────────────┘
 //!          │ Final field list
 //!          ▼
 //!     SQL Generation
 //! ```
+//!
+//! Expansion runs first, but it is **not** allowed to discard what it expands:
+//! a spread's own `@skip`/`@include` travels onto every field the spread
+//! contributes, so the evaluator downstream still sees it. Expansion depends
+//! only on the document and is therefore cacheable; directive evaluation needs
+//! the request's variables and is not.
 //!
 //! # Example
 //!
@@ -78,6 +87,9 @@ pub mod directive_evaluator;
 /// Fragment cycle detection.
 pub mod fragments;
 
+/// The shared selection-resolution routine used by every entry point.
+pub mod selection_set;
+
 /// Query complexity analysis and `DoS` prevention.
 pub mod complexity;
 
@@ -100,6 +112,7 @@ pub use fragment_resolver::{FragmentError, FragmentResolver};
 pub use fragments::FragmentGraph;
 pub use parser::parse_query;
 pub use require_permission_directive::RequirePermissionDirective;
+pub use selection_set::SelectionError;
 pub use types::{
     Directive, FieldSelection, FragmentDefinition, GraphQLArgument, GraphQLType, ParsedQuery,
     VariableDefinition,

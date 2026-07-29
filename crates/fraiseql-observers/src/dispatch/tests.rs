@@ -256,14 +256,30 @@ fn idempotency_token_distinct_per_source() {
 
 #[test]
 fn idempotency_token_ignores_object_key_order() {
-    // Two payloads that differ only in textual key order must hash identically:
-    // the token is canonical (serde_json::Value sorts object keys), which is what
-    // makes it stable across a resume that re-serialises the payload.
-    let a: serde_json::Value = serde_json::from_str(r#"{"a":1,"b":2}"#).unwrap();
-    let b: serde_json::Value = serde_json::from_str(r#"{"b":2,"a":1}"#).unwrap();
+    // Two payloads that differ only in textual key order must hash identically —
+    // that is what makes the token stable across a resume that re-serialises the
+    // payload. `derive_idempotency_token` sorts keys itself; it must not rely on
+    // `serde_json::Value` doing it, which is true only of a build without
+    // `preserve_order` (#900). Nested objects included: the sort has to recurse.
+    let a: serde_json::Value =
+        serde_json::from_str(r#"{"a":1,"b":{"y":2,"x":[{"q":3,"p":4}]}}"#).unwrap();
+    let b: serde_json::Value =
+        serde_json::from_str(r#"{"b":{"x":[{"p":4,"q":3}],"y":2},"a":1}"#).unwrap();
     let ta = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &a);
     let tb = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &b);
     assert_eq!(ta, tb, "canonical payload → order-independent token");
+}
+
+#[test]
+fn idempotency_token_respects_array_order() {
+    // Array order is content: `[1, 2]` and `[2, 1]` are different payloads and a
+    // canonicalization that sorted them would de-duplicate two genuinely
+    // different dispatches into one.
+    let a: serde_json::Value = serde_json::from_str(r#"{"ids":[1,2]}"#).unwrap();
+    let b: serde_json::Value = serde_json::from_str(r#"{"ids":[2,1]}"#).unwrap();
+    let ta = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &a);
+    let tb = derive_idempotency_token(None, DispatchSource::AfterMutation, "f", "t", &b);
+    assert_ne!(ta, tb, "reordering an array changes the payload");
 }
 
 // ── Keyed (HMAC) mode — the unforgeable VERP send-id ─────────────────────────────

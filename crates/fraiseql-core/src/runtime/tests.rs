@@ -1100,7 +1100,7 @@ mod field_filter_tests {
         );
 
         let access = result.expect("should succeed");
-        assert_eq!(access.allowed, vec!["id", "name"]);
+        assert_eq!(access.allowed(), vec!["id", "name"]);
         assert!(access.masked.is_empty());
     }
 
@@ -1122,7 +1122,7 @@ mod field_filter_tests {
         );
 
         let access = result.expect("should succeed (mask, not reject)");
-        assert_eq!(access.allowed, vec!["id"]);
+        assert_eq!(access.allowed(), vec!["id"]);
         assert_eq!(access.masked, vec!["email"]);
     }
 
@@ -1165,7 +1165,7 @@ mod field_filter_tests {
         );
 
         let access = result.expect("admin has all scopes");
-        assert_eq!(access.allowed, vec!["id", "email", "salary"]);
+        assert_eq!(access.allowed(), vec!["id", "email", "salary"]);
         assert!(access.masked.is_empty());
     }
 
@@ -1211,7 +1211,7 @@ mod field_filter_tests {
         );
 
         let access = result.expect("should succeed — salary not requested");
-        assert_eq!(access.allowed, vec!["id"]);
+        assert_eq!(access.allowed(), vec!["id"]);
         assert!(access.masked.is_empty());
     }
 }

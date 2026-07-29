@@ -89,6 +89,8 @@ pub mod transport;
 pub mod testing;
 
 #[cfg(test)]
+mod ssrf_test_env;
+#[cfg(test)]
 mod tests;
 
 // Re-export common types at crate level

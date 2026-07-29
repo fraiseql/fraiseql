@@ -1,6 +1,6 @@
 //! Query classification — determines operation type for routing.
 
-use super::super::{Executor, QueryType};
+use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -98,27 +98,39 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // Relay global node lookup: root field is exactly "node" on a query.
-        // Extract selections from inline fragments (... on TypeName { fields })
-        // so the execution layer can project only requested fields.
+        //
+        // Named fragment spreads are expanded here, using the same routine as the
+        // query matcher and the mutation branch below. This branch used to lift
+        // `sel.nested_fields` out of every child whose name starts with `"..."`,
+        // which is right for an inline fragment (whose nested fields hold the real
+        // selections) and silently *dropped* a named spread, whose pseudo-field
+        // always has an empty `nested_fields` (#827). Relay Modern issues
+        // `node(id: $id) { id ...Container_data }` for every lookup, so that was
+        // the canonical shape.
+        //
+        // `@skip`/`@include` are evaluated later in `execute_node_query`, where
+        // the request variables are available — the same split as mutations, and
+        // what keeps this classification cacheable by query string alone.
         if parsed.operation_type == "query" && root_field == "node" {
-            let selections = parsed
-                .selections
-                .first()
-                .map(|node_sel| {
-                    // Flatten inline fragments: `node { ... on Booking { id startDate } }`
-                    // Inline fragments are represented as FieldSelection with name "...on TypeName"
-                    let mut fields = Vec::new();
-                    for sel in &node_sel.nested_fields {
-                        if sel.name.starts_with("...") {
-                            // Inline fragment — lift its nested_fields up
-                            fields.extend(sel.nested_fields.clone());
-                        } else {
-                            fields.push(sel.clone());
-                        }
+            let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
+            let resolved = crate::graphql::selection_set::resolve(raw, &parsed.fragments)?;
+
+            // Flatten inline fragments: `node { ... on Booking { id startDate } }`.
+            // Only `"...on "` entries carry their selections in `nested_fields`;
+            // after expansion no bare `"...Name"` spread survives. Lifting the
+            // children out discards the inline fragment itself, so its own
+            // directives travel with them.
+            let mut selections = Vec::with_capacity(resolved.len());
+            for sel in resolved {
+                if sel.name.starts_with("...on ") {
+                    for mut child in sel.nested_fields {
+                        child.inherit_directives(&sel.directives);
+                        selections.push(child);
                     }
-                    fields
-                })
-                .unwrap_or_default();
+                } else {
+                    selections.push(sel);
+                }
+            }
             return Ok((QueryType::NodeQuery { selections }, None));
         }
 
@@ -128,27 +140,26 @@ impl<A: DatabaseAdapter> Executor<A> {
         // the same as the query matcher — using the document's fragment
         // definitions; `@skip`/`@include` directives are evaluated later in
         // `execute_mutation_impl`, where the request variables are available.
+        //
+        // *Every* root is carried, not just the first: the spec requires all of a
+        // mutation's root fields to execute, serially, in document order (#759).
         if parsed.operation_type == "mutation" {
-            let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
-            let resolver = crate::graphql::FragmentResolver::new(&parsed.fragments);
-            let selections =
-                resolver.resolve_spreads(raw).map_err(|e| FraiseQLError::Validation {
-                    message: e.to_string(),
-                    path:    Some("fragments".to_string()),
-                })?;
-            // Carry the root field's inline arguments (e.g. `input: { ... }`) so
-            // the mutation runner can resolve inline-literal inputs with nested
-            // `$var` references against the request variables.
-            let arguments =
-                parsed.selections.first().map(|s| s.arguments.clone()).unwrap_or_default();
-            return Ok((
-                QueryType::Mutation {
-                    name: root_field.clone(),
-                    selections,
-                    arguments,
-                },
-                None,
-            ));
+            let roots = parsed
+                .selections
+                .iter()
+                .map(|root| {
+                    Ok(MutationRoot {
+                        response_key: root.response_key().to_string(),
+                        name:         root.name.clone(),
+                        selections:   crate::graphql::selection_set::resolve(
+                            &root.nested_fields,
+                            &parsed.fragments,
+                        )?,
+                        arguments:    root.arguments.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            return Ok((QueryType::Mutation { roots }, None));
         }
 
         // Aggregate queries (root field ends with `_aggregate`).

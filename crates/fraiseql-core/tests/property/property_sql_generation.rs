@@ -624,30 +624,40 @@ proptest! {
     }
 
     /// Property: WhereOperator::from_str rejects unknown operators.
+    ///
+    /// "Known" is read from `WHERE_OPERATORS`, the table #828 made the single
+    /// vocabulary — not from a list maintained here. The hand-maintained version
+    /// went stale the moment that table gained `ne` as an alias for `neq`: the
+    /// generator draws `[a-z]{1,10}`, so it eventually produced `"ne"`, found it
+    /// accepted, and failed. Probabilistically, which is why it passed CI on the
+    /// commit that broke it.
     #[test]
     fn prop_operator_rejects_unknown(
         name in "[a-z]{1,10}",
     ) {
-        let known = [
-            "eq", "neq", "gt", "gte", "lt", "lte", "in", "nin",
-            "contains", "icontains", "startswith", "istartswith",
-            "endswith", "iendswith", "like", "ilike", "isnull",
-        ];
-        prop_assume!(!known.contains(&name.as_str()));
-
-        let more_known = ["matches", "overlaps", "lca"];
-        prop_assume!(!more_known.contains(&name.as_str()));
-
-        let prefixed = [
-            "array_", "len_", "cosine_", "l2_", "l1_", "hamming_", "inner_",
-            "jaccard_", "plain_", "phrase_", "websearch_", "is_", "in_",
-            "contains_", "strictly_", "ancestor_", "descendant_", "matches_",
-            "depth_",
-        ];
-        prop_assume!(!prefixed.iter().any(|p| name.starts_with(p)));
+        prop_assume!(fraiseql_core::db::where_clause::operator_spec(&name).is_none());
 
         let result = WhereOperator::from_str(&name);
         prop_assert!(result.is_err(), "Unknown operator '{}' should be rejected", name);
+    }
+
+    /// Property: every name the table advertises parses.
+    ///
+    /// The other direction of the same invariant, and the reason the assumption
+    /// above cannot be vacuous: if `operator_spec` ever returned `Some` for
+    /// everything, this test would still have to find each advertised name
+    /// runnable.
+    #[test]
+    fn prop_every_advertised_operator_parses(
+        idx in 0usize..fraiseql_core::db::where_clause::WHERE_OPERATORS.len(),
+    ) {
+        let spec = &fraiseql_core::db::where_clause::WHERE_OPERATORS[idx];
+        for advertised in spec.all_names() {
+            prop_assert!(
+                WhereOperator::from_str(advertised).is_ok(),
+                "advertised operator '{}' does not parse", advertised
+            );
+        }
     }
 
     /// Property: String operators are correctly classified.

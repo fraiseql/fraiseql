@@ -317,10 +317,12 @@ fn test_postgres_select_clause_contains_from() {
 // ── generate_typed_projection_sql tests (C12) ─────────────────────────
 
 #[test]
-fn test_typed_projection_empty_fields_returns_data_column() {
+fn test_typed_projection_empty_fields_projects_nothing() {
+    // Not the JSONB column: an empty request must not be answered with every
+    // column in the view (#827).
     let generator = PostgresProjectionGenerator::new();
     let result = generator.generate_typed_projection_sql(&[]).unwrap();
-    assert_eq!(result, "\"data\"");
+    assert_eq!(result, "jsonb_build_object()");
 }
 
 #[test]

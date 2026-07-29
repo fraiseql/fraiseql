@@ -400,7 +400,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         }
 
-        let response = ResultProjector::wrap_in_data_envelope(connection, &query_def.name);
+        let response =
+            ResultProjector::wrap_in_data_envelope(connection, query_match.response_key());
         Ok(response)
     }
 
@@ -427,8 +428,18 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     ) -> Result<serde_json::Value> {
         use crate::{
             db::{WhereClause, where_clause::WhereOperator},
+            graphql::selection_set,
             runtime::relay::decode_node_id,
         };
+
+        // 0. Evaluate `@skip`/`@include` against the request variables. Named fragment spreads were
+        //    already expanded at classification time, where the document's fragment definitions are
+        //    available — the same split as the mutation path. Before this the node runner evaluated
+        //    no directives at all, so `node(id:) { secret @skip(if: true) }` projected and returned
+        //    the field.
+        let filtered_selections =
+            selection_set::filter(selections, &selection_set::variables_map(variables))?;
+        let selections: &[FieldSelection] = &filtered_selections;
 
         // 1. Extract the raw opaque ID. Priority: $variables.id > inline literal in query text.
         let raw_id: String = if let Some(id_val) = variables
@@ -553,21 +564,31 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         };
 
         // 5. Build projection hint from selections (mirrors regular query path).
-        let projection_hint = if !selections.is_empty() {
-            let typed_fields =
-                build_typed_projection_fields(selections, &self.ctx.schema, &type_name, 0);
-            let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_typed_projection_sql(&typed_fields)
-                .unwrap_or_else(|_| "data".to_string());
-            Some(SqlProjectionHint::new(
-                self.ctx.adapter.database_type(),
-                projection_sql,
-                compute_projection_reduction(typed_fields.len()),
-            ))
-        } else {
-            None
-        };
+        //
+        //    `selections` was reduced above to exactly what the client asked for.
+        //    Every branch here must project it; there is deliberately no path
+        //    that returns the untouched row. The two that used to exist were the
+        //    reason #827 was an over-disclosure bug rather than a plain
+        //    wrong-field-set one: an empty selection left `projection_hint` as
+        //    `None`, and a projection-generation failure fell back to the literal
+        //    `"data"` — both of which serve every column in the view.
+        let typed_fields =
+            build_typed_projection_fields(selections, &self.ctx.schema, &type_name, 0);
+        let generator = PostgresProjectionGenerator::new();
+        let projection_sql =
+            generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
+                FraiseQLError::Internal {
+                    message: format!(
+                        "node query: could not build a projection for type '{type_name}': {e}"
+                    ),
+                    source:  None,
+                }
+            })?;
+        let projection_hint = Some(SqlProjectionHint::new(
+            self.ctx.adapter.database_type(),
+            projection_sql,
+            compute_projection_reduction(typed_fields.len()),
+        ));
 
         // 6. Execute the query (limit 1) with projection, pinning session variables to
         // the read's connection so a PostgreSQL `current_setting()`-backed RLS policy

@@ -214,18 +214,16 @@ enum QueryType {
     /// Contains the requested type name.
     IntrospectionType(String),
 
-    /// GraphQL mutation.
-    /// Contains the root field name, the full result selection set (including
-    /// inline `... on TypeName` fragments), so projection can mirror the query
-    /// path's selection-faithful, depth-aware behaviour, and the root field's
-    /// inline arguments (e.g. `createMachine(input: { ... })`) so the runner can
-    /// resolve inline-literal inputs — including nested `$var` references — that
-    /// don't appear in the request `variables` map.
-    Mutation {
-        name:       String,
-        selections: Vec<crate::graphql::FieldSelection>,
-        arguments:  Vec<crate::graphql::GraphQLArgument>,
-    },
+    /// GraphQL mutation — **every** root field of the operation, in document
+    /// order.
+    ///
+    /// The GraphQL spec requires a mutation operation's root fields to execute
+    /// serially, all of them. This used to be a single root built from
+    /// `parsed.selections.first()`, so `mutation { createUser(…) { id }
+    /// createAuditLog(…) { id } }` ran the first write, silently discarded the
+    /// second, and answered with a success envelope that named only the first
+    /// (#759).
+    Mutation { roots: Vec<MutationRoot> },
 
     /// Relay global node lookup: `node(id: ID!)`.
     /// Resolves any type that implements the Node interface by global opaque ID.
@@ -253,6 +251,26 @@ enum QueryType {
         /// `subscription`), used to resolve the root type name.
         operation_type: String,
     },
+}
+
+/// One root field of a mutation operation.
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::runtime::executor) struct MutationRoot {
+    /// Key this root's result appears under in `data` — the alias when the
+    /// document supplies one, otherwise the field name. Two roots calling the
+    /// same mutation are distinguishable only by this.
+    pub response_key: String,
+    /// The compiled mutation to dispatch.
+    pub name:         String,
+    /// The result selection set, inline fragments intact, so projection mirrors
+    /// the query path's selection-faithful, depth-aware behaviour. Named spreads
+    /// are already expanded; `@skip`/`@include` are evaluated in the runner,
+    /// where the request variables are available.
+    pub selections:   Vec<crate::graphql::FieldSelection>,
+    /// The root field's inline arguments (e.g. `createMachine(input: { … })`) so
+    /// the runner can resolve inline-literal inputs — including nested `$var`
+    /// references — that do not appear in the request `variables` map.
+    pub arguments:    Vec<crate::graphql::GraphQLArgument>,
 }
 
 /// Resolve a GraphQL operation type string to its root type name.
