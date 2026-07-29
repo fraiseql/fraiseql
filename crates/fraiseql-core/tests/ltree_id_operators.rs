@@ -56,7 +56,7 @@ fn graphql_json_descendant_of_id() {
             "descendantOfId": "550e8400-e29b-41d4-a716-446655440000"
         }
     });
-    let clause = WhereClause::from_graphql_json(&input).unwrap();
+    let clause = WhereClause::from_graphql_json(&input, &std::sync::Arc::default()).unwrap();
     match &clause {
         WhereClause::Field {
             path,
@@ -78,7 +78,7 @@ fn graphql_json_ancestor_of_id() {
             "ancestorOfId": "550e8400-e29b-41d4-a716-446655440000"
         }
     });
-    let clause = WhereClause::from_graphql_json(&input).unwrap();
+    let clause = WhereClause::from_graphql_json(&input, &std::sync::Arc::default()).unwrap();
     match &clause {
         WhereClause::Field {
             path,

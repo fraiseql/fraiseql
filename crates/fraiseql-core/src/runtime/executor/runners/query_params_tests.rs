@@ -113,9 +113,12 @@ fn camel_filter_recasing_is_identical_across_surfaces() {
     );
 
     // 2. WHERE-input object (the already-correct reference path).
-    let where_input = WhereClause::from_graphql_json(&serde_json::json!({
-        "organizationId": { "eq": "x" }
-    }))
+    let where_input = WhereClause::from_graphql_json(
+        &serde_json::json!({
+            "organizationId": { "eq": "x" }
+        }),
+        &std::sync::Arc::default(),
+    )
     .expect("where-input parses");
     assert_eq!(single_field_path(&where_input), vec![SNAKE.to_string()], "where-input surface");
 

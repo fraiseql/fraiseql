@@ -19,7 +19,8 @@
 
 use fraiseql_error::FraiseQLError;
 
-use crate::types::{DatabaseType, sql_hints::OrderByFieldType};
+use super::SqlDialect;
+use crate::types::{DatabaseType, sql_hints::ScalarFieldType};
 
 // ============================================================================
 // Feature enum
@@ -100,92 +101,52 @@ impl DatabaseType {
         }
     }
 
+    /// Return the [`SqlDialect`] that renders SQL for this database.
+    ///
+    /// The two dialect abstractions — this enum, used by the ORDER BY renderer,
+    /// and the [`SqlDialect`] trait, used by the WHERE generator — resolve to
+    /// the same implementation here, so neither can carry its own copy of a
+    /// rendering rule.
+    #[must_use]
+    pub fn dialect(self) -> &'static dyn SqlDialect {
+        match self {
+            Self::PostgreSQL => &super::PostgresDialect,
+            Self::MySQL => &super::MySqlDialect,
+            Self::SQLite => &super::SqliteDialect,
+            Self::SQLServer => &super::SqlServerDialect,
+        }
+    }
+
     /// Return a SQL expression that extracts and casts a value from the `data` JSONB
     /// column for ORDER BY sorting.
     ///
-    /// When `field_type` is [`OrderByFieldType::Text`] this is identical to
+    /// When `field_type` is [`ScalarFieldType::Text`] this is identical to
     /// [`json_field_expr`](Self::json_field_expr). For numeric, date, and boolean
     /// types the expression is wrapped in a dialect-specific cast so the database
     /// sorts by the typed value instead of the raw text (`"9" > "10"` is wrong for
     /// numbers).
     ///
+    /// The cast itself comes from [`SqlDialect::cast_expr_as`] — the same call the
+    /// WHERE generator makes — so an ORDER BY and a filter on one field agree.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use fraiseql_db::{DatabaseType, OrderByFieldType};
+    /// use fraiseql_db::{DatabaseType, ScalarFieldType};
     ///
     /// assert_eq!(
-    ///     DatabaseType::PostgreSQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+    ///     DatabaseType::PostgreSQL.typed_json_field_expr("amount", ScalarFieldType::Numeric),
     ///     "(data->>'amount')::numeric"
     /// );
     /// assert_eq!(
-    ///     DatabaseType::MySQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+    ///     DatabaseType::MySQL.typed_json_field_expr("amount", ScalarFieldType::Numeric),
     ///     "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.amount')) AS DECIMAL(38,12))"
     /// );
     /// ```
-    // Reason: each `unreachable!()` is for `F::Text` after the early return at
-    // the top of the function eliminates that variant. The `match` is repeated
-    // per dialect to map each remaining variant to a dialect-specific cast type.
-    #[allow(clippy::unreachable)]
     #[must_use]
-    pub fn typed_json_field_expr(self, key: &str, field_type: OrderByFieldType) -> String {
-        use OrderByFieldType as F;
-
-        // Text needs no cast — the raw extraction is already text.
-        if field_type == F::Text {
-            return self.json_field_expr(key);
-        }
-
+    pub fn typed_json_field_expr(self, key: &str, field_type: ScalarFieldType) -> String {
         let base = self.json_field_expr(key);
-
-        match self {
-            Self::PostgreSQL => {
-                let pg_type = match field_type {
-                    F::Text => unreachable!("F::Text returned early at function top"),
-                    F::Integer => "bigint",
-                    F::Numeric => "numeric",
-                    F::Boolean => "boolean",
-                    F::DateTime => "timestamptz",
-                    F::Date => "date",
-                    F::Time => "time",
-                };
-                format!("({base})::{pg_type}")
-            },
-            Self::MySQL => {
-                let mysql_type = match field_type {
-                    F::Text => unreachable!("F::Text returned early at function top"),
-                    F::Integer => "SIGNED",
-                    F::Numeric => "DECIMAL(38,12)",
-                    F::Boolean => "UNSIGNED",
-                    F::DateTime => "DATETIME",
-                    F::Date => "DATE",
-                    F::Time => "TIME",
-                };
-                format!("CAST({base} AS {mysql_type})")
-            },
-            Self::SQLite => {
-                // SQLite has limited type affinity; CAST works for REAL/INTEGER.
-                let sqlite_type = match field_type {
-                    F::Text => unreachable!("F::Text returned early at function top"),
-                    F::Integer | F::Boolean => "INTEGER",
-                    F::Numeric => "REAL",
-                    F::DateTime | F::Date | F::Time => "TEXT", // ISO-8601 sorts correctly as text
-                };
-                format!("CAST({base} AS {sqlite_type})")
-            },
-            Self::SQLServer => {
-                let sqlserver_type = match field_type {
-                    F::Text => unreachable!("F::Text returned early at function top"),
-                    F::Integer => "BIGINT",
-                    F::Numeric => "DECIMAL(38,12)",
-                    F::Boolean => "BIT",
-                    F::DateTime => "DATETIME2",
-                    F::Date => "DATE",
-                    F::Time => "TIME",
-                };
-                format!("CAST({base} AS {sqlserver_type})")
-            },
-        }
+        self.dialect().cast_expr_as(&base, field_type).into_owned()
     }
 
     /// Check whether this dialect supports `feature`.

@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::{
     OpenApiGenerator,
-    format::{BRACKET_OPERATORS_DESC, field_type_to_json_schema, should_have_prefer_header},
+    format::{bracket_operators_desc, field_type_to_json_schema, should_have_prefer_header},
 };
 use crate::routes::rest::resource::{HttpMethod, RestResource, RestRoute, RouteSource};
 
@@ -187,7 +187,8 @@ impl OpenApiGenerator<'_> {
                 for field in &td.fields {
                     let desc = format!(
                         "Filter by {}. Bracket operators: {}",
-                        field.name, BRACKET_OPERATORS_DESC
+                        field.name,
+                        bracket_operators_desc()
                     );
                     params.push(json!({
                         "name": format!("{}[operator]", field.name),

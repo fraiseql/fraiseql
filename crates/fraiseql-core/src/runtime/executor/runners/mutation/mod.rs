@@ -85,7 +85,7 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
             resource: Some(type_name.to_string()),
         });
     }
-    let gated = authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections);
+    let gated = authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections)?;
     let pass = authz::FieldAuthzPass {
         authorizer: authorizer.as_ref(),
         principal,
@@ -902,8 +902,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         let mut added = false;
         for arg in inline_arguments {
             if !obj.contains_key(&arg.name) {
+                // A malformed stored argument is refused, not skipped: skipping
+                // it would run the mutation with a silently missing input (#719).
                 if let Some(val) =
-                    crate::runtime::matcher::QueryMatcher::resolve_inline_arg(arg, &var_map)
+                    crate::runtime::matcher::QueryMatcher::resolve_inline_arg(arg, &var_map)?
                 {
                     obj.insert(arg.name.clone(), val);
                     added = true;

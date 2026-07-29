@@ -213,7 +213,7 @@ impl QueryMatcher {
         if let Some(root) = final_selections.first() {
             for arg in &root.arguments {
                 if !arguments.contains_key(&arg.name) {
-                    if let Some(val) = Self::resolve_inline_arg(arg, &arguments) {
+                    if let Some(val) = Self::resolve_inline_arg(arg, &arguments)? {
                         arguments.insert(arg.name.clone(), val);
                     }
                 }
@@ -269,78 +269,31 @@ impl QueryMatcher {
 
     /// Resolve an inline GraphQL argument to a JSON value.
     ///
-    /// Handles both literal values (`limit: 3` → `value_json = "3"`) and
-    /// variable references (`limit: $limit` → `value_json = "\"$limit\""`),
-    /// looking up the latter in the already-extracted variables map.
+    /// Handles both literal values (`limit: 3`) and variable references
+    /// (`limit: $limit`), at the top level and nested inside object or list
+    /// literals (`where: { field: { eq: $var } }`). The encoding is owned by
+    /// [`crate::graphql::value_json`].
     ///
-    /// Variable references are serialized by the parser as JSON-quoted strings
-    /// (e.g. `Variable("myLimit")` → `"\"$myLimit\""`), so we must parse the
-    /// JSON first and then check for the `$` prefix on the inner string.
+    /// `Ok(None)` means the argument names a variable the request did not
+    /// supply, which drops it — GraphQL's treatment of an omitted nullable
+    /// argument. A *malformed* stored value is an error, not a drop: dropping a
+    /// `where:` argument widens the result set instead of narrowing it (#719).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if `value_json` is not valid JSON.
     pub(crate) fn resolve_inline_arg(
         arg: &crate::graphql::GraphQLArgument,
         variables: &HashMap<String, serde_json::Value>,
-    ) -> Option<serde_json::Value> {
-        // Try raw `$varName` first (defensive, in case any code path produces unquoted refs)
-        if let Some(var_name) = arg.value_json.strip_prefix('$') {
-            return variables.get(var_name).cloned();
+    ) -> Result<Option<serde_json::Value>> {
+        let parsed = crate::graphql::value_json::decode(&arg.value_json)?;
+        // A whole-argument variable that the request omitted drops the argument
+        // rather than binding null, so `limit: $limit` with no `limit` variable
+        // falls back to the query's default instead of forcing `LIMIT NULL`.
+        if let Some(var_name) = crate::graphql::value_json::variable_name(&parsed) {
+            return Ok(variables.get(var_name).cloned());
         }
-        // Parse the JSON value
-        let parsed: serde_json::Value = serde_json::from_str(&arg.value_json).ok()?;
-        // Check if the WHOLE value is a string variable reference (`field: $var`).
-        // Preserve the existing semantics: an undefined whole-arg variable drops
-        // the argument (returns None) rather than inserting null.
-        if let Some(s) = parsed.as_str() {
-            if let Some(var_name) = s.strip_prefix('$') {
-                return variables.get(var_name).cloned();
-            }
-            // Plain literal string.
-            return Some(parsed);
-        }
-        // Object / list literal: variables can appear NESTED inside it (e.g.
-        // `where: { field: { eq: $var } }` or `input: { f: $var }`). The parser
-        // serializes each nested `Variable("v")` AST node to the JSON string
-        // `"$v"`, so walk the value and substitute those placeholders.
-        Some(Self::resolve_nested_variables(parsed, variables, 0))
-    }
-
-    /// Recursively substitute `"$var"` placeholder strings inside a parsed
-    /// argument value with their concrete values from the `variables` map.
-    ///
-    /// The GraphQL parser flattens each `Variable("v")` AST node to the JSON
-    /// string `"$v"` (see `serialize_value_inner`), so a variable can appear at
-    /// any depth inside an object or list argument literal. This walks objects
-    /// and arrays and replaces those placeholders. An unknown variable resolves
-    /// to JSON `null` — matching GraphQL's treatment of an omitted nullable.
-    /// Depth is bounded (mirroring the parser's serialization limit) to guard
-    /// against pathological nesting.
-    pub(crate) fn resolve_nested_variables(
-        value: serde_json::Value,
-        variables: &HashMap<String, serde_json::Value>,
-        depth: usize,
-    ) -> serde_json::Value {
-        use serde_json::Value;
-        const MAX_VAR_DEPTH: usize = 64;
-        if depth >= MAX_VAR_DEPTH {
-            return value;
-        }
-        match value {
-            Value::String(s) => match s.strip_prefix('$') {
-                Some(var_name) => variables.get(var_name).cloned().unwrap_or(Value::Null),
-                None => Value::String(s),
-            },
-            Value::Array(items) => Value::Array(
-                items
-                    .into_iter()
-                    .map(|v| Self::resolve_nested_variables(v, variables, depth + 1))
-                    .collect(),
-            ),
-            Value::Object(map) => Value::Object(
-                map.into_iter()
-                    .map(|(k, v)| (k, Self::resolve_nested_variables(v, variables, depth + 1)))
-                    .collect(),
-            ),
-            other => other,
-        }
+        Ok(Some(crate::graphql::value_json::resolve_variables(parsed, variables)))
     }
 
     /// Get the compiled schema.

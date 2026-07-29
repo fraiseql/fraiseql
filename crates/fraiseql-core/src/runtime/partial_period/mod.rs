@@ -10,6 +10,8 @@
 //!
 //! All period arithmetic functions are pure (no database calls, no side effects).
 
+use std::sync::Arc;
+
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use fraiseql_db::{WhereClause, WhereOperator};
 
@@ -298,6 +300,9 @@ pub fn extract_lower_date_bound(
             value,
         } => extract_from_field(path, operator, value, column_name),
 
+        // Declared field types do not change which bound a condition names.
+        WhereClause::Typed { inner, .. } => extract_lower_date_bound(inner, column_name),
+
         WhereClause::NativeField {
             column,
             operator,
@@ -352,6 +357,16 @@ pub fn split_where_clause(
             Some(SplitWhereResult {
                 lower_bound: date,
                 remaining:   None,
+            })
+        },
+
+        // Split inside the annotation, then re-annotate what is left so the
+        // remaining conditions keep their declared types.
+        WhereClause::Typed { types, inner } => {
+            let split = split_where_clause(inner, column_name)?;
+            Some(SplitWhereResult {
+                lower_bound: split.lower_bound,
+                remaining:   split.remaining.map(|r| r.typed(Arc::clone(types))),
             })
         },
 

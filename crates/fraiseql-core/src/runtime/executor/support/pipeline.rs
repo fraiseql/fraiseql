@@ -125,46 +125,23 @@ fn serialize_arg(arg: &GraphQLArgument) -> String {
 }
 
 /// Convert a stored `GraphQLArgument` back to a GraphQL-syntax value.
+///
+/// One conversion for every value type. The previous version dispatched on
+/// `value_type` and re-emitted the raw JSON for anything it did not recognise,
+/// so a list of objects reached the parser with quoted keys (#902) and any
+/// string containing a quote or a backslash produced invalid GraphQL (#719).
 fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
-    match arg.value_type.as_str() {
-        "variable" => {
-            // value_json is stored as a JSON string e.g. `"\"$varName\""`.
-            // Parse it to get the raw `$varName`.
-            serde_json::from_str::<String>(&arg.value_json)
-                .unwrap_or_else(|_| arg.value_json.clone())
+    crate::graphql::value_json::decode(&arg.value_json).map_or_else(
+        // Unreachable in practice — `value_json` is written by the parser — and
+        // the malformed value is passed through so the parse error names it
+        // rather than a silently different query.
+        |_| arg.value_json.clone(),
+        |value| match arg.value_type.as_str() {
+            // An enum value is a bare GraphQL name, not a quoted string.
+            "enum" => value.as_str().map_or_else(|| value.to_string(), ToString::to_string),
+            _ => crate::graphql::value_json::to_graphql(&value),
         },
-        "object" => {
-            // JSON objects use quoted keys; GraphQL objects don't.
-            serde_json::from_str::<serde_json::Value>(&arg.value_json)
-                .map_or_else(|_| arg.value_json.clone(), |v| json_value_to_graphql(&v))
-        },
-        "enum" => {
-            // Strip surrounding JSON quotes from enum values.
-            serde_json::from_str::<String>(&arg.value_json)
-                .unwrap_or_else(|_| arg.value_json.clone())
-        },
-        // int, float, boolean, null, string, list — value_json is already valid GraphQL.
-        _ => arg.value_json.clone(),
-    }
-}
-
-/// Recursively convert a `serde_json::Value` to GraphQL value syntax.
-fn json_value_to_graphql(val: &serde_json::Value) -> String {
-    match val {
-        serde_json::Value::Object(map) => {
-            let pairs: Vec<String> =
-                map.iter().map(|(k, v)| format!("{k}: {}", json_value_to_graphql(v))).collect();
-            format!("{{{}}}", pairs.join(", "))
-        },
-        serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(json_value_to_graphql).collect();
-            format!("[{}]", items.join(", "))
-        },
-        serde_json::Value::String(s) => format!("\"{s}\""),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Null => "null".to_string(),
-    }
+    )
 }
 
 // ── Parallel execution ────────────────────────────────────────────────────────

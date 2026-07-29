@@ -2,6 +2,8 @@
 
 use std::borrow::Cow;
 
+use crate::types::sql_hints::ScalarFieldType;
+
 /// Column type used by row-shaped view (`vr_*`) DDL generation.
 ///
 /// Maps GraphQL scalar types to their SQL equivalents for typed column
@@ -95,31 +97,40 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// - MySQL / SQLite: `?`
     fn placeholder(&self, n: usize) -> String;
 
-    // ── Numeric / boolean casts (have defaults) ────────────────────────────────
+    // ── Scalar type casts ──────────────────────────────────────────────────────
 
-    /// Wrap a JSON-extracted scalar expression so it compares numerically.
+    /// SQL type name this dialect casts a JSON-extracted value to for `ty`,
+    /// or `None` when the raw `text` extraction is already the right type.
     ///
-    /// Default: no cast (MySQL / SQLite coerce implicitly).
-    fn cast_to_numeric<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Borrowed(expr)
+    /// This is **the** type → SQL-type table for the dialect. Both the ORDER BY
+    /// renderer ([`DatabaseType::typed_json_field_expr`]) and the WHERE
+    /// generator read it, so a sort and a filter on the same field can never
+    /// disagree about how that field is typed.
+    ///
+    /// [`DatabaseType::typed_json_field_expr`]: crate::types::DatabaseType::typed_json_field_expr
+    fn cast_type_name(&self, ty: ScalarFieldType) -> Option<&'static str>;
+
+    /// Wrap a JSON-extracted scalar expression so it compares as `ty`.
+    ///
+    /// Default renders ANSI `CAST(expr AS type)`; PostgreSQL overrides with
+    /// `(expr)::type`. `ScalarFieldType::Text` — and any type the dialect has no
+    /// cast for — returns the expression unchanged.
+    fn cast_expr_as<'a>(&self, expr: &'a str, ty: ScalarFieldType) -> Cow<'a, str> {
+        match self.cast_type_name(ty) {
+            Some(name) => Cow::Owned(format!("CAST({expr} AS {name})")),
+            None => Cow::Borrowed(expr),
+        }
     }
 
-    /// Wrap a JSON-extracted scalar expression so it compares as a boolean.
+    /// Wrap a parameter placeholder so it is compared as `ty`.
     ///
-    /// Default: no cast.
-    fn cast_to_boolean<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Borrowed(expr)
-    }
-
-    /// Wrap a parameter placeholder for numeric comparison.
-    ///
-    /// PostgreSQL uses `({p}::text)::numeric` to avoid wire-protocol type
-    /// mismatch when the driver sends JSON numbers as text.  All other dialects
-    /// pass the placeholder through unchanged because their type coercion
-    /// handles it transparently.
-    ///
-    /// Default: no cast (MySQL, SQLite, SQL Server).
-    fn cast_param_numeric<'a>(&self, placeholder: &'a str) -> Cow<'a, str> {
+    /// PostgreSQL overrides this with `({p}::text)::type`: tokio-postgres binds
+    /// JSON scalars as text, and without forcing the server to resolve the
+    /// parameter as `text` first it expects the binary encoding of the target
+    /// type. sqlx (MySQL, SQLite) and tiberius (SQL Server) send string
+    /// parameters as text regardless, so the default passes the placeholder
+    /// through and lets the database coerce it.
+    fn cast_param_as<'a>(&self, placeholder: &'a str, _ty: ScalarFieldType) -> Cow<'a, str> {
         Cow::Borrowed(placeholder)
     }
 
@@ -146,9 +157,21 @@ pub trait SqlDialect: Send + Sync + 'static {
 
     // ── LIKE / pattern matching ────────────────────────────────────────────────
 
+    /// Trailing `ESCAPE` clause required to make `escape_like_literal`'s
+    /// backslash escaping effective on this dialect, or `""` when the dialect
+    /// already treats `\` as the escape character.
+    ///
+    /// PostgreSQL and MySQL default to `\`; SQLite and SQL Server have **no**
+    /// default escape character, so without this clause an escaped `\%` matches
+    /// a literal backslash followed by the wildcard — the pattern over-matches
+    /// instead of being neutralised (#722).
+    fn like_escape_clause(&self) -> &'static str {
+        ""
+    }
+
     /// SQL fragment for case-sensitive LIKE: `lhs LIKE rhs`.
     fn like_sql(&self, lhs: &str, rhs: &str) -> String {
-        format!("{lhs} LIKE {rhs}")
+        format!("{lhs} LIKE {rhs}{}", self.like_escape_clause())
     }
 
     /// SQL fragment for case-insensitive LIKE.
@@ -157,7 +180,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// PostgreSQL overrides with `lhs ILIKE rhs`.
     /// SQL Server overrides with `lhs LIKE rhs COLLATE Latin1_General_CI_AI`.
     fn ilike_sql(&self, lhs: &str, rhs: &str) -> String {
-        format!("LOWER({lhs}) LIKE LOWER({rhs})")
+        format!("LOWER({lhs}) LIKE LOWER({rhs}){}", self.like_escape_clause())
     }
 
     /// String concatenation operator / function for building LIKE patterns.

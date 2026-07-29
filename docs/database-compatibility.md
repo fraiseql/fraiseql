@@ -120,7 +120,12 @@ syntax differences and known limitations.
 | `Neq` (`!=` / `<>`) | ✅ `!=` | ✅ `!=` | ✅ `<>` | ✅ `!=` |
 | `Gt` / `Gte` / `Lt` / `Lte` | ✅ | ✅ | ✅ | ✅ |
 | `In` / `Nin` (NOT IN) | ✅ | ✅ | ✅ | ✅ |
-| `IsNull` | ✅ | ✅ | ✅ | ✅ |
+| `IsNull` / `IsNotNull` | ✅ | ✅ | ✅ | ✅ |
+
+Comparison operands are cast to the **declared field type** before comparison, so a
+`DateTime` range filter compares instants and a `Numeric` filter compares numbers —
+a JSON extraction is `text`, and comparing it as text gives the wrong answer for every
+type but strings, UUIDs and enums.
 
 #### String Matching
 
@@ -138,6 +143,10 @@ syntax differences and known limitations.
 | `Niregex` (`!~*`) | ✅ `!~*` | ❌ | ❌ | ❌ |
 
 ¹ MySQL with `utf8mb4_unicode_ci` and SQLite LIKE are case-insensitive by default.
+
+`Contains` / `Startswith` / `Endswith` (and their case-insensitive forms) escape `%`, `_`
+and `\` in the needle so they match literally. SQLite and SQL Server have no default LIKE
+escape character, so their renderings carry an explicit `ESCAPE '\'`.
 
 #### JSON / Array Operators
 

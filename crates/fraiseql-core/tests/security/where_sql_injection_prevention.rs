@@ -575,16 +575,22 @@ fn test_is_null_operator_ignores_value_payload() {
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
     assert_eq!(sql, "data->>'deleted_at' IS NULL");
 
-    // Even with a string payload, IsNull extracts .as_bool() which defaults to true
+    // A non-boolean payload is refused rather than defaulted. `as_bool().unwrap_or(true)`
+    // never emitted the payload, so this was never an injection — but it silently read
+    // "not a boolean" as "assume IS NULL", which inverted `is_null=false` on any path
+    // that coerced the operand to the field's declared type (#828).
     let clause = WhereClause::Field {
         path:     vec!["deleted_at".to_string()],
         operator: WhereOperator::IsNull,
         value:    json!("'; DROP TABLE users; --"),
     };
 
-    let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    // The injection payload is never included in the SQL
-    assert!(!sql.contains("DROP"), "IsNull must not include value payload in SQL: {sql}");
+    let err = WhereSqlGenerator::to_sql(&clause)
+        .expect_err("a non-boolean null-check operand must be refused, not defaulted");
+    assert!(
+        format!("{err}").contains("boolean"),
+        "the error must name the expected operand type: {err}"
+    );
 }
 
 #[test]

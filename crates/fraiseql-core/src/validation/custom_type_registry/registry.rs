@@ -485,30 +485,26 @@ impl CustomTypeRegistry {
             path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
-        let len = str_val.len();
-
-        if let Some(min_len) = min {
-            if len < min_len {
+        match crate::validation::check_length(str_val, min, max) {
+            crate::validation::LengthCheck::Ok => {},
+            crate::validation::LengthCheck::TooShort { min, actual } => {
                 return Err(FraiseQLError::Validation {
                     message: format!(
-                        "Custom scalar '{}' value must be at least {} characters, got {}",
-                        type_name, min_len, len
+                        "Custom scalar '{type_name}' value must be at least {min} characters, \
+                         got {actual}"
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{type_name}")),
                 });
-            }
-        }
-
-        if let Some(max_len) = max {
-            if len > max_len {
+            },
+            crate::validation::LengthCheck::TooLong { max, actual } => {
                 return Err(FraiseQLError::Validation {
                     message: format!(
-                        "Custom scalar '{}' value must be at most {} characters, got {}",
-                        type_name, max_len, len
+                        "Custom scalar '{type_name}' value must be at most {max} characters, \
+                         got {actual}"
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{type_name}")),
                 });
-            }
+            },
         }
 
         Ok(())

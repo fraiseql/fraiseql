@@ -9,7 +9,14 @@ use serde_json::{Value, json};
 use super::super::resource::{HttpMethod, RestRoute};
 
 /// Bracket operators documented in filter parameter descriptions.
-pub(super) const BRACKET_OPERATORS_DESC: &str = "eq, ne, gt, gte, lt, lte, in, nin, like, ilike, is_null, contains, icontains, startswith, endswith";
+///
+/// Rendered from the allow-list the request validator actually uses. Maintained
+/// by hand, this was a third operator vocabulary: it advertised `contains`,
+/// which `validate_bracket_operator` rejected, and omitted `istartswith`,
+/// `iendswith` and `is_not_null`, which it accepted (#828).
+pub(crate) fn bracket_operators_desc() -> String {
+    crate::routes::rest::params::BRACKET_OPERATORS.join(", ")
+}
 
 /// Map a `FieldType` to a JSON Schema type object.
 pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {

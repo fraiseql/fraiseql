@@ -187,9 +187,13 @@ impl JsCodegen {
     }
 
     /// Produce a JS string literal (double-quoted, escaped).
+    ///
+    /// JSON string syntax is a subset of `JavaScript`'s, so `serde_json` is a
+    /// correct JS string escaper — and unlike the three-character replacement
+    /// chain it replaced, it covers `\r`, `\t` and the C0 control characters
+    /// that would otherwise terminate the literal (#719's class).
     fn js_string_literal(s: &str) -> String {
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
-        format!("\"{escaped}\"")
+        serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_string())
     }
 }
 

@@ -3,6 +3,7 @@
 use std::{borrow::Cow, fmt::Write};
 
 use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
+use crate::types::sql_hints::ScalarFieldType;
 
 /// PostgreSQL dialect for [`GenericWhereGenerator`].
 ///
@@ -42,16 +43,41 @@ impl SqlDialect for PostgresDialect {
         format!("${n}")
     }
 
-    fn cast_to_numeric<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("({expr})::numeric"))
+    fn cast_type_name(&self, ty: ScalarFieldType) -> Option<&'static str> {
+        match ty {
+            ScalarFieldType::Text => None,
+            ScalarFieldType::Integer => Some("bigint"),
+            ScalarFieldType::Numeric => Some("numeric"),
+            ScalarFieldType::Boolean => Some("boolean"),
+            ScalarFieldType::DateTime => Some("timestamptz"),
+            ScalarFieldType::Date => Some("date"),
+            ScalarFieldType::Time => Some("time"),
+        }
     }
 
-    fn cast_to_boolean<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("({expr})::boolean"))
+    fn cast_expr_as<'a>(&self, expr: &'a str, ty: ScalarFieldType) -> Cow<'a, str> {
+        match self.cast_type_name(ty) {
+            Some(name) => Cow::Owned(format!("({expr})::{name}")),
+            None => Cow::Borrowed(expr),
+        }
     }
 
-    fn cast_param_numeric<'a>(&self, placeholder: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("({placeholder}::text)::numeric"))
+    fn cast_param_as<'a>(&self, placeholder: &'a str, ty: ScalarFieldType) -> Cow<'a, str> {
+        match ty {
+            // A JSON boolean is bound as `QueryParam::Bool`, which already has
+            // the correct binary encoding. Routing it through `text` makes the
+            // server resolve the parameter as `text` and then reject the bool
+            // encoding with SQLSTATE 22P02.
+            ScalarFieldType::Boolean => Cow::Borrowed(placeholder),
+            _ => match self.cast_type_name(ty) {
+                // Two-step: force the server to resolve the bind as `text`
+                // before casting. Every other JSON scalar is bound as
+                // `QueryParam::Text`, so a direct `$1::timestamptz` would make
+                // the server expect that type's binary encoding.
+                Some(name) => Cow::Owned(format!("({placeholder}::text)::{name}")),
+                None => Cow::Borrowed(placeholder),
+            },
+        }
     }
 
     fn cast_native_param(&self, placeholder: &str, native_type: &str) -> String {

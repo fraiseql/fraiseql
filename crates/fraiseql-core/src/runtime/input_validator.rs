@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::{
     error::{FraiseQLError, Result, ValidationFieldError},
     schema::CompiledSchema,
-    validation::ValidationRule,
+    validation::{LengthCheck, ValidationRule, check_length},
 };
 
 /// Validation error aggregator - collects multiple validation errors.
@@ -107,12 +107,13 @@ pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule])
     match value {
         Value::String(s) => {
             for rule in rules {
-                if let Err(FraiseQLError::Validation { message, .. }) =
-                    validate_string_field(s, field_path, rule)
-                {
-                    if let Some(field_err) = extract_field_error(&message) {
-                        errors.add_error(field_err);
-                    }
+                // The structured error is kept structured. Formatting it into a
+                // message and re-parsing that message with `find('(')` meant a
+                // field path containing a parenthesis — or any change to the
+                // message format — silently discarded the violation and let
+                // validation *pass* (#720).
+                if let Err(field_err) = check_string_field(s, field_path, rule) {
+                    errors.add_error(field_err);
                 }
             }
         },
@@ -139,99 +140,45 @@ pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule])
     }
 }
 
-/// Validate a string field against a validation rule.
-pub(crate) fn validate_string_field(
+/// Check a string field against one validation rule.
+///
+/// Returns the violation as a structured [`ValidationFieldError`]. Callers that
+/// The structured form is what the aggregator consumes, so no error is
+/// laundered through its own display string on the way (#720).
+pub(crate) fn check_string_field(
     value: &str,
     field_path: &str,
     rule: &ValidationRule,
-) -> Result<()> {
+) -> std::result::Result<(), ValidationFieldError> {
     match rule {
-        ValidationRule::Required => {
-            if value.is_empty() {
-                return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Field validation failed: {}",
-                        ValidationFieldError::new(field_path, "required", "Field is required")
-                    ),
-                    path:    Some(field_path.to_string()),
-                });
-            }
-            Ok(())
+        ValidationRule::Required if value.is_empty() => {
+            Err(ValidationFieldError::new(field_path, "required", "Field is required"))
         },
-        ValidationRule::Pattern { pattern, message } => {
-            if pattern.is_match(value) {
-                Ok(())
-            } else {
-                let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
-                Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Field validation failed: {}",
-                        ValidationFieldError::new(field_path, "pattern", msg)
-                    ),
-                    path:    Some(field_path.to_string()),
-                })
-            }
+        ValidationRule::Pattern { pattern, message } if !pattern.is_match(value) => {
+            let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
+            Err(ValidationFieldError::new(field_path, "pattern", msg))
         },
-        ValidationRule::Length { min, max } => {
-            let len = value.len();
-            let valid = if let Some(m) = min { len >= *m } else { true }
-                && if let Some(m) = max { len <= *m } else { true };
-
-            if valid {
-                Ok(())
-            } else {
-                let msg = match (min, max) {
-                    (Some(m), Some(x)) => format!("Length must be between {} and {}", m, x),
-                    (Some(m), None) => format!("Length must be at least {}", m),
-                    (None, Some(x)) => format!("Length must be at most {}", x),
-                    (None, None) => "Length validation failed".to_string(),
-                };
-                Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Field validation failed: {}",
-                        ValidationFieldError::new(field_path, "length", msg)
-                    ),
-                    path:    Some(field_path.to_string()),
-                })
-            }
+        ValidationRule::Length { min, max } => match check_length(value, *min, *max) {
+            LengthCheck::Ok => Ok(()),
+            LengthCheck::TooShort { min, actual } => Err(ValidationFieldError::new(
+                field_path,
+                "length",
+                format!("Length must be at least {min} characters, got {actual}"),
+            )),
+            LengthCheck::TooLong { max, actual } => Err(ValidationFieldError::new(
+                field_path,
+                "length",
+                format!("Length must be at most {max} characters, got {actual}"),
+            )),
         },
-        ValidationRule::Enum { values } => {
-            if values.contains(&value.to_string()) {
-                Ok(())
-            } else {
-                Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Field validation failed: {}",
-                        ValidationFieldError::new(
-                            field_path,
-                            "enum",
-                            format!("Must be one of: {}", values.join(", "))
-                        )
-                    ),
-                    path:    Some(field_path.to_string()),
-                })
-            }
+        ValidationRule::Enum { values } if !values.iter().any(|v| v == value) => {
+            Err(ValidationFieldError::new(
+                field_path,
+                "enum",
+                format!("Must be one of: {}", values.join(", ")),
+            ))
         },
-        _ => Ok(()), // Other rule types handled elsewhere
+        // Every other rule either passed above or is evaluated elsewhere.
+        _ => Ok(()),
     }
-}
-
-/// Extract field error information from an error message.
-fn extract_field_error(message: &str) -> Option<ValidationFieldError> {
-    // Format: "Field validation failed: field (rule): message"
-    if message.contains("Field validation failed:") {
-        if let Some(field_start) = message.find("Field validation failed: ") {
-            let rest = &message[field_start + "Field validation failed: ".len()..];
-            if let Some(paren_start) = rest.find('(') {
-                if let Some(paren_end) = rest.find(')') {
-                    let field = rest[..paren_start].trim().to_string();
-                    let rule_type = rest[paren_start + 1..paren_end].to_string();
-                    let msg_start = rest.find(": ").unwrap_or(0) + 2;
-                    let message_text = rest[msg_start..].to_string();
-                    return Some(ValidationFieldError::new(field, rule_type, message_text));
-                }
-            }
-        }
-    }
-    None
 }

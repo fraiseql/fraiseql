@@ -2577,3 +2577,122 @@ mod operation_authz {
     // aggregate path (which routes through the chokepoint) is covered by
     // `aggregate_is_gated` above, and the embedder gate is structurally identical.
 }
+
+// ── mod where_types_reach_the_generator ──────────────────────────────────
+//
+// The operator × declared-type matrix (`fraiseql-db`) proves the *generator*
+// casts correctly once it has the types. It says nothing about whether the
+// runners give them to it — and five call sites must: `execute_from_match`, the
+// projection path, the explain path, the cached path and the relay path. A
+// runner that forgot falls back to value-shape inference, which is right for
+// numbers and wrong for exactly the types #798 is about: a `DateTime` bound is
+// a string, and a string compares as text.
+
+mod where_types_reach_the_generator {
+    use super::*;
+    use crate::db::{
+        PostgresDialect, ScalarFieldType, WhereClause, where_generator::GenericWhereGenerator,
+    };
+
+    /// A `User` with one field of every type whose cast differs from text.
+    fn schema_with_typed_user(relay: bool) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(
+            TypeDefinition::new("User", "v_user")
+                .with_field(FieldDefinition::new("id", FieldType::Uuid))
+                .with_field(FieldDefinition::new("name", FieldType::String))
+                .with_field(FieldDefinition::new("age", FieldType::Int))
+                .with_field(FieldDefinition::new("createdAt", FieldType::DateTime)),
+        );
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            auto_params: AutoParams::all(),
+            sql_source: Some("v_user".to_string()),
+            relay,
+            relay_cursor_column: relay.then(|| "pk_user".to_string()),
+            relay_cursor_type: CursorType::default(),
+            ..QueryDefinition::new("users", "User")
+        });
+        schema
+    }
+
+    fn mock_rows() -> Vec<JsonbValue> {
+        vec![JsonbValue::new(serde_json::json!({
+            "id": "1", "name": "Alice", "age": 30, "createdAt": "2024-01-01T00:00:00Z"
+        }))]
+    }
+
+    /// Render the captured clause the way the PostgreSQL adapter would.
+    fn rendered(clause: &WhereClause) -> String {
+        GenericWhereGenerator::new(PostgresDialect)
+            .generate(clause)
+            .expect("the captured clause generates")
+            .0
+    }
+
+    /// The declared types are attached to the user filter, not merely available.
+    fn assert_declares(clause: &WhereClause, field: &str, expected: ScalarFieldType) {
+        let mut node = clause;
+        loop {
+            match node {
+                WhereClause::Typed { types, .. } => {
+                    assert_eq!(
+                        types.get(&[field.to_string()]),
+                        Some(expected),
+                        "the annotation must declare {field} as {expected:?}"
+                    );
+                    return;
+                },
+                WhereClause::And(parts) | WhereClause::Or(parts) => {
+                    let annotated = parts.iter().find(|p| matches!(p, WhereClause::Typed { .. }));
+                    assert!(annotated.is_some(), "no annotated subtree in {clause:?}");
+                    node = annotated.expect("checked above");
+                },
+                other => panic!("the user filter reached the adapter unannotated: {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_datetime_filter_is_typed_on_the_regular_path() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_rows()));
+        let executor = Executor::new(schema_with_typed_user(false), Arc::clone(&adapter));
+
+        executor
+            .execute(
+                r#"{ users(where: { createdAt: { gte: "2024-01-01T00:00:00Z" } }) { id } }"#,
+                None,
+            )
+            .await
+            .expect("query executes");
+
+        let clause = adapter.captured_where().expect("the adapter received a WHERE clause");
+        assert_declares(&clause, "created_at", ScalarFieldType::DateTime);
+        let sql = rendered(&clause);
+        assert!(
+            sql.contains("::timestamptz"),
+            "a DateTime range filter must compare instants, not text: {sql}"
+        );
+        assert!(!sql.contains("::numeric"), "the operator must not decide the cast: {sql}");
+    }
+
+    /// Value-shape inference — the cheap alternative to consulting the schema —
+    /// would compare a string bound as text and order `"9"` after `"10"`.
+    #[tokio::test]
+    async fn an_int_field_is_typed_even_when_the_bound_arrives_as_a_string() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_rows()));
+        let executor = Executor::new(schema_with_typed_user(false), Arc::clone(&adapter));
+
+        executor
+            .execute(r#"{ users(where: { age: { gte: "10" } }) { id } }"#, None)
+            .await
+            .expect("query executes");
+
+        let clause = adapter.captured_where().expect("the adapter received a WHERE clause");
+        assert_declares(&clause, "age", ScalarFieldType::Integer);
+        let sql = rendered(&clause);
+        assert!(sql.contains("::bigint"), "an Int field compares as an integer: {sql}");
+    }
+}

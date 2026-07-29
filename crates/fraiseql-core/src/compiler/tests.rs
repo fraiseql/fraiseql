@@ -262,6 +262,43 @@ mod parser_tests {
     use super::super::{ir::MutationOperation, parser::SchemaParser};
     use crate::{error::FraiseQLError, schema::GraphQLValue};
 
+    /// A malformed `validation_rules` block refuses to compile.
+    ///
+    /// `unwrap_or_default()` turned a typo'd rule into an empty rule set, so a
+    /// scalar declared with validation shipped with none — silently, at compile
+    /// time, while every neighbouring field got a hard `Parse` error (#720).
+    #[test]
+    fn malformed_validation_rules_refuse_to_compile() {
+        let parser = SchemaParser::new();
+        // `lenght` is not a rule type; the old code produced `[]` for the whole block.
+        let json = r#"{
+            "scalars": [{
+                "name": "Code",
+                "validation_rules": [{"type": "lenght", "value": {"min": 3}}]
+            }]
+        }"#;
+        let err = parser.parse(json).expect_err("a malformed rule block must not compile");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("validation_rules") && msg.contains("Code"),
+            "the error must name the scalar and the block, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn well_formed_validation_rules_still_compile() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "scalars": [{
+                "name": "Code",
+                "validation_rules": [{"type": "length", "value": {"min": 3, "max": 5}}]
+            }]
+        }"#;
+        let ir = parser.parse(json).expect("a well-formed rule block compiles");
+        assert_eq!(ir.scalars.len(), 1);
+        assert_eq!(ir.scalars[0].validation_rules.len(), 1);
+    }
+
     #[test]
     fn test_parse_empty_schema() {
         let parser = SchemaParser::new();

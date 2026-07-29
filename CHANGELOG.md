@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **A `where:` argument that cannot be serialized is refused, not dropped (#719).** The
+  GraphQL parser stored inline argument values as JSON built with
+  `format!("\"{}\"", s.replace('"', "\\\""))` — escaping the double quote and nothing
+  else. A string literal containing a backslash (a Windows path), a newline or a control
+  character therefore produced **invalid JSON**, and the reader discarded it with
+  `.ok()?`. Dropping a filter does not narrow a result set; it widens it, so a
+  serialization bug on a `where:` argument returned rows the filter existed to exclude.
+  Serialization now goes through `serde_json`, and a stored value that cannot be read
+  fails the query.
+
+  The same seam carried variable references **in band** as the string `"$name"`, so a
+  literal `"$100"` was indistinguishable from a reference to a variable called `100` and
+  resolved to `null`. A variable is now the tagged object `{"$var": "name"}`; GraphQL
+  names match `[_A-Za-z][_0-9A-Za-z]*`, so a client cannot forge that key. `make
+  lint-value-json` (Dagger `shell-gates`, CI `value-json-seam-check`) refuses a new
+  hand-rolled escaper, a new `$`-prefix check, and a new direct parse of `value_json`.
+
+  Two further consumers of the seam are fixed with it: the field authorizer built its
+  policy input by substituting the *raw text* for any argument it failed to parse, so a
+  policy that matches on an argument decided on something other than what the client
+  sent; and the query classifier unquoted `value_json` by hand, mangling any type name
+  containing an escape.
+
 - **The MCP tool allowlist is enforced where the call executes (#808).** `[mcp]
   `include`/`exclude`/`read_only` filtered the *advertised* tool list and nothing else:
   `executor::call_tool` never consulted the config, so naming a withheld operation
@@ -152,7 +175,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The object-metadata table gains a `pending` column.** The DDL is idempotent and
   applies on startup.
 
+- **`WhereClause` gains a `Typed` variant, and `WhereClause::from_graphql_json` takes the
+  declared field types (#798).** The cast a filter needs is a property of the *field*, so
+  parsing a user filter without the compiled schema's types is what produced SQL that
+  errored on every date and silently under-matched on numbers. The types are required
+  rather than optional, and they travel as a node of the clause rather than as an argument
+  on the adapter seams the clause passes through — `ProjectionRequest`, the relay cursor
+  path, the wire adapter, federation, the cache key — because each of those would
+  otherwise be a place to drop them. Embedders with no schema pass
+  `SharedFieldTypes::default()` and get the previous value-shape inference.
+
+- **`OrderByFieldType` is renamed `ScalarFieldType`**, and the type → SQL-cast mapping
+  moves onto `SqlDialect::cast_type_name`. ORDER BY and WHERE previously carried separate
+  tables, so a sort and a filter on the same field could disagree about its type. The
+  per-dialect `cast_to_numeric` / `cast_to_boolean` / `cast_param_numeric` methods are
+  replaced by `cast_expr_as` / `cast_param_as`.
+
+  Two renderings change as a result: MySQL and SQL Server now cast `Numeric` to
+  `DECIMAL(38,12)` (previously `DECIMAL` and `FLOAT` in WHERE), and SQLite emits no cast
+  for date/time types (`CAST(… AS TEXT)` was a no-op over an already-textual extraction).
+
+- **Thirteen operator names are no longer advertised (#828).** `has_key`, `has_any_keys`,
+  `has_all_keys`, `array_eq`, `array_neq`, `notInSubnet`, `contains_date`, `adjacent`,
+  `strictly_left`, `strictly_right`, `not_left`, `not_right` and `distance_within` were in
+  `OPERATOR_REGISTRY` — so REST's `?filter=` accepted them and its error messages
+  recommended them — with no `WhereOperator` variant behind any of them. Every request
+  that used one was accepted by the transport and then rejected by the executor. The
+  registry is now generated from the executor's own table, so it can only advertise what
+  runs.
+
+- **`WhereOperator` gains an `IsNotNull` variant**, and both null-check operators now
+  require a boolean operand instead of reading a non-boolean as "assume IS NULL".
+
+- **A malformed `validation_rules` block fails compilation (#720).** `serde_json::from_value(…).unwrap_or_default()`
+  turned a typo'd rule into an empty rule set, so a scalar declared with validation
+  shipped with none.
+
 ### Fixed
+
+- **Every date, timestamp, UUID and string range filter was a hard SQL error (#798).**
+  `gt`/`gte`/`lt`/`lte` cast both sides to `::numeric` regardless of the field's declared
+  type, so `events(where: { createdAt: { gte: "2024-01-01" } })` aborted the statement with
+  `invalid input syntax for type numeric`. `PostgresWhereGenerator` is a type alias of the
+  generic generator, so this was the main path every PostgreSQL deployment uses — date-range
+  filtering, the most common GraphQL filter there is, did not work. Casts are now chosen
+  from the declared field type for every comparison operator at once, which also makes
+  `createdAt: { gte: … }` compare *instants* rather than text: a stored
+  `2024-01-01T10:00:00+02:00` now correctly sorts before an `09:00:00Z` bound.
+
+  It survived three years because every `gte` test in the repository used a numeric
+  literal. The replacement is an operator × declared-type matrix executed against real
+  PostgreSQL (`crates/fraiseql-db/tests/where_operator_type_matrix.rs`), asserting the
+  returned rows rather than the generated string.
+
+- **`in: [19.9]` returned no rows where `eq: 19.9` matched one (#800).** The `In`/`Nin` arm
+  applied none of the casts its sibling operators applied, comparing the raw `text`
+  extraction against text parameters — so a stored `NUMERIC(p,s)` value of `19.90` did not
+  equal the string `'19.9'`. Worse in the other direction: because `Nin` wraps the same
+  predicate in `NOT (…)`, an under-matching `IN` became an *over*-matching `NOT IN` that
+  returned the row the client had asked to exclude. Both operators now share the single
+  cast decision, and the matrix asserts `eq: X` and `in: [X]` select the same rows for
+  every type, with `nin: [X]` their exact complement.
+
+- **`= ANY ARRAY[…]` is not valid PostgreSQL (#835).** The wire-adapter generator emitted
+  `data->>'status' = ANY ARRAY['active', 'pending']`; the grammar requires the array
+  operand to be parenthesised, so every `in`/`nin` filter on a `wire-backend` build was a
+  syntax error. The repository's own test asserted the invalid string verbatim. It now
+  emits `= ANY (ARRAY[…])` / `<> ALL (ARRAY[…])`, casts the JSONB extraction before
+  comparing it to a numeric or boolean literal (`data->>'qty' = 5` was
+  `operator does not exist: text = integer`), and renders an empty list as the constant it
+  means instead of an untypeable `ARRAY[]`.
+
+- **REST's `ne` and `is_null` bracket operators always returned 400 (#828).** Two operator
+  vocabularies had drifted: `OPERATOR_REGISTRY`, which REST validates against, advertised
+  79 names; `WhereOperator::from_str`, which the executor parses with, understood 52. The
+  27-name gap meant `?status[ne]=archived` and `?deletedAt[is_null]=true` passed validation
+  and then failed in the WHERE parser — and the resulting error message recommended two
+  dozen more names that behaved identically. Both are now generated from one table, with a
+  test asserting agreement in both directions.
+
+  A null check's operand is also coerced to a boolean rather than to the field's declared
+  type, which on a `DateTime` field yielded a string that `as_bool().unwrap_or(true)` read
+  as "assume IS NULL" — inverting `is_null=false`.
+
+- **`contains`/`startswith`/`endswith` over-matched on SQLite and SQL Server (#722).**
+  `escape_like_literal` neutralises `%`, `_` and `\` with a backslash, which only works if
+  the dialect treats `\` as the escape character. PostgreSQL and MySQL do; SQLite and SQL
+  Server have no default, so `contains: "100%"` matched any value beginning `100`. Both
+  now emit an explicit `ESCAPE '\'`.
+
+- **A validation error was formatted into a string and re-parsed (#720).**
+  `validate_input` rendered a structured `ValidationFieldError` into a message and then
+  recovered it with `find('(')` / `find(')')`; a field path containing a parenthesis — or
+  any change to the message format — silently discarded the violation and let validation
+  **pass**. The structured error is now passed through as itself.
+
+- **`Length` counted bytes while every one of its messages said "characters" (#720).**
+  Four evaluators of the rule — the standalone validator, the composite evaluator, the
+  custom-scalar registry and the runtime input validator — each used `str::len()`, so
+  `min: 3` accepted `"é!"` (two characters) and `max: 5` rejected `"éàü"` (three). All four
+  now route through one `check_length`, driven by the same multi-byte corpus in a test that
+  calls each of them.
 
 - **Every MCP tool call failed under `naming_convention = "camelCase"` (#857).** Tools
   were advertised under `schema.display_name(&q.name)` while `call_tool` looked the

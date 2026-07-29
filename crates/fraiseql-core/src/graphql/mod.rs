@@ -66,6 +66,9 @@ pub mod types;
 /// GraphQL query parsing wrapper.
 pub mod parser;
 
+/// The `value_json` encoding shared by every consumer of an inline argument.
+pub mod value_json;
+
 /// Fragment resolution and expansion.
 pub mod fragment_resolver;
 

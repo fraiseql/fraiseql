@@ -32,13 +32,6 @@ pub enum GraphQLParseError {
     ValueNestingTooDeep(usize),
 }
 
-/// Maximum nesting depth for `serialize_value` recursion.
-///
-/// Real-world GraphQL variables rarely exceed 5-10 levels of nesting.  A cap
-/// of 64 is generous while preventing stack-exhaustion from a crafted payload
-/// like `[[[[…]]]]` with tens-of-thousands of levels.
-pub(crate) const MAX_SERIALIZE_DEPTH: usize = 64;
-
 /// Parse GraphQL query string into Rust AST.
 ///
 /// # Errors
@@ -280,53 +273,14 @@ fn value_type_string(value: &query::Value<String>) -> String {
     }
 }
 
-/// Serialize GraphQL value to JSON string.
+/// Serialize a GraphQL value to the shared `value_json` representation.
 ///
-/// Returns `None` when the recursion depth exceeds `MAX_SERIALIZE_DEPTH`.
-/// The public wrapper `serialize_value` returns a fallback `"null"` in that case;
-/// callers that need to surface the error can call `try_serialize_value` directly.
-fn serialize_value_inner(value: &query::Value<String>, depth: usize) -> Option<String> {
-    if depth > MAX_SERIALIZE_DEPTH {
-        return None;
-    }
-
-    let s = match value {
-        query::Value::String(s) => format!("\"{}\"", s.replace('"', "\\\"")),
-        query::Value::Int(i) => {
-            // Use the safe as_i64() method from graphql-parser
-            i.as_i64().map_or_else(|| "0".to_string(), |n| n.to_string())
-        },
-        query::Value::Float(f) => format!("{f}"),
-        query::Value::Boolean(b) => b.to_string(),
-        query::Value::Null => "null".to_string(),
-        query::Value::Enum(e) => format!("\"{e}\""),
-        query::Value::List(items) => {
-            let mut parts = Vec::with_capacity(items.len());
-            for item in items {
-                parts.push(serialize_value_inner(item, depth + 1)?);
-            }
-            format!("[{}]", parts.join(","))
-        },
-        query::Value::Object(obj) => {
-            let mut pairs = Vec::with_capacity(obj.len());
-            for (k, v) in obj {
-                let serialized = serialize_value_inner(v, depth + 1)?;
-                pairs.push(format!("\"{}\":{serialized}", k));
-            }
-            format!("{{{}}}", pairs.join(","))
-        },
-        query::Value::Variable(v) => format!("\"${v}\""),
-    };
-
-    Some(s)
-}
-
-/// Serialize a GraphQL value to a JSON string.
-///
-/// Returns `"null"` if the value is nested more than `MAX_SERIALIZE_DEPTH` levels deep,
-/// preventing stack exhaustion from adversarially crafted variable payloads.
+/// Delegates to [`crate::graphql::value_json::encode`], which uses `serde_json`
+/// rather than hand-rolled escaping and tags variable references out of band.
+/// A value too deeply nested to serialize yields `"null"` — the same conservative
+/// fallback the previous depth guard produced, and the depth cap is shared.
 pub(crate) fn serialize_value(value: &query::Value<String>) -> String {
-    serialize_value_inner(value, 0).unwrap_or_else(|| "null".to_string())
+    crate::graphql::value_json::encode(value).unwrap_or_else(|_| "null".to_string())
 }
 
 /// Parse GraphQL directive from graphql-parser Directive.

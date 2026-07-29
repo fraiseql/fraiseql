@@ -159,17 +159,22 @@ fn object_type_of(field_type: &FieldType) -> Option<&str> {
 }
 
 /// Build a JSON object of a selection's GraphQL arguments, or `None` if it has none.
-fn field_arguments_json(sel: &FieldSelection) -> Option<JsonValue> {
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Internal` if a stored argument is not valid JSON. This
+/// is an authorization input: substituting the raw text for the value it failed to
+/// parse (the previous behaviour) hands the policy something other than what the
+/// client sent, and a policy that matches on an argument then decides on a lie.
+fn field_arguments_json(sel: &FieldSelection) -> Result<Option<JsonValue>> {
     if sel.arguments.is_empty() {
-        return None;
+        return Ok(None);
     }
     let mut map = serde_json::Map::with_capacity(sel.arguments.len());
     for arg in &sel.arguments {
-        let value = serde_json::from_str::<JsonValue>(&arg.value_json)
-            .unwrap_or_else(|_| JsonValue::String(arg.value_json.clone()));
-        map.insert(arg.name.clone(), value);
+        map.insert(arg.name.clone(), crate::graphql::value_json::decode(&arg.value_json)?);
     }
-    Some(JsonValue::Object(map))
+    Ok(Some(JsonValue::Object(map)))
 }
 
 /// Returns `true` if any field in `fields` (selected on `type_name`, top-level **or**
@@ -243,21 +248,28 @@ pub(crate) fn selection_set_has_nested_gated_field(
 
 /// Collect the top-level policy-gated fields selected on `type_name`, paired with
 /// their alias and GraphQL arguments.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Internal` if a gated field carries an argument whose
+/// stored JSON cannot be read — the authorizer must not decide on a guess.
 pub(crate) fn collect_top_level_gated_fields(
     schema: &CompiledSchema,
     type_name: &str,
     fields: &[FieldSelection],
-) -> Vec<GatedField> {
+) -> Result<Vec<GatedField>> {
     let Some(type_def) = schema.find_type(type_name) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     effective_selections(fields, type_name, schema)
         .into_iter()
         .filter(|sel| type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize))
-        .map(|sel| GatedField {
-            field_name: sel.name.clone(),
-            alias:      sel.alias.clone(),
-            arguments:  field_arguments_json(sel),
+        .map(|sel| {
+            Ok(GatedField {
+                field_name: sel.name.clone(),
+                alias:      sel.alias.clone(),
+                arguments:  field_arguments_json(sel)?,
+            })
         })
         .collect()
 }

@@ -1,8 +1,7 @@
 //! SQL Server SQL dialect implementation.
 
-use std::borrow::Cow;
-
 use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
+use crate::types::sql_hints::ScalarFieldType;
 
 /// SQL Server dialect for [`GenericWhereGenerator`].
 ///
@@ -27,16 +26,29 @@ impl SqlDialect for SqlServerDialect {
         format!("@p{n}")
     }
 
-    fn cast_to_numeric<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("CAST({expr} AS FLOAT)"))
+    fn cast_type_name(&self, ty: ScalarFieldType) -> Option<&'static str> {
+        match ty {
+            ScalarFieldType::Text => None,
+            ScalarFieldType::Integer => Some("BIGINT"),
+            ScalarFieldType::Numeric => Some("DECIMAL(38,12)"),
+            ScalarFieldType::Boolean => Some("BIT"),
+            ScalarFieldType::DateTime => Some("DATETIME2"),
+            ScalarFieldType::Date => Some("DATE"),
+            ScalarFieldType::Time => Some("TIME"),
+        }
+    }
+
+    fn like_escape_clause(&self) -> &'static str {
+        // SQL Server's LIKE has no default escape character (#722).
+        " ESCAPE '\\'"
     }
 
     fn like_sql(&self, lhs: &str, rhs: &str) -> String {
-        format!("{lhs} LIKE {rhs} COLLATE Latin1_General_CS_AS")
+        format!("{lhs} LIKE {rhs} COLLATE Latin1_General_CS_AS{}", self.like_escape_clause())
     }
 
     fn ilike_sql(&self, lhs: &str, rhs: &str) -> String {
-        format!("{lhs} LIKE {rhs} COLLATE Latin1_General_CI_AI")
+        format!("{lhs} LIKE {rhs} COLLATE Latin1_General_CI_AI{}", self.like_escape_clause())
     }
 
     fn concat_sql(&self, parts: &[&str]) -> String {

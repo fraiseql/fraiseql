@@ -10,31 +10,34 @@ use serde::{Deserialize, Serialize};
 
 use crate::{types::db_types::DatabaseType, utils::to_snake_case};
 
-/// SQL sort type for ORDER BY cast generation.
+/// Declared scalar type of a JSON field, used to pick the SQL cast.
 ///
-/// Determines whether the SQL generator wraps the extracted JSONB text in a
-/// type cast (e.g., `(data->>'amount')::numeric`) to ensure correct sort order.
-/// Without a cast, all JSONB extractions are `text` and sort lexicographically,
-/// which is wrong for numeric and date/time fields (`"9" > "10"`).
+/// A JSON/JSONB extraction is always `text`, so both ORDER BY and WHERE have to
+/// cast it before the database can compare it as anything else. Sorting `"9"`
+/// after `"10"` is the visible symptom for numbers; for WHERE the symptom is a
+/// wrong row set (or a hard cast error).
+///
+/// The variant → SQL-type-name mapping lives in exactly one place —
+/// [`SqlDialect::cast_type_name`] — so ORDER BY and WHERE cannot drift apart.
+///
+/// [`SqlDialect::cast_type_name`]: crate::dialect::SqlDialect::cast_type_name
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum OrderByFieldType {
-    /// No cast — text/string sort (correct for strings, UUIDs, enum values).
+pub enum ScalarFieldType {
+    /// No cast — text comparison (correct for strings, UUIDs, IDs, enum values).
     #[default]
     Text,
-    /// Cast to integer type (`::bigint` / `CAST(... AS BIGINT)`).
+    /// Integer (`::bigint` / `CAST(… AS BIGINT)`).
     Integer,
-    /// Cast to floating-point/numeric type (`::numeric` / `CAST(... AS DECIMAL(38,12))`).
+    /// Fixed/floating point (`::numeric` / `CAST(… AS DECIMAL(38,12))`).
     Numeric,
-    /// Cast to boolean (`::boolean` / `CAST(... AS UNSIGNED)`).
+    /// Boolean (`::boolean`).
     Boolean,
-    /// Cast to timestamp (`::timestamptz` / `CAST(... AS DATETIME)`).
-    /// Also used for ISO-8601 date-time strings which sort correctly as text,
-    /// but the cast ensures the database optimizer can use typed comparisons.
+    /// Instant (`::timestamptz` / `CAST(… AS DATETIME2)`).
     DateTime,
-    /// Cast to date (`::date` / `CAST(... AS DATE)`).
+    /// Calendar date (`::date`).
     Date,
-    /// Cast to time (`::time` / `CAST(... AS TIME)`).
+    /// Wall-clock time (`::time`).
     Time,
 }
 
@@ -60,7 +63,7 @@ pub struct OrderByClause {
     pub direction:     OrderDirection,
     /// Field type for SQL cast generation. `Text` (default) means no cast.
     #[serde(default)]
-    pub field_type:    OrderByFieldType,
+    pub field_type:    ScalarFieldType,
     /// Native column name if the view exposes this field as a typed column.
     /// When set, ORDER BY uses this column directly instead of JSONB extraction,
     /// enabling index support and correct typing without casts.
@@ -96,7 +99,7 @@ impl OrderByClause {
         Self {
             field,
             direction,
-            field_type: OrderByFieldType::default(),
+            field_type: ScalarFieldType::default(),
             native_column: None,
         }
     }

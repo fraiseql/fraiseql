@@ -79,7 +79,7 @@ mod directive_evaluator_tests {
 
     #[test]
     fn test_skip_with_variable() {
-        let field = make_field("email", vec![make_directive("skip", "\"$skipEmail\"")]);
+        let field = make_field("email", vec![make_directive("skip", r#"{"$var":"skipEmail"}"#)]);
         let mut variables = HashMap::new();
         variables.insert("skipEmail".to_string(), JsonValue::Bool(true));
 
@@ -89,7 +89,8 @@ mod directive_evaluator_tests {
 
     #[test]
     fn test_include_with_variable() {
-        let field = make_field("email", vec![make_directive("include", "\"$includeEmail\"")]);
+        let field =
+            make_field("email", vec![make_directive("include", r#"{"$var":"includeEmail"}"#)]);
         let mut variables = HashMap::new();
         variables.insert("includeEmail".to_string(), JsonValue::Bool(false));
 
@@ -99,7 +100,7 @@ mod directive_evaluator_tests {
 
     #[test]
     fn test_undefined_variable() {
-        let field = make_field("email", vec![make_directive("skip", "\"$undefined\"")]);
+        let field = make_field("email", vec![make_directive("skip", r#"{"$var":"undefined"}"#)]);
         let variables = HashMap::new();
 
         let result = DirectiveEvaluator::evaluate_directives(&field, &variables);
@@ -122,7 +123,7 @@ mod directive_evaluator_tests {
 
     #[test]
     fn test_variable_type_mismatch() {
-        let field = make_field("email", vec![make_directive("skip", "\"$notABool\"")]);
+        let field = make_field("email", vec![make_directive("skip", r#"{"$var":"notABool"}"#)]);
         let mut variables = HashMap::new();
         variables.insert("notABool".to_string(), JsonValue::String("hello".to_string()));
 
@@ -496,7 +497,7 @@ mod directive_evaluator_tests {
             arguments: vec![GraphQLArgument {
                 name:       "limit".to_string(),
                 value_type: "Int".to_string(),
-                value_json: "\"$myLimit\"".to_string(),
+                value_json: r#"{"$var":"myLimit"}"#.to_string(),
             }],
         };
 

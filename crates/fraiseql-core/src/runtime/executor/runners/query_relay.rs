@@ -10,6 +10,7 @@ use super::{
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
+        where_field_types,
     },
 };
 use crate::{
@@ -253,7 +254,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Parse optional `where` filter from variables.
         let user_where_clause = if query_def.auto_params.has_where {
             vars.and_then(|v| v.get("where"))
-                .map(WhereClause::from_graphql_json)
+                .map(|w| {
+                    let types = where_field_types(&self.ctx.schema, &query_def.return_type);
+                    WhereClause::from_graphql_json(w, &types)
+                })
                 .transpose()?
         } else {
             None

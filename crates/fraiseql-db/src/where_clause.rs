@@ -1,8 +1,17 @@
 //! WHERE clause abstract syntax tree.
 
+pub mod field_types;
+pub mod operator_table;
+
+use std::sync::Arc;
+
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
+pub use self::{
+    field_types::{FieldTypeMap, SharedFieldTypes},
+    operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
+};
 use crate::utils::to_snake_case;
 
 /// WHERE clause abstract syntax tree.
@@ -75,15 +84,46 @@ pub enum WhereClause {
         /// Value to compare against.
         value:    serde_json::Value,
     },
+
+    /// A subtree whose fields carry their declared scalar types.
+    ///
+    /// The generator needs the *field's* type to pick a SQL cast; deciding the
+    /// cast from the operator instead is what made every non-numeric range
+    /// filter a hard error (#798). The annotation is a node of the clause rather
+    /// than a parameter of the generator on purpose: a clause travels through
+    /// `ProjectionRequest`, the relay cursor path, the wire adapter, federation
+    /// and the cache key, and an extra argument on any one of those seams is an
+    /// extra place to drop it. Carried by the clause, it cannot be dropped
+    /// without deleting the clause.
+    ///
+    /// Only the *user-supplied* filter is wrapped. RLS and injected-parameter
+    /// conditions are composed separately and stay untyped — they compare
+    /// tenant identifiers as text.
+    Typed {
+        /// Declared type per dotted snake_case field path.
+        types: SharedFieldTypes,
+        /// The annotated subtree.
+        inner: Box<WhereClause>,
+    },
 }
 
 impl WhereClause {
     /// Check if WHERE clause is empty.
     #[must_use]
-    pub const fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
+            Self::Typed { inner, .. } => inner.is_empty(),
             Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
+        }
+    }
+
+    /// Annotate this clause with the declared scalar types of its fields.
+    #[must_use]
+    pub fn typed(self, types: SharedFieldTypes) -> Self {
+        Self::Typed {
+            types,
+            inner: Box::new(self),
         }
     }
 
@@ -107,7 +147,7 @@ impl WhereClause {
                     c.collect_native_column_names(out);
                 }
             },
-            Self::Not(inner) => inner.collect_native_column_names(out),
+            Self::Not(inner) | Self::Typed { inner, .. } => inner.collect_native_column_names(out),
             Self::NativeField { column, .. } => out.push(column),
             Self::Field { .. } => {},
         }
@@ -130,6 +170,14 @@ impl WhereClause {
     /// with operator sub-keys) or a logical combinator (`_and`, `_or`, `_not`).
     /// Multiple top-level keys are combined with AND.
     ///
+    /// `types` carries the declared scalar type of each filterable field, taken
+    /// from the compiled schema. It is a required argument rather than an
+    /// optional enrichment step because the cast a filter needs is a property of
+    /// the field: a caller that has a schema and forgets to consult it produces
+    /// SQL that errors on dates and silently under-matches on numbers. Callers
+    /// that genuinely have no schema pass [`SharedFieldTypes::default`] and get
+    /// value-shape inference.
+    ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if the JSON structure is invalid or
@@ -139,8 +187,13 @@ impl WhereClause {
     ///
     /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
     /// after verifying `conditions.len() == 1`.
-    pub fn from_graphql_json(value: &serde_json::Value) -> Result<Self> {
-        Self::parse_where_object(value, &[])
+    pub fn from_graphql_json(value: &serde_json::Value, types: &SharedFieldTypes) -> Result<Self> {
+        let parsed = Self::parse_where_object(value, &[])?;
+        Ok(if types.is_empty() {
+            parsed
+        } else {
+            parsed.typed(Arc::clone(types))
+        })
     }
 
     /// Recursive WHERE parser that builds multi-segment paths for nested objects.
@@ -305,8 +358,15 @@ pub enum WhereOperator {
     // ========================================================================
     // Null Checks
     // ========================================================================
-    /// Is null (IS NULL or IS NOT NULL).
+    /// Is null. A `false` operand inverts it to IS NOT NULL.
     IsNull,
+    /// Is not null. A `false` operand inverts it to IS NULL.
+    ///
+    /// The inverse spelling exists because REST advertises `is_not_null` as a
+    /// bracket operator; expressing it as `is_null: false` requires the client
+    /// to send a boolean through a URL query string, which is exactly where
+    /// #828's coercion inverted the meaning.
+    IsNotNull,
 
     // ========================================================================
     // Array Operators
@@ -461,82 +521,6 @@ impl WhereOperator {
         }
 
         Err(FraiseQLError::validation(format!("Unknown WHERE operator: {s}")))
-    }
-
-    /// Match an operator name exactly against the known set.
-    fn match_exact(s: &str) -> Option<Self> {
-        match s {
-            "eq" => Some(Self::Eq),
-            "neq" => Some(Self::Neq),
-            "gt" => Some(Self::Gt),
-            "gte" => Some(Self::Gte),
-            "lt" => Some(Self::Lt),
-            "lte" => Some(Self::Lte),
-            "in" => Some(Self::In),
-            "nin" | "notin" => Some(Self::Nin),
-            "contains" => Some(Self::Contains),
-            "icontains" => Some(Self::Icontains),
-            "startswith" => Some(Self::Startswith),
-            "istartswith" => Some(Self::Istartswith),
-            "endswith" => Some(Self::Endswith),
-            "iendswith" => Some(Self::Iendswith),
-            "like" => Some(Self::Like),
-            "ilike" => Some(Self::Ilike),
-            "nlike" => Some(Self::Nlike),
-            "nilike" => Some(Self::Nilike),
-            "regex" => Some(Self::Regex),
-            "iregex" | "imatches" => Some(Self::Iregex),
-            "nregex" | "not_matches" => Some(Self::Nregex),
-            "niregex" => Some(Self::Niregex),
-            "isnull" => Some(Self::IsNull),
-            "array_contains" => Some(Self::ArrayContains),
-            "array_contained_by" => Some(Self::ArrayContainedBy),
-            "array_overlaps" => Some(Self::ArrayOverlaps),
-            "len_eq" => Some(Self::LenEq),
-            "len_gt" => Some(Self::LenGt),
-            "len_lt" => Some(Self::LenLt),
-            "len_gte" => Some(Self::LenGte),
-            "len_lte" => Some(Self::LenLte),
-            "len_neq" => Some(Self::LenNeq),
-            "cosine_distance" => Some(Self::CosineDistance),
-            "l2_distance" => Some(Self::L2Distance),
-            "l1_distance" => Some(Self::L1Distance),
-            "hamming_distance" => Some(Self::HammingDistance),
-            "inner_product" => Some(Self::InnerProduct),
-            "jaccard_distance" => Some(Self::JaccardDistance),
-            "matches" => Some(Self::Matches),
-            "plain_query" => Some(Self::PlainQuery),
-            "phrase_query" => Some(Self::PhraseQuery),
-            "websearch_query" => Some(Self::WebsearchQuery),
-            "is_ipv4" => Some(Self::IsIPv4),
-            "is_ipv6" => Some(Self::IsIPv6),
-            "is_private" => Some(Self::IsPrivate),
-            "is_loopback" => Some(Self::IsLoopback),
-            "is_multicast" => Some(Self::IsMulticast),
-            "is_link_local" => Some(Self::IsLinkLocal),
-            "is_documentation" => Some(Self::IsDocumentation),
-            "is_carrier_grade" => Some(Self::IsCarrierGrade),
-            "in_subnet" | "inrange" => Some(Self::InSubnet),
-            "contains_subnet" => Some(Self::ContainsSubnet),
-            "contains_ip" => Some(Self::ContainsIP),
-            "overlaps" => Some(Self::Overlaps),
-            "strictly_contains" => Some(Self::StrictlyContains),
-            "ancestor_of" => Some(Self::AncestorOf),
-            "descendant_of" => Some(Self::DescendantOf),
-            "matches_lquery" => Some(Self::MatchesLquery),
-            "matches_ltxtquery" => Some(Self::MatchesLtxtquery),
-            "matches_any_lquery" => Some(Self::MatchesAnyLquery),
-            "depth_eq" => Some(Self::DepthEq),
-            "depth_neq" => Some(Self::DepthNeq),
-            "depth_gt" => Some(Self::DepthGt),
-            "depth_gte" => Some(Self::DepthGte),
-            "depth_lt" => Some(Self::DepthLt),
-            "depth_lte" => Some(Self::DepthLte),
-            "lca" => Some(Self::Lca),
-            "descendant_of_id" => Some(Self::DescendantOfId),
-            "ancestor_of_id" => Some(Self::AncestorOfId),
-            _ => None,
-        }
     }
 
     /// Check if operator requires array value.

@@ -83,6 +83,12 @@ impl AggregationSqlGenerator {
                     Ok(sql)
                 }
             },
+            // Declared field types steer the JSONB-extraction casts in the
+            // generic WHERE generator; this path builds its own SQL from the
+            // fact-table metadata, so the annotation is transparent.
+            WhereClause::Typed { inner, .. } => {
+                self.where_clause_to_sql_parameterized(inner, metadata, params)
+            },
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),

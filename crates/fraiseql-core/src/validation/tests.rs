@@ -5394,3 +5394,138 @@ mod js_codegen_tests {
         assert!(js.starts_with('(') && js.ends_with(')'), "should preserve parentheses: {js}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// #720 — `Length` counts characters, at every call site
+// ---------------------------------------------------------------------------
+
+/// Four independent evaluators of `ValidationRule::Length` all used `str::len()`
+/// while every one of their messages said "characters".
+///
+/// Asserting the shared helper alone would prove nothing about them: the defect
+/// was never in one function, it was in four functions agreeing by accident.
+/// This drives all four with the same multi-byte corpus.
+mod length_counts_characters_at_every_call_site {
+    use serde_json::json;
+
+    use crate::{
+        runtime::input_validator::validate_input,
+        validation::{
+            CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig, LengthCheck,
+            ValidationRule, check_length, composite::validate_single_rule,
+            validators::LengthValidator,
+        },
+    };
+
+    /// Two characters, three bytes — accepted by a byte count against `min: 3`.
+    const TWO_CHARS_THREE_BYTES: &str = "é!";
+    /// Three characters, six bytes — rejected by a byte count against `max: 5`.
+    const THREE_CHARS_SIX_BYTES: &str = "éàü";
+
+    #[test]
+    fn the_shared_helper_counts_characters() {
+        assert_eq!(
+            check_length(TWO_CHARS_THREE_BYTES, Some(3), None),
+            LengthCheck::TooShort {
+                min:    3,
+                actual: 2,
+            }
+        );
+        assert_eq!(check_length(THREE_CHARS_SIX_BYTES, None, Some(5)), LengthCheck::Ok);
+    }
+
+    #[test]
+    fn length_validator_counts_characters() {
+        let v = LengthValidator::new(Some(3), None);
+        assert!(!v.validate_length(TWO_CHARS_THREE_BYTES), "2 chars must not satisfy min:3");
+        let v = LengthValidator::new(None, Some(5));
+        assert!(v.validate_length(THREE_CHARS_SIX_BYTES), "3 chars must satisfy max:5");
+    }
+
+    #[test]
+    fn composite_field_rule_counts_characters() {
+        let too_short = ValidationRule::Length {
+            min: Some(3),
+            max: None,
+        };
+        assert!(
+            validate_single_rule(&too_short, TWO_CHARS_THREE_BYTES, "name", true).is_err(),
+            "2 chars must not satisfy min:3"
+        );
+        let fits = ValidationRule::Length {
+            min: None,
+            max: Some(5),
+        };
+        assert!(
+            validate_single_rule(&fits, THREE_CHARS_SIX_BYTES, "name", true).is_ok(),
+            "3 chars must satisfy max:5"
+        );
+    }
+
+    #[test]
+    fn custom_scalar_registry_counts_characters() {
+        let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
+        let mut def = CustomTypeDef::new("Code".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(3),
+            max: Some(5),
+        }];
+        registry.register("Code".to_string(), def).expect("registers");
+
+        let err = registry
+            .validate("Code", &json!(TWO_CHARS_THREE_BYTES))
+            .expect_err("2 chars must not satisfy min:3");
+        assert!(
+            format!("{err}").contains("got 2"),
+            "the message must report characters, got: {err}"
+        );
+        registry
+            .validate("Code", &json!(THREE_CHARS_SIX_BYTES))
+            .expect("3 chars must satisfy min:3 max:5");
+    }
+
+    #[test]
+    fn runtime_input_validator_counts_characters() {
+        let rule = ValidationRule::Length {
+            min: Some(3),
+            max: Some(5),
+        };
+        assert!(
+            validate_input(&json!(TWO_CHARS_THREE_BYTES), "code", std::slice::from_ref(&rule))
+                .is_err(),
+            "2 chars must not satisfy min:3"
+        );
+        assert!(
+            validate_input(&json!(THREE_CHARS_SIX_BYTES), "code", std::slice::from_ref(&rule))
+                .is_ok(),
+            "3 chars must satisfy min:3 max:5"
+        );
+    }
+}
+
+/// A violation survives even when its field path contains a parenthesis.
+///
+/// `validate_input` used to format the structured error into a message and then
+/// recover it with `find('(')` / `find(')')`. A field path containing a
+/// parenthesis cut the message at the wrong place — and when the recovery found
+/// no parenthesis at all it returned `None`, dropping the violation entirely so
+/// validation **passed** (#720).
+#[test]
+fn a_violation_survives_a_field_path_that_contains_parentheses() {
+    use serde_json::json;
+
+    use crate::{runtime::input_validator::validate_input, validation::ValidationRule};
+
+    let rule = ValidationRule::Length {
+        min: Some(5),
+        max: None,
+    };
+    for path in ["input.items(0).code", "plain_path", "a)b(c"] {
+        let err = validate_input(&json!("ab"), path, std::slice::from_ref(&rule))
+            .expect_err("a 2-character value must not satisfy min:5, whatever the path is called");
+        assert!(
+            format!("{err}").contains("length"),
+            "the violation must survive for path {path:?}, got: {err}"
+        );
+    }
+}

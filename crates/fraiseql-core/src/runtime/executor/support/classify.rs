@@ -178,12 +178,9 @@ fn extract_root_string_arg(parsed: &crate::graphql::ParsedQuery, arg_name: &str)
     let root_field = parsed.selections.first()?;
     let arg = root_field.arguments.iter().find(|a| a.name == arg_name)?;
 
-    // value_json is serialized as `"TypeName"` (with surrounding quotes) for
-    // string values.  Strip the outer quotes to get the raw string.
-    let json = &arg.value_json;
-    if json.starts_with('"') && json.ends_with('"') && json.len() >= 2 {
-        Some(json[1..json.len() - 1].replace("\\\"", "\""))
-    } else {
-        None
-    }
+    // `value_json` holds a JSON document. Peeling the outer quotes by hand and
+    // unescaping only `\"` is the same defect as #719's writer: a value
+    // containing a backslash or a newline came back mangled.
+    let decoded = crate::graphql::value_json::decode(&arg.value_json).ok()?;
+    Some(decoded.as_str()?.to_string())
 }

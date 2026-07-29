@@ -1144,3 +1144,79 @@ proptest::proptest! {
         let _ = parse_select_entries(&input);
     }
 }
+
+// -----------------------------------------------------------------------
+// #828 — the REST vocabulary and the executor's vocabulary are one set
+// -----------------------------------------------------------------------
+
+/// Every operator this transport accepts must be one the executor can run.
+///
+/// Both lists this asserts over used to be maintained by hand and disagreed on
+/// 27 names, so `?status[ne]=archived` and `?deletedAt[is_null]=true` passed
+/// validation here and then failed in the WHERE parser with a 400 — after the
+/// surface had already said the request was well-formed.
+#[test]
+fn every_advertised_rest_operator_parses_in_the_where_builder() {
+    for op in BRACKET_OPERATORS {
+        assert!(
+            fraiseql_core::db::WhereOperator::from_str(op).is_ok(),
+            "BRACKET_OPERATORS advertises {op:?} in ?field[op]= syntax, but the WHERE parser \
+             rejects it (#828)"
+        );
+    }
+    for op in OPERATOR_REGISTRY.keys() {
+        assert!(
+            fraiseql_core::db::WhereOperator::from_str(op).is_ok(),
+            "the ?filter= error message recommends {op:?}, but the WHERE parser rejects it (#828)"
+        );
+    }
+}
+
+/// A null check takes a boolean, whatever the field's declared type is.
+///
+/// Coercing the operand to the *field* type produced a JSON string for a
+/// `DateTime` field, and the generator's `as_bool().unwrap_or(true)` then read
+/// that as "assume IS NULL" — silently inverting `is_null=false`.
+#[test]
+fn null_check_operands_coerce_to_boolean_not_to_the_field_type() {
+    let config = test_config();
+    let query_def = list_query_def();
+    // A DateTime field: coercing the operand to *this* type is what inverted
+    // the check.
+    let type_def =
+        user_type_def().with_field(FieldDefinition::new("createdAt", FieldType::DateTime));
+    let extractor = extractor_list(&config, &query_def, &type_def);
+
+    let params = extractor
+        .extract(&[], &[("createdAt[is_null]", "false")])
+        .expect("is_null=false is a valid filter");
+    let where_clause = params.where_clause.expect("filter produces a where clause");
+    assert_eq!(
+        where_clause["createdAt"]["is_null"],
+        serde_json::Value::Bool(false),
+        "operand must be the boolean false, not a DateTime-coerced string: {where_clause}"
+    );
+
+    let err = extractor
+        .extract(&[], &[("createdAt[is_null]", "yesterday")])
+        .expect_err("a non-boolean null-check operand must be refused, not defaulted");
+    assert!(
+        format!("{err}").contains("boolean"),
+        "the error must name the expected type, got: {err}"
+    );
+}
+
+/// The `OpenAPI` document advertises exactly the operators the validator accepts.
+///
+/// A third hand-maintained list (`BRACKET_OPERATORS_DESC`) advertised `contains`,
+/// which `validate_bracket_operator` rejected, and omitted `istartswith`,
+/// `iendswith` and `is_not_null`, which it accepted (#828).
+#[test]
+fn the_openapi_bracket_operator_list_matches_the_validator() {
+    let advertised = crate::routes::rest::openapi::format::bracket_operators_desc();
+    let listed: Vec<&str> = advertised.split(", ").collect();
+    assert_eq!(
+        listed, BRACKET_OPERATORS,
+        "the OpenAPI description and the request validator must name one set"
+    );
+}

@@ -7,7 +7,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use super::counter::ParamCounter;
 use crate::{
     dialect::SqlDialect,
-    where_clause::{WhereClause, WhereOperator},
+    where_clause::{FieldTypeMap, WhereClause, WhereOperator, field_types::operand_type},
 };
 
 /// Escape LIKE metacharacters (`%`, `_`, `\`) in a user-supplied string so
@@ -177,7 +177,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     ) -> Result<(String, Vec<serde_json::Value>)> {
         self.counter.reset_to(0);
         let mut params = Vec::new();
-        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx))?;
+        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx), None)?;
         Ok((sql, params))
     }
 
@@ -204,7 +204,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     // ── Visitor ───────────────────────────────────────────────────────────────
 
     fn visit(&self, clause: &WhereClause, params: &mut Vec<serde_json::Value>) -> Result<String> {
-        self.visit_impl(clause, params, None)
+        self.visit_impl(clause, params, None, None)
     }
 
     fn visit_impl(
@@ -212,32 +212,41 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         clause: &WhereClause,
         params: &mut Vec<serde_json::Value>,
         hierarchy_ctx: Option<&super::HierarchyContext>,
+        types: Option<&FieldTypeMap>,
     ) -> Result<String> {
         match clause {
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok(self.dialect.always_true().to_string());
                 }
-                let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| self.visit_impl(c, params, hierarchy_ctx)).collect();
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types))
+                    .collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok(self.dialect.always_false().to_string());
                 }
-                let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| self.visit_impl(c, params, hierarchy_ctx)).collect();
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types))
+                    .collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(inner) => {
-                Ok(format!("NOT ({})", self.visit_impl(inner, params, hierarchy_ctx)?))
+                Ok(format!("NOT ({})", self.visit_impl(inner, params, hierarchy_ctx, types)?))
             },
+            WhereClause::Typed {
+                types: subtree_types,
+                inner,
+            } => self.visit_impl(inner, params, hierarchy_ctx, Some(subtree_types)),
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => self.visit_field(path, operator, value, params, hierarchy_ctx),
+            } => self.visit_field(path, operator, value, params, hierarchy_ctx, types),
             WhereClause::NativeField {
                 column,
                 pg_cast,
@@ -308,51 +317,34 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
         hierarchy_ctx: Option<&super::HierarchyContext>,
+        types: Option<&FieldTypeMap>,
     ) -> Result<String> {
         let field_expr = self.resolve_field_expr(path);
 
         match operator {
             // ── Comparison ────────────────────────────────────────────────────
-            WhereOperator::Eq => {
-                let p = self.push_param(params, value.clone());
-                if value.is_number() {
-                    let cast = self.dialect.cast_to_numeric(&field_expr);
-                    // Dialect-specific RHS cast: PostgreSQL uses (p::text)::numeric to
-                    // avoid wire-protocol type mismatch; other dialects pass p unchanged.
-                    let rhs = self.dialect.cast_param_numeric(&p);
-                    Ok(format!("{cast} = {rhs}"))
-                } else if value.is_boolean() {
-                    let cast = self.dialect.cast_to_boolean(&field_expr);
-                    Ok(format!("{cast} = {p}"))
-                } else {
-                    Ok(format!("{field_expr} = {p}"))
-                }
-            },
-            WhereOperator::Neq => {
-                let p = self.push_param(params, value.clone());
-                let neq = self.dialect.neq_operator();
-                if value.is_number() {
-                    let cast = self.dialect.cast_to_numeric(&field_expr);
-                    let rhs = self.dialect.cast_param_numeric(&p);
-                    Ok(format!("{cast} {neq} {rhs}"))
-                } else if value.is_boolean() {
-                    let cast = self.dialect.cast_to_boolean(&field_expr);
-                    Ok(format!("{cast} {neq} {p}"))
-                } else {
-                    Ok(format!("{field_expr} {neq} {p}"))
-                }
-            },
-            WhereOperator::Gt | WhereOperator::Gte | WhereOperator::Lt | WhereOperator::Lte => {
+            // One cast decision for every scalar comparison. Splitting it per
+            // operator is what left `Gt`/`Gte`/`Lt`/`Lte` casting unconditionally
+            // to numeric (#798) while `In`/`Nin` cast not at all (#800).
+            WhereOperator::Eq
+            | WhereOperator::Neq
+            | WhereOperator::Gt
+            | WhereOperator::Gte
+            | WhereOperator::Lt
+            | WhereOperator::Lte => {
                 let op = match operator {
+                    WhereOperator::Eq => "=",
+                    WhereOperator::Neq => self.dialect.neq_operator(),
                     WhereOperator::Gt => ">",
                     WhereOperator::Gte => ">=",
                     WhereOperator::Lt => "<",
                     _ => "<=",
                 };
-                let cast = self.dialect.cast_to_numeric(&field_expr);
+                let ty = operand_type(types, path, value);
+                let lhs = self.dialect.cast_expr_as(&field_expr, ty);
                 let p = self.push_param(params, value.clone());
-                let rhs = self.dialect.cast_param_numeric(&p);
-                Ok(format!("{cast} {op} {rhs}"))
+                let rhs = self.dialect.cast_param_as(&p, ty);
+                Ok(format!("{lhs} {op} {rhs}"))
             },
 
             // ── Containment ───────────────────────────────────────────────────
@@ -367,10 +359,17 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                         self.dialect.always_true().to_string()
                     });
                 }
-                let placeholders: Vec<_> =
-                    arr.iter().map(|v| self.push_param(params, v.clone())).collect();
+                let ty = operand_type(types, path, value);
+                let lhs = self.dialect.cast_expr_as(&field_expr, ty);
+                let placeholders: Vec<_> = arr
+                    .iter()
+                    .map(|v| {
+                        let p = self.push_param(params, v.clone());
+                        self.dialect.cast_param_as(&p, ty).into_owned()
+                    })
+                    .collect();
                 let in_list = placeholders.join(", ");
-                let sql = format!("{field_expr} IN ({in_list})");
+                let sql = format!("{lhs} IN ({in_list})");
                 Ok(if matches!(operator, WhereOperator::Nin) {
                     format!("NOT ({sql})")
                 } else {
@@ -379,9 +378,25 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             },
 
             // ── NULL ──────────────────────────────────────────────────────────
-            WhereOperator::IsNull => {
-                let is_null = value.as_bool().unwrap_or(true);
-                let null_op = if is_null { "IS NULL" } else { "IS NOT NULL" };
+            WhereOperator::IsNull | WhereOperator::IsNotNull => {
+                let negated = matches!(operator, WhereOperator::IsNotNull);
+                // A non-boolean operand is a client error, not a licence to
+                // pick a default: `?deletedAt[is_null]=false` coerced to the
+                // field's declared type used to silently mean IS NULL (#828).
+                let asserted = match value {
+                    serde_json::Value::Bool(b) => *b,
+                    serde_json::Value::Null => true,
+                    other => {
+                        return Err(FraiseQLError::validation(format!(
+                            "{operator:?} requires a boolean operand, got {other}"
+                        )));
+                    },
+                };
+                let null_op = if asserted != negated {
+                    "IS NULL"
+                } else {
+                    "IS NOT NULL"
+                };
                 Ok(format!("{field_expr} {null_op}"))
             },
 

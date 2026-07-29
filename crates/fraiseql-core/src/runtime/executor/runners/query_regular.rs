@@ -11,7 +11,7 @@ use super::{
         combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
         inject_param_where_clause,
     },
-    query_projection::{build_typed_projection_fields, enrich_order_by_clauses},
+    query_projection::{build_typed_projection_fields, enrich_order_by_clauses, where_field_types},
 };
 use crate::{
     db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
@@ -273,10 +273,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
         //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
         let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            // Built only when the request actually carries a filter: with
+            // `has_where` on by default, every list query would otherwise pay
+            // for a map it never reads.
             let user_where = query_match
                 .arguments
                 .get("where")
-                .map(WhereClause::from_graphql_json)
+                .map(|w| {
+                    let types =
+                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
+                    WhereClause::from_graphql_json(w, &types)
+                })
                 .transpose()?;
             match (combined_where, user_where) {
                 (None, None) => None,
@@ -432,7 +439,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 });
             }
             let gated =
-                authz::collect_top_level_gated_fields(&self.ctx.schema, return_type, root_fields);
+                authz::collect_top_level_gated_fields(&self.ctx.schema, return_type, root_fields)?;
             let pass = authz::FieldAuthzPass {
                 authorizer:        authorizer.as_ref(),
                 principal:         security_context,
@@ -651,7 +658,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match
                 .arguments
                 .get("where")
-                .map(WhereClause::from_graphql_json)
+                .map(|w| {
+                    let types =
+                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
+                    WhereClause::from_graphql_json(w, &types)
+                })
                 .transpose()?
         } else {
             None
@@ -819,7 +830,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match
                 .arguments
                 .get("where")
-                .map(WhereClause::from_graphql_json)
+                .map(|w| {
+                    let types =
+                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
+                    WhereClause::from_graphql_json(w, &types)
+                })
                 .transpose()?
         } else {
             None
@@ -1043,10 +1058,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
         let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            // Built only when the request actually carries a filter: with
+            // `has_where` on by default, every list query would otherwise pay
+            // for a map it never reads.
             let user_where = query_match
                 .arguments
                 .get("where")
-                .map(WhereClause::from_graphql_json)
+                .map(|w| {
+                    let types =
+                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
+                    WhereClause::from_graphql_json(w, &types)
+                })
                 .transpose()?;
             match (combined_where, user_where) {
                 (None, None) => None,

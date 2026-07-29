@@ -3,6 +3,12 @@ use serde_json::json;
 
 use super::*;
 
+/// A field-type map that declares nothing, so these tests exercise the
+/// value-shape fallback rather than a schema lookup.
+fn untyped() -> SharedFieldTypes {
+    SharedFieldTypes::default()
+}
+
 #[test]
 fn test_where_operator_from_str() {
     assert_eq!(WhereOperator::from_str("eq").unwrap(), WhereOperator::Eq);
@@ -66,7 +72,7 @@ fn test_where_clause_empty() {
 #[test]
 fn test_from_graphql_json_simple_field() {
     let json = json!({ "status": { "eq": "active" } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -80,7 +86,7 @@ fn test_from_graphql_json_simple_field() {
 #[test]
 fn test_from_graphql_json_camelcase_field_normalized_to_snake_case() {
     let json = json!({ "ipAddress": { "eq": "10.0.0.1" } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -94,7 +100,7 @@ fn test_from_graphql_json_camelcase_field_normalized_to_snake_case() {
 #[test]
 fn test_from_graphql_json_snake_case_field_unchanged() {
     let json = json!({ "ip_address": { "eq": "10.0.0.1" } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -111,7 +117,7 @@ fn test_from_graphql_json_multiple_fields() {
         "status": { "eq": "active" },
         "age": { "gte": 18 }
     });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     match clause {
         WhereClause::And(conditions) => assert_eq!(conditions.len(), 2),
         _ => panic!("expected And"),
@@ -126,7 +132,7 @@ fn test_from_graphql_json_logical_combinators() {
             { "role": { "eq": "superadmin" } }
         ]
     });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     match clause {
         WhereClause::Or(conditions) => assert_eq!(conditions.len(), 2),
         _ => panic!("expected Or"),
@@ -136,14 +142,14 @@ fn test_from_graphql_json_logical_combinators() {
 #[test]
 fn test_from_graphql_json_not() {
     let json = json!({ "_not": { "deleted": { "eq": true } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert!(matches!(clause, WhereClause::Not(_)));
 }
 
 #[test]
 fn test_from_graphql_json_invalid_operator() {
     let json = json!({ "field": { "nonexistent_op": 42 } });
-    let result = WhereClause::from_graphql_json(&json);
+    let result = WhereClause::from_graphql_json(&json, &untyped());
     assert!(
         matches!(result, Err(FraiseQLError::Validation { .. })),
         "expected Validation error, got: {result:?}"
@@ -155,7 +161,7 @@ fn test_from_graphql_json_invalid_operator() {
 #[test]
 fn test_nested_relation_where_builds_path() {
     let json = json!({ "machine": { "id": { "eq": "abc" } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -169,7 +175,7 @@ fn test_nested_relation_where_builds_path() {
 #[test]
 fn test_nested_relation_where_camelcase_normalized() {
     let json = json!({ "machineGroup": { "ipAddress": { "eq": "10.0.0.1" } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -183,7 +189,7 @@ fn test_nested_relation_where_camelcase_normalized() {
 #[test]
 fn test_nested_relation_where_multiple_operators() {
     let json = json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     // Two nested fields → AND combination
     match clause {
         WhereClause::And(conditions) => {
@@ -208,7 +214,7 @@ fn test_unknown_operator_still_errors() {
     // a plain string, not an object), so the recursion hits the "must be an
     // object" validation.
     let json = json!({ "name": { "bogus": "value" } });
-    assert!(WhereClause::from_graphql_json(&json).is_err());
+    assert!(WhereClause::from_graphql_json(&json, &untyped()).is_err());
 }
 
 #[test]
@@ -247,7 +253,7 @@ fn test_new_operators_case_insensitive_flag() {
 fn test_nested_relation_filter_builds_multi_segment_path() {
     // where: { machine: { id: { eq: "some-uuid" } } }
     let json = json!({ "machine": { "id": { "eq": "some-uuid" } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -262,7 +268,7 @@ fn test_nested_relation_filter_builds_multi_segment_path() {
 fn test_nested_relation_filter_multiple_fields() {
     // where: { machine: { id: { eq: "uuid" }, name: { contains: "x" } } }
     let json = json!({ "machine": { "id": { "eq": "uuid" }, "name": { "contains": "x" } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     match clause {
         WhereClause::And(conditions) => {
             assert_eq!(conditions.len(), 2);
@@ -279,7 +285,7 @@ fn test_nested_relation_filter_multiple_fields() {
 fn test_deeply_nested_filter_builds_three_segment_path() {
     // where: { items: { product: { category: { eq: "electronics" } } } }
     let json = json!({ "items": { "product": { "category": { "eq": "electronics" } } } });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -299,7 +305,7 @@ fn test_unknown_operator_scalar_value_still_errors() {
     // A truly unknown operator with a scalar value should still give the
     // original "Unknown WHERE operator" error, not the nested relation hint.
     let json = json!({ "field": { "nonexistent_op": 42 } });
-    let result = WhereClause::from_graphql_json(&json);
+    let result = WhereClause::from_graphql_json(&json, &untyped());
     match result {
         Err(FraiseQLError::Validation { message, .. }) => {
             assert!(
@@ -423,7 +429,7 @@ fn test_where_clause_with_camel_case_operator() {
     let json = json!({
         "ip_address": { "descendantOf": 42 }
     });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -439,7 +445,7 @@ fn test_where_clause_with_camel_case_network_operator() {
     let json = json!({
         "ip_address": { "isPrivate": true }
     });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {
@@ -483,7 +489,7 @@ fn test_descendant_of_id_graphql_json() {
     let json = json!({
         "category_path": { "descendantOfId": "abc-123" }
     });
-    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
     assert_eq!(
         clause,
         WhereClause::Field {

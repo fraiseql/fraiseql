@@ -313,21 +313,28 @@ mod operators_tests {
 
     #[test]
     fn test_containment_operators() {
-        let operators = [
-            "contains",
-            "contained_in",
-            "has_key",
-            "has_any_keys",
-            "has_all_keys",
-        ];
+        // `contains` is the LIKE-substring operator, not JSONB `@>` — the old
+        // registry classified it as JSONB containment while the executor has
+        // always rendered it as `LIKE '%…%'`, one more instance of the
+        // producer/consumer drift #828 reports.
+        let contains = get_operator_info("contains").expect("contains is registered");
+        assert_eq!(contains.category, OperatorCategory::String);
+        assert_eq!(contains.sql_op, "LIKE");
 
-        for op_name in &operators {
-            let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Containment operator {op_name} should exist");
+        // JSONB containment is `strictly_contains`, and `<@` is reachable under
+        // both of its historical spellings.
+        let strict = get_operator_info("strictly_contains").expect("strictly_contains");
+        assert_eq!(strict.category, OperatorCategory::Containment);
+        assert!(strict.jsonb_operator);
 
-            let op = op.unwrap();
-            assert_eq!(op.category, OperatorCategory::Containment);
-            assert!(op.jsonb_operator, "{op_name} should be JSONB operator");
+        for alias in ["array_contained_by", "array_contained_in", "contained_in"] {
+            let op = get_operator_info(alias);
+            assert!(op.is_some(), "{alias} is registered");
+            assert_eq!(
+                op.map(|o| o.sql_op),
+                Some("<@"),
+                "{alias} must be the containment operator"
+            );
         }
     }
 
@@ -418,13 +425,14 @@ mod operators_tests {
 
     #[test]
     fn test_jsonb_operator_flag() {
-        // Containment operators are JSONB-specific
-        assert!(get_operator_info("contains").unwrap().jsonb_operator);
-        assert!(get_operator_info("has_key").unwrap().jsonb_operator);
+        // JSONB-specific operators read the JSON value rather than its text form.
+        assert!(get_operator_info("strictly_contains").unwrap().jsonb_operator);
+        assert!(get_operator_info("len_eq").unwrap().jsonb_operator);
 
         // Most operators are not JSONB-specific
         assert!(!get_operator_info("eq").unwrap().jsonb_operator);
         assert!(!get_operator_info("like").unwrap().jsonb_operator);
+        assert!(!get_operator_info("contains").unwrap().jsonb_operator);
     }
 }
 
