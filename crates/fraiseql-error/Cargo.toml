@@ -4,7 +4,7 @@
 # `axum-compat` feature. Pure logic crates (e.g. fraiseql-db) must NOT enable it.
 axum = {workspace = true, optional = true}
 serde = {version = "1", features = ["derive"]}
-serde_json = "1"
+serde_json = {workspace = true}
 thiserror = "2"
 toml = "0.8"
 

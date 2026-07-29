@@ -10,8 +10,7 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
-    graphql::parse_graphql_document,
-    security::{IntrospectionEnforcer, SecurityContext, SecurityError},
+    security::SecurityContext,
 };
 use fraiseql_error::FraiseQLError;
 use tracing::{debug, error, warn};
@@ -301,154 +300,30 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         fraiseql_core::federation::FederationTraceContext,
     >,
     #[cfg(not(feature = "federation"))] _trace_context: Option<()>,
-    mut security_context: Option<SecurityContext>,
+    security_context: Option<SecurityContext>,
     headers: &HeaderMap,
     peer_ip: &str,
 ) -> Result<GraphQLResponse, ErrorResponse> {
-    // Service-account auth (ADR-0018): a service account's `run_as` ceiling takes
-    // precedence over the scopes-only static API key on the same header. A JWT principal
-    // presented alongside a secret header is rejected as ambiguous (#602), never silently
-    // resolved to one identity.
-    if let Some(ref sa_auth) = state.service_account_authenticator {
-        match sa_auth.resolve(headers, security_context.is_some()) {
-            crate::service_account::SaAuth::Authenticated(ctx) => {
-                debug!("Authenticated via service account");
-                security_context = Some(*ctx);
-            },
-            crate::service_account::SaAuth::Ambiguous => {
-                return Err(ErrorResponse::from_error(GraphQLError::new(
-                    "Ambiguous credentials: a bearer token and an API-key / service-account \
-                     secret were presented on the same request",
-                    crate::error::ErrorCode::Unauthenticated,
-                )));
-            },
-            // No secret header, or present-but-unmatched — fall through to the static
-            // API-key check (which 401s if it also fails to match).
-            crate::service_account::SaAuth::NoSecret
-            | crate::service_account::SaAuth::Unmatched => {},
-        }
-    }
-
-    // API key auth: if configured, try it before falling through to JWT/OIDC.
-    if security_context.is_none() {
-        if let Some(ref api_key_auth) = state.api_key_authenticator {
-            match api_key_auth.authenticate(headers).await {
-                crate::api_key::ApiKeyResult::Authenticated(ctx) => {
-                    debug!("Authenticated via API key");
-                    security_context = Some(*ctx);
-                },
-                crate::api_key::ApiKeyResult::Invalid => {
-                    return Err(ErrorResponse::from_error(GraphQLError::new(
-                        "Invalid API key",
-                        crate::error::ErrorCode::Unauthenticated,
-                    )));
-                },
-                crate::api_key::ApiKeyResult::NotPresent => {
-                    // Fall through to JWT/OIDC (or unauthenticated).
-                },
-            }
-        }
-    }
-
-    // Stamp the originating request's W3C trace id onto the principal so the
-    // change-log write records it (#375) and the perf tooling can surface it as an
-    // investigation handle. Only when both a `traceparent` and a `SecurityContext`
-    // are present — an anonymous request carries no principal to stamp, so its
-    // change-log rows keep `trace_id` NULL (consistent with `tenant_id`).
-    if let Some(trace_id) = tracing_utils::extract_trace_id(headers) {
-        security_context = security_context.map(|ctx| ctx.with_trace_id(trace_id));
-    }
-
-    // Stamp the full W3C trace context (the parsed traceparent + tracestate) onto
-    // the principal so the change-log write records it in the `trace_context` JSONB
-    // column (#375) — the re-propagation / full-trace handle beyond the scalar
-    // `trace_id`. Same gate as `trace_id`: NULL for an anonymous / trace-less request.
-    if let Some(trace_context) = tracing_utils::extract_trace_context_json(headers) {
-        security_context = security_context.map(|ctx| ctx.with_trace_context(trace_context));
-    }
-
-    // Enriched-identity resolution (#539): when `[identity.enrichment]` is
-    // enabled, resolve the subject's DB identity and merge it under the
-    // forge-proof `fraiseql.enriched.*` namespace *before* dispatch, so RLS /
-    // views / inject-params scope on a DB-derived identity, not a client-asserted
-    // one. Fail-closed at source: an unresolved identity denies the request (403)
-    // before any data query runs; a transient resolver failure is 503. An
-    // unauthenticated request has no subject to resolve and proceeds unchanged.
+    // ── Who is asking ────────────────────────────────────────────────────────
+    //
+    // Every `await` on a stage is `Box::pin`ned. An awaited `async fn` embeds its
+    // whole state machine in the caller's future, so the nine stages compose into
+    // a type deep enough that rustc 1.97 refuses to compute the handler's layout
+    // ("queries overflow the depth limit"). Boxing also keeps the request future
+    // small enough for `clippy::large_futures`, which this crate has tripped
+    // repeatedly on `Server`-shaped futures. The cost is one allocation per stage
+    // per request, against a database round-trip.
+    let mut security_context =
+        Box::pin(stages::authenticate(&state, headers, security_context)).await?;
+    security_context = stages::stamp_trace_context(headers, security_context);
     #[cfg(feature = "auth")]
-    if let Some(resolver) = state.identity_resolver.as_ref() {
-        if let Some(ctx) = security_context.as_mut() {
-            match crate::identity::enrich_security_context(resolver, ctx).await {
-                crate::identity::EnrichmentOutcome::Proceed => {},
-                crate::identity::EnrichmentOutcome::Denied => {
-                    // Generic outward body (DESIGN §5.4): the precise DenyReason is
-                    // logged server-side, never surfaced (actor-table oracle guard).
-                    return Err(ErrorResponse::from_error(GraphQLError::new(
-                        "Access denied",
-                        crate::error::ErrorCode::Forbidden,
-                    )));
-                },
-                crate::identity::EnrichmentOutcome::Unavailable => {
-                    return Err(ErrorResponse::from_error(GraphQLError::new(
-                        "Identity resolution temporarily unavailable",
-                        crate::error::ErrorCode::ServiceUnavailable,
-                    )));
-                },
-            }
-        }
-    }
+    Box::pin(stages::enrich_identity(&state, &mut security_context)).await?;
 
-    // Resolve query body — trusted documents take priority over APQ.
-    // If a trusted document store is configured, resolve the document ID first.
-    if let Some(ref td_store) = state.trusted_docs {
-        let doc_id = extract_document_id(&request);
-        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()) {
-            Ok(resolved) => {
-                if doc_id.is_some() {
-                    crate::trusted_documents::record_hit();
-                    debug!(document_id = ?doc_id, "Trusted document resolved");
-                }
-                // Replace the query with the resolved body so APQ and execution use it.
-                request.query = Some(resolved);
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::ForbiddenRawQuery) => {
-                crate::trusted_documents::record_rejected();
-                return Err(ErrorResponse::from_error(GraphQLError::forbidden_query()));
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::DocumentNotFound { id }) => {
-                crate::trusted_documents::record_miss();
-                return Err(ErrorResponse::from_error(GraphQLError::document_not_found(&id)));
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::ManifestLoad(msg)) => {
-                error!(error = %msg, "Trusted document manifest error");
-                return Err(ErrorResponse::from_error(GraphQLError::internal(
-                    "Trusted documents unavailable",
-                )));
-            },
-        }
-    }
-
-    // Resolve query body — either from APQ or from the request payload.
-    let query = if let Some(hash) = extract_apq_hash(request.extensions.as_ref()) {
-        if let Some(ref store) = state.apq_store {
-            resolve_apq(store.as_ref(), &state.apq_metrics, hash, request.query.as_deref()).await?
-        } else {
-            // APQ extension present but no store configured — use the body if available.
-            request.query.ok_or_else(|| {
-                ErrorResponse::from_error(GraphQLError::request(
-                    "APQ is not enabled on this server and no query body was provided",
-                ))
-            })?
-        }
-    } else {
-        request
-            .query
-            .ok_or_else(|| ErrorResponse::from_error(GraphQLError::request("No query provided")))?
-    };
+    // ── What they are asking ─────────────────────────────────────────────────
+    let query = Box::pin(stages::resolve_query_body(&state, &mut request)).await?;
 
     let start_time = Instant::now();
     let metrics = &state.metrics;
-
-    // Increment total queries counter
     metrics.queries_total.fetch_add(1, Ordering::Relaxed);
 
     // Reason (F041): per-request execution log moved to `debug!`. At >100 RPS
@@ -461,152 +336,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         "Executing GraphQL query"
     );
 
-    // Enforce the introspection policy (#453) on the resolved query, before any
-    // execution. This is the single choke point every path (POST, GET, APQ,
-    // trusted documents) funnels through, so `{ __schema }` / `{ __type }`
-    // (single-root, aliased, or multi-root) cannot be served when the policy
-    // forbids it. `__typename` and normal queries are never blocked. A rejection
-    // is a GraphQL error in `errors[]` with HTTP 200, never a 5xx.
-    {
-        let enforcer = IntrospectionEnforcer::new(state.introspection_policy);
-        let user_id = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
-        if let Err(err) = enforcer.validate_query(&query, user_id) {
-            debug!(
-                policy = %state.introspection_policy,
-                "Introspection query rejected by policy"
-            );
-            metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-            let detail = match err {
-                SecurityError::IntrospectionDisabled { detail } => detail,
-                other => other.to_string(),
-            };
-            return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(detail)));
-        }
-    }
+    // ── Whether they may ─────────────────────────────────────────────────────
+    stages::enforce_introspection_policy(&state, &query, security_context.as_ref())?;
+    stages::validate_request(&state, &query, &request, peer_ip)?;
 
-    // Validate request
-    let validator = &state.validator;
-
-    // Parse the GraphQL document exactly once at the handler boundary so the
-    // validator can walk the AST without re-parsing. The matcher's downstream
-    // parse (inside `executor.execute`) is independent and benefits from the
-    // executor's own parse cache (see F001 in IMPROVEMENTS.md).
-    //
-    // We only invoke `parse_graphql_document` when the validator might use the
-    // AST — when it is a no-op the explicit parse here would be wasted work
-    // (the executor will still parse what it needs).
-    let validation_outcome = if validator.is_no_op() {
-        Ok(())
-    } else {
-        match parse_graphql_document(&query) {
-            Ok(doc) => validator.validate_query_doc(&doc),
-            Err(e) => Err(e),
-        }
-    };
-    if let Err(e) = validation_outcome {
-        error!(
-            error = %e,
-            operation_name = ?request.operation_name,
-            "Query validation failed"
-        );
-        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-        metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
-
-        // Check rate limiting for validation errors
-        #[cfg(feature = "auth")]
-        {
-            if state.graphql_rate_limiter.check(peer_ip).is_err() {
-                return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
-                    "Too many validation errors. Please reduce query complexity and try again.",
-                )));
-            }
-        }
-
-        let graphql_error = match e {
-            crate::validation::ComplexityValidationError::QueryTooDeep {
-                max_depth,
-                actual_depth,
-            } => GraphQLError::validation(format!(
-                "Query exceeds maximum depth: {actual_depth} > {max_depth}"
-            )),
-            crate::validation::ComplexityValidationError::QueryTooComplex {
-                max_complexity,
-                actual_complexity,
-            } => GraphQLError::validation(format!(
-                "Query exceeds maximum complexity: {actual_complexity} > {max_complexity}"
-            )),
-            crate::validation::ComplexityValidationError::MalformedQuery(msg) => {
-                metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
-                GraphQLError::parse(msg)
-            },
-            crate::validation::ComplexityValidationError::InvalidVariables(msg) => {
-                GraphQLError::request(msg)
-            },
-            crate::validation::ComplexityValidationError::TooManyAliases {
-                max_aliases,
-                actual_aliases,
-            } => GraphQLError::validation(format!(
-                "Query exceeds maximum alias count: {actual_aliases} > {max_aliases}"
-            )),
-            // Reason: non_exhaustive requires catch-all for cross-crate matches
-            _ => GraphQLError::validation("Validation error"),
-        };
-        return Err(ErrorResponse::from_error(graphql_error));
-    }
-
-    // Validate variables
-    if let Err(e) = validator.validate_variables(request.variables.as_ref()) {
-        error!(
-            error = %e,
-            operation_name = ?request.operation_name,
-            "Variables validation failed"
-        );
-        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-        metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
-
-        // Check rate limiting for validation errors
-        #[cfg(feature = "auth")]
-        {
-            if state.graphql_rate_limiter.check(peer_ip).is_err() {
-                return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
-                    "Too many validation errors. Please reduce query complexity and try again.",
-                )));
-            }
-        }
-
-        return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
-    }
-
-    // Check federation circuit breaker for _entities queries before execution
     #[cfg(feature = "federation")]
-    let cb_entity_types: Vec<String> = if fraiseql_core::federation::is_federation_query(&query) {
-        if let Some(ref cb_manager) = state.circuit_breaker {
-            let entity_types = crate::federation::circuit_breaker::extract_entity_types(
-                request.variables.as_ref(),
-            );
-            for entity_type in &entity_types {
-                if let Some(retry_after) = cb_manager.check(entity_type) {
-                    warn!(
-                        entity = %entity_type,
-                        retry_after_secs = retry_after,
-                        "Federation circuit breaker open — rejecting _entities request"
-                    );
-                    metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-                    return Err(ErrorResponse::from_error(GraphQLError::circuit_breaker_open(
-                        entity_type,
-                        retry_after,
-                    )));
-                }
-            }
-            entity_types
-        } else {
-            vec![]
-        }
-    } else {
-        vec![]
-    };
-    #[cfg(not(feature = "federation"))]
-    let _cb_entity_types: Vec<String> = vec![];
+    let cb_entity_types =
+        stages::check_federation_circuit_breakers(&state, &query, request.variables.as_ref())?;
 
     // Resolve tenant key from JWT / X-Tenant-ID header / Host header, through the
     // same seam the MCP transport uses (#858).
@@ -619,64 +355,14 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 ))
             })?;
 
-    // Before-mutation hook: if functions subsystem has hooks, run the chain before executing.
-    // The check is a single HashMap::get — zero overhead when no hooks are registered.
-    let variables = if let Some(ref hooks) = state.before_mutation_hooks {
-        if let Some(mutation_name) = detect_mutation_name(&query) {
-            if let Some(chain) = hooks.trigger_registry.before_chain(&mutation_name) {
-                let input = request.variables.clone().unwrap_or(serde_json::Value::Null);
-                let host =
-                    fraiseql_functions::NoopHostContext::new(fraiseql_functions::EventPayload {
-                        trigger_type: format!("before:mutation:{mutation_name}"),
-                        entity:       mutation_name.clone(),
-                        event_kind:   "before".to_string(),
-                        data:         input.clone(),
-                        timestamp:    chrono::Utc::now(),
-                    });
-                match chain
-                    .execute(
-                        input,
-                        &hooks.module_registry,
-                        &hooks.observer,
-                        &host,
-                        fraiseql_functions::ResourceLimits::default(),
-                    )
-                    .await
-                {
-                    Ok(fraiseql_functions::BeforeMutationResult::Proceed(modified)) => {
-                        if modified.is_null() {
-                            None
-                        } else {
-                            Some(modified)
-                        }
-                    },
-                    Ok(fraiseql_functions::BeforeMutationResult::Abort(msg)) => {
-                        return Err(ErrorResponse::from_error(GraphQLError::validation(msg)));
-                    },
-                    Err(e) => {
-                        error!(error = %e, mutation = %mutation_name, "before:mutation chain failed");
-                        return Err(ErrorResponse::from_error(state.error_sanitizer.sanitize(
-                            GraphQLError::internal("before:mutation hook execution failed"),
-                        )));
-                    },
-                    // Reason: BeforeMutationResult is non_exhaustive; treat unknown variants as
-                    // Proceed
-                    Ok(_) => request.variables,
-                }
-            } else {
-                request.variables
-            }
-        } else {
-            request.variables
-        }
-    } else {
-        request.variables
-    };
+    let variables =
+        Box::pin(stages::run_before_mutation_hooks(&state, &query, request.variables)).await?;
 
-    // Execute query (defer error propagation to record circuit breaker outcome first).
-    // Dispatch, the suspended-tenant gate and the per-tenant quotas all live in the
-    // shared seam so the MCP transport enforces the identical policy (#858). The
-    // returned value holds the concurrency permit for the rest of this scope.
+    // ── Execution ────────────────────────────────────────────────────────────
+    // Dispatch, the suspended-tenant gate and the per-tenant quotas all live in
+    // the shared seam so the MCP transport enforces the identical policy (#858).
+    // `dispatch` holds the concurrency permit for the rest of this scope, which
+    // is why it is not extracted into a stage.
     let dispatch = super::tenant_dispatch::dispatch_to_tenant(&state, tenant_key.as_deref())
         .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
     let executor = &dispatch.executor;
@@ -690,6 +376,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
+    // Error propagation is deferred so the circuit-breaker outcome is recorded first.
     let exec_result = if let Some(sec_ctx) = security_context {
         executor.execute_with_security(&query, variables.as_ref(), &sec_ctx).await
     } else {
@@ -784,23 +471,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         "Query executed successfully"
     );
 
+    // ── Post-processing ──────────────────────────────────────────────────────
     #[allow(unused_mut)]
-    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
+    // Reason: mut is required by decrypt_response_fields(&mut ...) under the secrets feature
     let mut response_json = result;
 
-    // Decrypt encrypted fields if field encryption is configured
     #[cfg(feature = "secrets")]
-    if let Some(ref encryption) = state.field_encryption {
-        if encryption.has_encrypted_fields() {
-            encryption.decrypt_response(&mut response_json).await.map_err(|e| {
-                error!(error = %e, "Field decryption failed");
-                let err = state
-                    .error_sanitizer
-                    .sanitize(GraphQLError::internal("Field decryption failed".to_string()));
-                ErrorResponse::from_error(err)
-            })?;
-        }
-    }
+    Box::pin(stages::decrypt_response_fields(&state, &mut response_json)).await?;
 
     // After-mutation function triggers (#460): once the mutation has committed,
     // fire-and-forget any matching `after:mutation` functions on a live,
@@ -857,6 +534,8 @@ fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
         _ => GraphQLError::new(error.to_string(), crate::error::ErrorCode::Forbidden),
     }
 }
+
+mod stages;
 
 #[cfg(test)]
 mod tests;

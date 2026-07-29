@@ -120,7 +120,17 @@ reqwest = {version = "0.12", default-features = false, features = ["json", "rust
 # "rc": `WhereClause::Typed` shares its field-type map behind an `Arc`. Skipping
 # the field instead would make a round-tripped clause silently lose its types.
 serde = {version = "1.0", features = ["derive", "rc"]}
-serde_json = "1.0"
+# "preserve_order": GraphQL requires a response's fields to appear in the order
+# the query asked for them (spec §"Response Format"). Without this feature
+# `serde_json::Map` is a BTreeMap, so every response came back alphabetised.
+#
+# It is declared here rather than left to feature unification because it was
+# already switching on and off by accident: `deno_core` enables it, so a `-full`
+# build and a default build disagreed about the meaning of every
+# `serde_json::Value` in the workspace — including two digests derived from one
+# (#899, #900). Making it unconditional is what lets that be a property of the
+# product instead of a property of the feature set.
+serde_json = {version = "1.0", features = ["preserve_order"]}
 # Exact-precision NUMERIC/DECIMAL decoding for the PostgreSQL adapter
 rust_decimal = {version = "1", features = ["db-tokio-postgres"]}
 # Crypto

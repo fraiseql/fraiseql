@@ -295,24 +295,7 @@ mod actions_tests {
 
     // --- SSRF protection tests (C7) ---
 
-    /// Run `f` with every SSRF-guard env var cleared, serialized via `temp_env`'s
-    /// global lock. `validate_outbound_url` reads `FRAISEQL_OBSERVERS_ALLOW_INSECURE`
-    /// *live*; the `insecure_guard` tests set it with `temp_env::with_vars`. Without
-    /// this wrapper these direct readers race those setters — a reader running during
-    /// a setter's closure sees the bypass active and the rejection assertions fail
-    /// intermittently. Going through `temp_env` both clears the env and serializes
-    /// against the setters on the shared lock.
-    fn with_ssrf_env_cleared<F: FnOnce() + std::panic::UnwindSafe>(f: F) {
-        temp_env::with_vars(
-            [
-                ("FRAISEQL_OBSERVERS_ALLOW_INSECURE", None::<&str>),
-                ("FRAISEQL_ENV", None),
-                ("FRAISEQL_PROFILE", None),
-                ("KUBERNETES_SERVICE_HOST", None),
-            ],
-            f,
-        );
-    }
+    use crate::ssrf_test_env::with_ssrf_env_cleared;
 
     #[test]
     fn test_outbound_url_scheme_must_be_http() {

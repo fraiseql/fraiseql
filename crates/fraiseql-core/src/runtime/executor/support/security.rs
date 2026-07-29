@@ -158,8 +158,8 @@ pub(in super::super) fn apply_field_rbac_filtering(
     }
 
     Ok(FieldAccessResult {
-        allowed: projection_fields,
-        masked:  Vec::new(),
+        projected: projection_fields,
+        masked:    Vec::new(),
     })
 }
 
@@ -187,8 +187,8 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
     projection_fields: &[String],
 ) -> Result<FieldAccessResult> {
     let allow_all = || FieldAccessResult {
-        allowed: projection_fields.to_vec(),
-        masked:  Vec::new(),
+        projected: projection_fields.to_vec(),
+        masked:    Vec::new(),
     };
 
     // Mirror the authenticated path: without a SecurityConfig there are no role
@@ -201,19 +201,20 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
         return Ok(allow_all());
     };
 
-    let mut allowed = Vec::with_capacity(projection_fields.len());
+    let mut projected = Vec::with_capacity(projection_fields.len());
     let mut masked = Vec::new();
 
     for name in projection_fields {
         // Fields absent from the type definition pass through, as in
         // classify_field_access — they are built-ins such as `__typename`.
+        // Masked fields keep their requested position; only their value is
+        // withheld.
+        projected.push(name.clone());
         let Some(field) = type_def.fields.iter().find(|f| &f.name == name) else {
-            allowed.push(name.clone());
             continue;
         };
 
         if field.requires_scope.is_none() {
-            allowed.push(name.clone());
             continue;
         }
 
@@ -232,5 +233,5 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
         }
     }
 
-    Ok(FieldAccessResult { allowed, masked })
+    Ok(FieldAccessResult { projected, masked })
 }

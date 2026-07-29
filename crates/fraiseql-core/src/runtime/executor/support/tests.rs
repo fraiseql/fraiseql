@@ -324,6 +324,23 @@ mod pipeline_tests {
         parse_query(&synthetic).expect("synthetic query must be valid GraphQL");
     }
 
+    /// The multi-root fan-out re-serializes every root, so anything this
+    /// serializer omits is silently dropped from the query that actually runs.
+    /// `@skip`/`@include` are decided before the fan-out and would survive their
+    /// omission; a directive the runtime does not interpret would not, and a
+    /// re-serializer that quietly discards part of its input is how this path
+    /// lost `@skip` in the first place.
+    #[test]
+    fn test_serializer_preserves_directives() {
+        let p = parsed("{ users @custom(mode: \"strict\") { id name @skip(if: $lite) } }");
+        let q = field_selection_to_query(&p.selections[0]);
+        assert!(q.contains("@custom"), "root directive dropped: {q}");
+        assert!(q.contains("strict"), "root directive argument dropped: {q}");
+        assert!(q.contains("@skip"), "nested directive dropped: {q}");
+        assert!(q.contains("$lite"), "directive variable reference dropped: {q}");
+        parse_query(&q).expect("a serialized directive must still be valid GraphQL");
+    }
+
     // ── parallel execution tests ──────────────────────────────────────────────
 
     #[tokio::test]

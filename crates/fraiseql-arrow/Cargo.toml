@@ -32,7 +32,7 @@ parquet = {version = "59", optional = true}
 prost = "0.14"
 # Serialization
 serde = {version = "1", features = ["derive"]}
-serde_json = "1"
+serde_json = {workspace = true}
 # Error handling
 thiserror = "2"
 # Async runtime

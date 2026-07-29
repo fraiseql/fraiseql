@@ -187,19 +187,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.ctx.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation {
-                name,
-                selections,
-                arguments,
-            } => {
-                self.execute_mutation_query(
-                    &name,
-                    variables,
-                    security_context,
-                    &selections,
-                    &arguments,
-                )
-                .await
+            QueryType::Mutation { roots } => {
+                self.execute_mutation_roots(&roots, variables, security_context).await
             },
             QueryType::NodeQuery { selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type
@@ -305,5 +294,100 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    aggregate, federation, …) are routed correctly via execute_dispatch without
         //    duplication. Scope-based filtering is not RLS, so no SecurityContext is threaded.
         self.execute_dispatch(query, variables, None).await
+    }
+
+    /// Execute a mutation operation's root fields serially, in document order.
+    ///
+    /// GraphQL requires this: mutation roots may depend on each other's side
+    /// effects, so they are never run concurrently and never reordered. Each
+    /// root's result appears under its response key (its alias when it has one),
+    /// so two calls to the same mutation stay distinct.
+    ///
+    /// A root that fails contributes `null` at its key plus an entry in `errors`,
+    /// and the remaining roots still execute — a client that issued three writes
+    /// needs to know which of them landed, and a single error envelope naming
+    /// none of them does not say. The one-root case keeps propagating `Err`
+    /// unchanged: there is no partial state to report, and every mutation error
+    /// test in the workspace pins that shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns the root's error when the operation has exactly one root, or
+    /// [`FraiseQLError::Validation`] when the operation has none.
+    async fn execute_mutation_roots(
+        &self,
+        roots: &[super::MutationRoot],
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        let [single] = roots else {
+            return self.execute_mutation_roots_serially(roots, variables, security_context).await;
+        };
+        self.execute_mutation_query(
+            &single.name,
+            &single.response_key,
+            variables,
+            security_context,
+            &single.selections,
+            &single.arguments,
+        )
+        .await
+    }
+
+    /// The multi-root arm of [`execute_mutation_roots`].
+    async fn execute_mutation_roots_serially(
+        &self,
+        roots: &[super::MutationRoot],
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        if roots.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: "mutation operation has no root field".to_string(),
+                path:    None,
+            });
+        }
+
+        let mut data = serde_json::Map::with_capacity(roots.len());
+        let mut errors: Vec<serde_json::Value> = Vec::new();
+
+        for root in roots {
+            let outcome = self
+                .execute_mutation_query(
+                    &root.name,
+                    &root.response_key,
+                    variables,
+                    security_context,
+                    &root.selections,
+                    &root.arguments,
+                )
+                .await;
+            match outcome {
+                Ok(response) => {
+                    // The runner already wrapped its result under the response
+                    // key; lift it back out so every root shares one envelope.
+                    let value = response
+                        .get("data")
+                        .and_then(|d| d.get(root.response_key.as_str()))
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null);
+                    data.insert(root.response_key.clone(), value);
+                },
+                Err(e) => {
+                    data.insert(root.response_key.clone(), serde_json::Value::Null);
+                    errors.push(serde_json::json!({
+                        "message": e.to_string(),
+                        "path": [root.response_key.as_str()],
+                    }));
+                },
+            }
+        }
+
+        let mut response = serde_json::Map::with_capacity(2);
+        response.insert("data".to_string(), serde_json::Value::Object(data));
+        if !errors.is_empty() {
+            response.insert("errors".to_string(), serde_json::Value::Array(errors));
+        }
+        Ok(serde_json::Value::Object(response))
     }
 }

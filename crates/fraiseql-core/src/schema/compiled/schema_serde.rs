@@ -40,6 +40,28 @@ pub fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// The content hash of a compiled schema, as a hex string.
+///
+/// This is the **one** place the digest is defined. The CLI embeds it, `from_json`
+/// re-derives it to verify, [`CompiledSchema::content_hash`] uses it as the cache
+/// version, and the integrity test drives it — because three hand-copies of
+/// "canonicalize, pretty-print, SHA-256, take 16 bytes" is three chances to
+/// disagree, and they did: the integrity test hashed the *uncanonicalized* value
+/// and passed only because `serde_json::Map` happened to be a sorted `BTreeMap`
+/// in the build it ran in (#899).
+///
+/// `value` must not contain the `_content_hash` key: a schema cannot hash its own
+/// hash.
+#[must_use]
+pub fn content_hash_of(value: &serde_json::Value) -> String {
+    let canonical = canonicalize_json(value);
+    // `to_string_pretty` on a canonicalized value cannot fail — every node is a
+    // plain JSON value with no non-string map keys.
+    let rendered = serde_json::to_string_pretty(&canonical).unwrap_or_default();
+    let digest = Sha256::digest(rendered.as_bytes());
+    hex::encode(&digest[..16]) // 32 hex chars — sufficient collision resistance
+}
+
 impl CompiledSchema {
     /// Deserialize from JSON string.
     ///
@@ -112,10 +134,7 @@ impl CompiledSchema {
         };
 
         // Canonicalize and serialize deterministically (sorted keys at all levels)
-        let canonical = canonicalize_json(&value);
-        let remaining_json = serde_json::to_string_pretty(&canonical).map_err(serde_err)?;
-        let computed_digest = Sha256::digest(remaining_json.as_bytes());
-        let computed_hash = hex::encode(&computed_digest[..16]);
+        let computed_hash = content_hash_of(&value);
 
         if let Some(expected) = expected_hash {
             if expected != computed_hash {
@@ -135,8 +154,9 @@ impl CompiledSchema {
             }
         }
 
-        // Now deserialize the schema from the remaining JSON
-        let mut schema: Self = serde_json::from_str(&remaining_json).map_err(serde_err)?;
+        // Now deserialize the schema from the remaining JSON (the parsed value
+        // with `_content_hash` already removed).
+        let mut schema: Self = serde_json::from_value(value).map_err(serde_err)?;
         schema.build_indexes();
         schema.finish_load()?;
         Ok(schema)
@@ -215,9 +235,9 @@ impl CompiledSchema {
     /// ```
     #[must_use]
     pub fn content_hash(&self) -> String {
-        use sha2::{Digest, Sha256};
         let json = self.to_json().expect("CompiledSchema always serialises — BUG if this fails");
-        let digest = Sha256::digest(json.as_bytes());
-        hex::encode(&digest[..16]) // 32 hex chars — sufficient collision resistance
+        let value: serde_json::Value =
+            serde_json::from_str(&json).expect("just serialised — always valid JSON");
+        content_hash_of(&value)
     }
 }

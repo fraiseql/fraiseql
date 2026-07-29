@@ -298,13 +298,19 @@ impl PostgresProjectionGenerator {
     ///
     /// * `fields` - Projection fields with type information
     ///
+    /// An empty field list projects an empty object, **not** the JSONB column.
+    /// "Nothing was requested" and "everything was requested" are opposite
+    /// answers, and returning the whole column for the first is how a `node(id:)`
+    /// lookup whose selection resolved to nothing served every column in the view
+    /// (#827).
+    ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if any field name contains characters
     /// that cannot be safely included in a SQL projection.
     pub fn generate_typed_projection_sql(&self, fields: &[ProjectionField]) -> Result<String> {
         if fields.is_empty() {
-            return Ok(format!("\"{}\"", self.jsonb_column));
+            return Ok("jsonb_build_object()".to_string());
         }
 
         let path = format!("\"{}\"", self.jsonb_column);

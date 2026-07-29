@@ -109,6 +109,23 @@ fn serialize_field(field: &FieldSelection) -> String {
         s.push(')');
     }
 
+    // Directives. `execute_parallel` hands this function an already-resolved
+    // selection set, so every `@skip`/`@include` here has been evaluated and the
+    // sub-query would reach the same answer re-evaluating it. They are emitted
+    // anyway: re-serializing a selection while dropping part of it is what made
+    // this path lose directives in the first place, and a directive this
+    // function does not recognise must not vanish silently.
+    for directive in &field.directives {
+        s.push_str(" @");
+        s.push_str(&directive.name);
+        if !directive.arguments.is_empty() {
+            s.push('(');
+            let args: Vec<String> = directive.arguments.iter().map(serialize_arg).collect();
+            s.push_str(&args.join(", "));
+            s.push(')');
+        }
+    }
+
     // Nested sub-selections
     if !field.nested_fields.is_empty() {
         s.push_str(" { ");
@@ -164,25 +181,36 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<PipelineResult> {
         MULTI_ROOT_QUERIES_TOTAL.fetch_add(1, Ordering::Relaxed);
 
+        // Reduce the document to the fields the client asked for *before* fanning
+        // out. This path dispatches each root as its own synthetic query string,
+        // and that string carries neither the document's fragment definitions nor
+        // — until now — its directives:
+        //
+        //   * `{ users { ...F } posts { id } } fragment F on User { … }` reached the sub-parse with
+        //     `F` undefined and failed the whole request with "Fragment not found".
+        //   * `@skip`/`@include`, at the root or nested, were dropped by re-serialization and
+        //     silently had no effect.
+        //
+        // Resolving here means the synthetic strings contain no spreads at all,
+        // and every directive has already been decided.
+        let resolved = crate::graphql::selection_set::resolve_and_filter(
+            &parsed.selections,
+            &parsed.fragments,
+            &crate::graphql::selection_set::variables_map(variables),
+        )?;
+
         // Root `__typename` resolves to the operation's root type name with no DB
         // round-trip (GraphQL spec §"Type Name Introspection"). It is a meta-field
         // available at every selection set, including the root; dispatching it as a
         // regular sub-query would fail `find_query`. We resolve it locally and only
         // dispatch the genuine data-bearing roots.
-        //
-        // NOTE: `@skip`/`@include` on a root field are not honoured on the
-        // multi-root path — `field_selection_to_query` drops directives when it
-        // re-serializes every root (a pre-existing limitation for all multi-root
-        // fields, not specific to `__typename`). The single-root `TypeName` path
-        // does honour them.
         let root_type = root_type_name(&parsed.operation_type);
 
         // Synthetic single-root query strings for every data-bearing selection,
         // tagged with their original index so results can be reassembled in request
         // order. `__typename` roots are skipped here and resolved below. (Owned —
         // avoids borrow lifetime entanglement between iterations and the final zip.)
-        let dispatched: Vec<(usize, String, String)> = parsed
-            .selections
+        let dispatched: Vec<(usize, String, String)> = resolved
             .iter()
             .enumerate()
             .filter(|(_, f)| f.name != "__typename")
@@ -219,9 +247,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             .collect();
 
         // Reassemble in request order: `__typename` roots resolve locally; every
-        // other root pulls its dispatched data by index.
-        let fields = parsed
-            .selections
+        // other root pulls its dispatched data by index. A root that `@skip`
+        // removed is absent from `resolved` and therefore has no key in `data`,
+        // which is what the spec asks for.
+        let fields = resolved
             .iter()
             .enumerate()
             .map(|(index, f)| {

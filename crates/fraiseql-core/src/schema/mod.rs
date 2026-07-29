@@ -66,7 +66,8 @@ pub use changelog::inject_changelog;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, InputStyle, MutationDefinition, MutationOperation,
-    QueryDefinition, SubscribableEntity, canonicalize_json, is_safe_sql_identifier,
+    QueryDefinition, SubscribableEntity, canonicalize_json, content_hash_of,
+    is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

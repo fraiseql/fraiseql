@@ -13,10 +13,27 @@ use crate::{
 /// Result of classifying requested fields against RBAC policies.
 #[derive(Debug)]
 pub struct FieldAccessResult {
-    /// Fields the user can access (returned as-is).
-    pub allowed: Vec<String>,
-    /// Fields the user cannot access but `on_deny = Mask` (nulled out).
-    pub masked:  Vec<String>,
+    /// Every field to project, **in the order the client requested them**.
+    ///
+    /// Masked fields are included: the response still carries the key, valued
+    /// `null`, and GraphQL requires it to appear where the query put it. This
+    /// used to be an `allowed` list that callers extended with `masked`, which
+    /// silently moved every masked field to the end of the response object.
+    pub projected: Vec<String>,
+    /// The subset of `projected` the caller must null out after projecting.
+    pub masked:    Vec<String>,
+}
+
+impl FieldAccessResult {
+    /// Fields the user can access, in request order.
+    ///
+    /// Derived rather than stored so it cannot drift out of step with
+    /// `projected` — the two used to be built side by side and only their
+    /// concatenation was ever used.
+    #[must_use]
+    pub fn allowed(&self) -> Vec<String> {
+        self.projected.iter().filter(|f| !self.masked.contains(f)).cloned().collect()
+    }
 }
 
 /// Classify requested projection fields into allowed, masked, or rejected.
@@ -37,7 +54,7 @@ pub fn classify_field_access(
     fields: &[FieldDefinition],
     requested: Vec<String>,
 ) -> std::result::Result<FieldAccessResult, String> {
-    let mut allowed = Vec::new();
+    let mut projected = Vec::with_capacity(requested.len());
     let mut masked = Vec::new();
 
     for name in requested {
@@ -45,21 +62,21 @@ pub fn classify_field_access(
 
         let Some(field) = field_def else {
             // Field not in type definition — pass through (may be a built-in like __typename)
-            allowed.push(name);
+            projected.push(name);
             continue;
         };
 
-        if can_access_field(context, security_config, field) {
-            allowed.push(name);
-        } else {
+        if !can_access_field(context, security_config, field) {
             match field.on_deny {
-                FieldDenyPolicy::Mask => masked.push(name),
+                FieldDenyPolicy::Mask => masked.push(name.clone()),
                 FieldDenyPolicy::Reject => return Err(name),
             }
         }
+        // Allowed and masked fields alike keep their requested position.
+        projected.push(name);
     }
 
-    Ok(FieldAccessResult { allowed, masked })
+    Ok(FieldAccessResult { projected, masked })
 }
 
 /// Filter fields based on user's roles and scope requirements.
