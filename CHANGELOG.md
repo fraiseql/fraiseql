@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The MCP tool allowlist is enforced where the call executes (#808).** `[mcp]
+  `include`/`exclude`/`read_only` filtered the *advertised* tool list and nothing else:
+  `executor::call_tool` never consulted the config, so naming a withheld operation
+  directly in `tools/call` ran it in full. An `exclude`d admin query, or any mutation
+  under `read_only = true`, was one guessed name away from an AI agent. Advertisement and
+  execution now resolve against **one** list of exposed operations, so a tool that is not
+  advertised is not reachable. A withheld name and a nonexistent name get the identical
+  `Unknown tool` answer — an error that distinguished them would be an existence oracle
+  for exactly the operations the allowlist hides.
+
+- **MCP tool arguments no longer reach the GraphQL document as text (#808).**
+  `build_graphql_query` validated top-level argument names "to prevent injection via
+  malformed argument names" and then rendered the *value* with `graphql_value`, whose
+  object arm interpolated nested keys raw. A caller could close the argument list and
+  append root fields of their own — reaching operations the allowlist withheld, with field
+  selections the tool's projection would never emit, in unbounded number, all of which the
+  runtime's multi-root fan-out then executed in parallel. Values now travel as GraphQL
+  variables (`query ($filter: JSON) { users(filter: $filter) { … } }`), so the only
+  caller-controlled input that reaches the document is an argument *name*, which must
+  match one the resolved operation declares. `graphql_value` and its escaper are deleted
+  rather than hardened: the primitive is gone. A bounded corpus of injection payloads —
+  flat, nested, inside arrays, escape-laden, non-identifier keys — asserts the built
+  document always parses to exactly one root field.
+
+- **MCP tool calls go through per-tenant dispatch and the suspended-tenant gate (#858).**
+  `FraiseQLMcpService` captured the default executor at session construction and called it
+  directly, never resolving a tenant key or consulting `TenantExecutorRegistry`. An
+  authenticated caller read the boot database rather than their own tenant's — silently,
+  because the control-plane database has the same relations — and a tenant suspended via
+  `POST /api/v1/admin/tenants/{key}/suspend` kept reading over MCP while `/graphql`
+  correctly answered 503. The service now holds the server's `AppState` and dispatches
+  through the same seam the `/graphql` handler uses, so an unregistered key is refused
+  instead of falling back to the default executor, a suspended tenant is refused, and the
+  tenant's concurrency and per-second quotas apply. That seam is now one function
+  (`routes::graphql::tenant_dispatch`) rather than a block written out in one handler, so
+  a control added to it is a control on both transports.
+
+  A validated token also becomes a `SecurityContext` through the same builder on both
+  transports: MCP called `SecurityContext::from_user` directly, which leaves `tenant_id`
+  unset and `attributes` empty, so an MCP caller's `org_id` never became a tenant and
+  every `SessionVariableSource::Jwt` mapping resolved to nothing.
+
+- **MCP execution errors are sanitized (#875).** `mcp/executor.rs` returned
+  `e.to_string()`, so with `error_sanitization` enabled a `FraiseQLError::Database` handed
+  an AI agent the driver message and SQLSTATE verbatim — internal schema and view names
+  included — while every other transport returned a sanitized message. The configured
+  `ErrorSanitizer` now reaches the MCP path with the rest of `AppState`.
+
 - **Two keys can no longer name one stored object (#813).** `validate_key` rejected only
   `..` and a leading separator, so `docs/./secret.txt`, `docs//secret.txt` and
   `docs/secret.txt` were three distinct metadata rows over one file on the local backend.
@@ -70,6 +118,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`/health` reports `observers.events_processed`, not `observers.pending_events`
+  (#875).** The field carried `RuntimeHealth::events_processed` — a monotonic lifetime
+  counter of events already handled — under a name and a doc comment that promised
+  "approximate number of events pending in the internal queue". An operator alerting on
+  `pending_events > 100` got an alert that fired permanently after the 100th *successful*
+  event and never cleared, while a genuine backlog stayed invisible. The observer runtime
+  is checkpoint-driven and `RuntimeHealth` carries no backlog source, so the field is
+  renamed to what it actually reports rather than a depth being fabricated for it.
+
+- **`FraiseQLMcpService::new` takes an `AppState`, not a schema and executor (#858), and
+  `mcp::executor::call_tool` takes an `McpCallContext`.** Both are consequences of the
+  MCP transport reaching the same tenant registry and error sanitizer as `/graphql`.
+  `require_auth` is no longer a separate parameter — it is read from the `[mcp]` config
+  that is now passed in, so the two cannot disagree.
+
 - **The second storage stack is gone (#813, #866).** `fraiseql_server::storage` (a
   duplicate `StorageBackend` trait with its own local/S3/GCS/Azure implementations) and
   `fraiseql_server::routes::storage` (a `/storage/v1/object/{*key}` router) have been
@@ -90,6 +153,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   applies on startup.
 
 ### Fixed
+
+- **Every MCP tool call failed under `naming_convention = "camelCase"` (#857).** Tools
+  were advertised under `schema.display_name(&q.name)` while `call_tool` looked the
+  operation up by the raw compiled name, so a schema authored `list_users` advertised
+  `listUsers` and then answered `Unknown operation: listUsers` — with camelCase being the
+  compiler default since #456, the entire MCP surface was unusable while `tools/list`
+  reported it as available. Advertisement and execution now share one identifier by
+  construction. A test parameterised over every naming convention lists the tools, calls
+  each by its advertised name, and asserts the read reached its view.
+
+- **MCP tools advertise the arguments they actually accept.** The advertised input schema
+  was built from `QueryDefinition::arguments`, which excludes the auto-wired
+  `where`/`orderBy`/`limit`/`offset` parameters, so a query with `auto_params` enabled
+  advertised none of them. Both the advertisement and the executor's argument validation
+  now read `graphql_arguments()`.
+
+- **The MCP test binaries run in CI.** `mcp_integration_test` and `mcp_e2e_test` ran in
+  `feature-flags.yml`'s `feature-integration-tests` job, which has been dispatch-only
+  since the Dagger migration on 2026-05-31; the Dagger `test` leg runs
+  `cargo test -p fraiseql-server --lib`, which does not reach `tests/*`. No leg executed
+  them, which is how #857 — total breakage under the default configuration — went
+  unnoticed. They are now named explicitly in the `test` leg, alongside the new
+  `mcp_transport_safety_test`, and the two-tenant `mcp_tenant_dispatch_e2e_pg` suite runs
+  in the `integration: server` leg against a real database.
 
 - **Azure Blob rejected ordinary filenames (#876).** The object key was interpolated raw
   into both the blob URL and the `SharedKey` string-to-sign, so the URL parser rewrote one

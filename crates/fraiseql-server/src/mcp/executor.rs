@@ -4,15 +4,34 @@
 //! minimal GraphQL queries from tool name + arguments and executing them via
 //! the existing `Executor`.
 
-use std::sync::Arc;
-
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::Executor,
-    schema::{CompiledSchema, FieldType},
+    schema::{CompiledSchema, FieldType, McpConfig},
     security::SecurityContext,
 };
 use rmcp::model::{CallToolResult, Content};
+
+use crate::config::error_sanitization::ErrorSanitizer;
+
+/// Everything a tool call needs besides its own name and arguments.
+///
+/// `executor` is the executor the caller's **tenant** dispatched to, which is not
+/// necessarily the one the session was constructed with; `schema` stays the
+/// schema the tool list was advertised from, so an operation can only be reached
+/// if it was advertised.
+pub struct McpCallContext<'a, A: DatabaseAdapter> {
+    /// The schema the advertised tool list was built from.
+    pub schema:           &'a CompiledSchema,
+    /// The executor this call must run on.
+    pub executor:         &'a Executor<A>,
+    /// The `[mcp]` configuration, including the tool allowlist.
+    pub config:           &'a McpConfig,
+    /// The validated caller, when the transport supplied one.
+    pub security_context: Option<&'a SecurityContext>,
+    /// Applied to every execution error before it reaches the MCP client.
+    pub error_sanitizer:  &'a ErrorSanitizer,
+}
 
 /// Execute an MCP tool call by building and running a GraphQL query.
 ///
@@ -29,29 +48,26 @@ use rmcp::model::{CallToolResult, Content};
 pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     tool_name: &str,
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
-    schema: &CompiledSchema,
-    executor: &Arc<Executor<A>>,
-    security_context: Option<&SecurityContext>,
-    require_auth: bool,
+    ctx: &McpCallContext<'_, A>,
 ) -> CallToolResult {
-    let is_mutation = schema.mutations.iter().any(|m| m.name == tool_name);
-
-    let graphql_query = match build_graphql_query(tool_name, arguments, schema, is_mutation) {
-        Ok(q) => q,
+    let operation = match build_operation(tool_name, arguments, ctx.schema, ctx.config) {
+        Ok(op) => op,
         Err(e) => return error_result(&e),
     };
 
-    let variables = arguments.map(|args| serde_json::Value::Object(args.clone()));
+    let variables = serde_json::Value::Object(operation.variables);
 
     // Route through the authenticated executor path when a security context is
     // present, mirroring the HTTP GraphQL handler. When it is absent, fail
     // closed if the schema enforces RLS or authentication is required — running
     // such a query through the unauthenticated path would bypass tenant
     // isolation and `@inject` JWT resolution.
-    let exec_result = if let Some(ctx) = security_context {
-        executor.execute_with_security(&graphql_query, variables.as_ref(), ctx).await
+    let exec_result = if let Some(security) = ctx.security_context {
+        ctx.executor
+            .execute_with_security(&operation.document, Some(&variables), security)
+            .await
     } else {
-        if require_auth || schema.has_rls_configured() {
+        if ctx.config.require_auth || ctx.schema.has_rls_configured() {
             return error_result(
                 "Authentication required: this MCP server enforces row-level security \
                  or requires authentication, but the request carried no validated \
@@ -59,7 +75,7 @@ pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                  disable require_auth and RLS for unauthenticated use.",
             );
         }
-        executor.execute(&graphql_query, variables.as_ref()).await
+        ctx.executor.execute(&operation.document, Some(&variables)).await
     };
 
     match exec_result {
@@ -67,69 +83,161 @@ pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
             let result_text = result.to_string();
             CallToolResult::success(vec![Content::text(result_text)])
         },
-        Err(e) => error_result(&e.to_string()),
+        // Sanitized exactly as `/graphql` sanitizes it: a raw `FraiseQLError::Database`
+        // carries the driver message and SQLSTATE, internal relation names included,
+        // and the caller here is an AI agent (#875, item 1).
+        Err(e) => error_result(&super::handler::sanitize(ctx.error_sanitizer, &e)),
     }
 }
 
-/// Build a GraphQL query string from an MCP tool call.
+/// A resolved MCP tool call, ready to hand to the executor.
+pub(crate) struct McpOperation {
+    /// The GraphQL document. Built **only** from schema-derived identifiers — the
+    /// operation's advertised name and its declared argument names — so no
+    /// caller-supplied text ever reaches the document.
+    pub(crate) document:  String,
+    /// The argument values, passed as GraphQL variables rather than spliced into
+    /// the document as literals.
+    pub(crate) variables: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Resolve an MCP tool call into a GraphQL operation and its variables.
 ///
-/// For a query named `users` with args `{ limit: 10 }` and return type `User`
-/// with fields `[id, name, email]`, produces:
+/// For the advertised tool `users` with args `{ limit: 10 }` and return type
+/// `User` with scalar fields `[id, name, email]`, produces the document
 ///
 /// ```graphql
-/// query { users(limit: 10) { id name email } }
+/// query ($limit: Int) { users(limit: $limit) { id name email } }
 /// ```
-fn build_graphql_query(
-    name: &str,
+///
+/// and the variables `{ "limit": 10 }`.
+///
+/// # Security
+///
+/// Argument *values* are never rendered into the document. The previous
+/// implementation built the whole document by string interpolation, validating
+/// only top-level argument names; the keys of a nested object value were spliced
+/// in raw, so a caller could close the argument list and append root fields of
+/// their choosing — reaching operations `[mcp] include`/`exclude` was configured
+/// to withhold, with field selections the tool's own projection would never emit
+/// (#808). Values now travel as variables, and the only caller-controlled input
+/// that reaches the document is an argument *name*, which must match one the
+/// resolved operation declares.
+///
+/// # Errors
+///
+/// Returns the message to hand back to the MCP client when the tool is not
+/// advertised, or when an argument is not one the operation declares.
+pub(crate) fn build_operation(
+    tool_name: &str,
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
     schema: &CompiledSchema,
-    is_mutation: bool,
-) -> Result<String, String> {
-    let op_type = if is_mutation { "mutation" } else { "query" };
+    config: &McpConfig,
+) -> Result<McpOperation, String> {
+    // Resolve against the advertised set, so `include`/`exclude`/`read_only` are
+    // enforced where the call executes and not only where the tool list is built.
+    let operation = super::tools::resolve_tool(tool_name, schema, config)
+        .ok_or_else(|| format!("Unknown tool: {tool_name}"))?;
 
-    // Build argument string
-    let args_str = if let Some(args) = arguments {
-        if args.is_empty() {
-            String::new()
-        } else {
-            let mut pairs = Vec::with_capacity(args.len());
-            for (k, v) in args {
-                // Validate argument name: must be a GraphQL identifier [_A-Za-z][_0-9A-Za-z]*
-                // to prevent injection via malformed argument names.
-                if !is_valid_graphql_name(k) {
-                    return Err(format!(
-                        "Invalid argument name: '{k}'. Only [_A-Za-z][_0-9A-Za-z]* is allowed."
-                    ));
-                }
-                pairs.push(format!("{k}: {}", graphql_value(v)));
+    let declared = operation.arguments();
+    let supplied = arguments.filter(|args| !args.is_empty());
+
+    let mut variable_defs = Vec::new();
+    let mut call_args = Vec::new();
+    let mut variables = serde_json::Map::new();
+
+    if let Some(args) = supplied {
+        for (name, value) in args {
+            let Some(arg_def) = declared.iter().find(|a| &a.name == name) else {
+                return Err(format!(
+                    "Unknown argument '{name}' for tool '{tool_name}'. Accepted arguments: {}.",
+                    accepted_argument_list(&declared)
+                ));
+            };
+            // Belt and braces: a compiled schema should never declare an argument
+            // whose name is not a GraphQL identifier, but this name is about to be
+            // written into the document as a variable name.
+            if !is_valid_graphql_name(name) {
+                return Err(format!(
+                    "Invalid argument name: '{name}'. Only [_A-Za-z][_0-9A-Za-z]* is allowed."
+                ));
             }
-            format!("({})", pairs.join(", "))
+            variable_defs.push(format!("${name}: {}", graphql_type_name(&arg_def.arg_type)));
+            call_args.push(format!("{name}: ${name}"));
+            variables.insert(name.clone(), value.clone());
         }
-    } else {
+    }
+
+    let var_defs_str = if variable_defs.is_empty() {
         String::new()
-    };
-
-    // Find the return type and build field selection
-    let return_type = if is_mutation {
-        schema.mutations.iter().find(|m| m.name == name).map(|m| m.return_type.as_str())
     } else {
-        schema.queries.iter().find(|q| q.name == name).map(|q| q.return_type.as_str())
+        format!("({})", variable_defs.join(", "))
+    };
+    let args_str = if call_args.is_empty() {
+        String::new()
+    } else {
+        format!("({})", call_args.join(", "))
     };
 
-    let fields_str = match return_type {
-        Some(type_name) => {
-            let fields = scalar_fields_for_type(type_name, schema);
-            if fields.is_empty() {
-                // Scalar return type — no field selection needed
-                String::new()
-            } else {
-                format!(" {{ {} }}", fields.join(" "))
-            }
-        },
-        None => return Err(format!("Unknown operation: {name}")),
+    let fields = scalar_fields_for_type(operation.return_type(), schema);
+    let fields_str = if fields.is_empty() {
+        // Scalar return type — no field selection needed
+        String::new()
+    } else {
+        format!(" {{ {} }}", fields.join(" "))
     };
 
-    Ok(format!("{op_type} {{ {name}{args_str}{fields_str} }}"))
+    let op_type = if operation.is_mutation() {
+        "mutation"
+    } else {
+        "query"
+    };
+
+    Ok(McpOperation {
+        document: format!("{op_type} {var_defs_str} {{ {tool_name}{args_str}{fields_str} }}"),
+        variables,
+    })
+}
+
+/// Render the accepted-argument list for an unknown-argument error.
+fn accepted_argument_list(declared: &[fraiseql_core::schema::ArgumentDefinition]) -> String {
+    if declared.is_empty() {
+        "none".to_string()
+    } else {
+        declared.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")
+    }
+}
+
+/// Render a [`FieldType`] as the GraphQL type name used in a variable definition.
+///
+/// Variables are always declared nullable: MCP arguments are optional at the
+/// transport level (the client may omit any of them), and a `!` here would only
+/// describe a constraint this layer does not enforce.
+fn graphql_type_name(field_type: &FieldType) -> String {
+    match field_type {
+        FieldType::Int => "Int".to_string(),
+        FieldType::Float => "Float".to_string(),
+        FieldType::Boolean => "Boolean".to_string(),
+        FieldType::Id => "ID".to_string(),
+        FieldType::DateTime => "DateTime".to_string(),
+        FieldType::Date => "Date".to_string(),
+        FieldType::Time => "Time".to_string(),
+        FieldType::Uuid => "UUID".to_string(),
+        FieldType::Decimal => "Decimal".to_string(),
+        // JSON and Vector are both exposed as JSON, matching introspection.
+        FieldType::Json | FieldType::Vector => "JSON".to_string(),
+        FieldType::Scalar(name)
+        | FieldType::Object(name)
+        | FieldType::Enum(name)
+        | FieldType::Input(name)
+        | FieldType::Interface(name)
+        | FieldType::Union(name) => name.clone(),
+        FieldType::List(inner) => format!("[{}]", graphql_type_name(inner)),
+        // Reason: FieldType is #[non_exhaustive]; a future variant carries no known
+        // GraphQL name, and `String` is the same fallback `field_type_to_json_schema`
+        // uses for the advertised input schema.
+        _ => "String".to_string(),
+    }
 }
 
 /// Validate that `name` is a legal GraphQL name: `[_A-Za-z][_0-9A-Za-z]*`.
@@ -140,45 +248,6 @@ pub(crate) fn is_valid_graphql_name(name: &str) -> bool {
             chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
         },
         _ => false,
-    }
-}
-
-/// Escape a string for safe embedding in a GraphQL string literal.
-///
-/// Escapes `\`, `"`, and common control characters per the GraphQL spec.
-fn escape_graphql_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c => out.push(c),
-        }
-    }
-    out
-}
-
-/// Convert a JSON value to its GraphQL literal representation.
-///
-/// String values are escaped to prevent GraphQL injection.
-pub(crate) fn graphql_value(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::String(s) => format!("\"{}\"", escape_graphql_string(s)),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Null => "null".to_string(),
-        serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(graphql_value).collect();
-            format!("[{}]", items.join(", "))
-        },
-        serde_json::Value::Object(obj) => {
-            let pairs: Vec<String> =
-                obj.iter().map(|(k, v)| format!("{k}: {}", graphql_value(v))).collect();
-            format!("{{{}}}", pairs.join(", "))
-        },
     }
 }
 

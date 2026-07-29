@@ -87,48 +87,55 @@ where
 
             // Create SecurityContext if auth user is present
             let security_context = auth_user.map(|auth_user| {
-                let authenticated_user = auth_user.0;
                 let request_id = extract_request_id(headers);
-                let ip_address = extract_ip_address(headers);
-                let tenant_id = extract_tenant_id(headers);
-
-                let mut context = SecurityContext::from_user(&authenticated_user, request_id);
-                context.ip_address = ip_address;
-                context.tenant_id = tenant_id.map(fraiseql_core::types::TenantId::new);
-
-                // Forward JWT extra_claims to security context attributes.
-                // This makes custom claims (org_id, roles, etc.) available to RLS policies
-                // and session variable injection.
-                //
-                // Framework-reserved `fraiseql.`-namespaced attributes (the derived
-                // actor classification, trace context, etc.) are NOT overwritable by
-                // a JWT claim — a token that carried a claim literally named
-                // `fraiseql.actor_type` must not be able to forge the recorded actor
-                // (#390). Such a claim is skipped here.
-                for (key, value) in &authenticated_user.extra_claims {
-                    if key.starts_with("fraiseql.") {
-                        continue;
-                    }
-                    context.attributes.insert(key.clone(), value.clone());
+                let mut context = build_security_context(&auth_user.0, request_id);
+                context.ip_address = extract_ip_address(headers);
+                if let Some(tenant_id) = extract_tenant_id(headers) {
+                    context.tenant_id = Some(fraiseql_core::types::TenantId::new(tenant_id));
                 }
-
-                // Set tenant_id from org_id JWT claim when not already set from headers.
-                // This is the standard multi-tenant pattern: the JWT org_id claim identifies
-                // which tenant's data the authenticated user may access.
-                if context.tenant_id.is_none() {
-                    if let Some(org_id) =
-                        authenticated_user.extra_claims.get("org_id").and_then(|v| v.as_str())
-                    {
-                        context.tenant_id = Some(fraiseql_core::types::TenantId::new(org_id));
-                    }
-                }
-
                 context
             });
 
             Ok(OptionalSecurityContext(security_context))
         }
     }
+}
+
+/// Build the [`SecurityContext`] for a validated token.
+///
+/// This is the one place a token becomes a security context, so every transport
+/// gets the same one. The MCP transport used to call
+/// [`SecurityContext::from_user`] directly, which leaves `tenant_id` unset and
+/// `attributes` empty — so an MCP caller's `org_id` never became a tenant and
+/// every `SessionVariableSource::Jwt` mapping resolved to nothing (#858).
+///
+/// Beyond `from_user` this:
+/// - forwards the JWT's extra claims into `attributes`, making custom claims (`org_id`, roles, …)
+///   available to RLS policies and session-variable injection;
+/// - skips any claim in the framework-reserved `fraiseql.` namespace, so a token carrying a claim
+///   literally named `fraiseql.actor_type` cannot forge the recorded actor (#390);
+/// - derives `tenant_id` from the `org_id` claim — the standard multi-tenant pattern.
+#[must_use]
+pub(crate) fn build_security_context(
+    user: &fraiseql_core::security::AuthenticatedUser,
+    request_id: String,
+) -> SecurityContext {
+    let mut context = SecurityContext::from_user(user, request_id);
+
+    for (key, value) in &user.extra_claims {
+        if key.starts_with("fraiseql.") {
+            continue;
+        }
+        context.attributes.insert(key.clone(), value.clone());
+    }
+
+    if context.tenant_id.is_none() {
+        if let Some(org_id) = user.extra_claims.get("org_id").and_then(|v| v.as_str()) {
+            context.tenant_id = Some(fraiseql_core::types::TenantId::new(org_id));
+        }
+    }
+
+    context
 }
 
 /// Extract request ID from headers or generate a new one.

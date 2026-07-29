@@ -26,10 +26,14 @@ use fraiseql_core::{
     runtime::Executor,
     schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig},
 };
-use fraiseql_server::mcp::{
-    executor::{call_tool, scalar_fields_for_type},
-    handler::FraiseQLMcpService,
-    tools::{schema_to_tools, should_include},
+use fraiseql_server::{
+    config::ErrorSanitizer,
+    mcp::{
+        executor::{McpCallContext, call_tool, scalar_fields_for_type},
+        handler::FraiseQLMcpService,
+        tools::{schema_to_tools, should_include},
+    },
+    routes::graphql::AppState,
 };
 use fraiseql_test_utils::{
     failing_adapter::FailingAdapter,
@@ -84,11 +88,28 @@ fn make_mcp_config() -> McpConfig {
 }
 
 fn make_service() -> FraiseQLMcpService<FailingAdapter> {
-    let schema = Arc::new(build_test_schema());
+    let schema = build_test_schema();
     let adapter = Arc::new(FailingAdapter::new());
-    let executor = Arc::new(Executor::new((*schema).clone(), adapter));
-    FraiseQLMcpService::new(schema, executor, make_mcp_config())
+    let executor = Arc::new(Executor::new(schema, adapter));
+    FraiseQLMcpService::new(AppState::new(executor), make_mcp_config())
 }
+/// Assemble the call context for [`call_tool`].
+fn call_ctx<'a>(
+    schema: &'a CompiledSchema,
+    executor: &'a Executor<FailingAdapter>,
+    config: &'a McpConfig,
+) -> McpCallContext<'a, FailingAdapter> {
+    McpCallContext {
+        schema,
+        executor,
+        config,
+        security_context: None,
+        error_sanitizer: &SANITIZER,
+    }
+}
+
+static SANITIZER: std::sync::LazyLock<ErrorSanitizer> =
+    std::sync::LazyLock::new(ErrorSanitizer::disabled);
 
 fn make_executor() -> (CompiledSchema, Arc<Executor<FailingAdapter>>) {
     let schema = build_test_schema();
@@ -248,30 +269,42 @@ fn service_get_tool_returns_none_for_missing() {
 
 // --- Tool call execution (via executor::call_tool directly) ---
 
+/// A name that is not an advertised tool is refused.
+///
+/// The message deliberately says "tool", not "operation": a tool withheld by
+/// `[mcp] include`/`exclude`/`read_only` gets the identical answer, so the error
+/// is not an existence oracle for the operations the allowlist hides.
 #[tokio::test]
 async fn call_tool_with_unknown_name_returns_error() {
     let (schema, executor) = make_executor();
 
-    let result = call_tool("nonExistentQuery", None, &schema, &executor, None, false).await;
+    let result =
+        call_tool("nonExistentQuery", None, &call_ctx(&schema, &executor, &make_mcp_config()))
+            .await;
     assert_eq!(result.is_error, Some(true));
 
     let text = content_as_text(&result.content[0]);
-    assert!(text.contains("Unknown operation"));
+    assert!(text.contains("Unknown tool"), "{text}");
+    assert!(text.contains("nonExistentQuery"), "{text}");
 }
 
+/// An argument name that is not one the operation declares is refused — which
+/// covers the old "argument name carrying GraphQL syntax" case, since such a name
+/// can never match a declared argument.
 #[tokio::test]
-async fn call_tool_rejects_invalid_argument_names() {
+async fn call_tool_rejects_undeclared_argument_names() {
     let (schema, executor) = make_executor();
 
     let mut args = serde_json::Map::new();
     args.insert("valid_arg".to_string(), serde_json::json!("value"));
     args.insert("inject: bad".to_string(), serde_json::json!("evil"));
 
-    let result = call_tool("users", Some(&args), &schema, &executor, None, false).await;
+    let result =
+        call_tool("users", Some(&args), &call_ctx(&schema, &executor, &make_mcp_config())).await;
     assert_eq!(result.is_error, Some(true));
 
     let text = content_as_text(&result.content[0]);
-    assert!(text.contains("Invalid argument name"));
+    assert!(text.contains("Unknown argument"), "{text}");
 }
 
 #[tokio::test]
@@ -280,7 +313,7 @@ async fn call_tool_with_valid_query_attempts_execution() {
 
     // This will fail at the executor level (FailingAdapter), but should not
     // fail at the MCP layer — proving the GraphQL query was built correctly.
-    let result = call_tool("users", None, &schema, &executor, None, false).await;
+    let result = call_tool("users", None, &call_ctx(&schema, &executor, &make_mcp_config())).await;
 
     // The FailingAdapter will produce an execution error, which is expected.
     // The key assertion is that we got past the MCP query-building phase.
@@ -294,7 +327,8 @@ async fn call_tool_with_arguments_builds_valid_query() {
     let mut args = serde_json::Map::new();
     args.insert("id".to_string(), serde_json::json!("123"));
 
-    let result = call_tool("user", Some(&args), &schema, &executor, None, false).await;
+    let result =
+        call_tool("user", Some(&args), &call_ctx(&schema, &executor, &make_mcp_config())).await;
     // Should not be an MCP-level error (may be an executor error from FailingAdapter)
     assert!(!result.content.is_empty());
 }

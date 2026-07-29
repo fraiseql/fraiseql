@@ -16,7 +16,11 @@ use fraiseql_core::{
     schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig, SecurityConfig},
     security::SecurityContext,
 };
-use fraiseql_server::mcp::{executor, handler::FraiseQLMcpService, tools};
+use fraiseql_server::{
+    config::ErrorSanitizer,
+    mcp::{executor, handler::FraiseQLMcpService, tools},
+    routes::graphql::AppState,
+};
 use fraiseql_test_utils::{
     failing_adapter::FailingAdapter,
     schema_builder::{TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder},
@@ -60,6 +64,15 @@ fn mcp_config() -> McpConfig {
     }
 }
 
+/// The same config with authentication off, for the cases that exercise the
+/// unauthenticated development path.
+fn open_mcp_config() -> McpConfig {
+    McpConfig {
+        require_auth: false,
+        ..mcp_config()
+    }
+}
+
 /// Create the MCP service backed by a `FailingAdapter`.
 fn make_mcp_service() -> (
     FraiseQLMcpService<FailingAdapter>,
@@ -70,9 +83,29 @@ fn make_mcp_service() -> (
     let adapter = Arc::new(FailingAdapter::new());
     let executor = Arc::new(Executor::new(schema.clone(), adapter));
     let schema = Arc::new(schema);
-    let service = FraiseQLMcpService::new(schema.clone(), executor.clone(), mcp_config());
+    let service = FraiseQLMcpService::new(AppState::new(executor.clone()), mcp_config());
     (service, schema, executor)
 }
+/// Assemble the call context for [`executor::call_tool`].
+fn call_ctx<'a>(
+    schema: &'a CompiledSchema,
+    executor: &'a Executor<FailingAdapter>,
+    config: &'a McpConfig,
+    security_context: Option<&'a SecurityContext>,
+) -> executor::McpCallContext<'a, FailingAdapter> {
+    executor::McpCallContext {
+        schema,
+        executor,
+        config,
+        security_context,
+        error_sanitizer: &SANITIZER,
+    }
+}
+
+/// Sanitization is off in these tests, so an execution error still carries its
+/// own message. `mcp_transport_safety_test.rs` covers the enabled case.
+static SANITIZER: std::sync::LazyLock<ErrorSanitizer> =
+    std::sync::LazyLock::new(ErrorSanitizer::disabled);
 
 // ===========================================================================
 // MCP initialization — ServerHandler::get_info()
@@ -194,8 +227,12 @@ async fn mcp_e2e_tool_call_query() {
     let args = json!({ "limit": 10 });
     let args_map = args.as_object().unwrap();
 
-    let result =
-        executor::call_tool("users", Some(args_map), &schema, &executor, None, false).await;
+    let result = executor::call_tool(
+        "users",
+        Some(args_map),
+        &call_ctx(&schema, &executor, &open_mcp_config(), None),
+    )
+    .await;
 
     // Should NOT be an error
     assert!(
@@ -213,7 +250,9 @@ async fn mcp_e2e_tool_call_query() {
 async fn mcp_e2e_tool_call_query_no_args() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
+    let result =
+        executor::call_tool("users", None, &call_ctx(&schema, &executor, &open_mcp_config(), None))
+            .await;
 
     assert!(
         result.is_error != Some(true),
@@ -232,34 +271,43 @@ async fn mcp_e2e_tool_call_query_no_args() {
 async fn mcp_e2e_tool_call_unknown_tool() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result =
-        executor::call_tool("nonExistentTool", None, &schema, &executor, None, false).await;
+    let result = executor::call_tool(
+        "nonExistentTool",
+        None,
+        &call_ctx(&schema, &executor, &open_mcp_config(), None),
+    )
+    .await;
 
     assert_eq!(result.is_error, Some(true), "Expected is_error for unknown tool");
 
     // Error message should mention the unknown operation
     let text = format!("{:?}", result.content);
     assert!(
-        text.contains("Unknown operation") || text.contains("nonExistentTool"),
-        "Error should reference unknown tool: {text}",
+        text.contains("Unknown tool") && text.contains("nonExistentTool"),
+        "Error should reference the unknown tool: {text}",
     );
 }
 
-/// Argument names containing special characters are rejected (injection prevention).
+/// Argument names the operation does not declare are rejected — the case that
+/// matters most being a "name" that is really a fragment of GraphQL syntax.
 #[tokio::test]
-async fn mcp_e2e_tool_call_invalid_argument_name() {
+async fn mcp_e2e_tool_call_undeclared_argument_name() {
     let (_, schema, executor) = make_mcp_service();
 
     let args = json!({ "limit: 99) { __typename } #": 1 });
     let args_map = args.as_object().unwrap();
 
-    let result =
-        executor::call_tool("users", Some(args_map), &schema, &executor, None, false).await;
+    let result = executor::call_tool(
+        "users",
+        Some(args_map),
+        &call_ctx(&schema, &executor, &open_mcp_config(), None),
+    )
+    .await;
 
     assert_eq!(result.is_error, Some(true), "Expected is_error for injection attempt",);
 
     let text = format!("{:?}", result.content);
-    assert!(text.contains("Invalid argument name"), "Expected injection rejection: {text}",);
+    assert!(text.contains("Unknown argument"), "Expected injection rejection: {text}",);
 }
 
 /// Calling a mutation tool also works through the executor.
@@ -270,8 +318,12 @@ async fn mcp_e2e_tool_call_mutation() {
     let args = json!({ "name": "Alice", "email": "alice@example.com" });
     let args_map = args.as_object().unwrap();
 
-    let result =
-        executor::call_tool("createUser", Some(args_map), &schema, &executor, None, false).await;
+    let result = executor::call_tool(
+        "createUser",
+        Some(args_map),
+        &call_ctx(&schema, &executor, &open_mcp_config(), None),
+    )
+    .await;
 
     // FailingAdapter may return an error for mutations (no canned response),
     // but the MCP layer should handle it gracefully (not panic).
@@ -347,7 +399,9 @@ fn build_rls_schema() -> CompiledSchema {
 async fn mcp_call_tool_refuses_without_context_when_require_auth() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result = executor::call_tool("users", None, &schema, &executor, None, true).await;
+    let result =
+        executor::call_tool("users", None, &call_ctx(&schema, &executor, &mcp_config(), None))
+            .await;
 
     assert_eq!(
         result.is_error,
@@ -371,7 +425,9 @@ async fn mcp_call_tool_refuses_without_context_when_rls_configured() {
     let adapter = Arc::new(FailingAdapter::new());
     let executor = Arc::new(Executor::new((*schema).clone(), adapter));
 
-    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
+    let result =
+        executor::call_tool("users", None, &call_ctx(&schema, &executor, &open_mcp_config(), None))
+            .await;
 
     assert_eq!(
         result.is_error,
@@ -388,7 +444,12 @@ async fn mcp_call_tool_allows_with_security_context() {
     let (_, schema, executor) = make_mcp_service();
     let ctx = test_security_context();
 
-    let result = executor::call_tool("users", None, &schema, &executor, Some(&ctx), true).await;
+    let result = executor::call_tool(
+        "users",
+        None,
+        &call_ctx(&schema, &executor, &mcp_config(), Some(&ctx)),
+    )
+    .await;
 
     assert!(
         result.is_error != Some(true),
@@ -404,7 +465,9 @@ async fn mcp_call_tool_allows_with_security_context() {
 async fn mcp_call_tool_allows_unauthenticated_when_not_required() {
     let (_, schema, executor) = make_mcp_service();
 
-    let result = executor::call_tool("users", None, &schema, &executor, None, false).await;
+    let result =
+        executor::call_tool("users", None, &call_ctx(&schema, &executor, &open_mcp_config(), None))
+            .await;
 
     assert!(
         result.is_error != Some(true),

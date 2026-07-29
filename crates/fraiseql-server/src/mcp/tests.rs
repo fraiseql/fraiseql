@@ -1,31 +1,12 @@
 mod executor_tests {
-    use fraiseql_core::schema::FieldType;
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use super::super::executor::{graphql_value, is_scalar_field_type, is_valid_graphql_name};
+    use fraiseql_core::schema::{
+        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, McpConfig, QueryDefinition,
+        TypeDefinition,
+    };
 
-    #[test]
-    fn test_graphql_value_string() {
-        let v = serde_json::Value::String("hello".to_string());
-        assert_eq!(graphql_value(&v), "\"hello\"");
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_quotes() {
-        let v = serde_json::Value::String("say \"hi\"".to_string());
-        assert_eq!(graphql_value(&v), r#""say \"hi\"""#);
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_backslash() {
-        let v = serde_json::Value::String(r"a\b".to_string());
-        assert_eq!(graphql_value(&v), r#""a\\b""#);
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_newline() {
-        let v = serde_json::Value::String("line1\nline2".to_string());
-        assert_eq!(graphql_value(&v), "\"line1\\nline2\"");
-    }
+    use super::super::executor::{build_operation, is_scalar_field_type, is_valid_graphql_name};
 
     #[test]
     fn test_is_valid_graphql_name() {
@@ -39,29 +20,160 @@ mod executor_tests {
     }
 
     #[test]
-    fn test_graphql_value_number() {
-        let v = serde_json::json!(42);
-        assert_eq!(graphql_value(&v), "42");
-    }
-
-    #[test]
-    fn test_graphql_value_bool() {
-        let v = serde_json::Value::Bool(true);
-        assert_eq!(graphql_value(&v), "true");
-    }
-
-    #[test]
-    fn test_graphql_value_array() {
-        let v = serde_json::json!([1, 2, 3]);
-        assert_eq!(graphql_value(&v), "[1, 2, 3]");
-    }
-
-    #[test]
     fn test_is_scalar_field_type() {
         assert!(is_scalar_field_type(&FieldType::String));
         assert!(is_scalar_field_type(&FieldType::Int));
         assert!(is_scalar_field_type(&FieldType::List(Box::new(FieldType::Int))));
         assert!(!is_scalar_field_type(&FieldType::Object("User".to_string())));
+    }
+
+    /// One query `users(filter: JSON, limit: Int)` returning `User { id name }`.
+    fn schema() -> CompiledSchema {
+        let mut users = QueryDefinition::new("users", "User");
+        users.returns_list = true;
+        users.arguments.push(ArgumentDefinition::optional("filter", FieldType::Json));
+        users.arguments.push(ArgumentDefinition::optional("limit", FieldType::Int));
+
+        let mut user_type = TypeDefinition::new("User", "v_user");
+        user_type.fields.push(FieldDefinition::new("id", FieldType::Id));
+        user_type.fields.push(FieldDefinition::new("name", FieldType::String));
+
+        let mut schema = CompiledSchema {
+            queries: vec![users],
+            types: vec![user_type],
+            ..CompiledSchema::default()
+        };
+        schema.build_indexes();
+        schema
+    }
+
+    fn open_config() -> McpConfig {
+        McpConfig {
+            enabled: true,
+            require_auth: false,
+            ..McpConfig::default()
+        }
+    }
+
+    /// Parse a document and return its root field names, so an assertion can be made
+    /// about the shape of the operation rather than about the text of it.
+    fn root_fields(document: &str) -> Vec<String> {
+        use graphql_parser::query::{Definition, OperationDefinition, Selection};
+
+        let doc = graphql_parser::parse_query::<String>(document)
+            .map_err(|e| format!("built document must parse: {e}\n{document}"))
+            .expect("valid GraphQL document");
+        let mut roots = Vec::new();
+        for def in &doc.definitions {
+            let Definition::Operation(op) = def else {
+                continue;
+            };
+            let selection_set = match op {
+                OperationDefinition::Query(q) => &q.selection_set,
+                OperationDefinition::Mutation(m) => &m.selection_set,
+                OperationDefinition::Subscription(s) => &s.selection_set,
+                OperationDefinition::SelectionSet(s) => s,
+            };
+            for selection in &selection_set.items {
+                if let Selection::Field(field) = selection {
+                    roots.push(field.name.clone());
+                }
+            }
+        }
+        roots
+    }
+
+    /// **The class gate for #808.** No caller-supplied value — however nested,
+    /// however crafted — may change the *shape* of the built document.
+    ///
+    /// Each payload below closes the argument list and appends a second root field
+    /// when values are spliced into the document as literals; every one of them
+    /// produced a valid multi-root document under the previous implementation, and
+    /// the runtime fans multi-root queries out in parallel, so the injected root
+    /// executed. Values are now passed as GraphQL variables, so the document
+    /// contains exactly one root field whatever the payload is.
+    #[test]
+    fn no_argument_value_can_change_the_shape_of_the_document() {
+        let schema = schema();
+        let config = open_config();
+
+        let payloads = [
+            // Flat object key — the reported repro.
+            serde_json::json!({ "filter": { "a: 1}) { id } secrets { token } q2: users(filter: {b": 1 } }),
+            // One level deeper: the same key interpolation, recursed into.
+            serde_json::json!({ "filter": { "outer": { "a: 1}}) { id } secrets { token } x: users(filter: {y: {b": 1 } } }),
+            // Inside an array, which reaches the very same object rendering.
+            serde_json::json!({ "filter": [{ "a: 1}]) { id } secrets { token } x: users(filter: [{b": 1 }] }),
+            // A string value carrying quote/brace/newline escapes.
+            serde_json::json!({ "filter": "\"} ) { id } secrets { token } x: users(filter: \"" }),
+            // A key that is not a GraphQL identifier at all.
+            serde_json::json!({ "filter": { "$@#": 1 } }),
+            // Deep nesting, to make sure nothing bails out and falls back to text.
+            serde_json::json!({ "filter": { "a": { "b": { "c": { "d": { "e}}}}}) { id } secrets { token } x: users(filter: {f": 1 } } } } } }),
+        ];
+
+        for payload in payloads {
+            let args = payload.as_object().unwrap();
+            let built = build_operation("users", Some(args), &schema, &config);
+            assert!(built.is_ok(), "payload must build, not be rejected: {:?}", built.err());
+            let op = built.expect("checked above");
+
+            assert_eq!(
+                root_fields(&op.document),
+                vec!["users".to_string()],
+                "a caller-supplied value changed the document shape: {}",
+                op.document,
+            );
+            assert_eq!(
+                op.variables.get("filter"),
+                args.get("filter"),
+                "the value must reach the executor as a variable, unchanged",
+            );
+        }
+    }
+
+    /// An argument the resolved operation does not declare is refused, and the error
+    /// says which arguments are accepted. The advertised input schema is built from
+    /// the same list, so "advertised" and "accepted" cannot drift.
+    #[test]
+    fn an_undeclared_argument_is_refused() {
+        let schema = schema();
+        let args = serde_json::json!({ "notAnArgument": 1 });
+
+        let err =
+            build_operation("users", Some(args.as_object().unwrap()), &schema, &open_config())
+                .err()
+                .expect("an undeclared argument must be refused");
+
+        assert!(err.contains("notAnArgument"), "{err}");
+        assert!(err.contains("filter"), "the error should list the accepted arguments: {err}");
+    }
+
+    /// A call with no arguments emits no variable definitions and no argument list.
+    #[test]
+    fn a_call_with_no_arguments_declares_no_variables() {
+        let schema = schema();
+        let op = build_operation("users", None, &schema, &open_config()).unwrap();
+
+        assert_eq!(root_fields(&op.document), vec!["users".to_string()]);
+        assert!(op.variables.is_empty(), "{:?}", op.variables);
+        assert!(!op.document.contains('$'), "no variable definitions expected: {}", op.document);
+    }
+
+    /// Only the arguments actually supplied are declared as variables — an
+    /// unsupplied optional must not become an explicit `null`.
+    #[test]
+    fn only_supplied_arguments_become_variables() {
+        let schema = schema();
+        let args = serde_json::json!({ "limit": 10 });
+
+        let op = build_operation("users", Some(args.as_object().unwrap()), &schema, &open_config())
+            .unwrap();
+
+        assert!(op.document.contains("$limit: Int"), "{}", op.document);
+        assert!(!op.document.contains("filter"), "{}", op.document);
+        assert_eq!(op.variables.len(), 1);
+        assert_eq!(op.variables.get("limit"), Some(&serde_json::json!(10)));
     }
 }
 

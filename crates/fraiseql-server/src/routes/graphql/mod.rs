@@ -8,6 +8,7 @@ pub mod app_state;
 pub mod handler;
 pub mod reload_gate;
 pub mod request;
+pub(crate) mod tenant_dispatch;
 pub mod tenant_key;
 pub mod tenant_registry;
 

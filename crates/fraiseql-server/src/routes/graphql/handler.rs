@@ -10,7 +10,7 @@ use axum::{
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
     db::traits::DatabaseAdapter,
-    graphql::{estimate_query_cost, parse_graphql_document},
+    graphql::parse_graphql_document,
     security::{IntrospectionEnforcer, SecurityContext, SecurityError},
 };
 use fraiseql_error::FraiseQLError;
@@ -608,22 +608,16 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     #[cfg(not(feature = "federation"))]
     let _cb_entity_types: Vec<String> = vec![];
 
-    // Resolve tenant key from JWT / X-Tenant-ID header / Host header.
-    // Enforce strict tenant validation when RLS is configured (for multi-tenancy safety).
-    let executor = state.executor.load();
-    let strict_tenant_validation = executor.schema().has_rls_configured();
-    let tenant_key = super::TenantKeyResolver::resolve(
-        security_context.as_ref(),
-        headers,
-        Some(state.domain_registry()),
-        strict_tenant_validation,
-    )
-    .map_err(|e| {
-        ErrorResponse::from_error(GraphQLError::new(
-            e.to_string(),
-            crate::error::ErrorCode::ValidationError,
-        ))
-    })?;
+    // Resolve tenant key from JWT / X-Tenant-ID header / Host header, through the
+    // same seam the MCP transport uses (#858).
+    let tenant_key =
+        super::tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), headers)
+            .map_err(|e| {
+                ErrorResponse::from_error(GraphQLError::new(
+                    e.to_string(),
+                    crate::error::ErrorCode::ValidationError,
+                ))
+            })?;
 
     // Before-mutation hook: if functions subsystem has hooks, run the chain before executing.
     // The check is a single HashMap::get — zero overhead when no hooks are registered.
@@ -679,50 +673,19 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         request.variables
     };
 
-    // Execute query (defer error propagation to record circuit breaker outcome first)
-    let executor = state
-        .executor_for_tenant(tenant_key.as_deref())
+    // Execute query (defer error propagation to record circuit breaker outcome first).
+    // Dispatch, the suspended-tenant gate and the per-tenant quotas all live in the
+    // shared seam so the MCP transport enforces the identical policy (#858). The
+    // returned value holds the concurrency permit for the rest of this scope.
+    let dispatch = super::tenant_dispatch::dispatch_to_tenant(&state, tenant_key.as_deref())
         .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
-
-    // M-quotas: enforce the per-tenant concurrency limit. Only an explicit,
-    // registered tenant key carries a limit — the default (`None`) executor is
-    // unlimited, and the registry errors on an unregistered key. The acquired
-    // permit is bound for the remainder of the request and released on drop, so a
-    // tenant can never exceed its configured in-flight quota. An exhausted limit
-    // surfaces as `RateLimited` → HTTP 429.
-    let _concurrency_permit = match (tenant_key.as_deref(), state.tenant_registry()) {
-        (Some(key), Some(registry)) => registry
-            .try_acquire_concurrency(key)
-            .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?,
-        _ => None,
-    };
-
-    // M-quotas (RPS): enforce the per-tenant per-second request-rate limit at the
-    // same chokepoint. Like the concurrency permit, this is meaningful only for an
-    // explicitly-keyed, registered tenant — the default executor is unlimited. An
-    // exhausted one-second window surfaces as `RateLimited` → HTTP 429.
-    #[cfg(feature = "auth")]
-    if let (Some(key), Some(registry)) = (tenant_key.as_deref(), state.tenant_registry()) {
-        registry
-            .try_acquire_rps(key)
-            .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
-    }
+    let executor = &dispatch.executor;
 
     // M-quotas (cost): reject a query whose estimated cost exceeds the tenant's
     // per-operation cost budget (#379). Same chokepoint and 429 surfacing as the
-    // other per-tenant quotas; only an explicitly-keyed, registered tenant carries
-    // a budget. The re-parse + estimate are skipped unless a budget is configured;
-    // a query that fails to parse here is left for the executor to reject.
-    if let (Some(key), Some(registry)) = (tenant_key.as_deref(), state.tenant_registry()) {
-        if registry.has_cost_budget(key) {
-            if let Ok(doc) = parse_graphql_document(&query) {
-                let cost = estimate_query_cost(&doc, &executor.schema().operation_cost_weights);
-                registry
-                    .check_cost_budget(key, cost)
-                    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
-            }
-        }
-    }
+    // other per-tenant quotas, and in the shared seam for the same reason (#858).
+    super::tenant_dispatch::charge_cost_budget(&state, tenant_key.as_deref(), &query, executor)
+        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
 
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]

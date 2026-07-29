@@ -11,21 +11,79 @@ use rmcp::model::{JsonObject, Tool};
 
 use super::McpConfig;
 
-/// Convert the compiled schema into a list of MCP tools.
+/// The schema operation an advertised MCP tool dispatches to.
+///
+/// Carries the operation itself rather than its name, so a caller that resolved a
+/// tool cannot then look the operation up a second time by a different identifier
+/// — the drift that made every tool call fail under `naming_convention =
+/// "camelCase"` (#857).
+#[derive(Debug, Clone, Copy)]
+pub enum ExposedOperation<'a> {
+    /// A read operation, executed as `query { … }`.
+    Query(&'a QueryDefinition),
+    /// A write operation, executed as `mutation { … }`.
+    Mutation(&'a MutationDefinition),
+}
+
+impl ExposedOperation<'_> {
+    /// The operation's return type name.
+    #[must_use]
+    pub const fn return_type(&self) -> &str {
+        match self {
+            Self::Query(q) => q.return_type.as_str(),
+            Self::Mutation(m) => m.return_type.as_str(),
+        }
+    }
+
+    /// Whether the operation is executed as a mutation.
+    #[must_use]
+    pub const fn is_mutation(&self) -> bool {
+        matches!(self, Self::Mutation(_))
+    }
+
+    /// Every argument a caller may supply, in the shape the GraphQL surface
+    /// accepts it.
+    ///
+    /// For queries this includes the auto-wired `where`/`orderBy`/`limit`/`offset`
+    /// parameters enabled by
+    /// [`auto_params`](fraiseql_core::schema::QueryDefinition::auto_params), which
+    /// the runtime reads straight off the argument map and which are therefore not
+    /// present in `arguments`.
+    #[must_use]
+    pub fn arguments(&self) -> Vec<ArgumentDefinition> {
+        match self {
+            Self::Query(q) => q.graphql_arguments(),
+            Self::Mutation(m) => m.arguments.clone(),
+        }
+    }
+}
+
+/// Every operation the `[mcp]` configuration exposes, paired with the name it is
+/// advertised under.
+///
+/// This is the single source of truth for "what is reachable over MCP".
+/// [`schema_to_tools`] renders it into the advertised tool list and
+/// [`resolve_tool`] resolves an incoming `tools/call` against it, so the
+/// advertisement and the execution can never disagree — neither about the
+/// identifier (#857) nor about the `include`/`exclude`/`read_only` allowlist
+/// (#808).
 #[must_use]
-pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool> {
-    let mut tools = Vec::new();
+pub fn exposed_operations<'a>(
+    schema: &'a CompiledSchema,
+    config: &McpConfig,
+) -> Vec<(String, ExposedOperation<'a>)> {
+    let mut exposed = Vec::new();
 
     for query in &schema.queries {
         let display = schema.display_name(&query.name);
         if should_include(&display, config) {
-            tools.push(query_to_tool(query, &display));
+            exposed.push((display, ExposedOperation::Query(query)));
         }
     }
 
-    // Read-only exposure (fail-closed): no mutation is ever a tool when `read_only`
-    // is set — this wins over `include` and guarantees a mutation added to the
-    // schema later is not silently exposed to AI callers.
+    // Read-only exposure (fail-closed): no mutation is ever reachable when
+    // `read_only` is set — this wins over `include` and guarantees a mutation added
+    // to the schema later is not silently exposed to AI callers.
     if config.read_only {
         // Surface a self-contradiction loudly: `read_only` + an `include` naming a
         // mutation means that mutation is deliberately NOT exposed despite the
@@ -42,17 +100,48 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
                  NOT exposed as tools (read_only wins, fail-closed)"
             );
         }
-    }
-    if !config.read_only {
+    } else {
         for mutation in &schema.mutations {
             let display = schema.display_name(&mutation.name);
             if should_include(&display, config) {
-                tools.push(mutation_to_tool(mutation, &display));
+                exposed.push((display, ExposedOperation::Mutation(mutation)));
             }
         }
     }
 
-    tools
+    exposed
+}
+
+/// Resolve an incoming tool name against the exposed set.
+///
+/// Returns `None` for a name that is not advertised — whether because no such
+/// operation exists, because `include`/`exclude` withholds it, or because
+/// `read_only` withholds every mutation. The three are deliberately
+/// indistinguishable to the caller: an error that separated "does not exist" from
+/// "exists but is forbidden" would be an existence oracle for exactly the
+/// operations the allowlist is configured to hide.
+#[must_use]
+pub fn resolve_tool<'a>(
+    tool_name: &str,
+    schema: &'a CompiledSchema,
+    config: &McpConfig,
+) -> Option<ExposedOperation<'a>> {
+    exposed_operations(schema, config)
+        .into_iter()
+        .find(|(name, _)| name == tool_name)
+        .map(|(_, op)| op)
+}
+
+/// Convert the compiled schema into a list of MCP tools.
+#[must_use]
+pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool> {
+    exposed_operations(schema, config)
+        .into_iter()
+        .map(|(display, op)| match op {
+            ExposedOperation::Query(q) => query_to_tool(q, &display),
+            ExposedOperation::Mutation(m) => mutation_to_tool(m, &display),
+        })
+        .collect()
 }
 
 /// Check whether a given operation name should be included based on config filters.
@@ -68,13 +157,19 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 }
 
 /// Convert a query definition into an MCP tool.
+///
+/// The advertised input schema is built from
+/// [`ExposedOperation::arguments`], the same list the executor validates an
+/// incoming call against — so `where`/`orderBy`/`limit`/`offset` are advertised
+/// exactly when `auto_params` makes them acceptable, and an argument the tool
+/// advertises is always an argument the tool accepts.
 fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
     Tool::new(
         Cow::Owned(display_name.to_string()),
         Cow::Owned(description),
-        Arc::new(arguments_to_json_schema(&query.arguments)),
+        Arc::new(arguments_to_json_schema(&ExposedOperation::Query(query).arguments())),
     )
 }
 
