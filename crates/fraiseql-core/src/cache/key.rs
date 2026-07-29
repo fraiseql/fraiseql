@@ -355,6 +355,13 @@ fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
             h.write_u8(b'N');
             hash_where_clause(h, inner);
         },
+        // The declared field types are a function of the query's return type,
+        // which the key already covers, so only the annotated subtree needs
+        // hashing. The tag keeps an annotated clause distinct from a bare one.
+        WhereClause::Typed { inner, .. } => {
+            h.write_u8(b'T');
+            hash_where_clause(h, inner);
+        },
         // WhereClause is #[non_exhaustive]; unknown variants get a distinct tag
         // plus their Debug representation as a conservative fallback.
         _ => {

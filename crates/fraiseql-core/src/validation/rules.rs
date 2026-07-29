@@ -123,7 +123,8 @@ pub enum ValidationRule {
         message: Option<String>,
     },
 
-    /// String field length constraints.
+    /// String field length constraints, counted in characters (see
+    /// [`check_length`]).
     #[serde(rename = "length")]
     Length {
         /// Minimum length (inclusive).
@@ -329,4 +330,48 @@ impl ValidationRule {
             Self::Phone => "Must be a valid E.164 phone number (e.g. +14155552671)".to_string(),
         }
     }
+}
+
+/// Outcome of a [`ValidationRule::Length`] check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LengthCheck {
+    /// The value is within bounds.
+    Ok,
+    /// Shorter than `min`.
+    TooShort {
+        /// The configured minimum.
+        min:    usize,
+        /// The value's actual length, in characters.
+        actual: usize,
+    },
+    /// Longer than `max`.
+    TooLong {
+        /// The configured maximum.
+        max:    usize,
+        /// The value's actual length, in characters.
+        actual: usize,
+    },
+}
+
+/// Evaluate a `Length` rule against `value`.
+///
+/// **Length is a count of characters, not bytes.** Four call sites evaluated
+/// this rule independently and all four used `str::len()`, so `min: 3` accepted
+/// `"é!"` (three bytes, two characters) and `max: 3` rejected `"éàü"` (six
+/// bytes) — while every one of their error messages said "characters" (#720).
+/// Routing all four through this function is what makes the messages true.
+#[must_use]
+pub fn check_length(value: &str, min: Option<usize>, max: Option<usize>) -> LengthCheck {
+    let actual = value.chars().count();
+    if let Some(min) = min {
+        if actual < min {
+            return LengthCheck::TooShort { min, actual };
+        }
+    }
+    if let Some(max) = max {
+        if actual > max {
+            return LengthCheck::TooLong { max, actual };
+        }
+    }
+    LengthCheck::Ok
 }

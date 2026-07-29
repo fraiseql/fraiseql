@@ -353,7 +353,7 @@ mod parser_tests {
     #[allow(unused_imports)]
     // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
-    use crate::graphql::parser::{MAX_SERIALIZE_DEPTH, serialize_value};
+    use crate::graphql::{parser::serialize_value, value_json::MAX_DEPTH as MAX_SERIALIZE_DEPTH};
 
     #[test]
     fn test_parse_simple_query() {

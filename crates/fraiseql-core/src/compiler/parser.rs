@@ -725,11 +725,21 @@ impl SchemaParser {
             obj.get("specified_by_url").and_then(|v| v.as_str()).map(String::from);
         let base_type = obj.get("base_type").and_then(|v| v.as_str()).map(String::from);
 
-        // Parse validation rules if present
-        let validation_rules = if let Some(rules_val) = obj.get("validation_rules") {
-            serde_json::from_value(rules_val.clone()).unwrap_or_default()
-        } else {
-            Vec::new()
+        // Parse validation rules if present. A malformed block is a hard error:
+        // `unwrap_or_default()` turned a typo into an empty rule set, silently
+        // disabling that scalar's validation while every other field in this
+        // file gets strict `FraiseQLError::Parse` treatment (#720).
+        let validation_rules = match obj.get("validation_rules") {
+            Some(rules_val) => {
+                serde_json::from_value(rules_val.clone()).map_err(|e| FraiseQLError::Parse {
+                    message:  format!(
+                        "Scalar '{name}' has malformed 'validation_rules': {e}. Refusing to \
+                         compile a scalar whose validation would silently not run."
+                    ),
+                    location: format!("scalars[{index}].validation_rules"),
+                })?
+            },
+            None => Vec::new(),
         };
 
         Ok(IRScalar {

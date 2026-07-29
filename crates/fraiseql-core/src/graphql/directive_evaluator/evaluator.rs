@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 
 use super::types::DirectiveError;
-use crate::graphql::types::{Directive, FieldSelection};
+use crate::graphql::{
+    types::{Directive, FieldSelection},
+    value_json,
+};
 
 /// Evaluates GraphQL directives in query field selections.
 ///
@@ -131,44 +134,27 @@ impl DirectiveEvaluator {
 
     /// Resolve a condition value to a boolean.
     ///
-    /// Handles:
-    /// - Literal boolean values: true/false
-    /// - Variable references: $variableName
+    /// Handles literal booleans and variable references, using the shared
+    /// `value_json` encoding — so a directive argument and a field argument
+    /// agree on what a variable reference looks like (#719).
     fn resolve_boolean_condition(
         value_json: &str,
         variables: &HashMap<String, JsonValue>,
     ) -> Result<bool, DirectiveError> {
-        // Try to parse as JSON
-        match serde_json::from_str::<JsonValue>(value_json) {
-            Ok(JsonValue::Bool(b)) => Ok(b),
-            Ok(JsonValue::String(s)) if s.starts_with('$') => {
-                // Variable reference
-                let var_name = &s[1..]; // Remove $ prefix
-                let val = variables
-                    .get(var_name)
-                    .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))?;
-
-                match val {
-                    JsonValue::Bool(b) => Ok(*b),
-                    _ => Err(DirectiveError::VariableTypeMismatch(var_name.to_string())),
-                }
-            },
-            Ok(_) => Err(DirectiveError::InvalidDirectiveArgument),
-            Err(_) => {
-                // Try parsing as plain string for variable reference
-                if let Some(var_name) = value_json.strip_prefix('$') {
-                    let val = variables
-                        .get(var_name)
-                        .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))?;
-
-                    match val {
-                        JsonValue::Bool(b) => Ok(*b),
-                        _ => Err(DirectiveError::VariableTypeMismatch(var_name.to_string())),
-                    }
-                } else {
-                    Err(DirectiveError::InvalidDirectiveArgument)
-                }
-            },
+        let parsed =
+            value_json::decode(value_json).map_err(|_| DirectiveError::InvalidDirectiveArgument)?;
+        if let Some(var_name) = value_json::variable_name(&parsed) {
+            let val = variables
+                .get(var_name)
+                .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))?;
+            return match val {
+                JsonValue::Bool(b) => Ok(*b),
+                _ => Err(DirectiveError::VariableTypeMismatch(var_name.to_string())),
+            };
+        }
+        match parsed {
+            JsonValue::Bool(b) => Ok(b),
+            _ => Err(DirectiveError::InvalidDirectiveArgument),
         }
     }
 
@@ -227,29 +213,14 @@ impl DirectiveEvaluator {
         value_json: &str,
         variables: &HashMap<String, JsonValue>,
     ) -> Result<JsonValue, DirectiveError> {
-        // Try to parse as JSON
-        match serde_json::from_str::<JsonValue>(value_json) {
-            Ok(JsonValue::String(s)) if s.starts_with('$') => {
-                // Variable reference
-                let var_name = &s[1..];
-                variables
-                    .get(var_name)
-                    .cloned()
-                    .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))
-            },
-            Ok(value) => Ok(value),
-            Err(_) => {
-                // Try parsing as plain string for variable reference
-                if let Some(var_name) = value_json.strip_prefix('$') {
-                    variables
-                        .get(var_name)
-                        .cloned()
-                        .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))
-                } else {
-                    // Return as string if not JSON
-                    Ok(JsonValue::String(value_json.to_string()))
-                }
-            },
+        let parsed =
+            value_json::decode(value_json).map_err(|_| DirectiveError::InvalidDirectiveArgument)?;
+        if let Some(var_name) = value_json::variable_name(&parsed) {
+            return variables
+                .get(var_name)
+                .cloned()
+                .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()));
         }
+        Ok(value_json::resolve_variables(parsed, variables))
     }
 }

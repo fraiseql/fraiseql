@@ -1,8 +1,7 @@
 //! MySQL SQL dialect implementation.
 
-use std::borrow::Cow;
-
 use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
+use crate::types::sql_hints::ScalarFieldType;
 
 /// MySQL dialect for [`GenericWhereGenerator`].
 ///
@@ -27,8 +26,18 @@ impl SqlDialect for MySqlDialect {
         "?".to_string()
     }
 
-    fn cast_to_numeric<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("CAST({expr} AS DECIMAL)"))
+    fn cast_type_name(&self, ty: ScalarFieldType) -> Option<&'static str> {
+        match ty {
+            // JSON_UNQUOTE renders a JSON boolean as the text `true`/`false`;
+            // `CAST(… AS UNSIGNED)` turns both into 0, so no cast is the only
+            // rendering that orders and compares them correctly.
+            ScalarFieldType::Text | ScalarFieldType::Boolean => None,
+            ScalarFieldType::Integer => Some("SIGNED"),
+            ScalarFieldType::Numeric => Some("DECIMAL(38,12)"),
+            ScalarFieldType::DateTime => Some("DATETIME"),
+            ScalarFieldType::Date => Some("DATE"),
+            ScalarFieldType::Time => Some("TIME"),
+        }
     }
 
     fn ilike_sql(&self, lhs: &str, rhs: &str) -> String {

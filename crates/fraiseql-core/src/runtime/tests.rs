@@ -1248,14 +1248,12 @@ mod input_validator_tests {
     #[test]
     fn test_validate_required_field() {
         let rule = ValidationRule::Required;
-        let result = validate_string_field("value", "field", &rule);
+        let result = check_string_field("value", "field", &rule);
         result.unwrap_or_else(|e| panic!("expected Ok for non-empty value: {e}"));
 
-        let result = validate_string_field("", "field", &rule);
-        assert!(
-            matches!(result, Err(FraiseQLError::Validation { .. })),
-            "expected Validation error for empty required field, got: {result:?}"
-        );
+        let err = check_string_field("", "field", &rule)
+            .expect_err("expected a violation for an empty required field");
+        assert_eq!(err.rule_type, "required");
     }
 
     #[test]
@@ -1265,14 +1263,12 @@ mod input_validator_tests {
             message: None,
         };
 
-        let result = validate_string_field("hello", "field", &rule);
+        let result = check_string_field("hello", "field", &rule);
         result.unwrap_or_else(|e| panic!("expected Ok for matching pattern: {e}"));
 
-        let result = validate_string_field("Hello", "field", &rule);
-        assert!(
-            matches!(result, Err(FraiseQLError::Validation { .. })),
-            "expected Validation error for non-matching pattern, got: {result:?}"
-        );
+        let err = check_string_field("Hello", "field", &rule)
+            .expect_err("expected a violation for a non-matching pattern");
+        assert_eq!(err.rule_type, "pattern");
     }
 
     #[test]
@@ -1282,19 +1278,30 @@ mod input_validator_tests {
             max: Some(10),
         };
 
-        let result = validate_string_field("hello", "field", &rule);
+        let result = check_string_field("hello", "field", &rule);
         result.unwrap_or_else(|e| panic!("expected Ok for in-range length: {e}"));
 
-        let result = validate_string_field("hi", "field", &rule);
-        assert!(
-            matches!(result, Err(FraiseQLError::Validation { .. })),
-            "expected Validation error for too-short string, got: {result:?}"
-        );
+        let err = check_string_field("hi", "field", &rule)
+            .expect_err("expected a violation for a too-short string");
+        assert_eq!(err.rule_type, "length");
 
-        let result = validate_string_field("this is too long", "field", &rule);
+        let err = check_string_field("this is too long", "field", &rule)
+            .expect_err("expected a violation for a too-long string");
+        assert_eq!(err.rule_type, "length");
+
+        // #720: length is counted in characters, not bytes. "éàü" is 3 chars
+        // and 6 bytes; a byte count would reject it against `max: 10` only
+        // after the string grew past five accented characters, and accept
+        // "é!" (3 bytes, 2 chars) against `min: 3`.
+        check_string_field("éàü", "field", &rule)
+            .unwrap_or_else(|e| panic!("3 characters must satisfy min:3 max:10 — got {e}"));
+        let err = check_string_field("é!", "field", &rule)
+            .expect_err("2 characters must not satisfy min:3, whatever their byte length");
+        assert_eq!(err.rule_type, "length");
         assert!(
-            matches!(result, Err(FraiseQLError::Validation { .. })),
-            "expected Validation error for too-long string, got: {result:?}"
+            err.message.contains("got 2"),
+            "the message must report characters, got: {}",
+            err.message
         );
     }
 
@@ -1304,14 +1311,12 @@ mod input_validator_tests {
             values: vec!["active".to_string(), "inactive".to_string()],
         };
 
-        let result = validate_string_field("active", "field", &rule);
+        let result = check_string_field("active", "field", &rule);
         result.unwrap_or_else(|e| panic!("expected Ok for valid enum value: {e}"));
 
-        let result = validate_string_field("unknown", "field", &rule);
-        assert!(
-            matches!(result, Err(FraiseQLError::Validation { .. })),
-            "expected Validation error for invalid enum value, got: {result:?}"
-        );
+        let err = check_string_field("unknown", "field", &rule)
+            .expect_err("expected a violation for an invalid enum value");
+        assert_eq!(err.rule_type, "enum");
     }
 
     #[test]
@@ -1922,198 +1927,138 @@ mod matcher_tests {
     // resolve_inline_arg tests (C11)
     // =========================================================================
 
-    #[test]
-    fn test_resolve_inline_arg_literal_integer() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "limit".to_string(),
-            value_json: "3".to_string(),
-            value_type: "int".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!(3)));
+    /// Resolve an inline argument, asserting the call itself succeeded.
+    ///
+    /// `resolve_inline_arg` now returns `Result<Option<_>>`: `Ok(None)` is "the
+    /// request omitted this variable", `Err` is "the stored argument is
+    /// malformed". Conflating them is what let a `where:` filter be dropped —
+    /// and a dropped filter widens the result set (#719).
+    fn resolved(
+        arg: &crate::graphql::GraphQLArgument,
+        vars: &HashMap<String, serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        QueryMatcher::resolve_inline_arg(arg, vars).expect("well-formed value_json")
+    }
+
+    fn arg(name: &str, value_json: &str, value_type: &str) -> crate::graphql::GraphQLArgument {
+        crate::graphql::GraphQLArgument {
+            name:       name.to_string(),
+            value_json: value_json.to_string(),
+            value_type: value_type.to_string(),
+        }
     }
 
     #[test]
-    fn test_resolve_inline_arg_literal_string() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "status".to_string(),
-            value_json: "\"active\"".to_string(),
-            value_type: "string".to_string(),
-        };
+    fn test_resolve_inline_arg_literals() {
         let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!("active")));
+        assert_eq!(resolved(&arg("limit", "3", "int"), &vars), Some(serde_json::json!(3)));
+        assert_eq!(
+            resolved(&arg("status", "\"active\"", "string"), &vars),
+            Some(serde_json::json!("active"))
+        );
+        assert_eq!(
+            resolved(&arg("active", "true", "boolean"), &vars),
+            Some(serde_json::json!(true))
+        );
+        assert_eq!(resolved(&arg("limit", "null", "null"), &vars), Some(serde_json::Value::Null));
     }
 
     #[test]
-    fn test_resolve_inline_arg_literal_boolean() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "active".to_string(),
-            value_json: "true".to_string(),
-            value_type: "boolean".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!(true)));
-    }
-
-    #[test]
-    fn test_resolve_inline_arg_literal_null() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "limit".to_string(),
-            value_json: "null".to_string(),
-            value_type: "null".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::Value::Null));
-    }
-
-    #[test]
-    fn test_resolve_inline_arg_variable_reference_json_quoted() {
-        // Parser serializes Variable("myLimit") as "\"$myLimit\""
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "limit".to_string(),
-            value_json: "\"$myLimit\"".to_string(),
-            value_type: "variable".to_string(),
-        };
+    fn test_resolve_inline_arg_variable_reference() {
+        let arg = arg("limit", r#"{"$var":"myLimit"}"#, "variable");
         let mut vars = HashMap::new();
         vars.insert("myLimit".to_string(), serde_json::json!(5));
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!(5)));
+        assert_eq!(resolved(&arg, &vars), Some(serde_json::json!(5)));
     }
 
     #[test]
-    fn test_resolve_inline_arg_variable_reference_raw() {
-        // Defensive: unquoted $var format
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "limit".to_string(),
-            value_json: "$limit".to_string(),
-            value_type: "variable".to_string(),
-        };
-        let mut vars = HashMap::new();
-        vars.insert("limit".to_string(), serde_json::json!(10));
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!(10)));
+    fn test_resolve_inline_arg_variable_not_found_drops_the_argument() {
+        let arg = arg("limit", r#"{"$var":"missing"}"#, "variable");
+        assert_eq!(resolved(&arg, &HashMap::new()), None);
     }
 
     #[test]
-    fn test_resolve_inline_arg_variable_not_found() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "limit".to_string(),
-            value_json: "\"$missing\"".to_string(),
-            value_type: "variable".to_string(),
-        };
+    fn test_resolve_inline_arg_object_and_list() {
         let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_resolve_inline_arg_object() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "where".to_string(),
-            value_json: r#"{"status":{"eq":"active"}}"#.to_string(),
-            value_type: "object".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!({"status": {"eq": "active"}})));
-    }
-
-    #[test]
-    fn test_resolve_inline_arg_list() {
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "ids".to_string(),
-            value_json: "[1,2,3]".to_string(),
-            value_type: "list".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!([1, 2, 3])));
+        assert_eq!(
+            resolved(&arg("where", r#"{"status":{"eq":"active"}}"#, "object"), &vars),
+            Some(serde_json::json!({"status": {"eq": "active"}}))
+        );
+        assert_eq!(
+            resolved(&arg("ids", "[1,2,3]", "list"), &vars),
+            Some(serde_json::json!([1, 2, 3]))
+        );
     }
 
     // resolve_inline_arg: variables NESTED inside object/list literals
     // ------------------------------------------------------------------------
-    // `where: { field: { eq: $v } }` / `input: { f: $v }` — the parser serializes
-    // each nested Variable("v") to the JSON string "$v", so they must be
-    // substituted at any depth (not only whole-argument `field: $var`). Without the
-    // fix these placeholders reached SQL/coercion verbatim (filters matched
-    // nothing; inline mutation inputs surfaced as missing required arguments).
+    // `where: { field: { eq: $v } }` / `input: { f: $v }` — each nested
+    // `Variable("v")` is stored as the tagged object `{"$var":"v"}` and must be
+    // substituted at any depth, not only for a whole-argument `field: $var`.
 
     #[test]
     fn test_resolve_inline_arg_nested_variable_in_object() {
         // where: { status: { eq: $v } }
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "where".to_string(),
-            value_json: r#"{"status":{"eq":"$v"}}"#.to_string(),
-            value_type: "object".to_string(),
-        };
+        let arg = arg("where", r#"{"status":{"eq":{"$var":"v"}}}"#, "object");
         let mut vars = HashMap::new();
         vars.insert("v".to_string(), serde_json::json!("active"));
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!({"status": {"eq": "active"}})));
+        assert_eq!(resolved(&arg, &vars), Some(serde_json::json!({"status": {"eq": "active"}})));
     }
 
     #[test]
     fn test_resolve_inline_arg_nested_variable_in_list() {
         // ids: [$a, 2, $b]
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "ids".to_string(),
-            value_json: r#"["$a",2,"$b"]"#.to_string(),
-            value_type: "list".to_string(),
-        };
+        let arg = arg("ids", r#"[{"$var":"a"},2,{"$var":"b"}]"#, "list");
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), serde_json::json!(1));
         vars.insert("b".to_string(), serde_json::json!(3));
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!([1, 2, 3])));
+        assert_eq!(resolved(&arg, &vars), Some(serde_json::json!([1, 2, 3])));
     }
 
     #[test]
     fn test_resolve_inline_arg_nested_variable_in_mutation_input() {
         // createMachine(input: { name: $n, count: $c })
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "input".to_string(),
-            value_json: r#"{"name":"$n","count":"$c"}"#.to_string(),
-            value_type: "object".to_string(),
-        };
+        let arg = arg("input", r#"{"name":{"$var":"n"},"count":{"$var":"c"}}"#, "object");
         let mut vars = HashMap::new();
         vars.insert("n".to_string(), serde_json::json!("widget"));
         vars.insert("c".to_string(), serde_json::json!(7));
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!({"name": "widget", "count": 7})));
+        assert_eq!(resolved(&arg, &vars), Some(serde_json::json!({"name": "widget", "count": 7})));
     }
 
     #[test]
     fn test_resolve_inline_arg_nested_unknown_variable_is_null() {
         // where: { f: { eq: $missing } } with no such variable → null
-        // (GraphQL's treatment of an omitted nullable; not a verbatim "$missing").
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "where".to_string(),
-            value_json: r#"{"f":{"eq":"$missing"}}"#.to_string(),
-            value_type: "object".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
-        assert_eq!(result, Some(serde_json::json!({"f": {"eq": serde_json::Value::Null}})));
+        // (GraphQL's treatment of an omitted nullable).
+        let arg = arg("where", r#"{"f":{"eq":{"$var":"missing"}}}"#, "object");
+        assert_eq!(
+            resolved(&arg, &HashMap::new()),
+            Some(serde_json::json!({"f": {"eq": serde_json::Value::Null}}))
+        );
     }
 
     #[test]
-    fn test_resolve_inline_arg_nested_plain_strings_preserved() {
-        // Non-`$` strings nested in a literal must pass through unchanged.
-        let arg = crate::graphql::GraphQLArgument {
-            name:       "where".to_string(),
-            value_json: r#"{"status":{"eq":"active"},"tags":["a","b"]}"#.to_string(),
-            value_type: "object".to_string(),
-        };
-        let vars = HashMap::new();
-        let result = QueryMatcher::resolve_inline_arg(&arg, &vars);
+    fn test_resolve_inline_arg_dollar_prefixed_literals_are_values_not_references() {
+        // #719: the in-band `"$name"` convention made a literal `"$100"`
+        // indistinguishable from a reference to a variable named `100`.
+        let arg = arg("where", r#"{"price":{"eq":"$100"},"tags":["$a","b"]}"#, "object");
+        let mut vars = HashMap::new();
+        vars.insert("100".to_string(), serde_json::json!("LEAKED"));
+        vars.insert("a".to_string(), serde_json::json!("ALSO LEAKED"));
         assert_eq!(
-            result,
-            Some(serde_json::json!({"status": {"eq": "active"}, "tags": ["a", "b"]}))
+            resolved(&arg, &vars),
+            Some(serde_json::json!({"price": {"eq": "$100"}, "tags": ["$a", "b"]})),
+            "a `$`-prefixed literal must survive as itself"
         );
+    }
+
+    #[test]
+    fn test_resolve_inline_arg_malformed_value_json_errors_rather_than_dropping() {
+        // Nothing writes `value_json` except the parser, so this is an internal
+        // invariant — but a violated invariant must fail the query, never widen it.
+        let arg = arg("where", r#"{"unterminated": "#, "object");
+        let err = QueryMatcher::resolve_inline_arg(&arg, &HashMap::new())
+            .expect_err("malformed value_json must not be silently dropped");
+        assert!(format!("{err}").contains("widen"), "got: {err}");
     }
 }
 

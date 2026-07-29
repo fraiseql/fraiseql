@@ -3,8 +3,13 @@
 //! These pure functions transform GraphQL selection sets into SQL projection
 //! hints and enrich ORDER BY clauses with schema-derived type information.
 
+use std::sync::Arc;
+
 use crate::{
-    db::{OrderByClause, OrderByFieldType, ProjectionField, projection_generator::FieldKind},
+    db::{
+        OrderByClause, ProjectionField, ScalarFieldType, projection_generator::FieldKind,
+        where_clause::SharedFieldTypes,
+    },
     graphql::FieldSelection,
     schema::CompiledSchema,
 };
@@ -95,22 +100,52 @@ pub fn build_typed_projection_fields(
         .collect()
 }
 
+/// Declared scalar type of every filterable field on `return_type`, keyed by
+/// the JSONB storage key.
+///
+/// Both ORDER BY and WHERE need this: a JSON extraction is `text`, so the SQL
+/// generator has to be told what the field really is before it can compare or
+/// sort it. ORDER BY has consulted the schema since it was written; WHERE never
+/// did, which is why every date, UUID and string range filter was a hard SQL
+/// error (#798) and `in: [19.9]` silently missed rows `eq: 19.9` matched (#800).
+///
+/// Only the top level is mapped. A nested relation path (`machine.id`) has no
+/// entry, and the generator falls back to the JSON value's shape.
+#[must_use]
+pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> SharedFieldTypes {
+    let Some(type_def) = schema.find_type(return_type) else {
+        return SharedFieldTypes::default();
+    };
+    Arc::new(
+        type_def
+            .fields
+            .iter()
+            .map(|f| {
+                (
+                    crate::utils::to_snake_case(f.name.as_str()),
+                    field_type_to_order_by_type(&f.field_type),
+                )
+            })
+            .collect(),
+    )
+}
+
 /// Map a schema [`FieldType`] to the ORDER BY cast hint.
 ///
-/// Returns [`OrderByFieldType::Text`] for types that sort correctly as text
+/// Returns [`ScalarFieldType::Text`] for types that sort correctly as text
 /// (strings, UUIDs, enums) or for composite/container types where a cast
 /// would be meaningless.
-const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> OrderByFieldType {
+const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
     use crate::schema::FieldType as FT;
     match ft {
-        FT::Int => OrderByFieldType::Integer,
-        FT::Float | FT::Decimal => OrderByFieldType::Numeric,
-        FT::Boolean => OrderByFieldType::Boolean,
-        FT::DateTime => OrderByFieldType::DateTime,
-        FT::Date => OrderByFieldType::Date,
-        FT::Time => OrderByFieldType::Time,
+        FT::Int => ScalarFieldType::Integer,
+        FT::Float | FT::Decimal => ScalarFieldType::Numeric,
+        FT::Boolean => ScalarFieldType::Boolean,
+        FT::DateTime => ScalarFieldType::DateTime,
+        FT::Date => ScalarFieldType::Date,
+        FT::Time => ScalarFieldType::Time,
         // String, ID, UUID, Json, Enum, Scalar, and container types sort as text.
-        _ => OrderByFieldType::Text,
+        _ => ScalarFieldType::Text,
     }
 }
 
@@ -118,7 +153,7 @@ const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> OrderByFi
 /// and native column mappings.
 ///
 /// For each clause, looks up the field in the compiled schema's type definition
-/// to determine the correct `OrderByFieldType` (so the SQL generator emits a
+/// to determine the correct `ScalarFieldType` (so the SQL generator emits a
 /// typed cast), and checks `native_columns` for a direct column mapping (so the
 /// SQL generator can bypass JSONB extraction entirely).
 pub fn enrich_order_by_clauses(

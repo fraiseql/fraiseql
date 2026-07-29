@@ -123,6 +123,11 @@ fn collect_eq_conditions(
             }
             Ok(())
         },
+        // The declared field types only steer SQL cast selection; an event
+        // stream compares JSON values directly, so the annotation is
+        // transparent here. Falling into the catch-all below would refuse
+        // every subscription that carries a user filter.
+        WhereClause::Typed { inner, .. } => collect_eq_conditions(inner, out),
         WhereClause::Field { path, operator, .. } => Err(format!(
             "row-visibility condition on `{}` uses operator `{operator:?}`; only `Eq` can be \
              enforced on the pushed event stream — refusing the subscription rather than \

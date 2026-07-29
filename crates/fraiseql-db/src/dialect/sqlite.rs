@@ -1,8 +1,7 @@
 //! SQLite SQL dialect implementation.
 
-use std::borrow::Cow;
-
 use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
+use crate::types::sql_hints::ScalarFieldType;
 
 /// SQLite dialect for [`GenericWhereGenerator`].
 ///
@@ -27,8 +26,23 @@ impl SqlDialect for SqliteDialect {
         "?".to_string()
     }
 
-    fn cast_to_numeric<'a>(&self, expr: &'a str) -> Cow<'a, str> {
-        Cow::Owned(format!("CAST({expr} AS REAL)"))
+    fn cast_type_name(&self, ty: ScalarFieldType) -> Option<&'static str> {
+        match ty {
+            // SQLite stores dates as ISO-8601 text, which already compares and
+            // sorts chronologically; `CAST(… AS TEXT)` would be a no-op.
+            ScalarFieldType::Text
+            | ScalarFieldType::DateTime
+            | ScalarFieldType::Date
+            | ScalarFieldType::Time => None,
+            // json_extract yields 0/1 for JSON booleans, so INTEGER is exact.
+            ScalarFieldType::Integer | ScalarFieldType::Boolean => Some("INTEGER"),
+            ScalarFieldType::Numeric => Some("REAL"),
+        }
+    }
+
+    fn like_escape_clause(&self) -> &'static str {
+        // SQLite's LIKE has no default escape character (#722).
+        " ESCAPE '\\'"
     }
 
     fn always_false(&self) -> &'static str {

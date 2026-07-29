@@ -77,6 +77,19 @@ jobs:
       - name: Check for hand-rolled SSRF and production guards
         run: bash tools/check-guard-parity.sh
 
+  # value_json seam gate (#719): the encoding of an inline GraphQL argument has one
+  # owner. Hand-rolled JSON escaping produced invalid JSON that the reader then
+  # silently dropped — and a dropped `where:` argument widens a result set.
+  value-json-seam-check:
+    name: value_json Seam
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Check for hand-rolled argument serialization
+        run: bash tools/check-value-json-seam.sh
+
   # Deployment-security gate (Phase 13 / H46): shipped compose + k8s/deploy
   # manifests must not re-expose backing services, ship unauthenticated Redis,
   # use empty-default secrets, pin :latest, or run a writable root filesystem.

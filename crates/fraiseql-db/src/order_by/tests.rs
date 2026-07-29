@@ -109,11 +109,11 @@ fn test_append_order_by_snake_case_passthrough() {
 
 #[test]
 fn test_append_order_by_numeric_cast_postgres() {
-    use crate::types::sql_hints::OrderByFieldType;
+    use crate::types::sql_hints::ScalarFieldType;
 
     let mut sql = "SELECT data FROM v_order".to_string();
     let mut clause = OrderByClause::new("totalAmount".to_string(), OrderDirection::Desc);
-    clause.field_type = OrderByFieldType::Numeric;
+    clause.field_type = ScalarFieldType::Numeric;
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
     assert_eq!(sql, "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC");
@@ -121,11 +121,11 @@ fn test_append_order_by_numeric_cast_postgres() {
 
 #[test]
 fn test_append_order_by_integer_cast_mysql() {
-    use crate::types::sql_hints::OrderByFieldType;
+    use crate::types::sql_hints::ScalarFieldType;
 
     let mut sql = "SELECT data FROM v_order".to_string();
     let mut clause = OrderByClause::new("quantity".to_string(), OrderDirection::Asc);
-    clause.field_type = OrderByFieldType::Integer;
+    clause.field_type = ScalarFieldType::Integer;
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::MySQL).unwrap();
     assert!(appended);
     assert_eq!(
@@ -136,11 +136,11 @@ fn test_append_order_by_integer_cast_mysql() {
 
 #[test]
 fn test_append_order_by_datetime_cast_postgres() {
-    use crate::types::sql_hints::OrderByFieldType;
+    use crate::types::sql_hints::ScalarFieldType;
 
     let mut sql = "SELECT data FROM v_event".to_string();
     let mut clause = OrderByClause::new("createdAt".to_string(), OrderDirection::Desc);
-    clause.field_type = OrderByFieldType::DateTime;
+    clause.field_type = ScalarFieldType::DateTime;
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
     assert_eq!(sql, "SELECT data FROM v_event ORDER BY (data->>'created_at')::timestamptz DESC");
@@ -154,7 +154,7 @@ fn test_append_order_by_native_column() {
     let clause = OrderByClause {
         field:         "createdAt".to_string(),
         direction:     OrderDirection::Desc,
-        field_type:    crate::types::sql_hints::OrderByFieldType::DateTime,
+        field_type:    crate::types::sql_hints::ScalarFieldType::DateTime,
         native_column: Some("created_at".to_string()),
     };
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
@@ -165,19 +165,19 @@ fn test_append_order_by_native_column() {
 
 #[test]
 fn test_append_order_by_mixed_native_and_jsonb() {
-    use crate::types::sql_hints::OrderByFieldType;
+    use crate::types::sql_hints::ScalarFieldType;
 
     let mut sql = "SELECT data FROM tv_user".to_string();
     let clauses = [
         OrderByClause {
             field:         "createdAt".to_string(),
             direction:     OrderDirection::Desc,
-            field_type:    OrderByFieldType::DateTime,
+            field_type:    ScalarFieldType::DateTime,
             native_column: Some("created_at".to_string()),
         },
         {
             let mut c = OrderByClause::new("name".to_string(), OrderDirection::Asc);
-            c.field_type = OrderByFieldType::Text;
+            c.field_type = ScalarFieldType::Text;
             c
         },
     ];

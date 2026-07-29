@@ -186,7 +186,7 @@ fn test_json_field_expr_sqlserver() {
 fn test_typed_expr_text_is_plain_extraction() {
     // Text type should produce the same result as json_field_expr
     assert_eq!(
-        DatabaseType::PostgreSQL.typed_json_field_expr("name", OrderByFieldType::Text),
+        DatabaseType::PostgreSQL.typed_json_field_expr("name", ScalarFieldType::Text),
         DatabaseType::PostgreSQL.json_field_expr("name"),
     );
 }
@@ -194,7 +194,7 @@ fn test_typed_expr_text_is_plain_extraction() {
 #[test]
 fn test_typed_expr_postgres_numeric() {
     assert_eq!(
-        DatabaseType::PostgreSQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+        DatabaseType::PostgreSQL.typed_json_field_expr("amount", ScalarFieldType::Numeric),
         "(data->>'amount')::numeric"
     );
 }
@@ -202,7 +202,7 @@ fn test_typed_expr_postgres_numeric() {
 #[test]
 fn test_typed_expr_postgres_integer() {
     assert_eq!(
-        DatabaseType::PostgreSQL.typed_json_field_expr("count", OrderByFieldType::Integer),
+        DatabaseType::PostgreSQL.typed_json_field_expr("count", ScalarFieldType::Integer),
         "(data->>'count')::bigint"
     );
 }
@@ -210,7 +210,7 @@ fn test_typed_expr_postgres_integer() {
 #[test]
 fn test_typed_expr_postgres_datetime() {
     assert_eq!(
-        DatabaseType::PostgreSQL.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+        DatabaseType::PostgreSQL.typed_json_field_expr("created_at", ScalarFieldType::DateTime),
         "(data->>'created_at')::timestamptz"
     );
 }
@@ -218,7 +218,7 @@ fn test_typed_expr_postgres_datetime() {
 #[test]
 fn test_typed_expr_postgres_boolean() {
     assert_eq!(
-        DatabaseType::PostgreSQL.typed_json_field_expr("active", OrderByFieldType::Boolean),
+        DatabaseType::PostgreSQL.typed_json_field_expr("active", ScalarFieldType::Boolean),
         "(data->>'active')::boolean"
     );
 }
@@ -226,7 +226,7 @@ fn test_typed_expr_postgres_boolean() {
 #[test]
 fn test_typed_expr_mysql_numeric() {
     assert_eq!(
-        DatabaseType::MySQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+        DatabaseType::MySQL.typed_json_field_expr("amount", ScalarFieldType::Numeric),
         "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.amount')) AS DECIMAL(38,12))"
     );
 }
@@ -234,7 +234,7 @@ fn test_typed_expr_mysql_numeric() {
 #[test]
 fn test_typed_expr_mysql_integer() {
     assert_eq!(
-        DatabaseType::MySQL.typed_json_field_expr("count", OrderByFieldType::Integer),
+        DatabaseType::MySQL.typed_json_field_expr("count", ScalarFieldType::Integer),
         "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.count')) AS SIGNED)"
     );
 }
@@ -242,24 +242,25 @@ fn test_typed_expr_mysql_integer() {
 #[test]
 fn test_typed_expr_sqlite_numeric() {
     assert_eq!(
-        DatabaseType::SQLite.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+        DatabaseType::SQLite.typed_json_field_expr("amount", ScalarFieldType::Numeric),
         "CAST(json_extract(data, '$.amount') AS REAL)"
     );
 }
 
 #[test]
-fn test_typed_expr_sqlite_datetime_is_text() {
-    // SQLite: ISO-8601 dates sort correctly as TEXT
+fn test_typed_expr_sqlite_datetime_needs_no_cast() {
+    // SQLite stores dates as ISO-8601 text, which already compares and sorts
+    // chronologically — `CAST(… AS TEXT)` was a no-op wrapping the same value.
     assert_eq!(
-        DatabaseType::SQLite.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
-        "CAST(json_extract(data, '$.created_at') AS TEXT)"
+        DatabaseType::SQLite.typed_json_field_expr("created_at", ScalarFieldType::DateTime),
+        "json_extract(data, '$.created_at')"
     );
 }
 
 #[test]
 fn test_typed_expr_sqlserver_numeric() {
     assert_eq!(
-        DatabaseType::SQLServer.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+        DatabaseType::SQLServer.typed_json_field_expr("amount", ScalarFieldType::Numeric),
         "CAST(JSON_VALUE(data, '$.amount') AS DECIMAL(38,12))"
     );
 }
@@ -267,7 +268,7 @@ fn test_typed_expr_sqlserver_numeric() {
 #[test]
 fn test_typed_expr_sqlserver_datetime() {
     assert_eq!(
-        DatabaseType::SQLServer.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+        DatabaseType::SQLServer.typed_json_field_expr("created_at", ScalarFieldType::DateTime),
         "CAST(JSON_VALUE(data, '$.created_at') AS DATETIME2)"
     );
 }
@@ -288,4 +289,82 @@ fn all_features() -> impl Iterator<Item = Feature> {
         Feature::BackwardPagination,
     ]
     .into_iter()
+}
+
+// ---------------------------------------------------------------------------
+// #722 — LIKE escaping needs an ESCAPE clause where the dialect has no default
+// ---------------------------------------------------------------------------
+
+/// `escape_like_literal` neutralises `%`, `_` and `\` with a backslash. That is
+/// only effective if the dialect treats `\` as the escape character.
+///
+/// PostgreSQL and MySQL do by default. SQLite and SQL Server do **not**: without
+/// an explicit `ESCAPE`, `\%` matches a literal backslash followed by *any
+/// sequence*, so `contains: "100%"` silently over-matches.
+#[test]
+fn dialects_without_a_default_like_escape_emit_one() {
+    use crate::dialect::{MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect};
+
+    for (name, dialect) in [
+        ("SQLite", &SqliteDialect as &dyn SqlDialect),
+        ("SQL Server", &SqlServerDialect as &dyn SqlDialect),
+    ] {
+        assert_eq!(
+            dialect.like_escape_clause(),
+            r" ESCAPE '\'",
+            "{name} has no default LIKE escape character and must declare one"
+        );
+        assert!(
+            dialect.like_sql("col", "?").contains("ESCAPE"),
+            "{name}'s LIKE rendering must carry the ESCAPE clause"
+        );
+        assert!(
+            dialect.ilike_sql("col", "?").contains("ESCAPE"),
+            "{name}'s case-insensitive LIKE rendering must carry the ESCAPE clause"
+        );
+    }
+
+    for (name, dialect) in [
+        ("PostgreSQL", &PostgresDialect as &dyn SqlDialect),
+        ("MySQL", &MySqlDialect as &dyn SqlDialect),
+    ] {
+        assert_eq!(
+            dialect.like_escape_clause(),
+            "",
+            "{name} escapes with `\\` by default; an explicit clause would be noise"
+        );
+    }
+}
+
+/// Every dialect renders each scalar type through one table.
+///
+/// The WHERE generator and the ORDER BY renderer used to carry separate
+/// type → SQL-type mappings, so `ORDER BY amount` and `amount: { gt: … }`
+/// could disagree about what `amount` is (#798).
+#[test]
+fn order_by_and_where_render_the_same_cast() {
+    for db in [
+        DatabaseType::PostgreSQL,
+        DatabaseType::MySQL,
+        DatabaseType::SQLite,
+        DatabaseType::SQLServer,
+    ] {
+        for ty in [
+            ScalarFieldType::Text,
+            ScalarFieldType::Integer,
+            ScalarFieldType::Numeric,
+            ScalarFieldType::Boolean,
+            ScalarFieldType::DateTime,
+            ScalarFieldType::Date,
+            ScalarFieldType::Time,
+        ] {
+            let order_by = db.typed_json_field_expr("amount", ty);
+            let base = db.json_field_expr("amount");
+            let where_side = db.dialect().cast_expr_as(&base, ty).into_owned();
+            assert_eq!(
+                order_by, where_side,
+                "{db:?} renders {ty:?} differently for ORDER BY and WHERE"
+            );
+        }
+    }
 }

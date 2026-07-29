@@ -1302,6 +1302,62 @@ mod relay_security {
         (exec, adapter)
     }
 
+    // ── The relay runner resolves declared field types (#798) ─────────
+
+    /// A `DateTime` range filter on the relay path reaches the adapter typed.
+    ///
+    /// `QueryDefinition::return_type` is the *node* type (`User`), not
+    /// `UserConnection`. A type lookup against the wrong name yields an empty
+    /// map and the generator silently falls back to inferring the cast from the
+    /// JSON value's shape — which is right for numbers and wrong for a
+    /// `DateTime` bound, because a `DateTime` bound is a string and a string
+    /// compares as text. That failure looks exactly like a pass.
+    #[tokio::test]
+    async fn relay_query_carries_declared_field_types_to_the_adapter() {
+        let adapter = Arc::new(RecordingRelayAdapter::new());
+        let mut schema = relay_schema();
+        for t in &mut schema.types {
+            if t.name.as_str() == "User" {
+                t.fields.push(FieldDefinition::new("createdAt", FieldType::DateTime));
+            }
+        }
+        // The builder leaves auto_params off; a relay query only reads `where:`
+        // when the compiled schema says it accepts one.
+        for q in &mut schema.queries {
+            q.auto_params.has_where = true;
+        }
+        let exec =
+            Executor::with_config_and_relay(schema, adapter.clone(), RuntimeConfig::default());
+
+        // The relay runner reads its arguments from the request variables, not
+        // from `QueryMatch::arguments` — see the note on the inline case below.
+        exec.execute(
+            "{ users { edges { node { id } } } }",
+            Some(&json!({
+                "first": 10,
+                "where": { "createdAt": { "gte": "2024-01-01T00:00:00Z" } }
+            })),
+        )
+        .await
+        .expect("relay query executes");
+
+        let recorded = adapter.recorded_wheres();
+        let clause = recorded
+            .first()
+            .and_then(Option::as_ref)
+            .expect("the relay adapter received a WHERE clause");
+        assert!(
+            clause.contains("Typed"),
+            "the user filter must reach the relay adapter annotated with its declared types, \
+             got: {clause}"
+        );
+        assert!(
+            clause.contains("DateTime"),
+            "the annotation must declare createdAt as DateTime — an empty map is a silent \
+             fallback to text comparison (#798), got: {clause}"
+        );
+    }
+
     // ── C1: Relay queries must apply RLS ──────────────────────────────
 
     /// Non-admin relay query must receive an RLS WHERE clause.

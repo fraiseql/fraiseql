@@ -192,7 +192,8 @@ fn gated_field_inside_inline_fragment_is_detected() {
         super::selection_set_selects_gated_field(&schema, "User", &selections),
         "a gated field inside a same-type inline fragment must be detected"
     );
-    let gated = super::collect_top_level_gated_fields(&schema, "User", &selections);
+    let gated = super::collect_top_level_gated_fields(&schema, "User", &selections)
+        .expect("arguments are well-formed");
     assert_eq!(gated.len(), 1, "the fragment-wrapped gated field must be collected");
     assert_eq!(gated[0].field_name, "ssn");
 }

@@ -48,9 +48,11 @@ const MAX_FILTER_DEPTH: usize = 64;
 
 /// Bracket operators allowed in `?field[op]=value` syntax.
 ///
-/// This is a curated subset of the full [`OPERATOR_REGISTRY`] — the 16 most
-/// common operators that make sense in a URL query string.
-const BRACKET_OPERATORS: &[&str] = &[
+/// A curated subset of the full [`OPERATOR_REGISTRY`] — the operators that make
+/// sense in a URL query string. Every entry is asserted to parse via
+/// `WhereOperator::from_str`, so this list cannot advertise something the
+/// executor refuses (#828).
+pub(super) const BRACKET_OPERATORS: &[&str] = &[
     "eq",
     "ne",
     "gt",
@@ -61,12 +63,14 @@ const BRACKET_OPERATORS: &[&str] = &[
     "nin",
     "like",
     "ilike",
+    "contains",
     "icontains",
     "startswith",
     "istartswith",
     "endswith",
     "iendswith",
     "is_null",
+    "is_not_null",
 ];
 
 /// Known query-string parameter names that are *not* filter keys.
@@ -698,7 +702,7 @@ impl<'a> RestParamExtractor<'a> {
 
         // Bracket: ?name[icontains]=Ali -> { "name": { "icontains": "Ali" } }
         for (field, op, value) in bracket {
-            let coerced = self.coerce_field_value(&field, &value)?;
+            let coerced = self.coerce_bracket_operand(&field, &op, &value)?;
             let entry = merged
                 .entry(field)
                 .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
@@ -900,6 +904,32 @@ impl<'a> RestParamExtractor<'a> {
             Some(td) => td.find_field_by_output_name(name).is_some(),
             None => true,
         }
+    }
+
+    /// Coerce a bracket operand to the type the *operator* takes.
+    ///
+    /// A null check asks a question about the field, not a value of it:
+    /// `?deletedAt[is_null]=true` on a `DateTime` field must produce the boolean
+    /// `true`, not the string `"true"` coerced to a `DateTime`. Coercing to the
+    /// field's declared type is how #828's null checks ended up inverted —
+    /// a non-boolean operand read as "assume IS NULL".
+    fn coerce_bracket_operand(
+        &self,
+        field_name: &str,
+        operator: &str,
+        raw: &str,
+    ) -> Result<serde_json::Value, FraiseQLError> {
+        if matches!(operator, "is_null" | "isnull" | "is_not_null" | "isnotnull") {
+            return match raw {
+                "true" | "1" => Ok(serde_json::Value::Bool(true)),
+                "false" | "0" => Ok(serde_json::Value::Bool(false)),
+                other => Err(validation_error(format!(
+                    "Operator '{operator}' on '{field_name}' takes a boolean \
+                     (true/false), got '{other}'"
+                ))),
+            };
+        }
+        self.coerce_field_value(field_name, raw)
     }
 
     fn coerce_field_value(

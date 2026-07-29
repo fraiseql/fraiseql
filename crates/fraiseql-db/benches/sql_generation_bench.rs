@@ -11,6 +11,8 @@
 //! - Collation mapping across database types
 //! - `WhereClause::from_graphql_json` parsing
 
+use std::sync::Arc;
+
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_db::{
     CollationConfig, CollationMapper, DatabaseType, GenericWhereGenerator,
@@ -181,7 +183,9 @@ fn where_clause_parsing_benchmarks(c: &mut Criterion) {
 
     let simple_json = json!({ "status": { "eq": "active" } });
     group.bench_function("simple_field", |b| {
-        b.iter(|| WhereClause::from_graphql_json(black_box(&simple_json)).unwrap());
+        b.iter(|| {
+            WhereClause::from_graphql_json(black_box(&simple_json), &Arc::default()).unwrap()
+        });
     });
 
     let multi_json = json!({
@@ -190,7 +194,7 @@ fn where_clause_parsing_benchmarks(c: &mut Criterion) {
         "age": { "gte": 18, "lte": 65 }
     });
     group.bench_function("multi_field_multi_op", |b| {
-        b.iter(|| WhereClause::from_graphql_json(black_box(&multi_json)).unwrap());
+        b.iter(|| WhereClause::from_graphql_json(black_box(&multi_json), &Arc::default()).unwrap());
     });
 
     let logical_json = json!({
@@ -203,7 +207,9 @@ fn where_clause_parsing_benchmarks(c: &mut Criterion) {
         ]
     });
     group.bench_function("nested_logical", |b| {
-        b.iter(|| WhereClause::from_graphql_json(black_box(&logical_json)).unwrap());
+        b.iter(|| {
+            WhereClause::from_graphql_json(black_box(&logical_json), &Arc::default()).unwrap()
+        });
     });
 
     group.finish();

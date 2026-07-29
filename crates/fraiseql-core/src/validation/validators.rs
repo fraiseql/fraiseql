@@ -5,7 +5,7 @@
 
 use regex::Regex;
 
-use super::rules::ValidationRule;
+use super::rules::{LengthCheck, ValidationRule};
 use crate::error::{FraiseQLError, Result, ValidationFieldError};
 
 /// Basic validator trait for field validation.
@@ -100,19 +100,8 @@ impl LengthValidator {
 
     /// Validate that a string is within the specified length bounds.
     #[must_use]
-    pub const fn validate_length(&self, value: &str) -> bool {
-        let len = value.len();
-        if let Some(min) = self.min {
-            if len < min {
-                return false;
-            }
-        }
-        if let Some(max) = self.max {
-            if len > max {
-                return false;
-            }
-        }
-        true
+    pub fn validate_length(&self, value: &str) -> bool {
+        crate::validation::check_length(value, self.min, self.max) == LengthCheck::Ok
     }
 
     /// Get a descriptive error message for length validation failure.

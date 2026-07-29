@@ -67,7 +67,7 @@ fn test_and_clause() {
     ]);
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    assert_eq!(sql, "(data->>'status' = 'active' AND data->>'age' >= 18)");
+    assert_eq!(sql, "(data->>'status' = 'active' AND (data->>'age')::numeric >= 18)");
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn test_not_clause() {
     }));
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    assert_eq!(sql, "NOT (data->>'deleted' = true)");
+    assert_eq!(sql, "NOT ((data->>'deleted')::boolean = true)");
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn test_in_operator() {
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    assert_eq!(sql, "data->>'status' = ANY ARRAY['active', 'pending', 'approved']");
+    assert_eq!(sql, "data->>'status' = ANY (ARRAY['active', 'pending', 'approved'])");
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn test_numeric_comparison() {
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    assert_eq!(sql, "data->>'price' > 99.99");
+    assert_eq!(sql, "(data->>'price')::numeric > 99.99");
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn test_boolean_value() {
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
-    assert_eq!(sql, "data->>'published' = true");
+    assert_eq!(sql, "(data->>'published')::boolean = true");
 }
 
 #[test]

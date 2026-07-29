@@ -472,6 +472,13 @@ lint-deploy-security:
 lint-internal-flag:
 	@bash tools/check-internal-flag-sites.sh
 
+# Gate: the `value_json` seam has one owner (#719). Hand-rolled JSON escaping, in-band
+# `$`-prefix variable detection and silent `.ok()` fallbacks on an argument parse are all
+# refused — a dropped `where:` argument widens a result set instead of narrowing it.
+.PHONY: lint-value-json
+lint-value-json:
+	@bash tools/check-value-json-seam.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -480,7 +487,7 @@ lint-internal-flag:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

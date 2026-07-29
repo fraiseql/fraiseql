@@ -6,7 +6,12 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
-use crate::{WhereClause, WhereOperator};
+use crate::{
+    WhereClause, WhereOperator,
+    dialect::{PostgresDialect, SqlDialect},
+    types::sql_hints::ScalarFieldType,
+    where_clause::field_types::{FieldTypeMap, operand_type},
+};
 
 /// Maximum allowed byte length for a string value embedded in a raw SQL query.
 ///
@@ -55,29 +60,39 @@ impl WhereSqlGenerator {
     /// Returns `FraiseQLError::Validation` if the clause contains an unsupported
     /// operator or an invalid value for the given operator.
     pub fn to_sql(clause: &WhereClause) -> Result<String> {
+        Self::to_sql_typed(clause, None)
+    }
+
+    fn to_sql_typed(clause: &WhereClause, types: Option<&FieldTypeMap>) -> Result<String> {
         match clause {
+            WhereClause::Typed {
+                types: subtree_types,
+                inner,
+            } => Self::to_sql_typed(inner, Some(subtree_types)),
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => Self::generate_field_predicate(path, operator, value),
+            } => Self::generate_field_predicate(path, operator, value, types),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());
                 }
-                let parts: Result<Vec<_>> = clauses.iter().map(Self::to_sql).collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| Self::to_sql_typed(c, types)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("FALSE".to_string());
                 }
-                let parts: Result<Vec<_>> = clauses.iter().map(Self::to_sql).collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| Self::to_sql_typed(c, types)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(clause) => {
-                let inner = Self::to_sql(clause)?;
-                Ok(format!("NOT ({})", inner))
+                let inner = Self::to_sql_typed(clause, types)?;
+                Ok(format!("NOT ({inner})"))
             },
             WhereClause::NativeField {
                 column,
@@ -89,9 +104,9 @@ impl WhereSqlGenerator {
                 // Cast suffix is omitted — wire protocol assembles raw SQL without bind params.
                 let escaped_col = Self::escape_sql_string(column)?;
                 let col_expr = format!("\"{escaped_col}\"");
-                let sql_op = Self::operator_to_sql(operator)?;
-                let val_sql = Self::value_to_sql(value, operator)?;
-                Ok(format!("{col_expr} {sql_op} {val_sql}"))
+                // A native column already has its own SQL type, so the JSONB
+                // text cast must not be applied to it.
+                Self::compare_sql(&col_expr, operator, value, ScalarFieldType::Text)
             },
         }
     }
@@ -100,21 +115,57 @@ impl WhereSqlGenerator {
         path: &[String],
         operator: &WhereOperator,
         value: &Value,
+        types: Option<&FieldTypeMap>,
     ) -> Result<String> {
         let json_path = Self::build_json_path(path)?;
-        let sql = if operator == &WhereOperator::IsNull {
-            let is_null = value.as_bool().unwrap_or(true);
-            if is_null {
+        if let WhereOperator::IsNull | WhereOperator::IsNotNull = operator {
+            let negated = matches!(operator, WhereOperator::IsNotNull);
+            let asserted = match value {
+                Value::Bool(b) => *b,
+                Value::Null => true,
+                other => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!("{operator:?} requires a boolean operand, got {other}"),
+                        path:    None,
+                    });
+                },
+            };
+            return Ok(if asserted != negated {
                 format!("{json_path} IS NULL")
             } else {
                 format!("{json_path} IS NOT NULL")
-            }
-        } else {
-            let sql_op = Self::operator_to_sql(operator)?;
-            let sql_value = Self::value_to_sql(value, operator)?;
-            format!("{json_path} {sql_op} {sql_value}")
-        };
-        Ok(sql)
+            });
+        }
+        let ty = operand_type(types, path, value);
+        Self::compare_sql(&json_path, operator, value, ty)
+    }
+
+    /// Render `lhs <op> <value>` with `lhs` cast to `ty`.
+    ///
+    /// The JSONB extraction on the left is always `text`, so a bare numeric or
+    /// boolean literal on the right is a PostgreSQL type error, and `IN` needs
+    /// its array operand parenthesised — `= ANY ARRAY[…]` does not parse (#835).
+    fn compare_sql(
+        lhs: &str,
+        operator: &WhereOperator,
+        value: &Value,
+        ty: ScalarFieldType,
+    ) -> Result<String> {
+        // An empty containment list is a satisfiable question with a constant
+        // answer, not an error — and `ARRAY[]` has no inferable element type.
+        if let (WhereOperator::In | WhereOperator::Nin, Some([])) =
+            (operator, value.as_array().map(Vec::as_slice))
+        {
+            return Ok(if matches!(operator, WhereOperator::In) {
+                "FALSE".to_string()
+            } else {
+                "TRUE".to_string()
+            });
+        }
+        let sql_op = Self::operator_to_sql(operator)?;
+        let sql_value = Self::value_to_sql(value, operator)?;
+        let lhs = PostgresDialect.cast_expr_as(lhs, ty);
+        Ok(format!("{lhs} {sql_op} {sql_value}"))
     }
 
     fn build_json_path(path: &[String]) -> Result<String> {
@@ -152,9 +203,11 @@ impl WhereSqlGenerator {
             WhereOperator::Lt => "<",
             WhereOperator::Lte => "<=",
 
-            // Containment
+            // Containment. PostgreSQL's grammar is
+            // `expression operator ANY (array)` — the parentheses around the
+            // operand are required, and are emitted by `value_to_sql`.
             WhereOperator::In => "= ANY",
-            WhereOperator::Nin => "!= ALL",
+            WhereOperator::Nin => "<> ALL",
 
             // String operations
             WhereOperator::Contains => "LIKE",
@@ -178,9 +231,9 @@ impl WhereSqlGenerator {
             WhereOperator::ArrayOverlaps => "&&",
 
             // These operators require special handling
-            WhereOperator::IsNull => {
+            WhereOperator::IsNull | WhereOperator::IsNotNull => {
                 return Err(FraiseQLError::Internal {
-                    message: "IsNull should be handled separately".to_string(),
+                    message: format!("{operator:?} should be handled separately"),
                     source:  None,
                 });
             },
@@ -285,11 +338,13 @@ impl WhereSqlGenerator {
             // Regular strings
             (Value::String(s), _) => Ok(format!("'{}'", Self::escape_sql_string(s)?)),
 
-            // Arrays (for IN operator)
+            // Arrays (for IN / NIN). `ANY`/`ALL` require the array operand to be
+            // parenthesised, and an empty `ARRAY[]` has no inferable element
+            // type — both are PostgreSQL syntax/type errors (#835).
             (Value::Array(arr), WhereOperator::In | WhereOperator::Nin) => {
                 let values: Result<Vec<_>> =
                     arr.iter().map(|v| Self::value_to_sql(v, &WhereOperator::Eq)).collect();
-                Ok(format!("ARRAY[{}]", values?.join(", ")))
+                Ok(format!("(ARRAY[{}])", values?.join(", ")))
             },
 
             // Array operations

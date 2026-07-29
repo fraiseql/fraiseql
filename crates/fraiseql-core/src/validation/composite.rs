@@ -36,7 +36,7 @@ use std::fmt;
 
 use crate::{
     error::{FraiseQLError, Result},
-    validation::rules::ValidationRule,
+    validation::rules::{LengthCheck, ValidationRule, check_length},
 };
 
 /// Composite validation error that aggregates multiple validation errors.
@@ -262,28 +262,16 @@ pub(crate) fn validate_single_rule(
             }
             Ok(())
         },
-        ValidationRule::Length { min, max } => {
-            let len = field_value.len();
-            if let Some(min_len) = min {
-                if len < *min_len {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "'{}' must be at least {} characters",
-                            field_name, min_len
-                        ),
-                        path:    Some(field_name.to_string()),
-                    });
-                }
-            }
-            if let Some(max_len) = max {
-                if len > *max_len {
-                    return Err(FraiseQLError::Validation {
-                        message: format!("'{}' must be at most {} characters", field_name, max_len),
-                        path:    Some(field_name.to_string()),
-                    });
-                }
-            }
-            Ok(())
+        ValidationRule::Length { min, max } => match check_length(field_value, *min, *max) {
+            LengthCheck::Ok => Ok(()),
+            LengthCheck::TooShort { min, actual } => Err(FraiseQLError::Validation {
+                message: format!("'{field_name}' must be at least {min} characters, got {actual}"),
+                path:    Some(field_name.to_string()),
+            }),
+            LengthCheck::TooLong { max, actual } => Err(FraiseQLError::Validation {
+                message: format!("'{field_name}' must be at most {max} characters, got {actual}"),
+                path:    Some(field_name.to_string()),
+            }),
         },
         ValidationRule::Enum { values } => {
             if !values.contains(&field_value.to_string()) {
