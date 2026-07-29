@@ -710,15 +710,25 @@ impl FraiseQLFlightService {
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     /// Results are cached if caching is enabled.
     ///
-    /// # Security — no per-user RLS filtering
+    /// # Security — this path applies no row scoping of any kind
     ///
-    /// This path executes the built SQL directly against the raw database adapter
-    /// (`db_adapter.execute_raw_query`); it does **not** run the RLS-aware query executor,
-    /// so **no per-user row-level filtering is applied** here. `security_context` is used
-    /// for audit logging only. Any row scoping must be enforced by the underlying `va_*`
-    /// view itself (e.g. a view that filters on a session/tenant setting), not by this
-    /// method. Do not expose `va_*` views over Flight that depend on FraiseQL's
-    /// application-level RLS for isolation.
+    /// The built SQL runs directly against the raw database adapter
+    /// (`db_adapter.execute_raw_query`); the RLS-aware query executor is not
+    /// involved, so **no per-user row-level filtering is applied**.
+    ///
+    /// Nor can the view scope itself. [`ArrowDatabaseAdapter::execute_raw_query`]
+    /// takes a SQL string and nothing else — there is no per-request session
+    /// mechanism on this path, so a `va_*` view that filters on
+    /// `current_setting('app.tenant_id')` or any other session variable has
+    /// nothing to read. (Earlier revisions of this doc recommended exactly that
+    /// as the mitigation; it was never implementable here, and combined with a
+    /// cache keyed on SQL text it read as a working isolation story — #716.)
+    ///
+    /// **Only expose a `va_*` view over Flight if its full contents are readable
+    /// by every Flight-authenticated principal.** `security_context` is used for
+    /// audit logging and to scope the result cache, so one principal is never
+    /// served another's cached rows; that is a containment property of the cache,
+    /// not a substitute for authorization.
     ///
     /// # Arguments
     ///
@@ -766,14 +776,17 @@ impl FraiseQLFlightService {
             sql
         );
 
-        // 3. Check cache before executing query
+        // 3. Check cache before executing query. Entries are scoped to the requesting principal:
+        //    this path applies no row filtering, so the cache must not become a way for one
+        //    principal to observe another principal's read (#716).
+        let scope = crate::cache::principal_scope(security_context);
         let db_rows = if let Some(cache) = &self.cache {
-            if let Some(cached_result) = cache.get(&sql) {
+            if let Some(cached_result) = cache.get(scope, &sql) {
                 debug!("Cache hit for query: {}", sql);
                 (*cached_result).clone()
             } else {
                 // Cache miss: execute query and cache result
-                let result = self.execute_raw_query_and_cache(&sql).await?;
+                let result = self.execute_raw_query_and_cache(scope, &sql).await?;
                 result
             }
         } else {
@@ -834,9 +847,14 @@ impl FraiseQLFlightService {
         Ok(stream)
     }
 
-    /// Execute raw query and cache the result if caching is enabled.
+    /// Execute raw query and cache the result under `scope` if caching is enabled.
+    ///
+    /// `scope` is the requesting principal ([`crate::cache::principal_scope`]) —
+    /// required, not optional, so no call site can store an entry that another
+    /// principal could read back (#716).
     pub(crate) async fn execute_raw_query_and_cache(
         &self,
+        scope: crate::cache::CacheScope,
         sql: &str,
     ) -> std::result::Result<Vec<std::collections::HashMap<String, serde_json::Value>>, Status>
     {
@@ -850,7 +868,7 @@ impl FraiseQLFlightService {
 
         // Store in cache if available
         if let Some(cache) = &self.cache {
-            cache.put(sql.to_string(), Arc::new(result.clone()));
+            cache.put(scope, sql.to_string(), Arc::new(result.clone()));
         }
 
         Ok(result)
@@ -899,6 +917,8 @@ impl FraiseQLFlightService {
             "Executing batched queries with RLS"
         );
 
+        let scope = crate::cache::principal_scope(security_context);
+
         // Execute all queries sequentially
         let mut all_messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
         let mut first_query = true;
@@ -906,14 +926,14 @@ impl FraiseQLFlightService {
         for query in &queries {
             debug!("Executing batched query: {}", query);
 
-            // Try to get from cache first
+            // Try to get from cache first, scoped to this principal (#716).
             let db_rows = if let Some(cache) = &self.cache {
-                if let Some(cached_result) = cache.get(query) {
+                if let Some(cached_result) = cache.get(scope, query) {
                     debug!("Cache hit for batched query: {}", query);
                     (*cached_result).clone()
                 } else {
                     // Cache miss: execute and cache
-                    let result = self.execute_raw_query_and_cache(query).await?;
+                    let result = self.execute_raw_query_and_cache(scope, query).await?;
                     result
                 }
             } else {

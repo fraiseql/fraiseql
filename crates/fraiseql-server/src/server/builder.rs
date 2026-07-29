@@ -165,7 +165,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema)
+            .with_cache_metadata_from_schema(&schema)
             .with_rls(schema.has_rls_configured());
 
         // Turn the RLS *declaration* into a checked claim against the live catalog.

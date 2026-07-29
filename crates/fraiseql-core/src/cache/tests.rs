@@ -2665,7 +2665,7 @@ mod result_tests {
     }
 
     // ========================================================================
-    // Multi-entity indexing + list_index / invalidate_list_queries tests
+    // Multi-entity indexing + view-sweep invalidation tests
     // ========================================================================
 
     fn list_result(ids: &[&str]) -> Vec<JsonbValue> {
@@ -2702,25 +2702,31 @@ mod result_tests {
         assert!(cache.get(0x111).unwrap().is_none(), "list entry containing uuid-B must be gone");
     }
 
+    /// A view sweep evicts every entry for the view — including the one-row
+    /// results the deleted `invalidate_list_queries` used to spare (#742).
+    ///
+    /// Row count never told us whether an entry was affected by a write: a
+    /// one-row result can be a filtered list about to gain a second row, and a
+    /// zero-row result is exactly what a CREATE makes stale. The sparing was an
+    /// optimisation whose safety condition was never checked.
     #[test]
-    fn test_invalidate_list_queries_spares_point_lookups() {
+    fn test_invalidate_views_evicts_regardless_of_row_count() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        // Point lookup: single row
+        let empty: Vec<JsonbValue> = vec![];
+        cache.put(0x001, empty, vec!["v_user".to_string()], None, Some("User")).unwrap();
         let single = vec![JsonbValue::new(serde_json::json!({"id": "uuid-X"}))];
         cache
-            .put(0x001, single, vec!["v_user".to_string()], None, Some("User"))
+            .put(0x002, single, vec!["v_user".to_string()], None, Some("User"))
             .unwrap();
-
-        // List query: multiple rows
         let list = list_result(&["uuid-A", "uuid-B"]);
-        cache.put(0x002, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache.put(0x003, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
 
-        // CREATE fires invalidate_list_queries
-        let evicted = cache.invalidate_list_queries(&[ViewName::from("v_user")]).unwrap();
-        assert_eq!(evicted, 1, "only the list entry should be evicted");
-        assert!(cache.get(0x001).unwrap().is_some(), "point lookup must survive");
-        assert!(cache.get(0x002).unwrap().is_none(), "list entry must be evicted");
+        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        assert_eq!(evicted, 3, "zero-, one- and multi-row entries are all evicted");
+        for key in [0x001_u64, 0x002, 0x003] {
+            assert!(cache.get(key).unwrap().is_none(), "entry {key:#x} must be evicted");
+        }
     }
 
     #[test]
@@ -3102,6 +3108,243 @@ mod result_tests {
              aggregate speedup {:.2}×, wall ratio {:.1}×",
             multi_tput / single_tput,
             multi_elapsed.as_secs_f64() / single_elapsed.as_secs_f64(),
+        );
+    }
+}
+
+/// Eviction-listener lifecycle: an entry re-cached under the same key must stay
+/// reachable from every invalidation index (#740).
+///
+/// `put_arc` registers the key in `view_index` / `entity_index` *before*
+/// `store.insert`, so moka fires the eviction listener for the entry that was
+/// just displaced. If that listener cleans the indexes by key alone it deletes
+/// the registration the *live* entry depends on, and no mutation can ever evict
+/// it again — permanently, for views annotated `cache_ttl_seconds = 0`.
+mod eviction_lifecycle_tests {
+    use serde_json::json;
+
+    use crate::{cache::*, db::types::JsonbValue};
+
+    fn one_row() -> Vec<JsonbValue> {
+        vec![JsonbValue::new(json!({"id": "u1", "name": "Alice"}))]
+    }
+
+    /// Two concurrent misses for the same hot query both `put`. The second
+    /// insert displaces the first; the displaced entry must not take the live
+    /// entry's index registrations with it.
+    #[test]
+    fn recached_entry_is_still_reachable_by_view_invalidation() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        cache
+            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .unwrap();
+        cache
+            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .unwrap();
+        cache.run_pending_tasks();
+
+        assert_eq!(
+            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
+            1,
+            "#740: a re-cached entry must still be reachable through view_index"
+        );
+        cache.run_pending_tasks();
+        assert!(
+            cache.get(42).unwrap().is_none(),
+            "#740: the live entry must actually be gone after invalidate_views"
+        );
+    }
+
+    #[test]
+    fn recached_entry_is_still_reachable_by_entity_invalidation() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        cache
+            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .unwrap();
+        cache
+            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .unwrap();
+        cache.run_pending_tasks();
+
+        assert_eq!(
+            cache.invalidate_by_entity("User", "u1").unwrap(),
+            1,
+            "#740: a re-cached entry must still be reachable through entity_index"
+        );
+        cache.run_pending_tasks();
+        assert!(
+            cache.get(43).unwrap().is_none(),
+            "#740: the live entry must actually be gone after invalidate_by_entity"
+        );
+    }
+
+    /// A genuinely evicted entry must *not* leave its registration behind, or
+    /// `view_index` grows without bound on a long-running TTL-based cache.
+    #[test]
+    fn explicitly_evicted_entry_releases_its_index_registration() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        cache
+            .put(44, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .unwrap();
+        cache.run_pending_tasks();
+        assert_eq!(cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(), 1);
+        cache.run_pending_tasks();
+
+        assert_eq!(
+            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
+            0,
+            "#740: an evicted entry must not linger in view_index"
+        );
+        assert_eq!(
+            cache.invalidate_by_entity("User", "u1").unwrap(),
+            0,
+            "#740: an evicted entry must not linger in entity_index"
+        );
+    }
+
+    /// The same lifecycle bug exists verbatim in `ResponseCache` (#740).
+    #[test]
+    fn recached_response_is_still_reachable_by_view_invalidation() {
+        use std::sync::Arc;
+
+        let cache = ResponseCache::new(ResponseCacheConfig {
+            enabled:     true,
+            max_entries: 100,
+            ttl_seconds: 0,
+        });
+        let body = Arc::new(json!({"data": {"users": []}}));
+
+        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()]).unwrap();
+        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()]).unwrap();
+        cache.run_pending_tasks();
+
+        assert_eq!(
+            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
+            1,
+            "#740: a re-cached response must still be reachable through view_index"
+        );
+        cache.run_pending_tasks();
+        assert!(
+            cache.get(7, 0).unwrap().is_none(),
+            "#740: the live response entry must actually be gone after invalidate_views"
+        );
+    }
+}
+
+/// `generate_response_cache_key` must separate any two operations that could
+/// produce a different response (#760).
+///
+/// Driven through the real parser so the hashed selection trees are the ones the
+/// executor sees — including nested field arguments, which no end-to-end
+/// assertion can reach because they never reach SQL.
+mod response_cache_key_tests {
+    use crate::{
+        cache::generate_response_cache_key,
+        runtime::QueryMatcher,
+        schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
+    };
+
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema
+            .queries
+            .push(QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user"));
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("name", FieldType::String),
+            FieldDefinition::nullable("email", FieldType::String),
+            FieldDefinition::nullable(
+                "posts",
+                FieldType::List(Box::new(FieldType::Object("Post".to_string()))),
+            ),
+        ];
+        let mut post = TypeDefinition::new("Post", "v_post");
+        post.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("title", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(post);
+        schema
+    }
+
+    fn key_of(query: &str, variables: Option<&serde_json::Value>) -> u64 {
+        let matcher = QueryMatcher::new(schema());
+        let m = matcher.match_query(query, variables).expect("query must match");
+        generate_response_cache_key(
+            &m.query_def.name,
+            m.operation_name.as_deref(),
+            &m.selections,
+            &m.arguments,
+        )
+    }
+
+    /// Every pair here differs in a way the response can show, so every pair must
+    /// land in a different cache slot.
+    #[test]
+    fn any_difference_in_the_operation_changes_the_key() {
+        let pairs: &[(&str, &str, &str)] = &[
+            ("sub-selection width", "{ users { id } }", "{ users { id name } }"),
+            ("sub-selection identity", "{ users { name } }", "{ users { email } }"),
+            ("sub-selection order", "{ users { id name } }", "{ users { name id } }"),
+            ("root alias", "{ users { id } }", "{ people: users { id } }"),
+            ("nested alias", "{ users { id } }", "{ users { ident: id } }"),
+            ("root argument", "{ users(limit: 3) { id } }", "{ users(limit: 50) { id } }"),
+            (
+                "nested field argument",
+                "{ users { id posts(limit: 3) { id } } }",
+                "{ users { id posts(limit: 50) { id } } }",
+            ),
+            ("depth", "{ users { id posts { id } } }", "{ users { id posts { id title } } }"),
+            ("operation name", "query A { users { id } }", "query B { users { id } }"),
+        ];
+
+        for (what, left, right) in pairs {
+            assert_ne!(
+                key_of(left, None),
+                key_of(right, None),
+                "#760: operations differing in {what} must not share a cache slot\n  {left}\n  \
+                 {right}"
+            );
+        }
+    }
+
+    #[test]
+    fn different_variable_values_change_the_key() {
+        let q = "query Q($limit: Int) { users(limit: $limit) { id } }";
+        assert_ne!(
+            key_of(q, Some(&serde_json::json!({"limit": 3}))),
+            key_of(q, Some(&serde_json::json!({"limit": 50}))),
+        );
+    }
+
+    /// Determinism, in both directions: the same operation must hit, and the key
+    /// must not depend on the order the client wrote its variables in.
+    #[test]
+    fn the_key_is_stable_across_variable_ordering() {
+        let q = "query Q($a: Int, $b: Int) { users(limit: $a, offset: $b) { id } }";
+        let one = key_of(q, Some(&serde_json::json!({"a": 1, "b": 2})));
+        let two = key_of(q, Some(&serde_json::json!({"b": 2, "a": 1})));
+        assert_eq!(one, two, "variable insertion order must not fork the cache");
+        assert_eq!(one, key_of(q, Some(&serde_json::json!({"a": 1, "b": 2}))));
+    }
+
+    #[test]
+    fn an_identical_operation_reuses_its_slot() {
+        let q = "{ users { id posts(limit: 3) { id title } } }";
+        assert_eq!(key_of(q, None), key_of(q, None));
+    }
+
+    /// The whitespace a client happens to use is not a response difference.
+    #[test]
+    fn formatting_alone_does_not_fork_the_cache() {
+        assert_eq!(
+            key_of("{ users { id name } }", None),
+            key_of("{\n  users {\n    id\n    name\n  }\n}", None),
         );
     }
 }

@@ -370,12 +370,23 @@ func (m *FraiseqlCi) Test(
 		"echo '###   runtime-deno (v8 SIGSEGVs in exec sandbox): functions deno tests, excluded by feature'",
 		"echo '### cargo test --workspace (non-DB crates; wire+functions run separately below)'",
 		"cargo test --workspace" +
+			// fraiseql-arrow is excluded here and run explicitly below, so its
+			// line is greppable in the log.
 			" --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow" +
 			" --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire" +
 			" --exclude fraiseql-functions" +
 			" --all-features " + skip,
 		"echo '### cargo test -p fraiseql-wire --lib (tests/* skipped: testcontainers)'",
 		"cargo test -p fraiseql-wire --lib --all-features",
+		// fraiseql-arrow was --exclude'd from the workspace run above and named by
+		// no other Dagger leg, so nothing in CI had run any of its ~380 tests since
+		// the Dagger migration. (`ci.yml` names three of its binaries, but that
+		// whole workflow has been workflow_dispatch-only since then.) That is how
+		// #716 — the Flight result cache keyed on SQL text alone, serving one
+		// principal's rows to another — shipped. Its DB-backed binaries skip
+		// gracefully without DATABASE_URL, so the whole crate runs here.
+		"echo '### cargo test -p fraiseql-arrow --all-features (DB-backed binaries skip gracefully without DATABASE_URL)'",
+		"cargo test -p fraiseql-arrow --all-features",
 		// fraiseql-functions runs with all features EXCEPT runtime-deno. Every v8
 		// path (the 23 runtime::deno tests + observer::tests::*dispatches_ts_to_deno)
 		// is #[cfg(feature = "runtime-deno")], and embedded V8 SIGSEGVs inside the

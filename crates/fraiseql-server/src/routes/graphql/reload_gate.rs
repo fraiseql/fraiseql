@@ -35,7 +35,7 @@ fn differs<T: serde::Serialize>(current: &T, next: &T) -> bool {
 
 /// The per-view cache TTL map a `CachedDatabaseAdapter` derives from a schema.
 ///
-/// It is applied once, by `with_ttl_overrides_from_schema` at construction, and
+/// It is applied once, by `with_cache_metadata_from_schema` at construction, and
 /// the adapter is shared behind an `Arc` afterwards — so a reload cannot change
 /// it. Projected out of `queries` (which is otherwise hot) so a TTL edit is
 /// refused while an ordinary query edit is not.

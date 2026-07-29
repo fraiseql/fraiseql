@@ -2696,3 +2696,132 @@ mod where_types_reach_the_generator {
         assert!(sql.contains("::bigint"), "an Int field compares as an integer: {sql}");
     }
 }
+
+/// The response cache must key on the whole operation, not on the root field (#760).
+///
+/// `compute_response_cache_key` hashed `QueryMatch::fields`, which is the list of
+/// *top-level* selection names — for `{ users { id } }` that is `["users"]`, and
+/// nothing below the root reached the hash. Two documents that share a root field
+/// and root arguments therefore shared a cache slot, and the second client was
+/// served the first one's response shape.
+mod response_cache_key {
+    use std::{collections::HashMap, sync::Arc};
+
+    use chrono::Utc;
+
+    use super::MockAdapter;
+    use crate::{
+        cache::{ResponseCache, ResponseCacheConfig},
+        db::types::JsonbValue,
+        runtime::Executor,
+        schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
+        security::SecurityContext,
+    };
+
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema
+            .queries
+            .push(QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user"));
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("name", FieldType::String),
+            FieldDefinition::nullable("email", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema
+    }
+
+    fn rows() -> Vec<JsonbValue> {
+        vec![JsonbValue::new(serde_json::json!({
+            "id": 1, "name": "Alice", "email": "alice@x.com"
+        }))]
+    }
+
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-cache-key".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn executor_with_response_cache() -> Executor<MockAdapter> {
+        Executor::new(schema(), Arc::new(MockAdapter::new(rows()))).with_response_cache(Arc::new(
+            ResponseCache::new(ResponseCacheConfig {
+                enabled:     true,
+                max_entries: 100,
+                ttl_seconds: 3600,
+            }),
+        ))
+    }
+
+    #[tokio::test]
+    async fn a_wider_sub_selection_is_not_served_the_narrower_cached_response() {
+        let executor = executor_with_response_cache();
+        let ctx = principal();
+
+        let narrow = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
+        assert!(narrow["data"]["users"][0]["name"].is_null(), "control: `name` was not selected");
+
+        let wide = executor
+            .execute_with_security("{ users { id name email } }", None, &ctx)
+            .await
+            .unwrap();
+        assert_eq!(
+            wide["data"]["users"][0]["name"], "Alice",
+            "#760: a different sub-selection must not collide with the cached narrow response"
+        );
+        assert_eq!(wide["data"]["users"][0]["email"], "alice@x.com");
+    }
+
+    #[tokio::test]
+    async fn a_narrower_sub_selection_is_not_served_the_wider_cached_response() {
+        let executor = executor_with_response_cache();
+        let ctx = principal();
+
+        let wide = executor
+            .execute_with_security("{ users { id name email } }", None, &ctx)
+            .await
+            .unwrap();
+        assert_eq!(wide["data"]["users"][0]["email"], "alice@x.com");
+
+        let narrow = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
+        assert!(
+            narrow["data"]["users"][0]["email"].is_null(),
+            "#760: the cached wide response must not over-return fields the client did not select"
+        );
+    }
+
+    /// The root alias decides the response key, and `QueryMatch::fields` holds
+    /// the field *name*, so two aliases of the same query hashed identically.
+    #[tokio::test]
+    async fn a_root_alias_does_not_collide_with_the_unaliased_query() {
+        let executor = executor_with_response_cache();
+        let ctx = principal();
+
+        let plain = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
+        assert!(plain["data"]["users"].is_array());
+
+        let aliased = executor
+            .execute_with_security("{ people: users { id } }", None, &ctx)
+            .await
+            .unwrap();
+        assert!(
+            aliased["data"]["people"].is_array(),
+            "#760: an aliased root must answer under its alias, not replay the cached `users` \
+             envelope: {aliased}"
+        );
+    }
+}

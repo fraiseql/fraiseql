@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The Arrow Flight result cache is scoped to the requesting principal (#716).** It was
+  keyed on the SQL text alone, while the same file's documentation told operators to scope
+  rows "by the underlying `va_*` view itself (e.g. a view that filters on a session/tenant
+  setting)". The two are incompatible by construction — with a session-scoped view, one
+  tenant's rows are cached under the SQL string and the next tenant issuing the identical
+  SQL is served them.
+
+  The documented mitigation was never implementable on this path in the first place:
+  `ArrowDatabaseAdapter::execute_raw_query` takes a SQL string and nothing else, so a view
+  filtering on `current_setting('app.tenant_id')` has nothing to read. Entries are now
+  addressed by `(principal, SQL)`, using the same `hash_security_context` the executor's
+  response cache uses, so one principal never observes another's read; and the doc says
+  what the path actually does — no RLS, no session scoping, only expose a `va_*` view over
+  Flight whose full contents every Flight-authenticated principal may read.
+
+  The isolation is asserted end-to-end through `do_get`, on the principal the live path
+  derives from the session token.
+
 - **A `where:` argument that cannot be serialized is refused, not dropped (#719).** The
   GraphQL parser stored inline argument values as JSON built with
   `format!("\"{}\"", s.replace('"', "\\\""))` — escaping the double quote and nothing
@@ -211,7 +229,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   turned a typo'd rule into an empty rule set, so a scalar declared with validation
   shipped with none.
 
+- **`DatabaseAdapter::invalidate_list_queries`, `CachedDatabaseAdapter::invalidate_list_queries`
+  and `QueryResultCache::invalidate_list_queries` are removed**, along with the
+  `list_index` reverse index and `CachedResult::is_list_query`. List-versus-point-lookup
+  classification was derived from result cardinality and was the root of #742; there is no
+  sound replacement at that layer, so the distinction is gone rather than repaired. Callers
+  use `invalidate_views`, which is what the mutation path now does for every operation
+  kind. Expect more evictions per mutation: a point lookup for an unrelated entity is now
+  dropped and re-read, where before it was kept on a premise that was never checked.
+
+- **`CachedDatabaseAdapter::with_ttl_overrides_from_schema` is renamed
+  `with_cache_metadata_from_schema`.** It is the single seam between the compiled schema
+  and the row cache, and it now reads `additional_views` as well as `cache_ttl_seconds`;
+  the old name described half its job. `rebuilt_for_schema` (hot reload) delegates to the
+  same reader, so a per-query cache annotation cannot work at boot and stop working after
+  a schema reload.
+
+- **`QueryCache::get`/`put` in `fraiseql-arrow` take a `CacheScope` first argument.**
+  Required rather than optional so no call site can store an entry another principal could
+  read back (#716).
+
 ### Fixed
+
+- **A re-cached entry stays reachable by every invalidation path (#740).** `put_arc`
+  registers a key in the reverse indexes *before* `store.insert`, deliberately, so an
+  `invalidate_views` racing the insert cannot miss it. The consequence is that moka fires
+  the eviction listener for the entry the insert displaced — while its replacement is
+  already live under the same key — and the listener pruned by key alone, deleting the
+  registrations the *live* entry depended on. Two concurrent misses of one hot query were
+  enough. The detached entry could never be evicted by a mutation again: served until TTL
+  expiry, or for the process lifetime on a view annotated `cache_ttl_seconds = 0`, which
+  is documented as "no TTL — mutation-invalidated only".
+
+  Each entry now carries a process-unique epoch and registers/deregisters itself under
+  `(cache_key, epoch)`, so registration and removal are symmetric per *entry instance*.
+  The listener needs no knowledge of moka's `RemovalCause` taxonomy, which means a moka
+  bump cannot reintroduce this by reporting a different cause. `ResponseCache` had the
+  identical listener and gets the identical fix.
+
+- **Every successful mutation evicts every cached entry for the views it touched
+  (#741, #742, #763).** Post-mutation invalidation tried to be precise, and neither signal
+  it used proved the entries it kept were unaffected by the write:
+
+  - `is_list_query` was `result.len() > 1`, so a filtered list matching nothing, and one
+    matching a single row, were not lists and were never evicted on CREATE (#742) —
+    precisely the results a CREATE is most likely to change.
+  - CREATE and UPDATE were told apart by whether the payload carried `entity_id` rather
+    than by the declared operation, so a create function that stamps the new row's id took
+    the entity-aware branch and evicted nothing: no entry cached before the row existed
+    can contain its id (#741). PostgreSQL functions stamp it naturally, and the SQLite
+    `DirectSql` insert path forwarded it unconditionally.
+  - Entity-aware eviction on UPDATE reached only entries whose rows already contained the
+    mutated id, so an update that moves a row *into* a cached filtered list left that list
+    stale (#763) — the strategy comment claimed "precise, no false positives" without
+    addressing the false negatives.
+
+  The decision is now one pure function of `(mutation, outcome, schema)` that resolves
+  views from all four declarations that can name one — `invalidates_views`, the return
+  type, the entity type a payload wraps, the `entity_type` stamped on `mutation_response`
+  — plus cascade side-effects, and sweeps them. `returns_list` was considered as the
+  schema-derived replacement for the row count and rejected: a query returning a single
+  object (`currentUser`, `latestPost`) is still affected by a CREATE, so "not a list" does
+  not mean "not affected" and no flag in the compiled schema does.
+
+- **A query's declared `additional_views` reach the cache (#761).** `additional_views` is
+  authored, validated by the CLI as safe SQL identifiers, and documented in `key.rs` as
+  "required for correct invalidation when a query reads from multiple views" — and its one
+  consumer, `extract_accessed_views`, had no runtime caller. A query on `v_report`
+  declaring `additional_views = ["v_user"]` was registered under `v_report` only, so a
+  `User` mutation never touched it. Both caches now register an entry under every view its
+  query reads.
+
+- **The response-cache key covers the whole operation (#760).** It hashed
+  `QueryMatch::fields` — the *top-level* selection names, which for `{ users { id } }` is
+  `["users"]`. Nothing below the root reached the hash, so `{ users { id } }` and
+  `{ users { id name email } }` shared one entry and whichever ran first decided the shape
+  the other client received. Nested field arguments (`posts(limit: 3)` vs
+  `posts(limit: 50)`) were excluded for the same reason, and so were aliases, because
+  `fields` holds the field *name*: `{ people: users { id } }` replayed the envelope keyed
+  under `users` and answered nothing at all under `people`.
+
+  Key derivation moved to `cache::key::generate_response_cache_key`, which hashes the full
+  resolved selection tree — every field's name, alias, arguments and directives,
+  recursively — plus the operation name and canonically-hashed variables, so a new
+  dimension added in the one place that owns cache keys reaches this cache too.
 
 - **`@skip`/`@include` on a named fragment spread did nothing (#826).** The parser preserves
   a spread's directives, and both production paths then ran `FragmentResolver` *before* the

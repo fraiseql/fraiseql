@@ -209,10 +209,18 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// allocation overhead for uncached queries.
     pub(super) cacheable_views: HashSet<String>,
 
+    /// Primary view → the secondary views queries over it also read.
+    ///
+    /// Populated from `QueryDefinition::additional_views` by
+    /// [`CachedDatabaseAdapter::with_cache_metadata_from_schema`]. A cached entry
+    /// for the primary view is registered under all of them, so a mutation on a
+    /// secondary view evicts it (#761).
+    pub(super) view_secondary_views: HashMap<String, Vec<String>>,
+
     /// Whether opt-in caching mode is active.
     ///
     /// Set to `true` by [`CachedDatabaseAdapter::with_view_ttl_overrides`] and
-    /// [`CachedDatabaseAdapter::with_ttl_overrides_from_schema`] to indicate that
+    /// [`CachedDatabaseAdapter::with_cache_metadata_from_schema`] to indicate that
     /// the caller has intentionally configured per-view TTL overrides.  In this
     /// mode, **only** views in `cacheable_views` are cached; all others bypass
     /// key-generation entirely.
@@ -277,6 +285,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             schema_version,
             view_ttl_overrides: HashMap::new(),
             cacheable_views: HashSet::new(),
+            view_secondary_views: HashMap::new(),
             opt_in_mode: false,
             has_rls: false,
             fact_table_config: FactTableCacheConfig::default(),
@@ -355,11 +364,22 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         self
     }
 
-    /// Populate per-view TTL overrides from a compiled schema.
+    /// Read every per-query cache declaration out of a compiled schema.
     ///
-    /// For each query that has `cache_ttl_seconds` set and a non-null `sql_source`,
-    /// this maps the view name → TTL so the cache adapter uses the per-query TTL
-    /// instead of the global default.
+    /// This is the single seam between the compiled schema and the row cache.
+    /// Both things it reads are per-query annotations that the runtime otherwise
+    /// has no way to see, because the `DatabaseAdapter` boundary carries only a
+    /// view name:
+    ///
+    /// - `cache_ttl_seconds` → the view's TTL override, and its membership of `cacheable_views`
+    ///   (opt-in mode).
+    /// - `additional_views` → the secondary views a query also reads, so a mutation on one of them
+    ///   evicts the joined query's cached rows (#761).
+    ///
+    /// Add any further per-query cache annotation here, not at a call site:
+    /// `rebuilt_for_schema` (hot reload) delegates to the same code, so an
+    /// annotation wired in one place and not the other silently stops working
+    /// after the first schema reload.
     ///
     /// # Example
     ///
@@ -372,18 +392,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # let cache = QueryResultCache::new(CacheConfig::default());
     /// # let schema = CompiledSchema::default();
     /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string())
-    ///     .with_ttl_overrides_from_schema(&schema);
+    ///     .with_cache_metadata_from_schema(&schema);
     /// # Ok(())
     /// # }
     /// ```
     #[must_use]
-    pub fn with_ttl_overrides_from_schema(mut self, schema: &CompiledSchema) -> Self {
-        for query in &schema.queries {
-            if let (Some(view), Some(ttl)) = (&query.sql_source, query.cache_ttl_seconds) {
-                self.cacheable_views.insert(view.clone());
-                self.view_ttl_overrides.insert(view.clone(), ttl);
-            }
-        }
+    pub fn with_cache_metadata_from_schema(mut self, schema: &CompiledSchema) -> Self {
+        self.read_schema_cache_metadata(schema);
         // Always activate opt-in mode when this method is called, regardless of
         // whether any annotations were found.  If the schema has no cache_ttl_seconds
         // annotations, cacheable_views stays empty and every query bypasses the cache
@@ -391,6 +406,51 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // views are cached; all others bypass.
         self.opt_in_mode = true;
         self
+    }
+
+    /// Populate `view_ttl_overrides`, `cacheable_views` and `view_secondary_views`
+    /// from the schema's per-query annotations.
+    ///
+    /// `view_secondary_views` is keyed by *primary* view because that is all the
+    /// adapter boundary knows at put time. Two queries over the same primary view
+    /// that declare different secondaries therefore share the union — which
+    /// over-invalidates one of them by at most the other's declarations. Being
+    /// evicted early costs a re-read; not being evicted serves the wrong answer.
+    fn read_schema_cache_metadata(&mut self, schema: &CompiledSchema) {
+        for query in &schema.queries {
+            let Some(view) = &query.sql_source else {
+                continue;
+            };
+            if let Some(ttl) = query.cache_ttl_seconds {
+                self.cacheable_views.insert(view.clone());
+                self.view_ttl_overrides.insert(view.clone(), ttl);
+            }
+            // `extract_accessed_views` is the one definition of "which views does
+            // this query read"; the response cache uses it too.
+            let secondary: Vec<String> = crate::cache::key::extract_accessed_views(query)
+                .into_iter()
+                .filter(|v| v != view)
+                .collect();
+            if !secondary.is_empty() {
+                let entry = self.view_secondary_views.entry(view.clone()).or_default();
+                for v in secondary {
+                    if !entry.contains(&v) {
+                        entry.push(v);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every view a cached entry for `view` must be registered under: the view
+    /// itself plus any secondary views declared by queries reading it (#761).
+    pub(super) fn accessed_views_for(&self, view: &str) -> Vec<String> {
+        let mut views = Vec::with_capacity(1);
+        views.push(view.to_string());
+        if let Some(secondary) = self.view_secondary_views.get(view) {
+            views.extend(secondary.iter().cloned());
+        }
+        views
     }
 
     /// Rebuild this adapter for a new compiled schema.
@@ -405,7 +465,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// connections are closed or reopened.
     ///
     /// This is the hot-reload counterpart to the startup path
-    /// (`new()` + `with_ttl_overrides_from_schema()`).
+    /// (`new()` + `with_cache_metadata_from_schema()`).
     #[must_use]
     pub fn rebuilt_for_schema(self, schema: &CompiledSchema) -> Self {
         // Clear existing cache entries (stale under new schema).
@@ -414,23 +474,21 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Construct a new adapter with updated schema version and TTL overrides,
         // reusing the same inner adapter and shared cache.
         let mut rebuilt = Self {
-            adapter:             self.adapter,
-            cache:               self.cache,
-            schema_version:      schema.content_hash(),
-            view_ttl_overrides:  HashMap::new(),
-            cacheable_views:     HashSet::new(),
-            opt_in_mode:         true,
-            has_rls:             self.has_rls,
-            fact_table_config:   self.fact_table_config,
-            version_provider:    self.version_provider,
-            cascade_invalidator: self.cascade_invalidator,
+            adapter:              self.adapter,
+            cache:                self.cache,
+            schema_version:       schema.content_hash(),
+            view_ttl_overrides:   HashMap::new(),
+            cacheable_views:      HashSet::new(),
+            view_secondary_views: HashMap::new(),
+            opt_in_mode:          true,
+            has_rls:              self.has_rls,
+            fact_table_config:    self.fact_table_config,
+            version_provider:     self.version_provider,
+            cascade_invalidator:  self.cascade_invalidator,
         };
-        for query in &schema.queries {
-            if let (Some(view), Some(ttl)) = (&query.sql_source, query.cache_ttl_seconds) {
-                rebuilt.cacheable_views.insert(view.clone());
-                rebuilt.view_ttl_overrides.insert(view.clone(), ttl);
-            }
-        }
+        // Same reader as the startup path, so a new per-query cache annotation
+        // cannot work at boot and stop working after a hot reload.
+        rebuilt.read_schema_cache_metadata(schema);
         rebuilt
     }
 
@@ -483,6 +541,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             schema_version,
             view_ttl_overrides: HashMap::new(),
             cacheable_views: HashSet::new(),
+            view_secondary_views: HashMap::new(),
             opt_in_mode: false,
             has_rls: false,
             fact_table_config,
@@ -705,16 +764,17 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter:             self.adapter.clone(),
-            cache:               Arc::clone(&self.cache),
-            schema_version:      self.schema_version.clone(),
-            view_ttl_overrides:  self.view_ttl_overrides.clone(),
-            cacheable_views:     self.cacheable_views.clone(),
-            opt_in_mode:         self.opt_in_mode,
-            has_rls:             self.has_rls,
-            fact_table_config:   self.fact_table_config.clone(),
-            version_provider:    Arc::clone(&self.version_provider),
-            cascade_invalidator: self.cascade_invalidator.clone(),
+            adapter:              self.adapter.clone(),
+            cache:                Arc::clone(&self.cache),
+            schema_version:       self.schema_version.clone(),
+            view_ttl_overrides:   self.view_ttl_overrides.clone(),
+            cacheable_views:      self.cacheable_views.clone(),
+            view_secondary_views: self.view_secondary_views.clone(),
+            opt_in_mode:          self.opt_in_mode,
+            has_rls:              self.has_rls,
+            fact_table_config:    self.fact_table_config.clone(),
+            version_provider:     Arc::clone(&self.version_provider),
+            cascade_invalidator:  self.cascade_invalidator.clone(),
         }
     }
 }
@@ -941,10 +1001,6 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
         CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
-    }
-
-    async fn invalidate_list_queries(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
-        CachedDatabaseAdapter::invalidate_list_queries(self, views)
     }
 
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {

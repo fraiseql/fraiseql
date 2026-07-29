@@ -7,6 +7,8 @@
 //! [`MutationRunner`] path and the runtime-guarded `execute_mutation_query` path on
 //! [`Executor`](super::super::core::Executor).
 
+mod invalidation;
+
 use std::sync::Arc;
 
 use fraiseql_db::{
@@ -1335,97 +1337,22 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 
     // Invalidate query result cache for views/entities touched by this mutation.
     //
-    // Strategy:
-    // - UPDATE/DELETE with entity_id: entity-aware eviction only (precise, no false positives).
-    //   Evicts only the cache entries that actually contain the mutated entity UUID.
-    // - CREATE or explicit invalidates_views: view-level flush. For CREATE the new entity isn't in
-    //   any existing cache entry, so entity-aware is a no-op. View-level ensures list queries
-    //   return the new row.
-    // - No entity_id and no views declared: infer view from return type (backward-compat).
-    if let MutationOutcome::Success {
-        entity_type,
-        entity_id,
-        ..
-    } = &outcome
-    {
-        // Entity-aware path: precise eviction for UPDATE/DELETE.
-        if let (Some(etype), Some(eid)) = (entity_type.as_deref(), entity_id.as_deref()) {
-            ctx.adapter.invalidate_by_entity(etype, eid).await?;
-
-            // The response cache doesn't have entity-level granularity, so
-            // invalidate by the inferred view for this entity type.
-            if let Some(ref rc) = ctx.response_cache {
-                let inferred_view = ctx
-                    .schema
-                    .types
-                    .iter()
-                    .find(|t| t.name == etype)
-                    .filter(|t| !t.sql_source.as_str().is_empty())
-                    .map(|t| t.sql_source.to_string());
-                if let Some(view) = inferred_view {
-                    let _ = rc.invalidate_views(&[ViewName::from(view)]);
-                }
-            }
-        }
-
-        // View-level path: needed when entity_id is absent (CREATE) or when the developer
-        // explicitly declared invalidates_views to also refresh list queries.
-        if entity_id.is_none() || !mutation_def.invalidates_views.is_empty() {
-            // Promote the schema's `Vec<String>` view list into `Vec<ViewName>`
-            // once — every downstream invalidator borrows the same Arc<str>.
-            let views_to_invalidate: Vec<ViewName> = if mutation_def.invalidates_views.is_empty() {
-                ctx.schema
-                    .types
-                    .iter()
-                    .find(|t| t.name == mutation_def.return_type)
-                    .filter(|t| !t.sql_source.as_str().is_empty())
-                    .map(|t| ViewName::from(t.sql_source.as_str()))
-                    .into_iter()
-                    .collect()
-            } else {
-                mutation_def.invalidates_views.iter().map(ViewName::from).collect()
-            };
-            if !views_to_invalidate.is_empty() {
-                if entity_id.is_none() {
-                    // CREATE: the new entity is absent from all existing cache entries,
-                    // so point-lookup entries for other entities remain valid.  Only
-                    // list queries need eviction (the new row must appear in results).
-                    ctx.adapter.invalidate_list_queries(&views_to_invalidate).await?;
-                } else {
-                    // Developer-declared invalidates_views on an UPDATE/DELETE: honour
-                    // the explicit annotation with a full view sweep.
-                    ctx.adapter.invalidate_views(&views_to_invalidate).await?;
-                }
-                // Also invalidate the response cache for these views
-                if let Some(ref rc) = ctx.response_cache {
-                    let _ = rc.invalidate_views(&views_to_invalidate);
-                }
-            }
+    // The decision is one pure function over (mutation_def, outcome, schema) —
+    // see `invalidation::plan_invalidation` for why it is a view sweep rather
+    // than a list-vs-point classification (#741, #742, #763). Declared views,
+    // the return type, the stamped entity type and cascade side-effects all
+    // resolve in the same place, so no caller can reach a different answer.
+    let plan = invalidation::plan_invalidation(mutation_def, &outcome, &ctx.schema);
+    if !plan.views.is_empty() {
+        ctx.adapter.invalidate_views(&plan.views).await?;
+        if let Some(ref rc) = ctx.response_cache {
+            let _ = rc.invalidate_views(&plan.views);
         }
     }
-
-    // Cascade-driven cache invalidation: a cascade mutation's
-    // side-effects on entity types OTHER than its return type (e.g. a `Post`
-    // mutation that updates a `User`) leave those types' cached queries stale —
-    // the primary-entity invalidation above only covers the return type and
-    // declared `invalidates_views`. Resolve each cascade entity type to its view
-    // via the compiled schema (NOT a `v_<lowercase>` string guess, which misses
-    // `tv_*`, multi-word, and custom view names) and invalidate those views. Both
-    // the adapter cache and the response cache, matching the primary path.
-    if mutation_def.cascade {
-        if let MutationOutcome::Success {
-            cascade: Some(cascade_json),
-            ..
-        } = &outcome
-        {
-            let views = resolve_cascade_views(cascade_json, &ctx.schema);
-            if !views.is_empty() {
-                ctx.adapter.invalidate_views(&views).await?;
-                if let Some(ref rc) = ctx.response_cache {
-                    let _ = rc.invalidate_views(&views);
-                }
-            }
-        }
+    // Supplementary, not a substitute: covers entries indexed under this entity
+    // when the entity's own view could not be resolved from the schema.
+    if let Some((etype, eid)) = &plan.entity {
+        ctx.adapter.invalidate_by_entity(etype, eid).await?;
     }
 
     // Clone name and return_type to avoid borrow issues after schema lookups

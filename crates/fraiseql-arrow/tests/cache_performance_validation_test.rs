@@ -37,6 +37,9 @@ use std::{
 
 use fraiseql_arrow::cache::QueryCache;
 
+/// Throughput of the cache mechanics, measured under a single principal.
+const SCOPE: fraiseql_arrow::cache::CacheScope = 0;
+
 // ============================================================================
 // SECTION 1: CACHE HIT LATENCY VALIDATION (2 tests)
 // ============================================================================
@@ -69,11 +72,11 @@ fn test_cache_hit_latency_under_10ms() {
         },
     ];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Measure cache hit latency
     let start = Instant::now();
-    let hit = cache.get(query);
+    let hit = cache.get(SCOPE, query);
     let latency = start.elapsed();
 
     // Verify hit occurred
@@ -100,13 +103,13 @@ fn test_cache_hit_consistency_across_accesses() {
         map
     }];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Multiple rapid cache hits
     let mut total_latency = Duration::ZERO;
     for _ in 0..10 {
         let start = Instant::now();
-        let hit = cache.get(query);
+        let hit = cache.get(SCOPE, query);
         total_latency += start.elapsed();
 
         assert!(hit.is_some(), "Cache hit failed");
@@ -137,7 +140,7 @@ fn test_cache_miss_returns_none() {
     let cache = QueryCache::new(60);
 
     // Query not in cache
-    let result = cache.get("SELECT * FROM non_existent_table");
+    let result = cache.get(SCOPE, "SELECT * FROM non_existent_table");
     assert!(result.is_none(), "Cache should return None for missing query");
 }
 
@@ -147,7 +150,7 @@ fn test_cache_miss_then_hit() {
     let query = "SELECT * FROM products";
 
     // First access misses
-    assert!(cache.get(query).is_none(), "First access should miss");
+    assert!(cache.get(SCOPE, query).is_none(), "First access should miss");
 
     // Insert result
     let result = vec![{
@@ -157,10 +160,10 @@ fn test_cache_miss_then_hit() {
         map
     }];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Second access hits
-    let hit = cache.get(query);
+    let hit = cache.get(SCOPE, query);
     assert!(hit.is_some(), "Second access should hit after put");
     assert_eq!(hit.unwrap().len(), 1);
 }
@@ -175,12 +178,13 @@ fn test_cache_miss_count_accuracy() {
     let q3 = "SELECT * FROM table3";
 
     // All three miss initially
-    assert!(cache.get(q1).is_none());
-    assert!(cache.get(q2).is_none());
-    assert!(cache.get(q3).is_none());
+    assert!(cache.get(SCOPE, q1).is_none());
+    assert!(cache.get(SCOPE, q2).is_none());
+    assert!(cache.get(SCOPE, q3).is_none());
 
     // Insert only q1 and q3
     cache.put(
+        SCOPE,
         q1,
         Arc::new(vec![{
             let mut m = HashMap::new();
@@ -189,6 +193,7 @@ fn test_cache_miss_count_accuracy() {
         }]),
     );
     cache.put(
+        SCOPE,
         q3,
         Arc::new(vec![{
             let mut m = HashMap::new();
@@ -198,9 +203,9 @@ fn test_cache_miss_count_accuracy() {
     );
 
     // Verify pattern: hit, miss, hit
-    assert!(cache.get(q1).is_some(), "q1 should hit");
-    assert!(cache.get(q2).is_none(), "q2 should miss");
-    assert!(cache.get(q3).is_some(), "q3 should hit");
+    assert!(cache.get(SCOPE, q1).is_some(), "q1 should hit");
+    assert!(cache.get(SCOPE, q2).is_none(), "q2 should miss");
+    assert!(cache.get(SCOPE, q3).is_some(), "q3 should hit");
 }
 
 // ============================================================================
@@ -225,16 +230,16 @@ fn test_cache_expiration_after_ttl() {
         map
     }];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Immediate access succeeds
-    assert!(cache.get(query).is_some(), "Should hit before TTL expires");
+    assert!(cache.get(SCOPE, query).is_some(), "Should hit before TTL expires");
 
     // Wait for expiration
     std::thread::sleep(Duration::from_millis(1100));
 
     // Access after expiration returns None
-    assert!(cache.get(query).is_none(), "Cache should expire after TTL seconds");
+    assert!(cache.get(SCOPE, query).is_none(), "Cache should expire after TTL seconds");
 }
 
 #[test]
@@ -248,10 +253,10 @@ fn test_cache_ttl_zero_expires_immediately() {
         map
     }];
 
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Even immediate access should miss with 0 TTL
-    assert!(cache.get(query).is_none(), "0-second TTL should expire immediately");
+    assert!(cache.get(SCOPE, query).is_none(), "0-second TTL should expire immediately");
 }
 
 #[test]
@@ -268,13 +273,13 @@ fn test_cache_different_ttls() {
     }];
 
     // Both entries share same TTL but are stored at different times
-    cache.put(q1, Arc::new(result.clone()));
+    cache.put(SCOPE, q1, Arc::new(result.clone()));
     std::thread::sleep(Duration::from_millis(100));
-    cache.put(q2, Arc::new(result));
+    cache.put(SCOPE, q2, Arc::new(result));
 
     // Both should be valid immediately
-    assert!(cache.get(q1).is_some());
-    assert!(cache.get(q2).is_some());
+    assert!(cache.get(SCOPE, q1).is_some());
+    assert!(cache.get(SCOPE, q2).is_some());
 
     // Both should eventually expire at different times
     // (but both should be valid during TTL window)
@@ -305,11 +310,11 @@ fn test_cache_hit_rate_perfect_hits() {
             m.insert("query".to_string(), serde_json::json!(q));
             m
         }];
-        cache.put(q, Arc::new(result));
+        cache.put(SCOPE, q, Arc::new(result));
     }
 
     // All accesses hit
-    let hits = queries.iter().filter(|q| cache.get(q).is_some()).count();
+    let hits = queries.iter().filter(|q| cache.get(SCOPE, q).is_some()).count();
     let total = queries.len();
 
     assert_eq!(hits, total, "All queries should hit for 100% hit rate");
@@ -323,7 +328,7 @@ fn test_cache_hit_rate_no_hits() {
     let queries = ["q1", "q2", "q3"];
 
     // Don't populate cache, just try to access
-    let hits = queries.iter().filter(|q| cache.get(q).is_some()).count();
+    let hits = queries.iter().filter(|q| cache.get(SCOPE, q).is_some()).count();
 
     assert_eq!(hits, 0, "No queries should hit without cache population");
     // Hit rate would be 0% (hits / (hits + misses) = 0 / 3)
@@ -341,20 +346,20 @@ fn test_cache_hit_rate_mixed_pattern() {
             m.insert("query".to_string(), serde_json::json!(q));
             m
         }];
-        cache.put(q, Arc::new(result));
+        cache.put(SCOPE, q, Arc::new(result));
     }
 
     // Access q1 (hit), q2 (miss), q3 (hit)
     let mut hits = 0;
     let total = 3;
 
-    if cache.get("q1").is_some() {
+    if cache.get(SCOPE, "q1").is_some() {
         hits += 1;
     }
-    if cache.get("q2").is_some() {
+    if cache.get(SCOPE, "q2").is_some() {
         hits += 1;
     }
-    if cache.get("q3").is_some() {
+    if cache.get(SCOPE, "q3").is_some() {
         hits += 1;
     }
 
@@ -386,14 +391,14 @@ fn test_cache_concurrent_reads() {
         map.insert("data".to_string(), serde_json::json!("shared"));
         map
     }];
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Spawn multiple threads reading same query
     let handles: Vec<_> = (0..10)
         .map(|_| {
             let cache_clone = Arc::clone(&cache);
             std::thread::spawn(move || {
-                let hit = cache_clone.get(query);
+                let hit = cache_clone.get(SCOPE, query);
                 assert!(hit.is_some(), "Concurrent read should hit");
                 hit.unwrap().len()
             })
@@ -423,7 +428,7 @@ fn test_cache_concurrent_writes() {
                     m.insert("table_id".to_string(), serde_json::json!(i));
                     m
                 }];
-                cache_clone.put(&query, Arc::new(result));
+                cache_clone.put(SCOPE, &query, Arc::new(result));
                 query
             })
         })
@@ -434,7 +439,7 @@ fn test_cache_concurrent_writes() {
 
     // All queries should be retrievable
     for query in queries {
-        assert!(cache.get(&query).is_some(), "Concurrent write should be readable");
+        assert!(cache.get(SCOPE, &query).is_some(), "Concurrent write should be readable");
     }
 }
 
@@ -451,7 +456,7 @@ fn test_cache_concurrent_mixed_operations() {
             m.insert("id".to_string(), serde_json::json!(i));
             m
         }];
-        cache.put(&query, Arc::new(result));
+        cache.put(SCOPE, &query, Arc::new(result));
     }
 
     // Spawn mixed operations
@@ -467,19 +472,19 @@ fn test_cache_concurrent_mixed_operations() {
                         m.insert("id".to_string(), serde_json::json!(i));
                         m
                     }];
-                    cache_clone.put(&query, Arc::new(result));
+                    cache_clone.put(SCOPE, &query, Arc::new(result));
                     "write"
                 } else if i % 3 == 1 {
                     // Read operation
                     let query = format!("SELECT * FROM initial_{}", i % 3);
-                    if cache_clone.get(&query).is_some() {
+                    if cache_clone.get(SCOPE, &query).is_some() {
                         "hit"
                     } else {
                         "miss"
                     }
                 } else {
                     // Concurrent miss
-                    if cache_clone.get("SELECT * FROM nonexistent").is_none() {
+                    if cache_clone.get(SCOPE, "SELECT * FROM nonexistent").is_none() {
                         "correct_miss"
                     } else {
                         "wrong_hit"
@@ -518,12 +523,12 @@ fn test_cache_many_entries_performance() {
             m.insert("id".to_string(), serde_json::json!(i));
             m
         }];
-        cache.put(&query, Arc::new(result));
+        cache.put(SCOPE, &query, Arc::new(result));
     }
 
     // Access latency should still be sub-millisecond even with 1000 entries
     let start = Instant::now();
-    let hit = cache.get("SELECT * FROM table_500");
+    let hit = cache.get(SCOPE, "SELECT * FROM table_500");
     let latency = start.elapsed();
 
     assert!(hit.is_some(), "Should find entry in large cache");
@@ -547,10 +552,10 @@ fn test_cache_entry_data_integrity() {
     original_map.insert("age".to_string(), serde_json::json!(30));
 
     let result = vec![original_map.clone()];
-    cache.put(query, Arc::new(result));
+    cache.put(SCOPE, query, Arc::new(result));
 
     // Retrieve and verify data integrity
-    let cached = cache.get(query).unwrap();
+    let cached = cache.get(SCOPE, query).unwrap();
     assert_eq!(cached.len(), 1);
 
     let cached_row = &cached[0];

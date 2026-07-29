@@ -90,7 +90,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema)
+            .with_cache_metadata_from_schema(&schema)
             .with_rls(schema.has_rls_configured());
         crate::server::initialization::verify_declared_rls(
             &schema,
