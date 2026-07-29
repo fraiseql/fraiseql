@@ -64,12 +64,24 @@ pub struct FederationHealth {
 #[derive(Debug, Serialize)]
 pub struct ObserverHealth {
     /// Whether the observer runtime is currently running.
-    pub running:        bool,
-    /// Approximate number of events pending in the internal queue.
-    pub pending_events: usize,
+    pub running:          bool,
+    /// **Lifetime** count of events the runtime has finished processing.
+    ///
+    /// Monotonic: it counts throughput, not backlog, and never decreases while the
+    /// process lives. This field used to be called `pending_events` and documented
+    /// as "approximate number of events pending in the internal queue" while
+    /// carrying this same counter (#875, item 2), so an operator alerting on
+    /// `pending_events > N` got an alert that fired permanently after the Nth
+    /// successful event and never cleared — while a real backlog stayed invisible.
+    ///
+    /// The observer runtime is checkpoint-driven and holds no queue whose depth
+    /// could be reported, so the field is named for what it actually is rather
+    /// than fabricating a depth. A genuine backlog metric would need a new source
+    /// on `RuntimeHealth`.
+    pub events_processed: usize,
     /// Last error message from the observer runtime, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_error:     Option<String>,
+    pub last_error:       Option<String>,
 }
 
 /// Cache subsystem health.
@@ -189,11 +201,11 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         let health = rt.health();
         #[allow(clippy::cast_possible_truncation)]
         // Reason: events_processed is a counter that won't realistically exceed usize on any target
-        let pending = health.events_processed as usize;
+        let events_processed = health.events_processed as usize;
         Some(ObserverHealth {
-            running:        health.running,
-            pending_events: pending,
-            last_error:     if health.errors > 0 {
+            running: health.running,
+            events_processed,
+            last_error: if health.errors > 0 {
                 Some(format!("{} errors encountered", health.errors))
             } else {
                 None

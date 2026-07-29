@@ -396,6 +396,15 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + "'",
 		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES)'",
 		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "'",
+		// The MCP transport's Docker-free test binaries. They ran in
+		// feature-flags.yml's `feature-integration-tests` job, which has been
+		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
+		// executed them, and #857 (every tool call fails under the DEFAULT
+		// camelCase naming convention) sat undetected. `--lib` above does not
+		// reach `tests/*`, so they are named explicitly. The two-tenant dispatch
+		// suite needs a database and runs in the integration leg instead.
+		"echo '### cargo test -p fraiseql-server mcp test binaries (SYNC:SERVER_FEATURES; not covered by --lib)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI
@@ -876,6 +885,13 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// compile time, so the next handler that drifts from the 501 convention fails
 		// here rather than shipping.
 		"cargo test -p fraiseql-server --features observers --test studio_admin_no_fabricated_success_e2e -- --test-threads=1",
+		// #858: MCP tool calls captured the default executor at session construction
+		// and never consulted the tenant registry, so an authenticated caller read the
+		// boot database and a suspended tenant kept reading over MCP while /graphql
+		// answered 503. Needs two real per-tenant pools against one database — the
+		// wrong-database read is silent, so nothing short of distinguishable rows in
+		// two schemas can catch it.
+		"cargo test -p fraiseql-server --features mcp --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",

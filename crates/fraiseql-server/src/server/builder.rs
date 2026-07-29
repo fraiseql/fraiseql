@@ -712,7 +712,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     pub async fn serve_mcp_stdio(self) -> Result<()> {
         use rmcp::ServiceExt;
 
-        let mcp_cfg = self.mcp_config.ok_or_else(|| {
+        let mcp_cfg = self.mcp_config.clone().ok_or_else(|| {
             ServerError::ConfigError(
                 "FRAISEQL_MCP_STDIO=1 but MCP is not configured. \
                  Add [mcp] enabled = true to fraiseql.toml and recompile the schema."
@@ -720,10 +720,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             )
         })?;
 
-        let schema = Arc::new(self.executor.schema().clone());
-        let executor = self.executor.clone();
-
-        let service = crate::mcp::handler::FraiseQLMcpService::new(schema, executor, mcp_cfg)
+        // Built from the same `AppState` the HTTP mount uses (#858): stdio carries
+        // no headers, but the tenant registry, the suspended-tenant gate and the
+        // error sanitizer must apply on both transports, not just the one whose
+        // construction path happened to be wired to them.
+        let service = crate::mcp::handler::FraiseQLMcpService::new(self.build_app_state(), mcp_cfg)
             .with_oidc_validator(self.oidc_validator.clone());
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");

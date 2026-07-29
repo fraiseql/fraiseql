@@ -621,9 +621,9 @@ mod health_tests {
     #[test]
     fn test_determine_status_observers_not_running_is_degraded() {
         let observers = Some(ObserverHealth {
-            running:        false,
-            pending_events: 0,
-            last_error:     None,
+            running:          false,
+            events_processed: 0,
+            last_error:       None,
         });
         #[cfg(feature = "federation")]
         assert_eq!(determine_status(true, observers.as_ref(), None, None), "degraded");

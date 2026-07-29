@@ -245,16 +245,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     streamable_http_server::session::local::LocalSessionManager,
                 };
 
-                let executor_swap = state.executor.clone();
+                // The session is built from the whole `AppState`, so an MCP tool
+                // call reaches the same tenant registry, domain registry and error
+                // sanitizer the `/graphql` handler does (#858).
+                let session_state = state.clone();
                 let cfg = mcp_cfg.clone();
                 let validator = self.oidc_validator.clone();
                 let mcp_service = StreamableHttpService::new(
                     move || {
-                        let executor = executor_swap.load_full();
-                        let schema = std::sync::Arc::new(executor.schema().clone());
                         Ok(crate::mcp::handler::FraiseQLMcpService::new(
-                            schema,
-                            executor,
+                            session_state.clone(),
                             cfg.clone(),
                         )
                         .with_oidc_validator(validator.clone()))

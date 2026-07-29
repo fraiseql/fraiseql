@@ -128,9 +128,10 @@ When an AI client calls a tool, FraiseQL builds a GraphQL query from the tool na
 ### How tool calls work internally
 
 1. The MCP client sends a `tools/call` JSON-RPC request with the tool name and arguments.
-2. FraiseQL constructs a GraphQL operation: `query { users(limit: 10) { id name email } }`.
-3. The operation is executed through the existing `Executor`, applying all security rules.
-4. The JSON result is returned as an MCP text content block.
+2. FraiseQL resolves the tool name against the advertised tool list — the same list `tools/list` returns, after `include`/`exclude`/`read_only`. A name that is not on it is refused here.
+3. FraiseQL constructs a GraphQL operation whose values travel as variables: `query ($limit: Int) { users(limit: $limit) { id name email } }` with `{"limit": 10}`. Argument *names* must be ones the operation declares; anything else is refused.
+4. The caller's tenant is resolved (JWT claim, `X-Tenant-ID`, or `Host`) and the operation is executed on that tenant's `Executor`, applying all security rules.
+5. The JSON result is returned as an MCP text content block. Execution errors pass through the configured error sanitizer first.
 
 ## Configuration Reference
 
@@ -158,22 +159,49 @@ include = ["users", "getUserById"]
 # Blacklist of query/mutation names to hide (default: []).
 # These operations are never exposed, even if they match the include list.
 exclude = ["deleteAllUsers", "dangerousReset"]
+
+# Never expose any mutation as a tool, whatever `include` says (default: false).
+# See "Prefer read_only = true" under Limitations.
+read_only = true
 ```
 
 ### Filtering exposed tools
 
-Use `include` and `exclude` to control which operations appear as MCP tools:
+Use `include` and `exclude` to control which operations are reachable as MCP tools:
 
 - **Both empty** (default): all queries and mutations are exposed.
 - **`include` non-empty**: only the listed operations are exposed.
 - **`exclude` non-empty**: the listed operations are hidden; everything else is exposed.
 - **Both non-empty**: an operation must be in `include` AND not in `exclude` to be exposed.
 
+The names in these lists are the names tools are **advertised** under, which under
+`naming_convention = "camelCase"` (the compiler default) are the camelCased ones —
+`listUsers`, not `list_users`. The raw compiled name is not an alias and does not
+reach the operation.
+
+Filtering is enforced where the call executes, not only where the tool list is
+built: naming a withheld operation directly in `tools/call` is refused, and the
+refusal is the same "unknown tool" answer a genuinely nonexistent name gets, so it
+cannot be used to probe for hidden operations.
+
 This is useful for hiding administrative mutations from AI clients while still exposing read queries.
+
+### Tenancy and errors
+
+An MCP tool call goes through the same per-tenant dispatch as `/graphql`: the tenant
+key is resolved from the validated token's claims (`tenant_id`, or `org_id`), the
+`X-Tenant-ID` header, or the `Host` header; an unregistered key is refused rather
+than served from the default executor, a suspended tenant is refused, and the
+tenant's concurrency and per-second quotas apply. The stdio transport carries no
+headers, so there the JWT claim is the only source.
+
+Execution errors are passed through the configured
+`[security.error_sanitization]` sanitizer before reaching the client, so a database
+fault does not hand an AI agent internal relation names or SQLSTATE codes.
 
 ## Limitations
 
-- **Stdio transport only.** The current implementation supports the MCP stdio transport. The `FRAISEQL_MCP_STDIO` environment variable switches the server from HTTP to stdio mode; they cannot run simultaneously in a single process.
+- **One transport per process.** `transport` selects `"http"` (default), `"stdio"`, or `"both"`; setting `FRAISEQL_MCP_STDIO=1` switches the process to stdio. HTTP and stdio cannot serve simultaneously in a single process.
 - **Prefer `read_only = true`.** Set `[mcp] read_only = true` unless you deliberately
   expose write operations — it guarantees **no mutation is ever exposed as an MCP tool**,
   regardless of `include`/`exclude`, and (critically) a mutation added to the schema later

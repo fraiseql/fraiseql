@@ -893,7 +893,9 @@ where
     #[cfg(feature = "mcp")]
     if cli.mcp_stdio.is_some() {
         tracing::info!("FraiseQL MCP stdio mode starting");
-        server.serve_mcp_stdio().await?;
+        // Boxed: the stdio path now builds the full `AppState` (#858), which puts
+        // this future over the `clippy::large_futures` threshold.
+        Box::pin(server.serve_mcp_stdio()).await?;
         return Ok(());
     }
 

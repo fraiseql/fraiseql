@@ -10,7 +10,6 @@ use std::sync::{
 
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
-    runtime::Executor,
     schema::CompiledSchema,
     security::{OidcValidator, SecurityContext},
 };
@@ -24,6 +23,7 @@ use rmcp::{
 };
 
 use super::{McpConfig, executor::error_result};
+use crate::routes::graphql::AppState;
 
 /// Extract a Bearer token from an HTTP `Authorization` header.
 ///
@@ -57,28 +57,40 @@ pub fn mcp_tool_errors_total() -> u64 {
 
 /// FraiseQL MCP service handler.
 ///
-/// Holds the compiled schema, executor, and pre-computed tool list.
+/// Holds the server state, the compiled schema and the pre-computed tool list.
 /// One instance is created per MCP session via the service factory.
+///
+/// The service holds the whole [`AppState`], not a bare executor: MCP is a
+/// transport onto the same runtime as `/graphql`, so it must reach the same tenant
+/// registry, domain registry and error sanitizer. Capturing one executor at
+/// session construction is precisely what made every MCP call run on the default
+/// tenant's database and let a suspended tenant keep reading (#858).
 pub struct FraiseQLMcpService<A: DatabaseAdapter> {
+    state:          AppState<A>,
     schema:         Arc<CompiledSchema>,
-    executor:       Arc<Executor<A>>,
     tools:          Vec<Tool>,
     config:         McpConfig,
     oidc_validator: Option<Arc<OidcValidator>>,
 }
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
-    /// Create a new MCP service.
+    /// Create a new MCP service over the server's state.
+    ///
+    /// The advertised tool list is computed from the state's current (default)
+    /// schema. That same schema resolves every incoming tool call, so an operation
+    /// can only be reached over MCP if it was advertised — even when a per-tenant
+    /// executor carries a different compiled schema.
     ///
     /// The service starts without an OIDC validator; attach one with
     /// [`with_oidc_validator`](Self::with_oidc_validator) to enable per-request
     /// Bearer-token authentication over the HTTP transport.
     #[must_use]
-    pub fn new(schema: Arc<CompiledSchema>, executor: Arc<Executor<A>>, config: McpConfig) -> Self {
+    pub fn new(state: AppState<A>, config: McpConfig) -> Self {
+        let schema = Arc::new(state.executor().schema().clone());
         let tools = super::tools::schema_to_tools(&schema, &config);
         Self {
+            state,
             schema,
-            executor,
             tools,
             config,
             oidc_validator: None,
@@ -104,6 +116,10 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// request *before* any `.await`, so the non-`Sync` HTTP request parts need
     /// not be held across the validation await point.
     ///
+    /// The context is built by the same function the `/graphql` extractor uses, so
+    /// the JWT's `org_id` becomes `tenant_id` and its extra claims become
+    /// `attributes` on this transport too (#858).
+    ///
     /// - `Ok(None)` — no validator configured, or no Bearer token present (anonymous). The
     ///   fail-closed gate in `executor::call_tool` still refuses the call when RLS or
     ///   `require_auth` demand a context.
@@ -122,13 +138,92 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
         };
 
         match validator.validate_token(&token).await {
-            Ok(user) => Ok(Some(SecurityContext::from_user(&user, request_id))),
+            Ok(user) => Ok(Some(crate::extractors::build_security_context(&user, request_id))),
             Err(e) => {
                 tracing::warn!(error = %e, "MCP token validation failed");
                 Err(error_result("Invalid or expired authentication token"))
             },
         }
     }
+
+    /// Authenticate, resolve the tenant, and run the tool call on that tenant's
+    /// executor.
+    ///
+    /// This is everything [`ServerHandler::call_tool`] does once the transport's
+    /// credentials and headers are in hand. It is exposed because
+    /// [`RequestContext`] needs a live `Peer` and cannot be constructed in a test,
+    /// and the dispatch this function performs is exactly what must be tested
+    /// against a real two-tenant deployment.
+    ///
+    /// Tenant resolution and dispatch go through the same seam as the `/graphql`
+    /// handler, so an unregistered tenant key is refused, a suspended tenant is
+    /// refused, and the tenant's concurrency and per-second quotas are charged —
+    /// none of which happened when this transport ran everything on the executor
+    /// it captured at session construction (#858).
+    #[doc(hidden)] // Internal-pub: the testable seam under `ServerHandler::call_tool`.
+    pub async fn call_tool_authenticated(
+        &self,
+        tool_name: &str,
+        arguments: Option<&serde_json::Map<String, serde_json::Value>>,
+        token: Option<String>,
+        request_id: String,
+        headers: &axum::http::HeaderMap,
+    ) -> CallToolResult
+    where
+        A: Clone + Send + Sync + 'static,
+    {
+        use crate::routes::graphql::tenant_dispatch;
+
+        let security_context = match self.authenticate(token, request_id).await {
+            Ok(ctx) => ctx,
+            Err(err_result) => return err_result,
+        };
+        let security_context = security_context.as_ref();
+
+        let sanitizer = &self.state.error_sanitizer;
+
+        let tenant_key =
+            match tenant_dispatch::resolve_tenant_key(&self.state, security_context, headers) {
+                Ok(key) => key,
+                Err(e) => return error_result(&sanitize(sanitizer, &e)),
+            };
+
+        let dispatch = match tenant_dispatch::dispatch_to_tenant(&self.state, tenant_key.as_deref())
+        {
+            Ok(d) => d,
+            Err(e) => return error_result(&sanitize(sanitizer, &e)),
+        };
+
+        super::executor::call_tool(
+            tool_name,
+            arguments,
+            &super::executor::McpCallContext {
+                schema: &self.schema,
+                executor: &dispatch.executor,
+                config: &self.config,
+                security_context,
+                error_sanitizer: sanitizer,
+            },
+        )
+        .await
+    }
+}
+
+/// Render an error for the MCP client through the configured sanitizer.
+///
+/// `/graphql` runs every execution error through
+/// [`ErrorSanitizer`](crate::config::error_sanitization::ErrorSanitizer) — the
+/// documented "hide implementation details in error messages" control. The MCP
+/// path returned `e.to_string()` raw, so a `FraiseQLError::Database` handed an AI
+/// agent the driver message and SQLSTATE verbatim, internal view names included
+/// (#875, item 1).
+pub(crate) fn sanitize(
+    sanitizer: &crate::config::error_sanitization::ErrorSanitizer,
+    error: &fraiseql_error::FraiseQLError,
+) -> String {
+    sanitizer
+        .sanitize(crate::error::GraphQLError::from_fraiseql_error(error))
+        .message
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for FraiseQLMcpService<A> {
@@ -159,40 +254,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for Frais
     {
         let tool_name = request.name.to_string();
         let arguments = request.arguments;
-        let require_auth = self.config.require_auth;
 
-        // Pre-extract credentials synchronously: the HTTP transport injects the
-        // request parts into the context extensions (the stdio transport does
-        // not). Extracting the token here avoids holding the non-`Sync` parts
-        // across the token-validation await point.
+        // Pre-extract credentials and headers synchronously: the HTTP transport
+        // injects the request parts into the context extensions (the stdio
+        // transport does not). Extracting them here avoids holding the non-`Sync`
+        // parts across the token-validation await point. The stdio transport
+        // carries no headers, so tenant resolution there falls back to the JWT
+        // claim alone — which is the only trustworthy source anyway.
         let request_id = context.id.to_string();
-        let token = context
-            .extensions
-            .get::<http::request::Parts>()
-            .and_then(|parts| extract_bearer(&parts.headers));
+        let parts = context.extensions.get::<http::request::Parts>();
+        let token = parts.and_then(|parts| extract_bearer(&parts.headers));
+        let headers = parts.map(|parts| parts.headers.clone()).unwrap_or_default();
 
         async move {
             MCP_TOOL_CALLS_TOTAL.fetch_add(1, Ordering::Relaxed);
 
             tracing::info!(tool = %tool_name, "MCP tool call");
 
-            let security_context = match self.authenticate(token, request_id).await {
-                Ok(ctx) => ctx,
-                Err(err_result) => {
-                    MCP_TOOL_ERRORS_TOTAL.fetch_add(1, Ordering::Relaxed);
-                    return Ok(err_result);
-                },
-            };
-
-            let result = super::executor::call_tool(
-                &tool_name,
-                arguments.as_ref(),
-                &self.schema,
-                &self.executor,
-                security_context.as_ref(),
-                require_auth,
-            )
-            .await;
+            let result = self
+                .call_tool_authenticated(
+                    &tool_name,
+                    arguments.as_ref(),
+                    token,
+                    request_id,
+                    &headers,
+                )
+                .await;
 
             if result.is_error == Some(true) {
                 MCP_TOOL_ERRORS_TOTAL.fetch_add(1, Ordering::Relaxed);
