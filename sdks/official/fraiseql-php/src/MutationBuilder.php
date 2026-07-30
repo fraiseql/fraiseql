@@ -20,6 +20,9 @@ namespace FraiseQL;
 final class MutationBuilder
 {
     private string $returnTypeValue = '';
+    private bool $returnsListValue = false;
+    private bool $nullableValue = false;
+    private ?string $requiresRoleValue = null;
     private ?string $sqlSourceValue = null;
     private ?string $operationValue = null;
     private ?string $descriptionValue = null;
@@ -56,6 +59,37 @@ final class MutationBuilder
     public function returnType(string $type): self
     {
         $this->returnTypeValue = $type;
+        return $this;
+    }
+
+    /**
+     * Whether this mutation returns a list of the return type.
+     *
+     * `IntermediateMutation` has always carried `returns_list` and `nullable`; the
+     * builder simply had no way to set them, so every PHP-authored mutation compiled as
+     * a non-null single value whatever the author intended.
+     */
+    public function returnsList(bool $isList = true): self
+    {
+        $this->returnsListValue = $isList;
+        return $this;
+    }
+
+    /**
+     * Whether this mutation's result may be null.
+     */
+    public function nullable(bool $nullable = true): self
+    {
+        $this->nullableValue = $nullable;
+        return $this;
+    }
+
+    /**
+     * Role required to execute this mutation and to see it in introspection.
+     */
+    public function requiresRole(string $role): self
+    {
+        $this->requiresRoleValue = $role;
         return $this;
     }
 
@@ -160,9 +194,11 @@ final class MutationBuilder
     public function toIntermediateArray(): array
     {
         $result = [
-            'name'        => $this->name,
-            'return_type' => $this->returnTypeValue,
-            'arguments'   => $this->buildIntermediateArguments(),
+            'name'         => $this->name,
+            'return_type'  => $this->returnTypeValue,
+            'returns_list' => $this->returnsListValue,
+            'nullable'     => $this->nullableValue,
+            'arguments'    => $this->buildIntermediateArguments(),
         ];
 
         if ($this->sqlSourceValue !== null) {
@@ -177,12 +213,29 @@ final class MutationBuilder
             $result['description'] = $this->descriptionValue;
         }
 
+        // `invalidates_views` and `invalidates_fact_tables` are the keys the compiler
+        // reads. This method wrote the first as `invalidates` and never wrote the second
+        // at all, while the sibling `toArray()` below used both correctly — and this is
+        // the method `SchemaExporter` calls, so the canonical path was the broken one.
+        // Result: `invalidatesViews()` and `invalidatesFactTables()` were silent no-ops,
+        // a compile that reported success, and cached reads that never saw a write (#852).
         if (!empty($this->invalidatesViewsList)) {
-            $result['invalidates'] = $this->invalidatesViewsList;
+            $result['invalidates_views'] = $this->invalidatesViewsList;
         }
 
-        if (!empty($this->injectMap)) {
-            $result['inject'] = $this->injectMap;
+        if (!empty($this->invalidatesFactTablesList)) {
+            $result['invalidates_fact_tables'] = $this->invalidatesFactTablesList;
+        }
+
+        // `inject_params`, not `inject`, and in the nested `{source, claim}` form —
+        // the same drift, and now a hard compile error rather than a silent drop (#806).
+        $injectParams = $this->buildInjectParams();
+        if (!empty($injectParams)) {
+            $result['inject_params'] = $injectParams;
+        }
+
+        if ($this->requiresRoleValue !== null) {
+            $result['requires_role'] = $this->requiresRoleValue;
         }
 
         if ($this->cascadeValue) {

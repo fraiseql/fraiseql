@@ -37,10 +37,14 @@ class TypeDefinitionTest < Minitest::Test
     assert_equal "Product name", name_field[:description]
   end
 
-  def test_deprecated_field_flagged
+  # `IntermediateField` has no `deprecated` member — only enum values and input fields
+  # carry one — so the key was silently discarded by the compiler, and is now refused
+  # outright since the compiler denies unknown fields. Emitting it produced an export
+  # that could not compile while claiming to record a deprecation nothing would honour.
+  def test_deprecated_field_is_not_emitted
     schema = Product.to_fraiseql_schema
     price_field = schema[:fields].find { |f| f[:name] == "price" }
-    assert_equal true, price_field[:deprecated]
+    refute price_field.key?(:deprecated)
   end
 
   def test_crud_disabled_by_default

@@ -237,6 +237,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Every official SDK is now held to a cross-SDK conformance suite, and eleven of them
+  changed to pass it (#733, #849, #850, #851, #852, #853, #854, #855).** The canonical schema
+  is authored through each SDK's *public API*, compiled by the real `fraiseql compile`, and
+  the compiled result compared against a shared expectation
+  (`sdks/official/conformance/`). Nothing before this ran the compiler, and six of the
+  eleven pre-existing "parity generators" hand-wrote their JSON without calling the SDK at
+  all — which is why a green parity gate coexisted with a Ruby README documenting an exporter
+  that did not exist and a Dart package with no export path.
+
+  Author-visible changes:
+
+  - **TypeScript**: `@Query`, `@Mutation` and `@Subscription` now **throw**, naming
+    `registerQuery`/`registerMutation`/`registerSubscription`. They registered placeholders —
+    a return type of the literal string `"Query"`, zero arguments — because TypeScript erases
+    the types they would need, and `reflect-metadata` does not recover them either. `@Type`
+    remains a marker (the federation decorators build on it), but *exporting* a type whose
+    fields never arrived is refused. `registerTypeFields` can now complete a `@Type`
+    registration, which its own docstring documented and the duplicate guard forbade.
+  - **Java**: `SchemaFormatter` emits arrays of objects, not maps keyed by name; `return_type`
+    plus `returns_list` rather than a camelCase `returnType` carrying `"[User]"`; arguments as
+    `{name, type, nullable}` objects; `javaClass`, `baseType` and `isList` are gone. Argument
+    types are GraphQL type expressions, so a trailing `!` means non-null. `QueryBuilder` and
+    `MutationBuilder` gain `nullable()` and `requiresRole()`.
+  - **PHP**: `MutationBuilder::toIntermediateArray()` emits `invalidates_views` (not
+    `invalidates`), adds `invalidates_fact_tables`, and writes `inject_params` (not `inject`)
+    in the nested `{source, claim}` form. `returnsList()`, `nullable()` and `requiresRole()`
+    are new. `StaticAPI::enum()` is new.
+  - **Go**: all four top-level slices carry `omitempty`, so an unpopulated section is omitted
+    rather than marshalled to `null`. `FieldInfo` gains `Description`; `RegisterInputType` is
+    new. `Config` is no longer serialized and `SqlSourceDispatch` *refuses* at `Register()`,
+    because `sql_source_dispatch` has no consumer anywhere in the compiler (#926). The
+    analytics surface matches `IntermediateFactTable`: `Measure(name, sqlType, nullable)`
+    replaces `Measure(name, aggregations...)`, dimensions carry a JSONB path, and
+    `FactTableDefinition` drops `name`/`dimension_paths` for `table_name`/`dimensions`/
+    `denormalized_filters`. Observer actions serialize flat rather than under `config`, and
+    an observer with no `Retry()` gets `DefaultRetryConfig()`.
+  - **C#**: `IntermediateType` carries `relay` and `is_error`; a type marked
+    `IsInput = true` is routed into `input_types` instead of being emitted as an output type.
+    `Inject`, `RequiresRole`, `InvalidatesViews`, `InvalidatesFactTables` and `RegisterEnum`
+    are new.
+  - **F#**: `computed` is no longer serialized (#927). `QueryBuilder`/`MutationBuilder` gain
+    `inject`, `requiresRole`, `invalidatesViews`, `invalidatesFactTables`;
+    `SchemaRegistry.registerEnum` is new. `QueryDefinition`, `MutationDefinition` and
+    `IntermediateSchema` gained fields, so record literals need updating.
+  - **Elixir**: `requires_scopes` is folded to a singleton `requires_scope` and refused beyond
+    one — the array is a key the compiler does not read. `fraiseql_type` no longer requires
+    `sql_source` on an `is_input: true` type, and refuses one that sets it: the macro demanded
+    a key the compiler forbids, so input objects were unauthorable. `fraiseql_enum` is new,
+    and queries/mutations accept `inject_params`, `requires_role`, `invalidates_views` and
+    `invalidates_fact_tables`.
+  - **Ruby**: `lib/fraiseql.rb` exists, so `require "fraiseql"` resolves — the README's first
+    line raised `LoadError`. `FraiseQL::Schema` is implemented: the `schema.type` /
+    `schema.query` / `schema.export_json` API the README has always documented.
+    `to_fraiseql_schema` emits the required `nullable`, uses snake_case field names to match
+    its CRUD sibling, and no longer emits `deprecated`, which `IntermediateField` has no
+    member for.
+  - **Rust**: `export_to_json` produces `{"version", "types": [...]}` via `serde_json`
+    instead of a name-keyed map built with `format!` — a `"` in any name, scope or description
+    previously produced text that was not parseable JSON. Keys are snake_case
+    (`requires_scope`, not `requiresScope`). `register_type_with_source` is new. The crate now
+    depends on `serde`/`serde_json`.
+  - **Dart**: `FraiseQLSchema` and `FieldType` are implemented and `crud_generator` is
+    exported — the package shipped annotations nothing read and no way to produce a schema.
+  - **Python**: `computed` is no longer serialized (#927).
+
+- **A custom scalar declaring `validation_rules` is refused (#922).**
+  `CompiledSchema.custom_scalars` is `#[serde(skip)]`: the converter registers the scalar into
+  an in-memory registry that is dropped when the compiled schema is written, and nothing in
+  `fraiseql-server` reads scalar rules back. A declared `pattern`, `length` or `range` was
+  therefore never enforced, from any SDK, while the compile reported success. Carrying the
+  rules further without a runtime consumer would relocate the drop rather than fix it — the
+  disposition `#779` got for observers. The scalar *declaration* still works, and is what
+  makes the name known to the compiler; enforce the constraint in the database (a `CHECK`
+  constraint or a `DOMAIN`) or in the mutation's SQL function.
+
+- **The mutation `operation` verb is matched case-insensitively.** `parse_mutation_operation`
+  accepted only uppercase, while `docs/authoring.md`, `docs/architecture/intermediate-schema.md`,
+  the Python SDK's parity generator, the PHP `MutationBuilder` docblock and the Java
+  `OperationBuilder` all use lowercase — every one of them produced
+  `Error: Unknown mutation operation: insert`. The verb set stays closed: an unrecognized word
+  is still a hard error rather than a silent fallback to `CUSTOM`, and the diagnostic echoes
+  what the author wrote rather than the uppercased form.
+
 - **`IntermediateSchema` and the nested intermediate structs reject unknown fields.** Every
   field on the authoring→compile boundary carries `#[serde(default)]`, because an SDK
   legitimately omits most of them. Without `deny_unknown_fields` that combination means any
@@ -453,6 +536,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read back (#716).
 
 ### Fixed
+
+- **The intermediate-schema specification no longer documents keys the compiler rejects.**
+  `docs/architecture/intermediate-schema.md` documented `inject` where the compiler reads
+  `inject_params`, and `invalidates` where it reads `invalidates_views` — which is exactly what
+  the PHP SDK emitted, so the document was upstream of #852. Its "minimal valid example" did
+  not compile. The worked examples are now the conformance fixtures verbatim, compiled on
+  every CI run, and the root/type/field/operation tables list the members that actually exist.
+
+- **PHP field scopes and descriptions reach the compiled schema.** `TypeConverter` parsed and
+  validated `#[GraphQLField(scope: ...)]` onto `TypeInfo` and `SchemaExporter` read
+  `FieldDefinition::$scope` to emit `requires_scope`, but `SchemaRegistry::extractFieldDefinition`
+  never passed the value between them — the property was always null and the exporter's scope
+  branch was unreachable, so the #807 fix could not have taken effect. A field the author gated
+  still compiled ungated. Field descriptions were a second, independent drop in the same map.
+
+- **The DDL table namer is the acronym-aware one (#738).** `commands::compile` carried a second
+  `to_snake_case` that inserted a separator before every uppercase character, so `HTTPServer`
+  became `h_t_t_p_server` in emitted DDL while JSONB key derivation produced `http_server` —
+  DDL for a table the runtime never looks in. Both now call
+  `fraiseql_core::utils::to_snake_case`.
+
+- **`load_from_paths` rejects duplicate names across files (#738).** The directory loader
+  detected a name claimed twice in any authorable section; the explicit-file loader — the
+  `--schema-file a.json --schema-file b.json` path, and the one the TOML merger calls — did
+  not, so two definitions were concatenated in silence and argument order decided which one
+  the compiler used. Both loaders now share one detector.
+
+- **A description containing `*/` can no longer inject code into a generated TypeScript client
+  (#738).** `push_doc` interpolated author-supplied text into `/** … */` unescaped, and every
+  description in the generated client — type, field, enum, input, union, interface, query,
+  mutation — passes through it. A field documented `"… */ export const OWNED = 1; /*"` emitted
+  TypeScript that closed the comment and declared what followed.
+
+- **Vacuous CLI tests replaced (#738).** `test_validate_schema_success` and
+  `test_validate_schema_unknown_type` built ~100-line `CompiledSchema` literals and then
+  asserted only that the literal contained what had just been put into it, with comments
+  admitting the validation they were named after was never reached; they now drive
+  `SchemaValidator` and assert the report. `test_cost_provides_score` asserted inside
+  `if let Some(data)`, so it passed when the command returned no data at all.
+
+- **Shipped SDK examples compile, and are gated (#850, #925).** Three committed
+  `ecommerce_schema.json` artifacts were stale generated output that no longer matched their
+  generators and could not be compiled; they are deleted. Two Python examples imported
+  `fraiseql.observers` and `fraiseql.fact_table`, neither of which exists, and are removed.
+  The Go analytics and observer examples now compile. The observer examples no longer claim
+  "observers will execute automatically on database changes" — the compiler refuses declared
+  observers and the runtime loads them from `tb_observer` and the admin API.
+  `sdks/official/conformance/check_examples.sh` runs every covered example and compiles what
+  it emits; coverage is opt-out, with each exclusion carrying a reason and an issue number.
 
 - **`fraiseql init` scaffolds a project that compiles to what it declares (#921).** The
   scaffolded `schema.json` used `return_array` and `args`/`required`, which the compiler does

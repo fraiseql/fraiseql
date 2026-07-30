@@ -24,7 +24,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("queries").get("users").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "queries", "users").get("rest");
         assertNotNull(rest);
         assertEquals("/api/users", rest.get("path").asText());
         assertEquals("GET", rest.get("method").asText());
@@ -40,7 +40,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("queries").get("users").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "queries", "users").get("rest");
         assertNotNull(rest);
         assertEquals("GET", rest.get("method").asText());
     }
@@ -54,7 +54,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("queries").get("users").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "queries", "users").get("rest");
         assertNull(rest);
     }
 
@@ -69,7 +69,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("mutations").get("createUser").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "mutations", "createUser").get("rest");
         assertNotNull(rest);
         assertEquals("/api/users", rest.get("path").asText());
         assertEquals("POST", rest.get("method").asText());
@@ -85,7 +85,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("mutations").get("createUser").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "mutations", "createUser").get("rest");
         assertNotNull(rest);
         assertEquals("POST", rest.get("method").asText());
     }
@@ -101,7 +101,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("mutations").get("deleteUser").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "mutations", "deleteUser").get("rest");
         assertNotNull(rest);
         assertEquals("/api/users/{id}", rest.get("path").asText());
         assertEquals("DELETE", rest.get("method").asText());
@@ -116,7 +116,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("mutations").get("createUser").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "mutations", "createUser").get("rest");
         assertNull(rest);
     }
 
@@ -131,7 +131,7 @@ class RestAnnotationTest {
             .register();
 
         JsonNode schema = FraiseQL.exportSchemaAsJson();
-        JsonNode rest = schema.get("queries").get("users").get("rest");
+        JsonNode rest = SchemaNodes.byName(schema, "queries", "users").get("rest");
         assertEquals("GET", rest.get("method").asText());
     }
 }

@@ -44,6 +44,32 @@ export function field(options: FieldMetadata): FieldMetadata {
 }
 
 /**
+ * The one message every erased-metadata decorator raises.
+ *
+ * TypeScript erases types at runtime: a class decorator cannot read `id: number` off
+ * `User`, and a method decorator cannot read `: User[]` off a query. `reflect-metadata`
+ * does not rescue this either — it records `Array` for `User[]` with no element type,
+ * and `Object` for any structural return.
+ *
+ * These four decorators used to paper over that by registering a guess: a type with
+ * **zero fields**, and operations whose return type was the literal string
+ * `"Query"`/`"Mutation"` with no arguments. No error, no warning. A developer following
+ * the package's own documentation exported a plausible-looking `schema.json` describing
+ * a schema they had not written (#733). For an authoring tool whose entire contract is
+ * "the schema.json is the truth", a silent guess is the one unacceptable behaviour — so
+ * they now refuse and name the function that does work.
+ */
+function erasedMetadata(decorator: string, replacement: string): never {
+  throw new Error(
+    `${decorator} cannot build a schema: TypeScript erases the type information it ` +
+      `would need, so it can only guess — and it used to, registering placeholders that ` +
+      `compiled into a schema you did not write (#733). Use ${replacement}() instead, ` +
+      `which takes the same metadata explicitly. See the README's "Authoring" section ` +
+      `for a worked example.`
+  );
+}
+
+/**
  * Configuration for a Type decorator.
  */
 export interface TypeConfig {
@@ -88,20 +114,18 @@ export interface TypeConfig {
 export function Type(_config?: TypeConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- required by legacy decorator API
   return function <T extends { new (...args: any[]): object }>(constructor: T) {
-    // Extract type name from class
-    const typeName = constructor.name;
-
-    // For TypeScript at runtime, we need metadata from reflect-metadata or manual annotation
-    // This is a simplified version that relies on manual field type passing
-    // In a real implementation, you'd use TypeScript decorators with reflect-metadata
-
-    // For now, register an empty type - users will need to provide metadata separately
-    SchemaRegistry.registerType(typeName, [], _config?.description, {
+    // Registers the type's *name* and config only. TypeScript erases field types, so
+    // this decorator cannot see `id: number` — the fields arrive later, either from
+    // `registerTypeFields` or from `generateSchemaJson`'s class-instantiation pass on
+    // the federation path, which is why this stays a marker rather than refusing
+    // outright the way @Query and @Mutation now do.
+    //
+    // What used to be wrong is that a type whose fields never arrived was *exported*
+    // anyway, as an object type with zero fields, silently (#733).
+    // `validateSchemaBeforeExport` now refuses that at the moment it matters.
+    SchemaRegistry.registerType(constructor.name, [], _config?.description, {
       sqlSource: _config?.sqlSource,
     });
-    // CRUD generation happens in registerTypeFields which has the fields
-
-    // Return the original class unmodified
     return constructor;
   };
 }
@@ -155,25 +179,10 @@ export interface OperationConfig {
  * }
  * ```
  */
-export function Query(config?: OperationConfig) {
+export function Query(_config?: OperationConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
-  return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    const originalMethod = descriptor.value;
-    const methodName = propertyKey;
-
-    // For now, register with basic info
-    // In a full implementation with reflect-metadata, we'd extract parameter types
-    SchemaRegistry.registerQuery(
-      methodName,
-      "Query", // Placeholder - should be extracted from metadata
-      false, // Placeholder
-      false, // Placeholder
-      [], // Placeholder
-      originalMethod?.toString?.().split("\n")[0] ?? undefined,
-      config
-    );
-
-    return descriptor;
+  return function (_target: any, _propertyKey: string, _descriptor: PropertyDescriptor): never {
+    return erasedMetadata("@Query", "registerQuery");
   };
 }
 
@@ -253,25 +262,10 @@ export interface MutationConfig extends OperationConfig {
  * }
  * ```
  */
-export function Mutation(config?: MutationConfig) {
+export function Mutation(_config?: MutationConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
-  return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    const originalMethod = descriptor.value;
-    const methodName = propertyKey;
-
-    // For now, register with basic info
-    // In a full implementation with reflect-metadata, we'd extract parameter types
-    SchemaRegistry.registerMutation(
-      methodName,
-      "Mutation", // Placeholder - should be extracted from metadata
-      false, // Placeholder
-      false, // Placeholder
-      [], // Placeholder
-      originalMethod?.toString?.().split("\n")[0] ?? undefined,
-      config
-    );
-
-    return descriptor;
+  return function (_target: any, _propertyKey: string, _descriptor: PropertyDescriptor): never {
+    return erasedMetadata("@Mutation", "registerMutation");
   };
 }
 
@@ -617,27 +611,10 @@ export interface SubscriptionConfig {
  * }
  * ```
  */
-export function Subscription(config?: SubscriptionConfig) {
+export function Subscription(_config?: SubscriptionConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy decorator target type
-  return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    const originalMethod = descriptor.value;
-    const methodName = propertyKey;
-
-    // Extract entity type from config or use placeholder
-    const entityType = config?.entityType || "Subscription";
-
-    // For now, register with basic info
-    // In a full implementation with reflect-metadata, we'd extract parameter types
-    SchemaRegistry.registerSubscription(
-      methodName,
-      entityType,
-      false, // Placeholder for nullable
-      [], // Placeholder for arguments
-      originalMethod?.toString?.().split("\n")[0] ?? undefined,
-      config
-    );
-
-    return descriptor;
+  return function (_target: any, _propertyKey: string, _descriptor: PropertyDescriptor): never {
+    return erasedMetadata("@Subscription", "registerSubscription");
   };
 }
 

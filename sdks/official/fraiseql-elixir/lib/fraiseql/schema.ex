@@ -63,6 +63,7 @@ defmodule FraiseQL.Schema do
           fraiseql_query: 3,
           fraiseql_mutation: 2,
           fraiseql_mutation: 3,
+          fraiseql_enum: 2,
           # `field`/`argument` are used inside the type/query/mutation blocks. Import
           # them here (module-wide) rather than per-block: a per-block
           # `import …, only: [field: …]` *replaces* this module's import set for the
@@ -78,6 +79,7 @@ defmodule FraiseQL.Schema do
       Module.register_attribute(__MODULE__, :fraiseql_types, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_queries, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_mutations, accumulate: true)
+      Module.register_attribute(__MODULE__, :fraiseql_enums, accumulate: true)
       Module.put_attribute(__MODULE__, :fraiseql_schema, true)
       @before_compile FraiseQL.Schema
     end
@@ -230,7 +232,9 @@ defmodule FraiseQL.Schema do
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
           description: unquote(query_opts[:description]),
           rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method])
+          rest_method: unquote(query_opts[:rest_method]),
+          inject_params: unquote(query_opts[:inject_params]),
+          requires_role: unquote(query_opts[:requires_role])
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -248,7 +252,9 @@ defmodule FraiseQL.Schema do
           cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
           description: unquote(query_opts[:description]),
           rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method])
+          rest_method: unquote(query_opts[:rest_method]),
+          inject_params: unquote(query_opts[:inject_params]),
+          requires_role: unquote(query_opts[:requires_role])
         }
       end
     end
@@ -317,7 +323,11 @@ defmodule FraiseQL.Schema do
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
           description: unquote(mutation_opts[:description]),
           rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method])
+          rest_method: unquote(mutation_opts[:rest_method]),
+          inject_params: unquote(mutation_opts[:inject_params]),
+          requires_role: unquote(mutation_opts[:requires_role]),
+          invalidates_views: unquote(mutation_opts[:invalidates_views]),
+          invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -333,7 +343,11 @@ defmodule FraiseQL.Schema do
           arguments: [],
           description: unquote(mutation_opts[:description]),
           rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method])
+          rest_method: unquote(mutation_opts[:rest_method]),
+          inject_params: unquote(mutation_opts[:inject_params]),
+          requires_role: unquote(mutation_opts[:requires_role]),
+          invalidates_views: unquote(mutation_opts[:invalidates_views]),
+          invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
         }
       end
     end
@@ -433,13 +447,52 @@ defmodule FraiseQL.Schema do
   @doc false
   @spec __validate_type_opts__!(String.t(), keyword()) :: :ok
   def __validate_type_opts__!(name, opts) do
-    unless Keyword.has_key?(opts, :sql_source) and not is_nil(opts[:sql_source]) do
-      raise ArgumentError,
-            "fraiseql_type #{inspect(name)}: sql_source is required. " <>
-              "Example: fraiseql_type #{inspect(name)}, sql_source: \"v_#{String.downcase(name)}\""
-    end
+    input? = Keyword.get(opts, :is_input, false)
 
-    :ok
+    cond do
+      # A GraphQL input object has no backing relation — it is an argument shape, not a
+      # projection — and the compiler *refuses* an `is_input` type that declares
+      # `sql_source`. Requiring one here made input objects unauthorable in this SDK:
+      # omit it and the macro raised, supply it and the compile failed. `is_input` is
+      # also this SDK's only route to an input object, since the exporter emits no
+      # `input_types` key at all.
+      input? and not is_nil(opts[:sql_source]) ->
+        raise ArgumentError,
+              "fraiseql_type #{inspect(name)}: an is_input type must not declare " <>
+                "sql_source — an input object has no backing view, and the compiler " <>
+                "refuses one that names a source."
+
+      input? ->
+        :ok
+
+      is_nil(opts[:sql_source]) ->
+        raise ArgumentError,
+              "fraiseql_type #{inspect(name)}: sql_source is required. " <>
+                "Example: fraiseql_type #{inspect(name)}, sql_source: \"v_#{String.downcase(name)}\""
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc """
+  Declares a GraphQL enum type.
+
+      fraiseql_enum "OrderStatus", values: ["PENDING", "SHIPPED", "CANCELLED"]
+
+  Options:
+
+    * `:values` — required, the member names in declaration order
+    * `:description` — optional human-readable description
+  """
+  defmacro fraiseql_enum(name, opts) do
+    quote do
+      @fraiseql_enums %FraiseQL.EnumDefinition{
+        name: unquote(name),
+        values: unquote(Keyword.fetch!(opts, :values)),
+        description: unquote(opts[:description])
+      }
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -451,6 +504,7 @@ defmodule FraiseQL.Schema do
     types = Module.get_attribute(env.module, :fraiseql_types) |> Enum.reverse()
     queries = Module.get_attribute(env.module, :fraiseql_queries) |> Enum.reverse()
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
+    enums = Module.get_attribute(env.module, :fraiseql_enums) |> Enum.reverse()
 
     validate_no_duplicate_types!(types, env.module)
 
@@ -472,6 +526,9 @@ defmodule FraiseQL.Schema do
       """
       @spec __fraiseql_types__() :: [FraiseQL.TypeDefinition.t()]
       def __fraiseql_types__, do: unquote(Macro.escape(types))
+
+      @spec __fraiseql_enums__() :: [FraiseQL.EnumDefinition.t()]
+      def __fraiseql_enums__, do: unquote(Macro.escape(enums))
 
       @doc """
       Returns all query definitions declared in this schema module, in declaration order.

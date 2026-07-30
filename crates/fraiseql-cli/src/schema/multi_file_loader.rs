@@ -104,30 +104,7 @@ impl MultiFileLoader {
             // Track source for each item
             let file_path_str = file_path.to_string_lossy().to_string();
 
-            // Duplicate detection covers **every** named section, not just the three that
-            // used to be merged: a duplicate enum or interface across two files is the
-            // same authoring mistake as a duplicate type, and silently keeping both
-            // produces a schema whose behaviour depends on directory iteration order.
-            for section in crate::schema::seam::AUTHORABLE_ARRAY_SECTIONS {
-                let Some(Value::Array(items)) = value.get(*section) else {
-                    continue;
-                };
-                for item in items {
-                    let Some(name) = item.get("name").and_then(|v| v.as_str()) else {
-                        continue;
-                    };
-                    let key = format!("{section}:{name}");
-                    if let Some(existing) = name_to_file.get(&key) {
-                        let noun = crate::schema::seam::section_noun(section);
-                        bail!(
-                            "Duplicate {noun} '{name}' found in:\n  - {existing}\n  \
-                             - {file_path_str}"
-                        );
-                    }
-                    name_to_file.insert(key, file_path_str.clone());
-                }
-            }
-
+            Self::reject_duplicate_names(&value, &file_path_str, &mut name_to_file)?;
             crate::schema::seam::absorb_sections(&mut merged, &value, &file_path_str)?;
         }
 
@@ -148,6 +125,7 @@ impl MultiFileLoader {
     /// be parsed as JSON.
     pub fn load_from_paths(paths: &[PathBuf]) -> Result<Value> {
         let mut merged = crate::schema::seam::empty_accumulator();
+        let mut name_to_file = HashMap::new();
 
         for path in paths {
             if !path.exists() {
@@ -159,9 +137,49 @@ impl MultiFileLoader {
             let value: Value = serde_json::from_str(&content)
                 .context(format!("Failed to parse JSON from {}", path.display()))?;
 
-            crate::schema::seam::absorb_sections(&mut merged, &value, &path.display().to_string())?;
+            let source = path.display().to_string();
+            Self::reject_duplicate_names(&value, &source, &mut name_to_file)?;
+            crate::schema::seam::absorb_sections(&mut merged, &value, &source)?;
         }
 
         Ok(merged)
+    }
+
+    /// Refuse a name already claimed by an earlier source, in any authorable section.
+    ///
+    /// Shared by both loaders. It used to be inline in the directory loader only, so
+    /// `--schema-file a.json --schema-file b.json` (and the TOML merger, which calls
+    /// `load_from_paths`) concatenated two definitions of the same type in silence and
+    /// let argument order decide which one the compiler saw.
+    ///
+    /// Detection covers **every** named section rather than the three that used to be
+    /// merged: a duplicate enum or interface is the same authoring mistake as a duplicate
+    /// type, and keeping both produces a schema whose behaviour depends on iteration order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the section, the duplicated name and both source files.
+    fn reject_duplicate_names(
+        value: &Value,
+        source: &str,
+        name_to_file: &mut HashMap<String, String>,
+    ) -> Result<()> {
+        for section in crate::schema::seam::AUTHORABLE_ARRAY_SECTIONS {
+            let Some(Value::Array(items)) = value.get(*section) else {
+                continue;
+            };
+            for item in items {
+                let Some(name) = item.get("name").and_then(|v| v.as_str()) else {
+                    continue;
+                };
+                let key = format!("{section}:{name}");
+                if let Some(existing) = name_to_file.get(&key) {
+                    let noun = crate::schema::seam::section_noun(section);
+                    bail!("Duplicate {noun} '{name}' found in:\n  - {existing}\n  - {source}");
+                }
+                name_to_file.insert(key, source.to_string());
+            }
+        }
+        Ok(())
     }
 }

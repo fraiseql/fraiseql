@@ -9,9 +9,14 @@ import (
 
 // FieldInfo represents metadata about a struct field
 type FieldInfo struct {
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Nullable bool     `json:"nullable"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
+	// Description is the field's documentation, carried into the compiled schema and
+	// served through GraphQL introspection. The compiler has always read
+	// `IntermediateField.description`; there was simply no field here to put one in,
+	// so a Go-authored schema could not document a single field.
+	Description string `json:"description,omitempty"`
 	// Scope is emitted as `requires_scope` — the key the compiler reads. It was
 	// `scope` here, which the compiler does not know, so every field an author
 	// gated with `fraiseql:"...,scope=..."` compiled with no scope at all and was

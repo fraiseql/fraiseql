@@ -14,6 +14,7 @@ let private emptySchema: IntermediateSchema =
         version = "2.0.0"
         types = []
         input_types = []
+        enums = []
         queries = []
         mutations = []
     }
@@ -48,6 +49,8 @@ let private singleQuery: QueryDefinition =
         sql_source = "v_author"
         arguments = []
         cache_ttl_seconds = None
+        inject_params = None
+        requires_role = None
         description = None
         rest = None
     }
@@ -62,6 +65,10 @@ let private singleMutation: MutationDefinition =
         description = None
         rest = None
         cascade = None
+        inject_params = None
+        requires_role = None
+        invalidates_views = None
+        invalidates_fact_tables = None
     }
 
 let private parseJson (json: string) =

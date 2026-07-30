@@ -364,6 +364,54 @@ public class SchemaRegistry {
     }
 
     /**
+     * Register an input type from an annotated class, reflecting its fields the same way
+     * {@link #registerType(Class)} does.
+     *
+     * @param inputName the input type name
+     * @param inputClass a class whose fields carry {@code @GraphQLField}
+     * @param description optional description
+     */
+    public void registerInputType(String inputName, Class<?> inputClass, String description) {
+        registerInputType(inputName, TypeConverter.extractFields(inputClass), description);
+    }
+
+    /**
+     * Set the operation metadata the {@code registerQuery} overloads do not carry.
+     *
+     * <p>{@code nullable} and {@code requiresRole} arrived after the overload set had
+     * already grown to five; adding a sixth for two values would make the next addition
+     * worse. The builders call this immediately after registering.
+     *
+     * @param queryName the query name
+     * @param nullable whether the result may be null
+     * @param requiresRole role required to execute, or null
+     */
+    public void setQueryMetadata(String queryName, boolean nullable, String requiresRole) {
+        QueryInfo info = queries.get(queryName);
+        if (info == null) {
+            throw new IllegalStateException("Query '" + queryName + "' is not registered.");
+        }
+        info.nullable = nullable;
+        info.requiresRole = requiresRole;
+    }
+
+    /**
+     * Set the operation metadata the {@code registerMutation} overloads do not carry.
+     *
+     * @param mutationName the mutation name
+     * @param nullable whether the result may be null
+     * @param requiresRole role required to execute, or null
+     */
+    public void setMutationMetadata(String mutationName, boolean nullable, String requiresRole) {
+        MutationInfo info = mutations.get(mutationName);
+        if (info == null) {
+            throw new IllegalStateException("Mutation '" + mutationName + "' is not registered.");
+        }
+        info.nullable = nullable;
+        info.requiresRole = requiresRole;
+    }
+
+    /**
      * Get a registered type by name.
      *
      * @param typeName the type name
@@ -645,6 +693,10 @@ public class SchemaRegistry {
         public final Map<String, String> arguments;
         public final String description;
         public final boolean relay;
+        /** Whether the result may be null. Mirrors {@code IntermediateQuery.nullable}. */
+        public boolean nullable = false;
+        /** Role required to execute this query. Mirrors {@code IntermediateQuery.requires_role}. */
+        public String requiresRole = null;
         public final String sqlSource;
         public final Long cacheTtlSeconds;
         public final Map<String, String> injectParams;
@@ -727,6 +779,10 @@ public class SchemaRegistry {
         public final String returnType;
         public final Map<String, String> arguments;
         public final String description;
+        /** Whether the result may be null. Mirrors {@code IntermediateMutation.nullable}. */
+        public boolean nullable = false;
+        /** Role required to execute this mutation. Mirrors {@code IntermediateMutation.requires_role}. */
+        public String requiresRole = null;
         public final String sqlSource;
         public final String operation;
         public final Map<String, String> injectParams;

@@ -56,6 +56,19 @@ final class StaticAPI
     }
 
     /**
+     * Register a GraphQL enum type.
+     *
+     * @param string $name Enum type name (e.g. 'OrderStatus')
+     * @param list<string> $values Enum member names, in declaration order
+     * @param string|null $description Optional enum description
+     * @return void
+     */
+    public static function enum(string $name, array $values, ?string $description = null): void
+    {
+        SchemaRegistry::getInstance()->registerEnum($name, $values, $description);
+    }
+
+    /**
      * Start building a subscription definition.
      * Subscriptions in FraiseQL are compiled projections of database events.
      * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.

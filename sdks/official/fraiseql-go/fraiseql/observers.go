@@ -1,11 +1,37 @@
 package fraiseql
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // ObserverAction represents a single action to execute when an observer fires.
+//
+// Config is kept as a separate field for ergonomics but is **flattened** on the wire:
+// the compiler reads an action's settings from the action object itself
+// (`{"type": "webhook", "url": "..."}`), not from a nested `config`. Nesting them meant
+// the validator saw a webhook action with no `url`, so every shipped Go observer example
+// failed with `webhook action must have 'url' or 'url_env'` — describing an omission the
+// author had not made.
 type ObserverAction struct {
 	Type   string                 `json:"type"`
-	Config map[string]interface{} `json:"config"`
+	Config map[string]interface{} `json:"-"`
+}
+
+// MarshalJSON flattens Config's entries alongside `type`.
+//
+// A config key named `type` is refused rather than allowed to overwrite the action kind:
+// silently replacing it would produce an action of a different type than the author wrote.
+func (a ObserverAction) MarshalJSON() ([]byte, error) {
+	flat := make(map[string]interface{}, len(a.Config)+1)
+	for k, v := range a.Config {
+		if k == "type" {
+			return nil, fmt.Errorf("observer action config may not contain a %q key; it is the action kind", "type")
+		}
+		flat[k] = v
+	}
+	flat["type"] = a.Type
+	return json.Marshal(flat)
 }
 
 // RetryConfig controls retry behaviour for observer actions.
@@ -16,14 +42,32 @@ type RetryConfig struct {
 	MaxDelayMs      int    `json:"max_delay_ms"`
 }
 
+// DefaultRetryConfig is what an observer that does not call Retry() is compiled with.
+//
+// `IntermediateObserver.retry` is a required field with no serde default, so omitting the
+// block failed the compile with `missing field `retry`` — and the builder omitted it
+// whenever the author had not set one, which is the common case. Every shipped Go
+// observer example was uncompilable for this reason alone.
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxAttempts:     3,
+		BackoffStrategy: "exponential",
+		InitialDelayMs:  1000,
+		MaxDelayMs:      30000,
+	}
+}
+
 // ObserverDefinition represents a database event observer.
+//
+// Retry is a value, not a pointer, and carries no `omitempty`: the compiler requires the
+// block, so an absent one is a compile error rather than a default.
 type ObserverDefinition struct {
 	Name      string           `json:"name"`
 	Entity    string           `json:"entity"`
 	Event     string           `json:"event"`
 	Condition string           `json:"condition,omitempty"`
 	Actions   []ObserverAction `json:"actions"`
-	Retry     *RetryConfig     `json:"retry,omitempty"`
+	Retry     RetryConfig      `json:"retry"`
 }
 
 // ObserverBuilder provides a fluent interface for building observer definitions.
@@ -90,13 +134,17 @@ func (b *ObserverBuilder) Register() error {
 	if _, exists := reg.observers[b.name]; exists {
 		return fmt.Errorf("observer %q is already registered; each name must be unique within a schema", b.name)
 	}
+	retry := DefaultRetryConfig()
+	if b.retry != nil {
+		retry = *b.retry
+	}
 	reg.observers[b.name] = ObserverDefinition{
 		Name:      b.name,
 		Entity:    b.entity,
 		Event:     b.event,
 		Condition: b.condition,
 		Actions:   b.actions,
-		Retry:     b.retry,
+		Retry:     retry,
 	}
 	return nil
 }

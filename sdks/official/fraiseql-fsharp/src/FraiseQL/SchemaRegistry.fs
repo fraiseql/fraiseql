@@ -19,6 +19,7 @@ module SchemaRegistry =
     let private inputTypes = ConcurrentDictionary<string, InputTypeDefinition>()
     let private queries = System.Collections.Generic.List<QueryDefinition>()
     let private mutations = System.Collections.Generic.List<MutationDefinition>()
+    let private enums = System.Collections.Generic.List<EnumDefinition>()
     let private lockObj = obj ()
 
     /// Clears all registered types, input types, queries, and mutations. Required between test runs.
@@ -28,7 +29,8 @@ module SchemaRegistry =
 
         lock lockObj (fun () ->
             queries.Clear()
-            mutations.Clear())
+            mutations.Clear()
+            enums.Clear())
 
     /// Reflects the fields of a type that carries <see cref="GraphQLFieldAttribute"/>.
     let private reflectFields (t: Type) : FieldDefinition list =
@@ -165,6 +167,21 @@ module SchemaRegistry =
         inputTypes.Values |> Seq.toList
 
     /// Registers a <see cref="QueryDefinition"/> directly (without reflection).
+    /// Registers a GraphQL enum type.
+    let registerEnum (name: string) (values: string list) (description: string option) : unit =
+        lock lockObj (fun () ->
+            enums.Add(
+                {
+                    name = name
+                    values = values |> List.map (fun v -> { name = v })
+                    description = description
+                }
+            ))
+
+    /// Returns every registered enum type.
+    let getAllEnums () : EnumDefinition list =
+        lock lockObj (fun () -> enums |> Seq.toList)
+
     let registerQuery (q: QueryDefinition) : unit =
         lock lockObj (fun () -> queries.Add(q))
 
@@ -186,6 +203,7 @@ module SchemaRegistry =
             version = "2.0.0"
             types = getAllTypes ()
             input_types = getAllInputTypes ()
+            enums = getAllEnums ()
             queries = getAllQueries ()
             mutations = getAllMutations ()
         }

@@ -28,6 +28,8 @@ public sealed class QueryBuilder
     private string? _restPath;
     private string? _restMethod;
     private readonly List<IntermediateArgument> _arguments = new();
+    private readonly Dictionary<string, string> _injectParams = new();
+    private string? _requiresRole;
 
     private QueryBuilder(string name) => _name = name;
 
@@ -77,6 +79,23 @@ public sealed class QueryBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares a server-injected parameter, not exposed as a GraphQL argument.
+    /// </summary>
+    /// <param name="parameter">The SQL parameter name (e.g. <c>tenant_id</c>).</param>
+    /// <param name="source">The source expression, e.g. <c>"jwt:tenant_id"</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder Inject(string parameter, string source)
+    {
+        _injectParams[parameter] = source;
+        return this;
+    }
+
+    /// <summary>Restricts this query to callers holding the given role.</summary>
+    /// <param name="role">The required role.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder RequiresRole(string role) { _requiresRole = role; return this; }
+
     /// <summary>Sets the REST endpoint path for this query.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -116,7 +135,9 @@ public sealed class QueryBuilder
             Arguments: _arguments.AsReadOnly(),
             CacheTtlSeconds: _cacheTtlSeconds,
             Description: _description,
-            Rest: rest);
+            Rest: rest,
+            InjectParams: _injectParams.Count > 0 ? _injectParams : null,
+            RequiresRole: _requiresRole);
     }
 
     /// <summary>

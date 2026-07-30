@@ -1,6 +1,18 @@
-//! Integration tests for custom scalar compilation and execution.
+//! Integration tests for custom scalar compilation.
 //!
-//! Tests the complete flow: SDK schema → Compiler → Runtime validation
+//! Tests the flow: SDK schema → compiler → compiled artifact.
+//!
+//! **Not** "→ runtime validation", which the module doc used to claim. There is no such
+//! leg: `CompiledSchema.custom_scalars` is `#[serde(skip)]`, so the registry these tests
+//! inspect is dropped when the schema is written to `schema.compiled.json`, and nothing
+//! in `fraiseql-server` reads scalar rules back. A `ValidationRule` declared on a scalar
+//! was never enforced anywhere, and these tests asserted it into the registry and stopped
+//! one step short of the serialization that discards it.
+//!
+//! The compiler now refuses a scalar that declares `validation_rules` rather than accept a
+//! constraint it cannot honour, so the cases below assert the refusal and the cases that
+//! declare no rules assert that the *declaration* still works — which is the half that
+//! does something, since it makes the name known to the compiler.
 
 #![allow(clippy::pedantic)]
 
@@ -58,15 +70,15 @@ fn test_compile_schema_with_single_custom_scalar() {
         changelog_config:     None,
     };
 
-    let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
+    let error = SchemaConverter::convert(schema)
+        .expect_err("a scalar declaring a pattern no artifact carries must be refused");
+    let message = error.to_string();
 
-    // Verify custom scalar was registered
-    assert!(compiled.custom_scalars.exists("Email"));
-
-    // Retrieve and verify the scalar definition
-    let scalar = compiled.custom_scalars.get("Email").expect("Failed to get scalar");
-    assert_eq!(scalar.name, "Email");
-    assert_eq!(scalar.description, Some("Valid email address".to_string()));
+    assert!(message.contains("Email"), "the diagnostic must name the scalar: {message}");
+    assert!(
+        message.contains("validation_rules"),
+        "the diagnostic must name the offending key: {message}"
+    );
 }
 
 #[test]
@@ -124,15 +136,16 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         changelog_config:     None,
     };
 
-    let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
+    // `Email` declares no rules and `Phone` declares a pattern. One unenforceable
+    // declaration is enough to refuse the schema — the alternative is a compile that
+    // succeeds while silently honouring one scalar's constraint and not the other's.
+    let error = SchemaConverter::convert(schema)
+        .expect_err("a schema containing a rule-declaring scalar must be refused");
 
-    // Verify both scalars are registered
-    assert!(compiled.custom_scalars.exists("Email"));
-    assert!(compiled.custom_scalars.exists("Phone"));
-
-    // Get all scalars and verify count
-    let all_scalars = compiled.custom_scalars.list_all();
-    assert_eq!(all_scalars.len(), 2);
+    assert!(
+        error.to_string().contains("Phone"),
+        "the diagnostic must name the offending scalar, not the clean one: {error}"
+    );
 }
 
 #[test]
@@ -187,10 +200,14 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         changelog_config:     None,
     };
 
-    let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
+    // Two rules are refused for the same reason one is: neither reaches a runtime.
+    let error = SchemaConverter::convert(schema)
+        .expect_err("a scalar declaring rules no artifact carries must be refused");
 
-    let scalar = compiled.custom_scalars.get("Username").expect("Failed to get scalar");
-    assert_eq!(scalar.validation_rules.len(), 2);
+    assert!(
+        error.to_string().contains("Username"),
+        "the diagnostic must name the scalar: {error}"
+    );
 }
 
 #[test]

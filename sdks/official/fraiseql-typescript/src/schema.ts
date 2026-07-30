@@ -19,6 +19,24 @@ function validateSchemaBeforeExport(schema: Schema): void {
 
   const errors: string[] = [];
 
+  // A type with no fields is not a type — it is `@Type()` applied to a class whose
+  // fields were never registered. TypeScript erases field types, so the decorator can
+  // only record the name; the fields must arrive from `registerTypeFields` (or, on the
+  // federation path, from `generateSchemaJson`'s class-instantiation pass). When they
+  // did not, the export used to succeed and emit `"fields": []`, which compiles to an
+  // object type nobody can select anything from — a plausible-looking schema.json
+  // describing a schema the author did not write (#733). Refused here rather than in
+  // the decorator so the federation marker role keeps working.
+  for (const type of schema.types) {
+    if (type.fields.length === 0) {
+      errors.push(
+        `Type '${type.name}' was registered with no fields. TypeScript erases field ` +
+          `types, so @Type() can only record the name — call ` +
+          `registerTypeFields('${type.name}', [...]) to declare them.`
+      );
+    }
+  }
+
   for (const query of schema.queries) {
     const ret = query.return_type;
     if (ret && !registeredTypeNames.has(ret)) {
@@ -126,6 +144,11 @@ export function getSchemaDict(): Schema {
 export function exportSchemaToString(options: { pretty?: boolean } = {}): string {
   const { pretty = true } = options;
   const schema = SchemaRegistry.getSchema();
+
+  // Same validation as `exportSchema`. This function skipped it, so the two export
+  // entry points disagreed about what a valid schema is — and the one that skipped
+  // validation is the one a build script pipes straight to a file.
+  validateSchemaBeforeExport(schema);
 
   return pretty ? JSON.stringify(schema, null, 2) : JSON.stringify(schema);
 }

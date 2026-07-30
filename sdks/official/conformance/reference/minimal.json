@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "email", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "arguments": []
+    }
+  ]
+}

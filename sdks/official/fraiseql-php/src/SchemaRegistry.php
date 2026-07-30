@@ -47,6 +47,13 @@ final class SchemaRegistry
     /** @var array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool}>, description: string|null}> Registered input types */
     private array $inputTypes = [];
 
+    /**
+     * Registered GraphQL enum types, keyed by name.
+     *
+     * @var array<string, array{name: string, values: list<array{name: string}>, description: string|null}>
+     */
+    private array $enums = [];
+
     /** @var array<string, array{sql_source: string|null, is_error: bool}> Extra type metadata */
     private array $typeMeta = [];
 
@@ -326,6 +333,46 @@ final class SchemaRegistry
         return $this->inputTypes;
     }
 
+    /**
+     * Register a GraphQL enum type.
+     *
+     * @param string $name Enum type name (e.g. "OrderStatus")
+     * @param list<string> $values Enum member names, in declaration order
+     * @param string|null $description Optional enum description
+     * @return self Fluent interface
+     *
+     * @throws FraiseQLException If an enum with this name is already registered
+     */
+    public function registerEnum(string $name, array $values, ?string $description = null): self
+    {
+        if (isset($this->enums[$name])) {
+            throw new FraiseQLException(
+                "Enum '{$name}' is already registered. Each name must be unique within a schema.",
+            );
+        }
+
+        $this->enums[$name] = [
+            'name' => $name,
+            'values' => array_values(array_map(
+                static fn (string $value): array => ['name' => $value],
+                $values,
+            )),
+            'description' => $description,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Get all registered enum types.
+     *
+     * @return array<string, array{name: string, values: list<array{name: string}>, description: string|null}>
+     */
+    public function getAllEnums(): array
+    {
+        return $this->enums;
+    }
+
     /** @var array<string, string> Base inject defaults */
     private array $injectDefaultsBase = [];
 
@@ -401,6 +448,7 @@ final class SchemaRegistry
         $this->queries = [];
         $this->mutations = [];
         $this->inputTypes = [];
+        $this->enums = [];
         $this->typeMeta = [];
         $this->injectDefaultsBase = [];
         $this->injectDefaultsQueries = [];
@@ -434,6 +482,15 @@ final class SchemaRegistry
             phpType: $typeInfo->phpType,
             customResolver: $typeInfo->customResolver,
             parentType: $typeName,
+            // `TypeConverter` parses and validates `scope`/`scopes` off the attribute and
+            // carries them on `TypeInfo`, and `SchemaExporter::buildTypes` reads
+            // `FieldDefinition::$scope` to emit `requires_scope` — but this constructor
+            // never passed them across, so the property was always null and the exporter's
+            // scope branch was unreachable. The #807 fix one layer up could not have
+            // worked; a field gated with `#[GraphQLField(scope: '...')]` still compiled
+            // ungated and was served to callers holding no scope at all.
+            scope: $typeInfo->scope,
+            scopes: $typeInfo->scopes,
             computed: $fieldAttr?->computed ?? false,
         );
     }

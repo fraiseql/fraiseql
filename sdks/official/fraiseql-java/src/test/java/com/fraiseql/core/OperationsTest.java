@@ -476,11 +476,11 @@ public class OperationsTest {
     // =========================================================================
 
     private JsonNode findQuery(JsonNode schema, String name) {
-        return schema.get("queries").get(name);
+        return SchemaNodes.byName(schema, "queries", name);
     }
 
     private JsonNode findMutation(JsonNode schema, String name) {
-        return schema.get("mutations").get(name);
+        return SchemaNodes.byName(schema, "mutations", name);
     }
 
     // =========================================================================

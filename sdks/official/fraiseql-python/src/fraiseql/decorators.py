@@ -1468,6 +1468,22 @@ def scalar(cls: type[S]) -> type[S]:
         - Name must be unique within schema
         - Scalar must be defined before @type that uses it
         - Classes can only be imported from fraiseql.scalars at runtime
+
+    Validation is authoring-time only:
+        ``serialize`` / ``parse_value`` / ``parse_literal`` run in *your* Python process,
+        wherever you call them. They are **not** carried into ``schema.json`` and the
+        FraiseQL server never runs them — it is a Rust runtime with no Python in it.
+
+        Declarative rules are not a workaround: ``CompiledSchema.custom_scalars`` is not
+        serialized, so the compiler's own scalar registry is dropped when the compiled
+        schema is written, and nothing reads scalar rules back at runtime. The compiler
+        refuses a scalar that declares ``validation_rules`` rather than accept a
+        constraint it cannot honour.
+
+        What registering a scalar *does* achieve is making the name known to the compiler,
+        so ``email: Email`` resolves as a scalar rather than a reference to a type that
+        does not exist. Enforce the constraint where the data lands — a PostgreSQL
+        ``CHECK`` constraint or ``DOMAIN``, or the mutation's SQL function.
     """
     from fraiseql.scalars import (  # noqa: PLC0415 — circular import; deferred to runtime
         CustomScalar,

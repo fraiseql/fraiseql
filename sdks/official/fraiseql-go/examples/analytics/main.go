@@ -30,9 +30,9 @@ func init() {
 	// Register fact tables for analytics
 	fraiseql.NewFactTable("sales").
 		TableName("tf_sales").
-		Measure("revenue", "sum", "avg", "max", "min").
-		Measure("quantity", "sum", "count", "avg").
-		Measure("cost", "sum", "avg").
+		Measure("revenue", "numeric", false).
+		Measure("quantity", "bigint", false).
+		Measure("cost", "numeric", true).
 		Dimension("category", "data->>'category'", "text").
 		Dimension("region", "data->>'region'", "text").
 		Dimension("year_month", "date_trunc('month', occurred_at)::text", "text").
@@ -41,8 +41,8 @@ func init() {
 
 	fraiseql.NewFactTable("events").
 		TableName("tf_events").
-		Measure("event_count", "count").
-		Measure("duration", "avg", "sum", "max", "min").
+		Measure("event_count", "bigint", false).
+		Measure("duration", "numeric", true).
 		Dimension("event_type", "event_type", "text").
 		Dimension("user_id", "user_id", "text").
 		Dimension("date", "date_trunc('day', occurred_at)::text", "text").

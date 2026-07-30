@@ -23,6 +23,7 @@ public sealed class SchemaRegistry
     private readonly object _lock = new();
     private readonly List<TypeDefinition> _types = new();
     private readonly List<IntermediateInputType> _inputTypes = new();
+    private readonly List<IntermediateEnum> _enums = new();
     private readonly List<IntermediateQuery> _queries = new();
     private readonly List<IntermediateMutation> _mutations = new();
     private Dictionary<string, string>? _injectDefaultsBase;
@@ -180,6 +181,31 @@ public sealed class SchemaRegistry
         }
     }
 
+    /// <summary>Registers a GraphQL enum type.</summary>
+    /// <param name="name">The enum type name.</param>
+    /// <param name="values">The member names, in declaration order.</param>
+    /// <param name="description">Optional description.</param>
+    public void RegisterEnum(string name, IReadOnlyList<string> values, string? description = null)
+    {
+        lock (_lock)
+        {
+            _enums.Add(new IntermediateEnum(
+                name,
+                values.Select(v => new IntermediateEnumValue(v)).ToList().AsReadOnly(),
+                description));
+        }
+    }
+
+    /// <summary>Returns every registered enum type.</summary>
+    /// <returns>A snapshot of the registered enums.</returns>
+    public IReadOnlyList<IntermediateEnum> GetAllEnums()
+    {
+        lock (_lock)
+        {
+            return _enums.ToList().AsReadOnly();
+        }
+    }
+
     /// <summary>
     /// Returns a snapshot of all registered input types.
     /// </summary>
@@ -239,6 +265,7 @@ public sealed class SchemaRegistry
         {
             _types.Clear();
             _inputTypes.Clear();
+            _enums.Clear();
             _queries.Clear();
             _mutations.Clear();
             _injectDefaultsBase = null;

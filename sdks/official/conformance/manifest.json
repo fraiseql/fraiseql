@@ -1,0 +1,175 @@
+{
+  "_comment": [
+    "How each official SDK is driven by the conformance harness, and which canonical",
+    "constructs it cannot author.",
+    "",
+    "`export` runs in the SDK's own directory with two environment variables set:",
+    "  FRAISEQL_CONFORMANCE_FIXTURE  'minimal' | 'full'",
+    "  FRAISEQL_CONFORMANCE_OUT      absolute path to write schema.json to",
+    "It must author the fixture through the SDK's PUBLIC authoring API \u2014 never by",
+    "hand-assembling the expected JSON. Six of the eleven pre-existing parity generators",
+    "did exactly that and were therefore incapable of failing.",
+    "",
+    "`unsupported` maps a construct name to the reason the SDK cannot author it. The",
+    "default is that every construct is required: adding one to project.CONSTRUCTS fails",
+    "every SDK until each either implements it or declares the gap here. Declaring a gap",
+    "is deliberate and public \u2014 README.md renders these reasons into the support matrix.",
+    "A declaration that is no longer true also fails, so the matrix cannot go stale."
+  ],
+  "sdks": {
+    "python": {
+      "dir": "fraiseql-python",
+      "requires": "uv",
+      "export": [
+        "uv",
+        "run",
+        "--quiet",
+        "python",
+        "conformance/export.py"
+      ],
+      "unsupported": {}
+    },
+    "typescript": {
+      "dir": "fraiseql-typescript",
+      "requires": "npx",
+      "export": [
+        "npx",
+        "--yes",
+        "tsx",
+        "conformance/export.ts"
+      ],
+      "unsupported": {}
+    },
+    "go": {
+      "dir": "fraiseql-go",
+      "requires": "go",
+      "export": [
+        "go",
+        "run",
+        "./conformance"
+      ],
+      "unsupported": {}
+    },
+    "php": {
+      "dir": "fraiseql-php",
+      "requires": "php",
+      "export": [
+        "php",
+        "conformance/export.php"
+      ],
+      "unsupported": {}
+    },
+    "java": {
+      "dir": "fraiseql-java",
+      "requires": "mvn",
+      "export": [
+        "mvn",
+        "-q",
+        "-B",
+        "test",
+        "-Dtest=ConformanceExport",
+        "-DfailIfNoTests=false"
+      ],
+      "unsupported": {},
+      "container": "maven:3.9-eclipse-temurin-21",
+      "container_env": [
+        "HOME=/conformance-cache/java"
+      ]
+    },
+    "csharp": {
+      "dir": "fraiseql-csharp",
+      "requires": "dotnet",
+      "export": [
+        "dotnet",
+        "test",
+        "tests/FraiseQL.Tests/FraiseQL.Tests.csproj",
+        "--filter",
+        "ConformanceExport",
+        "--verbosity",
+        "quiet"
+      ],
+      "unsupported": {}
+    },
+    "fsharp": {
+      "dir": "fraiseql-fsharp",
+      "requires": "dotnet",
+      "export": [
+        "dotnet",
+        "test",
+        "tests/FraiseQL.Tests/FraiseQL.Tests.fsproj",
+        "--filter",
+        "ConformanceExport",
+        "--verbosity",
+        "quiet"
+      ],
+      "unsupported": {}
+    },
+    "elixir": {
+      "dir": "fraiseql-elixir",
+      "requires": "mix",
+      "export": [
+        "sh",
+        "-c",
+        "mix local.hex --force --if-missing >/dev/null && mix local.rebar --force --if-missing >/dev/null && mix deps.get >/dev/null && mix run conformance/export.exs"
+      ],
+      "unsupported": {},
+      "container": "elixir:1.17",
+      "container_env": [
+        "HOME=/conformance-cache/elixir",
+        "MIX_HOME=/conformance-cache/elixir/.mix",
+        "HEX_HOME=/conformance-cache/elixir/.hex"
+      ]
+    },
+    "ruby": {
+      "dir": "fraiseql-ruby",
+      "requires": "ruby",
+      "export": [
+        "ruby",
+        "conformance/export.rb"
+      ],
+      "unsupported": {},
+      "container": "ruby:3.3"
+    },
+    "dart": {
+      "dir": "fraiseql-dart",
+      "requires": "dart",
+      "export": [
+        "sh",
+        "-c",
+        "dart pub get >/dev/null && dart run conformance/export.dart"
+      ],
+      "unsupported": {},
+      "container": "dart:stable",
+      "container_env": [
+        "PUB_CACHE=/conformance-cache/dart/pub",
+        "HOME=/conformance-cache/dart"
+      ]
+    },
+    "rust": {
+      "dir": "fraiseql-rust",
+      "requires": "cargo",
+      "export": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--example",
+        "conformance_export"
+      ],
+      "unsupported": {
+        "type_relay": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "type_is_error": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "input_types": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "enums": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "queries": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "query_arguments": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "query_inject_params": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "query_cache_ttl": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "query_requires_role": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "mutations": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "mutation_arguments": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "mutation_invalidates_views": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "mutation_invalidates_fact_tables": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct"
+      }
+    }
+  }
+}

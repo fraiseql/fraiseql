@@ -37,6 +37,7 @@ defmodule FraiseQL.SchemaExporter do
     %FraiseQL.IntermediateSchema{
       version: "2.0.0",
       types: module.__fraiseql_types__(),
+      enums: enums_of(module),
       queries: module.__fraiseql_queries__(),
       mutations: module.__fraiseql_mutations__()
     }
@@ -102,23 +103,46 @@ defmodule FraiseQL.SchemaExporter do
     end
   end
 
+  # A schema module compiled before `fraiseql_enum` existed has no accessor; treat that
+  # as "no enums" rather than crashing the export.
+  defp enums_of(module) do
+    if function_exported?(module, :__fraiseql_enums__, 0), do: module.__fraiseql_enums__(), else: []
+  end
+
   defp schema_to_map(%FraiseQL.IntermediateSchema{} = s) do
-    %{
+    base = %{
       "version" => s.version,
       "types" => Enum.map(s.types, &type_to_map/1),
       "queries" => Enum.map(s.queries, &query_to_map/1),
       "mutations" => Enum.map(s.mutations, &mutation_to_map/1)
     }
+
+    if s.enums == [] do
+      base
+    else
+      Map.put(base, "enums", Enum.map(s.enums, &enum_to_map/1))
+    end
+  end
+
+  defp enum_to_map(%FraiseQL.EnumDefinition{} = e) do
+    base = %{
+      "name" => e.name,
+      "values" => Enum.map(e.values, &%{"name" => &1})
+    }
+
+    maybe_put(base, "description", e.description)
   end
 
   defp type_to_map(%FraiseQL.TypeDefinition{} = t) do
     base = %{
       "name" => t.name,
-      "sql_source" => t.sql_source,
       "fields" => Enum.map(t.fields, &field_to_map/1)
     }
 
     base
+    # An `is_input` type carries no `sql_source`: an input object has no backing view and
+    # the compiler refuses one that names a source.
+    |> maybe_put("sql_source", t.sql_source)
     |> maybe_put("description", t.description)
     |> maybe_put_bool("relay", t.relay)
     |> maybe_put_bool("is_input", t.is_input)
@@ -134,8 +158,26 @@ defmodule FraiseQL.SchemaExporter do
 
     base
     |> maybe_put("description", f.description)
-    |> maybe_put("requires_scope", f.requires_scope)
-    |> maybe_put("requires_scopes", f.requires_scopes)
+    |> maybe_put("requires_scope", single_scope(f))
+  end
+
+  # `requires_scopes` is a key the compiler does not read, and the compiled schema and the
+  # runtime field filter represent exactly one required scope. Emitting the array produced
+  # a field with no scope at all — silently public before the compiler denied unknown
+  # fields, and a hard compile error after (#807). A singleton list is the same
+  # requirement as a single scope and is emitted as one; anything longer is refused rather
+  # than written as a declaration nothing can honour.
+  defp single_scope(%FraiseQL.FieldDefinition{requires_scope: scope}) when is_binary(scope),
+    do: scope
+
+  defp single_scope(%FraiseQL.FieldDefinition{requires_scopes: nil}), do: nil
+  defp single_scope(%FraiseQL.FieldDefinition{requires_scopes: []}), do: nil
+  defp single_scope(%FraiseQL.FieldDefinition{requires_scopes: [scope]}), do: scope
+
+  defp single_scope(%FraiseQL.FieldDefinition{name: name, requires_scopes: scopes}) do
+    raise ArgumentError,
+          "Field #{inspect(name)} requires #{length(scopes)} scopes; multiple required " <>
+            "scopes are not supported — declare a single `requires_scope`."
   end
 
   defp query_to_map(%FraiseQL.QueryDefinition{} = q) do
@@ -152,6 +194,8 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
     |> maybe_put_auto_params(q.auto_params)
+    |> maybe_put_inject_params(q.inject_params)
+    |> maybe_put("requires_role", q.requires_role)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
@@ -167,6 +211,10 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", m.description)
     |> maybe_put_bool("cascade", m.cascade)
+    |> maybe_put_inject_params(m.inject_params)
+    |> maybe_put("requires_role", m.requires_role)
+    |> maybe_put("invalidates_views", m.invalidates_views)
+    |> maybe_put("invalidates_fact_tables", m.invalidates_fact_tables)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 
@@ -182,6 +230,32 @@ defmodule FraiseQL.SchemaExporter do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  # The wire key is `inject_params` and the value is the nested `{source, claim}` form.
+  defp maybe_put_inject_params(map, nil), do: map
+  defp maybe_put_inject_params(map, params) when map_size(params) == 0, do: map
+
+  defp maybe_put_inject_params(map, params) do
+    Map.put(
+      map,
+      "inject_params",
+      Map.new(params, fn {param, source} ->
+        {to_string(param), inject_source_to_map(source)}
+      end)
+    )
+  end
+
+  defp inject_source_to_map(source) when is_binary(source) do
+    case String.split(source, ":", parts: 2) do
+      [src, claim] ->
+        %{"source" => src, "claim" => claim}
+
+      _ ->
+        raise ArgumentError,
+              "inject_params value #{inspect(source)} must be \"<source>:<claim>\", " <>
+                "for example \"jwt:tenant_id\"."
+    end
+  end
 
   defp maybe_put_rest(map, nil, _method, _default_method), do: map
   defp maybe_put_rest(map, path, nil, default_method), do: Map.put(map, "rest", %{"path" => path, "method" => default_method})

@@ -129,7 +129,9 @@ defmodule FraiseQL.QueryDefinition do
     description: nil,
     rest_path: nil,
     rest_method: nil,
-    auto_params: nil
+    auto_params: nil,
+    inject_params: nil,
+    requires_role: nil
   ]
 
   @type t :: %__MODULE__{
@@ -143,7 +145,9 @@ defmodule FraiseQL.QueryDefinition do
           description: String.t() | nil,
           rest_path: String.t() | nil,
           rest_method: String.t() | nil,
-          auto_params: map() | nil
+          auto_params: map() | nil,
+          inject_params: map() | nil,
+          requires_role: String.t() | nil
         }
 end
 
@@ -163,7 +167,21 @@ defmodule FraiseQL.MutationDefinition do
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
-  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil, cascade: false]
+  defstruct [
+    :name,
+    :return_type,
+    :sql_source,
+    :operation,
+    arguments: [],
+    description: nil,
+    rest_path: nil,
+    rest_method: nil,
+    cascade: false,
+    inject_params: nil,
+    requires_role: nil,
+    invalidates_views: nil,
+    invalidates_fact_tables: nil
+  ]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -174,7 +192,32 @@ defmodule FraiseQL.MutationDefinition do
           description: String.t() | nil,
           rest_path: String.t() | nil,
           rest_method: String.t() | nil,
-          cascade: boolean()
+          cascade: boolean(),
+          inject_params: map() | nil,
+          requires_role: String.t() | nil,
+          invalidates_views: [String.t()] | nil,
+          invalidates_fact_tables: [String.t()] | nil
+        }
+end
+
+defmodule FraiseQL.EnumDefinition do
+  @moduledoc """
+  Represents a FraiseQL GraphQL enum type.
+
+  ## Fields
+
+    * `:name` — the GraphQL enum type name, e.g. `"OrderStatus"`
+    * `:values` — the member names, in declaration order
+    * `:description` — optional human-readable description
+  """
+
+  @enforce_keys [:name, :values]
+  defstruct [:name, :values, description: nil]
+
+  @type t :: %__MODULE__{
+          name: String.t(),
+          values: [String.t()],
+          description: String.t() | nil
         }
 end
 
@@ -192,11 +235,12 @@ defmodule FraiseQL.IntermediateSchema do
     * `:mutations` — list of `FraiseQL.MutationDefinition` structs
   """
 
-  defstruct version: "2.0.0", types: [], queries: [], mutations: []
+  defstruct version: "2.0.0", types: [], queries: [], mutations: [], enums: []
 
   @type t :: %__MODULE__{
           version: String.t(),
           types: [FraiseQL.TypeDefinition.t()],
+          enums: [FraiseQL.EnumDefinition.t()],
           queries: [FraiseQL.QueryDefinition.t()],
           mutations: [FraiseQL.MutationDefinition.t()]
         }

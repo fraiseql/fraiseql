@@ -1,0 +1,199 @@
+{
+  "enums": {
+    "OrderStatus": [
+      "PENDING",
+      "SHIPPED",
+      "CANCELLED"
+    ]
+  },
+  "field_description": {
+    "User.name": "The user's \"display\" name"
+  },
+  "field_scope": {
+    "User.salary": "read:User.salary"
+  },
+  "input_types": {
+    "CreateUserInput": {
+      "fields": [
+        {
+          "name": "email",
+          "nullable": false,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "nullable": true,
+          "type": "String"
+        }
+      ]
+    }
+  },
+  "mutation_arguments": {
+    "createUser": [
+      {
+        "name": "email",
+        "nullable": false,
+        "type": "String"
+      },
+      {
+        "name": "name",
+        "nullable": true,
+        "type": "String"
+      }
+    ],
+    "placeOrder": []
+  },
+  "mutation_invalidates_fact_tables": {
+    "createUser": [
+      "tf_signup"
+    ],
+    "placeOrder": [
+      "tf_sale"
+    ]
+  },
+  "mutation_invalidates_views": {
+    "createUser": [
+      "v_user",
+      "v_user_summary"
+    ],
+    "placeOrder": [
+      "v_order_summary"
+    ]
+  },
+  "mutations": {
+    "createUser": {
+      "operation": "Insert",
+      "return_type": "User",
+      "sql_source": "fn_create_user"
+    },
+    "placeOrder": {
+      "operation": "Insert",
+      "return_type": "Order",
+      "sql_source": "fn_place_order"
+    }
+  },
+  "queries": {
+    "tenantOrders": {
+      "nullable": false,
+      "return_type": "Order",
+      "returns_list": true,
+      "sql_source": "v_order"
+    },
+    "user": {
+      "nullable": true,
+      "return_type": "User",
+      "returns_list": false,
+      "sql_source": "v_user"
+    },
+    "users": {
+      "nullable": false,
+      "return_type": "User",
+      "returns_list": true,
+      "sql_source": "v_user"
+    }
+  },
+  "query_arguments": {
+    "tenantOrders": [],
+    "user": [
+      {
+        "name": "id",
+        "nullable": false,
+        "type": "ID"
+      }
+    ],
+    "users": []
+  },
+  "query_cache_ttl": {
+    "tenantOrders": 300
+  },
+  "query_inject_params": {
+    "tenantOrders": {
+      "tenant_id": {
+        "claim": "tenant_id",
+        "source": "jwt"
+      }
+    }
+  },
+  "query_requires_role": {
+    "tenantOrders": "admin"
+  },
+  "type_is_error": [
+    "UserNotFound"
+  ],
+  "type_relay": {
+    "connection_types_synthesized": [
+      "PageInfo",
+      "UserConnection",
+      "UserEdge"
+    ],
+    "flagged": [
+      "User"
+    ],
+    "implements_node": [
+      "User"
+    ],
+    "node_interface_synthesized": true
+  },
+  "types": {
+    "Order": {
+      "fields": [
+        {
+          "name": "id",
+          "nullable": false,
+          "type": "ID"
+        },
+        {
+          "name": "total",
+          "nullable": false,
+          "type": "Float"
+        },
+        {
+          "name": "status",
+          "nullable": false,
+          "type": "String"
+        }
+      ],
+      "sql_source": "v_order"
+    },
+    "User": {
+      "fields": [
+        {
+          "name": "id",
+          "nullable": false,
+          "type": "ID"
+        },
+        {
+          "name": "email",
+          "nullable": false,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "nullable": true,
+          "type": "String"
+        },
+        {
+          "name": "salary",
+          "nullable": true,
+          "type": "Float"
+        }
+      ],
+      "sql_source": "v_user"
+    },
+    "UserNotFound": {
+      "fields": [
+        {
+          "name": "message",
+          "nullable": false,
+          "type": "String"
+        },
+        {
+          "name": "code",
+          "nullable": false,
+          "type": "String"
+        }
+      ],
+      "sql_source": "v_user_not_found"
+    }
+  }
+}

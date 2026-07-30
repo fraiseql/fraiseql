@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/fraiseql/fraiseql-go/fraiseql"
 )
@@ -114,20 +113,23 @@ func main() {
 		Action(fraiseql.Slack("#orders", "New order {id} by {customer_email}")).
 		Register()
 
-	// Export schema
-	err := fraiseql.ExportSchema("ecommerce_schema.json")
-	if err != nil {
-		log.Fatalf("Failed to export schema: %v", err)
-	}
-
-	fmt.Println("\n🎯 Observer Summary:")
+	// Deliberately no ExportSchema call.
+	//
+	// `fraiseql compile` refuses a schema.json that declares observers, and it is right
+	// to: the runtime loads observers from the `tb_observer` table and the admin API and
+	// reads nothing from the compiled schema, so a compiled artifact carrying them would
+	// describe observers that never fire. This example used to export anyway and print
+	// "Observers will execute automatically on database changes!" — a claim that was
+	// false in two independent ways.
+	fmt.Println("\n🎯 Observers defined:")
 	fmt.Println("   1. onHighValueOrder → Webhooks, Slack, Email for total > 1000")
 	fmt.Println("   2. onOrderShipped → Webhook + customer email when status='shipped'")
 	fmt.Println("   3. onPaymentFailure → Slack + webhook with retry on payment failures")
 	fmt.Println("   4. onOrderDeleted → Archive deleted orders via webhook")
 	fmt.Println("   5. onOrderCreated → Slack notification for all new orders")
-	fmt.Println("\n✨ Next steps:")
-	fmt.Println("   1. fraiseql-cli compile ecommerce_schema.json")
-	fmt.Println("   2. fraiseql-server --schema ecommerce_schema.compiled.json")
-	fmt.Println("   3. Observers will execute automatically on database changes!")
+	fmt.Println("\n✨ Installing them:")
+	fmt.Println("   Observers are runtime configuration, not part of the compiled schema.")
+	fmt.Println("   Load these definitions through the admin API, or insert them into")
+	fmt.Println("   `tb_observer` directly. `fraiseql compile` will refuse a schema.json")
+	fmt.Println("   that declares them, naming the reason.")
 }

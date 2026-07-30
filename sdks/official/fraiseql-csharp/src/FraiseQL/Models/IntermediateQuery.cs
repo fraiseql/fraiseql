@@ -15,6 +15,13 @@ namespace FraiseQL.Models;
 /// <param name="CacheTtlSeconds">Optional cache TTL in seconds, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Rest">Optional REST endpoint annotation, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="InjectParams">
+/// Server-injected parameters, keyed by SQL parameter name. Values are <c>"jwt:&lt;claim&gt;"</c>.
+/// These are not exposed as GraphQL arguments; they are how a query is scoped to the caller's
+/// tenant. There was no way to declare one, so no C#-authored query could carry a tenant
+/// predicate at all.
+/// </param>
+/// <param name="RequiresRole">Role required to execute this query and to see it in introspection.</param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
@@ -24,4 +31,6 @@ public record IntermediateQuery(
     [property: JsonPropertyName("arguments")]         IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("cache_ttl_seconds")] int? CacheTtlSeconds = null,
     [property: JsonPropertyName("description")]       string? Description = null,
-    [property: JsonPropertyName("rest")]              RestAnnotation? Rest = null);
+    [property: JsonPropertyName("rest")]              RestAnnotation? Rest = null,
+    [property: JsonPropertyName("inject_params")]     IReadOnlyDictionary<string, string>? InjectParams = null,
+    [property: JsonPropertyName("requires_role")]     string? RequiresRole = null);

@@ -208,8 +208,13 @@ final class QueryBuilder
             $result['additional_views'] = $this->additionalViewsList;
         }
 
-        if (!empty($this->injectMap)) {
-            $result['inject'] = $this->injectMap;
+        // `inject_params`, not `inject`, and in the nested `{source, claim}` form the
+        // compiler expects. `inject` bound to nothing, so a query the author had gated
+        // to a tenant compiled with no predicate at all (#806). It is now refused at
+        // compile time rather than dropped.
+        $injectParams = $this->buildInjectParams();
+        if (!empty($injectParams)) {
+            $result['inject_params'] = $injectParams;
         }
 
         if ($this->requiresRoleValue !== null) {

@@ -1,5 +1,4 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use fraiseql_core::schema::NamingConvention;
 use indexmap::IndexMap;
 
 use crate::schema::{
@@ -9,40 +8,7 @@ use crate::schema::{
 
 #[test]
 fn test_validate_empty_schema() {
-    let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
-    };
+    let schema = IntermediateSchema::default();
 
     let report = SchemaValidator::validate(&schema).unwrap();
     assert!(report.is_valid());
@@ -51,15 +17,7 @@ fn test_validate_empty_schema() {
 #[test]
 fn test_detect_unknown_return_type() {
     let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![IntermediateQuery {
+        queries: vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
             returns_list:      true,
@@ -78,29 +36,7 @@ fn test_detect_unknown_return_type() {
             relay_cursor_type: None,
             rest:              None,
         }],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -112,10 +48,7 @@ fn test_detect_unknown_return_type() {
 #[test]
 fn test_detect_duplicate_query_names() {
     let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -129,11 +62,7 @@ fn test_detect_duplicate_query_names() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![
+        queries: vec![
             IntermediateQuery {
                 name:              "users".to_string(),
                 return_type:       "User".to_string(),
@@ -173,29 +102,7 @@ fn test_detect_duplicate_query_names() {
                 rest:              None,
             },
         ],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -206,10 +113,7 @@ fn test_detect_duplicate_query_names() {
 #[test]
 fn test_warning_for_query_without_sql_source() {
     let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -223,11 +127,7 @@ fn test_warning_for_query_without_sql_source() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![IntermediateQuery {
+        queries: vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -246,29 +146,7 @@ fn test_warning_for_query_without_sql_source() {
             relay_cursor_type: None,
             rest:              None,
         }],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -284,11 +162,7 @@ fn test_valid_observer() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
-        grpc_config:          None,
-        sources:              None,
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -302,18 +176,7 @@ fn test_valid_observer() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            Some(vec![IntermediateObserver {
+        observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
             entity:    "Order".to_string(),
             event:     "INSERT".to_string(),
@@ -329,20 +192,7 @@ fn test_valid_observer() {
                 max_delay_ms:     60000,
             },
         }]),
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -357,23 +207,7 @@ fn test_observer_with_unknown_entity() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
-        grpc_config:          None,
-        sources:              None,
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            Some(vec![IntermediateObserver {
+        observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
             entity:    "UnknownEntity".to_string(),
             event:     "INSERT".to_string(),
@@ -386,20 +220,7 @@ fn test_observer_with_unknown_entity() {
                 max_delay_ms:     60000,
             },
         }]),
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -414,11 +235,7 @@ fn test_observer_with_invalid_event() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
-        grpc_config:          None,
-        sources:              None,
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -432,18 +249,7 @@ fn test_observer_with_invalid_event() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            Some(vec![IntermediateObserver {
+        observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
             entity:    "Order".to_string(),
             event:     "INVALID_EVENT".to_string(),
@@ -456,20 +262,7 @@ fn test_observer_with_invalid_event() {
                 max_delay_ms:     60000,
             },
         }]),
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -484,11 +277,7 @@ fn test_observer_with_invalid_action_type() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
-        grpc_config:          None,
-        sources:              None,
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -502,18 +291,7 @@ fn test_observer_with_invalid_action_type() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            Some(vec![IntermediateObserver {
+        observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
             entity:    "Order".to_string(),
             event:     "INSERT".to_string(),
@@ -526,20 +304,7 @@ fn test_observer_with_invalid_action_type() {
                 max_delay_ms:     60000,
             },
         }]),
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -554,11 +319,7 @@ fn test_observer_with_invalid_retry_config() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
-        grpc_config:          None,
-        sources:              None,
-        security:             None,
-        version:              "2.0.0".to_string(),
-        types:                vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "Order".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -572,18 +333,7 @@ fn test_observer_with_invalid_retry_config() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:                vec![],
-        input_types:          vec![],
-        interfaces:           vec![],
-        unions:               vec![],
-        queries:              vec![],
-        mutations:            vec![],
-        subscriptions:        vec![],
-        fragments:            None,
-        directives:           None,
-        fact_tables:          None,
-        aggregate_queries:    None,
-        observers:            Some(vec![IntermediateObserver {
+        observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
             entity:    "Order".to_string(),
             event:     "INSERT".to_string(),
@@ -596,20 +346,7 @@ fn test_observer_with_invalid_retry_config() {
                 max_delay_ms:     60000,
             },
         }]),
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -620,10 +357,7 @@ fn test_observer_with_invalid_retry_config() {
 #[test]
 fn test_query_injection_in_sql_source_rejected() {
     let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -637,11 +371,7 @@ fn test_query_injection_in_sql_source_rejected() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![IntermediateQuery {
+        queries: vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -660,29 +390,7 @@ fn test_query_injection_in_sql_source_rejected() {
             relay_cursor_type: None,
             rest:              None,
         }],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -693,10 +401,7 @@ fn test_query_injection_in_sql_source_rejected() {
 #[test]
 fn test_query_schema_qualified_sql_source_passes() {
     let schema = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        version:           "2.0.0".to_string(),
-        types:             vec![IntermediateType {
+        types: vec![IntermediateType {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![],
@@ -710,11 +415,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
         }],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![IntermediateQuery {
+        queries: vec![IntermediateQuery {
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -733,29 +434,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             relay_cursor_type: None,
             rest:              None,
         }],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
+        ..Default::default()
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();

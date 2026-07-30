@@ -1,6 +1,7 @@
 package fraiseql_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fraiseql/fraiseql-go/fraiseql"
@@ -24,7 +25,7 @@ func TestDispatchExplicitMapping(t *testing.T) {
 	fraiseql.RegisterTypes(Order{})
 
 	// Register query with dispatch mapping
-	fraiseql.NewQuery("orders").
+	err := fraiseql.NewQuery("orders").
 		ReturnType(Order{}).
 		ReturnsArray(true).
 		SqlSourceDispatch("timeInterval", map[string]string{
@@ -35,19 +36,19 @@ func TestDispatchExplicitMapping(t *testing.T) {
 		Arg("timeInterval", "TimeInterval", nil).
 		Register()
 
-	schema := fraiseql.GetSchema()
-	if len(schema.Queries) == 0 {
-		t.Fatal("query not registered")
+	// `sql_source_dispatch` has no consumer anywhere in the compiler — not in the
+	// intermediate schema, not in the converter, not in the compiled artifact. It used
+	// to be emitted under `config`, which made the whole schema uncompilable
+	// (`unknown field \`config\``); dropping it silently would be worse, since the author
+	// would get a clean compile and a query that never dispatches.
+	if err == nil {
+		t.Fatal("SqlSourceDispatch must refuse: the compiler implements no dynamic source selection")
 	}
-
-	q := schema.Queries[0]
-	if q.Name != "orders" {
-		t.Errorf("expected query name 'orders', got %s", q.Name)
+	if !strings.Contains(err.Error(), "SqlSourceDispatch") {
+		t.Errorf("the error must name the offending setting, got: %v", err)
 	}
-
-	// Verify dispatch config is present
-	if q.Config == nil || q.Config["sql_source_dispatch"] == nil {
-		t.Error("sql_source_dispatch config not found")
+	if len(fraiseql.GetSchema().Queries) != 0 {
+		t.Error("a refused query must not be registered")
 	}
 }
 
@@ -68,136 +69,52 @@ func TestDispatchTemplate(t *testing.T) {
 	fraiseql.RegisterTypes(User{})
 
 	// Register query with dispatch template
-	fraiseql.NewQuery("users").
+	err := fraiseql.NewQuery("users").
 		ReturnType(User{}).
 		ReturnsArray(true).
 		SqlSourceDispatchWithTemplate("env", "v_users_{env}").
 		Arg("env", "Environment", nil).
 		Register()
 
-	schema := fraiseql.GetSchema()
-	q := schema.Queries[0]
-
-	// Verify dispatch config
-	if q.Config == nil || q.Config["sql_source_dispatch"] == nil {
-		t.Error("sql_source_dispatch config not found")
+	// See TestDispatchExplicitMapping: refused rather than emitted, because the setting
+	// has no consumer and emitting it made the schema uncompilable.
+	if err == nil {
+		t.Fatal("SqlSourceDispatchWithTemplate must refuse: the compiler implements no dynamic source selection")
+	}
+	if len(fraiseql.GetSchema().Queries) != 0 {
+		t.Error("a refused query must not be registered")
 	}
 }
 
-func TestDispatchMutualExclusivity(t *testing.T) {
+// The remaining cases all exercised `sql_source_dispatch` surviving into `Config`. It
+// does not survive anywhere useful: no part of the compiler reads it, and emitting it
+// under `config` made the whole schema uncompilable. One test of the refusal replaces
+// four tests of a setting that never did anything.
+func TestDispatchRefusalIsIndependentOfOtherSettings(t *testing.T) {
 	fraiseql.ClearRegistry()
 
-	fraiseql.Enum("Region", map[string]string{
-		"US": "us",
-		"EU": "eu",
-	})
+	fraiseql.Enum("Region", map[string]string{"US": "us", "EU": "eu"})
 
 	type Data struct {
 		ID int `fraiseql:"id,type=Int"`
 	}
-
 	fraiseql.RegisterTypes(Data{})
 
-	// This should ideally error, but for now we just ensure both can be set
-	// The compiler will validate mutual exclusivity
-	fraiseql.NewQuery("data").
+	err := fraiseql.NewQuery("data").
 		ReturnType(Data{}).
 		ReturnsArray(true).
 		SqlSource("v_data").
-		SqlSourceDispatch("region", map[string]string{
-			"US": "v_us_data",
-			"EU": "v_eu_data",
-		}).
+		SqlSourceDispatch("region", map[string]string{"US": "v_us_data", "EU": "v_eu_data"}).
 		Arg("region", "Region", nil).
 		Register()
 
-	schema := fraiseql.GetSchema()
-	q := schema.Queries[0]
-
-	// Both should be present - compiler validates mutual exclusivity
-	// sql_source is extracted to SqlSource field by Register(); dispatch stays in Config
-	if q.SqlSource == "" {
-		t.Error("sql_source should be present")
+	if err == nil {
+		t.Fatal("SqlSourceDispatch must refuse even when a static SqlSource is also set")
 	}
-	if q.Config["sql_source_dispatch"] == nil {
-		t.Error("sql_source_dispatch should be present")
+	if !strings.Contains(err.Error(), "data") {
+		t.Errorf("the error must name the query, got: %v", err)
 	}
-}
-
-func TestDispatchWithOtherArguments(t *testing.T) {
-	fraiseql.ClearRegistry()
-
-	fraiseql.Enum("Shard", map[string]string{
-		"S1": "shard1",
-		"S2": "shard2",
-	})
-
-	type Item struct {
-		ID int `fraiseql:"id,type=Int"`
-	}
-
-	fraiseql.RegisterTypes(Item{})
-
-	// Register query with dispatch and other arguments
-	fraiseql.NewQuery("items").
-		ReturnType(Item{}).
-		ReturnsArray(true).
-		SqlSourceDispatch("shard", map[string]string{
-			"S1": "t_items_s1",
-			"S2": "t_items_s2",
-		}).
-		Arg("shard", "Shard", nil).
-		Arg("limit", "Int", 10).
-		Arg("offset", "Int", 0).
-		Register()
-
-	schema := fraiseql.GetSchema()
-	q := schema.Queries[0]
-
-	// Verify dispatch config
-	if q.Config["sql_source_dispatch"] == nil {
-		t.Error("sql_source_dispatch config not found")
-	}
-
-	// Verify other arguments are still present
-	if len(q.Arguments) != 3 {
-		t.Errorf("expected 3 arguments, got %d", len(q.Arguments))
-	}
-}
-
-func TestDispatchConfigBuilderChaining(t *testing.T) {
-	fraiseql.ClearRegistry()
-
-	fraiseql.Enum("Type", map[string]string{
-		"A": "a",
-		"B": "b",
-	})
-
-	type Item struct {
-		ID int `fraiseql:"id,type=Int"`
-	}
-
-	fraiseql.RegisterTypes(Item{})
-
-	// Test that builder chaining works
-	fraiseql.NewQuery("typed_items").
-		ReturnType(Item{}).
-		ReturnsArray(true).
-		SqlSourceDispatch("type", map[string]string{
-			"A": "t_items_a",
-			"B": "t_items_b",
-		}).
-		Arg("type", "Type", nil).
-		Description("Get items by type").
-		Register()
-
-	schema := fraiseql.GetSchema()
-	q := schema.Queries[0]
-
-	if q.Description != "Get items by type" {
-		t.Errorf("expected description 'Get items by type', got %s", q.Description)
-	}
-	if q.Config["sql_source_dispatch"] == nil {
-		t.Error("sql_source_dispatch not preserved after chaining")
+	if len(fraiseql.GetSchema().Queries) != 0 {
+		t.Error("a refused query must not be registered")
 	}
 }
