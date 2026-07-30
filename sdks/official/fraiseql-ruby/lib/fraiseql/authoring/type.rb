@@ -47,14 +47,27 @@ module FraiseQL
         @fraiseql_cascade
       end
 
+      # The type in the intermediate format, ready to be placed in a `types` array.
+      #
+      # `nullable` is required by the compiler and has no serde default, so omitting it
+      # made every export fail with `missing field \`nullable\`` — while the sibling
+      # `to_fraiseql_crud` in this same file built its field list correctly, so the SDK
+      # contradicted itself (#854).
+      #
+      # Field names are snake_case here to match `to_fraiseql_crud`. They used to be
+      # camelCased on this path only, so a type's fields and its generated CRUD arguments
+      # disagreed about the name of the same column.
+      #
+      # `deprecated` is not emitted: `IntermediateField` has no such member (only enum
+      # values and input fields carry one), so the key was discarded by the compiler — and
+      # is now refused outright, since the compiler denies unknown fields.
       def to_fraiseql_schema
         {
           name: @fraiseql_type_name,
           sql_source: fraiseql_sql_source,
           fields: @fraiseql_fields.map { |fname, fmeta|
-            { name: CrudGenerator.snake_to_camel(fname.to_s), type: fmeta[:type].to_s }.tap { |f|
+            { name: fname.to_s, type: fmeta[:type].to_s, nullable: !fmeta[:required] }.tap { |f|
               f[:description] = fmeta[:description] if fmeta[:description]
-              f[:deprecated] = true if fmeta[:deprecated]
             }
           }
         }

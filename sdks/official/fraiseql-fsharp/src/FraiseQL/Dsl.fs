@@ -217,6 +217,8 @@ module Dsl =
                 cache_ttl_seconds = s.cacheTtlSeconds
                 description = s.description
                 rest = s.rest
+                inject_params = None
+                requires_role = None
             }
 
         /// Sets the GraphQL return type.
@@ -310,6 +312,10 @@ module Dsl =
                 description = s.description
                 rest = s.rest
                 cascade = s.cascade
+                inject_params = None
+                requires_role = None
+                invalidates_views = None
+                invalidates_fact_tables = None
             }
 
         /// Sets the GraphQL return type.
@@ -381,6 +387,7 @@ module Dsl =
                 version = "2.0.0"
                 types = items |> List.choose (function TypeItem t -> Some t | _ -> None)
                 input_types = []
+                enums = []
                 queries = items |> List.choose (function QueryItem q -> Some q | _ -> None)
                 mutations = items |> List.choose (function MutationItem m -> Some m | _ -> None)
             }

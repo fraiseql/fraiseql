@@ -6,6 +6,7 @@
 //! - JSON export of schema with scope metadata
 
 use crate::field::Field;
+use serde::Serialize;
 use std::collections::HashMap;
 
 /// Error type for scope validation failures.
@@ -128,7 +129,36 @@ fn is_valid_resource(resource: &str) -> bool {
 /// to JSON format for the compiler.
 #[derive(Debug, Clone)]
 pub struct SchemaRegistry {
-    types: HashMap<String, Vec<Field>>,
+    types: HashMap<String, RegisteredType>,
+}
+
+/// One registered type: its fields and the SQL relation backing it.
+#[derive(Debug, Clone)]
+struct RegisteredType {
+    fields: Vec<Field>,
+    sql_source: Option<String>,
+}
+
+/// A type as it is written to `schema.json`.
+#[derive(Serialize)]
+struct SerializedType<'a> {
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sql_source: Option<&'a str>,
+    fields: Vec<Field>,
+}
+
+/// The document written to `schema.json`.
+///
+/// The previous export produced a bare map keyed by type name — `{"User": {...}}` — with
+/// no `types` key at all. The compiler reads `types` as an array of objects, so it saw a
+/// schema with **zero** types, reported `✓ Schema compiled successfully`, and wrote an
+/// artifact containing none of the author's work (#855). A silent success is the one
+/// outcome worse than a rejection.
+#[derive(Serialize)]
+struct SerializedSchema<'a> {
+    version: &'a str,
+    types: Vec<SerializedType<'a>>,
 }
 
 impl SchemaRegistry {
@@ -146,7 +176,34 @@ impl SchemaRegistry {
     /// * `type_name` - Name of the type (e.g., "User", "Post")
     /// * `fields` - Vector of Field definitions
     pub fn register_type(&mut self, type_name: &str, fields: Vec<Field>) {
-        self.types.insert(type_name.to_string(), fields);
+        self.types.insert(
+            type_name.to_string(),
+            RegisteredType {
+                fields,
+                sql_source: None,
+            },
+        );
+    }
+
+    /// Registers a type together with the SQL view backing it.
+    ///
+    /// # Arguments
+    /// * `type_name` - Name of the type (e.g., "User", "Post")
+    /// * `fields` - Vector of Field definitions
+    /// * `sql_source` - The backing view, e.g. `v_user`
+    pub fn register_type_with_source(
+        &mut self,
+        type_name: &str,
+        fields: Vec<Field>,
+        sql_source: &str,
+    ) {
+        self.types.insert(
+            type_name.to_string(),
+            RegisteredType {
+                fields,
+                sql_source: Some(sql_source.to_string()),
+            },
+        );
     }
 
     /// Gets registered fields for a type.
@@ -158,7 +215,7 @@ impl SchemaRegistry {
     /// Option containing reference to field vector, or None if type not found
     #[must_use]
     pub fn get_type(&self, type_name: &str) -> Option<&Vec<Field>> {
-        self.types.get(type_name)
+        self.types.get(type_name).map(|registered| &registered.fields)
     }
 
     /// Extracts all fields that have scope requirements.
@@ -174,8 +231,9 @@ impl SchemaRegistry {
     pub fn extract_scoped_fields(&self) -> HashMap<String, Vec<String>> {
         let mut scoped = HashMap::new();
 
-        for (type_name, fields) in &self.types {
-            let scoped_fields: Vec<String> = fields
+        for (type_name, registered) in &self.types {
+            let scoped_fields: Vec<String> = registered
+                .fields
                 .iter()
                 .filter(|f| f.requires_scope.is_some() || f.requires_scopes.is_some())
                 .map(|f| f.name.clone())
@@ -189,26 +247,43 @@ impl SchemaRegistry {
         scoped
     }
 
-    /// Exports schema to JSON format with all metadata.
+    /// Exports the registry as a `schema.json` document for `fraiseql compile`.
     ///
     /// # Returns
-    /// JSON string representation of types and scopes
+    /// A JSON string of the form `{"version": "2.0.0", "types": [...]}`.
+    ///
+    /// Built with `serde_json`, not string concatenation: the previous implementation
+    /// interpolated raw values into JSON string literals, so a single `"` in a name,
+    /// scope or description produced output that is not parseable JSON (#855).
+    ///
+    /// # Panics
+    ///
+    /// Panics when a field declares more than one required scope; see
+    /// [`Field::normalized`].
     #[must_use]
     pub fn export_to_json(&self) -> String {
-        let mut type_jsons = vec![];
+        // Sorted so the export is byte-stable across runs — `HashMap` iteration order is
+        // not, and an unstable artifact makes every diff of a checked-in schema.json noise.
+        let mut names: Vec<&String> = self.types.keys().collect();
+        names.sort();
 
-        for (type_name, fields) in &self.types {
-            let mut field_jsons = vec![];
-            for field in fields {
-                field_jsons.push(field.to_json());
-            }
+        let document = SerializedSchema {
+            version: "2.0.0",
+            types: names
+                .into_iter()
+                .map(|name| {
+                    let registered = &self.types[name];
+                    SerializedType {
+                        name,
+                        sql_source: registered.sql_source.as_deref(),
+                        fields: registered.fields.iter().map(Field::normalized).collect(),
+                    }
+                })
+                .collect(),
+        };
 
-            let fields_json = format!("\"fields\":[{}]", field_jsons.join(","));
-            let type_json = format!("\"{type_name}\":{{{fields_json}}}");
-            type_jsons.push(type_json);
-        }
-
-        format!("{{{}}}", type_jsons.join(","))
+        serde_json::to_string_pretty(&document)
+            .expect("the schema document contains only strings and bools")
     }
 }
 

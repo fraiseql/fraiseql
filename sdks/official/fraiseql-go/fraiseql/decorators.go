@@ -293,6 +293,20 @@ func (qb *QueryBuilder) Register() error {
 		}
 	}
 
+	// `sql_source_dispatch` has no consumer anywhere in the compiler — not in the
+	// intermediate schema, not in the converter, not in the compiled artifact. It used
+	// to be emitted under `config`, which made the whole schema uncompilable; dropping
+	// it silently would be worse, since the author would get a clean compile and a query
+	// that never dispatches. Refusing is the only outcome that is not a lie.
+	if _, dispatching := qb.config["sql_source_dispatch"]; dispatching {
+		return fmt.Errorf(
+			"query %q sets SqlSourceDispatch, which the compiler does not implement: "+
+				"no compiled schema carries dynamic source selection, so the setting "+
+				"would have no effect. Declare one query per source instead",
+			qb.name,
+		)
+	}
+
 	return RegisterQuery(definition)
 }
 

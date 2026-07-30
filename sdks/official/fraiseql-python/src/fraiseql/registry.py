@@ -70,12 +70,18 @@ class SchemaRegistry:
             "type": field_info["type"],
             "nullable": field_info["nullable"],
         }
+        # `computed` is deliberately absent. It is an authoring-time flag: `crud.py` reads
+        # it to decide which fields to omit from the input types *it* generates, and that
+        # generation happens here, before export. The compiler has no `crud` concept and
+        # `IntermediateField` has no `computed` member, so emitting it produced a
+        # `schema.json` the compiler refuses outright — `@fraiseql.field(computed=True)`
+        # made a schema uncompilable, with the error naming a key the author had every
+        # reason to think was supported.
         optional_keys = (
             "requires_scope",
             "on_deny",
             "deprecated",
             "description",
-            "computed",
             "federation",
         )
         for key in optional_keys:
@@ -549,13 +555,19 @@ class SchemaRegistry:
         # `IntermediateSchema.custom_scalars: Vec<IntermediateScalar>`. This used to emit
         # `customScalars` as an object keyed by name, with a `validate: True` flag — three
         # mismatches at once (key, container, element shape), so no Python-declared custom
-        # scalar had ever reached a compiled schema and no scalar validation ever ran.
+        # scalar had ever reached a compiled schema.
         #
-        # `validate` is deliberately not emitted. The compiler's ValidationRule is
-        # declarative (Pattern/Length/Range/Enum); a Python `validate()` method cannot be
-        # lowered into one, so the flag was a claim about runtime behaviour that no compiled
-        # artifact could honour. Scalar *types* are now registered; declarative rules need an
-        # authoring surface that does not exist yet.
+        # No `validate` flag and no `validation_rules` are emitted, and adding a regex or
+        # bounds parameter to `@scalar` would not help: `CompiledSchema.custom_scalars` is
+        # `#[serde(skip)]`, so the compiler's own registry is dropped when the schema is
+        # written, and no part of the server reads scalar rules back. The compiler now
+        # refuses a scalar that declares `validation_rules` rather than accepting a
+        # constraint nothing can enforce.
+        #
+        # What a custom scalar *does* do is make the name known to the compiler, so a field
+        # typed with it resolves as a scalar rather than an object reference. Enforcement
+        # belongs in the database (a CHECK constraint or a domain type) or in the mutation's
+        # SQL function.
         if cls._custom_scalars:
             schema["custom_scalars"] = [
                 {

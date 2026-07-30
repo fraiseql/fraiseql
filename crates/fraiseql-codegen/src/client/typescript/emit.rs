@@ -548,9 +548,20 @@ fn const_name(name: &str) -> String {
     out
 }
 
+/// Emit one author-supplied description as a single-line `JSDoc` comment.
+///
+/// This is the one place every description in the generated client passes through —
+/// types, fields, enums, inputs, unions, interfaces, queries and mutations all call it.
+///
+/// The description is schema-author-controlled text being interpolated into a comment,
+/// so the comment terminator has to be neutralised: without it, a description containing
+/// `*/` closes the comment early and everything after it becomes *code* in the generated
+/// client. `*\/` is the conventional `JSDoc` escape — the backslash breaks the `*/` pair
+/// without the reader losing the characters, and no `JavaScript` or `TypeScript` parser
+/// treats it as a terminator.
 fn push_doc(out: &mut String, indent: &str, description: Option<&str>) {
     if let Some(desc) = description {
-        let one_line = desc.replace('\n', " ");
+        let one_line = desc.replace('\n', " ").replace("*/", "*\\/");
         let _ = writeln!(out, "{indent}/** {one_line} */");
     }
 }
@@ -572,3 +583,6 @@ fn finish(mut out: String) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests;

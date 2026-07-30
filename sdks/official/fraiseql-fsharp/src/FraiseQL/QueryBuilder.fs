@@ -24,6 +24,8 @@ module QueryBuilder =
             cacheTtlSeconds: int option
             description: string option
             rest: RestConfig option
+            injectParams: Map<string, string>
+            requiresRole: string option
         }
 
     /// Creates a new <see cref="QueryState"/> for the given query name.
@@ -38,6 +40,8 @@ module QueryBuilder =
             cacheTtlSeconds = None
             description = None
             rest = None
+            injectParams = Map.empty
+            requiresRole = None
         }
 
     /// Sets the GraphQL return type for this query.
@@ -67,6 +71,14 @@ module QueryBuilder =
     /// Sets the optional REST endpoint annotation.
     let rest (cfg: RestConfig) (s: QueryState) : QueryState = { s with rest = Some cfg }
 
+    /// Declares a server-injected parameter, not exposed as a GraphQL argument.
+    /// `source` is of the form `"jwt:&lt;claim&gt;"`.
+    let inject (parameter: string) (source: string) (s: QueryState) : QueryState =
+        { s with injectParams = Map.add parameter source s.injectParams }
+
+    /// Restricts this query to callers holding the given role.
+    let requiresRole (role: string) (s: QueryState) : QueryState = { s with requiresRole = Some role }
+
     /// Converts the accumulated state into a <see cref="QueryDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
     let toDefinition (s: QueryState) : QueryDefinition =
@@ -86,6 +98,8 @@ module QueryBuilder =
             cache_ttl_seconds = s.cacheTtlSeconds
             description = s.description
             rest = s.rest
+            inject_params = (if Map.isEmpty s.injectParams then None else Some s.injectParams)
+            requires_role = s.requiresRole
         }
 
     /// Converts the state to a <see cref="QueryDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

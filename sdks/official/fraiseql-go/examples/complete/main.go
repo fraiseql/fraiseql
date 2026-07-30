@@ -162,8 +162,8 @@ func init() {
 	// Register fact tables for analytics
 	fraiseql.NewFactTable("revenue").
 		TableName("tf_revenue").
-		Measure("amount", "sum", "avg", "max", "min").
-		Measure("count", "count").
+		Measure("amount", "numeric", false).
+		Measure("count", "bigint", false).
 		Dimension("category", "data->>'category'", "text").
 		Dimension("region", "data->>'region'", "text").
 		Dimension("date", "date_trunc('day', date)::text", "text").

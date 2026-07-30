@@ -177,6 +177,8 @@ public class FraiseQL {
         private final String name;
         private String returnType;
         private boolean returnsArray = false;
+        private boolean nullable = false;
+        private String requiresRole = null;
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private boolean relay = false;
@@ -222,6 +224,33 @@ public class FraiseQL {
          */
         public QueryBuilder returnsArray(boolean returnsArray) {
             this.returnsArray = returnsArray;
+            return this;
+        }
+
+        /**
+         * Set whether this query's result may be null.
+         *
+         * <p>Defaults to false, matching the compiler's default. There was previously no
+         * way to say otherwise, so every Java-authored query was non-null.
+         *
+         * @param nullable true if the result may be null
+         * @return this builder for chaining
+         */
+        public QueryBuilder nullable(boolean nullable) {
+            this.nullable = nullable;
+            return this;
+        }
+
+        /**
+         * Restrict this query to callers holding a role.
+         *
+         * <p>The role also hides the query from introspection for callers without it.
+         *
+         * @param role the required role
+         * @return this builder for chaining
+         */
+        public QueryBuilder requiresRole(String role) {
+            this.requiresRole = role;
             return this;
         }
 
@@ -406,6 +435,7 @@ public class FraiseQL {
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }
+            registry.setQueryMetadata(name, nullable, requiresRole);
         }
     }
 
@@ -416,6 +446,8 @@ public class FraiseQL {
         private final String name;
         private String returnType;
         private boolean returnsArray = false;
+        private boolean nullable = false;
+        private String requiresRole = null;
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private String sqlSource = null;
@@ -450,6 +482,28 @@ public class FraiseQL {
          */
         public MutationBuilder returnType(String typeName) {
             this.returnType = typeName;
+            return this;
+        }
+
+        /**
+         * Set whether this mutation's result may be null.
+         *
+         * @param nullable true if the result may be null
+         * @return this builder for chaining
+         */
+        public MutationBuilder nullable(boolean nullable) {
+            this.nullable = nullable;
+            return this;
+        }
+
+        /**
+         * Restrict this mutation to callers holding a role.
+         *
+         * @param role the required role
+         * @return this builder for chaining
+         */
+        public MutationBuilder requiresRole(String role) {
+            this.requiresRole = role;
             return this;
         }
 
@@ -607,6 +661,7 @@ public class FraiseQL {
             } else {
                 registry.registerMutation(name, finalReturnType, arguments, description);
             }
+            registry.setMutationMetadata(name, nullable, requiresRole);
         }
     }
 

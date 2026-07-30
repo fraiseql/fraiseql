@@ -208,6 +208,8 @@ let ``reset clears all queries`` () =
             sql_source = "v_post"
             arguments = []
             cache_ttl_seconds = None
+            inject_params = None
+            requires_role = None
             description = None
             rest = None
         }
@@ -230,6 +232,10 @@ let ``reset clears all mutations`` () =
             description = None
             rest = None
             cascade = None
+            inject_params = None
+            requires_role = None
+            invalidates_views = None
+            invalidates_fact_tables = None
         }
 
     SchemaRegistry.registerMutation m
@@ -268,6 +274,8 @@ let ``registerQuery adds to getAllQueries`` () =
             sql_source = "v_post"
             arguments = []
             cache_ttl_seconds = None
+            inject_params = None
+            requires_role = None
             description = None
             rest = None
         }
@@ -291,6 +299,10 @@ let ``registerMutation adds to getAllMutations`` () =
             description = None
             rest = None
             cascade = None
+            inject_params = None
+            requires_role = None
+            invalidates_views = None
+            invalidates_fact_tables = None
         }
 
     SchemaRegistry.registerMutation m
@@ -312,6 +324,8 @@ let ``toIntermediateSchema includes all registered items`` () =
             sql_source = "v_post"
             arguments = []
             cache_ttl_seconds = None
+            inject_params = None
+            requires_role = None
             description = None
             rest = None
         }

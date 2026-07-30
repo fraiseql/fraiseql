@@ -24,6 +24,12 @@ type FieldDefinition =
         scope: string option
         /// When true, this field is server-computed and excluded from CRUD input types.
         /// Computed fields remain visible in query results.
+        ///
+        /// Authoring-time only, and therefore not serialised: `CrudGenerator` reads it to
+        /// decide which fields to omit from the input types it generates, and that runs
+        /// before export. `IntermediateField` has no `computed` member, so emitting it
+        /// produced a `schema.json` the compiler refuses outright.
+        [<JsonIgnore>]
         computed: bool
     }
 
@@ -92,6 +98,14 @@ type QueryDefinition =
         description: string option
         /// Optional REST endpoint annotation.
         rest: RestConfig option
+        /// Server-injected parameters, keyed by SQL parameter name, values `"jwt:<claim>"`.
+        ///
+        /// Not exposed as GraphQL arguments — this is how a query is scoped to the
+        /// caller's tenant. There was no field to carry one, so no F#-authored query
+        /// could compile with a tenant predicate.
+        inject_params: Map<string, string> option
+        /// Role required to execute this query and to see it in introspection.
+        requires_role: string option
     }
 
 /// Represents a GraphQL mutation (write operation).
@@ -114,6 +128,17 @@ type MutationDefinition =
         rest: RestConfig option
         /// When true, this mutation uses cascade delete/update semantics.
         cascade: bool option
+        /// Server-injected parameters, keyed by SQL parameter name, values `"jwt:<claim>"`.
+        inject_params: Map<string, string> option
+        /// Role required to execute this mutation.
+        requires_role: string option
+        /// Views whose cached query results must be invalidated after this mutation
+        /// succeeds. Without them a write and the cached reads of what it wrote have no
+        /// connection, and the new row stays invisible for the reader's whole TTL.
+        invalidates_views: string list option
+        /// Fact tables whose cached aggregates must be invalidated after this mutation.
+        /// Unlike views there is no inference fallback.
+        invalidates_fact_tables: string list option
     }
 
 /// Represents a GraphQL input object type used as a mutation argument.
@@ -128,6 +153,26 @@ type InputTypeDefinition =
         description: string option
     }
 
+/// A single member of a GraphQL enum.
+[<CLIMutable>]
+type EnumValueDefinition =
+    {
+        /// The member name, as it appears in a GraphQL document.
+        name: string
+    }
+
+/// Represents a GraphQL enum type.
+[<CLIMutable>]
+type EnumDefinition =
+    {
+        /// The enum type name (e.g., "OrderStatus").
+        name: string
+        /// The enum members, in declaration order.
+        values: EnumValueDefinition list
+        /// Optional human-readable description for introspection.
+        description: string option
+    }
+
 /// The root schema record serialized to schema.json.
 [<CLIMutable>]
 type IntermediateSchema =
@@ -138,6 +183,8 @@ type IntermediateSchema =
         types: TypeDefinition list
         /// All GraphQL input types defined in this schema.
         input_types: InputTypeDefinition list
+        /// All GraphQL enum types defined in this schema.
+        enums: EnumDefinition list
         /// All GraphQL queries defined in this schema.
         queries: QueryDefinition list
         /// All GraphQL mutations defined in this schema.

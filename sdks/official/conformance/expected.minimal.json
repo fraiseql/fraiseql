@@ -1,0 +1,48 @@
+{
+  "enums": {},
+  "field_description": {},
+  "field_scope": {},
+  "input_types": {},
+  "mutation_arguments": {},
+  "mutation_invalidates_fact_tables": {},
+  "mutation_invalidates_views": {},
+  "mutations": {},
+  "queries": {
+    "users": {
+      "nullable": false,
+      "return_type": "User",
+      "returns_list": true,
+      "sql_source": "v_user"
+    }
+  },
+  "query_arguments": {
+    "users": []
+  },
+  "query_cache_ttl": {},
+  "query_inject_params": {},
+  "query_requires_role": {},
+  "type_is_error": [],
+  "type_relay": {
+    "connection_types_synthesized": [],
+    "flagged": [],
+    "implements_node": [],
+    "node_interface_synthesized": false
+  },
+  "types": {
+    "User": {
+      "fields": [
+        {
+          "name": "id",
+          "nullable": false,
+          "type": "ID"
+        },
+        {
+          "name": "email",
+          "nullable": false,
+          "type": "String"
+        }
+      ],
+      "sql_source": "v_user"
+    }
+  }
+}

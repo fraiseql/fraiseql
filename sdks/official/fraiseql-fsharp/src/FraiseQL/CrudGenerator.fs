@@ -121,6 +121,8 @@ module CrudGenerator =
                             }
                         ]
                     cache_ttl_seconds = None
+                    inject_params = None
+                    requires_role = None
                     description = Some(sprintf "Get %s by ID." typeName)
                     rest = None
                 }
@@ -133,6 +135,8 @@ module CrudGenerator =
                     sql_source = view
                     arguments = []
                     cache_ttl_seconds = None
+                    inject_params = None
+                    requires_role = None
                     description = Some(sprintf "List %s records." typeName)
                     rest = None
                 }
@@ -157,6 +161,10 @@ module CrudGenerator =
                     description = Some(sprintf "Create a new %s." typeName)
                     rest = None
                     cascade = cascadeValue
+                    inject_params = None
+                    requires_role = None
+                    invalidates_views = None
+                    invalidates_fact_tables = None
                 }
                 // Update mutation — single input object argument
                 {
@@ -175,6 +183,10 @@ module CrudGenerator =
                     description = Some(sprintf "Update an existing %s." typeName)
                     rest = None
                     cascade = cascadeValue
+                    inject_params = None
+                    requires_role = None
+                    invalidates_views = None
+                    invalidates_fact_tables = None
                 }
                 // Delete mutation — PK only (unchanged)
                 {
@@ -193,6 +205,10 @@ module CrudGenerator =
                     description = Some(sprintf "Delete a %s." typeName)
                     rest = None
                     cascade = cascadeValue
+                    inject_params = None
+                    requires_role = None
+                    invalidates_views = None
+                    invalidates_fact_tables = None
                 }
             ]
 

@@ -1707,6 +1707,91 @@ mod multi_file_loader_tests {
         Ok(())
     }
 
+    /// Two explicitly-listed files declaring the same name is the same authoring mistake
+    /// as two files in a directory declaring it, and must be reported the same way.
+    ///
+    /// `load_from_directory_with_tracking` detected duplicates across every named section;
+    /// `load_from_paths` — the `--schema-file a.json --schema-file b.json` path, and the
+    /// one the TOML merger calls — did not. Both definitions were silently concatenated,
+    /// so which one the compiler used depended on argument order.
+    #[test]
+    fn load_from_paths_rejects_a_duplicate_name_across_files() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+
+        let schema1 = json!({"types": [{"name": "User", "fields": []}]});
+        create_test_file(temp_dir.path(), "a.json", &schema1.to_string())?;
+        let schema2 = json!({"types": [{"name": "User", "fields": []}]});
+        create_test_file(temp_dir.path(), "b.json", &schema2.to_string())?;
+
+        let paths = vec![
+            temp_dir.path().join("a.json"),
+            temp_dir.path().join("b.json"),
+        ];
+        let error = MultiFileLoader::load_from_paths(&paths)
+            .expect_err("a duplicate type across two listed files must be refused");
+
+        let message = error.to_string();
+        assert!(message.contains("User"), "the diagnostic must name the duplicate: {message}");
+        assert!(message.contains("a.json"), "the diagnostic must name both files: {message}");
+        assert!(message.contains("b.json"), "the diagnostic must name both files: {message}");
+
+        Ok(())
+    }
+
+    /// Detection covers every named section, not just `types` — the directory loader's
+    /// behaviour, now shared.
+    #[test]
+    fn load_from_paths_rejects_a_duplicate_in_any_section() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+
+        let schema1 = json!({"enums": [{"name": "Status", "values": [{"name": "A"}]}]});
+        create_test_file(temp_dir.path(), "a.json", &schema1.to_string())?;
+        let schema2 = json!({"enums": [{"name": "Status", "values": [{"name": "B"}]}]});
+        create_test_file(temp_dir.path(), "b.json", &schema2.to_string())?;
+
+        let paths = vec![
+            temp_dir.path().join("a.json"),
+            temp_dir.path().join("b.json"),
+        ];
+        let error = MultiFileLoader::load_from_paths(&paths)
+            .expect_err("a duplicate enum across two listed files must be refused");
+
+        assert!(
+            error.to_string().contains("enum 'Status'"),
+            "the diagnostic must name the section and the duplicate: {error}"
+        );
+
+        Ok(())
+    }
+
+    /// The same name in the *same* file twice is still one file's problem, and distinct
+    /// names across files still merge — the guard must not over-reject.
+    #[test]
+    fn load_from_paths_still_merges_distinct_names() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+
+        create_test_file(
+            temp_dir.path(),
+            "a.json",
+            &json!({"types": [{"name": "User", "fields": []}]}).to_string(),
+        )?;
+        create_test_file(
+            temp_dir.path(),
+            "b.json",
+            &json!({"types": [{"name": "Post", "fields": []}]}).to_string(),
+        )?;
+
+        let paths = vec![
+            temp_dir.path().join("a.json"),
+            temp_dir.path().join("b.json"),
+        ];
+        let merged = MultiFileLoader::load_from_paths(&paths)?;
+
+        assert_eq!(merged["types"].as_array().expect("types is an array").len(), 2);
+
+        Ok(())
+    }
+
     #[test]
     fn test_directory_file_count_limit_exceeded() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;

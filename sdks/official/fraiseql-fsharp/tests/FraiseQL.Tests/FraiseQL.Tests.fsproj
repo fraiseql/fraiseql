@@ -12,6 +12,7 @@
     <Compile Include="DslTests.fs" />
     <Compile Include="ClientTests.fs" />
     <Compile Include="GenerateParitySchemaTests.fs" />
+    <Compile Include="ConformanceExportTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />

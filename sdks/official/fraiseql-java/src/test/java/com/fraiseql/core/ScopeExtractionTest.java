@@ -187,7 +187,7 @@ public class ScopeExtractionTest {
         assertNotNull(schema);
 
         var json = mapper.readTree(schema);
-        var salaryField = json.get("types").get("ExportTestSingleScope").get("fields").get("salary");
+        var salaryField = SchemaNodes.field(SchemaNodes.byName(json, "types", "ExportTestSingleScope"), "salary");
 
         assertNotNull(salaryField.get("requires_scope"),
             "JSON should contain requires_scope field");
@@ -222,7 +222,7 @@ public class ScopeExtractionTest {
         assertNotNull(schema);
 
         var json = mapper.readTree(schema);
-        var idField = json.get("types").get("ExportTestPublicField").get("fields").get("id");
+        var idField = SchemaNodes.field(SchemaNodes.byName(json, "types", "ExportTestPublicField"), "id");
 
         assertNull(idField.get("requires_scope"),
             "Public field should not have requires_scope in JSON");

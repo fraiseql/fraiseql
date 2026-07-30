@@ -54,8 +54,8 @@ public class ExportTypesMinimalTest {
         assertNotNull(schema.get("types"), "Types section should not be null");
 
         // Should have User type
-        assertTrue(schema.get("types").has("User"), "Should contain User type");
-        JsonNode userType = schema.get("types").get("User");
+        assertTrue(SchemaNodes.has(schema, "types", "User"), "Should contain User type");
+        JsonNode userType = SchemaNodes.byName(schema, "types", "User");
         assertEquals("User", userType.get("name").asText(), "Type name should be User");
 
         // IMPORTANT: No queries, mutations, federation, security, observers, analytics
@@ -90,8 +90,8 @@ public class ExportTypesMinimalTest {
         JsonNode types = schema.get("types");
 
         assertEquals(2, types.size(), "Should have 2 types");
-        assertTrue(types.has("User"), "Should contain User");
-        assertTrue(types.has("Post"), "Should contain Post");
+        assertTrue(SchemaNodes.has(schema, "types", "User"), "Should contain User");
+        assertTrue(SchemaNodes.has(schema, "types", "Post"), "Should contain Post");
     }
 
     @Test
@@ -111,7 +111,7 @@ public class ExportTypesMinimalTest {
 
         // Should have types
         assertTrue(schema.has("types"), "Should have types");
-        assertTrue(schema.get("types").has("PostWithStatus"), "Should have PostWithStatus");
+        assertTrue(SchemaNodes.has(schema, "types", "PostWithStatus"), "Should have PostWithStatus");
     }
 
     @Test
@@ -143,7 +143,7 @@ public class ExportTypesMinimalTest {
 
         // Should only have the type
         assertEquals(1, schema.get("types").size(), "Should only have 1 type");
-        assertTrue(schema.get("types").has("User"), "Should have User type");
+        assertTrue(SchemaNodes.has(schema, "types", "User"), "Should have User type");
 
         // Queries and mutations should NOT be in types.json
         assertFalse(schema.has("queries") && schema.get("queries").size() > 0,

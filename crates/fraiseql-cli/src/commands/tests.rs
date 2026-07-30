@@ -37,9 +37,15 @@ mod cost_tests {
         let result = run(query);
 
         let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for score query: {e}"));
-        if let Some(data) = cmd_result.data {
-            assert!(data["complexity_score"].is_number());
-        }
+
+        // Asserted unconditionally. This used to sit inside `if let Some(data)`, so the
+        // test passed when the command returned no data at all — the one outcome that
+        // would mean the scorer had stopped working.
+        let data = cmd_result.data.expect("`cost` must return a payload, not None");
+        assert!(
+            data["complexity_score"].is_number(),
+            "complexity_score must be a number, got: {data}"
+        );
     }
 
     #[test]
@@ -76,23 +82,22 @@ mod cost_tests {
 }
 
 mod compile_tests {
-    use std::collections::HashMap;
-
-    use fraiseql_core::{
-        schema::{
-            ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
-            FieldDenyPolicy, FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
-            MutationDefinition, MutationOperation, NamingConvention, QueryDefinition,
-            TypeDefinition,
-        },
-        validation::CustomTypeRegistry,
+    use fraiseql_core::schema::{
+        ArgumentDefinition, AutoParams, CompiledSchema, FieldDefinition, FieldDenyPolicy,
+        FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
+        MutationOperation, NamingConvention, QueryDefinition, TypeDefinition,
     };
-    use indexmap::IndexMap;
 
     use super::super::compile::{
         WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg,
         infer_native_columns_from_arg_types, jsonb_preserve_mismatches, to_snake_case,
         wide_cascade_mutations,
+    };
+    use crate::schema::{
+        SchemaValidator,
+        intermediate::{
+            IntermediateField, IntermediateQuery, IntermediateSchema, IntermediateType,
+        },
     };
 
     fn mutation_with_fanout(
@@ -300,159 +305,80 @@ mod compile_tests {
         assert!(jsonb_preserve_mismatches(&schema).is_empty());
     }
 
+    /// A query whose return type is a declared type validates clean.
+    ///
+    /// This and its sibling below replaced two tests that built ~100-line `CompiledSchema`
+    /// literals and then asserted only that the literal contained what had just been put
+    /// in it — `schema.types.len() == 1`, `schema.queries[0].return_type == "UnknownType"`
+    /// — with comments admitting the validation they were named after was never reached.
+    /// They ran `SchemaValidator` not at all, so they passed for any behaviour it could
+    /// have had, including none.
     #[test]
-    fn test_validate_schema_success() {
-        let schema = CompiledSchema {
-            types: vec![TypeDefinition {
-                name:                "User".into(),
-                fields:              vec![
-                    FieldDefinition {
-                        name:           "id".into(),
-                        field_type:     FieldType::Int,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
-                        requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        authorize:      false,
-                        encryption:     None,
-                        hierarchy:      None,
-                    },
-                    FieldDefinition {
-                        name:           "name".into(),
-                        field_type:     FieldType::String,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
-                        requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        authorize:      false,
-                        encryption:     None,
-                        hierarchy:      None,
-                    },
-                ],
-                description:         Some("User type".to_string()),
-                sql_source:          String::new().into(),
-                jsonb_column:        String::new(),
-                sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                internal:            false,
-                embedded:            false,
-                relationships:       Vec::new(),
-                subscription_policy: None,
+    fn validate_accepts_a_query_returning_a_declared_type() {
+        let schema = IntermediateSchema {
+            types: vec![IntermediateType {
+                name: "User".into(),
+                fields: vec![IntermediateField {
+                    name:           "id".into(),
+                    field_type:     "ID".into(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
+                    requires_scope: None,
+                    on_deny:        None,
+                    authorize:      None,
+                    hierarchy:      None,
+                }],
+                sql_source: Some("v_user".into()),
+                ..Default::default()
             }],
-            queries: vec![QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "User".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![],
-                sql_source:          Some("v_user".to_string()),
-                description:         Some("Get users".to_string()),
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
-                relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+            queries: vec![IntermediateQuery {
+                name: "users".into(),
+                return_type: "User".into(),
+                returns_list: true,
+                sql_source: Some("v_user".into()),
+                ..Default::default()
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            directives: vec![],
-            observers: Vec::new(),
-            fact_tables: HashMap::default(),
-            federation: None,
-            security: None,
-            observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config: None,
-            mcp_config: None,
-            schema_sdl: None,
-            // None is intentional here: this struct is used only for in-process
-            // validation assertions and is never serialised to disk.
-            schema_format_version: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
-        // Validation is done inside SchemaConverter::convert, not exposed separately
-        // This test just verifies we can build a valid schema structure
-        assert_eq!(schema.types.len(), 1);
-        assert_eq!(schema.queries.len(), 1);
+        let report = SchemaValidator::validate(&schema)
+            .unwrap_or_else(|e| panic!("validation should not have errored: {e}"));
+
+        assert!(
+            report.errors.is_empty(),
+            "a query returning a declared type must validate clean, got: {:?}",
+            report.errors
+        );
     }
 
+    /// A query returning a type nothing declares is an error, and the error names it.
     #[test]
-    fn test_validate_schema_unknown_type() {
-        let schema = CompiledSchema {
+    fn validate_rejects_a_query_returning_an_undeclared_type() {
+        let schema = IntermediateSchema {
             types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "UnknownType".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![],
-                sql_source:          Some("v_user".to_string()),
-                description:         Some("Get users".to_string()),
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
-                relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+            queries: vec![IntermediateQuery {
+                name: "users".into(),
+                return_type: "UnknownType".into(),
+                returns_list: true,
+                sql_source: Some("v_user".into()),
+                ..Default::default()
             }],
-            mutations: vec![],
-            subscriptions: vec![],
-            directives: vec![],
-            observers: Vec::new(),
-            fact_tables: HashMap::default(),
-            federation: None,
-            security: None,
-            observers_config: None,
-            subscriptions_config: None,
-            validation_config: None,
-            debug_config: None,
-            mcp_config: None,
-            schema_sdl: None,
-            schema_format_version: None,
-            custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
 
-        // Note: Validation is private to SchemaConverter
-        assert_eq!(schema.types.len(), 0);
-        assert_eq!(schema.queries[0].return_type, "UnknownType");
+        let report = SchemaValidator::validate(&schema)
+            .unwrap_or_else(|e| panic!("validation should report, not error: {e}"));
+
+        assert!(
+            !report.errors.is_empty(),
+            "a query returning an undeclared type must be reported"
+        );
+        assert!(
+            report.errors.iter().any(|e| format!("{e:?}").contains("UnknownType")),
+            "the diagnostic must name the undeclared type, got: {:?}",
+            report.errors
+        );
     }
 
     fn make_query(
@@ -3212,5 +3138,67 @@ mod doctor_runtime_tests {
         m.arguments.push(ArgumentDefinition::new("name", FieldType::String));
         schema.mutations.push(m);
         assert!(minimal_mutation_probe(&schema.mutations[0], &schema).is_none());
+    }
+}
+
+/// The DDL table/column namer is the acronym-aware one, not a second local implementation.
+///
+/// `commands::compile` carried its own `to_snake_case` that inserted a separator before
+/// every uppercase character, so `HTTPServer` became `h_t_t_p_server` in emitted DDL while
+/// the rest of the pipeline — which installs `fraiseql_core::utils::casing` at
+/// `compile.rs:255` and uses it for JSONB key derivation — produced `http_server`. Two
+/// casing systems that disagree about the same name produce DDL for a table the runtime
+/// never looks in.
+#[test]
+fn ddl_snake_case_is_acronym_aware() {
+    for (input, expected) in [
+        ("ID", "id"),
+        ("HTTPServer", "http_server"),
+        ("IOError", "io_error"),
+        ("User", "user"),
+        ("UserProfile", "user_profile"),
+        ("userID", "user_id"),
+        // A registered `<word><digit>` acronym stays whole.
+        ("s3Bucket", "s3_bucket"),
+        ("oauth2Token", "oauth2_token"),
+    ] {
+        assert_eq!(
+            super::compile::to_snake_case(input),
+            expected,
+            "{input} must lower to {expected}"
+        );
+    }
+}
+
+/// The DDL namer and the rest of the pipeline must be the *same* function, not two that
+/// happen to agree on the cases someone thought to test.
+///
+/// `OAuth2Token` is in this list deliberately. It lowers to `o_auth_2_token`, not
+/// `oauth2_token`: the acronym registry matches a `<word><digit>` token, and PascalCase
+/// splits `OAuth` into `O` + `Auth` before the digit is reached, so `oauth2` is never the
+/// candidate. The camelCase spelling the SDKs actually emit — `oauth2Token` — does lower
+/// correctly. Widening the rule would mean suppressing the boundary after a single leading
+/// capital, which also turns `XRay` into `xray` and `AToken` into `atoken`; this function
+/// is the engine's one JSONB-key rule, so that is not a trade to make for a type name.
+/// What matters here, and what this test pins, is that both namers agree.
+#[test]
+fn ddl_snake_case_matches_the_pipeline_namer() {
+    for name in [
+        "ID",
+        "HTTPServer",
+        "OAuth2Token",
+        "oauth2Token",
+        "IOError",
+        "User",
+        "UserProfile",
+        "userID",
+        "phone1",
+        "s3Bucket",
+    ] {
+        assert_eq!(
+            super::compile::to_snake_case(name),
+            fraiseql_core::utils::to_snake_case(name),
+            "the DDL namer disagrees with the pipeline namer about {name:?}"
+        );
     }
 }

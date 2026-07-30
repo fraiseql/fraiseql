@@ -58,7 +58,13 @@ type QueryDefinition struct {
 	RequiresRole      string                 `json:"requires_role,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
 	Rest              *RestAnnotation        `json:"rest,omitempty"`
-	Config            map[string]interface{} `json:"config,omitempty"`
+	// Config is an SDK-internal bag of builder settings and is never serialized: the
+	// compiler has no `config` key and, denying unknown fields, rejects the whole
+	// schema when it sees one. The only thing that ever reached it was
+	// `sql_source_dispatch`, which has no consumer anywhere in the compiler either —
+	// so emitting it turned a working schema into an uncompilable one in exchange for
+	// nothing. `SqlSourceDispatch` now refuses at Register() instead.
+	Config map[string]interface{} `json:"-"`
 }
 
 // MutationDefinition represents a GraphQL mutation
@@ -77,16 +83,54 @@ type MutationDefinition struct {
 	Cascade              bool                   `json:"cascade,omitempty"`
 	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
 	Rest                 *RestAnnotation        `json:"rest,omitempty"`
-	Config               map[string]interface{} `json:"config,omitempty"`
+	// See QueryDefinition.Config — an SDK-internal bag, never serialized.
+	Config map[string]interface{} `json:"-"`
 }
 
-// FactTableDefinition represents a GraphQL fact table for analytics
+// MeasureDefinition is one numeric measure column on a fact table.
+//
+// The compiler reads `measures` as a list of objects. This used to be `[]string` carrying
+// `"revenue:sum"`-shaped entries — a measure name fused with an aggregation function —
+// which fails deserialization outright, so no Go analytics export could be compiled. The
+// aggregation functions are not part of the declaration: `auto_aggregates` on the
+// aggregate query derives them.
+type MeasureDefinition struct {
+	Name     string `json:"name"`
+	SqlType  string `json:"sql_type"`
+	Nullable bool   `json:"nullable"`
+}
+
+// DimensionPathDefinition locates one dimension inside the fact table's JSONB.
+type DimensionPathDefinition struct {
+	Name     string `json:"name"`
+	JsonPath string `json:"json_path"`
+	DataType string `json:"data_type"`
+}
+
+// DimensionsDefinition is the fact table's named group of dimension paths.
+type DimensionsDefinition struct {
+	Name  string                    `json:"name"`
+	Paths []DimensionPathDefinition `json:"paths"`
+}
+
+// FilterDefinition is a denormalized filter column on the fact table.
+type FilterDefinition struct {
+	Name    string `json:"name"`
+	SqlType string `json:"sql_type"`
+	Indexed bool   `json:"indexed"`
+}
+
+// FactTableDefinition represents a GraphQL fact table for analytics.
+//
+// The shape mirrors the compiler's `IntermediateFactTable`: `table_name`, object
+// `measures`, a `dimensions` group and `denormalized_filters`. It previously carried a
+// `name` the compiler does not read and `dimension_paths` where the compiler reads a
+// `dimensions` object, on top of the `measures` mismatch above.
 type FactTableDefinition struct {
-	Name           string                   `json:"name"`
-	TableName      string                   `json:"table_name"`
-	Measures       []string                 `json:"measures"`
-	DimensionPaths []map[string]interface{} `json:"dimension_paths"`
-	Description    string                   `json:"description,omitempty"`
+	TableName           string               `json:"table_name"`
+	Measures            []MeasureDefinition  `json:"measures"`
+	Dimensions          DimensionsDefinition `json:"dimensions"`
+	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`
 }
 
 // AggregateQueryDefinition represents a GraphQL aggregate query
@@ -96,7 +140,8 @@ type AggregateQueryDefinition struct {
 	AutoGroupBy    bool                   `json:"auto_group_by"`
 	AutoAggregates bool                   `json:"auto_aggregates"`
 	Description    string                 `json:"description,omitempty"`
-	Config         map[string]interface{} `json:"config,omitempty"`
+	// See QueryDefinition.Config — an SDK-internal bag, never serialized.
+	Config map[string]interface{} `json:"-"`
 }
 
 // SubscriptionDefinition represents a GraphQL subscription
@@ -124,13 +169,35 @@ type EnumDefinition struct {
 	Values []EnumValueDefinition `json:"values"`
 }
 
-// Schema represents the complete GraphQL schema
+// InputObjectDefinition represents a GraphQL input object type (spec §3.10).
+//
+// Input objects are the only legal type for a mutation argument. Without them a Go
+// author had to declare the argument as an output type, producing a schema that
+// introspection-driven clients reject and that fails federation composition.
+type InputObjectDefinition struct {
+	Name        string      `json:"name"`
+	Fields      []FieldInfo `json:"fields"`
+	Description string      `json:"description,omitempty"`
+}
+
+// Schema represents the complete GraphQL schema.
+//
+// Every slice carries `omitempty`. GetSchema starts from a zero Schema{} and only
+// appends, so a category with no registrations stays nil — and a nil slice marshals to
+// JSON `null`, not `[]`. The compiler's `#[serde(default)] Vec<T>` covers an *absent*
+// key but hands an explicit `null` to Vec::deserialize, which fails the whole compile
+// with `invalid type: null, expected a sequence` and no indication of which key is at
+// fault. Types/Queries/Mutations/Subscriptions lacked `omitempty` while their siblings
+// had it, and subscriptions are the common trigger because almost no schema registers
+// one: every shipped Go example printed "✅ Schema exported successfully" and was then
+// rejected by the very next command it told the user to run (#850).
 type Schema struct {
-	Types            []TypeDefinition           `json:"types"`
+	Types            []TypeDefinition           `json:"types,omitempty"`
 	Enums            []EnumDefinition           `json:"enums,omitempty"`
-	Queries          []QueryDefinition          `json:"queries"`
-	Mutations        []MutationDefinition       `json:"mutations"`
-	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
+	InputTypes       []InputObjectDefinition    `json:"input_types,omitempty"`
+	Queries          []QueryDefinition          `json:"queries,omitempty"`
+	Mutations        []MutationDefinition       `json:"mutations,omitempty"`
+	Subscriptions    []SubscriptionDefinition   `json:"subscriptions,omitempty"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
 	Observers        []ObserverDefinition       `json:"observers,omitempty"`
@@ -152,6 +219,7 @@ type SchemaRegistry struct {
 	mu               sync.RWMutex
 	types            map[string]TypeDefinition
 	enums            map[string]EnumDefinition
+	inputTypes       map[string]InputObjectDefinition
 	queries          map[string]QueryDefinition
 	mutations        map[string]MutationDefinition
 	subscriptions    map[string]SubscriptionDefinition
@@ -278,10 +346,12 @@ func RegisterFactTable(definition FactTableDefinition) error {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
-	if _, exists := reg.factTables[definition.Name]; exists {
-		return fmt.Errorf("fact table %q is already registered; each name must be unique within a schema", definition.Name)
+	// Keyed by `table_name`: the compiler's `IntermediateFactTable` has no `name`, and
+	// the backing table is what makes two declarations the same fact table.
+	if _, exists := reg.factTables[definition.TableName]; exists {
+		return fmt.Errorf("fact table %q is already registered; each table must be declared once within a schema", definition.TableName)
 	}
-	reg.factTables[definition.Name] = definition
+	reg.factTables[definition.TableName] = definition
 	return nil
 }
 
@@ -356,6 +426,10 @@ func GetSchema() Schema {
 		schema.Enums = append(schema.Enums, enumDef)
 	}
 
+	for _, inputDef := range reg.inputTypes {
+		schema.InputTypes = append(schema.InputTypes, inputDef)
+	}
+
 	for _, queryDef := range reg.queries {
 		schema.Queries = append(schema.Queries, queryDef)
 	}
@@ -413,6 +487,7 @@ func Reset() {
 
 	reg.types = make(map[string]TypeDefinition)
 	reg.enums = make(map[string]EnumDefinition)
+	reg.inputTypes = make(map[string]InputObjectDefinition)
 	reg.queries = make(map[string]QueryDefinition)
 	reg.mutations = make(map[string]MutationDefinition)
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
@@ -446,6 +521,24 @@ func Enum(name string, values map[string]string) {
 		Name:   name,
 		Values: enumValues,
 	}
+}
+
+// RegisterInputType registers a GraphQL input object type with the schema registry.
+// Returns an error if a name is registered twice.
+func RegisterInputType(name string, fields []FieldInfo, description string) error {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	if _, exists := reg.inputTypes[name]; exists {
+		return fmt.Errorf("input type %q is already registered; each name must be unique within a schema", name)
+	}
+	reg.inputTypes[name] = InputObjectDefinition{
+		Name:        name,
+		Fields:      fields,
+		Description: description,
+	}
+	return nil
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them

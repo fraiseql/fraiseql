@@ -466,7 +466,16 @@ export class SchemaRegistry {
       implements?: string[];
     }
   ): void {
-    if (this.types.has(name)) {
+    // `@Type()` registers the name with no fields, because TypeScript erases field
+    // types and the decorator has nothing else to record. The documented follow-up is
+    // `registerTypeFields(name, [...])` — which used to hit this duplicate guard and
+    // throw, so the pairing shown in `registerTypeFields`'s own docstring was
+    // impossible and `@Type()` had no way to ever acquire fields (#733).
+    //
+    // A fieldless prior registration is therefore completed, not rejected. Two
+    // registrations that both carry fields are still a genuine name collision.
+    const existing = this.types.get(name);
+    if (existing && (existing.fields.length > 0 || fields.length === 0)) {
       throw new Error(
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );

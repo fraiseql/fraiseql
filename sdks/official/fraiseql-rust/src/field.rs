@@ -12,24 +12,37 @@
 //!     .with_requires_scope(Some("read:user.email".to_string()));
 //! ```
 
+use serde::Serialize;
+
 /// Represents a GraphQL field definition with optional scope requirements.
 ///
 /// Fields can have scope-based access control through either a single scope
 /// or multiple scopes (all required). Scope format is `action:resource`
 /// (e.g., `read:user.email`, `admin:*`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Field {
     /// Field name (e.g., "email", "password")
     pub name: String,
     /// GraphQL field type (e.g., "String", "Int", "User")
+    ///
+    /// The wire key is `type`, not `field_type` — the intermediate format is
+    /// language-agnostic and every other SDK spells it that way.
+    #[serde(rename = "type")]
     pub field_type: String,
     /// Whether field is nullable in GraphQL (default: true)
     pub nullable: bool,
     /// Single required scope for field access (e.g., "read:user.email")
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_scope: Option<String>,
     /// Multiple required scopes (all must be satisfied)
+    ///
+    /// Never serialized directly: the compiled schema and the runtime field filter
+    /// represent exactly one required scope, so [`Field::normalized`] folds a singleton
+    /// into `requires_scope` and refuses anything longer.
+    #[serde(skip)]
     pub requires_scopes: Option<Vec<String>>,
     /// Optional field description
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
@@ -131,6 +144,34 @@ impl Field {
         self
     }
 
+    /// The field as it is written to `schema.json`, with scopes normalized.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the field declares more than one required scope. The compiled schema
+    /// and the runtime field filter represent exactly one `requires_scope`, so a
+    /// multi-scope declaration cannot be honoured; emitting it produced a field with no
+    /// scope at all — silently public (#807). Failing loudly at authoring time is the
+    /// only outcome that does not ship an ungated field.
+    #[must_use]
+    pub fn normalized(&self) -> Self {
+        let mut field = self.clone();
+        if let Some(scopes) = self.requires_scopes.as_deref() {
+            match scopes {
+                [] => {},
+                [only] => field.requires_scope = Some(only.clone()),
+                many => panic!(
+                    "field `{}` declares {} required scopes; multiple required scopes are not \
+                     supported — use `with_requires_scope` with a single scope",
+                    self.name,
+                    many.len()
+                ),
+            }
+        }
+        field.requires_scopes = None;
+        field
+    }
+
     /// Serializes field to JSON string.
     ///
     /// # Example output:
@@ -143,50 +184,19 @@ impl Field {
     /// }
     /// ```
     ///
+    /// Built with `serde_json`, not string concatenation. The previous implementation
+    /// interpolated raw values into JSON string literals, so a `"` or `\` anywhere in a
+    /// name, scope or description produced text that is not parseable JSON — a
+    /// description as ordinary as `the user's "display" name` broke the export, and the
+    /// CLI failed at a byte offset rather than naming a field (#855).
+    ///
     /// # Panics
     ///
-    /// Panics when the field declares more than one required scope. The compiled schema
-    /// and the runtime field filter represent exactly one `requires_scope`, so a
-    /// multi-scope declaration cannot be honoured; emitting it produced a field with no
-    /// scope at all — silently public (#807). Failing loudly at authoring time is the
-    /// only outcome that does not ship an ungated field.
+    /// Panics under the same condition as [`Field::normalized`].
     #[must_use]
     pub fn to_json(&self) -> String {
-        let mut fields = vec![
-            format!("\"name\":\"{name}\"", name = self.name),
-            format!("\"type\":\"{field_type}\"", field_type = self.field_type),
-            format!("\"nullable\":{nullable}", nullable = self.nullable),
-        ];
-
-        // The wire key is `requires_scope` — the key the compiler reads. This emitted
-        // camelCase `requiresScope`, which bound to nothing, so a field the author gated
-        // compiled with no scope and was served to callers holding none (#807).
-        if let Some(scope) = &self.requires_scope {
-            fields.push(format!("\"requires_scope\":\"{scope}\""));
-        }
-
-        // Multiple required scopes have no representation in the compiled schema or the
-        // runtime field filter, which check exactly one `requires_scope`. A singleton
-        // list is the same thing as a single scope and is emitted as one; anything longer
-        // is refused rather than emitted as a key nothing reads.
-        if let Some(scopes) = &self.requires_scopes {
-            match scopes.as_slice() {
-                [] => {},
-                [only] => fields.push(format!("\"requires_scope\":\"{only}\"")),
-                many => panic!(
-                    "field `{}` declares {} required scopes; multiple required scopes are not \
-                     supported — use `with_requires_scope` with a single scope",
-                    self.name,
-                    many.len()
-                ),
-            }
-        }
-
-        if let Some(desc) = &self.description {
-            fields.push(format!("\"description\":\"{desc}\""));
-        }
-
-        format!("{{{}}}", fields.join(","))
+        serde_json::to_string(&self.normalized())
+            .expect("a Field contains only strings and bools, which always serialize")
     }
 }
 

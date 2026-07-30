@@ -30,6 +30,10 @@ public sealed class MutationBuilder
     private string? _restPath;
     private string? _restMethod;
     private readonly List<IntermediateArgument> _arguments = new();
+    private readonly Dictionary<string, string> _injectParams = new();
+    private readonly List<string> _invalidatesViews = new();
+    private readonly List<string> _invalidatesFactTables = new();
+    private string? _requiresRole;
 
     private MutationBuilder(string name) => _name = name;
 
@@ -80,6 +84,45 @@ public sealed class MutationBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares a server-injected parameter, not exposed as a GraphQL argument.
+    /// </summary>
+    /// <param name="parameter">The SQL parameter name (e.g. <c>user_id</c>).</param>
+    /// <param name="source">The source expression, e.g. <c>"jwt:sub"</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder Inject(string parameter, string source)
+    {
+        _injectParams[parameter] = source;
+        return this;
+    }
+
+    /// <summary>Restricts this mutation to callers holding the given role.</summary>
+    /// <param name="role">The required role.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RequiresRole(string role) { _requiresRole = role; return this; }
+
+    /// <summary>
+    /// Declares views whose cached query results must be invalidated after this mutation.
+    /// </summary>
+    /// <param name="views">The view names.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder InvalidatesViews(params string[] views)
+    {
+        _invalidatesViews.AddRange(views);
+        return this;
+    }
+
+    /// <summary>
+    /// Declares fact tables whose cached aggregates must be invalidated after this mutation.
+    /// </summary>
+    /// <param name="factTables">The fact table names.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder InvalidatesFactTables(params string[] factTables)
+    {
+        _invalidatesFactTables.AddRange(factTables);
+        return this;
+    }
+
     /// <summary>Sets the REST endpoint path for this mutation.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -120,7 +163,12 @@ public sealed class MutationBuilder
             Operation: _operation,
             Arguments: _arguments.AsReadOnly(),
             Description: _description,
-            Rest: rest);
+            Rest: rest,
+            InjectParams: _injectParams.Count > 0 ? _injectParams : null,
+            RequiresRole: _requiresRole,
+            InvalidatesViews: _invalidatesViews.Count > 0 ? _invalidatesViews.AsReadOnly() : null,
+            InvalidatesFactTables:
+                _invalidatesFactTables.Count > 0 ? _invalidatesFactTables.AsReadOnly() : null);
     }
 
     /// <summary>

@@ -351,7 +351,7 @@ public class TypeSystemTest {
     // =========================================================================
 
     private JsonNode findType(JsonNode schema, String name) {
-        return schema.get("types").get(name);
+        return SchemaNodes.byName(schema, "types", name);
     }
 
     // =========================================================================

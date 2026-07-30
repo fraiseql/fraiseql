@@ -661,15 +661,14 @@ fn run_check_migrations(schema: &CompiledSchema) -> Result<()> {
 }
 
 /// Convert a `PascalCase` or `camelCase` type name to `snake_case`.
+///
+/// Delegates to the pipeline's one namer rather than reimplementing it. This used to
+/// insert a separator before every uppercase character, so `HTTPServer` became
+/// `h_t_t_p_server` in emitted DDL while JSONB key derivation — which already used
+/// `fraiseql_core::utils::casing` — produced `http_server`. Two casing systems that
+/// disagree about the same name produce DDL for a table the runtime never looks in.
 pub(crate) fn to_snake_case(name: &str) -> String {
-    let mut result = String::with_capacity(name.len() + 4);
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.extend(ch.to_lowercase());
-    }
-    result
+    fraiseql_core::utils::to_snake_case(name)
 }
 
 /// Generate a `CREATE TABLE IF NOT EXISTS` DDL statement for a compiled type definition.

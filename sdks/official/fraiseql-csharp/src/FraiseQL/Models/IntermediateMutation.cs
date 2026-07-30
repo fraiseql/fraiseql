@@ -14,6 +14,20 @@ namespace FraiseQL.Models;
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Cascade">When <see langword="true"/>, enables cascade deletion. Omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Rest">Optional REST endpoint annotation, omitted from JSON when <see langword="null"/>.</param>
+/// <param name="InjectParams">
+/// Server-injected parameters, keyed by SQL parameter name. Values are <c>"jwt:&lt;claim&gt;"</c>.
+/// </param>
+/// <param name="RequiresRole">Role required to execute this mutation.</param>
+/// <param name="InvalidatesViews">
+/// Views whose cached query results must be invalidated after this mutation succeeds.
+/// Without it a mutation and the cached reads of what it wrote have no connection, and a
+/// newly written row stays invisible for the whole of the reader's TTL.
+/// </param>
+/// <param name="InvalidatesFactTables">
+/// Fact tables whose cached aggregates must be invalidated after this mutation succeeds.
+/// Unlike views there is no inference fallback: an aggregate is only ever invalidated from
+/// this list.
+/// </param>
 public record IntermediateMutation(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("return_type")] string ReturnType,
@@ -22,4 +36,8 @@ public record IntermediateMutation(
     [property: JsonPropertyName("arguments")]   IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("cascade")]     bool? Cascade = null,
-    [property: JsonPropertyName("rest")]        RestAnnotation? Rest = null);
+    [property: JsonPropertyName("rest")]        RestAnnotation? Rest = null,
+    [property: JsonPropertyName("inject_params")]           IReadOnlyDictionary<string, string>? InjectParams = null,
+    [property: JsonPropertyName("requires_role")]           string? RequiresRole = null,
+    [property: JsonPropertyName("invalidates_views")]       IReadOnlyList<string>? InvalidatesViews = null,
+    [property: JsonPropertyName("invalidates_fact_tables")] IReadOnlyList<string>? InvalidatesFactTables = null);

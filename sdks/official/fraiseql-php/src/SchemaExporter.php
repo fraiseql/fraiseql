@@ -89,6 +89,11 @@ final class SchemaExporter
             $schema['input_types'] = array_values($inputTypes);
         }
 
+        $enums = $registry->getAllEnums();
+        if (!empty($enums)) {
+            $schema['enums'] = array_values($enums);
+        }
+
         return $schema;
     }
 
@@ -113,6 +118,13 @@ final class SchemaExporter
                             'type'     => $f->type,
                             'nullable' => $f->nullable,
                         ];
+
+                        // `IntermediateField` has always carried a description and
+                        // `FieldDefinition` has always held one; this map simply never
+                        // copied it across, so no PHP-authored field could be documented.
+                        if ($f->description !== null) {
+                            $field['description'] = $f->description;
+                        }
 
                         // #807: the exporter emitted only name/type/nullable, so a field
                         // the author gated with #[GraphQLField(scope: '...')] reached the

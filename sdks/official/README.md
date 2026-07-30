@@ -6,19 +6,30 @@ in your language of choice and generate the `schema.json` consumed by
 
 ## SDK inventory
 
-| Directory | Language | Status |
-|-----------|----------|--------|
-| `fraiseql-python/` | Python 3.11+ | Stable |
-| `fraiseql-typescript/` | TypeScript / Node.js | Stable |
-| `fraiseql-java/` | Java 17+ | Stable |
-| `fraiseql-go/` | Go 1.21+ | Stable |
-| `fraiseql-rust/` | Rust (for Rust-authored schemas) | Stable |
-| `fraiseql-php/` | PHP 8.1+ | Stable |
-| `fraiseql-ruby/` | Ruby 3.2+ | Beta |
-| `fraiseql-csharp/` | C# / .NET 8+ | Beta |
-| `fraiseql-dart/` | Dart / Flutter | Beta |
-| `fraiseql-elixir/` | Elixir | Beta |
-| `fraiseql-fsharp/` | F# / .NET 8+ | Beta |
+Conformance is measured by [`conformance/`](conformance/README.md): the canonical schema
+is authored through each SDK's **public API**, compiled by the real CLI, and the compiled
+result is compared against a shared expectation. The score is constructs satisfied out of
+constructs in the fixture; a gap is declared in `conformance/manifest.json` with the
+reason shown here, and the suite fails if a declared gap is no longer true.
+
+| Directory | Language | Conformance | Declared gaps |
+|-----------|----------|-------------|---------------|
+| `fraiseql-python/` | Python 3.11+ | 16/16 | — |
+| `fraiseql-typescript/` | TypeScript / Node.js | 16/16 | — |
+| `fraiseql-go/` | Go 1.23+ | 16/16 | — |
+| `fraiseql-php/` | PHP 8.2+ | 16/16 | — |
+| `fraiseql-java/` | Java 21+ | 16/16 | — |
+| `fraiseql-csharp/` | C# / .NET 8+ | 16/16 | — |
+| `fraiseql-fsharp/` | F# / .NET 8+ | 16/16 | — |
+| `fraiseql-elixir/` | Elixir | 16/16 | — |
+| `fraiseql-ruby/` | Ruby 3.2+ | 16/16 | — |
+| `fraiseql-dart/` | Dart / Flutter | 16/16 | — |
+| `fraiseql-rust/` | Rust | 3/16 | queries, mutations, enums, input types, Relay and error-type flags: the Rust SDK is field-level-RBAC focused and ships no builder for them |
+
+The TypeScript decorators `@Type`, `@Query`, `@Mutation` and `@Subscription` are **not**
+an authoring path — TypeScript erases the types they would need, so they refuse rather
+than register the placeholders they used to. Use `registerTypeFields` / `registerQuery` /
+`registerMutation`.
 
 ## SDK layout convention
 
@@ -28,6 +39,7 @@ Each SDK follows the same structure:
 fraiseql-<lang>/
 ├── src/          # Source code
 ├── tests/        # Test suite
+├── conformance/  # Cross-SDK conformance exporter (see ../conformance/)
 ├── examples/     # Usage examples
 ├── README.md     # Language-specific usage guide
 └── <manifest>    # pyproject.toml / package.json / pom.xml / go.mod / …
@@ -48,30 +60,14 @@ The SDKs produce `schema.json`. The CLI validates and compiles it to
 `schema.compiled.json`. The server loads the compiled schema at startup —
 no SDK dependency at runtime.
 
-## Cross-SDK schema parity CI
+The format is specified in
+[`docs/architecture/intermediate-schema.md`](../../docs/architecture/intermediate-schema.md),
+whose worked examples are the conformance fixtures themselves, compiled on every CI run.
 
-`.github/workflows/sdk-parity.yml` runs on every SDK change and compares the
-schema emitted by each SDK against the Python reference (see
-`tests/compare_schemas.py`).
+## CI
 
-| SDK        | CI parity gate     | Mode        |
-|------------|--------------------|-------------|
-| Python     | reference          | —           |
-| TypeScript | strict (hard fail) | full        |
-| Go         | strict (hard fail) | full        |
-| Rust       | soft (warn only)   | types-only¹ |
-| PHP        | soft (warn only)   | full        |
-| Elixir     | soft (warn only)   | full        |
-| Java       | not gated          | —           |
-| Ruby       | not gated          | —           |
-| Dart       | not gated          | —           |
-| C#         | not gated          | —           |
-| F#         | not gated          | —           |
-
-¹ The Rust SDK is RBAC-focused and does not ship query/mutation builders, so
-only type names + field shapes are compared. See
-`fraiseql-rust/tests/generate_parity_schema.rs`.
-
-"Not gated" SDKs still document parity in their respective
-`*-feature-parity.md` but drift is only caught in review. Adding a parity
-generator + CI job for each is tracked as follow-up work.
+| Workflow | What it gates |
+|---|---|
+| `.github/workflows/sdk-conformance.yml` | The table above: every SDK authors the canonical schema, compiles it, and must preserve what was declared. Hard gate, no skips. |
+| `.github/workflows/sdk-parity.yml` | Cross-SDK agreement on the emitted `schema.json`, against the Python reference. |
+| `.github/workflows/<lang>-sdk.yml` | Each SDK's own unit tests and lints. |

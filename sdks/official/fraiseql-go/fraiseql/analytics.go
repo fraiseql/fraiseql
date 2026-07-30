@@ -4,17 +4,19 @@ package fraiseql
 type FactTableBuilder struct {
 	name        string
 	tableName   string
-	measures    []string
-	dimensions  []map[string]interface{}
+	measures    []MeasureDefinition
+	dimensions  []DimensionPathDefinition
+	filters     []FilterDefinition
 	description string
 }
 
-// NewFactTable creates a new fact table builder with the given logical name.
+// NewFactTable creates a new fact table builder with the given dimension-group name.
 func NewFactTable(name string) *FactTableBuilder {
 	return &FactTableBuilder{
 		name:       name,
-		measures:   []string{},
-		dimensions: []map[string]interface{}{},
+		measures:   []MeasureDefinition{},
+		dimensions: []DimensionPathDefinition{},
+		filters:    []FilterDefinition{},
 	}
 }
 
@@ -24,20 +26,36 @@ func (b *FactTableBuilder) TableName(name string) *FactTableBuilder {
 	return b
 }
 
-// Measure adds a named measure with one or more aggregation functions (sum, avg, count, max, min).
-func (b *FactTableBuilder) Measure(name string, aggregations ...string) *FactTableBuilder {
-	for _, agg := range aggregations {
-		b.measures = append(b.measures, name+":"+agg)
-	}
+// Measure adds a numeric measure column with its SQL type.
+//
+// Aggregation functions are not declared here: `AutoAggregates` on the aggregate query
+// derives them from the measure. This used to take `aggregations ...string` and fuse them
+// into `"revenue:sum"` strings, which the compiler cannot deserialize.
+func (b *FactTableBuilder) Measure(name, sqlType string, nullable bool) *FactTableBuilder {
+	b.measures = append(b.measures, MeasureDefinition{
+		Name:     name,
+		SqlType:  sqlType,
+		Nullable: nullable,
+	})
 	return b
 }
 
-// Dimension adds a named dimension with an SQL expression and data type.
-func (b *FactTableBuilder) Dimension(name, expression, dataType string) *FactTableBuilder {
-	b.dimensions = append(b.dimensions, map[string]interface{}{
-		"name":       name,
-		"expression": expression,
-		"data_type":  dataType,
+// Dimension adds a dimension with its JSONB path and data type.
+func (b *FactTableBuilder) Dimension(name, jsonPath, dataType string) *FactTableBuilder {
+	b.dimensions = append(b.dimensions, DimensionPathDefinition{
+		Name:     name,
+		JsonPath: jsonPath,
+		DataType: dataType,
+	})
+	return b
+}
+
+// DenormalizedFilter adds a flat filter column on the fact table.
+func (b *FactTableBuilder) DenormalizedFilter(name, sqlType string, indexed bool) *FactTableBuilder {
+	b.filters = append(b.filters, FilterDefinition{
+		Name:    name,
+		SqlType: sqlType,
+		Indexed: indexed,
 	})
 	return b
 }
@@ -52,11 +70,13 @@ func (b *FactTableBuilder) Description(desc string) *FactTableBuilder {
 // Returns an error if a fact table with the same name is already registered.
 func (b *FactTableBuilder) Register() error {
 	return RegisterFactTable(FactTableDefinition{
-		Name:           b.name,
-		TableName:      b.tableName,
-		Measures:       b.measures,
-		DimensionPaths: b.dimensions,
-		Description:    b.description,
+		TableName: b.tableName,
+		Measures:  b.measures,
+		Dimensions: DimensionsDefinition{
+			Name:  b.name,
+			Paths: b.dimensions,
+		},
+		DenormalizedFilters: b.filters,
 	})
 }
 

@@ -89,12 +89,29 @@ impl SchemaConverter {
 
     /// Parse mutation operation from string
     ///
-    /// Converts intermediate format operation string to `MutationOperation` enum
+    /// Converts intermediate format operation string to `MutationOperation` enum.
+    ///
+    /// # The verb is matched case-insensitively
+    ///
+    /// Every authoring surface in this repository spells it lowercase — `docs/authoring.md`,
+    /// `docs/architecture/intermediate-schema.md`, the Python SDK's
+    /// `@fraiseql.mutation(operation="insert")`, the PHP `MutationBuilder`'s own class
+    /// docblock, the Java `OperationBuilder` — while this function accepted only uppercase.
+    /// A developer following the project's own documentation got
+    /// `Error: Unknown mutation operation: insert` and no indication that the *case* was
+    /// the problem. Uppercasing eleven SDKs and every doc would have been the larger
+    /// breaking change and would have invalidated schemas already written.
+    ///
+    /// The verb set stays closed: an unrecognized word is still a hard error, because a
+    /// mutation whose DML verb the compiler could not read must not silently become
+    /// `Custom` and skip the write path's `INSERT`/`UPDATE`/`DELETE` handling.
     pub(super) fn parse_mutation_operation(
         operation: Option<&str>,
         sql_source: Option<&str>,
     ) -> Result<MutationOperation> {
-        match operation {
+        // Compared uppercase so the arms below read as the canonical spelling.
+        let normalized = operation.map(str::to_uppercase);
+        match normalized.as_deref() {
             Some("CREATE" | "INSERT") => {
                 // Extract table name from sql_source or use empty for Custom
                 let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
@@ -109,8 +126,15 @@ impl SchemaConverter {
                 Ok(MutationOperation::Delete { table })
             },
             Some("CUSTOM") | None => Ok(MutationOperation::Custom),
-            Some(op) => {
-                anyhow::bail!("Unknown mutation operation: {op}")
+            // Echo what the author wrote, not the uppercased form — reporting `UPSERT`
+            // for an authored `upsert` reads as if the compiler mangled the input, and
+            // sends the reader looking for a casing bug that is not there.
+            Some(_) => {
+                let authored = operation.unwrap_or_default();
+                anyhow::bail!(
+                    "Unknown mutation operation: {authored}. Expected one of CREATE, INSERT, \
+                     UPDATE, DELETE or CUSTOM (any case)."
+                )
             },
         }
     }

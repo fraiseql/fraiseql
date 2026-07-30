@@ -33,6 +33,17 @@ defmodule FraiseQL.SchemaExporterTest do
     fraiseql_type "User", sql_source: "v_user" do
       field :id, :id, nullable: false
       field :email, :string, nullable: false, requires_scope: "read:user.email"
+      # A singleton `requires_scopes` is the same requirement as `requires_scope` and is
+      # emitted as one; see the two tests below for the multi-scope case.
+      field :roles, :string, nullable: true, requires_scopes: ["admin:read"]
+    end
+  end
+
+  defmodule MultiScopeSchema do
+    use FraiseQL.Schema
+
+    fraiseql_type "User", sql_source: "v_user" do
+      field :id, :id, nullable: false
       field :roles, :string, nullable: true, requires_scopes: ["admin:read", "read:roles"]
     end
   end
@@ -192,13 +203,26 @@ defmodule FraiseQL.SchemaExporterTest do
     refute Map.has_key?(email_field, "requires_scopes")
   end
 
-  test "requires_scopes is included when set on field" do
+  # `requires_scopes` is a key the compiler does not read. Emitting the array produced a
+  # field with **no scope at all** — silently public before the compiler denied unknown
+  # fields, and a hard compile error after (#807). A singleton list carries the same
+  # requirement as a single scope, so it is emitted as `requires_scope`.
+  test "a singleton requires_scopes is emitted as requires_scope" do
     json = SchemaExporter.export(ScopedSchema)
     parsed = Jason.decode!(json)
     [type] = parsed["types"]
     roles_field = Enum.find(type["fields"], &(&1["name"] == "roles"))
-    assert roles_field["requires_scopes"] == ["admin:read", "read:roles"]
-    refute Map.has_key?(roles_field, "requires_scope")
+    assert roles_field["requires_scope"] == "admin:read"
+    refute Map.has_key?(roles_field, "requires_scopes")
+  end
+
+  # The compiled schema and the runtime field filter represent exactly one required
+  # scope, so a multi-scope declaration cannot be honoured. It is refused rather than
+  # written as a declaration nothing can enforce.
+  test "multiple requires_scopes is refused rather than emitted" do
+    assert_raise ArgumentError, ~r/multiple required scopes are not supported/, fn ->
+      SchemaExporter.export(MultiScopeSchema)
+    end
   end
 
   test "cache_ttl_seconds is included when set on query" do

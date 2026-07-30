@@ -92,7 +92,43 @@ impl SchemaConverter {
     ///
     /// Currently infallible; always returns `Ok`. The `Result` return type is
     /// reserved for future validation of scalar definitions.
+    /// Convert `IntermediateScalar` to `CustomTypeDef`.
+    ///
+    /// # `validation_rules` is refused rather than carried
+    ///
+    /// `CompiledSchema.custom_scalars` is `#[serde(skip)]`: this converter registers the
+    /// scalar into an in-memory `CustomTypeRegistry` which is then **dropped** when the
+    /// schema is written to `schema.compiled.json`. Nothing in `fraiseql-server` reads it
+    /// back either — the only mention is `reload_gate.rs`, which explicitly ignores the
+    /// field. So a declared `pattern`, `length` or `range` reached no runtime, from any
+    /// SDK, and the author got `✓ Schema compiled successfully` and a server validating
+    /// nothing.
+    ///
+    /// Carrying the rules through here without a runtime consumer would relocate the drop
+    /// one layer later rather than fix it, which is the disposition `#779` got for
+    /// observers. Making them real means serializing the registry *and* giving the
+    /// executor a consumer; until then the declaration is refused by the name of the key
+    /// that cannot be honoured.
+    ///
+    /// The scalar *declaration* itself is unaffected: the name becomes known to the
+    /// compiler, so a field typed with it resolves as a scalar rather than an object
+    /// reference. Only the unenforceable half is refused.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the scalar when it declares `validation_rules`.
     pub(super) fn convert_custom_scalar(intermediate: IntermediateScalar) -> Result<CustomTypeDef> {
+        if !intermediate.validation_rules.is_empty() {
+            anyhow::bail!(
+                "Custom scalar '{}' declares `validation_rules`, which no compiled schema \
+                 carries: `CompiledSchema.custom_scalars` is not serialized and the runtime \
+                 reads no scalar rules, so the constraint would never be enforced. Remove the \
+                 rules and validate in the database (a CHECK constraint or a domain type), or \
+                 on the mutation's SQL function.",
+                intermediate.name
+            );
+        }
+
         Ok(CustomTypeDef {
             name:             intermediate.name,
             description:      intermediate.description,

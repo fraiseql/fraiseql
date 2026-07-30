@@ -3203,3 +3203,131 @@ fn converter_scalars_are_all_listed_as_builtins() {
         "an ordinary type name must parse as an object reference"
     );
 }
+
+/// The mutation verb is case-insensitive, because every authoring surface spells it
+/// lowercase and the compiler only ever accepted uppercase.
+///
+/// `docs/authoring.md`, `docs/architecture/intermediate-schema.md`, the Python SDK's
+/// `@fraiseql.mutation(operation="insert")`, the PHP `MutationBuilder`'s own class
+/// docblock and the Java `OperationBuilder` all use the lowercase form. Every one of
+/// them produced `Error: Unknown mutation operation: insert` — a schema the project's
+/// own documentation told the author to write, rejected outright. The verb set stays
+/// closed: an unrecognized word is still a hard error.
+#[test]
+fn mutation_operation_verbs_are_case_insensitive() {
+    use fraiseql_core::schema::MutationOperation;
+
+    for spelling in ["insert", "Insert", "INSERT", "create", "CREATE"] {
+        assert!(
+            matches!(
+                SchemaConverter::parse_mutation_operation(Some(spelling), Some("fn_x")).unwrap(),
+                MutationOperation::Insert { ref table } if table == "fn_x"
+            ),
+            "{spelling:?} must parse as an INSERT"
+        );
+    }
+    for spelling in ["update", "UPDATE"] {
+        assert!(
+            matches!(
+                SchemaConverter::parse_mutation_operation(Some(spelling), Some("fn_x")).unwrap(),
+                MutationOperation::Update { .. }
+            ),
+            "{spelling:?} must parse as an UPDATE"
+        );
+    }
+    for spelling in ["delete", "DELETE"] {
+        assert!(
+            matches!(
+                SchemaConverter::parse_mutation_operation(Some(spelling), Some("fn_x")).unwrap(),
+                MutationOperation::Delete { .. }
+            ),
+            "{spelling:?} must parse as a DELETE"
+        );
+    }
+    for spelling in ["custom", "CUSTOM"] {
+        assert!(
+            matches!(
+                SchemaConverter::parse_mutation_operation(Some(spelling), None).unwrap(),
+                MutationOperation::Custom
+            ),
+            "{spelling:?} must parse as a CUSTOM operation"
+        );
+    }
+}
+
+/// Case-insensitivity must not become "accept anything".
+#[test]
+fn unknown_mutation_operation_verb_is_still_rejected() {
+    let error = SchemaConverter::parse_mutation_operation(Some("upsert"), Some("fn_x"))
+        .expect_err("`upsert` is not a supported verb and must be refused, not defaulted");
+    assert!(
+        error.to_string().contains("upsert"),
+        "the diagnostic must name the offending verb, got: {error}"
+    );
+}
+
+/// A custom scalar declaring validation rules is refused, because no compiled artifact
+/// carries them.
+///
+/// `CompiledSchema.custom_scalars` is `#[serde(skip)]` — the converter registers the
+/// scalar into an in-memory `CustomTypeRegistry` that is then dropped when the schema is
+/// written to `schema.compiled.json`. Nothing in `fraiseql-server` reads it either; the
+/// only mention is `reload_gate.rs`, which explicitly ignores the field.
+///
+/// So an author who declared `pattern` or `length` on a scalar got `✓ Schema compiled
+/// successfully` and a server that validates nothing. Carrying the rules through the
+/// converter without a runtime consumer would relocate the drop rather than fix it —
+/// exactly the disposition `#779` got for observers.
+///
+/// The scalar *declaration* still works: the name is known to the compiler, so a field
+/// typed with it resolves. Only the unenforceable rules are refused.
+#[test]
+fn custom_scalar_validation_rules_are_refused_not_dropped() {
+    use fraiseql_core::validation::ValidationRule;
+
+    use crate::schema::IntermediateScalar;
+
+    let scalar = IntermediateScalar {
+        name:             "EmailAddress".into(),
+        description:      None,
+        specified_by_url: None,
+        validation_rules: vec![ValidationRule::Length {
+            min: Some(3),
+            max: Some(254),
+        }],
+        base_type:        Some("String".into()),
+    };
+
+    let error = SchemaConverter::convert_custom_scalar(scalar)
+        .expect_err("a scalar declaring rules no artifact carries must be refused");
+    let message = error.to_string();
+
+    assert!(
+        message.contains("EmailAddress"),
+        "the diagnostic must name the scalar: {message}"
+    );
+    assert!(
+        message.contains("validation_rules"),
+        "the diagnostic must name the offending key: {message}"
+    );
+}
+
+/// A custom scalar with no rules still compiles — the declaration is what makes the name
+/// known to the compiler, and that half works.
+#[test]
+fn custom_scalar_without_rules_still_compiles() {
+    use crate::schema::IntermediateScalar;
+
+    let scalar = IntermediateScalar {
+        name:             "EmailAddress".into(),
+        description:      Some("An email address.".into()),
+        specified_by_url: None,
+        validation_rules: Vec::new(),
+        base_type:        Some("String".into()),
+    };
+
+    let converted = SchemaConverter::convert_custom_scalar(scalar)
+        .expect("a scalar without rules must still convert");
+    assert_eq!(converted.name, "EmailAddress");
+    assert_eq!(converted.base_type.as_deref(), Some("String"));
+}

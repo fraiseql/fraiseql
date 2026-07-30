@@ -1,5 +1,6 @@
 package com.fraiseql.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +44,7 @@ public class JsonExportTest {
         assertTrue(schema.has("types"));
         assertTrue(schema.has("queries"));
         assertTrue(schema.has("mutations"));
-        assertEquals("1.0", schema.get("version").asText());
+        assertEquals("2.0.0", schema.get("version").asText());
     }
 
     /**
@@ -54,7 +55,7 @@ public class JsonExportTest {
         SchemaRegistry registry = SchemaRegistry.getInstance();
         ObjectNode schema = SchemaFormatter.formatSchema(registry);
 
-        assertEquals("1.0", schema.get("version").asText());
+        assertEquals("2.0.0", schema.get("version").asText());
     }
 
     /**
@@ -67,21 +68,23 @@ public class JsonExportTest {
         SchemaRegistry registry = SchemaRegistry.getInstance();
         ObjectNode schema = SchemaFormatter.formatSchema(registry);
 
-        ObjectNode types = (ObjectNode) schema.get("types");
-        assertNotNull(types);
-        assertTrue(types.has("User"));
+        assertTrue(schema.get("types").isArray());
 
-        ObjectNode userType = (ObjectNode) types.get("User");
+        JsonNode userType = SchemaNodes.byName(schema, "types", "User");
+        assertNotNull(userType);
         assertEquals("User", userType.get("name").asText());
-        assertEquals("com.fraiseql.core.JsonExportTest$User", userType.get("javaClass").asText());
+        // `javaClass` is no longer emitted: the compiler denies unknown fields, and the
+        // authoring language's class name has no meaning downstream of the export.
+        assertFalse(userType.has("javaClass"));
 
-        ObjectNode fields = (ObjectNode) userType.get("fields");
-        assertTrue(fields.has("id"));
-        assertTrue(fields.has("name"));
+        assertTrue(userType.get("fields").isArray());
+        assertNotNull(SchemaNodes.field(userType, "id"));
+        assertNotNull(SchemaNodes.field(userType, "name"));
 
-        ObjectNode idField = (ObjectNode) fields.get("id");
-        assertEquals("Int!", idField.get("type").asText());
-        assertEquals("Int", idField.get("baseType").asText());
+        JsonNode idField = SchemaNodes.field(userType, "id");
+        // Bare GraphQL type name; nullability travels in the sibling `nullable` key.
+        assertEquals("Int", idField.get("type").asText());
+        assertFalse(idField.has("baseType"));
         assertFalse(idField.get("nullable").asBoolean());
     }
 
@@ -102,19 +105,22 @@ public class JsonExportTest {
         SchemaRegistry registry = SchemaRegistry.getInstance();
         ObjectNode schema = SchemaFormatter.formatSchema(registry);
 
-        ObjectNode queries = (ObjectNode) schema.get("queries");
-        assertNotNull(queries);
-        assertTrue(queries.has("users"));
+        assertTrue(schema.get("queries").isArray());
 
-        ObjectNode usersQuery = (ObjectNode) queries.get("users");
+        JsonNode usersQuery = SchemaNodes.byName(schema, "queries", "users");
+        assertNotNull(usersQuery);
         assertEquals("users", usersQuery.get("name").asText());
-        assertEquals("[User]", usersQuery.get("returnType").asText());
+        // The compiler reads `return_type` plus a separate `returns_list`; the camelCase
+        // `returnType` carrying "[User]" was rejected with `missing field return_type`.
+        assertEquals("User", usersQuery.get("return_type").asText());
+        assertTrue(usersQuery.get("returns_list").asBoolean());
         assertEquals("Get all users", usersQuery.get("description").asText());
 
-        ObjectNode args = (ObjectNode) usersQuery.get("arguments");
-        assertTrue(args.has("limit"));
-        assertTrue(args.has("offset"));
-        assertEquals("Int", args.get("limit").asText());
+        assertNotNull(SchemaNodes.argument(usersQuery, "limit"));
+        assertNotNull(SchemaNodes.argument(usersQuery, "offset"));
+        // Arguments are objects now, not a name -> typeString map: the compiler needs a
+        // per-argument `nullable`, which a bare type string cannot carry.
+        assertEquals("Int", SchemaNodes.argument(usersQuery, "limit").get("type").asText());
     }
 
     /**
@@ -133,19 +139,19 @@ public class JsonExportTest {
         SchemaRegistry registry = SchemaRegistry.getInstance();
         ObjectNode schema = SchemaFormatter.formatSchema(registry);
 
-        ObjectNode mutations = (ObjectNode) schema.get("mutations");
-        assertNotNull(mutations);
-        assertTrue(mutations.has("createUser"));
+        assertTrue(schema.get("mutations").isArray());
 
-        ObjectNode createMutation = (ObjectNode) mutations.get("createUser");
+        JsonNode createMutation = SchemaNodes.byName(schema, "mutations", "createUser");
+        assertNotNull(createMutation);
         assertEquals("createUser", createMutation.get("name").asText());
-        assertEquals("User", createMutation.get("returnType").asText());
+        assertEquals("User", createMutation.get("return_type").asText());
+        assertFalse(createMutation.get("returns_list").asBoolean());
         assertEquals("Create a new user", createMutation.get("description").asText());
 
-        ObjectNode args = (ObjectNode) createMutation.get("arguments");
-        assertTrue(args.has("name"));
-        assertTrue(args.has("email"));
-        assertEquals("String", args.get("name").asText());
+        JsonNode args = createMutation.get("arguments");
+        assertNotNull(SchemaNodes.argument(createMutation, "name"));
+        assertNotNull(SchemaNodes.argument(createMutation, "email"));
+        assertEquals("String", SchemaNodes.argument(createMutation, "name").get("type").asText());
     }
 
     /**
@@ -185,7 +191,7 @@ public class JsonExportTest {
         ObjectNode schema = SchemaFormatter.formatSchema(registry);
 
         // Verify structure
-        assertEquals("1.0", schema.get("version").asText());
+        assertEquals("2.0.0", schema.get("version").asText());
         assertEquals(2, schema.get("types").size());
         assertEquals(2, schema.get("queries").size());
         assertEquals(2, schema.get("mutations").size());
@@ -262,16 +268,13 @@ public class JsonExportTest {
         // Parse the exported file
         ObjectNode parsed = (ObjectNode) mapper.readTree(new File(filePath));
 
-        assertEquals("1.0", parsed.get("version").asText());
+        assertEquals("2.0.0", parsed.get("version").asText());
         assertTrue(parsed.has("types"));
         assertTrue(parsed.has("queries"));
         assertTrue(parsed.has("mutations"));
 
-        ObjectNode types = (ObjectNode) parsed.get("types");
-        assertTrue(types.has("User"));
-
-        ObjectNode queries = (ObjectNode) parsed.get("queries");
-        assertTrue(queries.has("getUser"));
+        assertTrue(SchemaNodes.has(parsed, "types", "User"));
+        assertTrue(SchemaNodes.has(parsed, "queries", "getUser"));
     }
 
     /**
@@ -315,10 +318,8 @@ public class JsonExportTest {
         FraiseQL.exportSchema(filePath);
 
         ObjectNode schema = (ObjectNode) mapper.readTree(new File(filePath));
-        ObjectNode types = (ObjectNode) schema.get("types");
-        ObjectNode userType = (ObjectNode) types.get("UserWithDescription");
-        ObjectNode fields = (ObjectNode) userType.get("fields");
-        ObjectNode nameField = (ObjectNode) fields.get("name");
+        JsonNode userType = SchemaNodes.byName(schema, "types", "UserWithDescription");
+        JsonNode nameField = SchemaNodes.field(userType, "name");
 
         assertTrue(nameField.has("description"));
         assertEquals("The user's name", nameField.get("description").asText());
@@ -335,21 +336,23 @@ public class JsonExportTest {
         FraiseQL.exportSchema(filePath);
 
         ObjectNode schema = (ObjectNode) mapper.readTree(new File(filePath));
-        ObjectNode types = (ObjectNode) schema.get("types");
-        ObjectNode userType = (ObjectNode) types.get("User");
-        ObjectNode fields = (ObjectNode) userType.get("fields");
+        JsonNode userType = SchemaNodes.byName(schema, "types", "User");
 
-        // Check id field
-        ObjectNode idField = (ObjectNode) fields.get("id");
-        assertEquals("Int!", idField.get("type").asText());
-        assertEquals("Int", idField.get("baseType").asText());
+        // The type is the bare GraphQL name; nullability is the sibling `nullable` key,
+        // not a `!` suffix, and `baseType` is no longer emitted — the compiler denies
+        // unknown fields, and it duplicated information `type` already carries.
+        JsonNode idField = SchemaNodes.field(userType, "id");
+        assertEquals("Int", idField.get("type").asText());
         assertFalse(idField.get("nullable").asBoolean());
-        assertFalse(idField.get("isList").asBoolean());
+        // `baseType` and `isList` are no longer emitted: the compiler denies unknown
+        // fields, and both restate information `type` already carries.
+        assertFalse(idField.has("baseType"));
+        assertFalse(idField.has("isList"));
 
         // Check name field
-        ObjectNode nameField = (ObjectNode) fields.get("name");
-        assertEquals("String!", nameField.get("type").asText());
-        assertEquals("String", nameField.get("baseType").asText());
+        JsonNode nameField = SchemaNodes.field(userType, "name");
+        assertEquals("String", nameField.get("type").asText());
+        assertFalse(nameField.get("nullable").asBoolean());
     }
 
     /**
@@ -361,7 +364,7 @@ public class JsonExportTest {
         FraiseQL.exportSchema(filePath);
 
         ObjectNode schema = (ObjectNode) mapper.readTree(new File(filePath));
-        assertEquals("1.0", schema.get("version").asText());
+        assertEquals("2.0.0", schema.get("version").asText());
         assertEquals(0, schema.get("types").size());
         assertEquals(0, schema.get("queries").size());
         assertEquals(0, schema.get("mutations").size());

@@ -23,19 +23,33 @@ public static class SchemaExporter
     public static IntermediateSchema ToSchema()
     {
         var registry = SchemaRegistry.Instance;
-        var types = registry.GetAllTypes()
+        var registered = registry.GetAllTypes();
+
+        // A type declared `[GraphQLType(IsInput = true)]` is an input object, and GraphQL
+        // §3.10 makes that the only legal type for an argument. It used to be emitted into
+        // `types` as an ordinary output type — the flag had nowhere to go — so a mutation
+        // referencing it produced a schema that introspection-driven clients reject and
+        // that fails federation composition, with `fraiseql compile` exiting 0 (#849).
+        var types = registered
+            .Where(td => !td.IsInput)
             .Select(TypeDefinitionToIntermediate)
             .ToList()
             .AsReadOnly();
 
-        var inputTypes = registry.GetAllInputTypes();
+        var inputTypes = registered
+            .Where(td => td.IsInput)
+            .Select(TypeDefinitionToIntermediateInput)
+            .Concat(registry.GetAllInputTypes())
+            .ToList()
+            .AsReadOnly();
 
         return new IntermediateSchema(
             Version: SchemaVersion,
             Types: types,
             Queries: registry.GetAllQueries(),
             Mutations: registry.GetAllMutations(),
-            InputTypes: inputTypes.Count > 0 ? inputTypes : null);
+            InputTypes: inputTypes.Count > 0 ? inputTypes : null,
+            Enums: registry.GetAllEnums() is { Count: > 0 } enums ? enums : null);
     }
 
     /// <summary>
@@ -110,6 +124,34 @@ public static class SchemaExporter
             Name: td.Name,
             SqlSource: td.SqlSource,
             Description: td.Description,
-            Fields: fields);
+            Fields: fields,
+            // Emitted only when set, so a schema using neither is byte-identical to what
+            // this exporter produced before the flags were carried at all (#849).
+            Relay: td.Relay ? true : null,
+            IsError: td.IsError ? true : null);
+    }
+
+    /// <summary>
+    /// Converts an <c>IsInput</c>-marked <see cref="TypeDefinition"/> to an input object.
+    /// </summary>
+    /// <remarks>
+    /// Output-only attributes are dropped rather than carried: <c>sql_source</c>,
+    /// <c>relay</c> and <c>is_error</c> have no meaning on a GraphQL input object, and the
+    /// compiler refuses an input type that declares one.
+    /// </remarks>
+    private static IntermediateInputType TypeDefinitionToIntermediateInput(TypeDefinition td)
+    {
+        var fields = td.Fields
+            .Select(f => new IntermediateInputField(
+                Name: f.Name,
+                Type: f.Type,
+                Nullable: f.Nullable))
+            .ToList()
+            .AsReadOnly();
+
+        return new IntermediateInputType(
+            Name: td.Name,
+            Fields: fields,
+            Description: td.Description);
     }
 }

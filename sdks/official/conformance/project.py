@@ -1,0 +1,250 @@
+"""Project a compiled schema onto the canonical conformance observations.
+
+The conformance suite does not diff whole compiled schemas. A compiled schema carries
+SQL templates, filter-operator metadata, content hashes and synthesized helper types —
+all of it correct-by-construction and none of it an SDK's business. Diffing it would
+make every compiler change break eleven SDK gates at once.
+
+Instead each compiled schema is reduced to a set of **observations**, grouped by the
+authorable *construct* that produces them. An observation is a fact an author declared
+that survived the whole authoring → export → compile pipeline. That is the only property
+the SDKs are being held to, and it is exactly the property the nine defects in this
+suite's motivating issue set violated:
+
+* `#849` — C# dropped `relay`/`is_error`, so the `type_relay` observation
+  (`interfaces` gains `Node`, `types` gains `UserEdge`/`UserConnection`) never appears.
+* `#852` — PHP wrote `invalidates`, so `mutation_invalidates_views` is empty.
+* `#855` — Rust emitted a name-keyed map, so `types` is empty while the compile succeeds.
+
+Because the observations are keyed by construct, an SDK that genuinely cannot author a
+construct can declare it unsupported in `manifest.json` and have those keys dropped —
+loudly, with a published reason — rather than silently failing.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+# Names the canonical fixture declares. Anything else in a compiled schema is
+# synthesized by the compiler (PageInfo, *WhereInput, Node, …) and is not an
+# author-visible fact, except where a construct explicitly asserts its synthesis.
+AUTHORED_TYPES = ("User", "Order", "UserNotFound")
+AUTHORED_INPUT_TYPES = ("CreateUserInput",)
+AUTHORED_ENUMS = ("OrderStatus",)
+AUTHORED_QUERIES = ("users", "user", "tenantOrders")
+AUTHORED_MUTATIONS = ("createUser", "placeOrder")
+
+# Every construct the canonical fixture exercises. An SDK must satisfy each one or
+# declare it unsupported in `manifest.json` with a reason.
+#
+# Adding an entry here is how the suite grows: a new construct fails every SDK that
+# has not implemented it until each either implements it or declares the gap. That is
+# the intended behaviour, and `test_new_construct_fails_every_sdk` in `selftest.py`
+# pins it.
+CONSTRUCTS = (
+    "types",
+    "field_description",
+    "field_scope",
+    "type_relay",
+    "type_is_error",
+    "input_types",
+    "enums",
+    "queries",
+    "query_arguments",
+    "query_inject_params",
+    "query_cache_ttl",
+    "query_requires_role",
+    "mutations",
+    "mutation_arguments",
+    "mutation_invalidates_views",
+    "mutation_invalidates_fact_tables",
+)
+
+
+def _by_name(items: Any) -> dict[str, dict[str, Any]]:
+    """Index a compiled schema section by `name`, tolerating absence."""
+    if not isinstance(items, list):
+        return {}
+    return {item["name"]: item for item in items if isinstance(item, dict) and "name" in item}
+
+
+def _fields(type_def: dict[str, Any]) -> list[dict[str, Any]]:
+    """A type's fields reduced to (name, type, nullable) triples, in declared order."""
+    return [
+        {
+            "name": f.get("name"),
+            "type": f.get("field_type"),
+            "nullable": f.get("nullable"),
+        }
+        for f in type_def.get("fields", [])
+        if isinstance(f, dict)
+    ]
+
+
+def _operation_kind(mutation: dict[str, Any]) -> str | None:
+    """The mutation's DML verb.
+
+    The compiled form is an externally-tagged enum — `{"Insert": {"table": "..."}}` —
+    so the verb is the sole key. Reduced to the bare verb because the table travels
+    separately as `sql_source` and asserting it twice would double-count one fact.
+    """
+    operation = mutation.get("operation")
+    if isinstance(operation, dict) and len(operation) == 1:
+        return next(iter(operation))
+    if isinstance(operation, str):
+        return operation
+    return None
+
+
+def project(compiled: dict[str, Any]) -> dict[str, Any]:
+    """Reduce a compiled schema to the canonical observations, keyed by construct.
+
+    Missing sections project to empty rather than raising: an SDK that emits no
+    mutations at all must produce a *visible, diffable* absence, not a crash that
+    reads the same as a harness bug.
+    """
+    types = _by_name(compiled.get("types"))
+    input_types = _by_name(compiled.get("input_types"))
+    enums = _by_name(compiled.get("enums"))
+    interfaces = _by_name(compiled.get("interfaces"))
+    queries = _by_name(compiled.get("queries"))
+    mutations = _by_name(compiled.get("mutations"))
+
+    observations: dict[str, Any] = {}
+
+    observations["types"] = {
+        name: {
+            "sql_source": types[name].get("sql_source"),
+            "fields": _fields(types[name]),
+        }
+        for name in AUTHORED_TYPES
+        if name in types
+    }
+
+    # Field-level metadata is split out from `types` so an SDK that carries fields but
+    # drops descriptions or scopes fails precisely that construct. Folding them into
+    # `types` would make one missing scope read as "types are broken".
+    observations["field_description"] = {
+        f"{tname}.{f['name']}": f["description"]
+        for tname in AUTHORED_TYPES
+        if tname in types
+        for f in types[tname].get("fields", [])
+        if isinstance(f, dict) and f.get("description")
+    }
+
+    observations["field_scope"] = {
+        f"{tname}.{f['name']}": f["requires_scope"]
+        for tname in AUTHORED_TYPES
+        if tname in types
+        for f in types[tname].get("fields", [])
+        if isinstance(f, dict) and f.get("requires_scope")
+    }
+
+    # `relay: true` is not asserted on the authored type alone — the compiler *acts* on
+    # it, and the action is the point. A schema that carried the flag but synthesized no
+    # Node interface and no Connection would be a compiler defect this suite should show.
+    observations["type_relay"] = {
+        "flagged": sorted(name for name in AUTHORED_TYPES if types.get(name, {}).get("relay")),
+        "implements_node": sorted(
+            name for name in AUTHORED_TYPES if "Node" in types.get(name, {}).get("implements", [])
+        ),
+        "node_interface_synthesized": "Node" in interfaces,
+        "connection_types_synthesized": sorted(
+            name for name in ("UserEdge", "UserConnection", "PageInfo") if name in types
+        ),
+    }
+
+    observations["type_is_error"] = sorted(
+        name for name in AUTHORED_TYPES if types.get(name, {}).get("is_error")
+    )
+
+    observations["input_types"] = {
+        name: {"fields": _fields(input_types[name])}
+        for name in AUTHORED_INPUT_TYPES
+        if name in input_types
+    }
+
+    observations["enums"] = {
+        name: [v.get("name") for v in enums[name].get("values", []) if isinstance(v, dict)]
+        for name in AUTHORED_ENUMS
+        if name in enums
+    }
+
+    observations["queries"] = {
+        name: {
+            "return_type": queries[name].get("return_type"),
+            "returns_list": queries[name].get("returns_list"),
+            "nullable": queries[name].get("nullable"),
+            "sql_source": queries[name].get("sql_source"),
+        }
+        for name in AUTHORED_QUERIES
+        if name in queries
+    }
+
+    observations["query_arguments"] = {
+        name: [
+            {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+            for a in queries[name].get("arguments", [])
+            if isinstance(a, dict)
+        ]
+        for name in AUTHORED_QUERIES
+        if name in queries
+    }
+
+    observations["query_inject_params"] = {
+        name: queries[name]["inject_params"]
+        for name in AUTHORED_QUERIES
+        if queries.get(name, {}).get("inject_params")
+    }
+
+    observations["query_cache_ttl"] = {
+        name: queries[name]["cache_ttl_seconds"]
+        for name in AUTHORED_QUERIES
+        if queries.get(name, {}).get("cache_ttl_seconds") is not None
+    }
+
+    observations["query_requires_role"] = {
+        name: queries[name]["requires_role"]
+        for name in AUTHORED_QUERIES
+        if queries.get(name, {}).get("requires_role")
+    }
+
+    observations["mutations"] = {
+        name: {
+            "return_type": mutations[name].get("return_type"),
+            "operation": _operation_kind(mutations[name]),
+            "sql_source": mutations[name].get("sql_source"),
+        }
+        for name in AUTHORED_MUTATIONS
+        if name in mutations
+    }
+
+    observations["mutation_arguments"] = {
+        name: [
+            {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+            for a in mutations[name].get("arguments", [])
+            if isinstance(a, dict)
+        ]
+        for name in AUTHORED_MUTATIONS
+        if name in mutations
+    }
+
+    observations["mutation_invalidates_views"] = {
+        name: mutations[name]["invalidates_views"]
+        for name in AUTHORED_MUTATIONS
+        if mutations.get(name, {}).get("invalidates_views")
+    }
+
+    observations["mutation_invalidates_fact_tables"] = {
+        name: mutations[name]["invalidates_fact_tables"]
+        for name in AUTHORED_MUTATIONS
+        if mutations.get(name, {}).get("invalidates_fact_tables")
+    }
+
+    missing = set(CONSTRUCTS) - set(observations)
+    if missing:
+        raise AssertionError(
+            f"project() declares constructs it does not emit: {sorted(missing)}. "
+            "Every entry in CONSTRUCTS must produce an observation key."
+        )
+    return observations

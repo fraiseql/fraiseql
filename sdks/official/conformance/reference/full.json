@@ -1,0 +1,112 @@
+{
+  "version": "2.0.0",
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "relay": true,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name", "type": "String", "nullable": true, "description": "The user's \"display\" name" },
+        { "name": "salary", "type": "Float", "nullable": true, "requires_scope": "read:User.salary" }
+      ]
+    },
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "total", "type": "Float", "nullable": false },
+        { "name": "status", "type": "String", "nullable": false }
+      ]
+    },
+    {
+      "name": "UserNotFound",
+      "sql_source": "v_user_not_found",
+      "is_error": true,
+      "fields": [
+        { "name": "message", "type": "String", "nullable": false },
+        { "name": "code", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "OrderStatus",
+      "values": [
+        { "name": "PENDING" },
+        { "name": "SHIPPED" },
+        { "name": "CANCELLED" }
+      ]
+    }
+  ],
+  "input_types": [
+    {
+      "name": "CreateUserInput",
+      "fields": [
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name", "type": "String", "nullable": true }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "arguments": []
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_user",
+      "arguments": [
+        { "name": "id", "type": "ID", "nullable": false }
+      ]
+    },
+    {
+      "name": "tenantOrders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order",
+      "arguments": [],
+      "inject_params": { "tenant_id": "jwt:tenant_id" },
+      "cache_ttl_seconds": 300,
+      "requires_role": "admin"
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "sql_source": "fn_create_user",
+      "operation": "INSERT",
+      "arguments": [
+        { "name": "email", "type": "String", "nullable": false },
+        { "name": "name", "type": "String", "nullable": true }
+      ],
+      "invalidates_views": ["v_user", "v_user_summary"],
+      "invalidates_fact_tables": ["tf_signup"]
+    },
+    {
+      "name": "placeOrder",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": false,
+      "sql_source": "fn_place_order",
+      "operation": "INSERT",
+      "arguments": [],
+      "inject_params": { "user_id": "jwt:sub" },
+      "invalidates_views": ["v_order_summary"],
+      "invalidates_fact_tables": ["tf_sale"]
+    }
+  ]
+}

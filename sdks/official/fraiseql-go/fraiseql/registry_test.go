@@ -304,7 +304,7 @@ func TestQueryConfigFieldsTopLevel(t *testing.T) {
 	}
 }
 
-func TestMutationUnknownConfigKeysPreserved(t *testing.T) {
+func TestConfigIsNotSerialized(t *testing.T) {
 	Reset()
 
 	err := NewMutation("createUser").
@@ -323,23 +323,15 @@ func TestMutationUnknownConfigKeysPreserved(t *testing.T) {
 		t.Fatalf("GetSchemaJSON failed: %v", err)
 	}
 
-	var schema map[string]interface{}
-	if err := json.Unmarshal(data, &schema); err != nil {
-		t.Fatalf("Unmarshal failed: %v", err)
+	// `config` is an SDK-internal bag. The compiler has no such key and, denying unknown
+	// fields, rejects the whole schema when it sees one — so a query or mutation that
+	// carried any unrecognized Config entry made the export uncompilable. Recognized
+	// entries (`operation` here) are lifted onto their own keys; the rest stay in Go.
+	if strings.Contains(string(data), "\"config\"") {
+		t.Errorf("`config` must not be serialized — the compiler denies it: %s", data)
 	}
-
-	mutations := schema["mutations"].([]interface{})
-	mut := mutations[0].(map[string]interface{})
-
-	if got, ok := mut["operation"].(string); !ok || got != "create" {
-		t.Errorf("expected top-level operation='create', got %v", mut["operation"])
-	}
-	config, hasConfig := mut["config"].(map[string]interface{})
-	if !hasConfig {
-		t.Fatal("expected 'config' key for unknown keys, but not found")
-	}
-	if config["custom_flag"] != true {
-		t.Errorf("expected config.custom_flag=true, got %v", config["custom_flag"])
+	if !strings.Contains(string(data), "\"operation\":\"create\"") {
+		t.Errorf("a recognized config entry must still reach its own key: %s", data)
 	}
 }
 

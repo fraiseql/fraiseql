@@ -350,14 +350,14 @@ public class ParityTest {
 
         FraiseQL.registerType(GoldenUser.class);
         FraiseQL.query("users")
-            .returnType("GoldenUser")
+            .returnType("User")
             .returnsArray(true)
             .sqlSource("v_user")
             .description("List all users")
             .arg("limit", "Int")
             .register();
         FraiseQL.mutation("createUser")
-            .returnType("GoldenUser")
+            .returnType("User")
             .sqlSource("fn_create_user")
             .operation("insert")
             .description("Create a new user")
@@ -372,19 +372,27 @@ public class ParityTest {
 
         JsonNode genQ = findQueryInSchema(generated, "users");
         JsonNode golQ = findQueryInSchema(golden, "users");
-        // Cross-format comparison: only sql_source is reliable across fixtures vs
-        // generated schema (the fixture uses snake_case, the Java SDK uses camelCase).
+        // The generated schema and the golden fixture are now the same format, so this
+        // compares keys directly. It used to check only `sql_source`, with a comment
+        // explaining that "the fixture uses snake_case, the Java SDK uses camelCase" —
+        // the incompatibility that made every Java export uncompilable, recorded as an
+        // expected difference (#851).
         assertEquals(golQ.get("sql_source").asText(), genQ.get("sql_source").asText());
-        // Verify the generated schema has a non-null returnType.
-        assertNotNull(genQ.get("returnType"), "returnType must not be null in generated schema");
+        assertEquals(golQ.get("return_type").asText(), genQ.get("return_type").asText());
+        assertEquals(golQ.get("returns_list").asBoolean(), genQ.get("returns_list").asBoolean());
 
         JsonNode genM = findMutationInSchema(generated, "createUser");
         JsonNode golM = findMutationInSchema(golden, "createUser");
         // sql_source is the issue #53 regression guard — must not be null
         assertEquals(golM.get("sql_source").asText(), genM.get("sql_source").asText());
-        // The fixture uses a structured operation object; the SDK uses a plain string.
-        // Verify only that the generated schema has a non-null operation.
-        assertNotNull(genM.get("operation"), "operation must not be null in generated schema");
+        assertEquals(golM.get("return_type").asText(), genM.get("return_type").asText());
+        // Compared after canonicalisation: the compiler accepts any case, and CREATE and
+        // INSERT are the same DML verb to it (`MutationOperation::Insert`). The fixture
+        // says one, the SDK's own docs say the other.
+        assertEquals(
+            canonicalVerb(golM.get("operation").asText()),
+            canonicalVerb(genM.get("operation").asText()),
+            "operation verb must match the golden fixture");
         assertFalse(genM.has("inject_params") &&
                     genM.get("inject_params").size() > 0,
                     "inject_params must be absent or empty for this fixture");
@@ -394,9 +402,17 @@ public class ParityTest {
     // HELPERS
     // =========================================================================
 
+    /** The DML verb, uppercased, with CREATE folded onto its INSERT synonym. */
+    private static String canonicalVerb(String operation) {
+        String verb = operation == null ? "" : operation.toUpperCase();
+        return "CREATE".equals(verb) ? "INSERT" : verb;
+    }
+
     /**
      * Locate a query by name from a schema node.
-     * Generated schemas use a name-keyed object; golden fixtures use a list.
+     *
+     * <p>Both generated schemas and golden fixtures are arrays of named objects. The
+     * object-keyed branch below is retained only for older hand-written fixtures.
      */
     private JsonNode findQueryInSchema(JsonNode schema, String name) {
         return findNamedItem(schema.get("queries"), name, "query");
@@ -509,7 +525,10 @@ public class ParityTest {
         public java.time.LocalDateTime createdAt;
     }
 
-    @GraphQLType(description = "User for golden fixture tests")
+    // Named `User` so the golden-fixture comparison can assert `return_type` directly
+    // rather than skipping it: the fixture and the generated schema are the same format
+    // now, and a comparison that avoids the differing keys tests nothing.
+    @GraphQLType(name = "User", description = "User for golden fixture tests")
     public static class GoldenUser {
         @GraphQLField
         public int id;
