@@ -871,6 +871,30 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// This boots the real mount over a real socket against a real database and
 		// asserts two tenants' rows stay apart — authenticated and anonymous.
 		"cargo test -p fraiseql-server --features rest --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
+		// P13 — the REST write surface (#865) and the four defects that had to be green
+		// before it could be mounted. Every one of these suites drives real PostgreSQL;
+		// three of them drive the real `Server::serve_on_listener` mount rather than
+		// calling `rest_router` directly, which is the distinction that made #812 and
+		// #865 invisible for two releases.
+		//
+		// #865/#918/#846/#873: the write half had no production caller while the served
+		// OpenAPI advertised every write path (405 on each), and the document was
+		// generated from the route table rather than from the router, so the two could
+		// disagree in both directions.
+		"cargo test -p fraiseql-server --features rest --test rest_write_mount_e2e_pg -- --test-threads=1",
+		// #862/#913/#914/#916: bulk update/delete reported rows it never touched, and the
+		// "at least one filter" guard was satisfied by parameters contributing no WHERE.
+		// Asserts the *table*, because `affected_rows` is exactly the number #913 fabricates.
+		"cargo test -p fraiseql-server --features rest --test rest_bulk_safety_e2e_pg -- --test-threads=1",
+		// #863/#864: a client embedding filter could overwrite the parent join key and
+		// return another parent's children, and nested embeddings were depth-validated
+		// then silently dropped at execution.
+		"cargo test -p fraiseql-server --features rest --test rest_embedding_safety_e2e_pg -- --test-threads=1",
+		// #811/#917: exports paginated through `variables`, which the executor ignores —
+		// so every export either truncated to one page or looped forever emitting
+		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are
+		// `#[cfg]`-gated, and under `--features rest` alone they would silently not run.
+		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --test rest_export_integrity_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes

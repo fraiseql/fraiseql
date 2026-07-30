@@ -24,4 +24,4 @@ pub mod streaming;
 #[cfg(test)]
 mod tests;
 
-pub use router::{rest_query_router, rest_router};
+pub use router::{RestMountConfig, rest_query_router, rest_router};

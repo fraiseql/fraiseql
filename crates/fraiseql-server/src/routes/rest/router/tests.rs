@@ -170,19 +170,19 @@ fn make_app_state(
 #[test]
 fn rest_query_router_returns_none_when_no_config() {
     let state = make_app_state(schema_without_rest());
-    assert!(rest_query_router(&state, false, false).is_none());
+    assert!(rest_query_router(&state, &RestMountConfig::default()).is_none());
 }
 
 #[test]
 fn rest_query_router_returns_none_when_disabled() {
     let state = make_app_state(schema_with_rest_disabled());
-    assert!(rest_query_router(&state, false, false).is_none());
+    assert!(rest_query_router(&state, &RestMountConfig::default()).is_none());
 }
 
 #[test]
 fn rest_query_router_returns_some_when_enabled() {
     let state = make_app_state(schema_with_rest());
-    assert!(rest_query_router(&state, false, false).is_some());
+    assert!(rest_query_router(&state, &RestMountConfig::default()).is_some());
 }
 
 // -----------------------------------------------------------------------
@@ -192,19 +192,19 @@ fn rest_query_router_returns_some_when_enabled() {
 #[test]
 fn rest_router_returns_none_when_no_config() {
     let state = make_app_state(schema_without_rest());
-    assert!(rest_router(&state, false, false).is_none());
+    assert!(rest_router(&state, &RestMountConfig::default()).is_none());
 }
 
 #[test]
 fn rest_router_returns_none_when_disabled() {
     let state = make_app_state(schema_with_rest_disabled());
-    assert!(rest_router(&state, false, false).is_none());
+    assert!(rest_router(&state, &RestMountConfig::default()).is_none());
 }
 
 #[test]
 fn rest_router_returns_some_when_enabled() {
     let state = make_app_state(schema_with_rest());
-    assert!(rest_router(&state, false, false).is_some());
+    assert!(rest_router(&state, &RestMountConfig::default()).is_some());
 }
 
 #[test]
@@ -217,7 +217,7 @@ fn rest_router_custom_base_path() {
     });
     let state = make_app_state(schema);
     // Should succeed — custom path doesn't prevent creation.
-    assert!(rest_router(&state, false, false).is_some());
+    assert!(rest_router(&state, &RestMountConfig::default()).is_some());
 }
 
 // -----------------------------------------------------------------------

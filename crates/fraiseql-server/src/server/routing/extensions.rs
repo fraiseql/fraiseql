@@ -101,7 +101,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.add_inbound_routes(app, state);
         }
 
-        // REST transport (read-only GET + SSE routes).
+        // REST transport.
         //
         // #812: this merge previously attached no authentication at all, so every
         // `/rest/v1/**` request reached the handlers with `security_context = None` —
@@ -109,6 +109,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // when the caller presented a valid bearer token. `route_layer` does not
         // propagate across `Router::merge`, so the layer must go on the REST router
         // itself, before it is merged.
+        //
+        // #865: the write half is mounted here too, when the boot path installed a
+        // `rest_router_builder` — which it can only do for an adapter that implements
+        // `SupportsMutations`. Read and write share this **one** mount site precisely so
+        // they cannot diverge in auth posture: whichever router comes back goes through
+        // the same `attach_auth` call below. `rest_router` previously had no production
+        // caller at all, so every write path the served OpenAPI advertised answered 405.
         #[cfg(feature = "rest")]
         {
             use crate::routes::rest::rest_query_router;
@@ -116,9 +123,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             // router so the served OpenAPI advertises the security the server enforces
             // rather than a static template (#810).
             let authenticated = self.oidc_validator.is_some() || self.hs256_auth.is_some();
-            if let Some(rest_app) =
-                rest_query_router(state, self.config.compression_enabled, authenticated)
-            {
+            let mount = crate::routes::rest::RestMountConfig {
+                compression_enabled: self.config.compression_enabled,
+                auth_layer_attached: authenticated,
+                // #917: the operator's `[export]` table finally reaches the transport.
+                // Every consumer used to build its own `ExportConfig::default()`.
+                export:              std::sync::Arc::new(self.config.export.clone()),
+            };
+            let rest_app = match self.rest_router_builder.as_ref() {
+                Some(build_with_writes) => build_with_writes(state, &mount),
+                None => rest_query_router(state, &mount),
+            };
+            if let Some(rest_app) = rest_app {
                 app = app.merge(self.attach_auth(rest_app, AuthPosture::Authenticated, "rest"));
             }
         }

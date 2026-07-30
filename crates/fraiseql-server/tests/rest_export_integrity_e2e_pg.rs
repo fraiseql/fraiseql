@@ -116,18 +116,27 @@ fn build_schema() -> CompiledSchema {
 }
 
 async fn start() -> Option<TestServer> {
+    start_with_export(fraiseql_server::routes::rest::export_config::ExportConfig::default()).await
+}
+
+/// Start a server whose `[export]` table is `export`.
+///
+/// #917: until this phase there was no way to write such a test, because there was no
+/// deserialization site for `ExportConfig` anywhere — every consumer built its own
+/// `::default()`, so an operator's `[export]` table reached nothing.
+async fn start_with_export(
+    export: fraiseql_server::routes::rest::export_config::ExportConfig,
+) -> Option<TestServer> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
 
-    Some(
-        Box::pin(TestServer::start_with_config(
-            ServerConfig::default(),
-            build_schema(),
-            Arc::new(adapter),
-        ))
-        .await,
-    )
+    let config = ServerConfig {
+        export,
+        ..ServerConfig::default()
+    };
+
+    Some(Box::pin(TestServer::start_with_config(config, build_schema(), Arc::new(adapter))).await)
 }
 
 /// Issue an export and return the raw body, failing the test if it does not terminate.
@@ -176,6 +185,11 @@ fn ndjson_ids(body: &str) -> Vec<i64> {
 }
 
 /// The first CSV column of every data row (header skipped), parsed as an id.
+///
+/// Gated to match its only caller: without it, `--features rest` alone (no `export-csv`)
+/// leaves this dead and `-D dead-code` fails the build. No CI leg runs that exact
+/// combination today, which is what made it latent rather than red.
+#[cfg(feature = "export-csv")]
 fn csv_ids(body: &str) -> Vec<i64> {
     let mut lines = body.trim_start_matches('\u{feff}').lines().filter(|l| !l.trim().is_empty());
     let header = lines.next().unwrap_or_else(|| panic!("CSV export carried no header"));
@@ -365,5 +379,102 @@ async fn an_xlsx_export_is_neither_truncated_nor_endless() {
         "XLSX export is {} bytes — consistent with a single {PAGE}-row page rather than \
          all {ROWS} rows",
         bytes.len()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #917 — the `[export]` table must reach the transport
+// ---------------------------------------------------------------------------
+
+/// A configured `csv_delimiter` must appear in the served CSV.
+///
+/// The CSV handler built its own `ExportConfig::default()`, under a comment conceding
+/// that "TOML-driven `ExportConfig` loading is a later phase" — so this key, and the six
+/// beside it, were accepted by the config parser and then ignored. The assertion is on
+/// the delimiter *in the bytes*, because the config object being correct proves nothing
+/// about the config object the handler used.
+#[cfg(feature = "export-csv")]
+#[tokio::test]
+async fn a_configured_csv_delimiter_reaches_the_served_csv() {
+    use fraiseql_server::routes::rest::export_config::ExportConfig;
+
+    let Some(server) = start_with_export(ExportConfig {
+        csv_delimiter: ';',
+        ..ExportConfig::default()
+    })
+    .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let body = export(&server.url, "text/csv", "?limit=5").await;
+    let header = body
+        .trim_start_matches('\u{feff}')
+        .lines()
+        .next()
+        .expect("CSV export carried no header");
+
+    assert!(
+        header.contains(';'),
+        "the configured ';' delimiter did not reach the CSV writer; header: {header:?}"
+    );
+    assert!(
+        !header.contains(','),
+        "the default ',' delimiter is still in use; header: {header:?}"
+    );
+}
+
+/// The `export_formats` kill-switch must actually refuse a disabled format.
+///
+/// This is the field's first consumer. `406` rather than `404`: the resource exists and
+/// the route answers — it is the requested representation the server declines.
+#[cfg(all(feature = "export-csv", feature = "export-xlsx"))]
+#[tokio::test]
+async fn a_disabled_export_format_is_refused_while_the_enabled_one_still_serves() {
+    use fraiseql_server::routes::rest::export_config::{ExportConfig, ExportFormat};
+
+    let Some(server) = start_with_export(ExportConfig {
+        export_formats: vec![ExportFormat::Csv],
+        ..ExportConfig::default()
+    })
+    .await
+    else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let client = reqwest::Client::builder().timeout(EXPORT_TIMEOUT).build().unwrap();
+
+    let refused = client
+        .get(format!("{}/rest/v1/exports?limit=5", server.url))
+        .header("accept", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        .send()
+        .await
+        .expect("XLSX request");
+    let status = refused.status();
+    let body = refused.text().await.unwrap_or_default();
+    assert_eq!(
+        status,
+        reqwest::StatusCode::NOT_ACCEPTABLE,
+        "a disabled format must be refused, not served; body: {body}"
+    );
+    assert!(
+        body.contains("EXPORT_FORMAT_DISABLED"),
+        "the refusal must name its reason; body: {body}"
+    );
+
+    // The control: the enabled format still serves, so the test above cannot be
+    // satisfied by a server that refuses every export.
+    let allowed = client
+        .get(format!("{}/rest/v1/exports?limit=5", server.url))
+        .header("accept", "text/csv")
+        .send()
+        .await
+        .expect("CSV request");
+    assert_eq!(
+        allowed.status(),
+        reqwest::StatusCode::OK,
+        "the format left enabled must still serve"
     );
 }

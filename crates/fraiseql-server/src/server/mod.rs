@@ -50,6 +50,28 @@ mod routing_tests;
 #[cfg(test)]
 mod tests;
 
+/// Builds the REST router for a server whose adapter supports mutations.
+///
+/// The arguments mirror [`rest_router`](crate::routes::rest::rest_router):
+/// `(app state, compression enabled, auth layer attached)`.
+///
+/// This exists as a stored closure rather than a direct call because
+/// `SupportsMutations` is not — and must not become — a bound on `Server<A>`'s
+/// lifecycle: adding it would lock read-only adapters such as `SqliteAdapter` and
+/// `FraiseWireAdapter` out of every deployment. The closure is installed from the one
+/// place where the concrete adapter is known to support mutations (the binary's boot
+/// path), which is the same idiom as
+/// [`tenant_executor_factory`](Server::with_tenant_executor_factory).
+#[cfg(feature = "rest")]
+pub(super) type RestRouterBuilder<A> = Arc<
+    dyn Fn(
+            &crate::routes::graphql::AppState<A>,
+            &crate::routes::rest::RestMountConfig,
+        ) -> Option<axum::Router>
+        + Send
+        + Sync,
+>;
+
 /// FraiseQL HTTP Server.
 ///
 /// `Server<A>` is generic over a `DatabaseAdapter` implementation, which allows
@@ -163,6 +185,23 @@ pub struct Server<A: DatabaseAdapter> {
     /// runtime provisioning unavailable (dispatch to pre-registered tenants still
     /// works).
     pub(super) tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
+
+    /// Builds the REST router *including its write half* (POST/PUT/PATCH/DELETE and
+    /// the collection-level bulk routes).
+    ///
+    /// Set by a boot path whose concrete adapter implements
+    /// [`SupportsMutations`](fraiseql_core::db::traits::SupportsMutations), via
+    /// [`Server::with_rest_write_surface`]. `None` — the default — mounts only the
+    /// read-only `rest_query_router`, which is the correct posture for adapters that
+    /// cannot execute mutations at all.
+    ///
+    /// `mount_extensions` chooses between this and `rest_query_router` at the single
+    /// REST mount site, so both routers pass through the same
+    /// [`attach_auth`](Server::attach_auth) call. Mounting writes on a router that
+    /// bypassed that call would put the whole write surface behind no authentication
+    /// (#812).
+    #[cfg(feature = "rest")]
+    pub(super) rest_router_builder: Option<RestRouterBuilder<A>>,
 
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,

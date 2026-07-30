@@ -12,7 +12,9 @@ use fraiseql_core::schema::{
 use fraiseql_test_utils::schema_builder::{TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder};
 
 use super::*;
-use crate::routes::rest::resource::{HttpMethod, RestRoute, RestRouteTable, RouteSource};
+use crate::routes::rest::resource::{
+    HttpMethod, MountedRoutes, RestRoute, RestRouteTable, RouteSource,
+};
 
 // -- Helpers -----------------------------------------------------------------
 
@@ -74,9 +76,23 @@ fn rest_schema() -> CompiledSchema {
     schema
 }
 
+/// Generate the document for a **full** (read + write) mount.
+///
+/// The mounted set comes from `MountedRoutes::write_surface` — the same function
+/// `rest_router` drives its axum registration from — so a document these tests accept is
+/// a document describing a router that exists. Deriving it here from the route table
+/// instead would restore the second source of truth #865 and #918 came from.
 fn generate(schema: &CompiledSchema) -> serde_json::Value {
     let route_table = RestRouteTable::from_compiled_schema(schema).unwrap();
-    generate_openapi(schema, &route_table, false).unwrap()
+    let mounted = MountedRoutes::write_surface(schema, &route_table);
+    generate_openapi(schema, &route_table, false, &mounted).unwrap()
+}
+
+/// Generate the document for a read-only mount, as `rest_query_router` builds it.
+fn generate_read_only(schema: &CompiledSchema) -> serde_json::Value {
+    let route_table = RestRouteTable::from_compiled_schema(schema).unwrap();
+    let mounted = MountedRoutes::read_surface(&route_table);
+    generate_openapi(schema, &route_table, false, &mounted).unwrap()
 }
 
 // -- Structural tests --------------------------------------------------------
@@ -448,7 +464,7 @@ fn missing_rest_config_returns_error() {
         resources:   vec![],
         diagnostics: vec![],
     };
-    let result = generate_openapi(&schema, &route_table, false);
+    let result = generate_openapi(&schema, &route_table, false, &MountedRoutes::default());
     assert!(result.is_err());
 }
 
@@ -464,7 +480,7 @@ fn empty_route_table_produces_minimal_spec() {
         resources:   vec![],
         diagnostics: vec![],
     };
-    let spec = generate_openapi(&schema, &route_table, false).unwrap();
+    let spec = generate_openapi(&schema, &route_table, false, &MountedRoutes::default()).unwrap();
     assert_eq!(spec["openapi"], "3.0.3");
     let paths = spec["paths"].as_object().unwrap();
     assert_eq!(paths.len(), 1);
@@ -490,6 +506,52 @@ fn bulk_delete_produces_collection_delete() {
     assert_eq!(delete_op["operationId"], "bulk_delete_users");
     assert!(delete_op["responses"]["200"].is_object());
     assert!(delete_op["responses"]["400"].is_object());
+}
+
+/// #865: the read-only mount must not publish the write API it answers with `405`.
+///
+/// The document used to be generated from the route table regardless of which router was
+/// built, so a `SqliteAdapter` deployment served a complete description of endpoints that
+/// did not exist. The reads must survive, or this could be satisfied by a document that
+/// lost everything.
+#[test]
+fn a_read_only_mount_advertises_reads_but_no_writes() {
+    let spec = generate_read_only(&rest_schema());
+    let paths = spec["paths"].as_object().unwrap();
+
+    let mut reads = 0_usize;
+    let mut writes = Vec::new();
+    for (path, item) in paths {
+        if path == "/openapi.json" {
+            continue;
+        }
+        for method in item.as_object().unwrap().keys() {
+            match method.as_str() {
+                "get" => reads += 1,
+                other => writes.push(format!("{other} {path}")),
+            }
+        }
+    }
+
+    assert!(reads > 0, "the read-only document must still describe its GETs");
+    assert!(writes.is_empty(), "read-only mount advertised write operations: {writes:?}");
+}
+
+/// The converse: bulk collection operations appear only because the write router
+/// registers them. `MountedRoutes::default()` is the "nothing mounted" case.
+#[test]
+fn nothing_mounted_produces_no_operations() {
+    let schema = rest_schema();
+    let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+    let spec = generate_openapi(&schema, &route_table, false, &MountedRoutes::default()).unwrap();
+
+    let paths = spec["paths"].as_object().unwrap();
+    assert_eq!(
+        paths.len(),
+        1,
+        "only the /openapi.json self-reference may remain, got {paths:?}"
+    );
+    assert!(paths.contains_key("/openapi.json"));
 }
 
 #[test]

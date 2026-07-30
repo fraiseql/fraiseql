@@ -695,6 +695,25 @@ pub struct ServerConfig {
     #[serde(default)]
     pub tenancy: TenancyServerConfig,
 
+    /// REST export-format settings (`[export]`).
+    ///
+    /// Export is a *runtime* response-serialization concern, so
+    /// [`ExportConfig`](crate::routes::rest::export_config::ExportConfig) lives in this
+    /// crate rather than in the compiled schema — the layering rule its module doc
+    /// states. This field is the deserialization site it had been missing entirely:
+    /// every consumer built `ExportConfig::default()`, so all seven keys were accepted
+    /// by the config parser and then ignored (#917).
+    ///
+    /// ```toml
+    /// [export]
+    /// csv_delimiter = ";"
+    /// xlsx_max_rows = 50000
+    /// export_formats = ["csv"]   # an explicit list; empty disables all exports
+    /// ```
+    #[cfg(feature = "rest")]
+    #[serde(default)]
+    pub export: crate::routes::rest::export_config::ExportConfig,
+
     /// Enriched-identity resolution (#539): `[identity.enrichment]` /
     /// `[identity.sender]`. Top-level (not under `[auth]`) so it applies under
     /// any auth mode — HS256/OIDC parity by construction. Gated on `auth`
@@ -931,7 +950,9 @@ impl Default for ServerConfig {
             mailbox: HashMap::new(), // No connected mailboxes by default
             #[cfg(feature = "inbound-email")]
             send: crate::inbound::email::SendSettings::default(),
-            tenancy: TenancyServerConfig::default(), // Multi-tenant runtime off by default
+            tenancy: TenancyServerConfig::default(),
+            #[cfg(feature = "rest")]
+            export: crate::routes::rest::export_config::ExportConfig::default(), /* Multi-tenant runtime off by default */
             #[cfg(feature = "auth")]
             identity: None, // Enriched-identity resolution off by default
         }

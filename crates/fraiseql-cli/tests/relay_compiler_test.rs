@@ -80,6 +80,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             additional_views:  vec![],
             requires_role:     None,
             relay_cursor_type: None,
+            rest:              None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],

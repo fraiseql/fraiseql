@@ -87,4 +87,60 @@ impl TestServer {
             _shutdown: tx,
         }
     }
+
+    /// Start a server whose REST transport includes its **write** half, exactly as
+    /// the binary's PostgreSQL boot path does.
+    ///
+    /// This is a separate entry point rather than a flag because
+    /// `SupportsMutations` is not a bound on `Server<A>`'s lifecycle — the write
+    /// router can only be installed where the concrete adapter is known. A test that
+    /// short-circuited this by merging `rest_router` itself would be exercising a
+    /// router the binary never serves, which is exactly how #812 (no auth on the REST
+    /// mount) and #865 (no write routes at all) each survived two releases.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the listener cannot be bound or the server fails to start.
+    #[cfg(feature = "rest")]
+    pub async fn start_with_rest_writes<A>(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Self
+    where
+        A: DatabaseAdapter
+            + fraiseql_core::db::traits::SupportsMutations
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
+        let port = listener.local_addr().expect("local addr").port();
+
+        let server = Box::pin(Server::new(config, schema, adapter, None))
+            .await
+            .expect("Server::new")
+            .with_rest_write_surface();
+
+        let (tx, rx) = oneshot::channel::<()>();
+
+        tokio::spawn(async move {
+            server
+                .serve_on_listener(listener, async {
+                    let _ = rx.await; // intentional
+                })
+                .await
+                .expect("server task failed");
+        });
+
+        // Give the Tokio task time to enter the accept loop.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        Self {
+            url: format!("http://127.0.0.1:{port}"),
+            port,
+            _shutdown: tx,
+        }
+    }
 }

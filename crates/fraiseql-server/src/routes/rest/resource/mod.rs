@@ -10,7 +10,10 @@ pub mod validation;
 #[cfg(test)]
 mod tests;
 
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fmt,
+};
 
 use derivation::derive_resource;
 use fraiseql_core::schema::{CompiledSchema, MutationDefinition, QueryDefinition};
@@ -21,8 +24,134 @@ use validation::{detect_conflicts, is_filtered_out, should_skip_query};
 // Public types
 // ---------------------------------------------------------------------------
 
+/// The `(route-relative path, method)` operations a REST router serves.
+///
+/// This is the **single** answer to "what does this transport expose". The router drives
+/// its axum registration from it, and the served `OpenAPI` document is filtered through
+/// it, so the two cannot describe different surfaces.
+///
+/// They used to be derived independently from the [`RestRouteTable`], and they disagreed
+/// in both directions at once. A read-only deployment mounted `rest_query_router` while
+/// the document was generated from the full table, so it published the entire write API
+/// the server answered with `405` (#865). And an item-level `PATCH /items/{id}/rename`
+/// marked the collection as already having `PATCH`, suppressing the bulk fallback in the
+/// router while `add_bulk_operations` advertised it from the mutation list anyway
+/// (#918). Both are the same defect: two loops answering one question.
+///
+/// Paths are stored in route-table form (`/items/{id}`), not axum form, because that is
+/// what the `OpenAPI` document uses as its path keys; the router converts on the way to
+/// `Router::route`.
+#[derive(Debug, Default, Clone)]
+pub struct MountedRoutes(BTreeSet<(String, HttpMethod)>);
+
+impl MountedRoutes {
+    /// The operations a **read-only** router serves: every derived `GET`, plus one SSE
+    /// stream endpoint per resource.
+    ///
+    /// This is the posture of an adapter that cannot execute mutations at all
+    /// (`SqliteAdapter`, `FraiseWireAdapter`).
+    #[must_use]
+    pub fn read_surface(route_table: &RestRouteTable) -> Self {
+        let mut mounted = Self::default();
+        for resource in &route_table.resources {
+            for route in &resource.routes {
+                if route.method == HttpMethod::Get {
+                    mounted.insert(route.path.clone(), HttpMethod::Get);
+                }
+            }
+            mounted.insert(stream_route_path(resource), HttpMethod::Get);
+        }
+        mounted
+    }
+
+    /// The operations a **full** router serves: every derived route, the collection-level
+    /// bulk `PATCH`/`DELETE` fallbacks, and one SSE stream endpoint per resource.
+    ///
+    /// A bulk fallback is added only when the resource has a matching mutation *and* the
+    /// derived routes did not already claim that method on the collection path — the
+    /// condition #918 got wrong by keying on the resource name rather than on the route
+    /// actually being the collection route.
+    #[must_use]
+    pub fn write_surface(schema: &CompiledSchema, route_table: &RestRouteTable) -> Self {
+        use fraiseql_core::schema::MutationOperation;
+
+        let mut mounted = Self::default();
+        for resource in &route_table.resources {
+            for route in &resource.routes {
+                mounted.insert(route.path.clone(), route.method);
+            }
+
+            let collection = collection_path(resource);
+            let has = |pred: fn(&MutationOperation) -> bool| {
+                resource.routes.iter().any(|r| {
+                    matches!(&r.source, RouteSource::Mutation { name }
+                        if schema.find_mutation(name).is_some_and(|m| pred(&m.operation)))
+                })
+            };
+
+            if has(|op| matches!(op, MutationOperation::Update { .. }))
+                && !mounted.contains(&collection, HttpMethod::Patch)
+            {
+                mounted.insert(collection.clone(), HttpMethod::Patch);
+            }
+            if has(|op| matches!(op, MutationOperation::Delete { .. }))
+                && !mounted.contains(&collection, HttpMethod::Delete)
+            {
+                mounted.insert(collection, HttpMethod::Delete);
+            }
+
+            mounted.insert(stream_route_path(resource), HttpMethod::Get);
+        }
+        mounted
+    }
+
+    /// Record that `method path` is served.
+    pub fn insert(&mut self, path: impl Into<String>, method: HttpMethod) {
+        self.0.insert((path.into(), method));
+    }
+
+    /// Whether `method path` is served.
+    #[must_use]
+    pub fn contains(&self, path: &str, method: HttpMethod) -> bool {
+        self.0.iter().any(|(p, m)| p == path && *m == method)
+    }
+
+    /// Every served operation, in a deterministic order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, HttpMethod)> {
+        self.0.iter().map(|(p, m)| (p.as_str(), *m))
+    }
+
+    /// Number of served operations. Used by the router's startup log.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether no operation is served at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// The collection route path for a resource (`/users`).
+#[must_use]
+pub fn collection_path(resource: &RestResource) -> String {
+    format!("/{}", resource.name)
+}
+
+/// The SSE stream route path for a resource (`/users/stream`).
+#[must_use]
+pub fn stream_route_path(resource: &RestResource) -> String {
+    format!("/{}/stream", resource.name)
+}
+
 /// HTTP method for a REST route.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// `Ord` is derived so [`MountedRoutes`] can hold its operations in a deterministic
+/// order: the router's registration order and the served `OpenAPI` document's path order
+/// are both driven from that set, and neither should vary between processes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum HttpMethod {
     /// HTTP GET.

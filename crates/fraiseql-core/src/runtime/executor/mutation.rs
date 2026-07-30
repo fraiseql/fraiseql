@@ -16,6 +16,7 @@ use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
+    schema::FieldDefinition,
     security::SecurityContext,
 };
 
@@ -171,10 +172,32 @@ impl<A: DatabaseAdapter> Executor<A> {
         } else {
             String::new()
         };
+        // The selection set is the mutation's **declared return type's** fields.
+        //
+        // It used to be the literal `status entity_id message` — the field names of the
+        // `app.mutation_response` envelope, not of the type the mutation returns. Every
+        // REST mutation therefore answered `{"data":{"createItem":{}}}`: a 201 whose body
+        // named no field the caller could read, so a client could not learn the id of the
+        // row it had just created. This is the write-path twin of #886, and it stayed
+        // invisible for exactly the same reason — the REST write surface had no
+        // production caller and no test asserted a mutation response's *content*.
+        //
+        // Falling back to the envelope names when the return type is unknown keeps a
+        // schema that genuinely returns the envelope working.
+        let fields = self
+            .schema()
+            .find_mutation(mutation_name)
+            .and_then(|m| self.schema().find_type(&m.return_type))
+            .map(|t| {
+                t.fields.iter().map(FieldDefinition::output_name).collect::<Vec<_>>().join(" ")
+            })
+            .filter(|f| !f.is_empty())
+            .unwrap_or_else(|| "status entity_id message".to_string());
+
         let query = if args_str.is_empty() {
-            format!("mutation {{ {mutation_name} {{ status entity_id message }} }}")
+            format!("mutation {{ {mutation_name} {{ {fields} }} }}")
         } else {
-            format!("mutation {{ {mutation_name}({args_str}) {{ status entity_id message }} }}")
+            format!("mutation {{ {mutation_name}({args_str}) {{ {fields} }} }}")
         };
 
         if let Some(ctx) = security_context {

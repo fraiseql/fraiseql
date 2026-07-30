@@ -17,6 +17,7 @@ use super::{
 use crate::routes::rest::{
     params::{PaginationParams, RestFieldSpec, RestParamExtractor},
     resource::{HttpMethod, RouteSource},
+    response::helpers::{check_if_none_match, compute_etag},
 };
 
 impl<A: DatabaseAdapter> RestHandler<'_, A> {
@@ -34,6 +35,7 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         &self,
         relative_path: &str,
         query_pairs: &[(&str, &str)],
+        headers: &http::HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<ResolvedGetQuery, RestError> {
         let resolved = self
@@ -63,7 +65,13 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
 
         let type_def = self.schema.find_type(&query_def.return_type);
 
-        let extractor = RestParamExtractor::new(self.config, query_def, type_def);
+        // #873.1: `Prefer: handling=lenient` reaches the extractor. Every GET path —
+        // JSON, NDJSON, CSV, XLSX — resolves through here, so the preference cannot be
+        // honoured on one representation and ignored on another.
+        let lenient = PreferHeader::from_headers(headers).handling
+            == Some(super::prefer::HandlingPreference::Lenient);
+        let extractor = RestParamExtractor::new(self.config, query_def, type_def)
+            .with_lenient_handling(lenient);
         let path_pairs: Vec<(&str, &str)> =
             resolved.path_params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
@@ -190,7 +198,7 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
         let resolved_query =
-            self.resolve_get_query(relative_path, query_pairs, security_context)?;
+            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;
@@ -244,9 +252,21 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         // X-Request-Id
         set_request_id(headers, &mut response_headers);
 
-        // Preference-Applied for count mode
+        // Preference-Applied for count mode and lenient handling.
+        //
+        // Both are echoed only when the server genuinely applied them: the extractor ran
+        // in lenient mode for this request, and `count_applied` names the count strategy
+        // that actually executed. #914 is the standing counter-example — `tx=rollback`
+        // was pushed into this header while the transaction committed.
+        let mut applied: Vec<&str> = Vec::new();
         if let Some(count_pref) = count_applied {
-            set_preference_applied(&mut response_headers, &[count_pref]);
+            applied.push(count_pref);
+        }
+        if prefer.handling == Some(super::prefer::HandlingPreference::Lenient) {
+            applied.push("handling=lenient");
+        }
+        if !applied.is_empty() {
+            set_preference_applied(&mut response_headers, &applied);
         }
 
         // X-Preference-Fallback when planned/estimated fell back to exact
@@ -298,6 +318,47 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
                 )
                 .await?;
             }
+        }
+
+        // #873.3: `RestConfig::etag` finally has a consumer on the live path.
+        //
+        // It defaults to `true` and is documented as enabling "`ETag` / `If-None-Match`
+        // conditional response support", and the served OpenAPI documents a `304` on
+        // single-resource GET — but `RestResponseFormatter`, which implements all of it,
+        // had no production caller. No `ETag` was ever emitted, so a client following
+        // the published contract had nothing to store and re-transferred the full body
+        // on every poll; and an operator setting `etag = false` to turn the feature off
+        // observed no change, because it had never been on.
+        //
+        // Computed over the final body — after embeddings — so two responses share an
+        // `ETag` only when they are byte-identical.
+        if self.config.etag {
+            let serialized = serde_json::to_vec(&body).map_err(|e| {
+                RestError::internal(format!("Failed to serialize response for ETag: {e}"))
+            })?;
+            let etag = compute_etag(&serialized);
+
+            if check_if_none_match(headers, &etag).unwrap_or(false) {
+                let mut not_modified = response_headers.clone();
+                not_modified.insert(
+                    "etag",
+                    HeaderValue::from_str(&etag).map_err(|e| {
+                        RestError::internal(format!("Computed ETag is not a valid header: {e}"))
+                    })?,
+                );
+                return Ok(RestResponse {
+                    status:  axum::http::StatusCode::NOT_MODIFIED,
+                    headers: not_modified,
+                    body:    None,
+                });
+            }
+
+            response_headers.insert(
+                "etag",
+                HeaderValue::from_str(&etag).map_err(|e| {
+                    RestError::internal(format!("Computed ETag is not a valid header: {e}"))
+                })?,
+            );
         }
 
         Ok(RestResponse {

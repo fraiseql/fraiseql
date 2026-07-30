@@ -35,8 +35,7 @@ use fraiseql_core::{
     security::SecurityContext,
 };
 use helpers::{
-    collection_route_path, error_response, parse_query_pairs, rest_result_to_response,
-    strip_base_path, to_axum_path,
+    error_response, parse_query_pairs, rest_result_to_response, strip_base_path, to_axum_path,
 };
 use serde_json::json;
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
@@ -44,13 +43,41 @@ use tracing::info;
 
 use super::{
     handler::{RestError, RestHandler, RestResponse},
-    resource::{HttpMethod, RestRouteTable, RouteSource},
+    resource::{HttpMethod, MountedRoutes, RestRouteTable},
 };
 use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/// Everything the REST routers need from the **server** that the compiled schema cannot
+/// supply.
+///
+/// A struct rather than positional arguments because the two flags are both `bool` and
+/// were passed as `rest_router(&state, false, false)` at a dozen call sites, where
+/// nothing distinguishes "compression off" from "no auth attached". Adding the export
+/// config as a third positional would have made that worse.
+///
+/// [`export`](RestMountConfig::export) arrives here because it is a runtime concern read
+/// from `fraiseql.toml`, not a compiled-schema one — the layering rule stated in
+/// `routes::rest::export_config`'s module doc. It had no deserialization site at all
+/// before #917; every consumer built a fresh `ExportConfig::default()`.
+#[derive(Debug, Clone, Default)]
+pub struct RestMountConfig {
+    /// Apply the framework-level compression layer to REST responses.
+    pub compression_enabled: bool,
+
+    /// Whether the caller will attach an authentication layer to the returned router.
+    ///
+    /// Purely descriptive: it tells the served `OpenAPI` document whether a credential
+    /// is required, so the published contract matches what is enforced (#810). It does
+    /// not itself attach anything.
+    pub auth_layer_attached: bool,
+
+    /// Export-format configuration, from `[export]` in `fraiseql.toml`.
+    pub export: Arc<super::export_config::ExportConfig>,
+}
 
 // ---------------------------------------------------------------------------
 
@@ -65,6 +92,7 @@ use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
 /// Returns `None` (with a warning log) if the route table cannot be derived.
 fn derive_rest_context<A>(
     state: &AppState<A>,
+    mount: &RestMountConfig,
 ) -> Option<(String, Arc<RestRouteTable>, RestState<A>)>
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
@@ -118,9 +146,9 @@ where
         #[cfg(feature = "observers")]
         event_transport: None,
         #[cfg(feature = "export-xlsx")]
-        xlsx_semaphore: Arc::new(tokio::sync::Semaphore::new(
-            super::export_config::ExportConfig::default().max_concurrent_xlsx,
-        )),
+        xlsx_semaphore: Arc::new(tokio::sync::Semaphore::new(mount.export.max_concurrent_xlsx)),
+        #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+        export: Arc::clone(&mount.export),
     };
 
     Some((base_path, route_table, rest_state))
@@ -147,32 +175,29 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_query_router<A>(
-    state: &AppState<A>,
-    compression_enabled: bool,
-    auth_layer_attached: bool,
-) -> Option<Router>
+pub fn rest_query_router<A>(state: &AppState<A>, mount: &RestMountConfig) -> Option<Router>
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    let (base_path, route_table, rest_state) = derive_rest_context(state)?;
+    let (base_path, route_table, rest_state) = derive_rest_context(state, mount)?;
     let executor = state.executor();
     let schema = executor.schema();
 
+    // The surface this router serves, computed once. Registration below iterates it, and
+    // the served OpenAPI document is filtered through it, so the router and its published
+    // contract cannot describe different sets of operations (#865).
+    let mounted = MountedRoutes::read_surface(&route_table);
+
     let mut router = Router::new();
-
-    for resource in &route_table.resources {
-        // Register GET routes for queries.
-        for route in &resource.routes {
-            if route.method == HttpMethod::Get {
-                let axum_path = to_axum_path(&base_path, &route.path);
-                router = router.route(&axum_path, get(rest_get_handler::<A>));
-            }
-        }
-
-        // Register SSE stream route: GET /{resource}/stream
-        let stream_path = to_axum_path(&base_path, &format!("/{}/stream", resource.name));
-        router = router.route(&stream_path, get(rest_sse_handler::<A>));
+    for (path, method) in mounted.iter() {
+        let axum_path = to_axum_path(&base_path, path);
+        // `read_surface` yields GETs only; the SSE routes are the ones ending `/stream`.
+        router = if path.ends_with("/stream") {
+            router.route(&axum_path, get(rest_sse_handler::<A>))
+        } else {
+            debug_assert_eq!(method, HttpMethod::Get, "read surface must be GET-only");
+            router.route(&axum_path, get(rest_get_handler::<A>))
+        };
     }
 
     // Serve the OpenAPI specification at {base_path}/openapi.json.
@@ -184,23 +209,19 @@ where
     // one meta route ungated would make the transport's posture non-uniform, which is
     // exactly the per-route drift that #810 was.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
-    let openapi_spec = build_openapi_spec(schema, &route_table, auth_layer_attached);
+    let openapi_spec =
+        build_openapi_spec(schema, &route_table, mount.auth_layer_attached, &mounted);
     let router = router.route(&openapi_path, get(serve_openapi(openapi_spec)));
 
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
-    if compression_enabled {
+    if mount.compression_enabled {
         router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
 
     // Log startup summary.
     let resource_count = route_table.resources.len();
-    let get_route_count: usize = route_table
-        .resources
-        .iter()
-        .flat_map(|r| &r.routes)
-        .filter(|r| r.method == HttpMethod::Get)
-        .count();
+    let get_route_count = mounted.len();
     let paths: Vec<String> = route_table
         .resources
         .iter()
@@ -239,82 +260,33 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(
-    state: &AppState<A>,
-    compression_enabled: bool,
-    auth_layer_attached: bool,
-) -> Option<Router>
+pub fn rest_router<A>(state: &AppState<A>, mount: &RestMountConfig) -> Option<Router>
 where
     A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
 {
-    let (base_path, route_table, rest_state) = derive_rest_context(state)?;
+    let (base_path, route_table, rest_state) = derive_rest_context(state, mount)?;
     let executor = state.executor();
     let schema = executor.schema();
 
+    // The full surface — derived routes plus the collection-level bulk fallbacks —
+    // computed once and used for both registration and the served document. See
+    // `MountedRoutes::write_surface`; #918 was the two answers drifting apart.
+    let mounted = MountedRoutes::write_surface(schema, &route_table);
+
     let mut router = Router::new();
 
-    // Track which collection paths already have PATCH/DELETE so we can add
-    // bulk operation routes for resources that have update/delete mutations.
-    let mut collection_patch_paths = std::collections::HashSet::new();
-    let mut collection_delete_paths = std::collections::HashSet::new();
-
-    for resource in &route_table.resources {
-        for route in &resource.routes {
-            let axum_path = to_axum_path(&base_path, &route.path);
-            router = match route.method {
-                HttpMethod::Get => router.route(&axum_path, get(rest_get_handler::<A>)),
-                HttpMethod::Post => router.route(&axum_path, post(rest_post_handler::<A>)),
-                HttpMethod::Put => router.route(&axum_path, put(rest_put_handler::<A>)),
-                // #918: record the collection path only when the route being registered
-                // *is* the collection route. These sets exist to stop the bulk fallback
-                // below from registering a second handler on a path that already has one
-                // — but the key used to be computed from `resource.name` alone, so an
-                // item-level `PATCH /items/{id}/rename` marked the whole collection as
-                // "already has PATCH" and suppressed the bulk route. The served OpenAPI
-                // advertised it regardless, so the published contract promised a method
-                // the router answered with 405.
-                HttpMethod::Patch => {
-                    if route.path == collection_route_path(resource) {
-                        collection_patch_paths.insert(axum_path.clone());
-                    }
-                    router.route(&axum_path, patch(rest_patch_handler::<A>))
-                },
-                HttpMethod::Delete => {
-                    if route.path == collection_route_path(resource) {
-                        collection_delete_paths.insert(axum_path.clone());
-                    }
-                    router.route(&axum_path, delete(rest_delete_handler::<A>))
-                },
-            };
-        }
-
-        // Register collection-level PATCH route for bulk update if an update
-        // mutation exists but no collection PATCH was derived.
-        let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
-        let has_update = resource.routes.iter().any(|r| {
-            matches!(&r.source, RouteSource::Mutation { name }
-                if state.executor().schema().find_mutation(name)
-                    .is_some_and(|m| matches!(m.operation,
-                        fraiseql_core::schema::MutationOperation::Update { .. })))
-        });
-        if has_update && !collection_patch_paths.contains(&collection_path) {
-            router = router.route(&collection_path, patch(rest_patch_handler::<A>));
-        }
-
-        // Register collection-level DELETE route for bulk delete.
-        let has_delete = resource.routes.iter().any(|r| {
-            matches!(&r.source, RouteSource::Mutation { name }
-                if state.executor().schema().find_mutation(name)
-                    .is_some_and(|m| matches!(m.operation,
-                        fraiseql_core::schema::MutationOperation::Delete { .. })))
-        });
-        if has_delete && !collection_delete_paths.contains(&collection_path) {
-            router = router.route(&collection_path, delete(rest_delete_handler::<A>));
-        }
-
-        // Register SSE stream route: GET /{resource}/stream
-        let stream_path = to_axum_path(&base_path, &format!("/{}/stream", resource.name));
-        router = router.route(&stream_path, get(rest_sse_handler::<A>));
+    for (path, method) in mounted.iter() {
+        let axum_path = to_axum_path(&base_path, path);
+        router = match method {
+            HttpMethod::Get if path.ends_with("/stream") => {
+                router.route(&axum_path, get(rest_sse_handler::<A>))
+            },
+            HttpMethod::Get => router.route(&axum_path, get(rest_get_handler::<A>)),
+            HttpMethod::Post => router.route(&axum_path, post(rest_post_handler::<A>)),
+            HttpMethod::Put => router.route(&axum_path, put(rest_put_handler::<A>)),
+            HttpMethod::Patch => router.route(&axum_path, patch(rest_patch_handler::<A>)),
+            HttpMethod::Delete => router.route(&axum_path, delete(rest_delete_handler::<A>)),
+        };
     }
 
     // Serve the OpenAPI specification at {base_path}/openapi.json.
@@ -326,18 +298,19 @@ where
     // one meta route ungated would make the transport's posture non-uniform, which is
     // exactly the per-route drift that #810 was.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
-    let openapi_spec = build_openapi_spec(schema, &route_table, auth_layer_attached);
+    let openapi_spec =
+        build_openapi_spec(schema, &route_table, mount.auth_layer_attached, &mounted);
     let router = router.route(&openapi_path, get(serve_openapi(openapi_spec)));
 
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
-    if compression_enabled {
+    if mount.compression_enabled {
         router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
 
     // Log startup summary.
     let resource_count = route_table.resources.len();
-    let route_count: usize = route_table.resources.iter().map(|r| r.routes.len()).sum();
+    let route_count = mounted.len();
     let paths: Vec<String> = route_table
         .resources
         .iter()
@@ -354,14 +327,48 @@ where
     Some(router)
 }
 
+/// Refuse a request for an export format the operator has disabled.
+///
+/// Returns `Some(406)` when `format` is absent from `[export] export_formats`, `None`
+/// when it is allowed. One helper for every negotiation path, so the kill-switch cannot
+/// be honoured on one and forgotten on another — which is the shape it would have taken,
+/// since the CSV, XLSX and Parquet branches each build their own config.
+///
+/// `406 Not Acceptable` rather than `404`: the resource exists and the route answers, it
+/// is the requested *representation* the server declines to produce.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+fn refuse_disabled_export<A: DatabaseAdapter>(
+    rest: &RestState<A>,
+    format: super::export_config::ExportFormat,
+) -> Option<Response> {
+    if rest.export.serves(format) {
+        return None;
+    }
+    Some(
+        Response::builder()
+            .status(StatusCode::NOT_ACCEPTABLE)
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                r#"{{"error":{{"code":"EXPORT_FORMAT_DISABLED","message":"export format {format:?} is not enabled; see [export] export_formats"}}}}"#
+            )))
+            .unwrap_or_else(|_| {
+                Response::builder()
+                    .status(StatusCode::NOT_ACCEPTABLE)
+                    .body(Body::empty())
+                    .expect("fallback response with empty body is infallible")
+            }),
+    )
+}
+
 /// Build the served `OpenAPI` document, degrading to an error object rather than
 /// refusing to mount the transport if generation fails.
 fn build_openapi_spec(
     schema: &fraiseql_core::schema::CompiledSchema,
     route_table: &RestRouteTable,
     auth_layer_attached: bool,
+    mounted: &MountedRoutes,
 ) -> Arc<serde_json::Value> {
-    match super::openapi::generate_openapi(schema, route_table, auth_layer_attached) {
+    match super::openapi::generate_openapi(schema, route_table, auth_layer_attached, mounted) {
         Ok(spec) => Arc::new(spec),
         Err(e) => {
             tracing::warn!(error = %e, "OpenAPI spec generation failed");
@@ -397,6 +404,16 @@ struct RestState<A: DatabaseAdapter> {
     /// handlers so a committed REST mutation can dispatch `after:mutation`
     /// functions. `None` when the functions subsystem is absent.
     function_hooks:    Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+    /// Export-format configuration from `[export]` in `fraiseql.toml` (#917).
+    ///
+    /// Carried on the state rather than rebuilt per request: the CSV, XLSX and Parquet
+    /// paths each used to construct their own `ExportConfig::default()`, so an operator's
+    /// delimiter, BOM setting, row caps and format allow-list reached none of them.
+    ///
+    /// Gated to its readers: with neither export feature compiled in there is no
+    /// negotiation path to configure, and an unconditional field would be dead code.
+    #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+    export:            Arc<super::export_config::ExportConfig>,
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
     event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
@@ -516,6 +533,11 @@ where
     // workbook format when explicitly requested.
     #[cfg(feature = "export-xlsx")]
     if super::streaming::xlsx::accepts_xlsx(&parts.headers) {
+        if let Some(refusal) =
+            refuse_disabled_export(&rest, super::export_config::ExportFormat::Xlsx)
+        {
+            return refusal;
+        }
         // Bound concurrent workbook builds. `try_acquire_owned` is
         // non-blocking; over-the-cap requests get an immediate 503 with a
         // `Retry-After: 1` hint rather than queueing.
@@ -538,10 +560,10 @@ where
         let schema = rest.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
         let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
-        let export_config = super::export_config::ExportConfig::default();
+        let export_config = rest.export.as_ref();
         let result = super::streaming::xlsx::handle_xlsx_get(
             &handler,
-            &export_config,
+            export_config,
             &relative_path,
             &query_refs,
             &parts.headers,
@@ -569,16 +591,20 @@ where
     // CSV content negotiation (gated by `export-csv` feature).
     #[cfg(feature = "export-csv")]
     if super::streaming::csv::accepts_csv(&parts.headers) {
+        if let Some(refusal) =
+            refuse_disabled_export(&rest, super::export_config::ExportFormat::Csv)
+        {
+            return refusal;
+        }
         let schema = rest.executor.schema();
         let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
         let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
-        // TOML-driven `ExportConfig` loading is a later phase; defaults match
-        // the spec from Cycle 1 (`,` delimiter, BOM on, batched via
-        // `ndjson_batch_size`).
-        let export_config = super::export_config::ExportConfig::default();
+        // #917: the operator's `[export]` table, not a fresh default. The comment that
+        // stood here conceded that "TOML-driven `ExportConfig` loading is a later phase".
+        let export_config = rest.export.as_ref();
         let result = super::streaming::csv::handle_csv_get(
             &handler,
-            &export_config,
+            export_config,
             &relative_path,
             &query_refs,
             &parts.headers,
@@ -870,18 +896,23 @@ where
             }
         }
 
-        // Fallback: no event transport configured — heartbeat-only stream.
-        let stream = futures::stream::unfold((), move |()| async move {
-            tokio::time::sleep(heartbeat_interval).await;
-            let event = axum::response::sse::Event::default().event("ping").data("");
-            Some((Ok::<_, std::convert::Infallible>(event), ()))
-        });
-
-        let sse = axum::response::sse::Sse::new(stream).keep_alive(
-            axum::response::sse::KeepAlive::new().interval(heartbeat_interval).text(""),
-        );
-
-        axum::response::IntoResponse::into_response(sse)
+        // #873.4: no event transport, so this endpoint cannot deliver an entity event.
+        // Say so, with the same 501 the `#[cfg(not(feature = "observers"))]` arm returns.
+        //
+        // It used to answer 200 with a stream that emitted `event: ping` every
+        // `sse_heartbeat_seconds` and nothing else — while the served OpenAPI described
+        // it as "Subscribe to real-time changes … Events: insert, update, delete, ping".
+        // A dashboard opening that stream sees a healthy connection, so its reconnect and
+        // error handling never fire, and it shows stale data indefinitely. Enabling the
+        // `observers` feature therefore turned an honest 501 into a silent no-op — the
+        // feature flag made the server *less* truthful.
+        //
+        // `event_transport` is `None` at every construction: `derive_rest_context` is the
+        // only place a `RestState` is built and `RestState` has no setter. Populating it
+        // from the observer runtime is #428's work; until then this must not look
+        // healthy. The branch above is kept, not deleted, because it is what #428 wires.
+        let _ = heartbeat_interval;
+        rest_result_to_response(Err(super::sse::observers_not_available()), &rest.error_sanitizer)
     }
 }
 

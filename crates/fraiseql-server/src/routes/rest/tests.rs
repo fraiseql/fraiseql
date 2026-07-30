@@ -352,7 +352,43 @@ mod export_config {
         assert_eq!(cfg.parquet_max_rows, 1_000_000);
         assert!(cfg.xlsx_temp_dir.is_none());
         assert_eq!(cfg.max_concurrent_xlsx, 10);
-        assert!(cfg.export_formats.is_empty());
+        // #917: the default is *all* formats, not the empty vector. Empty is documented
+        // as "disables all exports", so defaulting to it — while nothing read the field
+        // — meant that giving the kill-switch a consumer would have turned every export
+        // off in every deployment that had not written the key.
+        assert_eq!(
+            cfg.export_formats,
+            vec![ExportFormat::Csv, ExportFormat::Xlsx, ExportFormat::Parquet],
+            "an unconfigured server must serve every export format"
+        );
+    }
+
+    /// The kill-switch: an *explicitly* empty list disables everything.
+    #[test]
+    fn an_explicitly_empty_format_list_disables_every_export() {
+        let cfg: ExportConfig = toml::from_str("export_formats = []").unwrap();
+        assert!(!cfg.serves(ExportFormat::Csv));
+        assert!(!cfg.serves(ExportFormat::Xlsx));
+        assert!(!cfg.serves(ExportFormat::Parquet));
+    }
+
+    /// And a partial list disables exactly the formats it omits.
+    #[test]
+    fn a_partial_format_list_serves_only_what_it_names() {
+        let cfg: ExportConfig = toml::from_str(r#"export_formats = ["csv"]"#).unwrap();
+        assert!(cfg.serves(ExportFormat::Csv));
+        assert!(!cfg.serves(ExportFormat::Xlsx));
+        assert!(!cfg.serves(ExportFormat::Parquet));
+    }
+
+    /// An absent table serves everything — the same statement as the default test, made
+    /// through the TOML path an operator actually exercises.
+    #[test]
+    fn an_absent_export_table_serves_every_format() {
+        let cfg: ExportConfig = toml::from_str("").unwrap();
+        assert!(cfg.serves(ExportFormat::Csv));
+        assert!(cfg.serves(ExportFormat::Xlsx));
+        assert!(cfg.serves(ExportFormat::Parquet));
     }
 
     #[test]

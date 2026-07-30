@@ -180,6 +180,14 @@ pub struct RestParamExtractor<'a> {
     config:    &'a RestConfig,
     query_def: &'a QueryDefinition,
     type_def:  Option<&'a TypeDefinition>,
+    /// Skip unknown query parameters instead of rejecting them.
+    ///
+    /// Set from `Prefer: handling=lenient` (RFC 7240 §4.4). The preference was parsed,
+    /// merged across repeated headers, and advertised in the served `OpenAPI` document —
+    /// with the example summary "Ignore unknown parameters" — while having no reader
+    /// anywhere outside `prefer.rs` (#873.1). A client whose proxy appends `utm_source`
+    /// followed the published guidance and still got a 400.
+    lenient:   bool,
 }
 
 impl<'a> RestParamExtractor<'a> {
@@ -194,7 +202,21 @@ impl<'a> RestParamExtractor<'a> {
             config,
             query_def,
             type_def,
+            lenient: false,
         }
+    }
+
+    /// Honour `Prefer: handling=lenient` — ignore unknown query parameters rather than
+    /// rejecting the request.
+    ///
+    /// Applies **only** to parameters this extractor does not recognise. A malformed
+    /// value, an unknown bracket operator, or a filter over a field the type does not
+    /// declare all still fail: "lenient" means the server tolerates parameters it was
+    /// not asked about, not that it silently misreads the ones it was.
+    #[must_use]
+    pub const fn with_lenient_handling(mut self, lenient: bool) -> Self {
+        self.lenient = lenient;
+        self
     }
 
     /// Extract parameters from path segments and query string pairs.
@@ -289,6 +311,16 @@ impl<'a> RestParamExtractor<'a> {
                         if is_list && self.is_valid_field(key) {
                             let coerced = self.coerce_field_value(key, value)?;
                             simple_filters.push((key.to_string(), coerced));
+                        } else if self.lenient {
+                            // `Prefer: handling=lenient`: an unrecognised parameter is
+                            // ignored rather than fatal. Logged, not silent — a dropped
+                            // parameter the caller believed was a filter is exactly the
+                            // kind of quiet widening this program exists to remove, so it
+                            // must be visible to an operator reading the logs.
+                            tracing::debug!(
+                                parameter = %key,
+                                "ignoring unknown REST query parameter (Prefer: handling=lenient)"
+                            );
                         } else if !is_list {
                             return Err(validation_error(format!(
                                 "Unknown query parameter '{key}' for single-resource endpoint. \

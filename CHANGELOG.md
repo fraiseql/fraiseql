@@ -201,6 +201,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The REST write surface is mounted (#865).** `POST`/`PUT`/`PATCH`/`DELETE` on derived
+  resources, and the collection-level bulk routes, are now served by any deployment whose
+  adapter implements `SupportsMutations` (PostgreSQL, MySQL, SQL Server). `rest_router`
+  had had **no production caller at all** — a regression of the closed #227 — while the
+  served `OpenAPI` document went on advertising every write path, so a client following the
+  published contract received `405` on all of them. Read-only adapters (`SqliteAdapter`,
+  `FraiseWireAdapter`) are unaffected: they cannot satisfy the bound, so the type system
+  rather than a runtime check keeps writes off them.
+
+  The mount goes through the one existing REST mount site, so the write half passes through
+  the same `Server::attach_auth` call as the read half — `route_layer` does not survive
+  `Router::merge` (#812), and a separately-merged write router would have been
+  unauthenticated.
+
+- **`rest_router` and `rest_query_router` take a `RestMountConfig`** instead of two
+  positional `bool`s. Every call site read `rest_router(&state, false, false)`, where
+  nothing distinguished "compression off" from "no auth attached"; the struct also carries
+  the new export configuration.
+
+- **The served `OpenAPI` document is derived from the mounted router (#918, #865).** It is
+  now filtered through `MountedRoutes` — the same set the router drives its registration
+  from — so it describes exactly the operations the server answers. A read-only mount no
+  longer advertises the write API, and an item-level `PATCH /items/{id}/rename` no longer
+  suppresses the collection-level bulk `PATCH` while the document promises it. The `links`
+  member is removed from the collection-GET response schema: `build_query_response` emits
+  `data` + `meta` and never populated it.
+
+- **`[export]` is read from `fraiseql.toml`, and `export_formats` defaults to all three
+  formats (#917).** `ExportConfig` had no deserialization site anywhere — all three
+  production consumers called `::default()`, one under a comment conceding that
+  "TOML-driven `ExportConfig` loading is a later phase" — so a configured CSV delimiter,
+  BOM setting, row cap, temp directory, concurrency limit and format allow-list each
+  reached nothing. The default changes from the empty vector to all three formats:
+  empty is documented as "disables all exports", so wiring the kill-switch up without
+  changing the default would have turned every export off in every deployment that had not
+  written the key. An *explicit* empty list still disables everything, and a disabled
+  format is refused with `406`.
+
+- **`GET /{resource}/stream` returns `501` instead of a heartbeat-only `200` (#873).**
+  `RestState::event_transport` is `None` at every construction — the struct is private and
+  has no setter — so the endpoint emitted `event: ping` forever and no entity event, while
+  the served document described it as carrying `insert`/`update`/`delete`. A dashboard saw
+  a healthy connection, so its reconnect and error handling never fired and it displayed
+  stale data indefinitely; enabling the `observers` feature turned an honest `501` into a
+  silent no-op. Wiring a real transport is #428.
+
 - **`?limit=` on a streaming REST export now caps the export total, and an export without
   it returns every row (#811).** The NDJSON, CSV and XLSX batch loops advanced pagination
   by writing `limit`/`offset` into a clone of `variables`, which `execute_query_direct`
@@ -319,6 +365,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read back (#716).
 
 ### Fixed
+
+- **Every REST mutation returned an empty entity (#919).**
+  `Executor::execute_mutation_with_security` — the entry point every REST mutation takes —
+  hard-coded its synthetic selection set to `{ status entity_id message }`, the
+  `app.mutation_response` envelope column names rather than the fields of the mutation's
+  declared return type. A `POST` created the row and answered `201` with
+  `{"data":{"createItem":{}}}`, so a client could not learn the id of what it had just
+  created. This is the write-path twin of #886 and stayed invisible for the same reason:
+  the surface had no production caller, and the REST tests asserted status codes and
+  `affected_rows` rather than response content. The selection set is now the return type's
+  declared fields, falling back to the envelope names only when the type is unknown.
+
+- **Per-operation `rest` annotations survive compilation (#846).** Every SDK emits
+  `"rest": {"path", "method"}` on queries and mutations, and the server's route derivation
+  reads `rest_path`/`rest_method` as the path override — but `IntermediateQuery` and
+  `IntermediateMutation` declared no such field, and the intermediate schema has no
+  `deny_unknown_fields`, so serde discarded the block and both converter sites wrote `None`
+  unconditionally. An author who set `rest_path` got a clean compile and a 404; worse,
+  `detect_conflicts` answers a route collision with "Use `rest_path` override to resolve",
+  advice that could not work. The annotation is now validated loudly at compile time: an
+  unsupported verb, a path without a leading `/`, a path carrying a query string, and an
+  unknown key inside the `rest` block each fail the build rather than degrading silently.
+
+- **`Prefer: handling=lenient` is honoured (#873).** It was parsed, merged across repeated
+  headers, and advertised in the served document with the example summary "Ignore unknown
+  parameters", while having no reader outside `prefer.rs`. Unknown query parameters now
+  are ignored when it is set — and only unknown ones: a malformed value or an unknown
+  bracket operator on a known field still fails. It is echoed in `Preference-Applied` only
+  when actually applied.
+
+- **`ETag` / `If-None-Match` → `304`, and `Location` on `201` (#873).**
+  `RestConfig::etag` defaults to `true` and the served document promises a `304` on GET,
+  but `RestResponseFormatter` — which implements all of it — had no production caller, so
+  no `ETag` was ever emitted and an operator setting `etag = false` observed no change
+  because the feature had never been on.
 
 - **A collection `PATCH`/`DELETE` mutates every matched row and reports what it did
   (#913).** `execute_bulk_by_filter` ran the filter query, **discarded the matched rows**,

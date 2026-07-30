@@ -44,6 +44,7 @@ fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         input_style:             InputStyle::Flatten,
         changelog_pre_image:     false,
         cascade:                 false,
+        rest:                    None,
     }
 }
 

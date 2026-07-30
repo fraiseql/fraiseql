@@ -16,7 +16,10 @@ use fraiseql_core::{
     runtime::Executor,
     schema::{ArgumentDefinition, FieldType, MutationDefinition, MutationOperation, RestConfig},
 };
-use fraiseql_server::routes::{graphql::AppState, rest::rest_router};
+use fraiseql_server::routes::{
+    graphql::AppState,
+    rest::{RestMountConfig, rest_router},
+};
 use fraiseql_test_utils::{
     failing_adapter::FailingAdapter,
     schema_builder::{TestFieldBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder},
@@ -200,7 +203,7 @@ fn build_router(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(&state, false, false).expect("REST router should be created")
+    rest_router(&state, &RestMountConfig::default()).expect("REST router should be created")
 }
 
 fn build_router_with_relay(
@@ -209,7 +212,7 @@ fn build_router_with_relay(
 ) -> axum::Router {
     let executor = Arc::new(Executor::new_with_relay(schema, Arc::new(adapter)));
     let state = AppState::new(executor);
-    rest_router(&state, false, false).expect("REST router should be created")
+    rest_router(&state, &RestMountConfig::default()).expect("REST router should be created")
 }
 
 async fn send_request(
@@ -768,8 +771,14 @@ async fn served_openapi_advertises_exactly_the_security_that_is_enforced() {
 
         let executor = Arc::new(Executor::new(schema, Arc::new(adapter)));
         let state = AppState::new(executor);
-        let router =
-            rest_router(&state, false, auth_layer_attached).expect("REST router should be created");
+        let router = rest_router(
+            &state,
+            &RestMountConfig {
+                auth_layer_attached,
+                ..RestMountConfig::default()
+            },
+        )
+        .expect("REST router should be created");
 
         let (status, _headers, spec) = send_get(&router, "/rest/v1/openapi.json").await;
         assert_eq!(status, StatusCode::OK);

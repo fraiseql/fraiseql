@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use xxhash_rust::xxh3::xxh3_64;
 
 /// Compute an `ETag` for response body data.
-pub(super) fn compute_etag(body: &[u8]) -> String {
+pub(crate) fn compute_etag(body: &[u8]) -> String {
     let hash = xxh3_64(body);
     format!("W/\"{hash:016x}\"")
 }
@@ -16,7 +16,7 @@ pub(super) fn compute_etag(body: &[u8]) -> String {
 ///
 /// Returns `Some(true)` if the `ETag` matches (304 should be returned),
 /// `Some(false)` if it doesn't match, `None` if no `If-None-Match` header.
-pub(super) fn check_if_none_match(headers: &HeaderMap, etag: &str) -> Option<bool> {
+pub(crate) fn check_if_none_match(headers: &HeaderMap, etag: &str) -> Option<bool> {
     let inm = headers.get("if-none-match")?.to_str().ok()?;
     // Handle wildcard
     if inm.trim() == "*" {
@@ -62,7 +62,7 @@ pub(super) fn extract_collection_data(result: &Value) -> Result<Value, super::Re
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-pub(super) fn extract_mutation_data(result: &Value) -> Result<Value, super::RestError> {
+pub(crate) fn extract_mutation_data(result: &Value) -> Result<Value, super::RestError> {
     if let Some(data_obj) = result.get("data") {
         if let Value::Object(map) = data_obj {
             // For mutations, extract the entity from mutation_response
@@ -101,12 +101,12 @@ pub(super) fn extract_relay_page_info(data: &Value) -> Option<&Value> {
 }
 
 /// Try to extract an `id` field from mutation response data.
-pub(super) fn extract_id_from_data(data: &Value) -> Option<&Value> {
+pub(crate) fn extract_id_from_data(data: &Value) -> Option<&Value> {
     data.get("id")
 }
 
 /// Format an ID value for use in a URL path segment.
-pub(super) fn format_id_for_url(id: &Value) -> String {
+pub(crate) fn format_id_for_url(id: &Value) -> String {
     match id {
         Value::String(s) => s.clone(),
         Value::Number(n) => n.to_string(),

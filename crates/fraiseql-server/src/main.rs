@@ -722,6 +722,7 @@ async fn run_postgres(
             Some(manager) => server.with_revocation_manager(manager),
             None => server,
         };
+        let server = enable_rest_writes(server);
         return finish_server(server, cli, /* with_arrow = */ true).await;
     }
 
@@ -757,6 +758,7 @@ async fn run_postgres(
             Some(manager) => server.with_revocation_manager(manager),
             None => server,
         };
+        let server = enable_rest_writes(server);
         finish_server(server, cli, /* with_arrow = */ false).await
     }
 }
@@ -784,6 +786,7 @@ async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> a
     );
     tracing::info!("MySQL adapter ready");
     let server = Server::new(config, schema, adapter, None).await?;
+    let server = enable_rest_writes(server);
     finish_server(server, cli, /* with_arrow = */ false).await
 }
 
@@ -847,6 +850,7 @@ async fn run_sqlserver(
     );
     tracing::info!("SQL Server adapter ready");
     let server = Server::new(config, schema, adapter, None).await?;
+    let server = enable_rest_writes(server);
     finish_server(server, cli, /* with_arrow = */ false).await
 }
 
@@ -869,6 +873,40 @@ fn feature_off_message(scheme: &str, feature: &str) -> String {
          `{feature}` Cargo feature. Rebuild with `cargo install fraiseql-server --features \
          {feature}` (or enable the feature in your downstream crate) and retry."
     )
+}
+
+/// Enable the REST write surface on a server whose adapter supports mutations.
+///
+/// One helper rather than a copy at each boot path, because "which backends serve REST
+/// writes" is precisely the question that drifted out of existence in #865: `rest_router`
+/// lost its only production caller while the served `OpenAPI` document went on
+/// advertising every write path, so following the published contract earned a 405.
+///
+/// The read-only backends need no entry here and cannot be given one — `SqliteAdapter`
+/// and `FraiseWireAdapter` do not implement `SupportsMutations`, so the type system,
+/// rather than a runtime check someone must remember to write, is what keeps writes off
+/// them.
+#[cfg(all(not(feature = "wire-backend"), feature = "rest"))]
+fn enable_rest_writes<X>(server: Server<X>) -> Server<X>
+where
+    X: fraiseql_core::db::DatabaseAdapter
+        + fraiseql_core::db::traits::SupportsMutations
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
+    server.with_rest_write_surface()
+}
+
+/// No-op counterpart for builds without the `rest` feature, where there is no REST
+/// transport to mount at all.
+#[cfg(all(not(feature = "wire-backend"), not(feature = "rest")))]
+const fn enable_rest_writes<X>(server: Server<X>) -> Server<X>
+where
+    X: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    server
 }
 
 /// Finalize startup for any constructed `Server<X>`: attach the secrets

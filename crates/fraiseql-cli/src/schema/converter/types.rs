@@ -11,8 +11,8 @@ use fraiseql_core::{
 use super::SchemaConverter;
 use crate::schema::intermediate::{
     IntermediateEnum, IntermediateEnumValue, IntermediateField, IntermediateInputField,
-    IntermediateInputObject, IntermediateInterface, IntermediateScalar, IntermediateType,
-    IntermediateUnion,
+    IntermediateInputObject, IntermediateInterface, IntermediateRest, IntermediateScalar,
+    IntermediateType, IntermediateUnion,
 };
 
 impl SchemaConverter {
@@ -288,5 +288,67 @@ impl SchemaConverter {
             }
             chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
         })
+    }
+
+    /// Convert a per-operation `rest` block into the compiled `(path, method)` pair.
+    ///
+    /// One function for queries and mutations, because two copies of "what does a REST
+    /// annotation mean" is how the pair got dropped in the first place: the block was
+    /// declared by every SDK, understood by no consumer, and hardcoded to `None` at both
+    /// converter sites (#846).
+    ///
+    /// Validation is loud, and deliberately so. The server's route derivation reads
+    /// `rest_method` through `parse_http_method(..).unwrap_or(<default>)`, so an
+    /// unrecognised verb silently becomes `GET` on a query or `POST` on a mutation —
+    /// the author would get a route, just not the one they asked for. Compile time is
+    /// where that has to fail, because it is the last point at which the authored intent
+    /// is still visible.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path is empty, does not start with `/`, contains a query
+    /// string or fragment, or if the method is not one of `GET`, `POST`, `PUT`, `PATCH`,
+    /// `DELETE`.
+    pub(crate) fn convert_rest_annotation(
+        operation_kind: &str,
+        operation_name: &str,
+        rest: Option<IntermediateRest>,
+    ) -> Result<(Option<String>, Option<String>)> {
+        let Some(rest) = rest else {
+            return Ok((None, None));
+        };
+
+        if rest.path.is_empty() {
+            anyhow::bail!("{operation_kind} '{operation_name}': rest.path must not be empty.");
+        }
+        if !rest.path.starts_with('/') {
+            anyhow::bail!(
+                "{operation_kind} '{operation_name}': rest.path must start with '/', got {:?}.",
+                rest.path
+            );
+        }
+        if let Some(bad) = rest.path.chars().find(|c| matches!(c, '?' | '#')) {
+            anyhow::bail!(
+                "{operation_kind} '{operation_name}': rest.path must be a path only — it must \
+                 not contain {bad:?}. Got {:?}.",
+                rest.path
+            );
+        }
+
+        let method = match rest.method {
+            None => None,
+            Some(m) => {
+                let upper = m.to_ascii_uppercase();
+                if !matches!(upper.as_str(), "GET" | "POST" | "PUT" | "PATCH" | "DELETE") {
+                    anyhow::bail!(
+                        "{operation_kind} '{operation_name}': rest.method {m:?} is not a \
+                         supported HTTP method. Use one of GET, POST, PUT, PATCH, DELETE."
+                    );
+                }
+                Some(upper)
+            },
+        };
+
+        Ok((Some(rest.path), method))
     }
 }

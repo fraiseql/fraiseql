@@ -90,6 +90,32 @@ mod inject_params_serde {
     }
 }
 
+/// Per-operation REST route override, in the shape every SDK emits.
+///
+/// The wire form is `"rest": {"path": "/api/v1/orders", "method": "GET"}` — verified
+/// identical across the Python, Go, PHP, C#, Java, Elixir, F# and Rust SDKs. It had no
+/// consumer: neither [`IntermediateQuery`] nor [`IntermediateMutation`] declared the
+/// field and the intermediate schema has no `deny_unknown_fields`, so serde discarded
+/// the block and the converter hardcoded `rest_path`/`rest_method` to `None`. An author
+/// setting `rest_path` got a clean compile and a route that 404s — and `detect_conflicts`
+/// told operators to "use `rest_path` override to resolve" a route collision, advice that
+/// could not work (#846).
+///
+/// `deny_unknown_fields` here is deliberate. This block exists precisely because a
+/// silently-dropped key shipped for two releases; a typo inside it must fail the compile
+/// rather than quietly degrade to a path-only override.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntermediateRest {
+    /// Route path, replacing the derived one (e.g. `/api/v1/orders`).
+    pub path: String,
+
+    /// HTTP method. Absent means the derived default for the operation kind —
+    /// `GET` for a query, `POST` for a mutation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+}
+
 /// Argument definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateArgument {
@@ -196,6 +222,10 @@ pub struct IntermediateQuery {
     /// Only meaningful when `relay = true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relay_cursor_type: Option<String>,
+
+    /// REST route override for this query. See [`IntermediateRest`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest: Option<IntermediateRest>,
 }
 
 /// Mutation definition in intermediate format
@@ -313,6 +343,10 @@ pub struct IntermediateMutation {
     /// silently dropped the SDK flag.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cascade: bool,
+
+    /// REST route override for this mutation. See [`IntermediateRest`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest: Option<IntermediateRest>,
 }
 
 impl Default for IntermediateMutation {
@@ -338,6 +372,7 @@ impl Default for IntermediateMutation {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            rest:                    None,
         }
     }
 }

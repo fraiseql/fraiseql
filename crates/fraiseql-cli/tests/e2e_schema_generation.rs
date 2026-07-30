@@ -476,6 +476,7 @@ fn test_e2e_full_field_assertion() {
             additional_views:  vec![],
             requires_role:     None,
             relay_cursor_type: None,
+            rest:              None,
         }],
         mutations:         vec![IntermediateMutation {
             name:                    "createUser".to_string(),
@@ -495,6 +496,7 @@ fn test_e2e_full_field_assertion() {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            rest:                    None,
         }],
         enums:             vec![],
         input_types:       vec![],

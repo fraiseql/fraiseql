@@ -25,7 +25,7 @@ mod tests;
 use fraiseql_core::schema::{CompiledSchema, RestConfig};
 use serde_json::{Value, json};
 
-use super::resource::RestRouteTable;
+use super::resource::{MountedRoutes, RestRouteTable};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -45,6 +45,12 @@ use super::resource::RestRouteTable;
 /// accepted anonymous callers — an operator reading the served contract to confirm the
 /// surface was closed got a document that said yes and a server that said no.
 ///
+/// `mounted` is the set of operations the router actually registered. The document
+/// describes exactly those and nothing else, so it cannot advertise a path the server
+/// answers with `405` (#865, #918). Passing a set derived from the route table instead
+/// of from the registration loop would reintroduce the drift this argument exists to
+/// remove.
+///
 /// # Errors
 ///
 /// Returns `Err` if the schema is missing REST configuration.
@@ -52,13 +58,15 @@ pub fn generate_openapi(
     schema: &CompiledSchema,
     route_table: &RestRouteTable,
     auth_layer_attached: bool,
+    mounted: &MountedRoutes,
 ) -> Result<Value, String> {
     let config = schema
         .rest_config
         .as_ref()
         .ok_or_else(|| "REST config not found in compiled schema".to_string())?;
 
-    let generator = OpenApiGenerator::new(schema, route_table, config, auth_layer_attached);
+    let generator =
+        OpenApiGenerator::new(schema, route_table, config, auth_layer_attached, mounted);
     Ok(generator.generate())
 }
 
@@ -79,6 +87,8 @@ struct OpenApiGenerator<'a> {
     /// answer to "does this operation need a bearer token" is the same for all
     /// operations, because both mechanisms are transport-wide.
     security_required: bool,
+    /// The operations the router registered. Every path item is filtered through this.
+    mounted:           &'a MountedRoutes,
 }
 
 impl<'a> OpenApiGenerator<'a> {
@@ -87,12 +97,14 @@ impl<'a> OpenApiGenerator<'a> {
         route_table: &'a RestRouteTable,
         config: &'a RestConfig,
         auth_layer_attached: bool,
+        mounted: &'a MountedRoutes,
     ) -> Self {
         Self {
             schema,
             route_table,
             config,
             security_required: config.require_auth || auth_layer_attached,
+            mounted,
         }
     }
 
