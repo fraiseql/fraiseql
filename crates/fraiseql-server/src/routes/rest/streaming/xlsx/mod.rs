@@ -163,6 +163,9 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
         variables,
         security_ctx: security_ctx_owned,
         batch_size,
+        // #811: `?limit=` caps the export total; absent, the whole result set is
+        // streamed in `batch_size` pages, bounded by `max_rows`.
+        total_limit: super::helpers::requested_total_limit(query_pairs),
         max_rows: export_config.xlsx_max_rows,
         select_columns,
         temp_dir: export_config.xlsx_temp_dir.clone(),
@@ -222,6 +225,8 @@ struct BuildContext<A: DatabaseAdapter> {
     variables:      serde_json::Value,
     security_ctx:   Option<SecurityContext>,
     batch_size:     u64,
+    /// Client-requested cap on the **total** rows exported (`?limit=`), if any.
+    total_limit:    Option<u64>,
     max_rows:       u64,
     /// Column order from `?select=`, when supplied.
     select_columns: Option<Vec<String>>,
@@ -247,7 +252,13 @@ async fn build_workbook<A: DatabaseAdapter>(ctx: BuildContext<A>) -> Result<Byte
     let mut done = false;
 
     while !done {
-        let rows = fetch_batch(&ctx, offset).await?;
+        // Size this batch, honouring any client-supplied total cap (#811).
+        let Some(page) =
+            super::helpers::next_batch_size(ctx.batch_size, ctx.total_limit, rows_written)
+        else {
+            break;
+        };
+        let rows = fetch_batch(&ctx, page, offset).await?;
 
         if rows.is_empty() {
             done = true;
@@ -273,13 +284,12 @@ async fn build_workbook<A: DatabaseAdapter>(ctx: BuildContext<A>) -> Result<Byte
             rows_written += 1;
         }
 
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: rows.len() fits in u64 in any realistic batch.
-        let row_count = rows.len() as u64;
-        if row_count < ctx.batch_size {
+        // Advance by the rows actually returned, not by the requested page size (#811).
+        let row_count = u64::try_from(rows.len()).unwrap_or(u64::MAX);
+        offset += row_count;
+
+        if row_count < page {
             done = true;
-        } else {
-            offset += ctx.batch_size;
         }
     }
 
@@ -313,15 +323,17 @@ fn create_temp_file(dir: Option<&std::path::Path>) -> Result<NamedTempFile, Rest
 
 async fn fetch_batch<A: DatabaseAdapter>(
     ctx: &BuildContext<A>,
+    page: u64,
     offset: u64,
 ) -> Result<Vec<serde_json::Value>, RestError> {
-    let mut batch_vars = ctx.variables.clone();
-    if let Some(obj) = batch_vars.as_object_mut() {
-        obj.insert("limit".to_string(), serde_json::json!(ctx.batch_size));
-        if offset > 0 {
-            obj.insert("offset".to_string(), serde_json::json!(offset));
-        }
-    }
+    // #811: pagination goes into `arguments`, which is what the executor reads — the
+    // `variables` parameter feeds `enforce_authz` only. `ctx` is shared immutably across
+    // the loop, so the page is applied to a per-batch clone rather than in place; a
+    // `QueryMatch` clone per database round-trip is not a measurable cost.
+    let mut paged = ctx.query_match.clone();
+    super::helpers::set_export_page(&mut paged, page, offset);
+
+    let batch_vars = ctx.variables.clone();
     let vars_ref = if batch_vars.as_object().is_none_or(serde_json::Map::is_empty) {
         None
     } else {
@@ -330,7 +342,7 @@ async fn fetch_batch<A: DatabaseAdapter>(
 
     let result_value = ctx
         .executor
-        .execute_query_direct(&ctx.query_match, vars_ref, ctx.security_ctx.as_ref())
+        .execute_query_direct(&paged, vars_ref, ctx.security_ctx.as_ref())
         .await
         .map_err(|e| RestError::internal(format!("XLSX query execution failed: {e}")))?;
 

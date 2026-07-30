@@ -241,3 +241,72 @@ fn validate_ndjson_allows_no_pagination() {
 fn ndjson_content_type_constant() {
     assert_eq!(NDJSON_CONTENT_TYPE, "application/x-ndjson");
 }
+
+// ---------------------------------------------------------------------------
+// #811 — the shared export pagination driver
+// ---------------------------------------------------------------------------
+
+use super::helpers::{next_batch_size, requested_total_limit, set_export_page};
+
+/// Without a client cap, every batch is a full page — the loop terminates on a short
+/// page from the database, not on arithmetic.
+#[test]
+fn next_batch_size_is_the_full_page_when_uncapped() {
+    assert_eq!(next_batch_size(500, None, 0), Some(500));
+    assert_eq!(next_batch_size(500, None, 10_000), Some(500));
+}
+
+/// A client cap clamps the final batch so `?limit=` is honoured exactly, including when
+/// it is not a multiple of the batch size.
+#[test]
+fn next_batch_size_clamps_the_final_batch_to_the_client_limit() {
+    assert_eq!(next_batch_size(100, Some(307), 0), Some(100));
+    assert_eq!(next_batch_size(100, Some(307), 100), Some(100));
+    assert_eq!(next_batch_size(100, Some(307), 200), Some(100));
+    // 307 - 300 = 7 rows left.
+    assert_eq!(next_batch_size(100, Some(307), 300), Some(7));
+}
+
+/// Reaching the cap ends the export. This is the arithmetic that makes a bounded export
+/// terminate; the `None` is what the loops read as "done".
+#[test]
+fn next_batch_size_is_none_once_the_client_limit_is_reached() {
+    assert_eq!(next_batch_size(100, Some(300), 300), None);
+    // Defensive: an overshoot must still terminate rather than underflow.
+    assert_eq!(next_batch_size(100, Some(300), 301), None);
+    assert_eq!(next_batch_size(100, Some(0), 0), None);
+}
+
+/// The page must land in `arguments`. `execute_query_direct` reads limit/offset from
+/// there and nowhere else — writing them into `variables` is exactly the #811 defect, and
+/// this test fails if the driver ever regresses to it.
+#[test]
+fn set_export_page_writes_into_arguments() {
+    let mut qm = fraiseql_core::runtime::QueryMatch::from_operation(
+        fraiseql_test_utils::schema_builder::TestQueryBuilder::new("things", "Thing")
+            .returns_list(true)
+            .with_sql_source("v_thing")
+            .build(),
+        vec!["id".to_string()],
+        std::collections::HashMap::new(),
+        None,
+    )
+    .unwrap();
+
+    set_export_page(&mut qm, 250, 1_000);
+
+    assert_eq!(qm.arguments.get("limit").and_then(serde_json::Value::as_u64), Some(250));
+    assert_eq!(qm.arguments.get("offset").and_then(serde_json::Value::as_u64), Some(1_000));
+}
+
+/// An absent `?limit=` must stay absent rather than becoming `default_page_size`: the
+/// two mean opposite things to an export, and collapsing them is what made a full export
+/// silently return one page.
+#[test]
+fn requested_total_limit_distinguishes_absent_from_supplied() {
+    assert_eq!(requested_total_limit(&[]), None);
+    assert_eq!(requested_total_limit(&[("select", "id"), ("sort", "id")]), None);
+    assert_eq!(requested_total_limit(&[("limit", "250")]), Some(250));
+    // A malformed value is not a cap — the parameter validator rejects it upstream.
+    assert_eq!(requested_total_limit(&[("limit", "abc")]), None);
+}

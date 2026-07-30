@@ -235,3 +235,33 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
 
     Ok(FieldAccessResult { projected, masked })
 }
+
+/// Classify the requested field set for a read, with or without a principal.
+///
+/// Which of the two classifiers applies is a property of **whether a principal
+/// exists**, not of the transport the read arrived on. Both GraphQL entry points
+/// already made that choice — the authenticated runner calls
+/// [`apply_field_rbac_filtering`], the anonymous one calls
+/// [`apply_anonymous_field_rbac_filtering`] — each open-coding it at its own call
+/// site. `execute_query_direct`, the runner behind the whole REST read surface,
+/// made neither call and ran no field RBAC at all (`#886`).
+///
+/// Routing every read through one function is what stops the next transport from
+/// silently arriving without a classifier: there is no longer a correct-looking way
+/// to project results without having classified them first.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] if a requested field requires a scope the
+/// caller lacks and its `on_deny` policy is `Reject`.
+pub(in super::super) fn classify_fields_for_read(
+    schema: &CompiledSchema,
+    return_type: &str,
+    projection_fields: Vec<String>,
+    security_context: Option<&SecurityContext>,
+) -> Result<FieldAccessResult> {
+    match security_context {
+        Some(ctx) => apply_field_rbac_filtering(schema, return_type, projection_fields, ctx),
+        None => apply_anonymous_field_rbac_filtering(schema, return_type, &projection_fields),
+    }
+}

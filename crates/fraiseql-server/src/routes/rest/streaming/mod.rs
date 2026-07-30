@@ -140,6 +140,12 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
             variables,
             security_ctx: security_ctx_owned,
             batch_size,
+            // #811: `?limit=` caps the export total. Without it the export streams the
+            // whole result set in `batch_size` pages — which is what an export is for,
+            // and what the "Memory usage is bounded by `ndjson_batch_size`" claim above
+            // has always promised.
+            total_limit: helpers::requested_total_limit(query_pairs),
+            emitted: 0,
             offset: 0,
             done: false,
         },

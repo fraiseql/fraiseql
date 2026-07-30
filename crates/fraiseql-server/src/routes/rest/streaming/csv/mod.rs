@@ -149,6 +149,10 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
             variables,
             security_ctx: security_ctx_owned,
             batch_size,
+            // #811: `?limit=` caps the export total; absent, the whole result set is
+            // streamed in `batch_size` pages.
+            total_limit: super::helpers::requested_total_limit(query_pairs),
+            emitted: 0,
             offset: 0,
             done: false,
             delimiter,
@@ -227,6 +231,10 @@ struct CsvStreamState<A: DatabaseAdapter> {
     variables:      serde_json::Value,
     security_ctx:   Option<SecurityContext>,
     batch_size:     u64,
+    /// Client-requested cap on the **total** rows exported (`?limit=`), if any.
+    total_limit:    Option<u64>,
+    /// Rows emitted so far, across every batch.
+    emitted:        u64,
     offset:         u64,
     done:           bool,
     delimiter:      u8,
@@ -247,13 +255,17 @@ struct CsvStreamState<A: DatabaseAdapter> {
 async fn fetch_and_serialize_csv_batch<A: DatabaseAdapter>(
     state: &mut CsvStreamState<A>,
 ) -> Result<Option<Bytes>, Bytes> {
-    let mut batch_vars = state.variables.clone();
-    if let Some(obj) = batch_vars.as_object_mut() {
-        obj.insert("limit".to_string(), serde_json::json!(state.batch_size));
-        if state.offset > 0 {
-            obj.insert("offset".to_string(), serde_json::json!(state.offset));
-        }
-    }
+    // Size this batch, honouring any client-supplied total cap.
+    let Some(page) =
+        super::helpers::next_batch_size(state.batch_size, state.total_limit, state.emitted)
+    else {
+        state.done = true;
+        return Ok(None);
+    };
+    // #811: pagination goes into `arguments`, which is what the executor reads.
+    super::helpers::set_export_page(&mut state.query_match, page, state.offset);
+
+    let batch_vars = state.variables.clone();
     let vars_ref = if batch_vars.as_object().is_none_or(serde_json::Map::is_empty) {
         None
     } else {
@@ -313,13 +325,13 @@ async fn fetch_and_serialize_csv_batch<A: DatabaseAdapter>(
         },
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: rows.len() fits in u64 in any realistic batch.
-    let row_count = rows.len() as u64;
-    if row_count < state.batch_size {
+    // Advance by the rows actually returned, not by the requested page size (#811).
+    let row_count = u64::try_from(rows.len()).unwrap_or(u64::MAX);
+    state.emitted += row_count;
+    state.offset += row_count;
+
+    if row_count < page {
         state.done = true;
-    } else {
-        state.offset += state.batch_size;
     }
 
     Ok(Some(bytes))

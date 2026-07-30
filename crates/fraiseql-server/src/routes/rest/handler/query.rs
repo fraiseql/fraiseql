@@ -69,9 +69,22 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
 
         let params = extractor.extract(&path_pairs, query_pairs)?;
 
-        // Build field names from RestFieldSpec
+        // Build field names from RestFieldSpec.
+        //
+        // `All` must expand to the type's declared fields, not to an empty vector.
+        // The executor reads the requested field set twice — as the projection *and*
+        // as the input to the `#423` field-authorization gate — so an empty vector
+        // reads as "project nothing, gate nothing" to both. That is `#886`: a read
+        // with no `?select=` returned `{"data":[{},{}]}`, and the gate that should
+        // have refused a policy-gated field was handed nothing to inspect.
+        //
+        // Expanding here rather than teaching the projector to treat empty as "all"
+        // is deliberate: the projector fix alone would leave the gate inert, because
+        // the gate reads the same list.
         let field_names = match &params.field_selection {
-            RestFieldSpec::All => Vec::new(),
+            RestFieldSpec::All => type_def
+                .map(|t| t.fields.iter().map(|f| f.name.to_string()).collect())
+                .unwrap_or_default(),
             RestFieldSpec::Fields(fields) => fields.clone(),
         };
 

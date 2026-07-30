@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **A REST read projects the fields it was asked for, and the field-authorization gate
+  fires on that path (#886).** `QueryMatch::from_operation` — the only `QueryMatch`
+  constructor the REST transport uses — built a *flat* list of leaf `FieldSelection`s
+  instead of one root selection carrying `nested_fields`. Every consumer reads the
+  requested field set as `selections.first().nested_fields`, so all of them saw an empty
+  slice: the planner projected nothing (`{"data":[{},{},{}]}` for any request, with or
+  without `?select=`), and `deny_if_gated_field_selected` was handed nothing to inspect on
+  a path whose own comment calls it "leak-proof".
+
+  The two halves masked each other — no gated value leaked only because no value was
+  served at all — so repairing projection alone would have converted "REST returns
+  nothing" into a live field-authorization bypass. They are fixed together, gates first.
+
+  A third defect sat behind them: `RestFieldSpec::All` expanded to an **empty vector**, so
+  "all fields" and "no fields" were the same value. Teaching the projector that empty means
+  "project everything" would have left the gate inert, because the gate reads that same
+  list; `All` now expands to the type's declared fields.
+
+  `execute_query_direct` additionally ran **no** field RBAC at all — `requires_scope` was
+  unenforced across the whole REST read surface. The choice between the authenticated and
+  anonymous classifier is a property of whether a principal exists, not of the transport,
+  so both GraphQL runners and the REST runner now route through one
+  `classify_fields_for_read`.
+
+- **An embedded collection cannot be widened by a client filter (#863).**
+  `embed_into_single` seeded the sub-query `WHERE` map with the parent join predicate and
+  then merged the client's `?rel.field[op]=value` filter over it with
+  `serde_json::Map::insert`, which *replaces*. A filter naming the join column destroyed
+  the parent scoping, so one parent's record came back advertising another parent's
+  children as its own. The conventional `referenced_key` for `ManyToOne`/`OneToOne` is
+  `id`, so `?author.id[gt]=0` was enough. The two predicates are now composed with `_and`,
+  which makes the collision structurally impossible rather than defended against.
+
+- **An `Idempotency-Key` is valid only within its tenant, method and resource (#915).**
+  The client-supplied header value was used verbatim as the store key, so it collided
+  across everything sharing a process: the same key and body on `POST /users` and
+  `POST /orders` replayed each other's stored response, and two tenants retrying an
+  identical request under a natural key such as `order-42` received each other's results.
+  The store API now takes a `ScopedIdempotencyKey` whose only constructor is
+  `IdempotencyScope::key`, so keying on an unscoped string is a compile error rather than
+  an omission a reviewer has to notice.
+
 - **The Arrow Flight result cache is scoped to the requesting principal (#716).** It was
   keyed on the SQL text alone, while the same file's documentation told operators to scope
   rows "by the underlying `va_*` view itself (e.g. a view that filters on a session/tenant
@@ -159,6 +201,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`?limit=` on a streaming REST export now caps the export total, and an export without
+  it returns every row (#811).** The NDJSON, CSV and XLSX batch loops advanced pagination
+  by writing `limit`/`offset` into a clone of `variables`, which `execute_query_direct`
+  reads only for authorization — it takes limit/offset from `query_match.arguments`. Every
+  batch therefore re-issued the identical first-page query, producing one of two failures
+  depending on whether the page filled: a 10,000-row export silently returned
+  `default_page_size` rows with HTTP 200 and no error line, or, when `rows.len()` equalled
+  the batch size, the loop never terminated and re-emitted the same page indefinitely
+  while pinning a database connection.
+
+  Previously `GET /rest/v1/x` with `Accept: application/x-ndjson` returned 100 rows and
+  stopped, believing it had exported everything; it now streams the whole result set in
+  `ndjson_batch_size` pages. `?limit=N` bounds the total. All three formats share one
+  pagination driver — they were three independent copies of the same mistake.
+
+- **`Prefer: tx=rollback` is refused on bulk operations rather than silently committing
+  (#914).** It was parsed and its only effect was to echo `tx=rollback` in the
+  `Preference-Applied` response header — RFC 7240's assertion that the server honoured the
+  preference — while the mutation committed. A dry-run bulk `DELETE` destroyed data and
+  answered that it had rolled back. Honouring it needs a per-request execution mode
+  threaded through `Executor::execute`, whose `RuntimeConfig` is shared across requests, so
+  the honest answer today is an explicit 400. Both `Preference-Applied` echo sites are
+  removed: a preference can no longer be reported as applied when it was not.
+
+- **`IdempotencyStore::check`/`store` take a `ScopedIdempotencyKey` (#915).** See the
+  security entry above.
+
 - **`/health` reports `observers.events_processed`, not `observers.pending_events`
   (#875).** The field carried `RuntimeHealth::events_processed` — a monotonic lifetime
   counter of events already handled — under a name and a doc comment that promised
@@ -250,6 +319,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read back (#716).
 
 ### Fixed
+
+- **A collection `PATCH`/`DELETE` mutates every matched row and reports what it did
+  (#913).** `execute_bulk_by_filter` ran the filter query, **discarded the matched rows**,
+  called the mutation exactly once with the request body and no row identity, and then
+  reported `affected_rows` as the number of rows the *filter* matched — a fabricated count
+  for work it had not done. Both `_id_field` and `_max_affected` were unused parameters, so
+  no cap was enforced anywhere. Replaced by `execute_bulk_by_ids`, with row selection and
+  the cap in the REST handler where the filter guard and the HTTP status for "too many
+  rows" belong. The row identity overwrites any same-named body key, so a bulk request
+  cannot redirect a per-row mutation.
+
+- **The bulk "at least one filter" guard checks what reaches SQL (#862).**
+  `has_filter_params` answered a syntactic question about the query string while
+  `build_filter_query_match` forwarded only `params.where_clause`, so `?filter={}`,
+  `?search=x` and any dotted key satisfied the guard and produced no `WHERE` clause — and
+  no `limit` argument either, making the selection an unbounded scan of the whole view.
+  The syntactic pre-check is deleted rather than repaired: two functions answering the same
+  question differently was the defect. The guard now runs after extraction, `search` and
+  embedding filters are refused explicitly instead of dropped, and the selection query
+  always carries a `LIMIT`. A list query that does not accept a `where` argument is refused
+  outright, since its filter would otherwise be dropped and the first `max_affected` rows
+  of the whole view mutated under a filter the caller believes applied.
+
+- **`Prefer: max-affected` can lower the configured bulk cap but never raise it (#916).**
+  It used `unwrap_or(config.max_bulk_affected)`, so a client-supplied value replaced the
+  operator's limit outright.
+
+- **Collection-level bulk routes are registered, not merely advertised (#918).** The
+  router recorded the *collection* path in its "already registered" set whenever it
+  registered any `PATCH`/`DELETE` for a resource, including item-level ones, so a single
+  `PATCH /items/{id}/rename` suppressed the collection route — while the served OpenAPI
+  advertised it regardless. Every affected path answered 405 against the server's own
+  published contract.
+
+- **Nested embeddings execute to the depth the validator accepted (#864).**
+  `execute_embeddings` collected only `SelectEntry::Field` from a spec's sub-select, so
+  nested `Embedded` entries were parsed, depth-validated against `max_embedding_depth`
+  (default 3, documented as `?select=posts(comments)`), and then silently discarded. The
+  response carried no `comments` key at all, and a client could not distinguish "no
+  comments" from "the server dropped my selection". Validator and executor now agree by
+  construction.
+
+- **The REST idempotency body hash does not depend on key order (#911).** `hash_body`
+  hashed the rendered JSON, and since `serde_json/preserve_order` became an unconditional
+  workspace feature `Value` preserves insertion order in every build. Two renderings of the
+  same request hashed differently, and the layer treats a differing hash as a different
+  request under the same key — so a client whose encoder reorders keys between attempts
+  (Go's `encoding/json` sorts map keys; Python retry wrappers commonly use
+  `sort_keys=True`) received `409 Conflict` on the retry the key exists to make safe. The
+  body is normalized with `fraiseql_core::apq::normalize_json_value` before hashing rather
+  than growing a second recursive sorter. Array order remains significant.
 
 - **A re-cached entry stays reachable by every invalidation path (#740).** `put_arc`
   registers a key in the reverse indexes *before* `store.insert`, deliberately, so an

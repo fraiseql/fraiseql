@@ -9,7 +9,7 @@
 //! - The runtime-guarded internal dispatch entry point (`Executor::execute_mutation_query`, bounded
 //!   only on [`DatabaseAdapter`]).
 //! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
-//!   [`execute_mutation_batch`], [`execute_bulk_by_filter`]).
+//!   [`execute_mutation_batch`], [`execute_bulk_by_ids`]).
 
 use super::{Executor, runners};
 use crate::{
@@ -210,41 +210,57 @@ impl<A: DatabaseAdapter> Executor<A> {
         })
     }
 
-    /// Execute a bulk operation (collection-level PATCH/DELETE) by filter.
+    /// Execute a mutation once per identified row — the engine behind a collection-level
+    /// `PATCH`/`DELETE`.
+    ///
+    /// `ids` are the primary-key values the caller's filter selected; each is merged into
+    /// the request body under `id_field` so the mutation function receives the row it is
+    /// meant to act on. `affected_rows` is the number of mutations that actually ran.
+    ///
+    /// This replaces `execute_bulk_by_filter`, which ran the filter query, **discarded
+    /// the matched rows**, invoked the mutation exactly once with the body and no row
+    /// identity, and then reported `affected_rows` as the *filter's* row count — a
+    /// fabricated success on a write path (`#913`). Its `_id_field` and `_max_affected`
+    /// parameters were both unused.
+    ///
+    /// Row selection and the `max_affected` cap now live in the caller (the REST bulk
+    /// handler), where the filter guard and the HTTP status for "too many rows" belong.
+    /// Keeping them there is deliberate: this function can no longer run without a
+    /// caller having decided which rows it applies to.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    pub async fn execute_bulk_by_filter(
+    /// Returns whatever the underlying mutation returns; the first failure aborts and
+    /// propagates, so a partially-applied bulk reports the error rather than a count.
+    pub async fn execute_bulk_by_ids(
         &self,
-        query_match: &crate::runtime::matcher::QueryMatch,
         mutation_name: &str,
+        id_field: &str,
+        ids: &[serde_json::Value],
         body: Option<&serde_json::Value>,
-        _id_field: &str,
-        _max_affected: u64,
         security_context: Option<&SecurityContext>,
     ) -> crate::error::Result<crate::runtime::BulkResult> {
-        // Execute the filter query to find matching rows.
-        let filter_result = self
-            .query_runner()
-            .execute_query_direct(query_match, None, security_context)
-            .await?;
+        let mut entities = Vec::with_capacity(ids.len());
 
-        let args = body.cloned().unwrap_or(serde_json::json!({}));
-        let result = self
-            .execute_mutation_with_security(mutation_name, &args, security_context)
-            .await?;
+        for id in ids {
+            let mut args = body.and_then(|b| b.as_object().cloned()).unwrap_or_default();
+            // The row identity wins over anything the client put in the body under the
+            // same key: a bulk request must not be able to redirect a per-row mutation.
+            args.insert(id_field.to_string(), id.clone());
 
-        let count = filter_result
-            .get("data")
-            .and_then(|d| d.as_object())
-            .and_then(|o| o.values().next())
-            .and_then(|v| v.as_array())
-            .map_or(1, |a| a.len() as u64);
+            let result = self
+                .execute_mutation_with_security(
+                    mutation_name,
+                    &serde_json::Value::Object(args),
+                    security_context,
+                )
+                .await?;
+            entities.push(result);
+        }
 
         Ok(crate::runtime::BulkResult {
-            affected_rows: count,
-            entities:      Some(vec![result]),
+            affected_rows: u64::try_from(entities.len()).unwrap_or(u64::MAX),
+            entities:      Some(entities),
         })
     }
 }

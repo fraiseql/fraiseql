@@ -73,14 +73,14 @@ pub trait IdempotencyStore: Send + Sync {
     /// or [`IdempotencyCheck::Conflict`] if the key matches with a different body.
     fn check(
         &self,
-        key: &str,
+        key: &ScopedIdempotencyKey,
         body_hash: u64,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = IdempotencyCheck> + Send + '_>>;
 
     /// Store a response for a given idempotency key.
     fn store(
         &self,
-        key: String,
+        key: ScopedIdempotencyKey,
         body_hash: u64,
         response: StoredResponse,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>>;
@@ -135,9 +135,10 @@ impl InMemoryIdempotencyStore {
 impl IdempotencyStore for InMemoryIdempotencyStore {
     fn check(
         &self,
-        key: &str,
+        key: &ScopedIdempotencyKey,
         body_hash: u64,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = IdempotencyCheck> + Send + '_>> {
+        let key = key.as_str();
         let result = if let Some(entry) = self.entries.get(key) {
             if entry.created_at.elapsed() > self.ttl {
                 drop(entry);
@@ -156,7 +157,7 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
 
     fn store(
         &self,
-        key: String,
+        key: ScopedIdempotencyKey,
         body_hash: u64,
         response: StoredResponse,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
@@ -171,7 +172,7 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
         }
 
         self.entries.insert(
-            key,
+            key.as_str().to_string(),
             Entry {
                 response,
                 body_hash,
@@ -198,10 +199,83 @@ pub use redis_store::RedisIdempotencyStore;
 // ---------------------------------------------------------------------------
 
 /// Hash a request body for conflict detection.
+///
+/// The body is **normalized** (object keys sorted at every level) before serialization.
+/// Since `serde_json/preserve_order` became an unconditional workspace feature, `Value`
+/// preserves insertion order in every build, so `{"a":1,"b":2}` and `{"b":2,"a":1}` —
+/// the same request — rendered to different bytes and hashed differently. This hash is
+/// the conflict detector for the whole `Idempotency-Key` contract, so a retry whose
+/// client had re-serialized the body (Go's `encoding/json` sorts map keys; Python retry
+/// wrappers commonly use `sort_keys=True`) received `409 Conflict` instead of the cached
+/// response — defeating the feature for exactly the clients that need it (`#911`).
+///
+/// Reuses `fraiseql_core`'s APQ normalizer rather than adding a second recursive sorter.
 #[must_use]
 pub fn hash_body(body: &Value) -> u64 {
-    let bytes = serde_json::to_vec(body).unwrap_or_default();
-    xxh3_64(&bytes)
+    let normalized = fraiseql_core::apq::normalize_json_value(body.clone());
+    // `to_vec` on a `Value` is infallible; `unwrap_or_default` would have hashed every
+    // unserializable body to the empty vector, making an all-bodies-collide path look
+    // acceptable. Serialize to a String instead, which cannot fail for a `Value`.
+    let bytes = serde_json::to_string(&normalized).unwrap_or_else(|_| normalized.to_string());
+    xxh3_64(bytes.as_bytes())
+}
+
+/// The scope an idempotency key is valid within.
+///
+/// `Idempotency-Key` is a client-chosen opaque string. Used verbatim as the store key —
+/// which is what the REST handler did — it collides across everything that shares a
+/// process: the same key and body on `POST /users` and `POST /orders` replayed each
+/// other's stored response, and two tenants retrying an identical request under a natural
+/// key such as `order-42` received each other's results (`#915`).
+///
+/// The scope is a parameter of the store operations rather than something the caller
+/// pre-hashes, so an implementation cannot silently omit it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdempotencyScope {
+    /// Tenant the request belongs to, when the deployment resolves one.
+    pub tenant: Option<String>,
+    /// HTTP method, so a key cannot cross verbs.
+    pub method: String,
+    /// Resolved resource path, so a key cannot cross resources.
+    pub path:   String,
+}
+
+impl IdempotencyScope {
+    /// Compose the storage key for a client-supplied `Idempotency-Key`.
+    ///
+    /// Segments are length-prefixed so no combination of tenant, method, path and key can
+    /// be forged into another by embedding the separator.
+    #[must_use]
+    pub fn key(&self, client_key: &str) -> ScopedIdempotencyKey {
+        let tenant = self.tenant.as_deref().unwrap_or("");
+        let mut out = String::with_capacity(
+            tenant.len() + self.method.len() + self.path.len() + client_key.len() + 16,
+        );
+        for segment in [tenant, self.method.as_str(), self.path.as_str(), client_key] {
+            out.push_str(&segment.len().to_string());
+            out.push(':');
+            out.push_str(segment);
+            out.push('|');
+        }
+        ScopedIdempotencyKey(out)
+    }
+}
+
+/// A storage key that has been through [`IdempotencyScope`].
+///
+/// The store API takes this rather than a `&str` on purpose: it is the only constructor,
+/// so an implementation or a call site *cannot* accidentally key on the raw client-
+/// supplied header value. That is what `#915` was — the omission was invisible because
+/// the signature accepted the unscoped string just as happily.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedIdempotencyKey(String);
+
+impl ScopedIdempotencyKey {
+    /// The composed key, for use as a map or Redis key.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Create a default idempotency store from REST config values.

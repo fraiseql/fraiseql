@@ -54,6 +54,18 @@ impl QueryMatch {
     /// Used by the REST transport to construct sub-queries for resource embedding
     /// and bulk operations without synthesising a GraphQL query string.
     ///
+    /// The result has the **same shape** as [`QueryMatcher::match_query`]'s: a single
+    /// root selection named for the query, carrying the requested fields as its
+    /// `nested_fields`. Every consumer of a `QueryMatch` reads the requested field set
+    /// as `selections.first().nested_fields` — the planner's projection extraction, the
+    /// `#423` field-authorization gate, and `project_nested_lists` all do — so a *flat*
+    /// list of leaf selections reads to all of them as "no fields requested".
+    ///
+    /// That was `#886`: this constructor built the flat shape, so every REST read
+    /// projected zero fields (`{"data":[{},{},{}]}`) and the field-authorization gate
+    /// was handed an empty slice and never fired. The two defects masked each other —
+    /// no gated value leaked only because no value was served at all.
+    ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if the query definition has no SQL source.
@@ -63,16 +75,20 @@ impl QueryMatch {
         arguments: HashMap<String, serde_json::Value>,
         _type_def: Option<&crate::schema::TypeDefinition>,
     ) -> Result<Self> {
-        let selections = fields
-            .iter()
-            .map(|f| FieldSelection {
-                name:          f.clone(),
-                alias:         None,
-                arguments:     Vec::new(),
-                nested_fields: Vec::new(),
-                directives:    Vec::new(),
-            })
-            .collect();
+        let leaf = |name: &String| FieldSelection {
+            name:          name.clone(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: Vec::new(),
+            directives:    Vec::new(),
+        };
+        let selections = vec![FieldSelection {
+            name:          query_def.name.clone(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: fields.iter().map(leaf).collect(),
+            directives:    Vec::new(),
+        }];
 
         let parsed_query = ParsedQuery {
             operation_type: "query".to_string(),

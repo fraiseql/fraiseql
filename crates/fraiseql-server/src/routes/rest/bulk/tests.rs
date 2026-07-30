@@ -4,51 +4,36 @@
 
 use axum::http::HeaderMap;
 
-use super::helpers::{extract_entity_from_result, has_filter_params, set_rows_affected};
+use super::helpers::{extract_entity_from_result, extract_ids, set_rows_affected};
 
 // -----------------------------------------------------------------------
-// has_filter_params tests
+// extract_ids tests
 // -----------------------------------------------------------------------
+//
+// `has_filter_params` used to be tested here. It is gone: it answered a *syntactic*
+// question about the query string ("does this look filtered?") that disagreed with what
+// actually reached SQL, which is #862. The guard now lives in `build_filter_query_match`,
+// where `params.where_clause` is knowable, and is covered end-to-end against a real
+// database in `tests/rest_bulk_safety_e2e_pg.rs`.
 
 #[test]
-fn no_filter_params_empty() {
-    assert!(!has_filter_params(&[]));
+fn extract_ids_reads_the_first_data_key() {
+    let result = serde_json::json!({"data": {"items": [{"id": 1}, {"id": 2}]}});
+    assert_eq!(extract_ids(&result, "id"), vec![serde_json::json!(1), serde_json::json!(2)]);
 }
 
 #[test]
-fn no_filter_only_reserved() {
-    let params = vec![
-        ("select", "id,name"),
-        ("sort", "-name"),
-        ("limit", "10"),
-        ("offset", "0"),
-    ];
-    assert!(!has_filter_params(&params));
+fn extract_ids_skips_rows_without_the_id_field() {
+    // A row we cannot identify is a row we must not mutate — it is dropped, not
+    // defaulted, so it can never be passed to a per-row mutation as a null id.
+    let result = serde_json::json!({"data": {"items": [{"id": 1}, {"other": 2}]}});
+    assert_eq!(extract_ids(&result, "id"), vec![serde_json::json!(1)]);
 }
 
 #[test]
-fn filter_bracket_operator() {
-    let params = vec![("status[eq]", "inactive")];
-    assert!(has_filter_params(&params));
-}
-
-#[test]
-fn filter_json_dsl() {
-    let params = vec![("filter", r#"{"status":{"eq":"inactive"}}"#)];
-    assert!(has_filter_params(&params));
-}
-
-#[test]
-fn filter_simple_value() {
-    // Simple value param that isn't reserved → implicit eq
-    let params = vec![("status", "inactive")];
-    assert!(has_filter_params(&params));
-}
-
-#[test]
-fn filter_mixed_with_reserved() {
-    let params = vec![("limit", "10"), ("status[eq]", "inactive")];
-    assert!(has_filter_params(&params));
+fn extract_ids_is_empty_for_an_empty_or_malformed_envelope() {
+    assert!(extract_ids(&serde_json::json!({"data": {"items": []}}), "id").is_empty());
+    assert!(extract_ids(&serde_json::json!({}), "id").is_empty());
 }
 
 // -----------------------------------------------------------------------

@@ -17,7 +17,7 @@ use fraiseql_core::{
     schema::{CompiledSchema, MutationOperation, RestConfig},
     security::SecurityContext,
 };
-use helpers::{extract_entity_from_result, has_filter_params, set_rows_affected};
+use helpers::{extract_entity_from_result, extract_ids, set_rows_affected};
 use serde_json::json;
 
 use super::{
@@ -130,9 +130,6 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
         let mut applied: Vec<String> = Vec::new();
         if let Some(ref res) = prefer.resolution {
             applied.push(format!("resolution={res}"));
-        }
-        if prefer.tx_rollback {
-            applied.push("tx=rollback".to_string());
         }
 
         // Return representation or minimal
@@ -249,8 +246,18 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
     ) -> Result<RestResponse, RestError> {
         let prefer = PreferHeader::from_headers(headers);
 
-        if !has_filter_params(query_params) {
-            return Err(RestError::bad_request(op.missing_filter_msg));
+        // #914: `tx=rollback` was parsed, echoed in `Preference-Applied`, and never
+        // honoured — a dry-run bulk DELETE committed while the response asserted the
+        // rollback. Refusing is the honest answer until the preference is implemented:
+        // the adapter has `execute_function_call_dry_run` (run-in-transaction-then-
+        // rollback), but reaching it per request needs an execution mode threaded
+        // through `Executor::execute`, whose `RuntimeConfig` is shared across requests.
+        if prefer.tx_rollback {
+            return Err(RestError::bad_request(
+                "Prefer: tx=rollback is not supported on bulk operations. Omit the \
+                 preference to execute, or use `fraiseql query --dry-run` to validate a \
+                 mutation without committing.",
+            ));
         }
 
         let operation = op.operation;
@@ -260,21 +267,50 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
 
         let id_field = resource.id_arg.as_deref().unwrap_or("id");
 
-        let query_match =
-            self.build_filter_query_match(list_query_name, query_params, &resource.type_name)?;
+        // #916: a client-supplied `max-affected` may only make the request *more*
+        // conservative. This used to be `unwrap_or`, so a client replaced the
+        // operator's cap outright and could raise it to any `u64`.
+        let max_affected = prefer
+            .max_affected
+            .map_or(self.config.max_bulk_affected, |n| n.min(self.config.max_bulk_affected));
 
-        let max_affected = prefer.max_affected.unwrap_or(self.config.max_bulk_affected);
+        let query_match = self.build_filter_query_match(
+            list_query_name,
+            query_params,
+            &resource.type_name,
+            op.missing_filter_msg,
+            max_affected,
+        )?;
 
+        // Select the rows the filter matched. `build_filter_query_match` bounded this
+        // query at `max_affected + 1`, so an over-cap request is detectable without
+        // scanning the whole view (#862).
+        let filter_result = self
+            .executor
+            .execute_query_direct(&query_match, None, security_context)
+            .await
+            .map_err(RestError::from)?;
+
+        let ids = extract_ids(&filter_result, id_field);
+
+        if u64::try_from(ids.len()).unwrap_or(u64::MAX) > max_affected {
+            return Err(RestError {
+                status:  StatusCode::PAYLOAD_TOO_LARGE,
+                code:    "TOO_MANY_AFFECTED",
+                message: format!(
+                    "Bulk {operation} matches more than the maximum of {max_affected} rows. \
+                     Narrow the filter, or lower `Prefer: max-affected`."
+                ),
+                details: None,
+            });
+        }
+
+        // #913: mutate each matched row. The previous implementation called the mutation
+        // once with no row identity and reported the filter's row count as
+        // `affected_rows` — a count for work it had not done.
         let bulk_result = self
             .executor
-            .execute_bulk_by_filter(
-                &query_match,
-                mutation_name,
-                Some(body),
-                id_field,
-                max_affected,
-                security_context,
-            )
+            .execute_bulk_by_ids(mutation_name, id_field, &ids, Some(body), security_context)
             .await
             .map_err(RestError::from)?;
 
@@ -351,11 +387,22 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
     }
 
     /// Build a `QueryMatch` from query parameters for filter-based queries.
+    /// Build the row-selection query for a bulk operation.
+    ///
+    /// The filter guard lives **here**, after extraction, not in a syntactic pre-check
+    /// over the raw query string. `has_filter_params` used to answer "does this look
+    /// like it has a filter?" while this function forwarded only `params.where_clause` —
+    /// so `?filter={}`, `?search=x` and any dotted key satisfied the guard and produced
+    /// no `WHERE` clause at all (`#862`). Two functions answering the same question in
+    /// different ways is the defect; there is now one answer, taken where the truth is
+    /// knowable.
     fn build_filter_query_match(
         &self,
         query_name: &str,
         query_params: &[(&str, &str)],
         type_name: &str,
+        missing_filter_msg: &str,
+        max_affected: u64,
     ) -> Result<QueryMatch, RestError> {
         let query_def = self
             .schema
@@ -386,10 +433,47 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             id_fields
         };
 
-        let mut arguments = std::collections::HashMap::new();
-        if let Some(ref where_clause) = params.where_clause {
-            arguments.insert("where".to_string(), where_clause.clone());
+        // A filter the row-selection query cannot apply is worse than no filter: the
+        // executor reads `arguments["where"]` only when the query declares
+        // `auto_params.has_where`, so on a query without it the WHERE clause is dropped
+        // and the selection becomes the first `max_affected` rows of the *whole view* —
+        // rows the caller never asked for, mutated under a filter it believes applied.
+        if !query_def.auto_params.has_where {
+            return Err(RestError::bad_request(format!(
+                "Query '{query_name}' does not accept a `where` argument, so a bulk filter \
+                 cannot be applied to it. Bulk operations require a filterable list query."
+            )));
         }
+
+        // The guard: a filter that contributes no WHERE clause is not a filter. Without
+        // this, a bulk mutation runs against every row of the view.
+        let Some(where_clause) = params.where_clause.clone() else {
+            return Err(RestError::bad_request(missing_filter_msg));
+        };
+
+        // Parameters the extractor accepted but this path cannot honour. Silently
+        // dropping them is what let `?search=x` and `?rel.field=v` pass for filters.
+        if params.search_query.is_some() {
+            return Err(RestError::bad_request(
+                "`search` is not supported on bulk operations — it does not contribute a \
+                 WHERE clause. Use an explicit field filter.",
+            ));
+        }
+        if !params.embedding_filters.is_empty() {
+            return Err(RestError::bad_request(
+                "Embedded-relationship filters (`rel.field=value`) are not supported on \
+                 bulk operations — they do not contribute a WHERE clause. Use an explicit \
+                 field filter.",
+            ));
+        }
+
+        let mut arguments = std::collections::HashMap::new();
+        arguments.insert("where".to_string(), where_clause);
+        // Always bound the selection. `enforce_max_page_size(None, max)` returns
+        // `Ok(None)`, so an absent limit meant an unbounded scan of the whole view
+        // materialised into JSON (#862). `+ 1` makes "more than the cap" detectable
+        // without fetching every row.
+        arguments.insert("limit".to_string(), serde_json::json!(max_affected.saturating_add(1)));
 
         QueryMatch::from_operation(query_def, fields, arguments, type_def).map_err(RestError::from)
     }
@@ -406,9 +490,6 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
         set_rows_affected(&mut response_headers, bulk_result.affected_rows);
 
         let mut applied: Vec<&str> = Vec::new();
-        if prefer.tx_rollback {
-            applied.push("tx=rollback");
-        }
 
         if prefer.return_representation {
             let entities: Vec<serde_json::Value> = bulk_result
