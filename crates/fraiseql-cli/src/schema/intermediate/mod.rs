@@ -29,7 +29,7 @@ use fraiseql_core::schema::{
 };
 pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
-    IntermediateQueryDefaults,
+    IntermediateQueryDefaults, IntermediateRest,
 };
 use serde::{Deserialize, Serialize};
 pub use subscriptions::{

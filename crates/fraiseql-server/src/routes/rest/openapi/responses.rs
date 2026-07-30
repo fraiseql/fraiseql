@@ -39,15 +39,14 @@ impl OpenApiGenerator<'_> {
                                             "limit": { "type": "integer" },
                                             "offset": { "type": "integer" }
                                         }
-                                    },
-                                    "links": {
-                                        "type": "object",
-                                        "properties": {
-                                            "self": { "type": "string" },
-                                            "next": { "type": "string" },
-                                            "prev": { "type": "string" }
-                                        }
                                     }
+                                    // #873.3: no `links` object here. `build_query_response`
+                                    // emits `data` + `meta` and nothing else — the
+                                    // `build_offset_links`/`build_cursor_links` helpers that
+                                    // would populate it belong to `RestResponseFormatter`,
+                                    // which has no production caller. Documenting a member
+                                    // that is never present is what sent clients looking for
+                                    // it. Restore this alongside the links themselves.
                                 }
                             }
                         }),

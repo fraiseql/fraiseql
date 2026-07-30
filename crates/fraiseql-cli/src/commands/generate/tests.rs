@@ -96,6 +96,7 @@ fn test_derive_class_name() {
         additional_views:  vec![],
         requires_role:     None,
         relay_cursor_type: None,
+        rest:              None,
     };
     assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -122,6 +123,7 @@ fn test_derive_class_name() {
         additional_views:  vec![],
         requires_role:     None,
         relay_cursor_type: None,
+        rest:              None,
     };
     assert_eq!(derive_class_name(&single_query), "AuthorById");
 }
@@ -212,6 +214,7 @@ fn sample_schema() -> IntermediateSchema {
                 additional_views:  vec![],
                 requires_role:     None,
                 relay_cursor_type: None,
+                rest:              None,
             },
             IntermediateQuery {
                 name:              "author".to_string(),
@@ -236,6 +239,7 @@ fn sample_schema() -> IntermediateSchema {
                 additional_views:  vec![],
                 requires_role:     None,
                 relay_cursor_type: None,
+                rest:              None,
             },
         ],
         enums: vec![IntermediateEnum {

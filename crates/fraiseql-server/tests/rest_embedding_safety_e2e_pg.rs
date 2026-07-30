@@ -38,7 +38,10 @@ use fraiseql_core::{
         RestConfig, TypeDefinition,
     },
 };
-use fraiseql_server::routes::{graphql::AppState, rest::rest_query_router};
+use fraiseql_server::routes::{
+    graphql::AppState,
+    rest::{RestMountConfig, rest_query_router},
+};
 use fraiseql_test_support::try_database_url;
 use http::{Request, StatusCode};
 use serde_json::{Value, json};
@@ -183,7 +186,7 @@ async fn rig() -> Option<Rig> {
 
     let executor = Arc::new(Executor::new(schema(), adapter));
     let state = AppState::new(executor);
-    let router = rest_query_router(&state, false, false).expect("REST router");
+    let router = rest_query_router(&state, &RestMountConfig::default()).expect("REST router");
 
     Some(Rig { router })
 }

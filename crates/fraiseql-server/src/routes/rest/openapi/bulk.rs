@@ -4,7 +4,7 @@ use fraiseql_core::schema::MutationOperation;
 use serde_json::{Map, Value, json};
 
 use super::{OpenApiGenerator, format::capitalize};
-use crate::routes::rest::resource::{RestResource, RouteSource};
+use crate::routes::rest::resource::{HttpMethod, RestResource, RouteSource};
 
 impl OpenApiGenerator<'_> {
     /// Add collection-level PATCH and DELETE operations for bulk update/delete.
@@ -16,19 +16,33 @@ impl OpenApiGenerator<'_> {
         let collection_path = format!("/{}", resource.name);
         let type_ref = format!("#/components/schemas/{}", resource.type_name);
 
-        let has_update = resource.routes.iter().any(|r| {
-            matches!(&r.source, RouteSource::Mutation { name }
-                if self.schema.find_mutation(name)
-                    .is_some_and(|m| matches!(m.operation,
-                        MutationOperation::Update { .. })))
-        });
+        // Whether the *router* registered a collection-level bulk route — not whether
+        // the schema declares an update or delete mutation. Those two answers came
+        // apart in #918: an item-level `PATCH /items/{id}/rename` marked the collection
+        // as already having PATCH, so the router skipped the bulk fallback, while this
+        // builder went on advertising `PATCH /items` from the mutation list alone. The
+        // published contract promised a method the router answered with `405`.
+        let has_update = self.mounted.contains(&collection_path, HttpMethod::Patch)
+            && resource.routes.iter().any(|r| {
+                matches!(&r.source, RouteSource::Mutation { name }
+                    if self.schema.find_mutation(name)
+                        .is_some_and(|m| matches!(m.operation,
+                            MutationOperation::Update { .. })))
+            });
 
-        let has_delete = resource.routes.iter().any(|r| {
-            matches!(&r.source, RouteSource::Mutation { name }
-                if self.schema.find_mutation(name)
-                    .is_some_and(|m| matches!(m.operation,
-                        MutationOperation::Delete { .. })))
-        });
+        let has_delete = self.mounted.contains(&collection_path, HttpMethod::Delete)
+            && resource.routes.iter().any(|r| {
+                matches!(&r.source, RouteSource::Mutation { name }
+                    if self.schema.find_mutation(name)
+                        .is_some_and(|m| matches!(m.operation,
+                            MutationOperation::Delete { .. })))
+            });
+
+        // Return before touching `paths`: `entry(..).or_insert_with(..)` would otherwise
+        // leave an empty `/{resource}: {}` path item on every read-only mount.
+        if !has_update && !has_delete {
+            return;
+        }
 
         let path_obj = paths.entry(collection_path).or_insert_with(|| Value::Object(Map::new()));
         let Value::Object(ref mut map) = path_obj else {

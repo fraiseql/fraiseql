@@ -46,7 +46,10 @@ use fraiseql_core::{
         MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
     },
 };
-use fraiseql_server::routes::{graphql::AppState, rest::rest_router};
+use fraiseql_server::routes::{
+    graphql::AppState,
+    rest::{RestMountConfig, rest_router},
+};
 use fraiseql_test_support::try_database_url;
 use http::{Request, StatusCode};
 use serde_json::{Value, json};
@@ -69,6 +72,26 @@ const MAX_BULK_AFFECTED: u64 = 2;
 
 async fn seed(adapter: &PostgresAdapter) {
     let mut stmts = vec![
+        // The `app.mutation_response` contract. Provisioned here, idempotently, rather than
+        // assumed: neither the local compose seed (`docker/init/postgres-test.sql`) nor the
+        // Dagger service seed (`tests/sql/postgres/init.sql`) creates it. Any suite relying
+        // on it being present was relying on a *previous* suite in the same database having
+        // created it — which is green until the run order changes or the volume is reset,
+        // and is not a property CI can depend on. `make db-reset` reproduces the failure
+        // exactly (SQLSTATE 3F000, invalid_schema_name).
+        format!("CREATE SCHEMA IF NOT EXISTS app"),
+        format!(
+            "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
+         'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',\
+         'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+        ),
+        format!(
+            "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed \
+         BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status \
+         SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB, \
+         updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
+         EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+        ),
         format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
         format!("CREATE SCHEMA {SCHEMA}"),
         format!(
@@ -124,6 +147,20 @@ fn uuid_for(n: usize) -> String {
     format!("00000000-0000-0000-0000-{n:012}")
 }
 
+/// Opt every fixture mutation out of the change-log outbox.
+///
+/// These suites are about REST write semantics, not the change spine. Left on (the
+/// default), each mutation INSERTs into `core.tb_entity_change_log` — a table neither
+/// database seed creates, and which *other* suites in this crate create with differing
+/// column sets. That made the result depend on which binary had run first: green alone,
+/// `column "updated_fields" does not exist` after a full-crate run, `relation ... does
+/// not exist` after `make db-reset`. Dropping the dependency is what makes these suites
+/// order-independent, which is the only form in which they can be a CI gate.
+const fn without_changelog(mut m: MutationDefinition) -> MutationDefinition {
+    m.changelog = false;
+    m
+}
+
 fn schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
 
@@ -156,7 +193,7 @@ fn schema() -> CompiledSchema {
         ArgumentDefinition::new("id", FieldType::String),
         ArgumentDefinition::new("status", FieldType::String),
     ];
-    schema.mutations.push(update);
+    schema.mutations.push(without_changelog(update));
 
     let mut delete = MutationDefinition::new("deleteItem", "P13Item");
     delete.sql_source = Some(format!("{SCHEMA}.fn_delete_item"));
@@ -164,7 +201,7 @@ fn schema() -> CompiledSchema {
         table: "tb_item".to_string(),
     };
     delete.arguments = vec![ArgumentDefinition::new("id", FieldType::String)];
-    schema.mutations.push(delete);
+    schema.mutations.push(without_changelog(delete));
 
     schema.rest_config = Some(RestConfig {
         enabled: true,
@@ -247,7 +284,7 @@ async fn rig() -> Option<Rig> {
 
     let executor = Arc::new(Executor::new(schema(), Arc::clone(&adapter)));
     let state = AppState::new(executor);
-    let router = rest_router(&state, false, false).expect("REST router");
+    let router = rest_router(&state, &RestMountConfig::default()).expect("REST router");
 
     Some(Rig { router, adapter })
 }

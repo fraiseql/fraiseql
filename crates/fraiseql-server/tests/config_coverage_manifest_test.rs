@@ -83,6 +83,40 @@ const MANIFEST: &[(&str, &str)] = &[
     ("files", "file-serving config (Option)"),
     ("usage", "usage-metering config (Option)"),
     ("tenancy*", "multi-tenant runtime config (tenancy.runtime.enabled)"),
+    // #917: `[export]`, whose leaves are read by the REST transport. Before this phase
+    // `ExportConfig` was never deserialized anywhere — every consumer built its own
+    // `::default()` — so none of these keys reached a running server. Named per leaf
+    // rather than with a `*` glob precisely because each one had to be shown to have a
+    // consumer; a glob would have re-admitted the whole inert table in one line.
+    (
+        "export.csv_delimiter",
+        "CSV export writer (streaming::csv::handle_csv_get via RestState::export)",
+    ),
+    (
+        "export.csv_include_bom",
+        "CSV export writer (streaming::csv::handle_csv_get via RestState::export)",
+    ),
+    (
+        "export.export_formats",
+        "export format kill-switch (ExportConfig::serves, checked by refuse_disabled_export \
+         on every negotiation path)",
+    ),
+    (
+        "export.xlsx_max_rows",
+        "XLSX export row cap (streaming::xlsx::handle_xlsx_get via RestState::export)",
+    ),
+    (
+        "export.xlsx_temp_dir",
+        "XLSX temp-file directory (streaming::xlsx builder via RestState::export)",
+    ),
+    (
+        "export.max_concurrent_xlsx",
+        "XLSX concurrency semaphore, sized in derive_rest_context",
+    ),
+    (
+        "export.parquet_max_rows",
+        "Parquet export row cap (read via RestState::export alongside the other formats)",
+    ),
     (
         "validation",
         "schema validation config (Option; fraiseql-core ValidationConfig)",

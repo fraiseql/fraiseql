@@ -7,13 +7,13 @@
 
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// User-selectable export response format.
 ///
 /// Distinct from `fraiseql_arrow::ExportFormat`: this is the server-side
 /// HTTP content-negotiation enum, not the Arrow exporter's format set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ExportFormat {
@@ -27,10 +27,17 @@ pub enum ExportFormat {
 
 /// Runtime configuration for REST export endpoints.
 ///
-/// Deserialized from the server's TOML config (typically under a
-/// `[rest.export]` table). All fields have defaults so an empty TOML table
-/// yields a usable config.
-#[derive(Debug, Clone, Deserialize)]
+/// Deserialized from the server's TOML config under `[export]` in `fraiseql.toml`, and
+/// reachable as [`ServerConfig::export`](crate::server_config::ServerConfig::export).
+/// All fields have defaults, so an absent table yields a usable config.
+///
+/// **This type had no deserialization site at all until #917.** Every production
+/// consumer called `ExportConfig::default()` — one of them with a comment conceding
+/// that "TOML-driven `ExportConfig` loading is a later phase" — so all seven fields
+/// were inert: a configured CSV delimiter, BOM setting, row cap, temp directory,
+/// concurrency limit and format allow-list were each accepted by the config parser and
+/// then ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ExportConfig {
     /// CSV field delimiter (default `,`).
@@ -45,7 +52,17 @@ pub struct ExportConfig {
     pub xlsx_temp_dir:       Option<PathBuf>,
     /// Max simultaneous in-flight XLSX exports (default 10).
     pub max_concurrent_xlsx: usize,
-    /// Formats the server is willing to serve. Empty disables all exports.
+    /// Formats the server is willing to serve.
+    ///
+    /// An **explicitly empty** list disables all exports; that is the documented
+    /// kill-switch and it is honoured by [`ExportConfig::serves`].
+    ///
+    /// ⚠ The default is therefore *all* formats, not the empty vector. It used to be
+    /// empty, which was harmless only for as long as nothing read the field: wiring the
+    /// kill-switch up without changing the default would have turned every export off in
+    /// every deployment that had not written the key — a silent outage delivered by a
+    /// bug fix. "Not configured" and "configured to serve nothing" have to be different
+    /// values, and only the second may disable anything.
     pub export_formats:      Vec<ExportFormat>,
 }
 
@@ -58,7 +75,18 @@ impl Default for ExportConfig {
             parquet_max_rows:    1_000_000,
             xlsx_temp_dir:       None,
             max_concurrent_xlsx: 10,
-            export_formats:      Vec::new(),
+            export_formats:      vec![ExportFormat::Csv, ExportFormat::Xlsx, ExportFormat::Parquet],
         }
+    }
+}
+
+impl ExportConfig {
+    /// Whether the server is configured to serve `format`.
+    ///
+    /// The one reader of [`export_formats`](ExportConfig::export_formats), so the
+    /// kill-switch cannot be honoured on one negotiation path and forgotten on another.
+    #[must_use]
+    pub fn serves(&self, format: ExportFormat) -> bool {
+        self.export_formats.contains(&format)
     }
 }

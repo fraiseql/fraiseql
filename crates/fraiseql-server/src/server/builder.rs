@@ -477,6 +477,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
             tenant_executor_factory: None,
+            #[cfg(feature = "rest")]
+            rest_router_builder: None,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
@@ -740,5 +742,45 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .map_err(|e| ServerError::ConfigError(format!("MCP stdio error: {e}")))?;
 
         Ok(())
+    }
+}
+
+/// Builder methods that require the adapter to support mutations.
+///
+/// `Server<A>`'s lifecycle — `build_router`, `mount_extensions`, `serve_with_shutdown`,
+/// `serve_on_listener` — is deliberately unbounded by
+/// [`SupportsMutations`](fraiseql_core::db::traits::SupportsMutations), so read-only
+/// adapters can be served. Anything needing that bound therefore has to be installed
+/// from a call site that has it, which is what this block is for.
+#[cfg(feature = "rest")]
+impl<A> Server<A>
+where
+    A: DatabaseAdapter
+        + fraiseql_core::db::traits::SupportsMutations
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Mount the REST **write** surface — `POST`/`PUT`/`PATCH`/`DELETE` on derived
+    /// resources, plus the collection-level bulk update and delete routes.
+    ///
+    /// Without this call the server mounts `rest_query_router`, which serves reads and
+    /// SSE only. That was the shipped state for two releases: `rest_router` had no
+    /// production caller at all while the served `OpenAPI` document advertised every
+    /// write path, so a client that followed the published contract received `405`
+    /// (fraiseql/fraiseql#865, a regression of #227).
+    ///
+    /// Call it from the boot path, before `serve`. It is not called for read-only
+    /// adapters (`SqliteAdapter`, `FraiseWireAdapter`) because they cannot satisfy the
+    /// bound — the type system, not a runtime check, is what keeps writes off them.
+    ///
+    /// The router still passes through `Server::attach_auth` at the shared mount site,
+    /// so enabling writes cannot accidentally place them on an unauthenticated
+    /// transport (#812).
+    #[must_use]
+    pub fn with_rest_write_surface(mut self) -> Self {
+        self.rest_router_builder = Some(Arc::new(crate::routes::rest::rest_router::<A>));
+        self
     }
 }

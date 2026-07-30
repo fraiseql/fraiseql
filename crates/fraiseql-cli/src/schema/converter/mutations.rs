@@ -61,6 +61,10 @@ impl SchemaConverter {
             }
         }
 
+        // #846: see the query converter — one shared helper, validating loudly.
+        let (rest_path, rest_method) =
+            Self::convert_rest_annotation("Mutation", &intermediate.name, intermediate.rest)?;
+
         Ok(MutationDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -72,8 +76,8 @@ impl SchemaConverter {
             inject_params,
             invalidates_fact_tables: intermediate.invalidates_fact_tables,
             invalidates_views: intermediate.invalidates_views,
-            rest_path: None,
-            rest_method: None,
+            rest_path,
+            rest_method,
             upsert_function: None,
             requires_role: intermediate.requires_role,
             changelog: intermediate.changelog,

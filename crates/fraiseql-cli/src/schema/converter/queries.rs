@@ -135,6 +135,11 @@ impl SchemaConverter {
             }
         }
 
+        // #846: the authored `rest` block reaches the compiled artifact here. Both this
+        // site and its mutation counterpart used to write `None` unconditionally.
+        let (rest_path, rest_method) =
+            Self::convert_rest_annotation("Query", &intermediate.name, intermediate.rest)?;
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -156,8 +161,8 @@ impl SchemaConverter {
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
             additional_views: intermediate.additional_views,
             requires_role: intermediate.requires_role,
-            rest_path: None,
-            rest_method: None,
+            rest_path,
+            rest_method,
             native_columns: HashMap::new(),
         })
     }

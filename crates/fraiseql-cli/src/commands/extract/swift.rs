@@ -104,6 +104,8 @@ impl SchemaExtractor for SwiftExtractor {
                 additional_views: vec![],
                 requires_role: None,
                 relay_cursor_type: None,
+                // `extract` scans SDK source text; it does not parse REST annotations.
+                rest: None,
             });
         }
 

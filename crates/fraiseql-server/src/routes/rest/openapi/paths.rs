@@ -42,6 +42,14 @@ impl OpenApiGenerator<'_> {
 
         for resource in &self.route_table.resources {
             for route in &resource.routes {
+                // Describe only what the router registered. A read-only mount derives
+                // the same route table as a write mount and registers a subset of it,
+                // so walking the table here is what made the read-only deployment
+                // publish a complete write API it answered with 405 (#865).
+                if !self.mounted.contains(&route.path, route.method) {
+                    continue;
+                }
+
                 let path_key = &route.path;
                 let method_key = method_to_string(route.method);
 
@@ -180,6 +188,9 @@ impl OpenApiGenerator<'_> {
         resource: &RestResource,
     ) {
         let stream_path = format!("/{}/stream", resource.name);
+        if !self.mounted.contains(&stream_path, HttpMethod::Get) {
+            return;
+        }
 
         let mut stream_get = json!({
                     "tags": [capitalize(&resource.name)],

@@ -21,6 +21,7 @@ use super::{
 use crate::routes::rest::{
     idempotency::{IdempotencyCheck, IdempotencyStore, StoredResponse},
     resource::{HttpMethod, RouteSource},
+    response::helpers::{extract_id_from_data, extract_mutation_data, format_id_for_url},
 };
 
 impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
@@ -221,6 +222,29 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
 
         let status =
             StatusCode::from_u16(resolved.route.success_status).unwrap_or(StatusCode::CREATED);
+
+        // #873.3: `Location` on a 201, which the served OpenAPI documents as a response
+        // header on every POST and which no live path emitted. `RestResponseFormatter`
+        // built it correctly and had no production caller.
+        //
+        // Emitted only when the created entity actually carries an id: a `Location`
+        // pointing at a URL that does not resolve is worse than none at all.
+        if status == StatusCode::CREATED {
+            if let Some(id_val) = extract_mutation_data(&result)
+                .ok()
+                .and_then(|d| extract_id_from_data(&d).cloned())
+            {
+                let location = format!(
+                    "{}{}/{}",
+                    self.route_table.base_path,
+                    resolved.route.path,
+                    format_id_for_url(&id_val)
+                );
+                if let Ok(loc) = HeaderValue::from_str(&location) {
+                    response_headers.insert("location", loc);
+                }
+            }
+        }
 
         let rest_response = RestResponse {
             status,
