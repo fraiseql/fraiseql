@@ -46,10 +46,10 @@ impl RedisIdempotencyStore {
 impl IdempotencyStore for RedisIdempotencyStore {
     fn check(
         &self,
-        key: &str,
+        key: &super::ScopedIdempotencyKey,
         body_hash: u64,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = IdempotencyCheck> + Send + '_>> {
-        let redis_key = self.redis_key(key);
+        let redis_key = self.redis_key(key.as_str());
         let mut conn = self.pool.clone();
 
         Box::pin(async move {
@@ -83,11 +83,11 @@ impl IdempotencyStore for RedisIdempotencyStore {
 
     fn store(
         &self,
-        key: String,
+        key: super::ScopedIdempotencyKey,
         body_hash: u64,
         response: StoredResponse,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
-        let redis_key = self.redis_key(&key);
+        let redis_key = self.redis_key(key.as_str());
         let entry = RedisEntry {
             body_hash,
             response,

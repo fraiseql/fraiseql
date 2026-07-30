@@ -132,9 +132,24 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
         let variables_json = serde_json::Value::Object(variables);
         let vars_ref = Some(&variables_json);
 
-        // Idempotency: check for Idempotency-Key header
-        let idempotency_key =
-            headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(String::from);
+        // Idempotency: check for Idempotency-Key header.
+        //
+        // #915: the key is scoped by tenant + method + resource path before it reaches the
+        // store. Used verbatim — as it was — a client-chosen opaque string collided across
+        // everything sharing the process: the same key and body on two resources replayed
+        // each other's stored response, and two tenants retrying an identical request
+        // under a natural key such as `order-42` received each other's results.
+        let idempotency_scope = super::super::idempotency::IdempotencyScope {
+            tenant: security_context
+                .and_then(|c| c.tenant_id.as_ref())
+                .map(|t| t.as_str().to_string()),
+            method: "POST".to_string(),
+            path:   resolved.route.path.clone(),
+        };
+        let idempotency_key = headers
+            .get("idempotency-key")
+            .and_then(|v| v.to_str().ok())
+            .map(|k| idempotency_scope.key(k));
 
         if let (Some(ref key), Some(store)) = (&idempotency_key, self.idempotency_store) {
             let body_hash = super::super::idempotency::hash_body(body);

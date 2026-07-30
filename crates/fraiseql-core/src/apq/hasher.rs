@@ -150,9 +150,17 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 
 /// Recursively normalize a JSON value by sorting object keys at every level.
 ///
-/// This makes hashing robust against key-order variance in the source (e.g.
-/// if `serde_json`'s internal map type changes from `BTreeMap` to a non-sorted type).
-fn normalize_json_value(value: JsonValue) -> JsonValue {
+/// This makes hashing robust against key-order variance in the source. It is no longer a
+/// hypothetical: `serde_json/preserve_order` is an unconditional workspace feature, so
+/// `Value` preserves *insertion* order in every build and two semantically identical
+/// documents whose keys arrived in different orders serialize differently.
+///
+/// Exported because any digest taken over a rendered `serde_json::Value` needs it — the
+/// REST idempotency body hash did not have it and answered `409 Conflict` to a retry
+/// whose client had re-serialized the body (`#911`). One shared normalizer, not a second
+/// recursive sorter per call site.
+#[must_use]
+pub fn normalize_json_value(value: JsonValue) -> JsonValue {
     match value {
         JsonValue::Object(map) => {
             // Collect into a Vec, sort by key, re-insert in order.

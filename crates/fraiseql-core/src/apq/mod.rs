@@ -24,7 +24,10 @@ pub mod redis_storage;
 pub mod storage;
 
 // Re-export key types for convenience
-pub use hasher::{hash_query, hash_query_with_variables, verify_hash, verify_hash_with_variables};
+pub use hasher::{
+    hash_query, hash_query_with_variables, normalize_json_value, verify_hash,
+    verify_hash_with_variables,
+};
 pub use memory_storage::InMemoryApqStorage;
 pub use metrics::ApqMetrics;
 #[cfg(feature = "redis-apq")]

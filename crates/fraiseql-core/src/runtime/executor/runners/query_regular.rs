@@ -818,6 +818,18 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Build execution plan.
         let plan = self.ctx.planner.plan(query_match)?;
 
+        // #886: static field-level RBAC, the same classification both GraphQL paths
+        // apply. This runner previously applied none — it projected
+        // `plan.projection_fields` verbatim — so a field carrying `requires_scope` was
+        // served in full over REST to a caller without the scope. Classifying *before*
+        // the read means a `Reject` never reaches the database.
+        let access = super::super::support::security::classify_fields_for_read(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            plan.projection_fields,
+            security_context,
+        )?;
+
         // Extract auto_params from arguments.
         let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
             query_match
@@ -943,8 +955,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             )
             .await?;
 
-        // Project results.
-        let projector = ResultProjector::new(plan.projection_fields)
+        // Project results. Masked fields stay in the projection, in their requested
+        // position, and are nulled below — the response keeps the key and withholds
+        // only the value, as both GraphQL paths do.
+        let projector = ResultProjector::new(access.projected.clone())
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -958,6 +972,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
             &self.ctx.schema,
         );
+
+        // #886: null out fields denied to this caller under `on_deny = Mask`.
+        if !access.masked.is_empty() {
+            null_masked_fields(&mut projected, &access.masked);
+        }
 
         // Wrap in GraphQL data envelope.
         let response =

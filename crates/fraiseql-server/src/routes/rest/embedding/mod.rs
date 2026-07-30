@@ -90,7 +90,7 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         let output_name = spec.rename.as_deref().unwrap_or(&spec.relationship);
 
         // Get sub-select field names.
-        let sub_field_names: Vec<String> = spec
+        let mut sub_field_names: Vec<String> = spec
             .fields
             .iter()
             .filter_map(|e| match e {
@@ -98,6 +98,45 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
                 _ => None,
             })
             .collect();
+
+        // #864: nested embeddings were parsed, depth-validated against
+        // `max_embedding_depth` (default 3, documented as `?select=posts(comments)`), and
+        // then silently dropped here — this `filter_map` was the only consumer of
+        // `spec.fields`, so `SelectEntry::Embedded` and `SelectEntry::Count` fell into
+        // `_ => None` and their keys simply never appeared in the response. The validator
+        // said yes and the executor forgot; a client could not tell "no comments" from
+        // "the server dropped my selection".
+        let nested: Vec<EmbeddedSpec> = spec
+            .fields
+            .iter()
+            .filter_map(|e| match e {
+                SelectEntry::Embedded(nested_spec) => Some(nested_spec.clone()),
+                _ => None,
+            })
+            .collect();
+
+        // A nested embedding joins on a key of the *child* row, so that key has to be
+        // projected even when the client did not ask for it. Without this the recursion
+        // below would find no join value and set every nested collection empty — a
+        // quieter version of the same bug.
+        if !nested.is_empty() {
+            let target_type = req.schema.find_type(&rel.target_type);
+            for nested_spec in &nested {
+                let Some(nested_rel) = target_type.and_then(|t| {
+                    t.relationships.iter().find(|r| r.name == nested_spec.relationship)
+                }) else {
+                    continue;
+                };
+                let key = match nested_rel.cardinality {
+                    fraiseql_core::schema::Cardinality::ManyToOne
+                    | fraiseql_core::schema::Cardinality::OneToOne => &nested_rel.foreign_key,
+                    _ => &nested_rel.referenced_key,
+                };
+                if !sub_field_names.iter().any(|f| f == key.as_str()) {
+                    sub_field_names.push(key.clone());
+                }
+            }
+        }
 
         // Execute embedding based on parent data shape (array or single object).
         match parent_data {
@@ -119,6 +158,46 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
             _ => {
                 // Non-object/array data — skip embedding silently.
             },
+        }
+
+        // #864: recurse into the embedded rows so a validated depth actually executes.
+        // The parser builds arbitrarily nested `EmbeddedSpec`s and
+        // `validate_embedding_depth` bounds them by `max_embedding_depth`, so the depth
+        // reached here is already the validated one — validator and executor now agree by
+        // construction rather than by two separate opinions.
+        //
+        // Nested filters are not addressable in the `?rel.field=value` syntax (it is flat,
+        // one segment deep), so the recursion passes an empty filter map rather than
+        // silently reusing the parent's.
+        if !nested.is_empty() {
+            let nested_req = EmbeddingRequest {
+                executor:         req.executor,
+                schema:           req.schema,
+                config:           req.config,
+                parent_type_name: &rel.target_type,
+                security_context: req.security_context,
+            };
+            let no_filters = HashMap::new();
+
+            // Each parent row holds its own embedded collection, so the recursion runs
+            // per row over the value just written.
+            match parent_data {
+                serde_json::Value::Array(rows) => {
+                    for row in rows.iter_mut() {
+                        if let Some(child) = row.get_mut(output_name) {
+                            Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
+                                .await?;
+                        }
+                    }
+                },
+                serde_json::Value::Object(_) => {
+                    if let Some(child) = parent_data.get_mut(output_name) {
+                        Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
+                            .await?;
+                    }
+                },
+                _ => {},
+            }
         }
     }
 

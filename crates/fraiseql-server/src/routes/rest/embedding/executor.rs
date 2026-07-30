@@ -52,8 +52,7 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
     };
 
     // Build WHERE clause for the sub-query: fk_column = parent_key_value.
-    let mut where_obj = serde_json::Map::new();
-
+    //
     // The filter key depends on cardinality direction:
     // OneToMany: child's FK = parent's referenced key value
     // ManyToOne: parent's FK = child's referenced key value (query by child's PK)
@@ -63,18 +62,29 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
         _ => &rel.foreign_key,
     };
 
-    where_obj.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
+    let mut join_predicate = serde_json::Map::new();
+    join_predicate.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
 
-    // Merge embedded filter if present.
-    if let Some(filter) = embedded_filter {
-        if let Some(filter_map) = filter.as_object() {
-            for (k, v) in filter_map {
-                where_obj.insert(k.clone(), v.clone());
-            }
-        }
-    }
-
-    let where_clause = serde_json::Value::Object(where_obj);
+    // #863: compose the parent scoping and the client filter with `_and` instead of
+    // merging the filter *over* the predicate. The old code seeded the map with the join
+    // predicate and then did `where_obj.insert(k, v)` per client key — and
+    // `serde_json::Map::insert` **replaces**, so a filter naming the join column
+    // (`?author.id[gt]=0`, and `id` is the conventional `referenced_key` for
+    // ManyToOne/OneToOne) silently destroyed the parent scoping and returned another
+    // parent's children under this parent's key.
+    //
+    // `_and` also means the two can never be in a position to collide: the client filter
+    // is a sibling of the join predicate, not an overlay on it, so no key comparison or
+    // reserved-name list is needed to keep them apart.
+    let where_clause = match embedded_filter.and_then(|f| f.as_object()) {
+        Some(filter_map) if !filter_map.is_empty() => serde_json::json!({
+            "_and": [
+                serde_json::Value::Object(join_predicate),
+                serde_json::Value::Object(filter_map.clone()),
+            ]
+        }),
+        _ => serde_json::Value::Object(join_predicate),
+    };
 
     // Find the target type's list query.
     let target_query = find_list_query_for_type(ctx.schema, &rel.target_type);

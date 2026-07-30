@@ -38,7 +38,9 @@ use std::sync::Arc;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
-    schema::{CompiledSchema, FieldType, InjectedParamSource, RestConfig},
+    schema::{
+        CompiledSchema, FieldDenyPolicy, FieldType, InjectedParamSource, RestConfig, SecurityConfig,
+    },
 };
 use fraiseql_server::server_config::{Hs256Config, ServerConfig};
 use fraiseql_test_support::try_database_url;
@@ -71,6 +73,12 @@ const TENANT_B: &str = "tenant-b";
 /// distinguishable from a correctly-filtered one by length alone.
 const ROWS_A: usize = 2;
 const ROWS_B: usize = 3;
+
+/// The `requires_scope`-gated field used by the `#886` field-gate tests.
+///
+/// Deliberately a field that **exists in the seeded data**, so a test cannot pass
+/// merely because the value was absent from the row to begin with.
+const GATED_FIELD: &str = "label";
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -192,20 +200,57 @@ impl Read {
     fn total(&self) -> Option<u64> {
         self.body.get("meta").and_then(|m| m.get("total")).and_then(Value::as_u64)
     }
+
+    /// Every row's value for `key`, as a string, skipping rows where it is absent.
+    ///
+    /// `#886`: before the projection repair this returned an empty vector for every
+    /// key, because each row was `{}`.
+    fn column(&self, key: &str) -> Vec<String> {
+        self.body
+            .get("data")
+            .and_then(Value::as_array)
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|r| r.get(key))
+                    .map(|v| v.as_str().map_or_else(|| v.to_string(), ToString::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The keys present on the first row, sorted. Empty when there are no rows.
+    fn first_row_keys(&self) -> Vec<String> {
+        self.body
+            .get("data")
+            .and_then(Value::as_array)
+            .and_then(|rows| rows.first())
+            .and_then(Value::as_object)
+            .map(|o| {
+                let mut keys: Vec<String> = o.keys().cloned().collect();
+                keys.sort();
+                keys
+            })
+            .unwrap_or_default()
+    }
 }
 
 /// Issue `GET {base}/orders` with an optional bearer token and optional `Prefer` header.
 ///
-/// **Why these tests assert row counts and not row contents:** every REST read currently
-/// projects **zero fields** — `{"data":[{},{},{}]}` — with or without `?select=`, because
-/// `QueryMatch::from_operation` builds a flat selection set whose root carries no
-/// `nested_fields` (filed as **#886**). Asserting `tenant_id` values would therefore pass
-/// vacuously against a response full of `{}`, which is precisely the test-theatre this
-/// phase exists to burn. The per-tenant row counts here are deliberately **distinct**
-/// (2 vs 3) so that both "saw everyone's rows" and "saw the wrong tenant's rows" fail.
-/// When #886 lands, strengthen these to assert the returned `tenant_id`s directly.
+/// The per-tenant row counts are deliberately **distinct** (2 vs 3) so that both "saw
+/// everyone's rows" and "saw the wrong tenant's rows" fail on length alone; `#886`'s
+/// repair means the tests below also assert the returned `tenant_id` values directly.
 async fn get_orders(base: &str, token: Option<&str>, prefer: Option<&str>) -> Read {
-    let mut req = reqwest::Client::new().get(format!("{base}/rest/v1/orders"));
+    get_orders_query(base, token, prefer, "").await
+}
+
+/// As [`get_orders`], with a query string appended verbatim (e.g. `"?select=id,label"`).
+async fn get_orders_query(
+    base: &str,
+    token: Option<&str>,
+    prefer: Option<&str>,
+    query: &str,
+) -> Read {
+    let mut req = reqwest::Client::new().get(format!("{base}/rest/v1/orders{query}"));
     if let Some(t) = token {
         req = req.header("authorization", format!("Bearer {t}"));
     }
@@ -228,6 +273,11 @@ async fn get_orders(base: &str, token: Option<&str>, prefer: Option<&str>) -> Re
 /// only ever runs the first shape would pass while the second stayed wide open — which
 /// is exactly the state `#739` shipped in.
 async fn start(authenticated: bool, require_auth: bool) -> Option<TestServer> {
+    start_with_schema(authenticated, build_schema(require_auth)).await
+}
+
+/// As [`start`], with a caller-supplied compiled schema.
+async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Option<TestServer> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
@@ -239,14 +289,7 @@ async fn start(authenticated: bool, require_auth: bool) -> Option<TestServer> {
     };
     // Boxed: `Server::new`'s future is ~18 KiB and `clippy::large_futures` (pedantic,
     // denied) rejects awaiting it inline at every call site.
-    Some(
-        Box::pin(TestServer::start_with_config(
-            config,
-            build_schema(require_auth),
-            Arc::new(adapter),
-        ))
-        .await,
-    )
+    Some(Box::pin(TestServer::start_with_config(config, schema, Arc::new(adapter))).await)
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +391,21 @@ async fn authenticated_read_is_scoped_to_the_callers_tenant() {
                 ROWS_A + ROWS_B,
                 read.body
             );
+
+            // #886: assert the row *contents*, not just the count. Before the
+            // projection repair every row was `{}`, so a count-only assertion could
+            // not tell a correctly-filtered read from an empty one.
+            let tenants = read.column("tenant_id");
+            assert_eq!(
+                tenants.len(),
+                expected,
+                "{tenant}: every returned row must carry a tenant_id, got {}",
+                read.body
+            );
+            assert!(
+                tenants.iter().all(|t| t == tenant),
+                "{tenant}: every returned row must belong to the caller's tenant, got {tenants:?}"
+            );
         }
     }))
     .await;
@@ -384,6 +442,204 @@ async fn count_exact_header_agrees_with_the_body_under_a_tenant_filter() {
             total,
             u64::try_from(ROWS_A).unwrap(),
             "both must equal the caller's own row count"
+        );
+    }))
+    .await;
+}
+
+// ---------------------------------------------------------------------------
+// #886 — projection, and the field gates it was masking
+// ---------------------------------------------------------------------------
+
+/// A schema whose `P03Order` carries an extra field gated by `requires_scope`.
+///
+/// `on_deny` selects what must happen to a caller who lacks the scope: `Reject` is a
+/// 403 for the whole request, `Mask` is a null in the field's requested position.
+fn build_schema_with_gated_field(on_deny: FieldDenyPolicy) -> CompiledSchema {
+    let mut schema = build_schema(true);
+
+    // Gate the *existing* `label` field rather than appending a second one: the seeded
+    // rows already carry a value for it, so a passing test cannot be explained by the
+    // field simply being absent from the data.
+    let gated = schema
+        .types
+        .iter_mut()
+        .find(|t| t.name == "P03Order")
+        .expect("the fixture type must exist")
+        .fields
+        .iter_mut()
+        .find(|f| f.name == GATED_FIELD)
+        .expect("the fixture type must declare the gated field");
+    gated.requires_scope = Some("read:P03Order.label".to_string());
+    gated.on_deny = on_deny;
+
+    // `apply_field_rbac_filtering` is a no-op unless the schema declares security at
+    // all, so an absent `security` block would make this test vacuous.
+    schema.security = Some(SecurityConfig::default());
+    schema.build_indexes();
+    schema
+}
+
+/// #886: a REST read must return the fields of each row.
+///
+/// `QueryMatch::from_operation` built a **flat** selection set — every requested field
+/// its own top-level `FieldSelection` with empty `nested_fields` — while
+/// `ExecutionPlanner::extract_projection_fields` reads `selections.first().nested_fields`.
+/// The planner therefore saw no fields, `ResultProjector::new(vec![])` projected nothing,
+/// and every REST read answered `{"data":[{},{},{}]}`: the right row count, zero data.
+///
+/// No test in the repo asserted the field *content* of a REST GET response, which is
+/// exactly why this shipped. `rest_transport_e2e_test.rs` asserts `is_array()` and array
+/// lengths; its single content assertion is on a mutation result that never passes
+/// through this projector.
+#[tokio::test]
+async fn a_rest_read_returns_the_fields_of_each_row() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read = get_orders(&server.url, Some(&token_for(TENANT_A)), None).await;
+
+        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+        assert_eq!(read.rows(), Some(ROWS_A), "row count: {}", read.body);
+
+        assert!(
+            !read.first_row_keys().is_empty(),
+            "every REST row came back as an empty object — the projection carried no \
+             fields at all: {}",
+            read.body
+        );
+        assert_eq!(
+            read.column("label").len(),
+            ROWS_A,
+            "every row must carry its `label`, got {}",
+            read.body
+        );
+        assert_eq!(
+            read.column("id").len(),
+            ROWS_A,
+            "every row must carry its `id`, got {}",
+            read.body
+        );
+    }))
+    .await;
+}
+
+/// #886: `?select=` must narrow the projection, not be ignored.
+///
+/// Before the repair the response was byte-identical with and without `?select=` —
+/// `{}` either way — so no test could tell the parameter was doing nothing.
+#[tokio::test]
+async fn a_rest_read_honours_select() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read =
+            get_orders_query(&server.url, Some(&token_for(TENANT_A)), None, "?select=id,label")
+                .await;
+
+        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+        assert_eq!(
+            read.first_row_keys(),
+            vec!["id".to_string(), "label".to_string()],
+            "?select=id,label must project exactly those two keys, got {}",
+            read.body
+        );
+    }))
+    .await;
+}
+
+/// #886's second half: the field-authorization gate must fire on the REST path.
+///
+/// `execute_query_direct` calls `deny_if_gated_field_selected` with
+/// `selections.first().nested_fields` — an empty slice under the flat selection set — so
+/// the guard inspected nothing and never fired, on a path whose own comment calls it
+/// "leak-proof". **Repairing projection without this makes it a live bypass**, which is
+/// why the two halves ship together.
+///
+/// `apply_field_rbac_filtering` — the `requires_scope` enforcement — was not called from
+/// `execute_query_direct` at all, only from the two GraphQL paths.
+#[tokio::test]
+async fn a_scope_gated_field_is_refused_over_rest() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) =
+            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
+        else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        // The token carries no roles, so it grants no scope.
+        let read = get_orders_query(
+            &server.url,
+            Some(&token_for(TENANT_A)),
+            None,
+            &format!("?select=id,{GATED_FIELD}"),
+        )
+        .await;
+
+        assert!(
+            !read.status.is_success(),
+            "selecting a scope-gated field without the scope must be refused over REST, \
+             got {} {}",
+            read.status,
+            read.body
+        );
+        assert!(
+            read.column(GATED_FIELD).is_empty(),
+            "the gated field's value must never reach the client, got {}",
+            read.body
+        );
+    }))
+    .await;
+}
+
+/// The `on_deny = Mask` half of the same gate: the key stays, the value is nulled.
+///
+/// A masked field that is simply *absent* is not the contract — the response must keep
+/// the key in its requested position with a null value, as both GraphQL paths do.
+#[tokio::test]
+async fn a_masked_field_is_nulled_not_served_over_rest() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) =
+            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Mask)).await
+        else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let read = get_orders_query(
+            &server.url,
+            Some(&token_for(TENANT_A)),
+            None,
+            &format!("?select=id,{GATED_FIELD}"),
+        )
+        .await;
+
+        assert_eq!(read.status, reqwest::StatusCode::OK, "read should succeed: {}", read.body);
+
+        let values: Vec<&Value> = read
+            .body
+            .get("data")
+            .and_then(Value::as_array)
+            .map(|rows| rows.iter().filter_map(|r| r.get(GATED_FIELD)).collect())
+            .unwrap_or_default();
+
+        assert_eq!(
+            values.len(),
+            ROWS_A,
+            "a masked field must keep its key in every row, got {}",
+            read.body
+        );
+        assert!(
+            values.iter().all(|v| v.is_null()),
+            "a masked field must be nulled, not served: {}",
+            read.body
         );
     }))
     .await;

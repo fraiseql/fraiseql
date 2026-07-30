@@ -21,8 +21,66 @@ pub(super) struct StreamState<A: DatabaseAdapter> {
     pub variables:    serde_json::Value,
     pub security_ctx: Option<SecurityContext>,
     pub batch_size:   u64,
+    /// Client-requested cap on the **total** rows exported (`?limit=`), if any.
+    pub total_limit:  Option<u64>,
+    /// Rows emitted so far, across every batch.
+    pub emitted:      u64,
     pub offset:       u64,
     pub done:         bool,
+}
+
+/// Point a `QueryMatch` at one page of an export.
+///
+/// Pagination **must** be written into `query_match.arguments`.
+/// `Executor::execute_query_direct` reads `limit`/`offset` from `arguments` only — its
+/// `variables` parameter feeds `enforce_authz` and nothing else.
+///
+/// All three export loops (NDJSON here, CSV, XLSX) used to advance pagination by
+/// mutating a clone of `variables`, so every batch re-issued the identical first-page
+/// query (`#811`). That produced two failure modes from one bug: truncation when the
+/// first page was short, and an endless duplicate-emitting loop when it was full.
+///
+/// Routing all three through this one function is the point — the previous code was
+/// three independent copies of the same mistake.
+pub(super) fn set_export_page(query_match: &mut QueryMatch, limit: u64, offset: u64) {
+    query_match.arguments.insert("limit".to_string(), serde_json::json!(limit));
+    query_match.arguments.insert("offset".to_string(), serde_json::json!(offset));
+}
+
+/// The client's explicit `?limit=`, which bounds the export **total**.
+///
+/// Recovered from the raw query pairs because `parse_offset_pagination` collapses an
+/// absent `?limit=` into `default_page_size`, making "the client asked for 100 rows" and
+/// "the client asked for nothing" indistinguishable downstream. On a streaming export
+/// those mean opposite things: the first is a cap, the second is "the whole table".
+pub(super) fn requested_total_limit(query_pairs: &[(&str, &str)]) -> Option<u64> {
+    query_pairs
+        .iter()
+        .find(|(k, _)| *k == "limit")
+        .and_then(|(_, v)| v.parse().ok())
+}
+
+/// How many rows the next batch may fetch, or `None` when the export is complete.
+///
+/// Clamps the final batch so a `?limit=` that is not a multiple of the batch size still
+/// yields exactly `limit` rows.
+pub(super) const fn next_batch_size(
+    batch_size: u64,
+    total_limit: Option<u64>,
+    emitted: u64,
+) -> Option<u64> {
+    match total_limit {
+        Some(total) if emitted >= total => None,
+        Some(total) => {
+            let remaining = total - emitted;
+            Some(if remaining < batch_size {
+                remaining
+            } else {
+                batch_size
+            })
+        },
+        None => Some(batch_size),
+    }
 }
 
 /// Fetch the next batch of rows, serialize as NDJSON bytes, and advance the offset.
@@ -34,15 +92,17 @@ pub(super) struct StreamState<A: DatabaseAdapter> {
 pub(super) async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
     state: &mut StreamState<A>,
 ) -> Result<Option<Bytes>, Bytes> {
-    // Override limit/offset in the variables for this batch.
-    let mut batch_vars = state.variables.clone();
-    if let Some(obj) = batch_vars.as_object_mut() {
-        obj.insert("limit".to_string(), serde_json::json!(state.batch_size));
-        if state.offset > 0 {
-            obj.insert("offset".to_string(), serde_json::json!(state.offset));
-        }
-    }
+    // Size this batch, honouring any client-supplied total cap.
+    let Some(page) = next_batch_size(state.batch_size, state.total_limit, state.emitted) else {
+        state.done = true;
+        return Ok(None);
+    };
+    // #811: pagination goes into `arguments`, which is what the executor reads.
+    set_export_page(&mut state.query_match, page, state.offset);
 
+    // Kept as an owned local rather than borrowed from `state`: the loop below mutates
+    // `state`, and a live borrow of `state.variables` across the await would conflict.
+    let batch_vars = state.variables.clone();
     let vars_ref = if batch_vars.as_object().is_none_or(|m| m.is_empty()) {
         None
     } else {
@@ -91,13 +151,17 @@ pub(super) async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
         }
     }
 
-    // If we got fewer rows than the batch size, this is the last batch.
-    #[allow(clippy::cast_possible_truncation)] // Reason: rows.len() won't exceed u64 range
-    let row_count = rows.len() as u64;
-    if row_count < state.batch_size {
+    // Advance by the rows actually returned, not by the requested page size: if the
+    // database returned a short page the export is finished anyway, and advancing by
+    // the request would skip rows on any path that can return fewer than it asked for.
+    let row_count = u64::try_from(rows.len()).unwrap_or(u64::MAX);
+    state.emitted += row_count;
+    state.offset += row_count;
+
+    // A short page means the result set is exhausted. Reaching the client's `?limit=`
+    // is handled by `next_batch_size` returning `None` on the following call.
+    if row_count < page {
         state.done = true;
-    } else {
-        state.offset += state.batch_size;
     }
 
     Ok(Some(Bytes::from(ndjson_bytes)))

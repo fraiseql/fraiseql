@@ -4,26 +4,19 @@
 
 use axum::http::{HeaderMap, HeaderValue};
 
-/// Check if query parameters contain at least one filter.
-pub(super) fn has_filter_params(query_params: &[(&str, &str)]) -> bool {
-    // Reserved non-filter params
-    const NON_FILTER: &[&str] = &[
-        "select", "sort", "limit", "offset", "first", "after", "last", "before", "filter",
-    ];
-
-    query_params.iter().any(|(key, _)| {
-        let base_key = key.split('[').next().unwrap_or(key);
-        // "filter" IS a filter param (JSON DSL), others with brackets are bracket operators
-        if *key == "filter" {
-            return true;
-        }
-        // Bracket operators like name[eq]=foo are filters
-        if key.contains('[') {
-            return true;
-        }
-        // Simple value params that aren't reserved are implicit eq filters
-        !NON_FILTER.contains(&base_key)
-    })
+/// Primary-key values from a bulk filter query's result envelope.
+///
+/// The envelope is `{"data": {"<key>": [ {..}, .. ]}}`; rows carry only the projected
+/// primary key. Rows without the id field are skipped rather than defaulted — a row we
+/// cannot identify is a row we must not mutate.
+pub(super) fn extract_ids(result: &serde_json::Value, id_field: &str) -> Vec<serde_json::Value> {
+    result
+        .get("data")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|o| o.values().next())
+        .and_then(serde_json::Value::as_array)
+        .map(|rows| rows.iter().filter_map(|r| r.get(id_field).cloned()).collect())
+        .unwrap_or_default()
 }
 
 /// Extract entity data from a mutation result value.

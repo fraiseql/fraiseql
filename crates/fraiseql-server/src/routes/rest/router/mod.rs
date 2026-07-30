@@ -35,7 +35,8 @@ use fraiseql_core::{
     security::SecurityContext,
 };
 use helpers::{
-    error_response, parse_query_pairs, rest_result_to_response, strip_base_path, to_axum_path,
+    collection_route_path, error_response, parse_query_pairs, rest_result_to_response,
+    strip_base_path, to_axum_path,
 };
 use serde_json::json;
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
@@ -264,14 +265,24 @@ where
                 HttpMethod::Get => router.route(&axum_path, get(rest_get_handler::<A>)),
                 HttpMethod::Post => router.route(&axum_path, post(rest_post_handler::<A>)),
                 HttpMethod::Put => router.route(&axum_path, put(rest_put_handler::<A>)),
+                // #918: record the collection path only when the route being registered
+                // *is* the collection route. These sets exist to stop the bulk fallback
+                // below from registering a second handler on a path that already has one
+                // — but the key used to be computed from `resource.name` alone, so an
+                // item-level `PATCH /items/{id}/rename` marked the whole collection as
+                // "already has PATCH" and suppressed the bulk route. The served OpenAPI
+                // advertised it regardless, so the published contract promised a method
+                // the router answered with 405.
                 HttpMethod::Patch => {
-                    let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
-                    collection_patch_paths.insert(collection_path);
+                    if route.path == collection_route_path(resource) {
+                        collection_patch_paths.insert(axum_path.clone());
+                    }
                     router.route(&axum_path, patch(rest_patch_handler::<A>))
                 },
                 HttpMethod::Delete => {
-                    let collection_path = to_axum_path(&base_path, &format!("/{}", resource.name));
-                    collection_delete_paths.insert(collection_path);
+                    if route.path == collection_route_path(resource) {
+                        collection_delete_paths.insert(axum_path.clone());
+                    }
                     router.route(&axum_path, delete(rest_delete_handler::<A>))
                 },
             };

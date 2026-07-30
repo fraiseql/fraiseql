@@ -18,6 +18,17 @@ pub(super) fn to_axum_path(base_path: &str, route_path: &str) -> String {
     format!("{base}{route_path}")
 }
 
+/// The route-relative collection path for a resource — `/{name}`.
+///
+/// Used to tell a collection-level route (`/items`) from an item-level one
+/// (`/items/{id}`, `/items/{id}/rename`) when deciding whether a bulk fallback route is
+/// still needed. Deriving it in one place is deliberate: `#918` was caused by computing
+/// this path for an item-level route and recording it as though the collection route had
+/// been registered.
+pub(super) fn collection_route_path(resource: &super::super::resource::RestResource) -> String {
+    format!("/{}", resource.name)
+}
+
 /// Strip the base path from a request path to get the route-relative path.
 pub(super) fn strip_base_path(base_path: &str, request_path: &str) -> String {
     if let Some(suffix) = request_path.strip_prefix(base_path) {
