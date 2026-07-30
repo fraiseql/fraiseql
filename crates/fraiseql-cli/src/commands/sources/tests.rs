@@ -62,10 +62,34 @@ fn build_status_reports_the_advanced_watermark_and_lag() {
 }
 
 #[test]
-fn build_status_keys_cursors_on_the_source_name_the_runtime_advances_under() {
-    // The declared cursor name differs from the source name, but the runtime poller
-    // advances under the source *name* — so the status must key on the name, not the
-    // declared cursor, or it would always read "never advanced".
+fn build_status_keys_cursors_on_the_declared_cursor_the_runtime_advances_under() {
+    // The runtime advances the *declared* cursor key (`SourceDefinition::cursor_name()`), so
+    // the status lookup must use the same key.
+    //
+    // This test previously asserted the opposite, on the grounds that "the runtime poller
+    // advances under the source *name*". That was accurate and it was the bug (#868 item 4):
+    // the poller ignored the declared override entirely, so `fraiseql sources` printed a
+    // `cursor_name` next to a watermark read from a *different* key. Both halves are fixed —
+    // the poller advances the override, and this lookup follows it.
+    let sources =
+        vec![SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_cursor("shared")];
+    let mut cursors = HashMap::new();
+    cursors.insert("shared".to_string(), cursor_row("shared", 2, 5.0));
+
+    let statuses = build_status(&sources, Some(&cursors));
+
+    assert_eq!(statuses[0].cursor_name, "shared", "the declared cursor is surfaced");
+    assert_eq!(
+        statuses[0].cursor.state, "advanced",
+        "and the lookup keys on it, so the reported watermark is the one the runtime advances"
+    );
+}
+
+#[test]
+fn build_status_reports_never_advanced_when_only_the_source_name_has_a_row() {
+    // The negative direction: a row under the source *name* must not be reported as this
+    // source's watermark when an override is declared. Without this, keying on either name
+    // would satisfy the test above whenever both rows happened to exist.
     let sources =
         vec![SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_cursor("shared")];
     let mut cursors = HashMap::new();
@@ -73,8 +97,10 @@ fn build_status_keys_cursors_on_the_source_name_the_runtime_advances_under() {
 
     let statuses = build_status(&sources, Some(&cursors));
 
-    assert_eq!(statuses[0].cursor_name, "shared", "the declared cursor is surfaced");
-    assert_eq!(statuses[0].cursor.state, "advanced", "but the lookup keys on the name");
+    assert_eq!(
+        statuses[0].cursor.state, "never_advanced",
+        "a row under the source name is not this source's watermark once `cursor` is declared"
+    );
 }
 
 #[test]

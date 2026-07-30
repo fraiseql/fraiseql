@@ -12,7 +12,7 @@ use super::types::IntermediateDeprecation;
 /// **The wire key is `inject_params` and it matches the compiled schema's key.** That is
 /// the fix for #806, not a cosmetic choice: the intermediate format used to call this
 /// `inject` while the compiled artifact called it `inject_params`, so every SDK author
-/// who looked at a compiled schema to learn the name got it wrong. TypeScript, Go and
+/// who looked at a compiled schema to learn the name got it wrong. `TypeScript`, Go and
 /// Java all did, independently, and `#[serde(default)]` with no `deny_unknown_fields`
 /// turned each of their injection maps into an empty default — compiling a query with no
 /// tenant predicate and printing `✓ Schema compiled successfully`. Two names for one
@@ -116,8 +116,102 @@ pub struct IntermediateRest {
     pub method: Option<String>,
 }
 
+/// Project-wide default injected parameters, applied to operations that do not name them.
+///
+/// Seven SDKs — Python, Go, Java, PHP, C#, Elixir and F# — ship a `ConfigLoader` that
+/// parses `[inject_defaults]` from `fraiseql.toml` and emits this block as a top-level key.
+/// The compiler had never heard of it: `grep -rn inject_defaults crates/` returned nothing,
+/// so `fraiseql compile` accepted the key, exited 0, printed `✓ Schema compiled
+/// successfully`, and produced operations carrying no injection at all. An operator who
+/// wrote `[inject_defaults] tenant_id = "jwt:tenant_id"` to stamp every operation with the
+/// caller's tenant got a clean compile and **not one compiled operation with a tenant
+/// predicate** (#847). Seven separate implementations of a feature that had never done
+/// anything.
+///
+/// ## Ordering, and why it is not the one the issue suggested
+///
+/// `#847` proposed merging these in *before* `[fraiseql.tenancy]` validation. That is
+/// wrong, and the two features would have become mutually exclusive: tenancy auto-injects
+/// the annotated field when an operation's `inject_params` is empty and **fails the
+/// compile** when it is non-empty but lacks the field. A default supplying any unrelated
+/// key (`read_scope`, the example in the Python SDK's own docstring) would therefore have
+/// turned every tenancy-annotated query into a compile error.
+///
+/// Defaults are applied by the converter, which runs after tenancy validation. Precedence,
+/// most specific first:
+///
+/// 1. the operation's own `inject_params`
+/// 2. `[fraiseql.tenancy]` auto-injection
+/// 3. `[inject_defaults].queries` / `.mutations`
+/// 4. `[inject_defaults].base`
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntermediateInjectDefaults {
+    /// Applied to queries **and** mutations.
+    #[serde(
+        default,
+        with = "inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
+    pub base: IndexMap<String, String>,
+
+    /// Applied to queries only, overriding a `base` entry of the same name.
+    #[serde(
+        default,
+        with = "inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
+    pub queries: IndexMap<String, String>,
+
+    /// Applied to mutations only, overriding a `base` entry of the same name.
+    #[serde(
+        default,
+        with = "inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
+    pub mutations: IndexMap<String, String>,
+}
+
+impl IntermediateInjectDefaults {
+    /// The defaults that apply to a query: `base`, then `queries` overriding it.
+    pub fn for_queries(&self) -> IndexMap<String, String> {
+        Self::layer(&self.base, &self.queries)
+    }
+
+    /// The defaults that apply to a mutation: `base`, then `mutations` overriding it.
+    pub fn for_mutations(&self) -> IndexMap<String, String> {
+        Self::layer(&self.base, &self.mutations)
+    }
+
+    /// `base` with `specific` layered on top.
+    fn layer(
+        base: &IndexMap<String, String>,
+        specific: &IndexMap<String, String>,
+    ) -> IndexMap<String, String> {
+        let mut merged = base.clone();
+        for (key, source) in specific {
+            merged.insert(key.clone(), source.clone());
+        }
+        merged
+    }
+
+    /// Fill in any default the operation does not already declare.
+    ///
+    /// Absent-only, never overwriting: an operation that names a parameter has made a more
+    /// specific decision than a project-wide default, and silently replacing it would be
+    /// the same class of defect one level up.
+    pub fn apply_to(defaults: &IndexMap<String, String>, inject: &mut IndexMap<String, String>) {
+        for (key, source) in defaults {
+            if !inject.contains_key(key) {
+                inject.insert(key.clone(), source.clone());
+            }
+        }
+    }
+}
+
 /// Argument definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateArgument {
     /// Argument name
     pub name: String,
@@ -135,13 +229,50 @@ pub struct IntermediateArgument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
 
+    /// Argument description (from docstring or TOML `description`).
+    ///
+    /// The compiled `ArgumentDefinition` has always had a `description`, and the TOML
+    /// authoring surface has always accepted one — but there was no field here to carry it
+    /// between them, so the converter hard-coded `description: None` and every authored
+    /// argument description was dropped. Found while fixing `#756`; same seam, same shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
     /// Deprecation info (from @deprecated directive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
 }
 
+impl From<&crate::config::toml_schema::ArgumentDefinition> for IntermediateArgument {
+    /// Lower a TOML-declared argument into the intermediate form.
+    ///
+    /// **This conversion exists so the key names cannot drift.** `#756` was two
+    /// hand-written `json!` literals emitting `"args"` with a `"required"` flag while this
+    /// struct deserialized `"arguments"` with a `"nullable"` flag. Both sides carried
+    /// `#[serde(default)]`, so the mismatch bound to an empty vector and every
+    /// TOML-declared argument on every operation silently disappeared — compiling a query
+    /// whose declared `id` filter was never applied, and returning rows the author had
+    /// excluded.
+    ///
+    /// Producing the struct and serializing *it* means the wire keys come from the field
+    /// definitions above. There is no second spelling to keep in sync.
+    fn from(arg: &crate::config::toml_schema::ArgumentDefinition) -> Self {
+        Self {
+            name:        arg.name.clone(),
+            arg_type:    arg.arg_type.clone(),
+            // TOML says `required`; the intermediate and compiled schemas say `nullable`.
+            // The inversion happens here, once.
+            nullable:    !arg.required,
+            default:     arg.default.clone(),
+            description: arg.description.clone(),
+            deprecated:  None,
+        }
+    }
+}
+
 /// Query definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateQuery {
     /// Query name (e.g., "users")
     pub name: String,
@@ -230,6 +361,7 @@ pub struct IntermediateQuery {
 
 /// Mutation definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateMutation {
     /// Mutation name (e.g., "createUser")
     pub name: String,
@@ -387,6 +519,7 @@ const fn default_changelog() -> bool {
 /// Each field is `Option<bool>`: `None` means "not specified — inherit from
 /// `[query_defaults]`"; `Some(v)` means explicitly set by the authoring-language decorator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateAutoParams {
     /// Enable automatic limit parameter (None = inherit from query_defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -410,6 +543,7 @@ pub struct IntermediateAutoParams {
 /// The `Default` implementation returns all-`true`, matching the historical behaviour
 /// when no `[query_defaults]` section is present in TOML.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateQueryDefaults {
     /// Default for `where` parameter
     pub where_clause: bool,

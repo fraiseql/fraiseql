@@ -5,7 +5,7 @@
 //!
 //! # Geospatial Types (PostGIS)
 //!
-//! Geospatial operators require PostGIS extensions on PostgreSQL, or
+//! Geospatial operators require PostGIS extensions on `PostgreSQL`, or
 //! equivalent spatial functions on other databases.
 //!
 //! ## Coordinates Type
@@ -20,7 +20,7 @@
 //! - `withinPolygon`: Point within polygon (future enhancement)
 //!
 //! **Database Support**:
-//! - PostgreSQL: Native PostGIS support (ST_DWithin, ST_GeomFromText)
+//! - `PostgreSQL`: Native PostGIS support (ST_DWithin, ST_GeomFromText)
 //! - MySQL: Built-in spatial functions (ST_Distance_Sphere)
 //! - SQLite: Haversine formula approximation (no spatial library)
 //! - SQL Server: Native geography type (ST_Distance)
@@ -58,7 +58,7 @@
 //! - `typeEq`: Type classification (US, UK, OTHER)
 //!
 //! **Database Support**:
-//! - PostgreSQL: Regex matching with '^\\+[1-9]' pattern
+//! - `PostgreSQL`: Regex matching with '^\\+[1-9]' pattern
 //! - MySQL: REGEXP operator with escaping
 //! - SQLite: GLOB patterns for basic matching
 //! - SQL Server: LIKE patterns for matching
@@ -102,7 +102,7 @@
 //! - `overlaps`: Overlaps with another date range
 //!
 //! **Database Support**:
-//! - PostgreSQL: Native timestamp and INTERVAL types
+//! - `PostgreSQL`: Native timestamp and INTERVAL types
 //! - MySQL: DATEDIFF and date functions
 //! - SQLite: julianday for date arithmetic
 //! - SQL Server: DATEDIFF and datetime functions
@@ -146,7 +146,7 @@
 //! - `totalMinutesGte`: Duration >= min (in minutes)
 //!
 //! **Database Support**:
-//! - PostgreSQL: CAST to INTERVAL, then EXTRACT(EPOCH ...)
+//! - `PostgreSQL`: CAST to INTERVAL, then EXTRACT(EPOCH ...)
 //! - MySQL: Parse PT notation and cast to numeric
 //! - SQLite: Parse PT notation and cast to numeric
 //! - SQL Server: SUBSTRING to parse and cast
@@ -169,7 +169,7 @@
 //!
 //! # Implementation Status
 //!
-//! | Type | Operator | PostgreSQL | MySQL | SQLite | SQL Server | Status |
+//! | Type | Operator | `PostgreSQL` | MySQL | SQLite | SQL Server | Status |
 //! |------|----------|-----------|-------|--------|------------|--------|
 //! | Coordinates | distanceWithin | ✅ PostGIS | ✅ | ⚠️ Approx | ✅ | Implemented |
 //! | Coordinates | withinBoundingBox | ✅ | ✅ | ✅ | ✅ | Implemented |

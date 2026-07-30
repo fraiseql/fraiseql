@@ -123,11 +123,19 @@ mod output_schemas_tests {
     use super::super::output_schemas::*;
 
     #[test]
-    fn test_get_output_schema_compile() {
-        let schema = get_output_schema("compile");
-        assert!(schema.is_some());
-        let schema = schema.unwrap();
-        assert_eq!(schema.command, "compile");
+    /// `compile` advertises no schema: it emits no `CommandResult` (#868 item 5).
+    fn test_get_output_schema_compile_is_none() {
+        assert!(
+            get_output_schema("compile").is_none(),
+            "compile::run prints plain lines and never builds a CommandResult, so there is no \
+             JSON object for a published schema to describe"
+        );
+    }
+
+    #[test]
+    fn test_get_output_schema_validate() {
+        let schema = get_output_schema("validate").expect("validate emits a CommandResult");
+        assert_eq!(schema.command, "validate");
         assert_eq!(schema.format, "json");
     }
 
@@ -140,9 +148,12 @@ mod output_schemas_tests {
     #[test]
     fn test_list_schema_commands() {
         let commands = list_schema_commands();
-        assert!(commands.contains(&"compile"));
         assert!(commands.contains(&"validate"));
         assert!(commands.contains(&"lint"));
+        assert!(
+            !commands.contains(&"compile"),
+            "compile emits no CommandResult, so it must not be advertised (#868 item 5)"
+        );
     }
 
     #[test]
@@ -157,7 +168,7 @@ mod output_schemas_tests {
 
     #[test]
     fn test_error_schema_structure() {
-        let schema = get_output_schema("compile").unwrap();
+        let schema = get_output_schema("analyze").unwrap();
         let error = &schema.error;
 
         assert_eq!(error["type"], "object");

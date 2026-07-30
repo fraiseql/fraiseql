@@ -266,11 +266,16 @@ pub async fn run() {
                                 "{}",
                                 output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
                             );
-                            if result.status == "validation-failed" {
-                                Err(anyhow::anyhow!("Validation failed"))
-                            } else {
-                                Ok(())
-                            }
+                            // Exit 2 for "the schema is invalid", 1 for "the tool broke" —
+                            // the contract `--help-json` publishes, and what `lint` and
+                            // `federation check` already do. This used to wrap the status in
+                            // an `anyhow!("Validation failed")`, which fell through to the
+                            // generic handler and `process::exit(1)`, so CI could not tell a
+                            // cyclic schema from a broken toolchain. It also discarded the
+                            // per-error list that the JSON on stdout already carried
+                            // (#868 item 6).
+                            enforce_exit_code(&result);
+                            Ok(())
                         },
                         Err(e) => Err(e),
                     }

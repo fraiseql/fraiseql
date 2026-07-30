@@ -150,7 +150,10 @@ fn build_status(
         .map(|source| {
             let cursor = match cursors {
                 None => CursorStatus::unknown(),
-                Some(map) => match map.get(&source.name) {
+                // Keyed on `cursor_name()`, the row the runtime advances. Keying on
+                // `source.name` printed a `cursor_name` beside a watermark read from a
+                // different key whenever an explicit `cursor` was declared (#868 item 4).
+                Some(map) => match map.get(source.cursor_name()) {
                     Some(row) => CursorStatus::advanced(row),
                     None => CursorStatus::never_advanced(),
                 },

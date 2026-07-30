@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration test for the `perf` change-log reader (#392).
+//! Live-`PostgreSQL` integration test for the `perf` change-log reader (#392).
 //!
 //! It provisions the real change-log contract objects (`core.tb_entity_change_log`
 //! and `core.v_entity_change_log`) from the shipped migration, seeds a known set

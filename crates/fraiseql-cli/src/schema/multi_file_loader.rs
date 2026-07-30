@@ -13,7 +13,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use serde_json::{Value, json};
+use serde_json::Value;
 use walkdir::WalkDir;
 
 /// Maximum number of JSON schema files accepted from a single directory tree.
@@ -73,9 +73,7 @@ impl MultiFileLoader {
             bail!("Schema directory not found: {dir_path}");
         }
 
-        let mut types = Vec::new();
-        let mut queries = Vec::new();
-        let mut mutations = Vec::new();
+        let mut merged = crate::schema::seam::empty_accumulator();
         let mut name_to_file = HashMap::new();
 
         // Collect all JSON files and sort for deterministic ordering
@@ -106,60 +104,32 @@ impl MultiFileLoader {
             // Track source for each item
             let file_path_str = file_path.to_string_lossy().to_string();
 
-            // Merge types
-            if let Some(Value::Array(type_items)) = value.get("types") {
-                for item in type_items {
-                    if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                        let type_key = format!("type:{name}");
-                        if let Some(existing) = name_to_file.get(&type_key) {
-                            bail!(
-                                "Duplicate type '{name}' found in:\n  - {existing}\n  - {file_path_str}"
-                            );
-                        }
-                        name_to_file.insert(type_key, file_path_str.clone());
+            // Duplicate detection covers **every** named section, not just the three that
+            // used to be merged: a duplicate enum or interface across two files is the
+            // same authoring mistake as a duplicate type, and silently keeping both
+            // produces a schema whose behaviour depends on directory iteration order.
+            for section in crate::schema::seam::AUTHORABLE_ARRAY_SECTIONS {
+                let Some(Value::Array(items)) = value.get(*section) else {
+                    continue;
+                };
+                for item in items {
+                    let Some(name) = item.get("name").and_then(|v| v.as_str()) else {
+                        continue;
+                    };
+                    let key = format!("{section}:{name}");
+                    if let Some(existing) = name_to_file.get(&key) {
+                        let noun = crate::schema::seam::section_noun(section);
+                        bail!(
+                            "Duplicate {noun} '{name}' found in:\n  - {existing}\n  \
+                             - {file_path_str}"
+                        );
                     }
-                    types.push(item.clone());
+                    name_to_file.insert(key, file_path_str.clone());
                 }
             }
 
-            // Merge queries
-            if let Some(Value::Array(query_items)) = value.get("queries") {
-                for item in query_items {
-                    if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                        let query_key = format!("query:{name}");
-                        if let Some(existing) = name_to_file.get(&query_key) {
-                            bail!(
-                                "Duplicate query '{name}' found in:\n  - {existing}\n  - {file_path_str}"
-                            );
-                        }
-                        name_to_file.insert(query_key, file_path_str.clone());
-                    }
-                    queries.push(item.clone());
-                }
-            }
-
-            // Merge mutations
-            if let Some(Value::Array(mutation_items)) = value.get("mutations") {
-                for item in mutation_items {
-                    if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                        let mutation_key = format!("mutation:{name}");
-                        if let Some(existing) = name_to_file.get(&mutation_key) {
-                            bail!(
-                                "Duplicate mutation '{name}' found in:\n  - {existing}\n  - {file_path_str}"
-                            );
-                        }
-                        name_to_file.insert(mutation_key, file_path_str.clone());
-                    }
-                    mutations.push(item.clone());
-                }
-            }
+            crate::schema::seam::absorb_sections(&mut merged, &value, &file_path_str)?;
         }
-
-        let merged = json!({
-            "types": types,
-            "queries": queries,
-            "mutations": mutations,
-        });
 
         Ok(LoadResult { merged })
     }
@@ -177,9 +147,7 @@ impl MultiFileLoader {
     /// Returns an error if any path does not exist, cannot be read, or cannot
     /// be parsed as JSON.
     pub fn load_from_paths(paths: &[PathBuf]) -> Result<Value> {
-        let mut types = Vec::new();
-        let mut queries = Vec::new();
-        let mut mutations = Vec::new();
+        let mut merged = crate::schema::seam::empty_accumulator();
 
         for path in paths {
             if !path.exists() {
@@ -191,26 +159,9 @@ impl MultiFileLoader {
             let value: Value = serde_json::from_str(&content)
                 .context(format!("Failed to parse JSON from {}", path.display()))?;
 
-            // Merge types
-            if let Some(Value::Array(type_items)) = value.get("types") {
-                types.extend(type_items.clone());
-            }
-
-            // Merge queries
-            if let Some(Value::Array(query_items)) = value.get("queries") {
-                queries.extend(query_items.clone());
-            }
-
-            // Merge mutations
-            if let Some(Value::Array(mutation_items)) = value.get("mutations") {
-                mutations.extend(mutation_items.clone());
-            }
+            crate::schema::seam::absorb_sections(&mut merged, &value, &path.display().to_string())?;
         }
 
-        Ok(json!({
-            "types": types,
-            "queries": queries,
-            "mutations": mutations,
-        }))
+        Ok(merged)
     }
 }

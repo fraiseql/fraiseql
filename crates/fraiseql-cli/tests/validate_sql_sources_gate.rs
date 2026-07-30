@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration tests for the `validate --against-db` existence
+//! Live-`PostgreSQL` integration tests for the `validate --against-db` existence
 //! gate (#487): an unbacked `sql_source` makes the command exit non-zero, a
 //! fully-backed schema passes. Self-skips when no `DATABASE_URL` is set.
 

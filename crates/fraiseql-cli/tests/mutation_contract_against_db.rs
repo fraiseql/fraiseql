@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration tests for the `validate --against-db`
+//! Live-`PostgreSQL` integration tests for the `validate --against-db`
 //! mutation-contract check (#397).
 //!
 //! These exercise the real `pg_proc`/`pg_type` introspection in

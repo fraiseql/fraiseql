@@ -108,7 +108,7 @@ fn test_domain_discovery_simple() {
             {
                 "name": "getUser",
                 "return_type": "User",
-                "return_array": false,
+                "returns_list": false,
                 "description": "Get user by ID"
             }
         ],
@@ -173,7 +173,7 @@ fn test_domain_discovery_multiple_domains() {
             {
                 "name": "getUser",
                 "return_type": "User",
-                "return_array": false
+                "returns_list": false
             }
         ],
         "mutations": []
@@ -199,12 +199,12 @@ fn test_domain_discovery_multiple_domains() {
             {
                 "name": "getPost",
                 "return_type": "Post",
-                "return_array": false
+                "returns_list": false
             },
             {
                 "name": "listPosts",
                 "return_type": "Post",
-                "return_array": true
+                "returns_list": true
             }
         ],
         "mutations": []
@@ -286,7 +286,7 @@ fn test_cross_domain_references() {
             {
                 "name": "getUserPosts",
                 "return_type": "Post",
-                "return_array": true,
+                "returns_list": true,
                 "description": "Get all posts by user (cross-domain reference to User)"
             }
         ],

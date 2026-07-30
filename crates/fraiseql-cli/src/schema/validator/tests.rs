@@ -10,6 +10,7 @@ use crate::schema::{
 #[test]
 fn test_validate_empty_schema() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -36,6 +37,7 @@ fn test_validate_empty_schema() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -49,6 +51,7 @@ fn test_validate_empty_schema() {
 #[test]
 fn test_detect_unknown_return_type() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -93,6 +96,7 @@ fn test_detect_unknown_return_type() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -108,6 +112,7 @@ fn test_detect_unknown_return_type() {
 #[test]
 fn test_detect_duplicate_query_names() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -118,6 +123,7 @@ fn test_detect_duplicate_query_names() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -185,6 +191,7 @@ fn test_detect_duplicate_query_names() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -199,6 +206,7 @@ fn test_detect_duplicate_query_names() {
 #[test]
 fn test_warning_for_query_without_sql_source() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -209,6 +217,7 @@ fn test_warning_for_query_without_sql_source() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -255,6 +264,7 @@ fn test_warning_for_query_without_sql_source() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -274,6 +284,7 @@ fn test_valid_observer() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        grpc_config:          None,
         sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
@@ -285,6 +296,7 @@ fn test_valid_observer() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -326,6 +338,7 @@ fn test_valid_observer() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -344,6 +357,7 @@ fn test_observer_with_unknown_entity() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        grpc_config:          None,
         sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
@@ -381,6 +395,7 @@ fn test_observer_with_unknown_entity() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -399,6 +414,7 @@ fn test_observer_with_invalid_event() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        grpc_config:          None,
         sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
@@ -410,6 +426,7 @@ fn test_observer_with_invalid_event() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -448,6 +465,7 @@ fn test_observer_with_invalid_event() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -466,6 +484,7 @@ fn test_observer_with_invalid_action_type() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        grpc_config:          None,
         sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
@@ -477,6 +496,7 @@ fn test_observer_with_invalid_action_type() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -515,6 +535,7 @@ fn test_observer_with_invalid_action_type() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -533,6 +554,7 @@ fn test_observer_with_invalid_retry_config() {
     use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
     let schema = IntermediateSchema {
+        grpc_config:          None,
         sources:              None,
         security:             None,
         version:              "2.0.0".to_string(),
@@ -544,6 +566,7 @@ fn test_observer_with_invalid_retry_config() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -582,6 +605,7 @@ fn test_observer_with_invalid_retry_config() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -596,6 +620,7 @@ fn test_observer_with_invalid_retry_config() {
 #[test]
 fn test_query_injection_in_sql_source_rejected() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -606,6 +631,7 @@ fn test_query_injection_in_sql_source_rejected() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -652,6 +678,7 @@ fn test_query_injection_in_sql_source_rejected() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -666,6 +693,7 @@ fn test_query_injection_in_sql_source_rejected() {
 #[test]
 fn test_query_schema_qualified_sql_source_passes() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -676,6 +704,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -722,6 +751,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -764,11 +794,12 @@ mod schema_validator_tests {
 
     fn arg(name: &str, ty: &str) -> IntermediateArgument {
         IntermediateArgument {
-            name:       name.to_string(),
-            arg_type:   ty.to_string(),
-            nullable:   false,
-            default:    None,
-            deprecated: None,
+            name:        name.to_string(),
+            arg_type:    ty.to_string(),
+            nullable:    false,
+            default:     None,
+            description: None,
+            deprecated:  None,
         }
     }
 

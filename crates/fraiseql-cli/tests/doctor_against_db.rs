@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration tests for the `doctor --against-db` PL/pgSQL
+//! Live-`PostgreSQL` integration tests for the `doctor --against-db` PL/pgSQL
 //! body-resolution pass (#409).
 //!
 //! The body-resolution pass depends on the `plpgsql_check` extension, which is
@@ -134,7 +134,7 @@ async fn non_postgres_url_is_rejected() {
     assert!(PgCatalog::connect("mysql://localhost/db").is_err(), "non-postgres URL rejected");
 }
 
-/// `table_columns` reads column names + `udt_name` for the exact PostgreSQL
+/// `table_columns` reads column names + `udt_name` for the exact `PostgreSQL`
 /// base types the change-log contract drift check (#380) compares against.
 ///
 /// Uses a uniquely-named probe table in `public` (created + dropped here) so it
@@ -207,7 +207,7 @@ async fn table_columns_absent_table_is_empty() {
     assert!(cols.is_empty(), "absent table → empty column list, got: {cols:?}");
 }
 
-/// `change_log_public_grants` runs against real PostgreSQL (`aclexplode` over
+/// `change_log_public_grants` runs against real `PostgreSQL` (`aclexplode` over
 /// `pg_class.relacl`) and, for any change-log relation that exists, reports the
 /// PUBLIC privileges. The shipped migration 12 `REVOKE ALL … FROM PUBLIC` means a
 /// present relation must show **no** PUBLIC privileges (#443); an absent relation
@@ -237,7 +237,7 @@ async fn change_log_public_grants_reads_clean_baseline() {
     }
 }
 
-/// `capture_fn_security` runs against real PostgreSQL (`pg_proc.prosecdef` +
+/// `capture_fn_security` runs against real `PostgreSQL` (`pg_proc.prosecdef` +
 /// `proconfig`) and, when `core.fn_entity_change_log_capture()` exists, reports it
 /// as `SECURITY DEFINER` with a pinned `search_path` (the migration-11 posture,
 /// #443 / #437 F6). An absent function introspects to `None` without erroring.

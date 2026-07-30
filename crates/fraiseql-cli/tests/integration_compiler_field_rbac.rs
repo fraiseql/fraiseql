@@ -1,7 +1,7 @@
 //! Integration tests: Compiler Integration (Field-Level RBAC)
 //!
 //! Tests that the compiler correctly:
-//! 1. Preserves field scopes from schema.json (Python/TypeScript decorators)
+//! 1. Preserves field scopes from schema.json (Python/`TypeScript` decorators)
 //! 2. Parses role definitions from fraiseql.toml
 //! 3. Merges both into schema.compiled.json
 //! 4. Validates scope consistency
@@ -40,7 +40,7 @@ default_role = "viewer"
     toml_path
 }
 
-/// Helper to create schema.json with field scopes (simulating Python/TypeScript output)
+/// Helper to create schema.json with field scopes (simulating Python/`TypeScript` output)
 fn create_schema_with_field_scopes(temp_dir: &TempDir) -> PathBuf {
     let schema_path = temp_dir.path().join("schema.json");
     let schema_content = r#"

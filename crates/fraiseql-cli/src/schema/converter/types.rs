@@ -117,6 +117,72 @@ impl SchemaConverter {
         }
     }
 
+    /// Reinterpret an `is_input`-marked entry of the `types` array as an input object (#848).
+    ///
+    /// Output-only attributes are **refused**, not ignored: `sql_source`, `relay`,
+    /// `requires_role`, `is_error`, `implements` and `subscribable_tables` have no meaning on
+    /// a GraphQL input object, and an author who set one has a mistaken model of what they
+    /// are declaring. Dropping them silently is the defect class this phase exists to close.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the type and the offending attribute.
+    pub(super) fn input_object_from_marked_type(
+        intermediate: IntermediateType,
+    ) -> Result<IntermediateInputObject> {
+        let name = intermediate.name;
+
+        // (attribute is set, attribute name) — checked in declaration order so the message
+        // is stable.
+        let rejected: [(bool, &str); 6] = [
+            (intermediate.sql_source.is_some(), "sql_source"),
+            (!intermediate.implements.is_empty(), "implements"),
+            (intermediate.requires_role.is_some(), "requires_role"),
+            (intermediate.is_error, "is_error"),
+            (intermediate.relay, "relay"),
+            (intermediate.subscribable_tables.is_some(), "subscribable_tables"),
+        ];
+        if let Some((_, attribute)) = rejected.into_iter().find(|(set, _)| *set) {
+            anyhow::bail!(
+                "Type '{name}' is declared `is_input: true` but also sets `{attribute}`, which \
+                 only applies to output types. A GraphQL input object has no backing relation, \
+                 no interfaces and no role gate — it is only ever a shape for arguments. Remove \
+                 `{attribute}`, or remove `is_input` if '{name}' is meant to be an output type."
+            );
+        }
+
+        let fields = intermediate
+            .fields
+            .into_iter()
+            .map(|field| {
+                if let Some(scope) = field.requires_scope {
+                    anyhow::bail!(
+                        "Input object '{name}' field '{}' declares `requires_scope` \
+                         ({scope:?}). Field-level scopes gate values the server *returns*; an \
+                         input field carries a value the client *sends*, so the gate would \
+                         never run. Remove it, and validate the argument in the SQL function \
+                         instead.",
+                        field.name
+                    );
+                }
+                Ok(IntermediateInputField {
+                    name:        field.name,
+                    field_type:  field.field_type,
+                    nullable:    field.nullable,
+                    description: field.description,
+                    default:     None,
+                    deprecated:  None,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(IntermediateInputObject {
+            name,
+            fields,
+            description: intermediate.description,
+        })
+    }
+
     /// Convert `IntermediateInputField` to `InputFieldDefinition`
     pub(super) fn convert_input_field(
         intermediate: IntermediateInputField,

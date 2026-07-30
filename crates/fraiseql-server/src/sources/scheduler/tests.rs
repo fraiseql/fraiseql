@@ -89,3 +89,46 @@ fn host_config_allowlist_resolves_env_over_config() {
     let empty = SourcesConfig::default();
     assert!(source_host_config_from(&empty, |_| None).allowed_domains.is_empty());
 }
+
+// ===========================================================================
+// #868 item 4 — the declared `cursor` override must reach the watermark store
+// ===========================================================================
+
+/// A source declaring `cursor = "…"` must advance **that** key, not its own name.
+///
+/// `SourceDefinition::cursor_name()` existed, the schema validator enforced uniqueness on it
+/// with the rationale "a shared cursor name would let two sources clobber each other's
+/// watermark", the converter compiled it, and `fraiseql sources` printed it — while
+/// `build_source_pollers` passed `source.name` to the cursor store. The override was accepted,
+/// validated, compiled, displayed, and inert.
+///
+/// The operational cost: renaming a source from `orders` to `orders_v2` with
+/// `cursor = "orders"` to preserve the watermark advanced a brand-new row under `orders_v2`,
+/// so the first tick re-ingested the entire history.
+#[test]
+fn a_declared_cursor_override_is_the_key_the_poller_advances() {
+    let declared = SourceDefinition {
+        name:     "orders_v2".to_string(),
+        schedule: "*/5 * * * *".to_string(),
+        cursor:   Some("orders".to_string()),
+        function: "connector".to_string(),
+        enabled:  true,
+        options:  serde_json::Value::Null,
+        run_as:   None,
+    };
+    assert_eq!(
+        declared.cursor_name(),
+        "orders",
+        "cursor_name() must prefer the declared override"
+    );
+
+    let no_override = SourceDefinition {
+        cursor: None,
+        ..declared
+    };
+    assert_eq!(
+        no_override.cursor_name(),
+        "orders_v2",
+        "with no override the cursor key falls back to the source name"
+    );
+}

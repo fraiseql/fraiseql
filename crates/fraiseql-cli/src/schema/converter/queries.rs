@@ -190,7 +190,7 @@ impl SchemaConverter {
             arg_type,
             nullable: intermediate.nullable,
             default_value,
-            description: None,
+            description: intermediate.description,
             deprecation,
         })
     }

@@ -1,7 +1,7 @@
 //! Static server↔database mutation-contract validation (#397).
 //!
 //! For each DB-backed mutation in a compiled schema, this checks that the
-//! PostgreSQL function the server *will* call matches what the server *will*
+//! `PostgreSQL` function the server *will* call matches what the server *will*
 //! send and decode — without booting a server or invoking any mutation:
 //!
 //! - **Call binding** — `sql_source` resolves to exactly one function whose *input* arity equals

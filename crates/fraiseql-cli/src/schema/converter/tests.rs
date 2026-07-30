@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
 
 use fraiseql_core::schema::NamingConvention;
@@ -160,6 +160,7 @@ fn convert_threads_type_level_sql_source_into_compiled() {
 #[test]
 fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -186,6 +187,7 @@ fn test_convert_minimal_schema() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -313,6 +315,7 @@ fn convert_field_list_type_compiles_to_list() {
 #[test]
 fn test_convert_type_with_fields() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -346,6 +349,7 @@ fn test_convert_type_with_fields() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -374,6 +378,7 @@ fn test_convert_type_with_fields() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -391,6 +396,7 @@ fn test_convert_type_with_fields() {
 #[test]
 fn test_validate_unknown_type_reference() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -435,6 +441,7 @@ fn test_validate_unknown_type_reference() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -449,6 +456,7 @@ fn test_validate_unknown_type_reference() {
 #[test]
 fn test_convert_query_with_arguments() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -459,6 +467,7 @@ fn test_convert_query_with_arguments() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -474,11 +483,12 @@ fn test_convert_query_with_arguments() {
             returns_list:      true,
             nullable:          false,
             arguments:         vec![IntermediateArgument {
-                name:       "limit".to_string(),
-                arg_type:   "Int".to_string(),
-                nullable:   false,
-                default:    Some(serde_json::json!(10)),
-                deprecated: None,
+                name:        "limit".to_string(),
+                arg_type:    "Int".to_string(),
+                nullable:    false,
+                default:     Some(serde_json::json!(10)),
+                description: None,
+                deprecated:  None,
             }],
             description:       Some("Get users".to_string()),
             sql_source:        Some("v_user".to_string()),
@@ -516,6 +526,7 @@ fn test_convert_query_with_arguments() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -532,6 +543,7 @@ fn test_convert_query_with_arguments() {
 #[test]
 fn test_list_query_without_auto_params_defaults_to_all() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -542,6 +554,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -588,6 +601,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -605,6 +619,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
 #[test]
 fn test_single_item_query_without_auto_params_defaults_to_none() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -615,6 +630,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -661,6 +677,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -680,6 +697,7 @@ fn test_convert_field_with_deprecated_directive() {
     use crate::schema::intermediate::IntermediateAppliedDirective;
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -716,6 +734,7 @@ fn test_convert_field_with_deprecated_directive() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -744,6 +763,7 @@ fn test_convert_field_with_deprecated_directive() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -774,6 +794,7 @@ fn test_convert_enum() {
     };
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -822,6 +843,7 @@ fn test_convert_enum() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -856,6 +878,7 @@ fn test_convert_input_object() {
     };
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -913,6 +936,7 @@ fn test_convert_input_object() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -958,6 +982,7 @@ fn test_convert_input_object() {
 #[test]
 fn test_rich_filter_types_generated() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -984,6 +1009,7 @@ fn test_rich_filter_types_generated() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1023,6 +1049,7 @@ fn test_rich_filter_types_generated() {
 #[test]
 fn test_rich_filter_types_have_sql_templates() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -1049,6 +1076,7 @@ fn test_rich_filter_types_have_sql_templates() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1100,6 +1128,7 @@ fn test_rich_filter_types_have_sql_templates() {
 #[test]
 fn test_lookup_data_embedded_in_schema() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -1126,6 +1155,7 @@ fn test_lookup_data_embedded_in_schema() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1188,6 +1218,7 @@ fn test_convert_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -1228,6 +1259,7 @@ fn test_convert_interface() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1250,6 +1282,7 @@ fn test_convert_type_implements_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface, IntermediateType};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -1283,6 +1316,7 @@ fn test_convert_type_implements_interface() {
             implements:             vec!["Node".to_string()],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -1325,6 +1359,7 @@ fn test_convert_type_implements_interface() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1347,6 +1382,7 @@ fn test_validate_unknown_interface() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -1367,6 +1403,7 @@ fn test_validate_unknown_interface() {
             implements:             vec!["UnknownInterface".to_string()],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -1395,6 +1432,7 @@ fn test_validate_unknown_interface() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1411,6 +1449,7 @@ fn test_validate_missing_interface_field() {
     use crate::schema::intermediate::{IntermediateField, IntermediateInterface, IntermediateType};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -1434,6 +1473,7 @@ fn test_validate_missing_interface_field() {
             implements:             vec!["Node".to_string()],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -1476,6 +1516,7 @@ fn test_validate_missing_interface_field() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1492,6 +1533,7 @@ fn test_convert_union() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType, IntermediateUnion};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![
@@ -1513,6 +1555,7 @@ fn test_convert_union() {
                 implements:             vec![],
                 requires_role:          None,
                 is_error:               false,
+                is_input:               false,
                 relay:                  false,
                 embedded:               false,
                 subscribable_tables:    None,
@@ -1536,6 +1579,7 @@ fn test_convert_union() {
                 implements:             vec![],
                 requires_role:          None,
                 is_error:               false,
+                is_input:               false,
                 relay:                  false,
                 embedded:               false,
                 subscribable_tables:    None,
@@ -1569,6 +1613,7 @@ fn test_convert_union() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1590,6 +1635,7 @@ fn test_convert_field_requires_scope() {
     use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -1645,6 +1691,7 @@ fn test_convert_field_requires_scope() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -1673,6 +1720,7 @@ fn test_convert_field_requires_scope() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -1781,6 +1829,7 @@ mod tenancy_tests {
             implements: vec![],
             requires_role: None,
             is_error: false,
+            is_input: false,
             relay: false,
             embedded: false,
             subscribable_tables: None,
@@ -3102,4 +3151,55 @@ fn converts_sources_into_the_compiled_schema() {
 fn absent_sources_convert_to_an_empty_list() {
     let compiled = SchemaConverter::convert(IntermediateSchema::default()).unwrap();
     assert!(compiled.sources.is_empty());
+}
+
+// ===========================================================================
+// The scalar-name table and the converter must not drift (#724 item 2)
+// ===========================================================================
+
+/// Every name in `BUILTIN_SCALAR_NAMES` must parse to a scalar, not an object reference.
+///
+/// The two tables were separately maintained and disagreed: the validator listed `"JSON"`,
+/// which `parse_field_type` does not recognize, so it became `FieldType::Object("JSON")` — a
+/// reference to a nonexistent type — while `"Json"`, the spelling every SDK emits, was not
+/// in the validator's list at all. Implicit custom-scalar registration hid both.
+#[test]
+fn builtin_scalar_names_match_the_converter() {
+    for name in crate::schema::BUILTIN_SCALAR_NAMES {
+        let parsed = SchemaConverter::parse_field_type(name)
+            .unwrap_or_else(|e| panic!("scalar {name:?} must parse: {e}"));
+        assert!(
+            !matches!(parsed, FieldType::Object(_)),
+            "{name:?} is listed as a built-in scalar but the converter parses it as an object \
+             type reference ({parsed:?}) — a field with that type would reference a type that \
+             does not exist"
+        );
+    }
+}
+
+/// A name that is *not* in the scalar table must parse as an object reference.
+///
+/// The reverse guard: a scalar the converter recognizes but the validator's list omits is
+/// invisible to schema validation, which is the half of the drift that let `Json` through.
+#[test]
+fn converter_scalars_are_all_listed_as_builtins() {
+    // Every distinct scalar the converter can produce, with a name that yields it.
+    for name in [
+        "String", "Int", "Float", "Boolean", "ID", "DateTime", "Date", "Time", "Json", "UUID",
+        "Decimal", "Vector",
+    ] {
+        assert!(
+            crate::schema::BUILTIN_SCALAR_NAMES.contains(&name),
+            "the converter parses {name:?} as a scalar but it is absent from \
+             BUILTIN_SCALAR_NAMES, so schema validation cannot recognize it"
+        );
+    }
+    // A non-scalar must stay an object reference, or the table is over-broad.
+    assert!(
+        matches!(
+            SchemaConverter::parse_field_type("User").unwrap(),
+            FieldType::Object(ref n) if n == "User"
+        ),
+        "an ordinary type name must parse as an object reference"
+    );
 }

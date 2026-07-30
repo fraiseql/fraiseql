@@ -391,34 +391,34 @@ fn create_schema_json(project_dir: &Path) -> Result<()> {
             {
                 "name": "posts",
                 "return_type": "Post",
-                "return_array": true,
+                "returns_list": true,
                 "sql_source": "v_post",
                 "description": "List all published posts"
             },
             {
                 "name": "post",
                 "return_type": "Post",
-                "return_array": false,
+                "returns_list": false,
                 "sql_source": "v_post",
-                "args": [{ "name": "id", "type": "ID", "required": true }]
+                "arguments": [{ "name": "id", "type": "ID", "nullable": false }]
             },
             {
                 "name": "authors",
                 "return_type": "Author",
-                "return_array": true,
+                "returns_list": true,
                 "sql_source": "v_author"
             },
             {
                 "name": "author",
                 "return_type": "Author",
-                "return_array": false,
+                "returns_list": false,
                 "sql_source": "v_author",
-                "args": [{ "name": "id", "type": "ID", "required": true }]
+                "arguments": [{ "name": "id", "type": "ID", "nullable": false }]
             },
             {
                 "name": "tags",
                 "return_type": "Tag",
-                "return_array": true,
+                "returns_list": true,
                 "sql_source": "v_tag"
             }
         ],

@@ -38,6 +38,7 @@ impl SchemaExtractor for JavaExtractor {
                 implements: Vec::new(),
                 requires_role: None,
                 is_error: false,
+                is_input: false,
                 relay: false,
                 embedded: false,
                 subscribable_tables: None,
@@ -118,11 +119,12 @@ pub(super) fn extract_java_query_args(annotation_body: &str) -> Vec<Intermediate
 
     for cap in arg_re.captures_iter(annotation_body) {
         args.push(IntermediateArgument {
-            name:       cap[1].to_string(),
-            arg_type:   cap[2].to_string(),
-            nullable:   &cap[3] != "true",
-            default:    None,
-            deprecated: None,
+            name:        cap[1].to_string(),
+            arg_type:    cap[2].to_string(),
+            nullable:    &cap[3] != "true",
+            default:     None,
+            description: None,
+            deprecated:  None,
         });
     }
     args

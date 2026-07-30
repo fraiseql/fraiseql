@@ -344,8 +344,10 @@ def export_schema(
     if federation is not None:
         schema["federation"] = _build_federation_block(federation, schema)
     if not include_custom_scalars:
-        # The registry emits custom scalars under the camelCase "customScalars"
-        # key; filtering "custom_scalars" (snake_case) was a no-op (M-export-schema).
+        # The registry emits "custom_scalars", matching the compiler's key. "customScalars"
+        # stays in this tuple only so an older in-tree caller cannot resurrect the block:
+        # the camelCase key never bound to anything in the compiler, which is why filtering
+        # snake_case used to be a no-op (M-export-schema, #922).
         schema = {k: v for k, v in schema.items() if k not in ("customScalars", "custom_scalars")}
 
     _validate_schema_before_export(schema)

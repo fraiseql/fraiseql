@@ -82,8 +82,14 @@ impl<'a> CompileOptions<'a> {
 /// 2. Directory auto-discovery
 /// 3. Single types file (backward-compatible)
 /// 4. Domain discovery → TOML includes → TOML-only (fallback sequence)
+///
+/// # Errors
+///
+/// Returns an error if a **configured** schema source fails to load. Distinguishing
+/// "not configured" (fall through to the next strategy) from "configured but failed"
+/// (propagate) is the substance of #723 — see the fallback sequence below.
 #[allow(clippy::cognitive_complexity)] // Reason: multi-strategy schema discovery with fallback chain
-fn load_intermediate_schema(
+pub fn load_intermediate_schema(
     toml_path: &str,
     type_files: &[String],
     query_files: &[String],
@@ -111,15 +117,37 @@ fn load_intermediate_schema(
         return crate::schema::SchemaMerger::merge_files(types, toml_path)
             .context("Failed to merge types.json with TOML");
     }
-    info!("Mode: TOML-based (checking for domain discovery...)");
-    if let Ok(schema) = crate::schema::SchemaMerger::merge_from_domains(toml_path) {
-        return Ok(schema);
+    // Fallback sequence: domain discovery → TOML includes → TOML-only.
+    //
+    // Each step asks "is this configured?" **before** attempting it, so a failure inside a
+    // configured source propagates instead of being swallowed by the next fallback (#723).
+    //
+    // This used to be `if let Ok(schema) = merge_from_domains(toml_path)`, twice. A bad
+    // `root_dir`, an unreadable domain file or a JSON parse error was discarded and
+    // compilation fell through to TOML-only definitions — producing either a schema silently
+    // missing the user's domain types, or a later death with the misleading "Failed to load
+    // schema from TOML" naming the wrong thing entirely. That directly contradicts the #612
+    // doctrine this codebase otherwise holds to: configured input that fails must fail loud.
+    let toml_schema = crate::config::TomlSchema::from_file(toml_path)
+        .context(format!("Failed to load TOML from {toml_path}"))?;
+
+    if toml_schema.domain_discovery.enabled {
+        info!("Mode: TOML-based with domain discovery");
+        return crate::schema::SchemaMerger::merge_from_domains(toml_path).context(
+            "Failed to load schema from the configured [domain_discovery] section. Fix the \
+             error above, or remove the section to compile from TOML definitions only.",
+        );
     }
-    info!("No domains configured, checking for TOML includes...");
-    if let Ok(schema) = crate::schema::SchemaMerger::merge_with_includes(toml_path) {
-        return Ok(schema);
+
+    if !toml_schema.includes.is_empty() {
+        info!("Mode: TOML-based with schema includes");
+        return crate::schema::SchemaMerger::merge_with_includes(toml_path).context(
+            "Failed to load schema from the configured [includes] section. Fix the error \
+             above, or remove the section to compile from TOML definitions only.",
+        );
     }
-    info!("No includes configured, using TOML-only definitions");
+
+    info!("No domains or includes configured, using TOML-only definitions");
     crate::schema::SchemaMerger::merge_toml_only(toml_path)
         .context("Failed to load schema from TOML")
 }

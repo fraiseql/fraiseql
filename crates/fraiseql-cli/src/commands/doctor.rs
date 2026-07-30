@@ -369,20 +369,48 @@ pub fn check_redis_reachable() -> DoctorCheck {
 }
 
 /// Check TLS: if the TOML config enables TLS, the cert file must exist.
+///
+/// Reads the config as a generic `toml::Value` rather than as a `TomlSchema`. That matters
+/// because `TomlSchema` is `deny_unknown_fields` and carries no `[metrics]`/`[tracing]`-style
+/// runtime tables, so any *runtime* server config failed the parse — the normal case for the
+/// documented compiled-schema + runtime-config flow. This function then returned
+/// `DoctorCheck::pass(…, "TOML unreadable — TLS check skipped")`, which `print_text_report`
+/// renders as `[✓]` and `run_with_db_checks` counts as a pass. A missing certificate that
+/// would abort server boot was reported as a green tick (#868 item 1).
+///
+/// A check that did not run is now a **warning**, never a pass. And because the generic parse
+/// works for both the schema-TOML and runtime-config shapes, it usually does run.
 pub fn check_tls(config_path: &Path) -> DoctorCheck {
-    // Only run this check when the config file exists and is readable.
     let Ok(content) = std::fs::read_to_string(config_path) else {
-        return DoctorCheck::pass("TLS certificate", "not configured (OK: TLS disabled)");
+        return DoctorCheck::warn(
+            "TLS certificate",
+            format!("could not read {} — TLS not verified", config_path.display()),
+            "Point --config at a readable config file, or remove the flag if TLS is not used",
+        );
     };
-    let Ok(schema) = TomlSchema::parse_toml(&content) else {
-        return DoctorCheck::pass("TLS certificate", "TOML unreadable — TLS check skipped");
+    let Ok(value) = content.parse::<toml::Value>() else {
+        return DoctorCheck::warn(
+            "TLS certificate",
+            "config is not valid TOML — TLS not verified",
+            "Fix the TOML syntax so the TLS certificate check can run",
+        );
     };
 
-    if !schema.server.tls.enabled {
+    let tls = value.get("server").and_then(|s| s.get("tls"));
+    let enabled = tls
+        .and_then(|t| t.get("enabled"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false);
+    if !enabled {
         return DoctorCheck::pass("TLS certificate", "not configured (OK: TLS disabled)");
     }
 
-    let cert = &schema.server.tls.cert_file;
+    let cert = tls
+        .and_then(|t| t.get("cert_file"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let cert = &cert;
     if cert.is_empty() {
         return DoctorCheck::fail(
             "TLS certificate",
@@ -405,18 +433,37 @@ pub fn check_tls(config_path: &Path) -> DoctorCheck {
 ///
 /// When caching is active but no authorization policies are configured, cached
 /// results may be served to unauthenticated users — a potential data-leak.
+/// Read as a generic `toml::Value` for the same reason as [`check_tls`], and warn rather than
+/// pass when the check cannot run — this is one of the two security-relevant checks that used
+/// to render as `[✓]` on the documented flow (#868 item 1).
 pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
-    // Config not present — nothing to cross-check.
     let Ok(content) = std::fs::read_to_string(config_path) else {
-        return DoctorCheck::pass("Cache + auth coherence", "no config (defaults: cache disabled)");
+        return DoctorCheck::warn(
+            "Cache + auth coherence",
+            format!("could not read {} — coherence not verified", config_path.display()),
+            "Point --config at a readable config file",
+        );
     };
-    let Ok(schema) = TomlSchema::parse_toml(&content) else {
-        return DoctorCheck::pass("Cache + auth coherence", "TOML unreadable — check skipped");
+    let Ok(value) = content.parse::<toml::Value>() else {
+        return DoctorCheck::warn(
+            "Cache + auth coherence",
+            "config is not valid TOML — coherence not verified",
+            "Fix the TOML syntax so the cache/auth coherence check can run",
+        );
     };
 
-    let caching_enabled = schema.caching.enabled;
-    let has_auth_policy =
-        !schema.security.policies.is_empty() || schema.security.default_policy.is_some();
+    let caching_enabled = value
+        .get("caching")
+        .and_then(|c| c.get("enabled"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false);
+    let security = value.get("security");
+    let has_policies = security
+        .and_then(|s| s.get("policies"))
+        .and_then(toml::Value::as_array)
+        .is_some_and(|a| !a.is_empty());
+    let has_default = security.and_then(|s| s.get("default_policy")).is_some();
+    let has_auth_policy = has_policies || has_default;
 
     match (caching_enabled, has_auth_policy) {
         (false, _) => {

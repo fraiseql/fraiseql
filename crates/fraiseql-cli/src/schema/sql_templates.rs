@@ -16,7 +16,7 @@
 //!
 //! # Example
 //!
-//! For EmailDomainEq on PostgreSQL:
+//! For EmailDomainEq on `PostgreSQL`:
 //! - Input: field_sql = "data->>'email'", domain = "example.com"
 //! - Handler output: "SPLIT_PART(data->>'email', '@', 2) = $1"
 //! - Template: "SPLIT_PART($field, '@', 2) = $1"

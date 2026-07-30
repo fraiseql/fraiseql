@@ -223,11 +223,12 @@ fn parse_inject_source_arg_conflict_returns_error() {
             sql_source: Some("v_order".to_string()),
             // `filter_id` appears both as an argument and as an inject param
             arguments: vec![IntermediateArgument {
-                name:       "filter_id".to_string(),
-                arg_type:   "ID".to_string(),
-                nullable:   false,
-                default:    None,
-                deprecated: None,
+                name:        "filter_id".to_string(),
+                arg_type:    "ID".to_string(),
+                nullable:    false,
+                default:     None,
+                description: None,
+                deprecated:  None,
             }],
             inject,
             ..Default::default()

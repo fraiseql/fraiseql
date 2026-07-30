@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration tests for the `compile --database` /
+//! Live-`PostgreSQL` integration tests for the `compile --database` /
 //! `validate_schema_against_database` existence probes (#485).
 //!
 //! Proves the three correctness fixes against a real catalog:

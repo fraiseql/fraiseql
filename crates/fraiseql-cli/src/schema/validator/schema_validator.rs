@@ -40,13 +40,19 @@ impl SchemaValidator {
 
         let mut report = ValidationReport::default();
 
-        // Build type registry
+        // Build type registry.
+        //
+        // `enumerate()` rather than `type_names.len()` for the duplicate path: the count of
+        // unique names seen so far is not the offending element's index, and the two diverge
+        // exactly when there are duplicates — the one case this diagnostic exists for. With
+        // `[A, B, A, A]` the count is stuck at 2, so the old path reported `types[2]` twice
+        // and never named element 3 (#724 item 3).
         let mut type_names = HashSet::new();
-        for type_def in &schema.types {
+        for (idx, type_def) in schema.types.iter().enumerate() {
             if type_names.contains(&type_def.name) {
                 report.errors.push(ValidationError {
                     message:    format!("Duplicate type name: '{}'", type_def.name),
-                    path:       format!("types[{}].name", type_names.len()),
+                    path:       format!("types[{idx}].name"),
                     severity:   ErrorSeverity::Error,
                     suggestion: Some("Type names must be unique".to_string()),
                 });
@@ -64,17 +70,57 @@ impl SchemaValidator {
             type_names.insert(union_def.name.clone());
         }
 
+        // Add interfaces — valid as field and return types (GraphQL spec §3.7)
+        for interface in &schema.interfaces {
+            type_names.insert(interface.name.clone());
+        }
+
+        // Add enums — valid as field and argument types
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
         // Add built-in scalars
         for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
             type_names.insert((*scalar).to_string());
         }
 
-        // Collect custom scalars implicitly: any type name used in object field definitions
-        // that isn't already registered (e.g. IPAddress, Hostname, MACAddress, CIDR).
-        for type_def in &schema.types {
-            for field in &type_def.fields {
+        // Add **declared** custom scalars.
+        //
+        // This used to register every type name appearing in any object field as an implicit
+        // custom scalar, which made field-type typos invisible: `"type": "Strng"` validated
+        // cleanly, and the typo then also legalized `Strng` as a query return type, so one
+        // mistake propagated instead of being caught (#724 item 2). Only names the author
+        // actually declared are scalars now; an undeclared field type is reported below.
+        for scalar in schema.custom_scalars.iter().flatten() {
+            type_names.insert(scalar.name.clone());
+        }
+
+        // Report field types that resolve to nothing declared.
+        //
+        // A warning rather than an error: the implicit registration it replaces was there to
+        // keep custom-scalar authoring frictionless, and there is no way to distinguish a
+        // typo from a scalar the author has declared elsewhere in a workflow this validator
+        // cannot see. Naming it is what was missing — silence was the defect.
+        for (type_idx, type_def) in schema.types.iter().enumerate() {
+            for (field_idx, field) in type_def.fields.iter().enumerate() {
                 let base = extract_base_type(&field.field_type);
-                type_names.insert(base.to_string());
+                if base.is_empty() || type_names.contains(base) {
+                    continue;
+                }
+                report.errors.push(ValidationError {
+                    message:    format!(
+                        "Field '{}.{}' has type '{base}', which is not a declared type, enum, \
+                         interface, union, input type, built-in scalar or custom scalar",
+                        type_def.name, field.name
+                    ),
+                    path:       format!("types[{type_idx}].fields[{field_idx}].type"),
+                    severity:   ErrorSeverity::Warning,
+                    suggestion: Some(format!(
+                        "{} If '{base}' is a custom scalar, declare it in `custom_scalars`.",
+                        Self::suggest_similar_type(base, &type_names)
+                    )),
+                });
             }
         }
 
@@ -104,10 +150,7 @@ impl SchemaValidator {
                     ),
                     path:       format!("queries[{idx}].return_type"),
                     severity:   ErrorSeverity::Error,
-                    suggestion: Some(format!(
-                        "Available types: {}",
-                        Self::suggest_similar_type(base_return, &type_names)
-                    )),
+                    suggestion: Some(Self::suggest_similar_type(base_return, &type_names)),
                 });
             }
 
@@ -122,10 +165,7 @@ impl SchemaValidator {
                         ),
                         path:       format!("queries[{idx}].arguments[{arg_idx}].type"),
                         severity:   ErrorSeverity::Error,
-                        suggestion: Some(format!(
-                            "Available types: {}",
-                            Self::suggest_similar_type(base_arg, &type_names)
-                        )),
+                        suggestion: Some(Self::suggest_similar_type(base_arg, &type_names)),
                     });
                 }
             }
@@ -181,10 +221,7 @@ impl SchemaValidator {
                     ),
                     path:       format!("mutations[{idx}].return_type"),
                     severity:   ErrorSeverity::Error,
-                    suggestion: Some(format!(
-                        "Available types: {}",
-                        Self::suggest_similar_type(base_return, &type_names)
-                    )),
+                    suggestion: Some(Self::suggest_similar_type(base_return, &type_names)),
                 });
             }
 
@@ -199,10 +236,7 @@ impl SchemaValidator {
                         ),
                         path:       format!("mutations[{idx}].arguments[{arg_idx}].type"),
                         severity:   ErrorSeverity::Error,
-                        suggestion: Some(format!(
-                            "Available types: {}",
-                            Self::suggest_similar_type(base_arg, &type_names)
-                        )),
+                        suggestion: Some(Self::suggest_similar_type(base_arg, &type_names)),
                     });
                 }
             }
@@ -263,10 +297,7 @@ impl SchemaValidator {
                         ),
                         path:       format!("observers[{idx}].entity"),
                         severity:   ErrorSeverity::Error,
-                        suggestion: Some(format!(
-                            "Available types: {}",
-                            Self::suggest_similar_type(&observer.entity, &type_names)
-                        )),
+                        suggestion: Some(Self::suggest_similar_type(&observer.entity, &type_names)),
                     });
                 }
 
@@ -570,26 +601,30 @@ impl SchemaValidator {
         Ok(report)
     }
 
-    /// Suggest similar type names for typos.
+    /// Suggest similar type names for a typo.
     ///
-    /// # Panics
+    /// Delegates ranking to [`fraiseql_core::runtime::suggest_similar`], a real edit-distance
+    /// match over `char`s. What this replaces did two things wrong at once:
     ///
-    /// Panics if `typo` is empty (cannot slice first character).
+    /// * It sliced `&typo[0..1]` and `&name[0..1]` — **byte** ranges — so an empty base type
+    ///   (`"return_type": ""`) or any name beginning with a multi-byte character *panicked the CLI
+    ///   while it was composing an error message*. The panic was documented in a `# Panics` section
+    ///   that no caller honoured (#724 item 1).
+    /// * It matched on first letter only, behind a comment calling itself "Levenshtein-style". For
+    ///   a typo of `User` it offered `Universe` and `Umbrella`.
+    ///
+    /// Deterministic output: `available` is a `HashSet`, so candidates are sorted before
+    /// ranking and the fallback list is sorted too. Without that, the same schema produced
+    /// different error text run to run.
     fn suggest_similar_type(typo: &str, available: &HashSet<String>) -> String {
-        // Simple Levenshtein-style similarity (first letter match)
-        let similar: Vec<&String> = available
-            .iter()
-            .filter(|name| {
-                name.to_lowercase().starts_with(&typo[0..1].to_lowercase())
-                    || typo.to_lowercase().starts_with(&name[0..1].to_lowercase())
-            })
-            .take(3)
-            .collect();
+        let mut candidates: Vec<&str> = available.iter().map(String::as_str).collect();
+        candidates.sort_unstable();
 
+        let similar = fraiseql_core::runtime::suggest_similar(typo, &candidates);
         if similar.is_empty() {
-            available.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            format!("Available types: {}", candidates.join(", "))
         } else {
-            similar.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+            format!("Did you mean: {}?", similar.join(", "))
         }
     }
 }

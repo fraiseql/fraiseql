@@ -47,6 +47,7 @@ fn test_rich_filter_compilation_pipeline() {
     // 1. Build minimal intermediate schema
     // Rich types are auto-generated, so we just need an empty schema
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -73,6 +74,7 @@ fn test_rich_filter_compilation_pipeline() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -131,6 +133,7 @@ fn test_rich_filter_compilation_pipeline() {
 #[test]
 fn test_all_rich_types_generate_where_input() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -157,6 +160,7 @@ fn test_all_rich_types_generate_where_input() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -199,6 +203,7 @@ fn test_all_rich_types_generate_where_input() {
 #[test]
 fn test_where_input_fields_include_standard_operators() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -225,6 +230,7 @@ fn test_where_input_fields_include_standard_operators() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -262,6 +268,7 @@ fn test_where_input_fields_include_standard_operators() {
 #[test]
 fn test_sql_templates_cover_all_databases() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -288,6 +295,7 @@ fn test_sql_templates_cover_all_databases() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -336,6 +344,7 @@ fn test_sql_templates_cover_all_databases() {
 #[test]
 fn test_lookup_data_integrity() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -362,6 +371,7 @@ fn test_lookup_data_integrity() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -411,6 +421,7 @@ fn test_lookup_data_integrity() {
 #[test]
 fn test_compiled_schema_is_valid() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -437,6 +448,7 @@ fn test_compiled_schema_is_valid() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,

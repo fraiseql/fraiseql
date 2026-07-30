@@ -22,6 +22,7 @@ fn base_schema_with_query(
     query_defaults: Option<IntermediateQueryDefaults>,
 ) -> IntermediateSchema {
     IntermediateSchema {
+        grpc_config: None,
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
             name:                   query.return_type.clone(),
@@ -31,6 +32,7 @@ fn base_schema_with_query(
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -60,6 +62,7 @@ fn base_schema_with_query(
         mcp_config: None,
         rest_config: None,
         query_defaults,
+        inject_defaults: None,
         naming_convention: NamingConvention::default(),
         session_variables: None,
         hierarchies_config: None,
