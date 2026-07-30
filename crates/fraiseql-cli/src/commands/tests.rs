@@ -1384,9 +1384,19 @@ mod doctor_tests {
     }
 
     #[test]
-    fn test_tls_no_config_is_pass() {
+    /// An unreadable config makes the TLS check a **warning**, not a pass (#868 item 1).
+    ///
+    /// `print_text_report` renders `Pass` as `[✓]` and `run_with_db_checks` counts it toward
+    /// "All checks passed", so returning Pass here reported a check that never ran as a green
+    /// tick — on the one check whose whole job is catching a missing certificate that will
+    /// abort server boot.
+    fn test_tls_unreadable_config_is_warn_not_pass() {
         let result = check_tls(std::path::Path::new("/nonexistent/fraiseql.toml"));
-        assert_eq!(result.status, CheckStatus::Pass);
+        assert_eq!(
+            result.status,
+            CheckStatus::Warn,
+            "a check that could not run must never render as a pass"
+        );
     }
 
     #[test]

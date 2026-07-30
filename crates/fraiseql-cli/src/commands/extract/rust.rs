@@ -65,6 +65,7 @@ impl SchemaExtractor for RustExtractor {
                 implements: Vec::new(),
                 requires_role: None,
                 is_error: false,
+                is_input: false,
                 relay: false,
                 embedded: false,
                 subscribable_tables: None,
@@ -131,6 +132,7 @@ pub(super) fn extract_rust_query_args(source: &str, fn_start: usize) -> Vec<Inte
             arg_type: graphql_type,
             nullable: false,
             default: None,
+            description: None,
             deprecated: None,
         });
     }

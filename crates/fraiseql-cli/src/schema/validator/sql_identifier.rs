@@ -14,7 +14,7 @@ static SAFE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static regex is valid")
 });
 
-/// PostgreSQL's `NAMEDATALEN - 1`: the maximum byte length of a single identifier segment.
+/// `PostgreSQL`'s `NAMEDATALEN - 1`: the maximum byte length of a single identifier segment.
 const PG_MAX_IDENTIFIER_BYTES: usize = 63;
 
 /// Validates that `value` is a safe SQL identifier.
@@ -23,8 +23,8 @@ const PG_MAX_IDENTIFIER_BYTES: usize = 63;
 /// (e.g. `"v_user"`, `"public.v_user"`, or `"catalog.schema.table"`).
 /// Rejects anything that could be SQL injection or cause a runtime syntax error.
 ///
-/// Each dot-separated segment is limited to 63 bytes (PostgreSQL `NAMEDATALEN - 1`).
-/// Identifiers exceeding this limit are silently truncated by PostgreSQL, which can
+/// Each dot-separated segment is limited to 63 bytes (`PostgreSQL` `NAMEDATALEN - 1`).
+/// Identifiers exceeding this limit are silently truncated by `PostgreSQL`, which can
 /// cause confusing "relation not found" errors at runtime.
 ///
 /// # Arguments
@@ -34,7 +34,7 @@ const PG_MAX_IDENTIFIER_BYTES: usize = 63;
 ///
 /// # Errors
 ///
-/// Returns a `ValidationError` if `value` is empty, exceeds the PostgreSQL identifier
+/// Returns a `ValidationError` if `value` is empty, exceeds the `PostgreSQL` identifier
 /// length limit, or does not match the safe identifier pattern.
 pub fn validate_sql_identifier(
     value: &str,

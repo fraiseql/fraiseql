@@ -1460,7 +1460,7 @@ def scalar(cls: type[S]) -> type[S]:
         ...     name: str
 
         >>> schema = fraiseql.export_schema("schema.json")
-        >>> # schema contains: "customScalars": {"Email": {...}}
+        >>> # schema contains: "custom_scalars": [{"name": "Email", ...}]
 
     Notes:
         - Decorator returns class unmodified (no runtime FFI)

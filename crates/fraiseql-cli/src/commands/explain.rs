@@ -1,6 +1,20 @@
-//! Explain command - show query execution plan and complexity analysis
+//! Explain command - show query complexity analysis
 //!
-//! Usage: fraiseql explain `<query>` --schema `<schema.compiled.json>` `[--json]`
+//! Usage: fraiseql explain `<query>` `[--json]`
+//!
+//! # What this command does not do
+//!
+//! It does **not** show compiled SQL. It used to publish a `sql` field, documented as
+//! "Compiled SQL representation (if available)", whose value was a hard-coded
+//! `SELECT data FROM v_table LIMIT 1000;` — a relation name that appears nowhere else in the
+//! codebase — with the query text and metrics pasted into a comment header. The command takes
+//! no `--schema` argument, so it could not have produced real SQL even in principle. An
+//! adopter (or an agent consuming `--show-output-schema explain`) who took that as the SQL
+//! FraiseQL would run got `relation "v_table" does not exist` from psql (#868 item 2).
+//!
+//! The field is gone rather than faked. Showing real SQL needs the `--schema` argument the old
+//! module doc already promised plus the `QueryPlanner`; until that exists, this command
+//! reports only what it actually computes: depth, complexity score, alias count and warnings.
 
 use anyhow::Result;
 use fraiseql_core::graphql::{DEFAULT_MAX_ALIASES, complexity::RequestValidator, parse_query};
@@ -13,9 +27,6 @@ use crate::output::CommandResult;
 pub struct ExplainResponse {
     /// The analyzed query string
     pub query:          String,
-    /// Compiled SQL representation (if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sql:            Option<String>,
     /// Estimated query execution cost
     pub estimated_cost: usize,
     /// Complexity metrics
@@ -44,7 +55,7 @@ pub struct ComplexityInfo {
 /// fails. Also propagates errors from JSON serialization of the response.
 pub fn run(query: &str) -> Result<CommandResult> {
     // Parse the query to validate syntax
-    let parsed = parse_query(query)?;
+    let _parsed = parse_query(query)?;
 
     // Analyze complexity using the AST-based validator.
     let validator = RequestValidator::default();
@@ -73,18 +84,10 @@ pub fn run(query: &str) -> Result<CommandResult> {
         warnings.push(format!("Query has {alias_count} aliases — consider reducing alias count"));
     }
 
-    // Generate SQL representation (simplified for now)
-    // In a real implementation, this would use the QueryPlanner
-    let sql = format!(
-        "-- Query execution plan for: {}\n-- Depth: {}, Score: {}, Aliases: {}\nSELECT data FROM v_table LIMIT 1000;",
-        parsed.root_field, depth, score, alias_count
-    );
-
     let has_warnings = !warnings.is_empty();
 
     let response = ExplainResponse {
         query:          query.to_string(),
-        sql:            Some(sql),
         estimated_cost: score,
         complexity:     ComplexityInfo {
             depth,

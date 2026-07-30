@@ -33,6 +33,7 @@ use super::{operations::IntermediateArgument, types::IntermediateDeprecation};
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateSubscription {
     /// Subscription name (e.g., "orderUpdated")
     pub name: String,
@@ -69,6 +70,7 @@ pub struct IntermediateSubscription {
 ///
 /// Maps subscription arguments to JSONB paths in event data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateSubscriptionFilter {
     /// Filter conditions mapping arguments to event data paths
     pub conditions: Vec<IntermediateFilterCondition>,
@@ -76,6 +78,7 @@ pub struct IntermediateSubscriptionFilter {
 
 /// A single filter condition for subscription event matching.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateFilterCondition {
     /// Argument name from subscription arguments
     pub argument: String,
@@ -123,6 +126,7 @@ pub struct IntermediateFilterCondition {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateObserver {
     /// Observer name (unique identifier)
     pub name: String,
@@ -163,6 +167,7 @@ pub type IntermediateObserverAction = serde_json::Value;
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateRetryConfig {
     /// Maximum number of retry attempts
     pub max_attempts: u32,

@@ -518,7 +518,7 @@ class SchemaRegistry:
         Returns:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
             "queries", "mutations", "subscriptions", "naming_convention", and
-            "customScalars"
+            "custom_scalars"
         """
         schema: dict[str, Any] = {
             "types": list(cls._types.values()),
@@ -543,16 +543,27 @@ class SchemaRegistry:
         if cls._inject_defaults:
             schema["inject_defaults"] = cls._inject_defaults
 
-        # Include custom scalars if any are registered
+        # Include custom scalars if any are registered.
+        #
+        # The key is `custom_scalars` and the value is a **list**, matching the compiler's
+        # `IntermediateSchema.custom_scalars: Vec<IntermediateScalar>`. This used to emit
+        # `customScalars` as an object keyed by name, with a `validate: True` flag — three
+        # mismatches at once (key, container, element shape), so no Python-declared custom
+        # scalar had ever reached a compiled schema and no scalar validation ever ran.
+        #
+        # `validate` is deliberately not emitted. The compiler's ValidationRule is
+        # declarative (Pattern/Length/Range/Enum); a Python `validate()` method cannot be
+        # lowered into one, so the flag was a claim about runtime behaviour that no compiled
+        # artifact could honour. Scalar *types* are now registered; declarative rules need an
+        # authoring surface that does not exist yet.
         if cls._custom_scalars:
-            custom_scalars = {}
-            for name, (scalar_class, description) in cls._custom_scalars.items():
-                custom_scalars[name] = {
+            schema["custom_scalars"] = [
+                {
                     "name": name,
                     "description": description or scalar_class.__doc__,
-                    "validate": True,
                 }
-            schema["customScalars"] = custom_scalars
+                for name, (scalar_class, description) in cls._custom_scalars.items()
+            ]
 
         return schema
 

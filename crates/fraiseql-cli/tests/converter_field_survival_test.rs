@@ -308,6 +308,7 @@ fn converter_threads_is_error_flag_on_type() {
         types: vec![IntermediateType {
             name: "UserNotFound".to_string(),
             is_error: true,
+            is_input: false,
             ..Default::default()
         }],
         ..Default::default()

@@ -14,6 +14,7 @@ use fraiseql_core::{
 #[allow(clippy::too_many_lines)] // Reason: integration test exercises full custom scalar pipeline in one flow
 fn test_compile_schema_with_single_custom_scalar() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -50,6 +51,7 @@ fn test_compile_schema_with_single_custom_scalar() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -70,6 +72,7 @@ fn test_compile_schema_with_single_custom_scalar() {
 #[test]
 fn test_compile_schema_with_multiple_custom_scalars() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -114,6 +117,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -134,6 +138,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
 #[test]
 fn test_custom_scalar_with_multiple_validation_rules() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -175,6 +180,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -191,6 +197,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
 fn test_custom_scalar_preserves_all_metadata() {
     let url = "https://example.com/spec".to_string();
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -223,6 +230,7 @@ fn test_custom_scalar_preserves_all_metadata() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -241,6 +249,7 @@ fn test_custom_scalar_preserves_all_metadata() {
 #[test]
 fn test_empty_custom_scalars_list() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -267,6 +276,7 @@ fn test_empty_custom_scalars_list() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -283,6 +293,7 @@ fn test_empty_custom_scalars_list() {
 #[test]
 fn test_custom_scalar_with_no_validation_rules() {
     let schema = IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -315,6 +326,7 @@ fn test_custom_scalar_with_no_validation_rules() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,

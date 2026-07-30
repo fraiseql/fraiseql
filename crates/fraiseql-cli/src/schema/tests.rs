@@ -908,12 +908,22 @@ mutations = []
         let toml_path = temp_dir.path().join("fraiseql.toml");
         fs::write(&toml_path, toml_content)?;
 
-        // Should succeed but with no files loaded (glob matches nothing)
-        let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
-        let schema = result.unwrap_or_else(|e| {
-            panic!("expected Ok from merge_with_includes (missing files): {e}")
-        });
-        assert_eq!(schema.types.len(), 0);
+        // A configured `[includes]` pattern that matches nothing must FAIL the compile.
+        //
+        // This test previously asserted the opposite — "Should succeed but with no files
+        // loaded (glob matches nothing)" — which codified the #723 fail-open as the expected
+        // result. Succeeding there means the user configured a schema source, the compile
+        // reported success, and none of the types they were including are in the artifact.
+        // An empty *list* of patterns is still fine (nothing configured); a pattern that
+        // resolves to nothing is a typo or a build-ordering mistake, and it is now loud.
+        let err = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap())
+            .expect_err("a configured include pattern matching no files must fail the compile");
+
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("/nonexistent/path/*.json"),
+            "the error must name the pattern that matched nothing; got: {msg}"
+        );
 
         Ok(())
     }

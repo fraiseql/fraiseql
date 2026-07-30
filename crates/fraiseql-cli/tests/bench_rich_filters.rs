@@ -19,6 +19,7 @@ fn bench_compile_empty_schema_rich_types() {
 
     for _ in 0..iterations {
         let intermediate = IntermediateSchema {
+            grpc_config:       None,
             security:          None,
             version:           "2.0.0".to_string(),
             types:             vec![],
@@ -45,6 +46,7 @@ fn bench_compile_empty_schema_rich_types() {
             mcp_config:           None,
             rest_config:          None,
             query_defaults:       None,
+            inject_defaults:      None,
             naming_convention:    NamingConvention::default(),
             session_variables:    None,
             hierarchies_config:   None,
@@ -73,6 +75,7 @@ fn bench_compile_empty_schema_rich_types() {
 #[test]
 fn bench_metadata_access_performance() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -99,6 +102,7 @@ fn bench_metadata_access_performance() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -133,6 +137,7 @@ fn bench_metadata_access_performance() {
 #[test]
 fn bench_operator_metadata_parsing() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -159,6 +164,7 @@ fn bench_operator_metadata_parsing() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -197,6 +203,7 @@ fn bench_operator_metadata_parsing() {
 #[test]
 fn bench_database_template_access() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -223,6 +230,7 @@ fn bench_database_template_access() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -267,6 +275,7 @@ fn bench_database_template_access() {
 #[test]
 fn bench_lookup_data_access() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -293,6 +302,7 @@ fn bench_lookup_data_access() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -331,6 +341,7 @@ fn bench_lookup_data_access() {
 #[test]
 fn bench_full_operator_traversal() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -357,6 +368,7 @@ fn bench_full_operator_traversal() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,

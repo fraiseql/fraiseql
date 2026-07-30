@@ -26,6 +26,7 @@ use super::types::{IntermediateDeprecation, IntermediateField};
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateInterface {
     /// Interface name (e.g., "Node")
     pub name: String,
@@ -58,6 +59,7 @@ pub struct IntermediateInterface {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateUnion {
     /// Union type name (e.g., "SearchResult")
     pub name: String,
@@ -93,6 +95,7 @@ pub struct IntermediateUnion {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateInputObject {
     /// Input object type name (e.g., "UserFilter")
     pub name: String,
@@ -118,6 +121,7 @@ pub struct IntermediateInputObject {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateInputField {
     /// Field name
     pub name: String,

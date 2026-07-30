@@ -521,12 +521,23 @@ impl HostContext for RecordingHost {
 }
 
 /// Truncate a query/SQL string to a single readable summary line.
+///
+/// Truncation is by **character**, not byte. `&one_line[..80]` panicked with "byte index 80
+/// is not a char boundary" whenever the 80th byte fell inside a multi-byte sequence — and the
+/// input is entirely author-controlled: this summarizes the GraphQL text passed to
+/// `HostContext::query` and the SQL passed to `sql_query` by the guest under test. A literal
+/// like `city: { eq: "Zürich" }` or an accented identifier is ordinary, and the panic landed
+/// *after* the isolate had run, so the guest's result and the host-op log were lost and the
+/// process aborted instead of returning an exit code the adopter's CI could branch on. The
+/// `unwrap_used`/`expect_used` ratchets do not cover string indexing, so nothing in the gate
+/// caught it (#868 item 3).
+const MAX_SUMMARY_CHARS: usize = 80;
+
 fn summarize(text: &str) -> String {
     let one_line: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if one_line.len() > 80 {
-        format!("{}…", &one_line[..80])
-    } else {
-        one_line
+    match one_line.char_indices().nth(MAX_SUMMARY_CHARS) {
+        Some((byte_offset, _)) => format!("{}…", &one_line[..byte_offset]),
+        None => one_line,
     }
 }
 

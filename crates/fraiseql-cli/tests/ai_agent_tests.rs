@@ -182,14 +182,21 @@ mod show_output_schema {
     use super::*;
 
     #[test]
-    fn outputs_schema_for_compile() {
+    /// `compile` must NOT advertise an output schema (#868 item 5).
+    ///
+    /// `compile::run` prints plain `println!` lines and never constructs a `CommandResult`, so
+    /// `fraiseql compile --json` emits no `{status, command, data}` object at all. Publishing a
+    /// schema for it told an agent to parse a payload that does not exist — this test used to
+    /// assert the advertisement, codifying that. Re-list `compile` only once its run function
+    /// returns a `CommandResult`.
+    fn no_schema_is_advertised_for_compile() {
         let (stdout, code) = run_cli(&["--show-output-schema", "compile"]);
 
-        assert_eq!(code, 0);
-        let parsed: Value = serde_json::from_str(&stdout).expect("Output should be valid JSON");
-        assert_eq!(parsed["status"], "success");
-        assert_eq!(parsed["command"], "show-output-schema");
-        assert_eq!(parsed["data"]["command"], "compile");
+        assert_ne!(
+            code, 0,
+            "--show-output-schema compile must fail while the command emits no CommandResult; \
+             got exit 0 with: {stdout}"
+        );
     }
 
     #[test]
@@ -226,8 +233,9 @@ mod show_output_schema {
 
     #[test]
     fn all_documented_commands_have_schemas() {
+        // `compile` is deliberately absent: it emits no CommandResult, so it has no schema
+        // to advertise (#868 item 5).
         let documented_commands = vec![
-            "compile",
             "validate",
             "lint",
             "analyze",

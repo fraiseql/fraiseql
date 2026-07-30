@@ -28,8 +28,8 @@ use fraiseql_core::schema::{
     SubscriptionsConfig, ValidationConfig,
 };
 pub use operations::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
-    IntermediateQueryDefaults, IntermediateRest,
+    IntermediateArgument, IntermediateAutoParams, IntermediateInjectDefaults, IntermediateMutation,
+    IntermediateQuery, IntermediateQueryDefaults, IntermediateRest,
 };
 use serde::{Deserialize, Serialize};
 pub use subscriptions::{
@@ -42,7 +42,34 @@ pub use types::{
 };
 
 /// Intermediate schema - universal format from all language libraries
+///
+/// # `deny_unknown_fields` is the load-bearing attribute on this struct
+///
+/// Every field below carries `#[serde(default)]`, because an SDK legitimately omits most of
+/// them. Without `deny_unknown_fields`, that combination means **any** key the compiler does
+/// not read binds to an empty default and the compile reports success. That is not a
+/// hypothetical: it is the mechanism behind nine separate shipped defects.
+///
+/// * `#847` — seven SDKs emitted `inject_defaults`; the compiler had never heard of the key. An
+///   operator configuring a project-wide tenant predicate got `✓ Schema compiled successfully` and
+///   not one operation with a tenant filter.
+/// * `#848` — four SDKs emitted `is_input`; the type compiled as an *output* type and the served
+///   schema violated GraphQL §3.10.
+/// * `#756` — the merger wrote `args`/`required`, this struct read `arguments`/`nullable`. Every
+///   TOML-declared operation argument disappeared.
+/// * `#806`/`#807` — `inject` vs `inject_params`, and five spellings of `requires_scope`. Queries
+///   compiled with no tenant predicate; gated fields compiled as public.
+///
+/// In each case the *author was explicit* and the compiler was silent. Denying unknown
+/// fields converts every one of those into an error naming the offending key, and — the
+/// point of putting it here rather than patching each instance — it does the same for the
+/// tenth key, which has not been invented yet.
+///
+/// Consequence to accept deliberately: a key an SDK emits that this struct does not declare
+/// now **fails the compile**. That is the intended breaking change. A producer emitting a
+/// key no consumer reads was never doing anything; now it says so.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateSchema {
     /// Schema format version
     #[serde(default = "default_version")]
@@ -101,7 +128,7 @@ pub struct IntermediateSchema {
     pub observers: Option<Vec<IntermediateObserver>>,
 
     /// Scheduled ingress source definitions (#573) — the dual of `observers`.
-    /// Reuses the compiled [`SourceDefinition`](fraiseql_core::schema::SourceDefinition)
+    /// Reuses the compiled [`SourceDefinition`](fraiseql_core::schema::`SourceDefinition`)
     /// shape directly (it already carries serde defaults); the converter copies them
     /// into the compiled schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,8 +137,8 @@ pub struct IntermediateSchema {
     /// Custom scalar type definitions
     ///
     /// Defines custom GraphQL scalar types with validation rules.
-    /// Custom scalars can be defined in Python, TypeScript, Java, Go, and Rust SDKs,
-    /// and are compiled into the CompiledSchema's CustomTypeRegistry.
+    /// Custom scalars can be defined in Python, `TypeScript`, Java, Go, and Rust SDKs,
+    /// and are compiled into the CompiledSchema's `CustomTypeRegistry`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_scalars: Option<Vec<IntermediateScalar>>,
 
@@ -175,12 +202,28 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_config: Option<RestConfig>,
 
+    /// gRPC transport configuration.
+    ///
+    /// Compiled from `[grpc]` in `fraiseql.toml`. Embedded verbatim into the compiled
+    /// schema, whose `grpc_config` gates the transport (#780).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_config: Option<fraiseql_core::schema::GrpcConfig>,
+
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///
     /// Never present in `schema.json` — populated at compile time from `[query_defaults]`
     /// in `fraiseql.toml`. Used by the converter to resolve per-query `auto_params`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_defaults: Option<IntermediateQueryDefaults>,
+
+    /// Project-wide default injected parameters, from `[inject_defaults]`.
+    ///
+    /// Emitted as a top-level key by seven SDKs' `ConfigLoader`s and consumed by the
+    /// converter. See [`IntermediateInjectDefaults`] for the precedence rules and for why
+    /// the merge happens after `[fraiseql.tenancy]` validation rather than before it
+    /// (#847).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inject_defaults: Option<IntermediateInjectDefaults>,
 
     /// Naming convention for GraphQL operation names.
     ///
@@ -192,7 +235,7 @@ pub struct IntermediateSchema {
     ///
     /// When populated, the executor calls `set_config()` before each query and
     /// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
-    /// as PostgreSQL transaction-scoped settings.
+    /// as `PostgreSQL` transaction-scoped settings.
     ///
     /// Embedded verbatim from the `session_variables` key in `schema.json`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

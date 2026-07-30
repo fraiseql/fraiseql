@@ -37,6 +37,7 @@ impl SchemaExtractor for ScalaExtractor {
                 implements: Vec::new(),
                 requires_role: None,
                 is_error: false,
+                is_input: false,
                 relay: false,
                 embedded: false,
                 subscribable_tables: None,
@@ -129,6 +130,7 @@ pub(super) fn extract_scala_query_args(source: &str, fn_start: usize) -> Vec<Int
             arg_type: graphql_type,
             nullable: false,
             default: None,
+            description: None,
             deprecated: None,
         });
     }

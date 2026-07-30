@@ -26,7 +26,7 @@ pub struct DatabaseValidationReport {
     pub warnings:       Vec<DatabaseWarning>,
     /// Native columns discovered per query during L2 validation.
     ///
-    /// Key: query name. Value: map of argument name → PostgreSQL type string
+    /// Key: query name. Value: map of argument name → `PostgreSQL` type string
     /// (e.g. `"uuid"`, `"integer"`, `"text"`).
     ///
     /// Only contains entries for queries that have at least one direct argument
@@ -748,7 +748,7 @@ async fn validate_json_keys(
 /// Uses enum dispatch instead of `Box<dyn DatabaseIntrospector>` because the
 /// trait uses `async_fn_in_trait` and cannot be object-safe.
 pub enum AnyIntrospector {
-    /// PostgreSQL introspector.
+    /// `PostgreSQL` introspector.
     Postgres(fraiseql_core::db::PostgresIntrospector),
     #[cfg(feature = "mysql")]
     /// MySQL introspector.

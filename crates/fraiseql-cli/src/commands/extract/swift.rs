@@ -68,6 +68,7 @@ impl SchemaExtractor for SwiftExtractor {
                 implements: Vec::new(),
                 requires_role: None,
                 is_error: false,
+                is_input: false,
                 relay: false,
                 embedded: false,
                 subscribable_tables: None,
@@ -135,6 +136,7 @@ pub(super) fn extract_swift_query_args(
             arg_type: graphql_type,
             nullable: false,
             default: None,
+            description: None,
             deprecated: None,
         });
     }

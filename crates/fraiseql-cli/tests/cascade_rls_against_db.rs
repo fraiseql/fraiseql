@@ -14,7 +14,7 @@
 //!
 //! Self-skips when no `DATABASE_URL` is set, so it is inert in the database-free leg.
 //!
-//! **Execution engine:** PostgreSQL
+//! **Execution engine:** `PostgreSQL`
 //! **Infrastructure:** `DATABASE_URL` (a superuser, to `SET ROLE` + create a role)
 #![cfg(feature = "test-postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable

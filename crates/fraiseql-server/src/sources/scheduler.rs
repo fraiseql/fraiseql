@@ -111,7 +111,7 @@ fn schedulable<'a>(
 /// Each poller runs under the source's `run_as` identity (via
 /// [`SourceQueryExecutor`] over the hot-reloadable `executor`), reads/advances the
 /// shared durable cursor store, and single-fires across replicas on a
-/// PostgreSQL advisory lease keyed on the source name. The caller spawns each
+/// `PostgreSQL` advisory lease keyed on the source name. The caller spawns each
 /// returned poller's [`run_forever`](SourcePoller::run_forever) on the server's
 /// `JoinSet`; the shared `_fraiseql_source_cursor` table must already be
 /// initialized.
@@ -137,6 +137,10 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
                 Arc::new(SourceQueryExecutor::new(Arc::clone(executor), identity));
             SourcePoller::new(
                 source.name.clone(),
+                // The declared `cursor` override, falling back to the source name. Keeps the
+                // watermark key under the author's control while the lease and metric labels
+                // below stay keyed on the source name (#868 item 4).
+                source.cursor_name().to_string(),
                 schedule,
                 module,
                 Arc::clone(&hooks.observer),

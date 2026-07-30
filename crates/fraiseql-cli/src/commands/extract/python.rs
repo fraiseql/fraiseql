@@ -74,6 +74,7 @@ impl SchemaExtractor for PythonExtractor {
                 implements: Vec::new(),
                 requires_role: None,
                 is_error: false,
+                is_input: false,
                 relay: false,
                 embedded: false,
                 subscribable_tables: None,
@@ -147,11 +148,12 @@ pub(super) fn extract_python_query_args(
         let type_str = &cap[2];
         let graphql_type = map_primitive_type(type_str);
         args.push(IntermediateArgument {
-            name:       name.to_string(),
-            arg_type:   graphql_type,
-            nullable:   false,
-            default:    None,
-            deprecated: None,
+            name:        name.to_string(),
+            arg_type:    graphql_type,
+            nullable:    false,
+            default:     None,
+            description: None,
+            deprecated:  None,
         });
     }
     args

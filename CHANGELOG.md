@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **A project-wide `[inject_defaults]` tenant predicate reaches the operations it configures
+  (#847).** Python, Go, Java, PHP, C#, Elixir and F# each ship a `ConfigLoader` that parses
+  `[inject_defaults]` from `fraiseql.toml` and emits it as a top-level key. No compiler code
+  path had ever read it — `grep -rn inject_defaults crates/` returned nothing — and
+  `IntermediateSchema` accepted unknown keys, so an operator who wrote
+  `[inject_defaults] tenant_id = "jwt:tenant_id"` to stamp every operation with the caller's
+  tenant got `✓ Schema compiled successfully` and **not one compiled operation carrying a
+  tenant predicate**. Seven separate implementations of a feature that had never done
+  anything.
+
+  The merge runs in the converter, *after* `[fraiseql.tenancy]` validation rather than before
+  it: tenancy auto-injects the annotated field when an operation's `inject_params` is empty
+  and **fails the compile** when it is non-empty but lacks that field, so applying defaults
+  first would have made a single unrelated default (`read_scope`, the example in the Python
+  SDK's own docstring) break every tenancy-annotated query. Precedence, most specific first:
+  the operation's own `inject_params`, then tenancy auto-injection, then
+  `[inject_defaults].queries`/`.mutations`, then `.base`.
+
+- **Custom-scalar validation rules survive the TOML compile workflow (#755).** `merge_values`
+  rebuilt the merged schema from scratch with only `version`/`types`/`queries`/`mutations`, so
+  a `custom_scalars` block — and its `validation_rules` — was discarded on every
+  `--types`, `--schema-dir`, `--type-files`, domain-discovery and includes compile. An `Email`
+  scalar with a pattern rule compiled to nothing and invalid values flowed straight to SQL.
+  Seven other authorable categories were dropped with it: enums, input types, interfaces,
+  unions, subscriptions, observers and ingress sources.
+
+- **A Python-declared custom scalar reaches the compiled schema at all (#922).** The Python
+  SDK emitted `customScalars` as an object keyed by name with a `validate: true` flag; the
+  compiler reads `custom_scalars` as an array of `IntermediateScalar`. Three independent
+  mismatches — key name, container type, element shape — so no Python custom scalar had
+  **ever** been compiled, on any path, and no scalar validation ever ran. The `validate` flag
+  is not re-emitted: the compiler's `ValidationRule` is declarative
+  (`Pattern`/`Length`/`Range`/`Enum`) and a Python `validate()` method cannot lower into one,
+  so the flag asserted runtime enforcement no compiled artifact could deliver.
+
+
 - **A REST read projects the fields it was asked for, and the field-authorization gate
   fires on that path (#886).** `QueryMatch::from_operation` — the only `QueryMatch`
   constructor the REST transport uses — built a *flat* list of leaf `FieldSelection`s
@@ -201,6 +237,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`IntermediateSchema` and the nested intermediate structs reject unknown fields.** Every
+  field on the authoring→compile boundary carries `#[serde(default)]`, because an SDK
+  legitimately omits most of them. Without `deny_unknown_fields` that combination means any
+  key the compiler does not read binds to an empty default and the compile reports success —
+  the mechanism behind #755, #756, #779, #847, #848 and, earlier, #806/#807. A `schema.json`
+  carrying a key the compiler does not read now **fails to compile**, naming the key.
+
+  Spellings seen in the wild, and what to use instead: `return_array` → `returns_list`;
+  `args` with `required` → `arguments` with `nullable`; `customScalars` → `custom_scalars`;
+  `inject` → `inject_params`.
+
+- **A schema declaring top-level `observers` fails to compile (#779).** The block was
+  validated by ~220 lines of `SchemaValidator` — a typo in any observer field failed the
+  build, which told authors emphatically that it was honoured — and then discarded by
+  `observers: Vec::new()` under a comment claiming the opposite. No webhook, Slack message or
+  email ever fired for any declared event. The runtime loads observers exclusively from the
+  `tb_observer` table and the admin API and reads nothing from the compiled schema, so
+  carrying them would only have moved the silent drop one layer down. The compile now fails
+  and names the mechanism that works.
+
+- **A `[includes]` pattern that matches no files fails the compile (#723).** Previously the
+  glob resolved to nothing and compilation continued from TOML-only definitions, producing a
+  schema silently missing everything the include was meant to contribute. An empty *list* of
+  patterns is still fine — nothing is configured. The same applies to a configured
+  `[domain_discovery]` whose root is missing or whose files fail to parse: the schema-source
+  fallback now asks "is this configured?" before attempting it, so a failure inside a
+  configured source propagates instead of being swallowed by `if let Ok(schema) = …`.
+
+- **`fraiseql validate` exits 2 on a validation failure**, matching the contract
+  `--help-json` publishes and what `lint` and `federation check` already did. It exited 1,
+  so CI could not distinguish an invalid schema from a broken toolchain (#868).
+
+- **`--show-output-schema compile` is removed.** `compile::run` prints plain lines and never
+  constructs a `CommandResult`, so `fraiseql compile --json` emits no `{status, command,
+  data}` object for the advertised schema to describe (#868).
+
+- **`fraiseql explain` no longer emits a `sql` field.** Its value was a hard-coded
+  `SELECT data FROM v_table LIMIT 1000;` — a relation appearing nowhere else in the codebase
+  — published under the label "Compiled SQL representation". The command takes no `--schema`
+  argument, so it could not have produced real SQL in principle (#868).
+
+- **A type marked `is_input: true` compiles into `input_types`, not `types` (#848).** Four
+  SDKs advertise the flag and emit it; the compiler had no field to receive it, so such a
+  type became an *object* type and any mutation argument referencing it produced a schema
+  violating GraphQL §3.10. Output-only attributes on an `is_input` type (`sql_source`,
+  `relay`, `requires_role`, `is_error`, `implements`, `subscribable_tables`) are now refused
+  rather than ignored.
+
+- **The Python SDK emits `custom_scalars` as an array** rather than `customScalars` as an
+  object, and no longer emits a `validate` flag (#922).
+
+
 - **The REST write surface is mounted (#865).** `POST`/`PUT`/`PATCH`/`DELETE` on derived
   resources, and the collection-level bulk routes, are now served by any deployment whose
   adapter implements `SupportsMutations` (PostgreSQL, MySQL, SQL Server). `rest_router`
@@ -365,6 +453,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read back (#716).
 
 ### Fixed
+
+- **`fraiseql init` scaffolds a project that compiles to what it declares (#921).** The
+  scaffolded `schema.json` used `return_array` and `args`/`required`, which the compiler does
+  not read, so **all five** queries compiled with `returns_list: false` and `arguments: []`.
+  `posts`, `authors` and `tags` were served as single objects rather than lists, and
+  `post(id:)`/`author(id:)` took no arguments at all — there was no way to fetch one by id.
+  The documented first-run flow (`fraiseql init && fraiseql compile`) produced a schema in
+  which not one query behaved as declared.
+
+- **TOML-declared operation arguments reach the compiled schema (#756).** The merger emitted
+  `"args"` with a `"required"` flag; `IntermediateQuery`/`IntermediateMutation` deserialize
+  `"arguments"` with `"nullable"`. Both sides carried `#[serde(default)]`, so the mismatch
+  bound to an empty vector: a query declaring `args = [{ name = "id", required = true }]`
+  compiled with no arguments, its `id` filter was never bound, and it returned rows the
+  author had excluded. Arguments are now serialized *through* `IntermediateArgument`, so the
+  wire keys come from the field definitions and there is no second spelling to keep in sync.
+  The same change carries the argument `description` that the compiled `ArgumentDefinition`
+  has always had and nothing could reach it with.
+
+- **`fraiseql compile` no longer panics while composing an error message (#724).**
+  `suggest_similar_type` sliced `&typo[0..1]` and `&name[0..1]` — *byte* ranges — so an empty
+  base type (`"return_type": ""`) or a type name beginning with a multi-byte character aborted
+  the process mid-diagnostic. Ranking now uses a real edit-distance match over characters, so
+  a typo of `User` gets `User` rather than `Universe` and `Umbrella`.
+
+  Three further diagnostic gaps in the same issue: duplicate-type errors reported the count of
+  unique names seen rather than the offending element's index; a misspelled field type was
+  auto-registered as a custom scalar, which also legalized the typo as a query return type;
+  and the converter's validation tier bailed on the first error with no suggestion while the
+  validator collected all of them with suggestions, so identical mistakes got materially
+  different diagnostics depending on which tier caught them.
+
+- **`[grpc]` in `fraiseql.toml` reaches `CompiledSchema.grpc_config` (#780).** The type
+  documented itself as "compiled from `[grpc]`", but nothing in the CLI parsed such a section
+  and `TomlSchema` is `deny_unknown_fields`, so following that documentation failed with
+  "unknown field `grpc`". Removing the section compiled — and the server then silently never
+  mounted gRPC. There was no supported way to enable a shipped, end-to-end-tested transport.
+  `enabled = true` without a `descriptor_path` now fails the compile rather than producing a
+  server that cannot mount what it was told to serve.
+
+- **A source's declared `cursor` override is the key the runtime advances (#868).**
+  `SourceDefinition::cursor_name()` existed, the schema validator enforced uniqueness on it
+  ("a shared cursor name would let two sources clobber each other's watermark"), the
+  converter compiled it and `fraiseql sources` printed it — while `build_source_pollers`
+  passed `source.name` to the cursor store. An operator renaming a source from `orders` to
+  `orders_v2` with `cursor = "orders"` to preserve the watermark advanced a brand-new row and
+  re-ingested the entire history on the first tick.
+
+- **`fraiseql doctor` no longer renders a skipped security check as a pass (#868).**
+  `check_tls` and `check_rls_cache_coherence` returned `DoctorCheck::pass(…, "check skipped")`
+  when the config failed to parse as a schema TOML — which is the *normal* case for the
+  documented compiled-schema + runtime-config flow, since `TomlSchema` is
+  `deny_unknown_fields` and knows no `[metrics]`/`[tracing]` tables. Both render as `[✓]` and
+  count toward "All checks passed", so a missing TLS certificate that would abort server boot
+  was reported green. Both checks now read the config as generic TOML — so they work for both
+  config shapes and usually *do* run — and a check that could not run is a warning.
+
+- **`fraiseql functions invoke` no longer panics on a multi-byte host-op query (#868).**
+  `summarize` sliced at byte index 80, so an accented identifier or a literal like
+  `city: { eq: "Zürich" }` aborted the process *after* the isolate had run, losing the guest's
+  result and the host-op log.
+
+- **`--show-output-schema` describes what the commands actually emit (#868).** Every declared
+  schema disagreed with its producing struct, `cost` most visibly: it declared `depth`,
+  `field_count` and `score` as *required*, and `CostResponse` emits neither `field_count` nor
+  `score` — so a consumer validating a successful response against the advertised schema
+  rejected every one. A test now serializes a representative response per command and checks
+  it against the declared schema in both directions.
+
+- **The validator's scalar table and the converter's agree.** `BUILTIN_SCALAR_NAMES` listed
+  six names including `"JSON"`; `parse_field_type` matches twelve including `"Json"` — the
+  spelling every SDK emits. So a field typed `Json` was not a known scalar to schema
+  validation, and one typed `JSON` compiled to `FieldType::Object("JSON")`, a reference to a
+  type that does not exist. Both were masked by the implicit custom-scalar registration
+  removed above; a drift test now fails the build if the two tables diverge.
+
 
 - **Every REST mutation returned an empty entity (#919).**
   `Executor::execute_mutation_with_security` — the entry point every REST mutation takes —

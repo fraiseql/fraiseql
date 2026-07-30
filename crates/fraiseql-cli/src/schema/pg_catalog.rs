@@ -1,4 +1,4 @@
-//! Live-PostgreSQL catalog access for the `--against-db` checks.
+//! Live-`PostgreSQL` catalog access for the `--against-db` checks.
 //!
 //! A thin wrapper over a [`deadpool_postgres`] pool that answers the two
 //! questions the `validate --against-db` (#397) and `doctor --against-db`
@@ -11,7 +11,7 @@
 //!   functions call something the catalog can't resolve? (`plpgsql_check_available` /
 //!   `plpgsql_check_unresolved_calls`)
 //!
-//! All catalog queries are PostgreSQL-specific (`pg_proc`, `pg_type`,
+//! All catalog queries are `PostgreSQL`-specific (`pg_proc`, `pg_type`,
 //! `pg_attribute`, `plpgsql_check`); the surrounding logic in
 //! [`super::mutation_contract`] is database-agnostic and unit-tested without a
 //! connection.
@@ -20,7 +20,7 @@ use anyhow::{Context, Result};
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use tokio_postgres::NoTls;
 
-/// A single output column of a PostgreSQL function's result row.
+/// A single output column of a `PostgreSQL` function's result row.
 ///
 /// Populated from either the `OUT`/`TABLE` parameters of a `RETURNS TABLE(…)`
 /// function or the attributes of a composite `RETURNS <type>` — both are how
@@ -34,13 +34,13 @@ pub struct OutColumn {
     /// `format_type` rendering of the column type (e.g. `"boolean"`,
     /// `"jsonb"`, `"text[]"`, `"app.mutation_error_class"`).
     pub type_name: String,
-    /// Whether the column type is a PostgreSQL `enum` (`pg_type.typtype = 'e'`).
+    /// Whether the column type is a `PostgreSQL` `enum` (`pg_type.typtype = 'e'`).
     /// Mutation functions legitimately type `error_class` as either `text` or a
     /// project-specific enum, so the contract check accepts both.
     pub is_enum:   bool,
 }
 
-/// One overload of a PostgreSQL function, reduced to what the mutation-contract
+/// One overload of a `PostgreSQL` function, reduced to what the mutation-contract
 /// check needs: the *input* arguments (in positional call order, excluding
 /// `OUT`/`TABLE` columns) and the output columns.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,7 +79,7 @@ pub struct BodyError {
 pub struct LiveColumn {
     /// Column name (`information_schema.columns.column_name`).
     pub name:     String,
-    /// PostgreSQL base type (`information_schema.columns.udt_name`): the
+    /// `PostgreSQL` base type (`information_schema.columns.udt_name`): the
     /// lower-case underlying type, e.g. `"uuid"`, `"int8"`, `"text"`, `"jsonb"`,
     /// `"timestamptz"`, `"_text"` (the element form of `text[]`). Compared
     /// against [`fraiseql_observers::migrations::ContractColumn::udt`].
@@ -154,13 +154,13 @@ pub struct SecurityInvokerAudit {
     pub views_without_invoker: Vec<String>,
 }
 
-/// A live PostgreSQL connection pool for catalog introspection.
+/// A live `PostgreSQL` connection pool for catalog introspection.
 pub struct PgCatalog {
     pool: Pool,
 }
 
 impl PgCatalog {
-    /// Connect to `db_url` (PostgreSQL only) for catalog introspection.
+    /// Connect to `db_url` (`PostgreSQL` only) for catalog introspection.
     ///
     /// # Errors
     ///

@@ -30,7 +30,7 @@ use fraiseql_core::{
 use tracing::{info, warn};
 
 use super::{
-    intermediate::{IntermediateFactTable, IntermediateSchema},
+    intermediate::{IntermediateFactTable, IntermediateInjectDefaults, IntermediateSchema},
     rich_filters::{RichFilterConfig, compile_rich_filters},
 };
 
@@ -98,9 +98,48 @@ impl SchemaConverter {
             })
             .collect();
 
-        // Convert types
-        let types = intermediate
-            .types
+        // Refuse a schema that declares observers, rather than validating them and throwing
+        // them away (#779).
+        //
+        // The `observers` block is emitted by the Python SDK's `@fraiseql.observer` (its
+        // shipped example declares five), it binds to `IntermediateSchema.observers`, and
+        // `SchemaValidator` spends ~220 lines checking names, entities, events, actions and
+        // retry policy — a typo in any of them fails the compile, which tells the author
+        // emphatically that the block is honoured. It was not: this function set
+        // `observers: Vec::new()` under a comment claiming they were "populated from
+        // IntermediateSchema", nothing else ever wrote the field, and no webhook, Slack
+        // message or email ever fired for any declared event.
+        //
+        // The runtime loads observers exclusively from `tb_observer` / the admin API and
+        // reads nothing from the compiled schema. So *carrying* them here would only move
+        // the silent drop one layer down and produce a compiled artifact whose `observers`
+        // array is decoration. Until a runtime consumer exists, the honest outcome is to
+        // fail and name the mechanism that does work.
+        if let Some(observers) = intermediate.observers.as_ref().filter(|o| !o.is_empty()) {
+            let names: Vec<&str> = observers.iter().map(|o| o.name.as_str()).collect();
+            anyhow::bail!(
+                "This schema declares {} observer(s) ({}), but declared observers are not \
+                 loaded by the runtime — it reads them from the `tb_observer` table and the \
+                 admin API only, so compiling them would produce a schema whose observers \
+                 never fire.\n\nDefine them in `tb_observer`, or register them at runtime \
+                 with `POST /api/observers`, and remove the `observers` block from the \
+                 authored schema.",
+                observers.len(),
+                names.join(", ")
+            );
+        }
+
+        // Split the authored `types` array on `is_input` before converting anything (#848).
+        //
+        // A type marked `is_input` is an input object that four SDKs happen to declare in
+        // the `types` array — Elixir's exporter emits no `input_types` key at all, so this
+        // is its only route. Routing it here rather than converting it as an object type is
+        // what keeps the compiled schema GraphQL-legal: an argument may only be typed with
+        // an input type (§3.10).
+        let (input_marked_types, object_types): (Vec<_>, Vec<_>) =
+            intermediate.types.into_iter().partition(|t| t.is_input);
+
+        let types = object_types
             .into_iter()
             .map(Self::convert_type)
             .collect::<Result<Vec<_>>>()
@@ -111,11 +150,30 @@ impl SchemaConverter {
         // [query_defaults] section is present in fraiseql.toml.
         let defaults = intermediate.query_defaults.unwrap_or_default();
 
+        // Apply `[inject_defaults]` (#847) to any operation that has not named the
+        // parameter itself.
+        //
+        // This runs here, in the converter, rather than in `commands::compile` — the
+        // converter is the single path every caller of the public API goes through, so a
+        // default cannot be lost by reaching the compiled schema some other way.
+        //
+        // It is also deliberately *after* `[fraiseql.tenancy]` validation (which
+        // `commands::compile` performs on the intermediate schema before calling this).
+        // Tenancy auto-injects when `inject_params` is empty and errors when it is
+        // non-empty but lacks the annotated field, so applying defaults first would make a
+        // single unrelated default break every tenancy-annotated operation.
+        let inject_defaults = intermediate.inject_defaults.unwrap_or_default();
+        let query_defaults_inject = inject_defaults.for_queries();
+        let mutation_defaults_inject = inject_defaults.for_mutations();
+
         // Convert queries
         let queries = intermediate
             .queries
             .into_iter()
-            .map(|q| Self::convert_query(q, &defaults))
+            .map(|mut q| {
+                IntermediateInjectDefaults::apply_to(&query_defaults_inject, &mut q.inject);
+                Self::convert_query(q, &defaults)
+            })
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert queries")?;
 
@@ -123,19 +181,35 @@ impl SchemaConverter {
         let mutations = intermediate
             .mutations
             .into_iter()
-            .map(Self::convert_mutation)
+            .map(|mut m| {
+                IntermediateInjectDefaults::apply_to(&mutation_defaults_inject, &mut m.inject);
+                Self::convert_mutation(m)
+            })
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert mutations")?;
 
         // Convert enums
         let enums = intermediate.enums.into_iter().map(Self::convert_enum).collect::<Vec<_>>();
 
-        // Convert input types
-        let input_types = intermediate
-            .input_types
-            .into_iter()
-            .map(Self::convert_input_object)
-            .collect::<Vec<_>>();
+        // Convert input types — the `input_types` array plus the `is_input`-marked entries
+        // lifted out of `types` above. Both routes land in one registry, so a duplicate
+        // between them is an authoring conflict and is refused rather than shadowed.
+        let mut input_objects = intermediate.input_types;
+        for marked in input_marked_types {
+            let lifted = Self::input_object_from_marked_type(marked)?;
+            if input_objects.iter().any(|existing| existing.name == lifted.name) {
+                anyhow::bail!(
+                    "'{}' is declared both in `input_types` and as a type marked \
+                     `is_input: true`. Keep exactly one declaration — two definitions of one \
+                     input object cannot be reconciled, and whichever won would depend on \
+                     compile order.",
+                    lifted.name
+                );
+            }
+            input_objects.push(lifted);
+        }
+        let input_types =
+            input_objects.into_iter().map(Self::convert_input_object).collect::<Vec<_>>();
 
         // Convert interfaces
         let interfaces = intermediate
@@ -188,8 +262,9 @@ impl SchemaConverter {
             subscriptions,
             directives,
             fact_tables, // Analytics metadata
-            observers: Vec::new(), /* Observer definitions (populated from
-                          * IntermediateSchema) */
+            // Refused above when non-empty (#779); an empty vector is the only reachable
+            // value, so this is not a drop.
+            observers: Vec::new(),
             sources: intermediate.sources.clone().unwrap_or_default(), /* #573 scheduled ingress
                                                                         * sources */
             subscribable, // @subscribable capture-trigger declarations (#366)
@@ -214,6 +289,7 @@ impl SchemaConverter {
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
             rest_config: intermediate.rest_config,             // REST config from TOML
+            grpc_config: intermediate.grpc_config,             // gRPC config from TOML (#780)
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
             hierarchies_config: intermediate.hierarchies_config,
@@ -381,45 +457,67 @@ impl SchemaConverter {
             type_names.insert(union_def.name.clone());
         }
 
+        // Add enum type names — valid as field and argument types
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
         // Add built-in scalars
         for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
             type_names.insert((*scalar).to_string());
         }
 
-        // Collect custom scalars implicitly: any type name used in object field definitions
-        // (e.g. IPAddress, Hostname, MACAddress, CIDR, Money, etc.)
-        for type_def in &schema.types {
-            for field in &type_def.fields {
-                let base = Self::extract_type_name(&field.field_type);
-                type_names.insert(base);
-            }
+        // Add **declared** custom scalars, from the registry the compiler actually carries.
+        //
+        // This used to register every type name appearing in any object field, which made a
+        // field-type typo legalize itself as a return type too (#724 item 2) — the same
+        // blindness as `SchemaValidator`, duplicated here.
+        for (name, _) in schema.custom_scalars.list_all() {
+            type_names.insert(name);
         }
+
+        // Collect every problem, then report them together.
+        //
+        // This tier used to `bail!` on the first error, with no suggestion, after redundantly
+        // `warn!`ing the same text (#724 item 4). Errors that only surface after synthesis —
+        // relay, cascade, changelog-injected types — are validated *here*, so the same class
+        // of mistake got a materially worse experience depending on which tier caught it, and
+        // a user with three typos needed three compile cycles for information the compiler
+        // had in hand on the first.
+        let mut problems: Vec<String> = Vec::new();
+        let mut known: Vec<&str> = type_names.iter().map(String::as_str).collect();
+        known.sort_unstable();
+
+        let describe = |name: &str| -> String {
+            let similar = fraiseql_core::runtime::suggest_similar(name, &known);
+            if similar.is_empty() {
+                String::new()
+            } else {
+                format!(" (did you mean: {}?)", similar.join(", "))
+            }
+        };
 
         // Validate queries
         for query in &schema.queries {
             if !type_names.contains(&query.return_type) {
-                warn!("Query '{}' references unknown type: {}", query.name, query.return_type);
-                anyhow::bail!(
-                    "Query '{}' references unknown type '{}'",
+                problems.push(format!(
+                    "Query '{}' references unknown type '{}'{}",
                     query.name,
-                    query.return_type
-                );
+                    query.return_type,
+                    describe(&query.return_type)
+                ));
             }
 
-            // Validate argument types
             for arg in &query.arguments {
                 let type_name = Self::extract_type_name(&arg.arg_type);
                 if !type_names.contains(&type_name) {
-                    warn!(
-                        "Query '{}' argument '{}' references unknown type: {}",
-                        query.name, arg.name, type_name
-                    );
-                    anyhow::bail!(
-                        "Query '{}' argument '{}' references unknown type '{}'",
+                    problems.push(format!(
+                        "Query '{}' argument '{}' references unknown type '{}'{}",
                         query.name,
                         arg.name,
-                        type_name
-                    );
+                        type_name,
+                        describe(&type_name)
+                    ));
                 }
             }
         }
@@ -427,31 +525,24 @@ impl SchemaConverter {
         // Validate mutations
         for mutation in &schema.mutations {
             if !type_names.contains(&mutation.return_type) {
-                warn!(
-                    "Mutation '{}' references unknown type: {}",
-                    mutation.name, mutation.return_type
-                );
-                anyhow::bail!(
-                    "Mutation '{}' references unknown type '{}'",
+                problems.push(format!(
+                    "Mutation '{}' references unknown type '{}'{}",
                     mutation.name,
-                    mutation.return_type
-                );
+                    mutation.return_type,
+                    describe(&mutation.return_type)
+                ));
             }
 
-            // Validate argument types
             for arg in &mutation.arguments {
                 let type_name = Self::extract_type_name(&arg.arg_type);
                 if !type_names.contains(&type_name) {
-                    warn!(
-                        "Mutation '{}' argument '{}' references unknown type: {}",
-                        mutation.name, arg.name, type_name
-                    );
-                    anyhow::bail!(
-                        "Mutation '{}' argument '{}' references unknown type '{}'",
+                    problems.push(format!(
+                        "Mutation '{}' argument '{}' references unknown type '{}'{}",
                         mutation.name,
                         arg.name,
-                        type_name
-                    );
+                        type_name,
+                        describe(&type_name)
+                    ));
                 }
             }
         }
@@ -460,15 +551,21 @@ impl SchemaConverter {
         for type_def in &schema.types {
             for interface_name in &type_def.implements {
                 if !interface_names.contains(interface_name) {
-                    warn!(
-                        "Type '{}' implements unknown interface: {}",
-                        type_def.name, interface_name
-                    );
-                    anyhow::bail!(
-                        "Type '{}' implements unknown interface '{}'",
-                        type_def.name,
-                        interface_name
-                    );
+                    let mut candidates: Vec<&str> =
+                        interface_names.iter().map(String::as_str).collect();
+                    candidates.sort_unstable();
+                    let similar =
+                        fraiseql_core::runtime::suggest_similar(interface_name, &candidates);
+                    let hint = if similar.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" (did you mean: {}?)", similar.join(", "))
+                    };
+                    problems.push(format!(
+                        "Type '{}' implements unknown interface '{interface_name}'{hint}",
+                        type_def.name
+                    ));
+                    continue;
                 }
 
                 // Validate that the type has all fields required by the interface
@@ -479,20 +576,24 @@ impl SchemaConverter {
                                 && f.field_type == interface_field.field_type
                         });
                         if !type_has_field {
-                            warn!(
-                                "Type '{}' implements interface '{}' but is missing field: {}",
-                                type_def.name, interface_name, interface_field.name
-                            );
-                            anyhow::bail!(
-                                "Type '{}' implements interface '{}' but is missing field '{}'",
-                                type_def.name,
-                                interface_name,
-                                interface_field.name
-                            );
+                            problems.push(format!(
+                                "Type '{}' implements interface '{interface_name}' but is \
+                                 missing field '{}'",
+                                type_def.name, interface_field.name
+                            ));
                         }
                     }
                 }
             }
+        }
+
+        if !problems.is_empty() {
+            let count = problems.len();
+            let noun = if count == 1 { "problem" } else { "problems" };
+            anyhow::bail!(
+                "Schema validation found {count} {noun}:\n{}",
+                problems.iter().map(|p| format!("  - {p}")).collect::<Vec<_>>().join("\n")
+            );
         }
 
         info!("Schema validation passed");

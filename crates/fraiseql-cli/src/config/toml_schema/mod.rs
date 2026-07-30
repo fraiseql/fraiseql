@@ -165,6 +165,20 @@ pub struct TomlSchema {
     #[serde(default)]
     pub rest: RestTomlConfig,
 
+    /// gRPC transport configuration.
+    ///
+    /// `CompiledSchema.grpc_config` gates the server's entire gRPC transport, and its own
+    /// doc comment said it was "compiled from `[grpc]` in `fraiseql.toml`" — but no compile
+    /// path could produce it, and `TomlSchema` is `deny_unknown_fields`, so following that
+    /// documentation failed with "unknown field `grpc`". Removing the section compiled, and
+    /// the server then silently never mounted gRPC: there was no supported way to turn on a
+    /// shipped, e2e-tested transport (#780).
+    ///
+    /// Reuses the compiled type directly rather than defining a TOML mirror, so the two
+    /// cannot drift the way the REST pair did.
+    #[serde(default)]
+    pub grpc: fraiseql_core::schema::GrpcConfig,
+
     /// Changelog GraphQL-exposure configuration.
     ///
     /// When `[changelog] expose = true`, the compiler injects the observer
@@ -569,6 +583,15 @@ impl TomlSchema {
     }
 
     /// Convert to intermediate schema format (compatible with language-generated types.json)
+    ///
+    /// # Panics
+    ///
+    /// Panics if serializing an
+    /// [`IntermediateArgument`](crate::schema::intermediate::IntermediateArgument) fails. That
+    /// struct holds only strings, bools and `serde_json::Value`s, none of which can
+    /// error, so the panic is unreachable — it is an assertion rather than a failure mode. The
+    /// arguments are serialized *through* the typed struct precisely so their wire keys cannot
+    /// drift from the ones the consumer reads (#756).
     pub fn to_intermediate_schema(&self) -> serde_json::Value {
         let mut types_json = serde_json::Map::new();
 
@@ -604,13 +627,16 @@ impl TomlSchema {
                 .args
                 .iter()
                 .map(|arg| {
-                    serde_json::json!({
-                        "name": arg.name,
-                        "type": arg.arg_type,
-                        "required": arg.required,
-                        "default": arg.default,
-                        "description": arg.description,
-                    })
+                    // Serialized from the typed intermediate form so the wire keys are the
+                    // ones the consumer reads. The hand-written `args`/`required` literal
+                    // this replaces never bound (#756).
+                    serde_json::to_value(crate::schema::intermediate::IntermediateArgument::from(
+                        arg,
+                    ))
+                    .expect(
+                        "IntermediateArgument holds only strings, bools and JSON values, \
+                             so serializing it cannot fail",
+                    )
                 })
                 .collect();
 
@@ -619,10 +645,10 @@ impl TomlSchema {
                 serde_json::json!({
                     "name": query_name,
                     "return_type": query_def.return_type,
-                    "return_array": query_def.return_array,
+                    "returns_list": query_def.return_array,
                     "sql_source": query_def.sql_source,
                     "description": query_def.description,
-                    "args": args,
+                    "arguments": args,
                 }),
             );
         }

@@ -64,6 +64,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("server.*", "server runtime bind/cors/tls/timeouts (ServerConfig)"),
     ("rest.*", "fraiseql-server `rest` feature (RestConfig)"),
     ("mcp.*", "fraiseql-server `mcp` feature (McpConfig)"),
+    (
+        "grpc.*",
+        "fraiseql-server `grpc` feature (GrpcConfig → build_grpc_service); producer added in \
+         #780, which this section had documented but no compile path could emit",
+    ),
     // ── Observers: mixed. Backend/enabled consumed; handlers REJECTED (#8) ───
     (
         "observers.enabled",

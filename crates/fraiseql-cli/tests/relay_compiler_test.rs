@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Compiler tests for the Relay specification support.
 //!
-//! Verifies that the CLI SchemaConverter correctly:
+//! Verifies that the CLI `SchemaConverter` correctly:
 //! - Sets `relay=true` and derives `relay_cursor_column` on queries
 //! - Injects the Node interface into `schema.interfaces`
 //! - Injects PageInfo into `schema.types`
@@ -22,6 +22,7 @@ use fraiseql_core::schema::NamingConvention;
 
 fn relay_intermediate_schema() -> IntermediateSchema {
     IntermediateSchema {
+        grpc_config:       None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -54,6 +55,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  true,
             embedded:               false,
             subscribable_tables:    None,
@@ -101,6 +103,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,

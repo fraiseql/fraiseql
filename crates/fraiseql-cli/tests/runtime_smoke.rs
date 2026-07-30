@@ -1,4 +1,4 @@
-//! Live-PostgreSQL smoke tests for `fraiseql query` and `doctor --runtime` (#501).
+//! Live-`PostgreSQL` smoke tests for `fraiseql query` and `doctor --runtime` (#501).
 //!
 //! Self-skips when no `DATABASE_URL` is set (the `--all-features` fast leg compiles
 //! these but skips at runtime; they run fully against the integration DB / locally).

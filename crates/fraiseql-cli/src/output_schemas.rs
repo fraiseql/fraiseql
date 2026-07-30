@@ -10,7 +10,6 @@ use crate::output::OutputSchema;
 /// Get the output schema for a specific command
 pub fn get_output_schema(command: &str) -> Option<OutputSchema> {
     let (success, error) = match command {
-        "compile" => (compile_success_schema(), error_schema()),
         "validate" => (validate_success_schema(), validation_error_schema()),
         "lint" => (lint_success_schema(), validation_error_schema()),
         "analyze" => (analyze_success_schema(), error_schema()),
@@ -32,7 +31,6 @@ pub fn get_output_schema(command: &str) -> Option<OutputSchema> {
 /// List all commands that have output schemas
 pub fn list_schema_commands() -> Vec<&'static str> {
     vec![
-        "compile",
         "validate",
         "lint",
         "analyze",
@@ -40,93 +38,6 @@ pub fn list_schema_commands() -> Vec<&'static str> {
         "cost",
         "dependency-graph",
     ]
-}
-
-fn compile_success_schema() -> Value {
-    json!({
-        "type": "object",
-        "required": ["status", "command", "data"],
-        "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "compile"
-            },
-            "data": {
-                "type": "object",
-                "properties": {
-                    "output_file": {
-                        "type": "string",
-                        "description": "Path to the generated schema.compiled.json"
-                    },
-                    "types_count": {
-                        "type": "integer",
-                        "description": "Number of types compiled"
-                    },
-                    "queries_count": {
-                        "type": "integer",
-                        "description": "Number of queries compiled"
-                    },
-                    "mutations_count": {
-                        "type": "integer",
-                        "description": "Number of mutations compiled"
-                    }
-                }
-            },
-            "warnings": {
-                "type": "array",
-                "items": { "type": "string" }
-            }
-        }
-    })
-}
-
-fn validate_success_schema() -> Value {
-    json!({
-        "type": "object",
-        "required": ["status", "command", "data"],
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["success", "validation-failed"]
-            },
-            "command": {
-                "type": "string",
-                "const": "validate"
-            },
-            "data": {
-                "type": "object",
-                "properties": {
-                    "types_validated": {
-                        "type": "integer"
-                    },
-                    "cycles_detected": {
-                        "type": "array",
-                        "items": {
-                            "type": "array",
-                            "items": { "type": "string" }
-                        }
-                    },
-                    "unused_types": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                    }
-                }
-            },
-            "errors": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Validation errors (when status is validation-failed)"
-            },
-            "warnings": {
-                "type": "array",
-                "items": { "type": "string" }
-            }
-        }
-    })
 }
 
 fn validation_error_schema() -> Value {
@@ -150,47 +61,70 @@ fn validation_error_schema() -> Value {
     })
 }
 
+fn validate_success_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["status", "command", "data"],
+        "properties": {
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "validate" },
+            "data": {
+                "type": "object",
+                "required": ["schema_path", "valid", "type_count", "query_count",
+                             "mutation_count"],
+                "properties": {
+                    "schema_path": { "type": "string" },
+                    "valid": { "type": "boolean" },
+                    "type_count": { "type": "integer" },
+                    "query_count": { "type": "integer" },
+                    "mutation_count": { "type": "integer" },
+                    "cycles": {
+                        "type": "array",
+                        "items": { "type": "object" }
+                    },
+                    "unused_types": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    },
+                    "type_analysis": {
+                        "type": "array",
+                        "items": { "type": "object" }
+                    }
+                }
+            }
+        }
+    })
+}
+
 fn lint_success_schema() -> Value {
     json!({
         "type": "object",
         "required": ["status", "command", "data"],
         "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "lint"
-            },
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "lint" },
             "data": {
                 "type": "object",
+                "required": ["overall_score", "severity_counts", "categories"],
                 "properties": {
-                    "audits": {
+                    "overall_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+                    "severity_counts": {
                         "type": "object",
-                        "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                                "issues": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "severity": { "type": "string", "enum": ["critical", "warning", "info"] },
-                                            "message": { "type": "string" },
-                                            "location": { "type": "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "summary": {
-                        "type": "object",
+                        "required": ["critical", "warning", "info"],
                         "properties": {
                             "critical": { "type": "integer" },
                             "warning": { "type": "integer" },
                             "info": { "type": "integer" }
+                        }
+                    },
+                    "categories": {
+                        "type": "object",
+                        "required": ["federation", "cost", "cache", "authorization"],
+                        "properties": {
+                            "federation": { "type": "integer" },
+                            "cost": { "type": "integer" },
+                            "cache": { "type": "integer" },
+                            "authorization": { "type": "integer" }
                         }
                     }
                 }
@@ -204,32 +138,19 @@ fn analyze_success_schema() -> Value {
         "type": "object",
         "required": ["status", "command", "data"],
         "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "analyze"
-            },
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "analyze" },
             "data": {
                 "type": "object",
+                "required": ["schema_file", "recommendations", "facts", "summary"],
                 "properties": {
+                    "schema_file": { "type": "string" },
                     "recommendations": {
                         "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "category": {
-                                    "type": "string",
-                                    "enum": ["performance", "security", "federation", "complexity", "caching", "indexing"]
-                                },
-                                "severity": { "type": "string" },
-                                "message": { "type": "string" },
-                                "suggestion": { "type": "string" }
-                            }
-                        }
-                    }
+                        "items": { "type": "object" }
+                    },
+                    "facts": { "type": "object" },
+                    "summary": { "type": "object" }
                 }
             }
         }
@@ -241,35 +162,26 @@ fn explain_success_schema() -> Value {
         "type": "object",
         "required": ["status", "command", "data"],
         "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "explain"
-            },
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "explain" },
             "data": {
                 "type": "object",
+                "required": ["query", "estimated_cost", "complexity"],
                 "properties": {
                     "query": { "type": "string" },
-                    "execution_plan": {
-                        "type": "object",
-                        "properties": {
-                            "steps": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                            }
-                        }
-                    },
-                    "sql": { "type": "string" },
+                    "estimated_cost": { "type": "integer" },
                     "complexity": {
                         "type": "object",
+                        "required": ["depth", "score", "alias_count"],
                         "properties": {
                             "depth": { "type": "integer" },
-                            "field_count": { "type": "integer" },
-                            "score": { "type": "integer" }
+                            "score": { "type": "integer" },
+                            "alias_count": { "type": "integer" }
                         }
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": { "type": "string" }
                     }
                 }
             }
@@ -282,30 +194,17 @@ fn cost_success_schema() -> Value {
         "type": "object",
         "required": ["status", "command", "data"],
         "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "cost"
-            },
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "cost" },
             "data": {
                 "type": "object",
-                "required": ["depth", "field_count", "score"],
+                "required": ["query", "complexity_score", "estimated_cost", "depth", "alias_count"],
                 "properties": {
-                    "depth": {
-                        "type": "integer",
-                        "description": "Maximum nesting depth of the query"
-                    },
-                    "field_count": {
-                        "type": "integer",
-                        "description": "Total number of fields requested"
-                    },
-                    "score": {
-                        "type": "integer",
-                        "description": "Calculated complexity score"
-                    }
+                    "query": { "type": "string" },
+                    "complexity_score": { "type": "integer" },
+                    "estimated_cost": { "type": "integer" },
+                    "depth": { "type": "integer" },
+                    "alias_count": { "type": "integer" }
                 }
             }
         }
@@ -317,65 +216,52 @@ fn dependency_graph_success_schema() -> Value {
         "type": "object",
         "required": ["status", "command", "data"],
         "properties": {
-            "status": {
-                "type": "string",
-                "const": "success"
-            },
-            "command": {
-                "type": "string",
-                "const": "dependency-graph"
-            },
+            "status": { "type": "string", "const": "success" },
+            "command": { "type": "string", "const": "dependency-graph" },
             "data": {
                 "type": "object",
+                "required": ["type_count", "nodes", "edges", "cycles", "unused_types", "stats"],
                 "properties": {
-                    "format": {
-                        "type": "string",
-                        "enum": ["json", "dot", "mermaid", "d2", "console"]
+                    "type_count": { "type": "integer" },
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["name", "dependency_count", "dependent_count",
+                                         "is_root"],
+                            "properties": {
+                                "name": { "type": "string" },
+                                "dependency_count": { "type": "integer" },
+                                "dependent_count": { "type": "integer" },
+                                "is_root": { "type": "boolean" }
+                            }
+                        }
                     },
-                    "graph": {
-                        "type": "object",
-                        "description": "Graph data (format depends on output format)",
-                        "properties": {
-                            "nodes": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": { "type": "string" },
-                                        "type": { "type": "string" }
-                                    }
-                                }
-                            },
-                            "edges": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "from": { "type": "string" },
-                                        "to": { "type": "string" },
-                                        "relationship": { "type": "string" }
-                                    }
-                                }
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["from", "to"],
+                            "properties": {
+                                "from": { "type": "string" },
+                                "to": { "type": "string" }
                             }
                         }
                     },
                     "cycles": {
                         "type": "array",
-                        "items": {
-                            "type": "array",
-                            "items": { "type": "string" }
-                        }
+                        "items": { "type": "object" }
                     },
                     "unused_types": {
                         "type": "array",
                         "items": { "type": "string" }
-                    }
+                    },
+                    "stats": { "type": "object" }
                 }
             }
         }
     })
 }
-
 fn error_schema() -> Value {
     json!({
         "type": "object",

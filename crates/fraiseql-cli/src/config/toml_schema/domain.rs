@@ -121,72 +121,57 @@ impl SchemaIncludes {
     ///
     /// # Errors
     ///
-    /// Returns an error if any glob pattern is syntactically invalid or if a
-    /// matched path cannot be accessed.
+    /// Returns an error if any glob pattern is syntactically invalid, if a matched path
+    /// cannot be accessed, or if a **configured pattern matches no files** — see
+    /// `resolve_group`.
     pub fn resolve_globs(&self) -> Result<ResolvedIncludes> {
-        use glob::glob as glob_pattern;
-
-        let mut type_paths = Vec::new();
-        let mut query_paths = Vec::new();
-        let mut mutation_paths = Vec::new();
-
-        // Resolve type globs
-        for pattern in &self.types {
-            for entry in glob_pattern(pattern)
-                .context(format!("Invalid glob pattern for types: {pattern}"))?
-            {
-                match entry {
-                    Ok(path) => type_paths.push(path),
-                    Err(e) => {
-                        anyhow::bail!("Error resolving type glob pattern '{pattern}': {e}");
-                    },
-                }
-            }
-        }
-
-        // Resolve query globs
-        for pattern in &self.queries {
-            for entry in glob_pattern(pattern)
-                .context(format!("Invalid glob pattern for queries: {pattern}"))?
-            {
-                match entry {
-                    Ok(path) => query_paths.push(path),
-                    Err(e) => {
-                        anyhow::bail!("Error resolving query glob pattern '{pattern}': {e}");
-                    },
-                }
-            }
-        }
-
-        // Resolve mutation globs
-        for pattern in &self.mutations {
-            for entry in glob_pattern(pattern)
-                .context(format!("Invalid glob pattern for mutations: {pattern}"))?
-            {
-                match entry {
-                    Ok(path) => mutation_paths.push(path),
-                    Err(e) => {
-                        anyhow::bail!("Error resolving mutation glob pattern '{pattern}': {e}");
-                    },
-                }
-            }
-        }
-
-        // Sort for deterministic ordering
-        type_paths.sort();
-        query_paths.sort();
-        mutation_paths.sort();
-
-        // Remove duplicates
-        type_paths.dedup();
-        query_paths.dedup();
-        mutation_paths.dedup();
-
         Ok(ResolvedIncludes {
-            types:     type_paths,
-            queries:   query_paths,
-            mutations: mutation_paths,
+            types:     Self::resolve_group(&self.types, "types")?,
+            queries:   Self::resolve_group(&self.queries, "queries")?,
+            mutations: Self::resolve_group(&self.mutations, "mutations")?,
         })
+    }
+
+    /// Expand one `[includes]` group's patterns into a sorted, deduplicated file list.
+    ///
+    /// A configured pattern that matches **nothing** is an error. It is either a typo or a
+    /// build-ordering mistake, and the alternative — compiling a schema silently missing
+    /// everything that file was going to contribute — is the #723/#612 failure mode: the
+    /// user configured a source, the compile reported success, and the types were not there.
+    ///
+    /// The three groups shared three copies of this loop, which is how none of them acquired
+    /// the check.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the group and the offending pattern.
+    fn resolve_group(patterns: &[String], group: &str) -> Result<Vec<PathBuf>> {
+        let mut paths = Vec::new();
+
+        for pattern in patterns {
+            let before = paths.len();
+            for entry in glob::glob(pattern)
+                .context(format!("Invalid glob pattern for {group}: {pattern}"))?
+            {
+                match entry {
+                    Ok(path) => paths.push(path),
+                    Err(e) => {
+                        anyhow::bail!("Error resolving {group} glob pattern '{pattern}': {e}");
+                    },
+                }
+            }
+            if paths.len() == before {
+                anyhow::bail!(
+                    "[includes] {group} pattern '{pattern}' matched no files. Fix the path or \
+                     remove the entry — compiling without it would silently produce a schema \
+                     missing whatever it was meant to contribute."
+                );
+            }
+        }
+
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }
 

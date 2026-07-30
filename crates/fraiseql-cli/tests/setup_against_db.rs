@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration test for `fraiseql setup` (#426).
+//! Live-`PostgreSQL` integration test for `fraiseql setup` (#426).
 //!
 //! The embedded helper library (`sql/helpers/mutation_response.sql`) defines
 //! dollar-quoted PL/pgSQL function bodies. The previous installer split the file
@@ -10,7 +10,7 @@
 //! Self-skips when no `DATABASE_URL` is set, so it is inert in the database-free
 //! test leg (even under `--all-features`).
 //!
-//! **Execution engine:** PostgreSQL
+//! **Execution engine:** `PostgreSQL`
 //! **Infrastructure:** `DATABASE_URL`
 //! **Parallelism:** installs into the shared `fraiseql` schema via idempotent
 //!   `CREATE OR REPLACE`; safe to repeat.

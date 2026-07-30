@@ -108,7 +108,7 @@ impl SchemaOptimizer {
     /// Detection heuristics:
     /// - Type must have a JSONB column
     /// - Type should have sufficient fields (>10) or estimated large payload (>1KB)
-    /// - PostgreSQL benefit: reduced payload and latency (proportional to fields omitted; run
+    /// - `PostgreSQL` benefit: reduced payload and latency (proportional to fields omitted; run
     ///   `cargo bench --bench sql_projection_benchmark` for hardware-specific numbers)
     fn apply_sql_projection_hints(schema: &mut CompiledSchema, report: &mut OptimizationReport) {
         for type_def in &mut schema.types {
@@ -166,7 +166,7 @@ impl SchemaOptimizer {
         false
     }
 
-    /// Create a SQL projection hint for PostgreSQL.
+    /// Create a SQL projection hint for `PostgreSQL`.
     ///
     /// The hint contains:
     /// - Database type: "postgresql"
@@ -211,7 +211,7 @@ impl SchemaOptimizer {
         (total_payload * estimated_reduction as usize) / 100
     }
 
-    /// Generate a PostgreSQL `jsonb_build_object` template for SQL projection.
+    /// Generate a `PostgreSQL` `jsonb_build_object` template for SQL projection.
     ///
     /// Example output:
     /// `jsonb_build_object`('id', data->>'id', 'name', data->>'name', 'email', data->>'email')

@@ -21,6 +21,7 @@ use indexmap::IndexMap;
 #[test]
 fn test_e2e_complete_compilation_pipeline() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -47,6 +48,7 @@ fn test_e2e_complete_compilation_pipeline() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -81,6 +83,7 @@ fn test_e2e_complete_compilation_pipeline() {
 #[test]
 fn test_e2e_sql_templates_all_databases() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -107,6 +110,7 @@ fn test_e2e_sql_templates_all_databases() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -147,6 +151,7 @@ fn test_e2e_sql_templates_all_databases() {
 #[test]
 fn test_e2e_lookup_data_comprehensive() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -173,6 +178,7 @@ fn test_e2e_lookup_data_comprehensive() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -210,6 +216,7 @@ fn test_e2e_lookup_data_comprehensive() {
 #[test]
 fn test_e2e_all_operators_generated() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -236,6 +243,7 @@ fn test_e2e_all_operators_generated() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -281,6 +289,7 @@ fn test_e2e_all_operators_generated() {
 #[test]
 fn test_e2e_compilation_deterministic() {
     let create_schema = || IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -307,6 +316,7 @@ fn test_e2e_compilation_deterministic() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -346,6 +356,7 @@ fn test_e2e_compilation_deterministic() {
 #[test]
 fn test_e2e_all_49_types_valid() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![],
@@ -372,6 +383,7 @@ fn test_e2e_all_49_types_valid() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,
@@ -421,6 +433,7 @@ fn test_e2e_all_49_types_valid() {
 #[test]
 fn test_e2e_full_field_assertion() {
     let intermediate = IntermediateSchema {
+        grpc_config:       None,
         security:          None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
@@ -454,6 +467,7 @@ fn test_e2e_full_field_assertion() {
             implements:             vec![],
             requires_role:          None,
             is_error:               false,
+            is_input:               false,
             relay:                  false,
             embedded:               false,
             subscribable_tables:    None,
@@ -519,6 +533,7 @@ fn test_e2e_full_field_assertion() {
         mcp_config:           None,
         rest_config:          None,
         query_defaults:       None,
+        inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         hierarchies_config:   None,

@@ -8,6 +8,7 @@ use super::fragments::IntermediateAppliedDirective;
 
 /// Type definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateType {
     /// Type name (e.g., "User")
     pub name: String,
@@ -53,6 +54,23 @@ pub struct IntermediateType {
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_error: bool,
+
+    /// Whether the author declared this a GraphQL **input** object rather than an output
+    /// type (`is_input: true`).
+    ///
+    /// Four SDKs advertise this in their READMEs and emit it — Elixir
+    /// (`fraiseql_type "X", is_input: true`), F# (`[<GraphQLType(IsInput=…)>]`), PHP
+    /// (`#[GraphQLType(isInput: true)]`) and C# (`GraphQLTypeAttribute.IsInput`). There was
+    /// no field here to receive it, so such a type compiled as an *object* type: a mutation
+    /// argument referencing it produced a schema violating GraphQL §3.10 ("arguments must
+    /// be input types"), which introspection-driven clients reject and federation
+    /// composition fails on. `fraiseql compile` and `fraiseql lint` both exited 0 (#848).
+    ///
+    /// The converter routes a type carrying this into `input_types` and omits it from
+    /// `types`. That is what makes Elixir's surface work at all: its exporter emits no
+    /// `input_types` key whatsoever, so this flag is its *only* route to an input object.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_input: bool,
 
     /// Whether this type implements the Relay Node interface.
     /// When true, the compiler generates global node IDs (`base64("TypeName:uuid")`)
@@ -105,6 +123,7 @@ pub struct IntermediateType {
 /// **NOTE**: Uses `type` field (not `field_type`)
 /// This is the language-agnostic format. Rust conversion happens in converter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateField {
     /// Field name (e.g., "id")
     pub name: String,
@@ -196,6 +215,7 @@ pub struct IntermediateField {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateEnum {
     /// Enum type name (e.g., "OrderStatus")
     pub name: String,
@@ -220,6 +240,7 @@ pub struct IntermediateEnum {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateEnumValue {
     /// Value name (e.g., "PENDING")
     pub name: String,
@@ -235,6 +256,7 @@ pub struct IntermediateEnumValue {
 
 /// Deprecation information for enum values or input fields.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateDeprecation {
     /// Deprecation reason (what to use instead)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -248,7 +270,7 @@ pub struct IntermediateDeprecation {
 /// Custom scalar type definition in intermediate format.
 ///
 /// Custom scalars allow applications to define domain-specific types with validation.
-/// Scalars are defined in language SDKs (Python, TypeScript, Java, Go, Rust)
+/// Scalars are defined in language SDKs (Python, `TypeScript`, Java, Go, Rust)
 /// and compiled into the schema.
 ///
 /// # Example JSON
@@ -270,6 +292,7 @@ pub struct IntermediateDeprecation {
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IntermediateScalar {
     /// Scalar name (e.g., "Email", "Phone", "ISBN")
     pub name: String,

@@ -2,7 +2,7 @@
 //!
 //! - [`source_payload_carries_the_trigger_context`] is pure.
 //! - [`build_host_binds_both_the_cursor_and_the_executor`] proves the poller's novel composition —
-//!   that one firing's host reaches *both* the durable cursor (vs real PostgreSQL) *and* the
+//!   that one firing's host reaches *both* the durable cursor (vs real `PostgreSQL`) *and* the
 //!   `run_as` executor — without a V8 guest, so it runs in the PG integration leg. The full Model B
 //!   guest-through-poller round-trip (a Deno connector reading its cursor, mutating via
 //!   `fraiseql_query`, advancing) is a local-only V8 test that ships with the runnable example.
@@ -47,6 +47,7 @@ async fn idempotency_token_is_signed_when_a_key_is_configured() {
     let pool = PgPool::connect_lazy("postgres://localhost/unused").unwrap();
     let build = |key: Option<Arc<[u8]>>| {
         SourcePoller::new(
+            "orders",
             "orders",
             CronSchedule::parse("*/5 * * * *").unwrap(),
             FunctionModule::from_source("connector".to_string(), String::new(), RuntimeType::Deno),
@@ -120,6 +121,7 @@ async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
 /// invoke the guest.
 fn poller(pool: &PgPool, source: &str, executor: Arc<dyn QueryExecutor>) -> SourcePoller {
     SourcePoller::new(
+        source,
         source,
         CronSchedule::parse("*/5 * * * *").unwrap(),
         FunctionModule::from_source("noop".to_string(), String::new(), RuntimeType::Deno),
@@ -225,6 +227,7 @@ async fn fires_a_model_b_connector_end_to_end() {
 
     let poller = SourcePoller::new(
         source,
+        source,
         CronSchedule::parse("*/5 * * * *").unwrap(),
         module,
         Arc::new(observer),
@@ -252,4 +255,67 @@ async fn fires_a_model_b_connector_end_to_end() {
     // The connector advanced its durable cursor from null → { page: 1 }.
     let snapshot = PostgresSourceCursorStore::new(pool.clone()).load(source).await.unwrap();
     assert_eq!(snapshot.value, Some(json!({ "page": 1 })));
+}
+
+/// The poller advances the **declared cursor** key, not the source name (#868 item 4).
+///
+/// `source_name` and `cursor_name` are distinct concepts that used to share one field: the
+/// name labels the lease, metrics and logs; the cursor key names the watermark row in
+/// `_fraiseql_source_cursor`. Passing the name for both made every declared `cursor` override
+/// inert — accepted, validated for uniqueness, compiled, printed by `fraiseql sources`, and
+/// doing nothing. An operator renaming a source from `orders` to `orders_v2` with
+/// `cursor = "orders"` to preserve the watermark got a fresh cursor and a full re-ingest.
+///
+/// This asserts against **real Postgres**, on the row the store actually writes, because that
+/// is the only place the difference is observable: a test that merely reads the poller's own
+/// field back passes whether or not `build_host` uses it.
+#[tokio::test]
+async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP the_poller_advances_the_declared_cursor_not_the_source_name: no postgres");
+        return;
+    };
+    let source_name = "test-poller-renamed-source";
+    let declared_cursor = "test-poller-original-cursor";
+
+    let store = PostgresSourceCursorStore::new(pool.clone());
+    store.init().await.unwrap();
+    for key in [source_name, declared_cursor] {
+        sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+            .bind(key)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    let poller = SourcePoller::new(
+        source_name,
+        declared_cursor,
+        CronSchedule::parse("*/5 * * * *").unwrap(),
+        FunctionModule::from_source("connector".to_string(), String::new(), RuntimeType::Deno),
+        Arc::new(FunctionObserver::new()),
+        PostgresSourceCursorStore::new(pool.clone()),
+        StubExecutor::new(json!(null)),
+        LeaseGuardedRunner::in_process(source_name),
+        HostContextConfig::default(),
+        ResourceLimits::default(),
+        None,
+        false,
+    );
+
+    let host =
+        poller.build_host(build_source_payload(source_name, "*/5 * * * *", Utc::now()), "tok");
+    host.advance_cursor(json!({ "page": 7 })).await.unwrap();
+
+    assert_eq!(
+        store.load(declared_cursor).await.unwrap().value,
+        Some(json!({ "page": 7 })),
+        "the watermark must land under the declared `cursor` override"
+    );
+    assert_eq!(
+        store.load(source_name).await.unwrap().value,
+        None,
+        "nothing may be written under the source name when an override is declared — that is \
+         the row a rename-with-cursor-preservation was trying to avoid creating"
+    );
 }

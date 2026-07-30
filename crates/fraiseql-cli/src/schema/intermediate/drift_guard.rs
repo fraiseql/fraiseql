@@ -6,7 +6,7 @@
 //! `#[serde(default)]` with no `deny_unknown_fields`, each one bound to an empty default
 //! and the compile reported success:
 //!
-//! * `#806` — TypeScript, Go and Java emit `inject_params`; the compiler read `inject`. Result:
+//! * `#806` — `TypeScript`, Go and Java emit `inject_params`; the compiler read `inject`. Result:
 //!   every query and mutation those SDKs produced compiled with **no tenant predicate**, and
 //!   `fraiseql compile` printed `✓ Schema compiled successfully`.
 //! * `#807` — Go, C# and F# emit `scope`/`scopes`; the Rust authoring SDK emits `requiresScope`;

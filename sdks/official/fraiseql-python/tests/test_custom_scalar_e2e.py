@@ -266,21 +266,29 @@ class TestSchemaExport:
 
         schema = SchemaRegistry.get_schema()
 
-        # Schema has customScalars section
-        assert "customScalars" in schema
-        assert "Email" in schema["customScalars"]
-        assert "Phone" in schema["customScalars"]
+        # The key and container must match the compiler's
+        # `IntermediateSchema.custom_scalars: Vec<IntermediateScalar>` — a camelCase key or
+        # an object-keyed-by-name bound to nothing, so no scalar ever reached a compiled
+        # schema and no scalar validation ever ran (#922).
+        assert "custom_scalars" in schema
+        assert "customScalars" not in schema
+        names = [s["name"] for s in schema["custom_scalars"]]
+        assert "Email" in names
+        assert "Phone" in names
 
     def test_custom_scalar_schema_structure(self):
         """Custom scalar schema has correct structure."""
         scalar(Email)
 
         schema = SchemaRegistry.get_schema()
-        email_def = schema["customScalars"]["Email"]
+        email_def = next(s for s in schema["custom_scalars"] if s["name"] == "Email")
 
         assert email_def["name"] == "Email"
         assert email_def["description"] is not None
-        assert email_def["validate"] is True
+        # `validate` is deliberately absent: the compiler's ValidationRule is declarative
+        # (Pattern/Length/Range/Enum) and a Python `validate()` method cannot lower into
+        # one, so emitting the flag claimed runtime enforcement no artifact could deliver.
+        assert "validate" not in email_def
 
     def test_schema_export_to_file(self):
         """Schema can be exported to JSON file."""
@@ -310,10 +318,11 @@ class TestSchemaExport:
             with open(schema_path) as f:
                 data = json.load(f)
 
-            # Has custom scalars
-            assert "customScalars" in data
-            assert "Email" in data["customScalars"]
-            assert "Phone" in data["customScalars"]
+            # Has custom scalars, under the key the compiler reads
+            assert "custom_scalars" in data
+            exported = [s["name"] for s in data["custom_scalars"]]
+            assert "Email" in exported
+            assert "Phone" in exported
 
             # Has types
             assert "types" in data
@@ -325,12 +334,14 @@ class TestSchemaExport:
             assert len(data["queries"]) > 0
 
     def test_export_schema_excludes_custom_scalars_when_disabled(self):
-        """include_custom_scalars=False actually drops the customScalars block (M-export-schema).
+        """include_custom_scalars=False actually drops the custom scalars block.
 
-        The filter compared against the snake_case key `custom_scalars` while the
-        registry emits camelCase `customScalars`, so the flag never had any effect.
-        The neighbouring `test_schema_export_without_custom_scalars` never
-        registered a scalar, so it passed vacuously and never caught this.
+        Originally (M-export-schema) the filter compared against the snake_case key
+        `custom_scalars` while the registry emitted camelCase `customScalars`, so the flag
+        never had any effect; the neighbouring `test_schema_export_without_custom_scalars`
+        never registered a scalar, so it passed vacuously and never caught it. The registry
+        now emits `custom_scalars` — the key the compiler actually reads (#922) — and both
+        spellings are asserted absent so neither can come back.
         """
         scalar(Email)
 

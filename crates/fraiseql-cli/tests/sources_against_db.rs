@@ -1,4 +1,4 @@
-//! Live-PostgreSQL integration test for the `fraiseql sources` cursor reader (#573).
+//! Live-`PostgreSQL` integration test for the `fraiseql sources` cursor reader (#573).
 //!
 //! It installs the real `_fraiseql_source_cursor` table from the shipped observers
 //! migration, seeds a known advanced watermark, and asserts

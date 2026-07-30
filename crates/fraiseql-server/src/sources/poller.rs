@@ -35,10 +35,20 @@ use tracing::{debug, info, warn};
 use super::metrics;
 
 /// The collaborators one [`SourcePoller`] drives — assembled by the lifecycle from
-/// a compiled [`SourceDefinition`](fraiseql_core::schema::SourceDefinition).
+/// a compiled [`SourceDefinition`](fraiseql_core::schema::`SourceDefinition`).
 pub struct SourcePoller {
     /// The source name — the cursor row and advisory-lease key.
     source_name:     String,
+    /// The cursor key this source advances — `source.cursor_name()`, i.e. the declared
+    /// `cursor` override or the source name when none was declared.
+    ///
+    /// Separate from [`Self::source_name`] because they are separate concepts: the name
+    /// labels the source (lease, metrics, logs) while the cursor key names the watermark row
+    /// in `_fraiseql_source_cursor`. The poller used to pass `source_name` for both, so a
+    /// declared `cursor` was accepted, validated for uniqueness, compiled, and displayed by
+    /// `fraiseql sources` — and did nothing (#868 item 4). An operator renaming a source and
+    /// setting `cursor` to preserve its watermark got a fresh cursor and a full re-ingest.
+    cursor_name:     String,
     /// The parsed cron schedule the source fires on.
     schedule:        CronSchedule,
     /// The Deno connector module to invoke.
@@ -82,6 +92,7 @@ impl SourcePoller {
     #[must_use]
     pub fn new(
         source_name: impl Into<String>,
+        cursor_name: impl Into<String>,
         schedule: CronSchedule,
         module: FunctionModule,
         observer: Arc<FunctionObserver>,
@@ -95,6 +106,7 @@ impl SourcePoller {
     ) -> Self {
         Self {
             source_name: source_name.into(),
+            cursor_name: cursor_name.into(),
             schedule,
             module,
             observer,
@@ -138,7 +150,7 @@ impl SourcePoller {
     ) -> Arc<dyn DynHostContext> {
         Arc::new(
             LiveHostContext::new(payload, self.host_config.clone())
-                .with_source_cursor(self.source_name.clone(), self.cursor_store.clone())
+                .with_source_cursor(self.cursor_name.clone(), self.cursor_store.clone())
                 .with_executor(Arc::clone(&self.executor))
                 .with_idempotency_token(idempotency_token.to_string()),
         )
