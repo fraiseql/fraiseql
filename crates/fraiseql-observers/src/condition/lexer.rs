@@ -1,5 +1,7 @@
 //! Lexer for the condition DSL — tokenises a condition string into `Token` values.
 
+use serde_json::Value;
+
 use super::ConditionParser;
 use crate::error::{ObserverError, Result};
 
@@ -201,28 +203,38 @@ impl ConditionParser {
                             }
 
                             // Extract value (quoted string or number)
-                            let mut value = String::new();
-                            if chars.peek() == Some(&'\'') {
+                            let value = if chars.peek() == Some(&'\'') {
                                 chars.next(); // consume opening quote
+                                let mut inner = String::new();
                                 while let Some(&c) = chars.peek() {
                                     if c == '\'' {
                                         chars.next(); // consume closing quote
                                         break;
                                     }
-                                    value.push(c);
+                                    inner.push(c);
                                     chars.next();
                                 }
+                                // #843: preserve quotedness. A quoted literal is
+                                // a STRING — encode it as a JSON string so the
+                                // evaluator's `serde_json::from_str` cannot
+                                // reinterpret `'100'` as the number 100 (which
+                                // made `code == '100'` silently false for a
+                                // string field, and would make it silently true
+                                // for a numeric one).
+                                Value::String(inner).to_string()
                             } else {
                                 // Extract number or identifier
+                                let mut raw = String::new();
                                 while let Some(&c) = chars.peek() {
                                     if c.is_alphanumeric() || c == '.' || c == '-' {
-                                        value.push(c);
+                                        raw.push(c);
                                         chars.next();
                                     } else {
                                         break;
                                     }
                                 }
-                            }
+                                raw
+                            };
 
                             tokens.push(Token::Comparison {
                                 field: ident,

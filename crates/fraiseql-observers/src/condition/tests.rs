@@ -612,3 +612,216 @@ fn condition_function_at_arg_limit_is_accepted() {
         assert!(!e.to_string().contains("Too many"), "32 args must not trigger arg limit: {e}");
     }
 }
+
+// ── #843: == / != must compare numbers numerically, not by JSON representation ──
+//
+// PostgreSQL `numeric(10,2)` columns arrive in `object_data` as `100.00`, which
+// serde_json parses as `Number(Float(100.0))`. The literal `100` in a condition
+// parses as `Number(PosInt(100))`. serde_json's `PartialEq` is representation-
+// strict across variants, so `total == 100` was false and `total != 100` true —
+// while `>=` / `<=` (which coerce) simultaneously reported the values equal.
+mod numeric_equality_843 {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::super::ConditionParser;
+    use crate::event::{EntityEvent, EventKind, FieldChanges};
+
+    fn numeric_event() -> EntityEvent {
+        // Shapes exactly as PG16 jsonb_build_object emits them for
+        // numeric(10,2) / numeric(5,2) / int / float8 columns.
+        let data: serde_json::Value =
+            serde_json::from_str(r#"{"total": 100.00, "discount": 0.00, "qty": 5, "amt": 100}"#)
+                .expect("valid JSON");
+        EntityEvent::new(EventKind::Updated, "Order".to_string(), Uuid::new_v4(), data)
+    }
+
+    #[test]
+    fn equality_coerces_across_numeric_representations() {
+        let parser = ConditionParser::new();
+        let event = numeric_event();
+
+        assert!(
+            parser.parse_and_evaluate("total == 100", &event).unwrap(),
+            "#843: 'total == 100' must be true for a numeric(10,2) value 100.00"
+        );
+        assert!(
+            !parser.parse_and_evaluate("total != 100", &event).unwrap(),
+            "#843: 'total != 100' must be false for 100.00 — this misfire ships rows \
+             to external transports"
+        );
+        assert!(
+            !parser.parse_and_evaluate("discount != 0", &event).unwrap(),
+            "#843: 'discount != 0' must be false for 0.00"
+        );
+        assert!(
+            parser.parse_and_evaluate("discount == 0", &event).unwrap(),
+            "#843: 'discount == 0' must be true for 0.00"
+        );
+    }
+
+    #[test]
+    fn equality_is_exact_for_integers_and_controls() {
+        let parser = ConditionParser::new();
+        let event = numeric_event();
+
+        // int control: representation matches, must keep working
+        assert!(parser.parse_and_evaluate("qty == 5", &event).unwrap());
+        assert!(!parser.parse_and_evaluate("qty != 5", &event).unwrap());
+        assert!(!parser.parse_and_evaluate("qty == 6", &event).unwrap());
+    }
+
+    #[test]
+    fn equality_above_2_pow_53_stays_exact() {
+        // 9007199254740993 and 9007199254740992 collapse to the same f64; the
+        // exact-i64 path must keep them distinct.
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Ledger".to_string(),
+            Uuid::new_v4(),
+            json!({"big": 9_007_199_254_740_993_i64}),
+        );
+
+        assert!(parser.parse_and_evaluate("big == 9007199254740993", &event).unwrap());
+        assert!(
+            !parser.parse_and_evaluate("big == 9007199254740992", &event).unwrap(),
+            "#843: exact-i64 equality must not round through f64"
+        );
+        assert!(parser.parse_and_evaluate("big != 9007199254740992", &event).unwrap());
+    }
+
+    #[test]
+    fn string_number_confusion_stays_unequal() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"code": "100", "total": 100.0}),
+        );
+
+        // A string field equals a quoted literal…
+        assert!(parser.parse_and_evaluate("code == '100'", &event).unwrap());
+        // …but a number never silently equals a string.
+        assert!(!parser.parse_and_evaluate("total == '100'", &event).unwrap());
+        assert!(parser.parse_and_evaluate("total != '100'", &event).unwrap());
+    }
+
+    #[test]
+    fn field_changed_to_and_from_share_numeric_equality() {
+        // #843 under-scope note: field_changed_to/from used the same raw
+        // Value equality on FieldChanges.new/.old.
+        let parser = ConditionParser::new();
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(
+            "total".to_string(),
+            FieldChanges {
+                old: serde_json::from_str("50.00").unwrap(),
+                new: serde_json::from_str("100.00").unwrap(),
+            },
+        );
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 100.0}),
+        )
+        .with_changes(changes);
+
+        // Function args are always quoted in this DSL; a numeric-looking arg
+        // is interpreted as a number at evaluation and must compare
+        // numerically against the change record.
+        assert!(
+            parser.parse_and_evaluate("field_changed_to('total', '100')", &event).unwrap(),
+            "#843: field_changed_to must match 100.00 against literal '100'"
+        );
+        assert!(
+            parser.parse_and_evaluate("field_changed_from('total', '50')", &event).unwrap(),
+            "#843: field_changed_from must match 50.00 against literal '50'"
+        );
+    }
+}
+
+// ── #845: field_changed* must not silently never-fire when change tracking is off ──
+//
+// On the default change-log path (`changelog_pre_image = false`) UPDATE rows
+// carry no pre-image, `EntityEvent.changes` is `None`, and every
+// `field_changed*` condition evaluated to false with no error — a documented
+// condition family that could not work in the default configuration.
+mod change_tracking_unavailable_845 {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::super::ConditionParser;
+    use crate::event::{EntityEvent, EventKind};
+
+    fn update_without_change_tracking() -> EntityEvent {
+        // UPDATE event whose producer recorded no pre-image: changes == None.
+        EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped"}),
+        )
+    }
+
+    #[test]
+    fn field_changed_on_update_without_tracking_errors_loudly() {
+        let parser = ConditionParser::new();
+        let event = update_without_change_tracking();
+
+        for condition in [
+            "field_changed('status')",
+            "field_changed_to('status', 'shipped')",
+            "field_changed_from('status', 'pending')",
+        ] {
+            let result = parser.parse_and_evaluate(condition, &event);
+            let err = result.expect_err(
+                "#845: an UPDATE without a pre-image must ERROR on field_changed*, \
+                 not silently evaluate false",
+            );
+            let msg = err.to_string();
+            assert!(
+                msg.contains("pre-image") || msg.contains("changelog_pre_image"),
+                "error must name the missing prerequisite so the operator can fix it: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn field_changed_on_update_with_tracking_but_no_diff_is_false() {
+        // Pre-image recorded, nothing changed: an EMPTY changes map, not None.
+        // This must stay a clean `false` — genuinely "did not change".
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped"}),
+        )
+        .with_changes(std::collections::HashMap::new());
+
+        assert!(!parser.parse_and_evaluate("field_changed('status')", &event).unwrap());
+        assert!(
+            !parser
+                .parse_and_evaluate("field_changed_to('status', 'shipped')", &event)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn field_changed_on_insert_stays_false_without_error() {
+        // INSERT/DELETE events never carry a diff; field_changed* is simply
+        // false there (documented), not an error.
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped"}),
+        );
+
+        assert!(!parser.parse_and_evaluate("field_changed('status')", &event).unwrap());
+    }
+}

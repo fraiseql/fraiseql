@@ -138,8 +138,7 @@
   "observers_config": {
     "backend": "nats",
     "redis_url": "redis://localhost:6379",
-    "nats_url": "nats://localhost:4222",
-    "queue_name": "fraiseql_events"
+    "nats_url": "nats://localhost:4222"
   },
   "validation_config": {
     "max_query_depth": 10,

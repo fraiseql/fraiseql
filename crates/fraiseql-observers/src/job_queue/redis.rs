@@ -272,7 +272,12 @@ impl JobQueue for RedisJobQueue {
         let json = serde_json::to_string(job)
             .map_err(|e| crate::error::ObserverError::SerializationError(e.to_string()))?;
 
-        if job.can_retry() {
+        // Route on the state `mark_failed` decided. Re-evaluating `can_retry()`
+        // here would read the ALREADY-INCREMENTED attempt counter and dead-letter
+        // a job one attempt early (max_attempts = 2 would execute only once),
+        // leaving the stored state (`pending`) contradicting the status hash
+        // (`dead_lettered`).
+        if job.state == super::JobState::Pending {
             // Atomically: leave processing, update job data, re-enqueue as pending, set status.
             redis::Script::new(JOB_FAIL_RETRY_SCRIPT)
                 .key(Self::processing_key()) // KEYS[1]

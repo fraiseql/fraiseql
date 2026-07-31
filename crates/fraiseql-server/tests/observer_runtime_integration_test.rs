@@ -182,8 +182,8 @@ async fn test_runtime_start_stop_lifecycle() {
         .expect("Failed to query observer logs");
     assert!(log_count > 0, "Expected at least 1 successful observer log");
 
-    // Verify checkpoint was saved
-    let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
+    // Verify checkpoint was saved under the stable listener identity (#805)
+    let checkpoint_exists = check_checkpoint_exists(&pool, "change_log")
         .await
         .expect("Failed to check checkpoint");
     assert!(checkpoint_exists, "Expected checkpoint to be saved after processing");
@@ -314,12 +314,17 @@ async fn test_observer_log_populates_audit_columns() {
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
-/// Test 2: Checkpoint Recovery After Runtime Restart
+/// Test 2: Checkpoint Recovery After Runtime Restart (#805)
 ///
-/// Verifies that the observer runtime:
-/// 1. Saves checkpoints during normal processing
-/// 2. Recovers from checkpoint on restart
-/// 3. Resumes processing without missing events or processing duplicates
+/// A genuine restart: the first runtime processes a batch and is stopped; a
+/// **second, freshly-constructed** runtime is started against the same pool.
+/// The second runtime must resume from the persisted checkpoint and re-dispatch
+/// **nothing** — before #805 it seeded its cursor at 0 and re-fired every
+/// historical observer action on every process start.
+///
+/// The post-restart sentinel event pins ordering: `next_batch` returns rows in
+/// `pk_entity_change_log ASC` order, so by the time the sentinel's webhook
+/// arrives, any replay of the earlier rows would already have been dispatched.
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_checkpoint_recovery_after_restart() {
@@ -342,6 +347,10 @@ async fn test_checkpoint_recovery_after_restart() {
         .execute(&pool)
         .await
         .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM observer_checkpoints")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean checkpoints");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
@@ -359,15 +368,11 @@ async fn test_checkpoint_recovery_after_restart() {
     .await
     .expect("Failed to create observer");
 
-    // Create and start observer runtime with fast polling for tests
+    // First runtime: process 5 events, then stop.
     let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
-    // start() now awaits a readiness signal from the background task,
-    // so no artificial sleep is needed before inserting events.
-
-    // Insert first batch of events with matching entity type
     for i in 0..5 {
         let order_id = Uuid::new_v4();
         let _ = insert_change_log_entry(
@@ -383,57 +388,76 @@ async fn test_checkpoint_recovery_after_restart() {
         .expect("Failed to insert change log entry");
     }
 
-    // Wait for first batch processing
     wait_for_webhook(&mock_server, 5, Duration::from_secs(20)).await;
+    assert_eq!(mock_server.request_count().await, 5, "Expected 5 webhooks before restart");
 
-    // Record first checkpoint state
-    let first_request_count = mock_server.request_count().await;
-    assert_eq!(
-        first_request_count, 5,
-        "Expected 5 webhooks after first batch, got {}",
-        first_request_count
-    );
+    runtime.stop().await.expect("Failed to stop first runtime");
 
-    // Insert second batch of events with matching entity type
-    for i in 5..10 {
-        let order_id = Uuid::new_v4();
-        let _ = insert_change_log_entry(
-            // intentional
-            &pool,
-            "INSERT",
-            &entity_type,
-            &order_id.to_string(),
-            serde_json::json!({"id": order_id.to_string(), "sequence": i}),
-            None,
-        )
-        .await
-        .expect("Failed to insert change log entry");
-    }
+    // RESTART: a brand-new runtime against the same pool — the #805 shape.
+    // Nothing carries over in memory; resume state must come from the database.
+    let config2 = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+    let mut runtime2 = ObserverRuntime::new(config2);
+    runtime2.start().await.expect("Failed to start second runtime");
 
-    // Wait for second batch processing
-    wait_for_webhook(&mock_server, 10, Duration::from_secs(20)).await;
+    // Sentinel event inserted only after the restart. Rows are processed in pk
+    // order, so its webhook arriving proves any replay already happened.
+    let sentinel_id = Uuid::new_v4();
+    let _ = insert_change_log_entry(
+        // intentional
+        &pool,
+        "INSERT",
+        &entity_type,
+        &sentinel_id.to_string(),
+        serde_json::json!({"id": sentinel_id.to_string(), "sequence": 5}),
+        None,
+    )
+    .await
+    .expect("Failed to insert sentinel change log entry");
 
-    // Verify checkpoint was updated
-    let checkpoint_after_second = get_checkpoint_value(&pool, &entity_type)
-        .await
-        .expect("Failed to get checkpoint");
-    assert!(
-        checkpoint_after_second > 0,
-        "Expected checkpoint to be updated after second batch"
-    );
+    wait_for_webhook(&mock_server, 6, Duration::from_secs(20)).await;
 
-    // Verify no duplicates in webhook requests
+    // Settle: give a replay (which would race no one — it precedes the sentinel
+    // in pk order) a chance to surface anyway before counting.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     let requests = mock_server.received_requests().await;
     let ids: Vec<String> = requests
         .iter()
-        .filter_map(|r| r["after"]["id"].as_str().map(|s| s.to_string()))
+        .filter_map(|r| r["id"].as_str().map(|s| s.to_string()))
         .collect();
-
     let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();
-    assert_eq!(ids.len(), unique_ids.len(), "Expected no duplicate IDs in webhook payloads");
+    assert_eq!(
+        ids.len(),
+        unique_ids.len(),
+        "restart re-dispatched already-processed events: {} webhooks for {} unique entities",
+        ids.len(),
+        unique_ids.len()
+    );
+    assert_eq!(
+        requests.len(),
+        6,
+        "expected exactly 6 webhooks total (5 before restart + 1 sentinel), got {}",
+        requests.len()
+    );
 
-    // Stop the runtime gracefully
-    runtime.stop().await.expect("Failed to stop runtime");
+    // The checkpoint must be keyed on a stable listener identity, not on the
+    // entity type of whatever row happened to be last in a batch (#805).
+    let checkpoint = get_checkpoint_value(&pool, "change_log")
+        .await
+        .expect("Failed to get checkpoint");
+    assert!(
+        checkpoint > 0,
+        "checkpoint must be persisted under the stable listener id 'change_log'"
+    );
+    let by_entity_type = get_checkpoint_value(&pool, &entity_type)
+        .await
+        .expect("Failed to query checkpoint by entity type");
+    assert_eq!(
+        by_entity_type, 0,
+        "checkpoint must not be keyed on object_type (found a row under '{entity_type}')"
+    );
+
+    runtime2.stop().await.expect("Failed to stop second runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -648,8 +672,9 @@ async fn test_graceful_shutdown_mid_processing() {
     // We have 5 events × 2s = 10s + buffer = 11s
     tokio::time::sleep(Duration::from_secs(11)).await;
 
-    // Verify checkpoint was saved before attempting more events
-    let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
+    // Verify checkpoint was saved (stable listener identity, #805) before
+    // attempting more events
+    let checkpoint_exists = check_checkpoint_exists(&pool, "change_log")
         .await
         .expect("Failed to check checkpoint");
     assert!(checkpoint_exists, "Expected checkpoint to exist");
@@ -871,7 +896,7 @@ async fn test_high_throughput_processing() {
     let requests = mock_server.received_requests().await;
     let ids: Vec<String> = requests
         .iter()
-        .filter_map(|r| r["after"]["id"].as_str().map(|s| s.to_string()))
+        .filter_map(|r| r["id"].as_str().map(|s| s.to_string()))
         .collect();
 
     let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();

@@ -1,14 +1,30 @@
-//! Persistent checkpoint system for zero-event-loss recovery.
+//! Persistent checkpoint system for listener restart recovery.
 //!
-//! This module provides durable state management for listeners, enabling
-//! automatic recovery from restart with exactly-once semantics. Checkpoints
-//! store the last successfully processed event ID, allowing listeners to
-//! resume from the exact point they stopped.
+//! This module provides durable cursor storage for change-log listeners.
+//! Checkpoints store the last successfully processed event ID under a stable
+//! listener identity, so a restarted listener resumes where it stopped instead
+//! of replaying the entire change log (#805).
+//!
+//! # Delivery semantics (explicit, not implicit)
+//!
+//! Checkpointing gives **at-least-once** delivery with a replay window bounded
+//! by one batch: the cursor is persisted *after* a batch's actions have been
+//! dispatched, so a crash between dispatch and save re-delivers at most that
+//! one batch on restart. Exactly-once is not on offer — observer actions are
+//! external effects (HTTP, SMTP) that cannot join a database transaction.
+//! Consumers that need idempotency must dedup on the event id
+//! (`EntityEvent.id`, the change-log row UUID), which every dispatched payload
+//! carries.
+//!
+//! The cursor is only meaningful for the change log it was recorded against:
+//! if `core.tb_entity_change_log` is rebuilt with a reset sequence, delete the
+//! checkpoint row so the listener does not silently skip the new rows.
 //!
 //! # Features
 //!
-//! - **Zero Event Loss**: Checkpoints saved atomically after batch processing
-//! - **Automatic Recovery**: Listener resumes from last checkpoint on startup
+//! - **Bounded Replay**: Checkpoints saved after each dispatched batch
+//! - **Restart Recovery**: The driver restores the cursor at startup and passes it to the listener
+//!   (`ChangeLogListenerConfig::with_resume_from`)
 //! - **Multi-Listener Coordination**: Atomic compare-and-swap for concurrent listeners
 //! - **Audit Trail**: Complete checkpoint history in database
 //!
@@ -33,6 +49,17 @@
 pub mod postgres;
 
 use std::sync::Arc;
+
+/// The idempotent DDL for the checkpoint tables (the shipped migration
+/// `02_create_observer_checkpoints.sql`).
+///
+/// Exposed so drivers can ensure the table exists before restoring a cursor
+/// (#805) — a fresh database must not silently regress to cursor 0 and replay
+/// the change log because the migration was never applied.
+#[must_use]
+pub const fn migration_sql() -> &'static str {
+    include_str!("../../migrations/02_create_observer_checkpoints.sql")
+}
 
 use chrono::{DateTime, Utc};
 pub use postgres::PostgresCheckpointStore;

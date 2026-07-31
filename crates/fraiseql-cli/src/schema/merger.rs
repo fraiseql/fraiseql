@@ -580,20 +580,15 @@ impl SchemaMerger {
                      the runtime will require FRAISEQL_NATS_URL to be configured"
                 );
             }
+            // No `handlers` key (#631): compiled handler declarations are not a
+            // runtime concept — TOML validation has already rejected a non-empty
+            // `[[observers.handlers]]`, and the compiled `ObserversConfig` is
+            // `deny_unknown_fields` so the key cannot be represented.
             merged["observers_config"] = json!({
                 "enabled": toml_schema.observers.enabled,
                 "backend": toml_schema.observers.backend,
                 "redis_url": toml_schema.observers.redis_url,
                 "nats_url": toml_schema.observers.nats_url,
-                "handlers": toml_schema.observers.handlers.iter().map(|h| json!({
-                    "name": h.name,
-                    "event": h.event,
-                    "action": h.action,
-                    "webhook_url": h.webhook_url,
-                    "retry_strategy": h.retry_strategy,
-                    "max_retries": h.max_retries,
-                    "description": h.description,
-                })).collect::<Vec<_>>(),
             });
         }
 

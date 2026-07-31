@@ -142,7 +142,9 @@ the condition is true.
 status == 'shipped'
 total > 100
 
-# Field-change detection
+# Field-change detection — requires the producing mutation to record a
+# pre-image (`changelog_pre_image = true`, off by default). Without it these
+# conditions error loudly at evaluation instead of firing.
 field_changed_to('status', 'shipped')
 field_changed_from('status', 'pending')
 

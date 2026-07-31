@@ -172,6 +172,28 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         );
     }
 
+    // #634: bridge the fraiseql-observers `prometheus`-crate registry
+    // (`fraiseql_observer_*` series) into this scrape. The observer subsystem
+    // records into the `prometheus` default registry while this endpoint is
+    // rendered from the `metrics-exporter-prometheus` ecosystem — two disjoint
+    // registries, so observer metrics were silently absent from the scrape
+    // even when compiled in. A bridge failure is surfaced as a comment rather
+    // than failing the whole scrape.
+    #[cfg(feature = "observers-metrics")]
+    {
+        match fraiseql_observers::metrics::handler::render_prometheus_text() {
+            Ok(observer_metrics) => {
+                if !observer_metrics.is_empty() {
+                    output.push('\n');
+                    output.push_str(&observer_metrics);
+                }
+            },
+            Err(e) => {
+                let _ = write!(output, "\n# observer metrics bridge failed to encode: {e}\n");
+            },
+        }
+    }
+
     // Append MCP tool call counters when the feature is compiled in.
     #[cfg(feature = "mcp")]
     {

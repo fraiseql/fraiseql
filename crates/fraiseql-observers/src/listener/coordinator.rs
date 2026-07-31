@@ -1,7 +1,18 @@
-//! Multi-listener coordination for high-availability setup.
+//! **Process-local** multi-listener bookkeeping — NOT cross-process HA (#872).
 //!
-//! Manages multiple listeners with shared checkpoint store,
-//! providing leader election, health monitoring, and failover coordination.
+//! Everything in this module lives in the memory of one process: listeners are
+//! registered in a local map, heartbeats are local `Instant`s, and
+//! [`MultiListenerCoordinator::elect_leader`] picks the lowest-id healthy entry
+//! **of this process's own map**. There is no shared store, no database or
+//! Redis interaction, and no cross-process election of any kind. Three server
+//! replicas each constructing a coordinator will each elect *themselves*
+//! leader and all poll the change log concurrently.
+//!
+//! For genuine cross-process single-consumer coordination, use the advisory
+//! lease ([`CheckpointLease::postgres`](super::CheckpointLease) /
+//! [`CheckpointLease::redis`](super::CheckpointLease)) — one lease holder polls,
+//! the others stand by — together with the durable cursor in
+//! [`crate::checkpoint`].
 
 use std::{
     sync::{
@@ -47,9 +58,12 @@ pub struct ListenerHandle {
     pub last_heartbeat: Arc<Mutex<Instant>>,
 }
 
-/// Coordinates multiple listeners
-/// This is a lightweight coordinator that manages listener state and checkpoints
-/// without requiring a specific checkpoint store implementation.
+/// Process-local coordinator for listeners registered **in this process**.
+///
+/// Holds listener state and checkpoints in in-memory maps only — no shared
+/// store. Its "leader election" is a deterministic pick among this process's
+/// own registered listeners; it cannot coordinate across replicas (#872). See
+/// the module docs for the cross-process alternative.
 #[derive(Clone)]
 pub struct MultiListenerCoordinator {
     listeners: Arc<DashMap<String, Arc<ListenerHandle>>>,
@@ -181,7 +195,13 @@ impl MultiListenerCoordinator {
         Ok(health_statuses)
     }
 
-    /// Elect leader among listeners
+    /// Elect a leader among the listeners registered **in this process**.
+    ///
+    /// This is a local deterministic pick (lowest healthy id), not a
+    /// cross-process election: every replica that calls this elects one of its
+    /// *own* listeners (#872). Use the advisory
+    /// [`CheckpointLease`](super::CheckpointLease) for cross-process
+    /// single-consumer coordination.
     ///
     /// # Errors
     ///

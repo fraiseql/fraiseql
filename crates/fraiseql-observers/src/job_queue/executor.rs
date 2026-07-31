@@ -134,6 +134,7 @@ impl JobExecutor {
             let queue = Arc::clone(&self.queue);
             let executor = Arc::clone(&self.observer_executor);
             let worker_id = self.worker_id.clone();
+            let job_timeout_secs = self.job_timeout_secs;
             #[cfg(feature = "metrics")]
             let metrics = self.metrics.clone();
 
@@ -143,6 +144,7 @@ impl JobExecutor {
                     queue,
                     executor,
                     &worker_id,
+                    job_timeout_secs,
                     #[cfg(feature = "metrics")]
                     metrics,
                 )
@@ -193,12 +195,23 @@ impl JobExecutor {
         }
     }
 
-    /// Execute a single job with retry logic
+    /// Execute a single dequeued job: one real dispatch attempt, then a
+    /// terminal or retry outcome recorded in the queue (#844).
+    ///
+    /// The job is only [`JobQueue::acknowledge`]d — which destroys the payload —
+    /// after its action genuinely dispatched. Every failure goes through
+    /// [`JobQueue::fail`], which either re-enqueues the job (transient error,
+    /// retry budget left; `fail` itself records the attempt and increments the
+    /// counter — calling `mark_failed` here too would double-count, the old
+    /// `#844` secondary bug) or moves it to the DLQ. Retries re-enter through
+    /// the queue rather than looping in-process, so the attempt count stays
+    /// durable and a crashed worker never strands an invisible in-memory retry.
     async fn execute_job_with_retry(
         mut job: Job,
         queue: Arc<dyn JobQueue>,
         executor: Arc<ObserverExecutor>,
         worker_id: &str,
+        job_timeout_secs: u64,
         #[cfg(feature = "metrics")] metrics: MetricsRegistry,
     ) {
         let job_id = job.id;
@@ -206,60 +219,30 @@ impl JobExecutor {
         let action_type = job.action_type().to_string();
         let start_time = std::time::Instant::now();
 
-        loop {
-            debug!(
-                "Executing job {}: attempt {}/{} (worker: {})",
-                job_id, job.attempt, job.max_attempts, worker_id
-            );
+        debug!(
+            "Executing job {}: attempt {}/{} (worker: {})",
+            job_id, job.attempt, job.max_attempts, worker_id
+        );
 
-            // Execute the action
-            match timeout_job_execution(&executor, &job) {
-                Ok(()) => {
-                    // Success
-                    let duration_secs = start_time.elapsed().as_secs_f64();
-                    info!("Job {} completed in {:.3}s", job_id, duration_secs);
+        match timeout_job_execution(&executor, &job, job_timeout_secs).await {
+            Ok(()) => {
+                let duration_secs = start_time.elapsed().as_secs_f64();
+                info!("Job {} completed in {:.3}s", job_id, duration_secs);
 
-                    #[cfg(feature = "metrics")]
-                    metrics.job_executed(&action_type, duration_secs);
+                #[cfg(feature = "metrics")]
+                metrics.job_executed(&action_type, duration_secs);
 
-                    if let Err(e) = queue.acknowledge(job_id).await {
-                        error!("Failed to acknowledge job {}: {}", job_id, e);
-                    }
+                if let Err(e) = queue.acknowledge(job_id).await {
+                    error!("Failed to acknowledge job {}: {}", job_id, e);
+                }
+            },
+            Err(e) => {
+                let is_transient = is_transient_error(&e);
 
-                    return;
-                },
-                Err(e) => {
-                    let is_transient = is_transient_error(&e);
-
-                    if !is_transient {
-                        // Permanent error
-                        warn!("Job {} failed permanently: {}", job_id, e);
-
-                        #[cfg(feature = "metrics")]
-                        metrics.job_failed(&action_type, "permanent_error");
-
-                        if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
-                            error!("Failed to mark job {} as failed: {}", job_id, queue_err);
-                        }
-
-                        return;
-                    }
-
-                    if !job.can_retry() {
-                        // Retries exhausted
-                        error!("Job {} exhausted retries", job_id);
-
-                        #[cfg(feature = "metrics")]
-                        metrics.job_failed(&action_type, "retries_exhausted");
-
-                        if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
-                            error!("Failed to mark job {} as failed: {}", job_id, queue_err);
-                        }
-
-                        return;
-                    }
-
-                    // Transient error, retry after backoff
+                if is_transient && job.can_retry() {
+                    // Transient failure with retry budget left: wait out the
+                    // backoff, then hand the job back to the queue. `fail`
+                    // records the attempt and re-enqueues atomically.
                     let delay = backoff::calculate_backoff(
                         job.backoff_strategy,
                         job.attempt,
@@ -268,8 +251,8 @@ impl JobExecutor {
                     );
 
                     warn!(
-                        "Job {} attempt {} failed (transient): {}. Retrying in {:?}",
-                        job_id, job.attempt, e, delay
+                        "Job {} attempt {}/{} failed (transient): {}. Re-queueing after {:?}",
+                        job_id, job.attempt, job.max_attempts, e, delay
                     );
 
                     #[cfg(feature = "metrics")]
@@ -277,34 +260,61 @@ impl JobExecutor {
 
                     tokio::time::sleep(delay).await;
 
-                    // Update job for retry and put back in queue
-                    job.mark_failed(e.to_string());
                     if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
                         error!("Failed to requeue job {}: {}", job_id, queue_err);
-                        return;
                     }
+                    return;
+                }
 
-                    // Next iteration will pick up the updated job
-                },
-            }
+                // Terminal failure: a permanent error (retrying would fail
+                // identically) or an exhausted retry budget. Route to the DLQ —
+                // recorded, never destroyed.
+                if is_transient {
+                    error!("Job {} exhausted retries: {}", job_id, e);
+                    #[cfg(feature = "metrics")]
+                    metrics.job_failed(&action_type, "retries_exhausted");
+                } else {
+                    warn!("Job {} failed permanently: {}", job_id, e);
+                    job.exhaust_retry_budget();
+                    #[cfg(feature = "metrics")]
+                    metrics.job_failed(&action_type, "permanent_error");
+                }
+
+                if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
+                    error!("Failed to dead-letter job {}: {}", job_id, queue_err);
+                }
+            },
         }
     }
 }
 
-/// Execute a job with timeout
+/// Dispatch a job's action against its event, bounded by the worker's job
+/// timeout (#844).
 ///
-/// This is a placeholder that would integrate with the observer executor
-/// in a full implementation. For now, it returns success.
-#[allow(clippy::unnecessary_wraps)] // Reason: Result return reserved for future error handling
-#[allow(clippy::missing_const_for_fn)] // Reason: placeholder, will become non-const when implemented
-fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Result<()> {
-    // In a full implementation, this would:
-    // 1. Determine the action type from job.action
-    // 2. Execute the action with the observer executor
-    // 3. Apply timeout protection
-    //
-    // For now, this is a placeholder returning success
-    Ok(())
+/// A timeout maps to a transient [`ObserverError::ActionExecutionFailed`] so
+/// the job is retried per its policy rather than destroyed or — as the
+/// pre-#844 placeholder did — reported executed without any dispatch.
+async fn timeout_job_execution(
+    executor: &Arc<ObserverExecutor>,
+    job: &Job,
+    timeout_secs: u64,
+) -> Result<()> {
+    match tokio::time::timeout(
+        Duration::from_secs(timeout_secs),
+        executor.execute_action_internal(&job.action, &job.event),
+    )
+    .await
+    {
+        Ok(Ok(_result)) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Err(_elapsed) => Err(crate::error::ObserverError::ActionExecutionFailed {
+            reason: format!(
+                "job {} ({}) timed out after {timeout_secs}s",
+                job.id,
+                job.action_type()
+            ),
+        }),
+    }
 }
 
 /// Determine if an error is transient (retryable)

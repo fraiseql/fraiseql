@@ -9,6 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A restart no longer replays the entire change log (#805).** The observer runtime wrote
+  a checkpoint after every batch but nothing ever read it back — and the row was keyed on
+  the entity type of whatever row happened to be last in the batch, so there was no global
+  cursor to read. Every process start (deploy, OOM, node drain) re-read
+  `core.tb_entity_change_log` from row 0 and re-fired every webhook, email and Slack
+  message ever recorded, with severity growing with deployment age. The runtime now
+  restores the cursor at startup under a stable listener identity (`listener_id`, default
+  `"change_log"`), ensures the checkpoint table exists (the shipped idempotent migration),
+  and persists through `PostgresCheckpointStore` after each dispatched batch. Delivery is
+  explicitly **at-least-once with a one-batch replay window**; payloads carry the
+  change-log row UUID as the dedup key. Pinned by a genuine restart test (second runtime,
+  same pool, zero re-dispatch).
+- **The job-queue worker actually executes jobs (#844).** `timeout_job_execution` was a
+  placeholder returning `Ok(())`: every dequeued observer action was logged as completed,
+  counted in `job_executed`, and acknowledged — which `DEL`s the only copy of the payload —
+  without any dispatch ever happening. The worker now dispatches the action against the
+  event carried on the job, bounded by `job_timeout_secs`; a timeout is a transient failure
+  retried per policy, terminal failures land in the DLQ with the payload intact, and a job
+  is only removed after a confirmed terminal outcome. Also fixed on the way: the error path
+  called `mark_failed` twice per failure (double-counting attempts), and `fail()` re-checked
+  `can_retry()` on the already-incremented counter, dead-lettering jobs one attempt early
+  with a stored state (`pending`) contradicting the status hash (`dead_lettered`).
+- **`field_changed*` conditions error loudly when change tracking is unavailable (#845).**
+  On the default change-log path (`changelog_pre_image = false`) UPDATE rows carry no
+  pre-image, so `field_changed` / `field_changed_to` / `field_changed_from` silently
+  evaluated false — a documented condition family that could not fire in the default
+  configuration, indistinguishable from "correctly configured, not matching". Evaluating
+  them against an UPDATE without a pre-image is now an error naming the missing
+  `changelog_pre_image` prerequisite; a recorded pre-image with an empty diff is a clean
+  `false` (the two cases are no longer conflated). The docs (`condition` module, crate
+  docs, webhooks.md) now state the prerequisite, and the crate docs' example of a
+  non-existent `status_changed_to` function is corrected.
+- **Condition `==`/`!=` compare numbers numerically (#843).** serde_json equality is
+  representation-strict, so `total != 100` was true for a PostgreSQL `numeric(10,2)` value
+  of `100.00` — firing observers on rows they should skip — while `>=`/`<=` on the same
+  operands coerced and agreed the values were equal. Equality now routes through the same
+  numeric-aware comparison as the ordered operators (exact `i64`/`u64` first, so values
+  above 2^53 stay exact), shared with `field_changed_to`/`field_changed_from`, which had
+  the identical root cause.
+- **`database` and `log` observer actions dispatch for real (#632).** The admin API's 400
+  for those action types (the #612 stopgap) is lifted: `database` calls the configured
+  PostgreSQL function with a `{"event": ..., "params": ...}` jsonb envelope (function name
+  restricted to a strict SQL identifier, re-validated at dispatch), and `log` emits one
+  structured tracing event at the configured level with a rendered message template. Both
+  fail loud when their backend is absent.
+- **Observer metrics reach the server's `/metrics` (#634).** The observer subsystem records
+  into the `prometheus` crate's default registry while the server scrape is rendered from
+  the `metrics-exporter-prometheus` ecosystem — two registries that never met, so
+  `fraiseql_observer_*` series were absent from every scrape. The server (feature
+  `observers-metrics`, included in `observers-enterprise`) now appends the observer
+  registry's rendering to the scrape output.
+- **The observer E2E suite runs, and can pass (#928).** None of its 8 tests constructed a
+  runtime — nothing polled the change log, so every test waited for webhooks that could not
+  be sent — and no CI leg ran the file. Several also registered observers for `"Order"`
+  while inserting `"Order_{test_id}"` rows, asserted a log status (`"failed"`) the writer
+  never emits, and counted webhook deliveries with a mock that only recorded successes.
+  Each test now drives a real `ObserverRuntime`; the suite is wired into the Dagger
+  observers integration leg, and the #844 job-queue tests into the redis leg.
+- **`MultiListenerCoordinator` docs no longer claim cross-process HA (#872).** The module
+  advertised "shared checkpoint store, leader election, failover coordination" while every
+  structure is process-local — three replicas each elect *themselves* leader and all poll
+  concurrently. The docs now state the process-local reality and point HA users at the
+  advisory `CheckpointLease` plus the durable checkpoint cursor.
+
 - **Every `cron:` function fires on every matching window, not once ever (#796,
   CRITICAL).** `CronExecutionState::should_execute` returned `last_exec >= window_start` —
   the exact negation of its own comment — and `find_schedule_window` stepped back one minute
@@ -56,6 +120,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Runtime observers have exactly one source of truth (#631).** Compiled handler
+  declarations are not a runtime concept: the compiled `ObserversConfig` no longer has a
+  `handlers` field (and is `deny_unknown_fields`, so a schema smuggling one fails to load),
+  `[[observers.handlers]]` keeps failing the TOML compile as permanent policy, and an
+  SDK-authored `observers_config.handlers` array — which previously slipped through the
+  seam and landed in the compiled schema as decoration — now fails the compile with a
+  message naming `tb_observer` / `POST /api/observers`. The unused `EventHandler` type is
+  removed from `fraiseql-core`.
+- **`job_queue::Job` carries the full triggering `EntityEvent`** (field `event` replaces
+  `event_id`): a bare event id gave the worker nothing to dispatch with (#844).
+  `Job::new`/`Job::with_config` signatures changed accordingly; jobs serialized by
+  pre-#844 builds do not deserialize (they were never executed anyway).
+- **Quoted condition literals are strings (#843).** The DSL lexer previously discarded
+  quoting, so `code == '100'` compared a string field against the *number* 100 and was
+  silently false forever. A quoted literal now always compares as a string and never
+  equals a number; `total == 100` (unquoted) compares numerically.
+- **`fraiseql-server`'s `observers` feature now requires `fraiseql-observers/checkpoint`**
+  — the durable cursor is not optional (#805) — and a new `observers-metrics` feature
+  (included in `observers-enterprise`) compiles the metrics bridge (#634).
 - **An unrecognized `after:mutation`/`after:capture` operation token fails the load
   (#842).** `after:mutation:User:created` (or `:INSERT`, or any typo) used to silently
   widen the trigger to *all* event kinds — a welcome-email function also fired on every

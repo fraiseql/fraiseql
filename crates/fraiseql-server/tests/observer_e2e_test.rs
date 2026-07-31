@@ -43,8 +43,22 @@ mod observer_test_helpers;
 
 use std::time::Duration;
 
+use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
 use observer_test_helpers::*;
 use uuid::Uuid;
+
+/// Start an observer runtime polling fast enough for tests (#928).
+///
+/// Before #928 this suite never constructed a runtime at all — nothing polled
+/// the change log, so every test waited for webhooks that could not be sent
+/// and timed out. Each test now drives a real `ObserverRuntime` and stops it
+/// before cleanup.
+async fn start_test_runtime(pool: &sqlx::PgPool) -> ObserverRuntime {
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start observer runtime");
+    runtime
+}
 
 /// Test 1: Happy Path - INSERT event with webhook execution
 ///
@@ -66,17 +80,22 @@ async fn test_observer_happy_path_insert_webhook() {
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
 
-    // Create observer for Order INSERTs
+    // Create observer for this test's unique entity type (#928: it was
+    // registered for "Order" while rows carried "Order_{test_id}", so even a
+    // running listener could never have matched).
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-observer-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None, // No condition
         &mock_server.webhook_url(),
     )
     .await
     .expect("Failed to create observer");
+
+    let mut runtime = start_test_runtime(&pool).await;
 
     // Insert change log entry (simulates entity mutation)
     let order_id = Uuid::new_v4();
@@ -90,7 +109,7 @@ async fn test_observer_happy_path_insert_webhook() {
     let _change_log_id = insert_change_log_entry(
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id.to_string(),
         order_data.clone(),
         None,
@@ -118,11 +137,14 @@ async fn test_observer_happy_path_insert_webhook() {
     )
     .await;
 
-    // Verify only one success entry
-    let success_count = get_observer_log_count(&pool, "success")
+    // Verify only one success entry for THIS entity (a global count would
+    // measure ambient rows from earlier tests, #928)
+    let success_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "success")
         .await
         .expect("Failed to query observer logs");
     assert_eq!(success_count, 1, "Expected 1 success log entry");
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -144,10 +166,11 @@ async fn test_observer_conditional_execution() {
     mock_server.mock_success().await;
 
     // Observer with condition: only fire when status = 'shipped'
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-conditional-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("UPDATE"),
         Some("status == 'shipped'"), // DSL condition
         &mock_server.webhook_url(),
@@ -155,13 +178,15 @@ async fn test_observer_conditional_execution() {
     .await
     .expect("Failed to create observer");
 
+    let mut runtime = start_test_runtime(&pool).await;
+
     // Case 1: INSERT with status = 'pending' → should NOT fire
     let order_id_1 = Uuid::new_v4();
     let _ = insert_change_log_entry(
         // intentional
         &pool,
         "UPDATE",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_1.to_string(),
         serde_json::json!({"id": order_id_1.to_string(), "status": "pending"}),
         Some(serde_json::json!({"id": order_id_1.to_string(), "status": "created"})),
@@ -183,7 +208,7 @@ async fn test_observer_conditional_execution() {
         // intentional
         &pool,
         "UPDATE",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_2.to_string(),
         serde_json::json!({"id": order_id_2.to_string(), "status": "shipped"}),
         Some(serde_json::json!({"id": order_id_2.to_string(), "status": "pending"})),
@@ -196,7 +221,9 @@ async fn test_observer_conditional_execution() {
 
     let requests = mock_server.received_requests().await;
     assert_eq!(requests.len(), 1, "Expected 1 webhook call for shipped status");
-    assert_eq!(requests[0]["after"]["status"], "shipped");
+    assert_eq!(requests[0]["status"], "shipped");
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -218,11 +245,12 @@ async fn test_multiple_observers_single_event() {
     mock_server_1.mock_success().await;
     mock_server_2.mock_success().await;
 
-    // Observer 1: All Order INSERTs
+    // Observer 1: all INSERTs of this test's entity type
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id_1 = create_test_observer(
         &pool,
         &format!("test-multi-1-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server_1.webhook_url(),
@@ -230,11 +258,11 @@ async fn test_multiple_observers_single_event() {
     .await
     .expect("Failed to create observer 1");
 
-    // Observer 2: All Order INSERTs (different webhook)
+    // Observer 2: same entity type, different webhook
     let _observer_id_2 = create_test_observer(
         &pool,
         &format!("test-multi-2-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server_2.webhook_url(),
@@ -242,13 +270,15 @@ async fn test_multiple_observers_single_event() {
     .await
     .expect("Failed to create observer 2");
 
+    let mut runtime = start_test_runtime(&pool).await;
+
     // Insert single event
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
         // intentional
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id.to_string(),
         serde_json::json!({"id": order_id.to_string(), "status": "new"}),
         None,
@@ -263,11 +293,13 @@ async fn test_multiple_observers_single_event() {
     assert_eq!(mock_server_1.request_count().await, 1, "Observer 1 should fire once");
     assert_eq!(mock_server_2.request_count().await, 1, "Observer 2 should fire once");
 
-    // Verify tb_observer_log has 2 success entries
-    let success_count = get_observer_log_count(&pool, "success")
+    // Verify tb_observer_log has 2 success entries for THIS entity
+    let success_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "success")
         .await
         .expect("Failed to query observer logs");
     assert_eq!(success_count, 2, "Expected 2 success log entries");
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -290,10 +322,11 @@ async fn test_observer_retry_exponential_backoff() {
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_transient_failure(2).await;
 
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-retry-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -301,12 +334,14 @@ async fn test_observer_retry_exponential_backoff() {
     .await
     .expect("Failed to create observer");
 
+    let mut runtime = start_test_runtime(&pool).await;
+
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
         // intentional
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id.to_string(),
         serde_json::json!({"id": order_id.to_string()}),
         None,
@@ -330,6 +365,8 @@ async fn test_observer_retry_exponential_backoff() {
     let final_status = &logs.last().expect("Should have at least one log").0;
     assert_eq!(final_status, "success", "Final status should be success");
 
+    runtime.stop().await.expect("Failed to stop observer runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
@@ -351,10 +388,11 @@ async fn test_observer_dlq_permanent_failure() {
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_failure(500).await;
 
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-dlq-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -362,12 +400,14 @@ async fn test_observer_dlq_permanent_failure() {
     .await
     .expect("Failed to create observer");
 
+    let mut runtime = start_test_runtime(&pool).await;
+
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
         // intentional
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id.to_string(),
         serde_json::json!({"id": order_id.to_string()}),
         None,
@@ -379,15 +419,18 @@ async fn test_observer_dlq_permanent_failure() {
     // 100ms + 200ms + 300ms = 600ms minimum, plus processing overhead
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    // Verify all attempts failed
-    let failed_count = get_observer_log_count(&pool, "failed")
+    // Verify the failure was logged for THIS entity. The log writer's failure
+    // status is "error" — the "failed" string this test originally asserted
+    // never existed in the writer (#928: assertions written against an
+    // imagined schema, never run).
+    let failed_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "error")
         .await
         .expect("Failed to query observer logs");
 
-    assert!(failed_count >= 1, "Expected at least 1 failed attempt, got {}", failed_count);
+    assert!(failed_count >= 1, "Expected at least 1 error log entry, got {}", failed_count);
 
-    // Verify no success entries (should all be failures)
-    let success_count = get_observer_log_count(&pool, "success")
+    // Verify no success entries for this entity (all attempts failed)
+    let success_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "success")
         .await
         .expect("Failed to query observer logs");
     assert_eq!(success_count, 0, "Expected 0 success entries for permanent failure");
@@ -399,6 +442,8 @@ async fn test_observer_dlq_permanent_failure() {
         "Expected multiple webhook calls due to retries, got {}",
         webhook_calls
     );
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -418,10 +463,11 @@ async fn test_multiple_event_types_same_entity() {
     mock_server.mock_success().await;
 
     // Create observers for different event types
+    let entity_type = format!("Order_{}", test_id);
     let _insert_observer = create_test_observer(
         &pool,
         &format!("test-insert-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -432,7 +478,7 @@ async fn test_multiple_event_types_same_entity() {
     let _update_observer = create_test_observer(
         &pool,
         &format!("test-update-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("UPDATE"),
         None,
         &mock_server.webhook_url(),
@@ -440,8 +486,9 @@ async fn test_multiple_event_types_same_entity() {
     .await
     .expect("Failed to create update observer");
 
+    let mut runtime = start_test_runtime(&pool).await;
+
     let order_id = Uuid::new_v4();
-    let entity_type = format!("Order_{}", test_id);
 
     // INSERT event
     let _ = insert_change_log_entry(
@@ -476,6 +523,8 @@ async fn test_multiple_event_types_same_entity() {
     let calls = mock_server.request_count().await;
     assert_eq!(calls, 2, "Expected 2 webhook calls (1 INSERT + 1 UPDATE), got {}", calls);
 
+    runtime.stop().await.expect("Failed to stop observer runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
@@ -493,16 +542,19 @@ async fn test_batch_processing() {
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
 
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-batch-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
     )
     .await
     .expect("Failed to create observer");
+
+    let mut runtime = start_test_runtime(&pool).await;
 
     // Insert multiple events
     let event_count = 10;
@@ -512,7 +564,7 @@ async fn test_batch_processing() {
             // intentional
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
@@ -526,6 +578,8 @@ async fn test_batch_processing() {
 
     let calls = mock_server.request_count().await;
     assert_eq!(calls, event_count, "Expected {} webhook calls, got {}", event_count, calls);
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
@@ -544,16 +598,19 @@ async fn benchmark_observer_latency() {
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
 
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("bench-latency-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
     )
     .await
     .expect("Failed to create observer");
+
+    let mut runtime = start_test_runtime(&pool).await;
 
     let mut latencies = Vec::new();
 
@@ -566,7 +623,7 @@ async fn benchmark_observer_latency() {
             // intentional
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string()}),
             None,
@@ -615,6 +672,8 @@ async fn benchmark_observer_latency() {
         "p99 latency {} exceeds 500ms threshold",
         p99.as_millis()
     );
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
 
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");

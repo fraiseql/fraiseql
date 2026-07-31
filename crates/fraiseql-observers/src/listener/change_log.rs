@@ -1,11 +1,18 @@
 //! Change log listener that polls `tb_entity_change_log` for entity mutations.
 //!
-//! This module implements a durable event listener that:
+//! This module implements a polling event listener that:
 //! 1. Polls `tb_entity_change_log` for new entries
 //! 2. Parses Debezium envelope format (before/after/op/source)
 //! 3. Converts entries to `EntityEvent` for observer processing
-//! 4. Maintains checkpoint for recovery after restarts
+//! 4. Tracks an **in-memory** cursor (`last_processed_id`) as it reads
 //! 5. Handles backpressure and batch processing
+//!
+//! The cursor is not durable by itself: restart recovery is the driver's job.
+//! A driver restores the persisted cursor at startup (via
+//! [`crate::checkpoint::CheckpointStore::load`] +
+//! [`ChangeLogListenerConfig::with_resume_from`]) and persists it after each
+//! dispatched batch — otherwise every process start replays the entire change
+//! log from row 0 and re-fires every historical observer action (#805).
 //!
 //! **Requires the `postgres` Cargo feature.**
 
@@ -394,11 +401,12 @@ impl ChangeLogEntry {
             }
         }
 
-        if changes.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(changes))
-        }
+        // A recorded pre-image with an empty diff is `Some(empty)` — "tracked,
+        // nothing changed" — NOT `None`, which means "change tracking
+        // unavailable" and makes `field_changed*` conditions error rather than
+        // evaluate (#845). Collapsing the two was how a no-op UPDATE became
+        // indistinguishable from a missing pre-image.
+        Ok(Some(changes))
     }
 }
 

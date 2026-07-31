@@ -37,8 +37,11 @@ impl ConditionParser {
         });
 
         match op {
-            "==" => Ok(event_value == &value_parsed),
-            "!=" => Ok(event_value != &value_parsed),
+            // #843: numeric-aware equality. Raw `serde_json::Value` equality is
+            // representation-strict (`100 != 100.00`), which made `==` disagree
+            // with `>=`/`<=` on the very same operands.
+            "==" => Ok(crate::event::json_semantic_eq(event_value, &value_parsed)),
+            "!=" => Ok(!crate::event::json_semantic_eq(event_value, &value_parsed)),
             ">" => self.compare_ordered(event_value, &value_parsed, Ordering::is_gt),
             "<" => self.compare_ordered(event_value, &value_parsed, Ordering::is_lt),
             ">=" => self.compare_ordered(event_value, &value_parsed, Ordering::is_ge),

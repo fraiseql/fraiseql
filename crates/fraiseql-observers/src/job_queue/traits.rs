@@ -215,7 +215,10 @@ impl JobQueue for MockJobQueue {
     async fn fail(&self, job: &mut Job, error: String) -> ObserverResult<()> {
         job.mark_failed(error);
 
-        if job.can_retry() {
+        // Route on the state `mark_failed` decided — `can_retry()` reads the
+        // already-incremented attempt counter and would dead-letter one attempt
+        // early (mirrors `RedisJobQueue::fail`).
+        if job.state == super::JobState::Pending {
             self.pending.insert(job.id, ());
         } else {
             self.dlq.insert(job.id, job.clone());

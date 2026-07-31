@@ -176,6 +176,12 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
+    // 6. Step 2 above DROPped and recreated tb_entity_change_log, resetting its BIGSERIAL — any
+    //    checkpoint retained from a prior run now points past the new pks and would make the
+    //    runtime (#805 durable cursor) silently skip every new row. A rebuilt change log
+    //    invalidates all cursors.
+    sqlx::query("DELETE FROM observer_checkpoints").execute(pool).await?;
+
     Ok(())
 }
 
@@ -248,9 +254,22 @@ impl MockWebhookServer {
 
     /// Configure failure response (500 Internal Server Error)
     pub async fn mock_failure(&self, status_code: u16) {
+        let requests = Arc::clone(&self.requests);
+
         Mock::given(method("POST"))
             .and(path("/webhook"))
-            .respond_with(ResponseTemplate::new(status_code))
+            .respond_with(move |req: &wiremock::Request| {
+                // Record the request like mock_success does — otherwise
+                // `request_count()` reads 0 no matter how many deliveries were
+                // attempted, and retry assertions measure the helper, not the
+                // runtime (#928).
+                let body: serde_json::Value =
+                    serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
+                if let Ok(mut reqs) = requests.try_lock() {
+                    reqs.push(body);
+                }
+                ResponseTemplate::new(status_code)
+            })
             .mount(&self.server)
             .await;
     }
@@ -464,7 +483,9 @@ pub async fn assert_observer_log(
         assert_eq!(attempts, expected, "Expected {} attempts, got {}", expected, attempts);
     }
 
-    assert!(duration.is_some() && duration.unwrap() > 0, "Duration should be positive");
+    // duration_ms is an INTEGER of milliseconds; an in-process wiremock round
+    // trip legitimately rounds to 0, so assert presence, not positivity.
+    assert!(duration.is_some(), "Duration should be recorded");
 }
 
 /// Assert webhook payload structure
@@ -473,11 +494,15 @@ pub fn assert_webhook_payload(
     expected_entity_id: &str,
     expected_field_value: Option<(&str, &str)>,
 ) {
-    assert!(payload["after"]["id"].as_str().is_some(), "Webhook payload missing after.id");
-    assert_eq!(payload["after"]["id"].as_str().unwrap(), expected_entity_id);
+    // The default webhook body is the event's `data` (the entity after-image)
+    // itself — NOT an `{"after": ...}` envelope. This helper asserted a shape
+    // no dispatcher ever sent, and every reader of `payload["after"]` was
+    // silently reading `null` (#928).
+    assert!(payload["id"].as_str().is_some(), "Webhook payload missing id: {payload}");
+    assert_eq!(payload["id"].as_str().unwrap(), expected_entity_id);
 
     if let Some((field, value)) = expected_field_value {
-        assert_eq!(payload["after"][field].as_str().unwrap(), value, "Field {} mismatch", field);
+        assert_eq!(payload[field].as_str().unwrap(), value, "Field {} mismatch", field);
     }
 }
 
@@ -487,6 +512,28 @@ pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, 
         .bind(status)
         .fetch_one(pool)
         .await?;
+
+    Ok(count.0)
+}
+
+/// Get count of observer logs with a specific status for ONE entity.
+///
+/// The unscoped [`get_observer_log_count`] counts every row in
+/// `tb_observer_log`, which in a shared test database includes ambient rows
+/// from earlier tests — an exact-count assertion against it measures history,
+/// not this test (#928).
+pub async fn get_observer_log_count_for_entity(
+    pool: &PgPool,
+    entity_id: &str,
+    status: &str,
+) -> Result<i64, sqlx::Error> {
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM tb_observer_log WHERE status = $1 AND entity_id = $2::uuid",
+    )
+    .bind(status)
+    .bind(entity_id)
+    .fetch_one(pool)
+    .await?;
 
     Ok(count.0)
 }

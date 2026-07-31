@@ -201,22 +201,28 @@ impl EntityEvent {
         self.changes.as_ref().is_some_and(|changes| changes.contains_key(field_name))
     }
 
-    /// Check if a field changed to a specific value
+    /// Check if a field changed to a specific value.
+    ///
+    /// Numbers compare **numerically** (`100.00 == 100`), not by JSON
+    /// representation — a PostgreSQL `numeric` column arrives as `100.00`
+    /// while a condition literal parses as the integer `100` (#843).
     #[must_use]
     pub fn field_changed_to(&self, field_name: &str, expected_value: &serde_json::Value) -> bool {
         self.changes
             .as_ref()
             .and_then(|changes| changes.get(field_name))
-            .is_some_and(|change| change.new == *expected_value)
+            .is_some_and(|change| json_semantic_eq(&change.new, expected_value))
     }
 
-    /// Check if a field changed from a specific value
+    /// Check if a field changed from a specific value.
+    ///
+    /// Numbers compare numerically, as in [`Self::field_changed_to`] (#843).
     #[must_use]
     pub fn field_changed_from(&self, field_name: &str, expected_value: &serde_json::Value) -> bool {
         self.changes
             .as_ref()
             .and_then(|changes| changes.get(field_name))
-            .is_some_and(|change| change.old == *expected_value)
+            .is_some_and(|change| json_semantic_eq(&change.old, expected_value))
     }
 
     /// Check if this is a new entity (no old value for any field)
@@ -229,6 +235,37 @@ impl EntityEvent {
     #[must_use]
     pub fn is_deleted(&self) -> bool {
         self.event_type == EventKind::Deleted
+    }
+}
+
+/// Semantic JSON equality: numbers compare **numerically**, everything else by
+/// strict `serde_json::Value` equality (#843).
+///
+/// `serde_json`'s `PartialEq` is representation-strict across `Number` variants,
+/// so `Number(PosInt(100)) != Number(Float(100.0))` — which made `total == 100`
+/// false for a PostgreSQL `numeric(10,2)` value of `100.00` while `>=`/`<=`
+/// (which coerce) reported the same operands equal. Integers compare exactly
+/// (`i64`/`u64` first, so values above 2^53 do not round through `f64`); the
+/// `f64` fallback covers genuine floats and mixed representations. Comparison
+/// is shallow: numbers nested inside arrays/objects still use strict equality.
+#[allow(clippy::float_cmp)]
+// Reason: exact f64 equality is the intended semantic — 100.00 == 100 after
+// coercion, with no epsilon tolerance to surprise operators.
+pub(crate) fn json_semantic_eq(left: &serde_json::Value, right: &serde_json::Value) -> bool {
+    match (left, right) {
+        (serde_json::Value::Number(l), serde_json::Value::Number(r)) => {
+            if let (Some(li), Some(ri)) = (l.as_i64(), r.as_i64()) {
+                return li == ri;
+            }
+            if let (Some(lu), Some(ru)) = (l.as_u64(), r.as_u64()) {
+                return lu == ru;
+            }
+            match (l.as_f64(), r.as_f64()) {
+                (Some(lf), Some(rf)) => lf == rf,
+                _ => false,
+            }
+        },
+        _ => left == right,
     }
 }
 

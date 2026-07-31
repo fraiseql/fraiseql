@@ -2,11 +2,31 @@
 //!
 //! This module implements a lightweight DSL for evaluating conditions against events.
 //! Supported conditions:
-//! - Field comparisons: `field == "value"`, `field != "value"`, `field > 10`, `field < 20`
+//! - Field comparisons: `field == 'value'`, `field != 'value'`, `field > 10`, `field < 20`
 //! - Field existence: `has_field('name')`
-//! - Field changes: `field_changed('status')`, `field_changed_to('status', 'shipped')`
+//! - Field changes: `field_changed('status')`, `field_changed_to('status', 'shipped')`,
+//!   `field_changed_from('status', 'pending')`
 //! - Logical operators: `&&` (AND), `||` (OR)
 //! - Grouping: `(condition1) && (condition2)`
+//!
+//! # Equality semantics (#843)
+//!
+//! `==` / `!=` compare numbers **numerically**, exactly like the ordered
+//! operators: a PostgreSQL `numeric(10,2)` value arriving as `100.00` equals
+//! the literal `100`. Integer comparisons are exact (no rounding through `f64`
+//! above 2^53). Quoting decides the literal's type: `total == 100` compares
+//! numerically, `code == '100'` compares as a string — a number never equals a
+//! string.
+//!
+//! # `field_changed*` requires a pre-image (#845)
+//!
+//! Change detection needs the row's before-image, which the change log records
+//! only for mutations that opt into `changelog_pre_image = true` (off by
+//! default). Evaluating any `field_changed*` condition against an UPDATE that
+//! carries no pre-image is an **error** (logged loudly, action skipped), not
+//! `false` — silently-never-fires is how a misconfigured shipping-confirmation
+//! observer looks "correctly configured but not matching". INSERT/DELETE
+//! events have no diff by definition and evaluate to `false` without error.
 //!
 //! # Examples
 //!
@@ -169,13 +189,18 @@ impl ConditionParser {
                 self.eval_comparison(field, op, value, event)
             },
             ConditionAst::HasField { field } => Ok(self.eval_has_field(field, event)),
-            ConditionAst::FieldChanged { field } => Ok(event.field_changed(field)),
+            ConditionAst::FieldChanged { field } => {
+                Self::require_change_tracking(event)?;
+                Ok(event.field_changed(field))
+            },
             ConditionAst::FieldChangedTo { field, value } => {
+                Self::require_change_tracking(event)?;
                 let parsed_value = serde_json::from_str::<Value>(value)
                     .unwrap_or_else(|_| Value::String(value.clone()));
                 Ok(event.field_changed_to(field, &parsed_value))
             },
             ConditionAst::FieldChangedFrom { field, value } => {
+                Self::require_change_tracking(event)?;
                 let parsed_value = serde_json::from_str::<Value>(value)
                     .unwrap_or_else(|_| Value::String(value.clone()));
                 Ok(event.field_changed_from(field, &parsed_value))
@@ -198,6 +223,32 @@ impl ConditionParser {
     pub fn parse_and_evaluate(&self, condition: &str, event: &EntityEvent) -> Result<bool> {
         let ast = self.parse(condition)?;
         self.evaluate(&ast, event)
+    }
+
+    /// Refuse to evaluate `field_changed*` when change tracking is unavailable
+    /// (#845).
+    ///
+    /// An UPDATE whose producer did not opt into `changelog_pre_image` carries
+    /// no pre-image, so `EntityEvent.changes` is `None` and "did this field
+    /// change?" is **unanswerable** — not "no". Before #845 these conditions
+    /// silently evaluated false, so a documented condition family never fired
+    /// in the default configuration and the observer merely looked
+    /// "not matching". `changes: Some(empty)` (pre-image recorded, nothing
+    /// changed) and INSERT/DELETE events (no diff exists by definition) still
+    /// evaluate normally.
+    fn require_change_tracking(event: &EntityEvent) -> Result<()> {
+        if event.event_type == crate::event::EventKind::Updated && event.changes.is_none() {
+            return Err(crate::error::ObserverError::InvalidCondition {
+                reason: format!(
+                    "field_changed* cannot evaluate for {} {}: the UPDATE carries no pre-image \
+                     (the producing mutation has changelog_pre_image = false), so change \
+                     tracking is unavailable. Enable changelog_pre_image on the mutation, or \
+                     remove the field_changed* condition from this observer.",
+                    event.entity_type, event.entity_id
+                ),
+            });
+        }
+        Ok(())
     }
 }
 

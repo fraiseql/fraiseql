@@ -951,6 +951,85 @@ fn test_search_action_config_is_rejected_as_unsupported() {
     );
 }
 
+// ── #632: database / log actions validate for real ──
+
+#[test]
+fn test_database_action_accepts_identifiers_and_rejects_injection() {
+    for good in ["fn_notify", "app.fn_notify", "_private", "a1.b2"] {
+        let action = ActionConfig::Database {
+            function_name: good.to_string(),
+            params:        None,
+        };
+        assert!(action.validate().is_ok(), "{good:?} is a valid SQL function identifier");
+    }
+    for bad in [
+        "fn; DROP TABLE tb_observer; --",
+        "pg_sleep(10)",
+        "a.b.c",
+        "fn name",
+        "",
+        "1fn",
+        "schema.",
+        ".fn",
+    ] {
+        let action = ActionConfig::Database {
+            function_name: bad.to_string(),
+            params:        None,
+        };
+        assert!(
+            matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
+            "{bad:?} must be rejected — the name is interpolated into SQL (#632)"
+        );
+    }
+}
+
+#[test]
+fn test_log_action_validates_level_and_template() {
+    for level in ["trace", "debug", "info", "warn", "error"] {
+        let action = ActionConfig::Log {
+            level:            level.to_string(),
+            message_template: "m".to_string(),
+        };
+        assert!(action.validate().is_ok(), "{level:?} is a valid log level");
+    }
+    let bad_level = ActionConfig::Log {
+        level:            "verbose".to_string(),
+        message_template: "m".to_string(),
+    };
+    assert!(matches!(bad_level.validate(), Err(ObserverError::InvalidActionConfig { .. })));
+    let empty_template = ActionConfig::Log {
+        level:            "info".to_string(),
+        message_template: String::new(),
+    };
+    assert!(matches!(
+        empty_template.validate(),
+        Err(ObserverError::InvalidActionConfig { .. })
+    ));
+}
+
+/// The admin-API DTO shape (`tb_observer.actions` JSONB) must deserialize into
+/// the runtime variants — that JSONB is exactly what `convert_observer` feeds
+/// through `serde_json::from_value` at load (#632).
+#[test]
+fn test_database_and_log_deserialize_from_admin_dto_shape() {
+    let actions: Vec<ActionConfig> = serde_json::from_value(serde_json::json!([
+        {"type": "database", "function_name": "app.fn_notify", "params": {"channel": "ops"}},
+        {"type": "log", "level": "warn", "message_template": "order {{ id }} changed"},
+        {"type": "log", "message_template": "level defaults to info"}
+    ]))
+    .expect("admin DTO action JSONB must deserialize into runtime ActionConfig");
+    assert_eq!(actions.len(), 3);
+    assert_eq!(actions[0].action_type(), "database");
+    assert_eq!(actions[1].action_type(), "log");
+    assert!(
+        matches!(&actions[2], ActionConfig::Log { level, .. } if level == "info"),
+        "level must default to info"
+    );
+    for a in &actions {
+        assert!(a.validate().is_ok(), "{} from DTO shape must validate", a.action_type());
+    }
+}
+
 // ── #428: cache invalidation now has a real Redis transport ──
 //
 // A well-formed `cache`/invalidate config validates (transport availability is

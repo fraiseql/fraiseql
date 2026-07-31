@@ -346,12 +346,12 @@ pub enum ActionConfig {
 impl ActionConfig {
     /// Action types the observer runtime can actually dispatch (#612 item 10).
     ///
-    /// The runtime (`fraiseql_observers`) has wired dispatchers only for these.
-    /// `database` and `log` are accepted by this DTO's shape but have no runtime
-    /// dispatcher, so an observer created with them used to return 201 and then be
-    /// silently warn-and-skipped at runtime load. Creating one is now rejected at
-    /// the API boundary; real `database`/`log` dispatchers are tracked in #632.
-    pub const RUNTIME_DISPATCHABLE_TYPES: &'static [&'static str] = &["webhook", "email", "slack"];
+    /// The runtime (`fraiseql_observers`) has wired dispatchers for all of
+    /// these. `database` (a PostgreSQL function call with the event envelope)
+    /// and `log` (a structured tracing event) gained real dispatchers in #632,
+    /// so the #612-era API rejection for them is lifted.
+    pub const RUNTIME_DISPATCHABLE_TYPES: &'static [&'static str] =
+        &["webhook", "email", "slack", "database", "log"];
 
     /// The action `type` discriminant as it appears in the admin API and the
     /// persisted `actions` JSONB (`webhook`, `email`, `slack`, `database`, `log`).
@@ -367,9 +367,20 @@ impl ActionConfig {
     }
 
     /// Whether the observer runtime has a wired dispatcher for this action type.
+    ///
+    /// All current DTO variants dispatch for real since #632; the method stays
+    /// (with its `reject_undispatchable_actions` caller) as the gate for any
+    /// future variant added to the DTO before its runtime dispatcher exists.
     #[must_use]
     pub const fn is_runtime_dispatchable(&self) -> bool {
-        matches!(self, Self::Webhook { .. } | Self::Email { .. } | Self::Slack { .. })
+        matches!(
+            self,
+            Self::Webhook { .. }
+                | Self::Email { .. }
+                | Self::Slack { .. }
+                | Self::Database { .. }
+                | Self::Log { .. }
+        )
     }
 }
 

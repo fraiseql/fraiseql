@@ -32,9 +32,11 @@ pub trait ActionDispatcher: Send + Sync {
 
 /// Production action dispatcher that delegates to the concrete action structs.
 ///
-/// Webhook / Slack / Email / Cache (the last only with the `caching` feature and
-/// a wired Redis invalidator) have real transports. SMS / Push / Search remain
-/// rejected as unsupported (H24), so they have no executor.
+/// Webhook / Slack / Email / Cache (the last only with the `caching` feature
+/// and a wired Redis invalidator) / Database (#632, with a wired pool) / Log
+/// (#632) have real transports. SMS / Push / Search remain rejected as
+/// unsupported (H24 / #428), so they have no executor — failing loud is
+/// correct behaviour until a real provider transport is wired.
 #[allow(clippy::struct_field_names)] // Reason: `_action` postfix clarifies executor vs config fields
 pub(super) struct DefaultActionDispatcher {
     /// Webhook action executor
@@ -50,6 +52,14 @@ pub(super) struct DefaultActionDispatcher {
     /// with no SMTP backend.
     #[cfg(feature = "caching")]
     pub(super) cache_invalidator: Option<Arc<crate::cache::redis::RedisCacheInvalidator>>,
+    /// PostgreSQL pool slot for `database` actions (#632).
+    ///
+    /// A shared `OnceLock` set by [`super::ObserverExecutor::with_database_pool`]
+    /// after construction. Unset means no pool was wired: a `database` action
+    /// then fails loud (permanent) rather than silently no-opping, exactly like
+    /// an email action with no SMTP backend.
+    #[cfg(feature = "postgres")]
+    pub(super) database_pool:     Arc<std::sync::OnceLock<sqlx::PgPool>>,
 }
 
 /// Maximum byte length accepted for a webhook URL.
@@ -274,6 +284,18 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     key_pattern,
                     action: cache_action,
                 } => self.dispatch_cache(key_pattern, cache_action, event).await,
+                // #632: real database dispatcher — call a PostgreSQL function
+                // with the event envelope; fails loud without a wired pool.
+                ActionConfig::Database {
+                    function_name,
+                    params,
+                } => self.dispatch_database(function_name, params.as_ref(), event).await,
+                // #632: real log dispatcher — a structured tracing event at the
+                // configured level, message rendered from the event data.
+                ActionConfig::Log {
+                    level,
+                    message_template,
+                } => Ok(dispatch_log(level, message_template, event)),
                 // SMS / Push / Search have no real transport wired. They
                 // previously delegated to stub actions that fabricated
                 // `success: true` and sent nothing (H24). They now fail loud here
@@ -287,6 +309,59 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 }),
             }
         })
+    }
+}
+
+/// Dispatch a `log` action (#632): emit one structured tracing event at the
+/// configured level and report the rendered message.
+///
+/// The template renders with the same `{{ field }}` substitution as the Slack
+/// message template. The level string was validated at config load; an
+/// unexpected value (operator-edited `tb_observer.actions`) falls back to
+/// `info` rather than dropping the line — the log IS the action's effect.
+fn dispatch_log(level: &str, message_template: &str, event: &EntityEvent) -> ActionResult {
+    let start = std::time::Instant::now();
+    let message = crate::actions::render_text_template(message_template, &event.data);
+    match level {
+        "trace" => tracing::trace!(
+            target: "fraiseql_observers::action::log",
+            event_id = %event.id, entity_type = %event.entity_type,
+            entity_id = %event.entity_id, event_type = ?event.event_type,
+            "{message}"
+        ),
+        "debug" => tracing::debug!(
+            target: "fraiseql_observers::action::log",
+            event_id = %event.id, entity_type = %event.entity_type,
+            entity_id = %event.entity_id, event_type = ?event.event_type,
+            "{message}"
+        ),
+        "warn" => tracing::warn!(
+            target: "fraiseql_observers::action::log",
+            event_id = %event.id, entity_type = %event.entity_type,
+            entity_id = %event.entity_id, event_type = ?event.event_type,
+            "{message}"
+        ),
+        "error" => tracing::error!(
+            target: "fraiseql_observers::action::log",
+            event_id = %event.id, entity_type = %event.entity_type,
+            entity_id = %event.entity_id, event_type = ?event.event_type,
+            "{message}"
+        ),
+        _ => tracing::info!(
+            target: "fraiseql_observers::action::log",
+            event_id = %event.id, entity_type = %event.entity_type,
+            entity_id = %event.entity_id, event_type = ?event.event_type,
+            "{message}"
+        ),
+    }
+    #[allow(clippy::cast_precision_loss)] // Reason: sub-second duration, precision irrelevant
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+    ActionResult {
+        action_type: "log".to_string(),
+        success: true,
+        message,
+        duration_ms,
+        status_code: None,
     }
 }
 
@@ -347,5 +422,331 @@ impl DefaultActionDispatcher {
         Err(ObserverError::UnsupportedActionType {
             action_type: "cache".to_string(),
         })
+    }
+
+    /// Dispatch a `database` action (#632): call the configured PostgreSQL
+    /// function with the event envelope `{"event": ..., "params": ...}`.
+    ///
+    /// The function name is re-validated as a strict SQL identifier at dispatch
+    /// (`tb_observer.actions` is operator-editable production data, so
+    /// config-load validation alone is not a boundary), then interpolated;
+    /// the envelope is bound as a real `$1` parameter. Fails loud without a
+    /// wired pool — never a fabricated success.
+    #[cfg(feature = "postgres")]
+    async fn dispatch_database(
+        &self,
+        function_name: &str,
+        params: Option<&serde_json::Value>,
+        event: &EntityEvent,
+    ) -> Result<ActionResult> {
+        let identity_check = crate::config::ActionConfig::Database {
+            function_name: function_name.to_string(),
+            params:        None,
+        };
+        if identity_check.validate().is_err() {
+            return Err(ObserverError::InvalidActionConfig {
+                reason: format!(
+                    "database action function_name {function_name:?} is not a plain or \
+                     schema-qualified SQL identifier"
+                ),
+            });
+        }
+
+        let Some(pool) = self.database_pool.get() else {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: "Database action has no PostgreSQL pool wired (#632): build the \
+                         observer executor with `with_database_pool`"
+                    .to_string(),
+            });
+        };
+
+        let envelope = serde_json::json!({
+            "event": event,
+            "params": params,
+        });
+
+        let start = std::time::Instant::now();
+        // Identifier-validated function name; the payload itself is a bound
+        // parameter. The function's return value is deliberately discarded.
+        sqlx::query(&format!("SELECT {function_name}($1::jsonb)"))
+            .bind(&envelope)
+            .execute(pool)
+            .await
+            .map_err(|e| ObserverError::ActionExecutionFailed {
+                reason: format!("database action {function_name} failed: {e}"),
+            })?;
+        let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+        Ok(ActionResult {
+            action_type: "database".to_string(),
+            success: true,
+            message: format!("called {function_name}"),
+            duration_ms,
+            status_code: None,
+        })
+    }
+
+    /// Dispatch a `database` action without the `postgres` feature: no driver
+    /// exists, so the action always fails loud.
+    #[cfg(not(feature = "postgres"))]
+    #[allow(clippy::unused_self, clippy::unused_async)] // Reason: mirrors the `postgres` async signature so the call site is feature-agnostic
+    async fn dispatch_database(
+        &self,
+        _function_name: &str,
+        _params: Option<&serde_json::Value>,
+        _event: &EntityEvent,
+    ) -> Result<ActionResult> {
+        Err(ObserverError::UnsupportedActionType {
+            action_type: "database".to_string(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod dispatch_632_tests {
+    use std::sync::{Arc, Mutex};
+
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::event::EventKind;
+
+    fn test_event() -> EntityEvent {
+        EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"id": "order-1", "status": "shipped"}),
+        )
+    }
+
+    /// A minimal collecting subscriber: the log line IS the `log` action's
+    /// effect, so the test must observe the emitted tracing event — asserting
+    /// only the returned `ActionResult` would re-create the fabricated-success
+    /// pattern this phase exists to kill.
+    #[derive(Clone)]
+    struct Collector {
+        events: Arc<Mutex<Vec<(String, String)>>>, // (level, message)
+    }
+
+    impl tracing::Subscriber for Collector {
+        fn enabled(&self, _: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, _: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+            tracing::span::Id::from_u64(1)
+        }
+
+        fn record(&self, _: &tracing::span::Id, _: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            struct MessageVisitor(Option<String>);
+            impl tracing::field::Visit for MessageVisitor {
+                fn record_debug(
+                    &mut self,
+                    field: &tracing::field::Field,
+                    value: &dyn std::fmt::Debug,
+                ) {
+                    if field.name() == "message" {
+                        self.0 = Some(format!("{value:?}"));
+                    }
+                }
+            }
+            if event.metadata().target() == "fraiseql_observers::action::log" {
+                let mut visitor = MessageVisitor(None);
+                event.record(&mut visitor);
+                self.events
+                    .lock()
+                    .expect("collector lock")
+                    .push((event.metadata().level().to_string(), visitor.0.unwrap_or_default()));
+            }
+        }
+
+        fn enter(&self, _: &tracing::span::Id) {}
+
+        fn exit(&self, _: &tracing::span::Id) {}
+    }
+
+    #[test]
+    fn log_action_emits_a_rendered_structured_line() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let collector = Collector {
+            events: Arc::clone(&events),
+        };
+
+        let result = tracing::subscriber::with_default(collector, || {
+            dispatch_log("warn", "order {{ id }} is now {{ status }}", &test_event())
+        });
+
+        assert!(result.success, "log dispatch reports success");
+        assert_eq!(result.action_type, "log");
+        assert_eq!(result.message, "order order-1 is now shipped", "template must render");
+
+        let captured = events.lock().expect("collector lock");
+        assert_eq!(
+            captured.len(),
+            1,
+            "#632: exactly one tracing event must actually be emitted — the line is the effect"
+        );
+        let (level, message) = &captured[0];
+        assert_eq!(level, "WARN", "configured level must be honoured");
+        assert_eq!(message, "order order-1 is now shipped");
+    }
+
+    #[test]
+    fn log_action_unknown_level_falls_back_to_info_not_dropped() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let collector = Collector {
+            events: Arc::clone(&events),
+        };
+
+        tracing::subscriber::with_default(collector, || {
+            dispatch_log("verbose", "m", &test_event());
+        });
+
+        let captured = events.lock().expect("collector lock");
+        assert_eq!(captured.len(), 1, "an unexpected level must not drop the line");
+        assert_eq!(captured[0].0, "INFO");
+    }
+
+    /// #632 fail-loud: a `database` action with no wired pool must error, never
+    /// fabricate success.
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    async fn database_action_without_pool_fails_loud() {
+        let dispatcher = DefaultActionDispatcher {
+            webhook_action: Arc::new(crate::actions::WebhookAction::new()),
+            slack_action: Arc::new(crate::actions::SlackAction::new()),
+            email_action: Arc::new(crate::actions::EmailAction::new()),
+            #[cfg(feature = "caching")]
+            cache_invalidator: None,
+            database_pool: Arc::new(std::sync::OnceLock::new()),
+        };
+
+        let err = dispatcher
+            .dispatch_database("fn_notify", None, &test_event())
+            .await
+            .expect_err("no pool wired must be a loud permanent failure");
+        assert!(
+            matches!(err, ObserverError::ActionPermanentlyFailed { .. }),
+            "must be permanent (no retry can fix a missing pool): {err}"
+        );
+    }
+
+    /// #632 injection guard: the function name is interpolated into SQL, so a
+    /// non-identifier must be rejected at dispatch even if it somehow bypassed
+    /// config-load validation (operator-edited `tb_observer.actions`).
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    async fn database_action_rejects_non_identifier_function_names() {
+        let dispatcher = DefaultActionDispatcher {
+            webhook_action: Arc::new(crate::actions::WebhookAction::new()),
+            slack_action: Arc::new(crate::actions::SlackAction::new()),
+            email_action: Arc::new(crate::actions::EmailAction::new()),
+            #[cfg(feature = "caching")]
+            cache_invalidator: None,
+            database_pool: Arc::new(std::sync::OnceLock::new()),
+        };
+
+        for evil in [
+            "fn; DROP TABLE tb_observer; --",
+            "pg_sleep(10)",
+            "schema.fn.extra",
+            "fn name",
+            "",
+            "1fn",
+        ] {
+            let err = dispatcher
+                .dispatch_database(evil, None, &test_event())
+                .await
+                .expect_err("non-identifier function name must be rejected");
+            assert!(
+                matches!(err, ObserverError::InvalidActionConfig { .. }),
+                "identifier guard must fire before any pool access for {evil:?}: {err}"
+            );
+        }
+    }
+
+    /// #632 end-to-end: a `database` action calls the configured PostgreSQL
+    /// function with the `{"event": ..., "params": ...}` envelope.
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    #[ignore = "requires PostgreSQL"]
+    async fn database_action_calls_the_function_for_real() {
+        let url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set for --ignored postgres tests");
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&url)
+            .await
+            .expect("connect");
+
+        sqlx::raw_sql(
+            "CREATE TABLE IF NOT EXISTS test_632_db_action_calls \
+                 (id BIGSERIAL PRIMARY KEY, envelope JSONB NOT NULL);
+             CREATE OR REPLACE FUNCTION test_632_record_event(envelope jsonb) RETURNS void \
+                 LANGUAGE sql AS \
+                 'INSERT INTO test_632_db_action_calls (envelope) VALUES (envelope)';",
+        )
+        .execute(&pool)
+        .await
+        .expect("setup function");
+        sqlx::query("DELETE FROM test_632_db_action_calls")
+            .execute(&pool)
+            .await
+            .expect("clean table");
+
+        let slot = Arc::new(std::sync::OnceLock::new());
+        let _ = slot.set(pool.clone());
+        let dispatcher = DefaultActionDispatcher {
+            webhook_action: Arc::new(crate::actions::WebhookAction::new()),
+            slack_action: Arc::new(crate::actions::SlackAction::new()),
+            email_action: Arc::new(crate::actions::EmailAction::new()),
+            #[cfg(feature = "caching")]
+            cache_invalidator: None,
+            database_pool: slot,
+        };
+
+        let event = test_event();
+        let params = json!({"channel": "ops"});
+        let result = dispatcher
+            .dispatch_database("test_632_record_event", Some(&params), &event)
+            .await
+            .expect("dispatch must call the function");
+        assert!(result.success);
+
+        let (count, envelope): (i64, serde_json::Value) = sqlx::query_as(
+            "SELECT COUNT(*) OVER (), envelope FROM test_632_db_action_calls LIMIT 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("row must exist");
+        assert_eq!(count, 1, "#632: exactly one function call must have landed");
+        assert_eq!(envelope["params"]["channel"], "ops", "params must ride the envelope");
+        assert_eq!(
+            envelope["event"]["entity_type"], "Order",
+            "the full event must ride the envelope"
+        );
+
+        // Failure path (honest-failure doctrine): a missing function errors.
+        let err = dispatcher
+            .dispatch_database("test_632_no_such_function", None, &event)
+            .await
+            .expect_err("a missing function must be a loud error");
+        assert!(
+            matches!(err, ObserverError::ActionExecutionFailed { .. }),
+            "missing function surfaces as an execution failure: {err}"
+        );
+
+        sqlx::raw_sql(
+            "DROP FUNCTION IF EXISTS test_632_record_event(jsonb);
+             DROP TABLE IF EXISTS test_632_db_action_calls;",
+        )
+        .execute(&pool)
+        .await
+        .expect("teardown");
     }
 }

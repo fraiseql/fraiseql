@@ -238,7 +238,10 @@ fn compiled_observer_handlers_are_rejected_at_compile() {
     );
     assert!(err.contains("[[observers.handlers]]"), "err = {err}");
     assert!(err.contains("tb_observer"), "err = {err}");
-    assert!(err.contains("/issues/631"), "err = {err}");
+    // #631 decided: the rejection is permanent policy (consolidated on
+    // tb_observer), no longer a stopgap pointing at a future boot-time loader.
+    assert!(err.contains("#631"), "err = {err}");
+    assert!(err.contains("not a runtime concept"), "err = {err}");
 
     // `[observers] enabled` without handlers is a consumed changelog gate — still valid.
     let schema = TomlSchema::parse_toml(

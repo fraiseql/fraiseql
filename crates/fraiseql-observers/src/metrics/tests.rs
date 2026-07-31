@@ -188,3 +188,25 @@ mod registry_tests {
         assert_eq!(metrics.job_dlq_items.get(), 15);
     }
 }
+
+/// #634: the bridge rendering must actually carry the observer series — this
+/// is the string `fraiseql-server` appends to its `/metrics` scrape, so an
+/// empty or observer-less rendering means the bridge silently exports nothing.
+#[cfg(feature = "metrics")]
+mod bridge_634_tests {
+    use super::super::MetricsRegistry;
+
+    #[test]
+    fn render_prometheus_text_carries_observer_series() {
+        let metrics = MetricsRegistry::global().expect("global registry");
+        metrics.event_processed();
+
+        let text =
+            crate::metrics::handler::render_prometheus_text().expect("encoding must succeed");
+        assert!(
+            text.contains("fraiseql_observer_events_processed_total"),
+            "#634: the rendered text must include the observer series; got {} bytes without it",
+            text.len()
+        );
+    }
+}

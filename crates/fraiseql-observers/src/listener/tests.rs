@@ -312,6 +312,78 @@ mod change_log_tests {
         assert_eq!(changes["temp_field"].new, Value::Null);
     }
 
+    /// #845: "tracked, nothing changed" must be `Some(empty)`, not `None`.
+    ///
+    /// `changes: None` means change tracking is UNAVAILABLE (no pre-image) and
+    /// makes `field_changed*` conditions error loudly. A no-op UPDATE whose
+    /// producer DID record a pre-image is answerable — the answer is "nothing
+    /// changed" — so it must carry an empty map, not be conflated with the
+    /// unavailable case.
+    #[test]
+    fn test_noop_update_with_pre_image_yields_empty_changes_not_none() {
+        let entity_id = Uuid::new_v4();
+        let entry = ChangeLogEntry {
+            id:                   7,
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
+            schema_version:       None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({ "name": "John" }),
+            object_data_before:   Some(json!({ "name": "John" })),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:55:00+00:00".to_string(),
+        };
+
+        let event = entry.to_entity_event().unwrap();
+        let changes = event
+            .changes
+            .expect("#845: a recorded pre-image with an empty diff must be Some(empty), not None");
+        assert!(changes.is_empty(), "no field changed, map must be empty");
+    }
+
+    /// #845 counterpart: an UPDATE with NO pre-image must carry `changes: None`
+    /// — change tracking unavailable — so the condition evaluator can refuse
+    /// `field_changed*` instead of silently returning false.
+    #[test]
+    fn test_update_without_pre_image_yields_changes_none() {
+        let entity_id = Uuid::new_v4();
+        let entry = ChangeLogEntry {
+            id:                   8,
+            pk_entity_change_log: Uuid::new_v4().to_string(),
+            fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
+            schema_version:       None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({ "name": "John" }),
+            object_data_before:   None,
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:56:00+00:00".to_string(),
+        };
+
+        let event = entry.to_entity_event().unwrap();
+        assert!(
+            event.changes.is_none(),
+            "no pre-image recorded — change tracking must read as unavailable"
+        );
+    }
+
     #[test]
     fn test_timestamp_parsing() {
         let entity_id = Uuid::new_v4();
