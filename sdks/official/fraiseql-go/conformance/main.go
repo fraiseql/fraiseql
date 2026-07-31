@@ -65,11 +65,7 @@ func authorFull() error {
 		return err
 	}
 
-	fraiseql.Enum("OrderStatus", map[string]string{
-		"PENDING":   "PENDING",
-		"SHIPPED":   "SHIPPED",
-		"CANCELLED": "CANCELLED",
-	})
+	fraiseql.Enum("OrderStatus", "PENDING", "SHIPPED", "CANCELLED")
 
 	if err := fraiseql.NewQuery("users").
 		ReturnType("User").ReturnsArray(true).Nullable(false).

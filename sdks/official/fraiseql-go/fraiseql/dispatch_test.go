@@ -11,11 +11,7 @@ func TestDispatchExplicitMapping(t *testing.T) {
 	fraiseql.ClearRegistry()
 
 	// Register enum
-	fraiseql.Enum("TimeInterval", map[string]string{
-		"DAY":   "day",
-		"WEEK":  "week",
-		"MONTH": "month",
-	})
+	fraiseql.Enum("TimeInterval", "DAY", "WEEK", "MONTH")
 
 	// Register types
 	type Order struct {
@@ -56,10 +52,7 @@ func TestDispatchTemplate(t *testing.T) {
 	fraiseql.ClearRegistry()
 
 	// Register enum
-	fraiseql.Enum("Environment", map[string]string{
-		"STAGING":    "staging",
-		"PRODUCTION": "production",
-	})
+	fraiseql.Enum("Environment", "STAGING", "PRODUCTION")
 
 	// Register type
 	type User struct {
@@ -93,7 +86,7 @@ func TestDispatchTemplate(t *testing.T) {
 func TestDispatchRefusalIsIndependentOfOtherSettings(t *testing.T) {
 	fraiseql.ClearRegistry()
 
-	fraiseql.Enum("Region", map[string]string{"US": "us", "EU": "eu"})
+	fraiseql.Enum("Region", "US", "EU")
 
 	type Data struct {
 		ID int `fraiseql:"id,type=Int"`

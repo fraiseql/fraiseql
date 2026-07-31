@@ -132,6 +132,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `event_id`): a bare event id gave the worker nothing to dispatch with (#844).
   `Job::new`/`Job::with_config` signatures changed accordingly; jobs serialized by
   pre-#844 builds do not deserialize (they were never executed anyway).
+- **Go SDK: `Enum` takes ordered members (#929).** `Enum(name, values map[string]string)`
+  iterated a Go map, so the exported member order was randomized per run — two builds of
+  one schema produced different artifacts and the SDK conformance gate was a coin flip —
+  and the map's values were silently dropped (only keys were ever exported). The
+  signature is now `Enum(name string, members ...string)`, and every `GetSchema` category
+  is exported in sorted-name order so the whole export is reproducible.
 - **Quoted condition literals are strings (#843).** The DSL lexer previously discarded
   quoting, so `code == '100'` compared a string field against the *number* 100 and was
   silently false forever. A quoted literal now always compares as a string and never
