@@ -144,11 +144,12 @@ impl context::Host for StoreData {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    async fn get_env_var(&mut self, name: String) -> Option<String> {
-        let Ok(host) = self.require_host_context() else {
-            return None;
-        };
-        host.env_var(&name).ok().flatten()
+    async fn get_env_var(&mut self, name: String) -> Result<Option<String>, String> {
+        // Propagate a blocked-name refusal instead of collapsing it into `None`
+        // (#840): the guest must be able to distinguish "the allowlist refused
+        // you" (an error it should surface) from "allowlisted but unset".
+        let host = self.require_host_context()?;
+        host.env_var(&name).map_err(host_err_string)
     }
 
     async fn get_idempotency_token(&mut self) -> Option<String> {

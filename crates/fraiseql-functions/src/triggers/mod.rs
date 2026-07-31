@@ -33,7 +33,6 @@
 //! let registry = TriggerRegistry::load_from_definitions(&functions)?;
 //!
 //! // Query triggers by type
-//! let http_routes = registry.http_routes();
 //! let before_hooks = registry.before_mutation_triggers_for("createUser");
 //! ```
 //!
@@ -52,7 +51,9 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use cron::{CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger};
+pub use cron::{
+    CronDecision, CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger,
+};
 pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use ingest::{
     Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSource,

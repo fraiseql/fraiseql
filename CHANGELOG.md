@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every `cron:` function fires on every matching window, not once ever (#796,
+  CRITICAL).** `CronExecutionState::should_execute` returned `last_exec >= window_start` —
+  the exact negation of its own comment — and `find_schedule_window` stepped back one minute
+  before searching, returning the *previous* window (or, for any schedule sparser than
+  hourly, giving up after a 60-minute scan and returning the tick instant itself). Under
+  real wall-clock timestamps every daily and weekly schedule fired exactly once and then
+  never again, and sub-hourly schedules degenerated to a per-tick coin flip that wedged
+  permanently after the first miss — silently, with nothing logged. The window is now the
+  minute *containing* the tick and the guard is `last_executed < window_start`; the fix is
+  pinned by a ported 20 000-tick simulation asserting exactly one fire per matching window
+  under sub-second jitter. Every scheduling loop (functions cron, server cron, scheduled
+  sources — including #573 scheduled ingress, which this bug had capped at one run per
+  process) now logs a window-suppressed tick at `warn` instead of silently continuing.
+- **`_fraiseql_cron_state` is read back at boot (#796).** The table was documented as the
+  cross-restart "already fired this window" guard, but `PgCronState` had `record_fire` and
+  no loader — nothing ever read it. Each cron poller now resumes its fire-window state from
+  the durable record; a state read failure refuses boot instead of silently double-firing.
+- **Cron day-of-week fields use POSIX numbering (#841).** Matching used chrono's
+  `number_from_sunday()` (Sun=1…Sat=7) against POSIX fields (Sun=0…Sat=6), so `0 9 * * 1`
+  fired on **Sundays**, `1-5` meant Sun–Thu, and `0` (Sunday) could never match at all.
+  Weekday tokens now match their POSIX days, `7` is accepted as the alternate Sunday, and a
+  calendar-pinned test covers every token.
+- **A dispatched function sees a real identity (#803).** The live host's `SecurityContext`
+  was a hard-coded `anonymous` placeholder (documented "for testing") on every production
+  path, so `fraiseql_auth_context()` fabricated an empty identity and `send_email` could
+  never resolve a sender — the entire wiring was dead on arrival, dead-lettering every
+  send. The host now carries the triggering caller's authenticated context on the
+  after:mutation request path (GraphQL and REST), and the function's own `run_as` identity
+  on background paths (cron, sources, after:ingest, after:capture); the `fraiseql_query`
+  bridge stays under the `run_as` ceiling. A host with no wired identity fails
+  `auth_context()` loudly instead of fabricating one, and the send-status/suppression
+  tenant stamp now carries the caller's tenant instead of collapsing to NULL.
+- **`fraiseql_env_var` can actually return a value (#840).** The env-var allowlist had no
+  producer — no TOML key, no env var, no builder — so deny-by-default degenerated into
+  deny-always while docs described granting secrets, and a blocked read was
+  indistinguishable from an unset variable. The allowlist is now populated from
+  `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` (after:mutation/cron) and `[sources]
+  allowed_env_vars` / `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (sources).
+- **The Deno CPU watchdog stays armed across the event loop (#804).** It was disarmed
+  immediately after `execute_script` returned — before the event loop ran — so a guest that
+  spun *after* an `await` (a poll loop without a sleep) pinned an executor thread and its
+  V8 isolate at 100 % CPU forever; the event-loop `tokio::time::timeout` future was never
+  polled again and could not fire. Script evaluation and the event loop now share one
+  watchdog deadline, and a spin after a real async host op is terminated at `max_duration`.
+
+### Breaking
+
+- **An unrecognized `after:mutation`/`after:capture` operation token fails the load
+  (#842).** `after:mutation:User:created` (or `:INSERT`, or any typo) used to silently
+  widen the trigger to *all* event kinds — a welcome-email function also fired on every
+  delete. Only `insert`/`update`/`delete` narrow; the documented `*` wildcard and the
+  token-less form still mean "all kinds"; anything else aborts startup with an error
+  naming the function and the valid tokens.
+- **`http:` triggers are rejected at registry load (#871).** They were accepted, stored in
+  a matcher no server code consumes, and never served — a declared `http:` function
+  silently did nothing while `POST /functions/v1/{name}` ignored the trigger entirely.
+  Until a mounted route surface exists, a declared `http:` trigger aborts startup with the
+  same loud error `after:storage` gets. The `TriggerRegistry` `http_routes` field and its
+  accessors are removed.
+- **`env_var` refuses non-allowlisted names loudly (#840).** A blocked name is now an
+  authorization error (a thrown exception in Deno guests; `result` in the WASM WIT, whose
+  `get-env-var` signature changed to `result<option<string>, string>`); `Ok(None)`/`null`
+  is reserved for an allowlisted but unset variable.
+- **`fraiseql_sql_query` is documented as not implemented (#871).** The guest typings and
+  architecture docs advertised a working raw-SQL op; it has never had an execution
+  backend (statements were classified, never executed, then failed loud). The typings,
+  the host module doc's "RLS-backed raw SQL" claim, and the docs now say so.
+- `LiveHostContext.security_context` is no longer a public field; wire an identity with
+  `with_security_context(...)`. The dead `host::factory` module (a stub with no
+  production caller) is removed. `build_cron_pollers` is now async and fallible;
+  `spawn_after_mutation` takes the triggering caller's `SecurityContext`.
+
 ### Security
 
 - **A project-wide `[inject_defaults]` tenant predicate reaches the operations it configures

@@ -367,7 +367,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         hooks.as_ref(),
                         &host_config,
                         &fraiseql_functions::ResourceLimits::default(),
-                    );
+                    )
+                    .await
+                    .map_err(|e| {
+                        // Fail loud: a cross-restart fire guard whose state cannot
+                        // be read back is not a guard (#796).
+                        ServerError::ConfigError(format!(
+                            "Failed to read back cron state (_fraiseql_cron_state): {e}"
+                        ))
+                    })?;
                     let started = pollers.len();
                     for poller in pollers {
                         self.tasks.spawn(async move { poller.run_forever().await });

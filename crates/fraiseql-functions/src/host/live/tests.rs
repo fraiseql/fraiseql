@@ -752,8 +752,8 @@ async fn test_host_auth_context_returns_claims() {
         timestamp:    chrono::Utc::now(),
     };
 
-    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
-    ctx.security_context = SecurityContext {
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    let ctx = ctx.with_security_context(SecurityContext {
         user_id:          fraiseql_core::types::UserId("user123".to_string()),
         roles:            vec!["admin".to_string(), "user".to_string()],
         scopes:           vec!["read:users".to_string(), "write:users".to_string()],
@@ -767,7 +767,7 @@ async fn test_host_auth_context_returns_claims() {
         audience:         None,
         email:            None,
         display_name:     None,
-    };
+    });
 
     let result = ctx.auth_context();
 
@@ -792,8 +792,8 @@ async fn test_host_auth_context_redacts_sensitive() {
         timestamp:    chrono::Utc::now(),
     };
 
-    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
-    ctx.security_context = SecurityContext {
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    let ctx = ctx.with_security_context(SecurityContext {
         user_id:          fraiseql_core::types::UserId("user123".to_string()),
         roles:            vec!["admin".to_string()],
         scopes:           vec!["read:users".to_string()],
@@ -807,7 +807,7 @@ async fn test_host_auth_context_redacts_sensitive() {
         audience:         None,
         email:            None,
         display_name:     None,
-    };
+    });
 
     let result = ctx.auth_context();
 
@@ -834,8 +834,8 @@ async fn test_host_auth_context_exposes_verified_sending_identity() {
         timestamp:    chrono::Utc::now(),
     };
 
-    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
-    ctx.security_context = SecurityContext {
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    let ctx = ctx.with_security_context(SecurityContext {
         user_id:          fraiseql_core::types::UserId("user123".to_string()),
         roles:            vec![],
         scopes:           vec![],
@@ -849,7 +849,7 @@ async fn test_host_auth_context_exposes_verified_sending_identity() {
         audience:         None,
         email:            Some("rep@outreach.example".to_string()),
         display_name:     Some("Sales Rep".to_string()),
-    };
+    });
 
     let value = ctx.auth_context().expect("auth context");
     assert_eq!(value["email"], "rep@outreach.example");
@@ -888,8 +888,11 @@ async fn test_host_env_var_returns_allowed() {
     std::env::remove_var("APP_URL");
 }
 
+/// #840: a blocked read must be distinguishable from an unset variable — the
+/// pre-fix `Ok(None)` made "the allowlist refused you" indistinguishable from
+/// "the variable does not exist", so a mis-scoped secret read failed silently.
 #[tokio::test]
-async fn test_host_env_var_blocks_disallowed() {
+async fn test_host_env_var_blocked_name_is_an_authorization_error() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
         entity:       "Config".to_string(),
@@ -904,15 +907,45 @@ async fn test_host_env_var_blocks_disallowed() {
     let ctx = LiveHostContext::new(payload, config);
 
     // Set an env var that's not in allowlist
-    std::env::set_var("DATABASE_URL", "postgres://secret:password@localhost/db");
+    std::env::set_var("FRAISEQL_TEST_BLOCKED_SECRET", "postgres://secret:password@localhost/db");
 
-    let result = ctx.env_var("DATABASE_URL");
+    let error = ctx
+        .env_var("FRAISEQL_TEST_BLOCKED_SECRET")
+        .expect_err("a non-allowlisted name is refused loudly, never a silent null");
+    assert!(
+        matches!(error, fraiseql_error::FraiseQLError::Authorization { .. }),
+        "expected an Authorization refusal, got: {error:?}"
+    );
+    assert!(
+        error.to_string().contains("FRAISEQL_TEST_BLOCKED_SECRET"),
+        "the refusal names the variable so the author can fix the allowlist: {error}"
+    );
 
-    assert!(result.is_ok());
-    // Should return None silently, not error
-    assert_eq!(result.unwrap(), None);
+    std::env::remove_var("FRAISEQL_TEST_BLOCKED_SECRET");
+}
 
-    std::env::remove_var("DATABASE_URL");
+/// #803: a host constructed without a wired identity must fail `auth_context`
+/// loud — the pre-fix code returned a hard-coded `anonymous` placeholder
+/// (documented "for testing") on every production dispatch path.
+#[tokio::test]
+async fn test_host_auth_context_without_wired_identity_fails_loud() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity:       "User".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let error = ctx
+        .auth_context()
+        .expect_err("no wired identity ⇒ a loud error, never a fabricated anonymous context");
+    assert!(
+        error.to_string().contains("security context"),
+        "the error names the missing wiring: {error}"
+    );
 }
 
 #[tokio::test]
@@ -1035,10 +1068,33 @@ fn send_email_payload() -> EventPayload {
     }
 }
 
+/// An authenticated caller identity for the send tests — `email` is the
+/// verified sending address the per-user policy binds `from` to.
+fn caller_identity(
+    email: Option<&str>,
+    tenant: Option<&str>,
+) -> fraiseql_core::security::SecurityContext {
+    fraiseql_core::security::SecurityContext {
+        user_id:          fraiseql_core::types::UserId("alice".to_string()),
+        roles:            vec![],
+        scopes:           vec![],
+        tenant_id:        tenant.map(fraiseql_core::types::TenantId::new),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: chrono::Utc::now(),
+        request_id:       "req-send".to_string(),
+        ip_address:       None,
+        attributes:       std::collections::HashMap::new(),
+        issuer:           None,
+        audience:         None,
+        email:            email.map(ToString::to_string),
+        display_name:     None,
+    }
+}
+
 #[tokio::test]
 async fn test_send_email_from_is_host_owned_not_guest_supplied() {
-    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
-    host.security_context.email = Some("alice@example.com".to_string());
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_security_context(caller_identity(Some("alice@example.com"), None));
     let transport = Arc::new(RecordingTransport::default());
     let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
 
@@ -1066,10 +1122,8 @@ async fn test_send_email_threads_the_idempotency_token_as_send_id() {
     // exactly-once key, and the tenant is threaded through for RLS scoping. Both are
     // host-owned context, never guest input.
     let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
-        .with_idempotency_token("abc123def456");
-    let mut host = host;
-    host.security_context.email = Some("alice@example.com".to_string());
-    host.security_context.tenant_id = Some(fraiseql_core::types::TenantId::new("tenant-7"));
+        .with_idempotency_token("abc123def456")
+        .with_security_context(caller_identity(Some("alice@example.com"), Some("tenant-7")));
     let transport = Arc::new(RecordingTransport::default());
     let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
 
@@ -1091,8 +1145,8 @@ async fn test_send_email_threads_the_idempotency_token_as_send_id() {
 async fn test_send_email_without_idempotency_token_sends_uncorrelated() {
     // Zero-config (no HMAC secret → no token): the send still happens, just without
     // a VERP send-id or tenant scope.
-    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
-    host.security_context.email = Some("alice@example.com".to_string());
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_security_context(caller_identity(Some("alice@example.com"), None));
     let transport = Arc::new(RecordingTransport::default());
     let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
 
@@ -1112,8 +1166,9 @@ async fn test_send_email_without_idempotency_token_sends_uncorrelated() {
 
 #[tokio::test]
 async fn test_send_email_fails_closed_without_verified_identity() {
-    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
-    host.security_context.email = None; // no verified sending address
+    // An authenticated caller with no verified sending address.
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_security_context(caller_identity(None, None));
     let transport = Arc::new(RecordingTransport::default());
     let host = host.with_email(Arc::new(LoginEmailSender), transport.clone());
 
@@ -1134,8 +1189,8 @@ async fn test_send_email_fails_closed_without_verified_identity() {
 
 #[tokio::test]
 async fn test_send_email_transient_identity_failure_is_retryable() {
-    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
-    host.security_context.email = Some("alice@example.com".to_string());
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_security_context(caller_identity(Some("alice@example.com"), None));
     let transport = Arc::new(RecordingTransport::default());
     let host = host.with_email(Arc::new(TransientResolver), transport.clone());
 
@@ -1155,8 +1210,8 @@ async fn test_send_email_transient_identity_failure_is_retryable() {
 
 #[tokio::test]
 async fn test_send_email_unconfigured_fails_loud() {
-    let mut host = LiveHostContext::new(send_email_payload(), HostContextConfig::default());
-    host.security_context.email = Some("alice@example.com".to_string());
+    let host = LiveHostContext::new(send_email_payload(), HostContextConfig::default())
+        .with_security_context(caller_identity(Some("alice@example.com"), None));
     // No `.with_email(...)` → resolver + transport absent.
 
     let request = SendEmailRequest {

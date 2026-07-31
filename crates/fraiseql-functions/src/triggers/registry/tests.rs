@@ -81,6 +81,95 @@ fn test_parse_after_ingest_triggers() {
     );
 }
 
+// ── #842: an unrecognized operation token must fail the load, never widen ────
+
+/// Test: #842 — a typo'd/wrong-case/past-tense operation token is a load
+/// error, not a silent widening of the trigger to every event kind.
+#[test]
+fn test_registry_rejects_unknown_after_mutation_operation_token() {
+    for trigger in [
+        "after:mutation:User:created",
+        "after:mutation:User:INSERT",
+        "after:mutation:User:inserts",
+        "after:capture:User:updated",
+    ] {
+        let defs = vec![crate::FunctionDefinition::new(
+            "onUserCreated",
+            trigger,
+            crate::RuntimeType::Deno,
+        )];
+        let error = TriggerRegistry::load_from_definitions(&defs)
+            .expect_err(&format!("`{trigger}` must abort the load, not register all-kinds"));
+        assert!(
+            error.message.contains("onUserCreated") && error.message.contains("insert"),
+            "the error must name the function and the valid tokens, got: {}",
+            error.message
+        );
+    }
+}
+
+/// Test: #842 — the documented `after:mutation:<Entity>:*` wildcard keeps
+/// working (docs/examples advertise it; a naive strict reject would regress
+/// it) and fires on every event kind, exactly like the token-less form.
+#[test]
+fn test_registry_wildcard_operation_matches_every_event_kind() {
+    use crate::triggers::mutation::EventKind;
+
+    for trigger in ["after:mutation:User:*", "after:mutation:User"] {
+        let defs = vec![crate::FunctionDefinition::new(
+            "onAnyUserChange",
+            trigger,
+            crate::RuntimeType::Deno,
+        )];
+        let registry = TriggerRegistry::load_from_definitions(&defs)
+            .unwrap_or_else(|e| panic!("`{trigger}` must load: {e}"));
+        for kind in [EventKind::Insert, EventKind::Update, EventKind::Delete] {
+            assert_eq!(
+                registry.after_mutation_triggers.find("User", kind).len(),
+                1,
+                "`{trigger}` must fire on {kind:?}"
+            );
+        }
+    }
+}
+
+/// Test: #842 — a valid explicit token still narrows to exactly its kind.
+#[test]
+fn test_registry_explicit_operation_narrows_to_one_kind() {
+    use crate::triggers::mutation::EventKind;
+
+    let defs = vec![crate::FunctionDefinition::new(
+        "onUserInsert",
+        "after:mutation:User:insert",
+        crate::RuntimeType::Deno,
+    )];
+    let registry = TriggerRegistry::load_from_definitions(&defs).expect("valid token loads");
+    assert_eq!(registry.after_mutation_triggers.find("User", EventKind::Insert).len(), 1);
+    assert_eq!(registry.after_mutation_triggers.find("User", EventKind::Update).len(), 0);
+    assert_eq!(registry.after_mutation_triggers.find("User", EventKind::Delete).len(), 0);
+}
+
+/// #871 item 2: an `http:` trigger is accepted at load and never mounted — no
+/// server code consumes `http_routes`, and `POST /functions/v1/{name}`
+/// dispatches by function name, ignoring the trigger entirely. Until routes are
+/// actually mounted, a declared `http:` function must abort startup with the
+/// same loud error `after:storage` gets, not silently never serve.
+#[test]
+fn test_registry_rejects_unmounted_http_triggers() {
+    let defs = vec![crate::FunctionDefinition::new(
+        "avatarUpload",
+        "http:POST:/users/:id/avatar",
+        crate::RuntimeType::Deno,
+    )];
+    let error = TriggerRegistry::load_from_definitions(&defs)
+        .expect_err("an http: trigger must abort the load until routes are actually mounted");
+    assert!(
+        error.message.contains("avatarUpload") && error.message.contains("not"),
+        "the error names the function and says the surface is unavailable, got: {}",
+        error.message
+    );
+}
+
 #[test]
 fn test_registry_registers_ingest_triggers() {
     use crate::{FunctionDefinition, InboundMessage, IngestSource, RuntimeType};
@@ -134,30 +223,14 @@ fn test_registry_loads_multiple_triggers() {
     let functions = vec![
         FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
         FunctionDefinition::new("validateInput", "before:mutation:createUser", RuntimeType::Deno),
-        FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
+        FunctionDefinition::new("dailyReport", "cron:0 2 * * *", RuntimeType::Deno),
     ];
 
     let registry = TriggerRegistry::load_from_definitions(&functions).expect("load registry");
 
     assert_eq!(registry.function_count, 3);
     assert_eq!(registry.before_mutation_count(), 1);
-    assert_eq!(registry.http_route_count(), 1);
-}
-
-#[test]
-fn test_registry_finds_http_route() {
-    use crate::{FunctionDefinition, RuntimeType};
-
-    let functions = vec![
-        FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
-        FunctionDefinition::new("listUsers", "http:GET:/users", RuntimeType::Deno),
-    ];
-
-    let registry = TriggerRegistry::load_from_definitions(&functions).expect("load registry");
-
-    let route = registry.http_routes.find("GET", "/users/123");
-    assert!(route.is_some());
-    assert_eq!(route.expect("route found").function_name, "getUser");
+    assert_eq!(registry.cron_trigger_count(), 1);
 }
 
 #[test]

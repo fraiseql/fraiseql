@@ -24,7 +24,7 @@ use fraiseql_functions::{
         dyn_context::DynHostContext,
         live::{HostContextConfig, LiveHostContext, QueryExecutor},
     },
-    triggers::{CronExecutionState, CronSchedule},
+    triggers::{CronDecision, CronExecutionState, CronSchedule},
 };
 use fraiseql_observers::{
     DispatchSource, LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome,
@@ -61,6 +61,10 @@ pub struct SourcePoller {
     /// firing's host. A trait object so the lifecycle passes a `SourceQueryExecutor`
     /// while tests pass a stub.
     executor:        Arc<dyn QueryExecutor>,
+    /// The source's `run_as` identity (#803): a scheduled firing has no request
+    /// caller, so the host's `auth_context` reflects the source's own granted
+    /// authority — never an anonymous placeholder.
+    identity:        fraiseql_core::security::SecurityContext,
     /// The single-firing runner (advisory lease keyed on the source name).
     runner:          LeaseGuardedRunner,
     /// Host config (SSRF allowlist, timeouts) for the connector's outbound I/O.
@@ -98,6 +102,7 @@ impl SourcePoller {
         observer: Arc<FunctionObserver>,
         cursor_store: PostgresSourceCursorStore,
         executor: Arc<dyn QueryExecutor>,
+        identity: fraiseql_core::security::SecurityContext,
         runner: LeaseGuardedRunner,
         host_config: HostContextConfig,
         limits: ResourceLimits,
@@ -112,6 +117,7 @@ impl SourcePoller {
             observer,
             cursor_store,
             executor,
+            identity,
             runner,
             host_config,
             limits,
@@ -152,7 +158,10 @@ impl SourcePoller {
             LiveHostContext::new(payload, self.host_config.clone())
                 .with_source_cursor(self.cursor_name.clone(), self.cursor_store.clone())
                 .with_executor(Arc::clone(&self.executor))
-                .with_idempotency_token(idempotency_token.to_string()),
+                .with_idempotency_token(idempotency_token.to_string())
+                // #803: the host's auth_context reflects the source's own
+                // run_as identity (a scheduled firing has no request caller).
+                .with_security_context(self.identity.clone()),
         )
     }
 
@@ -254,8 +263,25 @@ impl SourcePoller {
         loop {
             ticker.tick().await;
             let now = Utc::now();
-            if !self.state.should_execute(&self.schedule, &now) {
-                continue;
+            match self.state.decide(&self.schedule, &now) {
+                CronDecision::Fire => {},
+                // The normal idle tick — the schedule is simply not due.
+                CronDecision::NotDue => continue,
+                // Never silent (#796): the window guard suppressing a matching
+                // tick is expected at most once per window.
+                CronDecision::AlreadyFired {
+                    window_start,
+                    last_executed,
+                } => {
+                    warn!(
+                        source = %self.source_name,
+                        schedule = %self.schedule.expression,
+                        %window_start,
+                        %last_executed,
+                        "source tick skipped — this window already fired"
+                    );
+                    continue;
+                },
             }
             self.state.record_execution(now);
             // `fire_once` owns the per-outcome metrics and structured logs.

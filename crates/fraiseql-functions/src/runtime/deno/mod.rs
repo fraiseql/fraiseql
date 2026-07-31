@@ -71,7 +71,9 @@ interface FraiseqlHttpResponse {
 interface FraiseqlHostOps {
   // Execute a GraphQL query/mutation. `variables` is a JSON string; returns a JSON string.
   fraiseql_query(graphql: string, variables: string): Promise<string>;
-  // Execute a raw SQL query. `params` is a JSON array string; returns a JSON array string.
+  // NOT IMPLEMENTED (#871): no execution backend is wired — every call throws
+  // (statements are classified read-only/rejected, never executed). Use
+  // `fraiseql_query` instead.
   fraiseql_sql_query(sql: string, params: string): Promise<string>;
   // Make an outbound HTTP request (SSRF-allowlisted by the host).
   fraiseql_http_request(
@@ -93,7 +95,9 @@ interface FraiseqlHostOps {
   fraiseql_send_email(request: string): Promise<string>;
   // The authenticated caller's context, as a JSON string.
   fraiseql_auth_context(): string;
-  // Read a host-allowlisted environment variable, or null.
+  // Read a host-allowlisted environment variable (granted via
+  // FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS / [sources] allowed_env_vars). A
+  // non-allowlisted name THROWS; null means allowlisted but unset (#840).
   fraiseql_env_var(name: string): string | null;
   // Per-dispatch idempotency token, or null on a non-durably-dispatched invocation.
   fraiseql_idempotency_token(): string | null;

@@ -273,6 +273,7 @@ mod durable_dispatch {
             idempotency_key,
             query_executor_factory: None,
             run_as: None,
+            caller: None,
         }
     }
 
@@ -449,7 +450,7 @@ mod dispatch_config {
     fn definition(name: &str, re_runnable: bool, retry: Option<RetryConfig>) -> FunctionDefinition {
         FunctionDefinition {
             name: name.to_string(),
-            trigger: format!("after:mutation:Entity:insert@{name}"),
+            trigger: "after:mutation:Entity:insert".to_string(),
             runtime: RuntimeType::Wasm,
             timeout_ms: None,
             run_as: None,
@@ -576,6 +577,7 @@ mod query_bridge_wiring {
             idempotency_key: None,
             query_executor_factory,
             run_as,
+            caller: None,
         }
     }
 
@@ -631,6 +633,173 @@ mod query_bridge_wiring {
         assert!(identity.has_role("order_writer"));
         assert!(identity.has_scope("write:order"));
         assert_eq!(identity.request_id, "tok-2", "identity correlates the dispatch token");
+    }
+
+    /// #840: the after:mutation host config has an env-var allowlist producer —
+    /// `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`, mirroring the sibling
+    /// `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` escape hatch.
+    #[test]
+    fn host_context_config_reads_the_env_var_allowlist() {
+        use super::super::host_context_config_from;
+
+        // No producer key set → deny-by-default (empty).
+        let config = host_context_config_from(|_| None);
+        assert!(config.allowed_env_vars.is_empty());
+
+        // Comma-split and trimmed.
+        let config = host_context_config_from(|key| {
+            (key == "FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS")
+                .then(|| " LLM_API_KEY, QONTO_API_KEY ".to_string())
+        });
+        assert!(config.allowed_env_vars.contains("LLM_API_KEY"));
+        assert!(config.allowed_env_vars.contains("QONTO_API_KEY"));
+        assert_eq!(config.allowed_env_vars.len(), 2);
+    }
+
+    // ── #803: the dispatched host's identity ─────────────────────────────────
+
+    /// #803: with no triggering caller, the dispatched host's `auth_context`
+    /// reflects the function's own `run_as` identity — never the pre-fix
+    /// hard-coded `anonymous` placeholder.
+    #[tokio::test]
+    async fn dispatched_host_auth_context_reflects_the_run_as_identity() {
+        let run_as = RunAs {
+            roles:  vec!["order_writer".to_string()],
+            scopes: vec!["write:order".to_string()],
+            tenant: Some("acme".to_string()),
+        };
+        let host = dispatcher(None, Some(run_as)).build_host("recordApproval", payload(), "tok-3");
+        let auth = host.auth_context().expect("auth context");
+        assert_eq!(auth["sub"], "system_job:recordApproval");
+        assert_eq!(auth["tenant_id"], "acme");
+        assert_eq!(auth["roles"][0], "order_writer");
+    }
+
+    /// #803: an after:mutation dispatch triggered by an authenticated request
+    /// surfaces THAT caller in `auth_context` (docs/architecture/functions.md:
+    /// "the caller's authenticated context") — while the query bridge keeps the
+    /// function's `run_as` ceiling.
+    #[tokio::test]
+    async fn dispatched_host_auth_context_prefers_the_triggering_caller() {
+        let caller = SecurityContext {
+            user_id:          fraiseql_core::types::UserId("user-42".to_string()),
+            roles:            vec!["sales_rep".to_string()],
+            scopes:           vec![],
+            tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-7")),
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: chrono::Utc::now(),
+            request_id:       "req-42".to_string(),
+            ip_address:       None,
+            attributes:       std::collections::HashMap::new(),
+            issuer:           None,
+            audience:         None,
+            email:            Some("rep@outreach.example".to_string()),
+            display_name:     Some("Sales Rep".to_string()),
+        };
+        let (factory, captured) = recording_factory();
+        let run_as = RunAs {
+            roles:  vec!["order_writer".to_string()],
+            scopes: vec![],
+            tenant: Some("acme".to_string()),
+        };
+        let mut dispatcher = dispatcher(Some(factory), Some(run_as));
+        dispatcher.caller = Some(caller);
+        let host = dispatcher.build_host("recordApproval", payload(), "tok-4");
+
+        // The host identity is the triggering caller…
+        let auth = host.auth_context().expect("auth context");
+        assert_eq!(auth["sub"], "user-42");
+        assert_eq!(auth["email"], "rep@outreach.example");
+        assert_eq!(auth["tenant_id"], "tenant-7");
+
+        // …while the query bridge stays under the function's run_as ceiling.
+        let _ = host.query("mutation { x }", serde_json::json!({})).await;
+        let identity = captured.lock().unwrap().clone().expect("identity captured");
+        assert_eq!(identity.user_id.0, "system_job:recordApproval");
+        assert!(identity.has_role("order_writer"));
+    }
+
+    /// #803: `send_email` succeeds on the dispatch path once the host carries
+    /// the triggering caller's verified identity — pre-fix it refused
+    /// unconditionally (the anonymous placeholder has no sending address), so
+    /// the whole `build_send_email_wiring` was dead on arrival.
+    #[tokio::test]
+    async fn dispatched_host_send_email_succeeds_for_an_authenticated_caller() {
+        use fraiseql_functions::{
+            LoginEmailSender, SendContext, SendEmailRequest, SendEmailResponse, SenderIdentity,
+        };
+
+        /// Records the sender + tenant the host resolved, returns success.
+        struct RecordingTransport {
+            seen: Arc<Mutex<Option<(SenderIdentity, Option<String>)>>>,
+        }
+        impl fraiseql_functions::EmailTransport for RecordingTransport {
+            fn send<'a>(
+                &'a self,
+                sender: &'a SenderIdentity,
+                _request: &'a SendEmailRequest,
+                context: SendContext<'a>,
+            ) -> fraiseql_functions::outbound::BoxFuture<
+                'a,
+                fraiseql_error::Result<SendEmailResponse>,
+            > {
+                let seen = Arc::clone(&self.seen);
+                let sender = sender.clone();
+                let tenant = context.tenant.map(ToString::to_string);
+                Box::pin(async move {
+                    *seen.lock().unwrap() = Some((sender, tenant));
+                    Ok(SendEmailResponse {
+                        accepted:   true,
+                        message_id: Some("msg-1".to_string()),
+                    })
+                })
+            }
+        }
+
+        let caller = SecurityContext {
+            user_id:          fraiseql_core::types::UserId("user-42".to_string()),
+            roles:            vec![],
+            scopes:           vec![],
+            tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-7")),
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: chrono::Utc::now(),
+            request_id:       "req-42".to_string(),
+            ip_address:       None,
+            attributes:       std::collections::HashMap::new(),
+            issuer:           None,
+            audience:         None,
+            email:            Some("rep@outreach.example".to_string()),
+            display_name:     Some("Sales Rep".to_string()),
+        };
+
+        let seen = Arc::new(Mutex::new(None));
+        let mut dispatcher = dispatcher(None, None);
+        dispatcher.sender_resolver = Some(Arc::new(LoginEmailSender));
+        dispatcher.email_transport = Some(Arc::new(RecordingTransport {
+            seen: Arc::clone(&seen),
+        }));
+        dispatcher.caller = Some(caller);
+        let host = dispatcher.build_host("followUp", payload(), "tok-5");
+
+        let response = host
+            .send_email(&SendEmailRequest {
+                to:       "prospect@example.com".to_string(),
+                subject:  "hello".to_string(),
+                text:     Some("world".to_string()),
+                html:     None,
+                reply_to: None,
+            })
+            .await
+            .expect("send_email succeeds for an authenticated caller with a verified address");
+        assert!(response.accepted);
+
+        let (sender, tenant) = seen.lock().unwrap().clone().expect("transport reached");
+        assert_eq!(sender.address, "rep@outreach.example", "the from is the caller's address");
+        assert_eq!(
+            tenant.as_deref(),
+            Some("tenant-7"),
+            "the send-status/suppression rows are scoped to the caller's tenant, not NULL"
+        );
     }
 
     #[tokio::test]

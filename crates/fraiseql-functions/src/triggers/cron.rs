@@ -164,14 +164,42 @@ impl CronSchedule {
         let hour = datetime.hour();
         let day = datetime.day();
         let month = datetime.month();
-        let weekday = datetime.weekday().number_from_sunday();
+        // POSIX cron weekdays are 0=Sunday..6=Saturday (#841 shipped
+        // `number_from_sunday()`, which is 1..=7, firing everything a day
+        // early and making `0` unmatchable). `7` is the POSIX alternate
+        // Sunday encoding, so a Sunday also matches a field containing 7.
+        let weekday = datetime.weekday().num_days_from_sunday();
+        let weekday_matches =
+            self.weekday.matches(weekday) || (weekday == 0 && self.weekday.matches(7));
 
         self.minute.matches(minute)
             && self.hour.matches(hour)
             && self.day.matches(day)
             && self.month.matches(month)
-            && self.weekday.matches(weekday)
+            && weekday_matches
     }
+}
+
+/// Why a tick did not fire — or that it should.
+///
+/// [`CronExecutionState::decide`] returns this so scheduling loops can log the
+/// reason for every skipped tick instead of silently `continue`-ing (#796: the
+/// inverted window guard suppressed every firing for months with no signal).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CronDecision {
+    /// The schedule matches and this window has not fired yet — execute.
+    Fire,
+    /// The schedule does not match this tick's minute (the normal idle tick).
+    NotDue,
+    /// The schedule matches but this window already fired (`last_executed >=
+    /// window_start`) — the dedup guard, expected at most once per window
+    /// (e.g. after a restart restores persisted state mid-window).
+    AlreadyFired {
+        /// Start of the window containing the tick (its minute, truncated).
+        window_start:  chrono::DateTime<chrono::Utc>,
+        /// When the window fired.
+        last_executed: chrono::DateTime<chrono::Utc>,
+    },
 }
 
 /// Execution state for a cron trigger (tracks last execution to prevent duplicates).
@@ -188,56 +216,86 @@ impl CronExecutionState {
         Self::default()
     }
 
+    /// Restore state from a persisted last-firing instant (the
+    /// `_fraiseql_cron_state` cross-restart guard): a restart inside an
+    /// already-fired window must not re-fire it.
+    #[must_use]
+    pub const fn resuming_from(last_executed: chrono::DateTime<chrono::Utc>) -> Self {
+        Self {
+            last_executed: Some(last_executed),
+        }
+    }
+
     /// Check if the trigger should execute at the given time.
     ///
-    /// Returns true if:
-    /// - Schedule matches the time
-    /// - No execution has occurred in this schedule window
+    /// Returns true iff [`decide`](Self::decide) says [`CronDecision::Fire`]:
+    /// the schedule matches `exec_time` and no execution has occurred in the
+    /// window containing it.
     #[must_use]
     pub fn should_execute(
         &self,
         schedule: &CronSchedule,
         exec_time: &chrono::DateTime<chrono::Utc>,
     ) -> bool {
+        self.decide(schedule, exec_time) == CronDecision::Fire
+    }
+
+    /// Decide whether the trigger fires at `exec_time`, with the reason when
+    /// it does not (so schedulers can log every skipped tick — see
+    /// [`CronDecision`]).
+    ///
+    /// The invariant: a window fires exactly once, and `last_executed` lies
+    /// inside a fired window — so the guard is `last_executed < window_start`,
+    /// never the reverse (#796 shipped the negation and every schedule fired
+    /// once, then never again).
+    #[must_use]
+    pub fn decide(
+        &self,
+        schedule: &CronSchedule,
+        exec_time: &chrono::DateTime<chrono::Utc>,
+    ) -> CronDecision {
         // Schedule must match the execution time
         if !schedule.matches(exec_time) {
-            return false;
+            return CronDecision::NotDue;
         }
 
         // If no prior execution, always execute
-        let Some(last_exec) = self.last_executed else {
-            return true;
+        let Some(last_executed) = self.last_executed else {
+            return CronDecision::Fire;
         };
 
-        // Find the start of the matching schedule window at exec_time
+        // The start of the window CONTAINING exec_time (not the previous one).
         let window_start = Self::find_schedule_window(schedule, exec_time);
 
-        // Don't execute if we already executed in this window
-        last_exec >= window_start
+        if last_executed < window_start {
+            CronDecision::Fire
+        } else {
+            CronDecision::AlreadyFired {
+                window_start,
+                last_executed,
+            }
+        }
     }
 
-    /// Find the start of the current schedule window for a given time.
+    /// Find the start of the schedule window **containing** the given time.
     ///
-    /// For example, if schedule is `"0 2 * * *"` (2 AM daily), the window for
-    /// 2024-03-15 02:30:00 starts at 2024-03-15 02:00:00.
+    /// Cron's resolution is one minute, so for a matching instant the window
+    /// start is that instant truncated to its minute: for `"0 2 * * *"` the
+    /// window for 2024-03-15 02:00:07.312 starts at 2024-03-15 02:00:00.
+    ///
+    /// Callers must pass a `time` the schedule matches (checked by
+    /// `debug_assert`); truncation never moves the instant across a minute
+    /// boundary, so the returned window start matches the schedule too.
     fn find_schedule_window(
         schedule: &CronSchedule,
         time: &chrono::DateTime<chrono::Utc>,
     ) -> chrono::DateTime<chrono::Utc> {
-        // Find the most recent time that matches the schedule at or before the given time
-        let mut current = *time;
-
-        // Go back minute by minute to find the matching window
-        for _ in 0..60 {
-            current -= chrono::Duration::minutes(1);
-            if schedule.matches(&current) {
-                // Found the start of the window
-                return current;
-            }
-        }
-
-        // Fallback: return time as-is if we don't find it (shouldn't happen)
-        *time
+        debug_assert!(
+            schedule.matches(time),
+            "find_schedule_window called for a non-matching instant"
+        );
+        // Truncating seconds + nanos to zero cannot fail.
+        time.with_second(0).and_then(|t| t.with_nanosecond(0)).unwrap_or(*time)
     }
 
     /// Record an execution at the given time.
@@ -399,8 +457,25 @@ async fn cron_scheduler_task(
                             continue;
                         }
                     };
-                    if !state.should_execute(&schedule, &now) {
-                        continue;
+                    match state.decide(&schedule, &now) {
+                        CronDecision::Fire => {},
+                        // The normal idle tick — the schedule is simply not due.
+                        CronDecision::NotDue => continue,
+                        // Never silent (#796): the window guard suppressing a
+                        // matching tick is expected at most once per window.
+                        CronDecision::AlreadyFired {
+                            window_start,
+                            last_executed,
+                        } => {
+                            tracing::warn!(
+                                function = %trigger.function_name,
+                                expression = %trigger.schedule,
+                                %window_start,
+                                %last_executed,
+                                "cron tick skipped — this window already fired"
+                            );
+                            continue;
+                        },
                     }
                     state.record_execution(now);
 

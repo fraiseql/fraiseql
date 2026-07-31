@@ -9,9 +9,6 @@ use crate::types::{EventPayload, LogEntry, LogLevel};
 #[cfg(feature = "host-live")]
 pub mod live;
 
-#[cfg(feature = "host-live")]
-pub mod factory;
-
 #[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
 pub mod dyn_context;
 

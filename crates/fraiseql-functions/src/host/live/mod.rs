@@ -2,7 +2,8 @@
 //!
 //! This module provides `LiveHostContext` which integrates with actual FraiseQL services:
 //! - GraphQL query execution via `fraiseql-core::Executor`
-//! - Raw SQL queries with RLS support via `fraiseql-db::DatabaseAdapter`
+//! - Raw SQL statement classification only — `sql_query` has **no execution backend** and fails
+//!   loud (#871); use the GraphQL bridge instead
 //! - HTTP requests with SSRF protection
 //! - Storage access with RLS checks
 //! - Auth context and environment variable access
@@ -95,8 +96,12 @@ pub struct LiveHostContext {
     /// Storage backend for file operations.
     pub storage_backend: Option<Arc<dyn storage::StorageBackend>>,
 
-    /// Security context for the authenticated user.
-    pub security_context: SecurityContext,
+    /// The identity this invocation runs as — the triggering caller's
+    /// authenticated context where one exists, else the function's `run_as`
+    /// identity. `None` → `auth_context()` and `send_email` fail loud (#803:
+    /// the pre-fix hard-coded anonymous placeholder made every dispatched
+    /// function see a fabricated identity, silently).
+    security_context: Option<SecurityContext>,
 
     /// Sender-identity resolver for `send_email` — resolves the host-owned `from`
     /// from the authenticated context. `None` → `send_email` is unconfigured and
@@ -140,7 +145,7 @@ impl LiveHostContext {
             query_executor: None,
             http_client: None,
             storage_backend: None,
-            security_context: Self::default_security_context(),
+            security_context: None,
             sender_resolver: None,
             email_transport: None,
             idempotency_token: None,
@@ -174,7 +179,7 @@ impl LiveHostContext {
             query_executor: None,
             http_client: Some(http_client),
             storage_backend: None,
-            security_context: Self::default_security_context(),
+            security_context: None,
             sender_resolver: None,
             email_transport: None,
             idempotency_token: None,
@@ -182,27 +187,17 @@ impl LiveHostContext {
         }
     }
 
-    /// Create a default security context for testing.
-    fn default_security_context() -> SecurityContext {
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
-
-        SecurityContext {
-            user_id:          fraiseql_core::types::UserId("anonymous".to_string()),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       std::collections::HashMap::new(),
-            request_id:       format!("req-{}", now),
-            ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(24),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
-        }
+    /// Wire the identity this invocation runs as (#803): the triggering
+    /// caller's authenticated context where one exists, else the function's
+    /// `run_as` identity. Every production dispatch path (durable dispatcher,
+    /// cron poller, source poller) must call this; without it,
+    /// [`auth_context`](HostContext::auth_context) and
+    /// [`send_email`](HostContext::send_email) fail loud rather than fabricate
+    /// an anonymous identity.
+    #[must_use]
+    pub fn with_security_context(mut self, security_context: SecurityContext) -> Self {
+        self.security_context = Some(security_context);
+        self
     }
 
     /// Get captured logs (for testing).
@@ -495,14 +490,33 @@ impl HostContext for LiveHostContext {
         // The per-dispatch context: the send-id is the host idempotency token (the
         // VERP correlation key + exactly-once dedup key); the tenant scopes the
         // send-status / suppression rows. Both are host-owned, never guest input.
+        // The identity is present here — `auth_context()` above failed loud
+        // otherwise — so the tenant stamp can never silently collapse to NULL
+        // for a tenant-scoped caller (#803 consequence 3).
         let context = crate::outbound::SendContext {
             send_id: self.idempotency_token.as_deref(),
-            tenant:  self.security_context.tenant_id.as_ref().map(|tenant| tenant.as_str()),
+            tenant:  self
+                .security_context
+                .as_ref()
+                .and_then(|ctx| ctx.tenant_id.as_ref())
+                .map(|tenant| tenant.as_str()),
         };
         transport.send(&sender, request, context).await
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {
+        // Fail loud when no identity was wired (#803) — a fabricated anonymous
+        // context is indistinguishable from a real unauthenticated caller and
+        // silently breaks everything downstream of it (role checks, tenant
+        // scoping, the per-user send policy).
+        let context = self.security_context.as_ref().ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "no security context is wired on this host: the dispatch path must \
+                          inject the caller's authenticated context or the function's run_as \
+                          identity via with_security_context"
+                    .to_string(),
+            }
+        })?;
         // Build auth context JSON from security context
         // Excludes sensitive fields like ip_address, raw tokens, etc.
         //
@@ -511,23 +525,36 @@ impl HostContext for LiveHostContext {
         // `crate::outbound::resolve_sender_identity`). They are `null` when the
         // authenticated identity carries none.
         Ok(serde_json::json!({
-            "sub": self.security_context.user_id,
-            "user_id": self.security_context.user_id, // Alias for convenience
-            "roles": self.security_context.roles,
-            "scopes": self.security_context.scopes,
-            "tenant_id": self.security_context.tenant_id,
-            "email": self.security_context.email,
-            "display_name": self.security_context.display_name,
-            "expires_at": self.security_context.expires_at.to_rfc3339(),
-            "authenticated_at": self.security_context.authenticated_at.to_rfc3339(),
+            "sub": context.user_id,
+            "user_id": context.user_id, // Alias for convenience
+            "roles": context.roles,
+            "scopes": context.scopes,
+            "tenant_id": context.tenant_id,
+            "email": context.email,
+            "display_name": context.display_name,
+            "expires_at": context.expires_at.to_rfc3339(),
+            "authenticated_at": context.authenticated_at.to_rfc3339(),
         }))
     }
 
     fn env_var(&self, name: &str) -> Result<Option<String>> {
+        // A blocked name is an Authorization refusal, never a silent null
+        // (#840): `Ok(None)` made "the allowlist refused you" indistinguishable
+        // from "the variable is unset", so a mis-scoped secret read failed with
+        // no diagnostic anywhere. `Ok(None)` is reserved for an allowlisted but
+        // genuinely absent variable.
         if self.config.allowed_env_vars.contains(name) {
             Ok(std::env::var(name).ok())
         } else {
-            Ok(None)
+            Err(fraiseql_error::FraiseQLError::Authorization {
+                message:  format!(
+                    "environment variable `{name}` is not on this function's allowlist \
+                     (grant it via FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS or [sources] \
+                     allowed_env_vars)"
+                ),
+                action:   Some("env_var".to_string()),
+                resource: Some(name.to_string()),
+            })
         }
     }
 

@@ -376,6 +376,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
+    // Preserve the caller for after:mutation dispatch (#803): the dispatched
+    // host's `auth_context` reflects the caller whose request triggered it.
+    #[cfg(feature = "functions-runtime")]
+    let dispatch_caller = security_context.clone();
     // Error propagation is deferred so the circuit-breaker outcome is recorded first.
     let exec_result = if let Some(sec_ctx) = security_context {
         executor.execute_with_security(&query, variables.as_ref(), &sec_ctx).await
@@ -505,6 +509,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                     hooks,
                     plans,
                     Some(query_executor_factory),
+                    dispatch_caller,
                 );
             }
         }

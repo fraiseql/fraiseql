@@ -8,7 +8,9 @@ interface logging {
 interface context {
     get-event-payload: func() -> string;  // JSON
     get-auth-context: func() -> result<string, string>;  // JSON or error
-    get-env-var: func(name: string) -> option<string>;
+    // A blocked (non-allowlisted) name is an error; ok(none) is an
+    // allowlisted but unset variable (#840).
+    get-env-var: func(name: string) -> result<option<string>, string>;
 }
 
 interface io {

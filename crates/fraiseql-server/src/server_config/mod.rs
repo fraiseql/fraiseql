@@ -741,6 +741,7 @@ pub struct ServerConfig {
 ///
 /// - `FRAISEQL_SOURCES_ENABLED` — global on/off (`false`/`0`/`no`/`off` disables).
 /// - `FRAISEQL_SOURCES_ALLOWED_DOMAINS` — comma-separated SSRF allowlist.
+/// - `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` — comma-separated env-var allowlist (#840).
 #[cfg(feature = "sources")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourcesConfig {
@@ -754,6 +755,12 @@ pub struct SourcesConfig {
     /// Deny-by-default: empty permits no outbound host.
     #[serde(default)]
     pub allowed_domains: Vec<String>,
+
+    /// Environment variables source connectors may read via `fraiseql_env_var`
+    /// (#840). Deny-by-default: empty grants no variable. Overridable by
+    /// `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (comma-separated).
+    #[serde(default)]
+    pub allowed_env_vars: Vec<String>,
 
     /// Log each firing's trigger payload at debug (default: `false`).
     ///
@@ -769,9 +776,10 @@ pub struct SourcesConfig {
 impl Default for SourcesConfig {
     fn default() -> Self {
         Self {
-            enabled:         true,
-            allowed_domains: Vec::new(),
-            log_payloads:    false,
+            enabled:          true,
+            allowed_domains:  Vec::new(),
+            allowed_env_vars: Vec::new(),
+            log_payloads:     false,
         }
     }
 }

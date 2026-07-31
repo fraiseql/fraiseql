@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     FunctionDefinition,
     triggers::{
-        http::{HttpTriggerMatcher, HttpTriggerRoute},
         ingest::{InboundMessage, IngestSource, IngestTrigger},
         mutation::{AfterMutationTrigger, BeforeMutationTrigger, TriggerMatcher},
     },
@@ -214,8 +213,6 @@ pub struct TriggerRegistry {
     pub after_capture_triggers:   TriggerMatcher,
     /// Before-mutation triggers indexed by mutation name.
     pub before_mutation_triggers: Vec<BeforeMutationTrigger>,
-    /// HTTP trigger routes indexed by method and path.
-    pub http_routes:              HttpTriggerMatcher,
     /// Cron-scheduled triggers.
     pub cron_triggers:            Vec<crate::triggers::cron::CronTrigger>,
     /// `after:ingest` triggers for inbound-message ingestion.
@@ -229,6 +226,33 @@ impl TriggerRegistry {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Resolve an `after:mutation` / `after:capture` operation token into an
+    /// event filter, failing loud on anything unrecognized (#842).
+    ///
+    /// `None` and the documented `*` wildcard mean "every event kind"; the only
+    /// narrowing tokens are exactly `insert` / `update` / `delete`. Anything
+    /// else (`created`, `INSERT`, a typo) used to collapse to `None` via
+    /// `and_then`, silently widening the trigger to all kinds — a welcome-email
+    /// function declared for `:created` also fired on every delete.
+    fn resolve_event_filter(
+        function_name: &str,
+        trigger: &str,
+        operation: Option<&str>,
+    ) -> Result<Option<crate::EventKind>, RegistryError> {
+        match operation {
+            None | Some("*") => Ok(None),
+            Some("insert") => Ok(Some(crate::EventKind::Insert)),
+            Some("update") => Ok(Some(crate::EventKind::Update)),
+            Some("delete") => Ok(Some(crate::EventKind::Delete)),
+            Some(other) => Err(RegistryError {
+                message: format!(
+                    "function `{function_name}` trigger `{trigger}`: unknown operation \
+                     `{other}` (expected `insert`, `update`, `delete`, or `*` for all)"
+                ),
+            }),
+        }
     }
 
     /// Load triggers from function definitions.
@@ -249,29 +273,31 @@ impl TriggerRegistry {
                     entity_type,
                     operation,
                 } => {
+                    // #842: an unrecognized token is a load error, never a
+                    // silent widening to every event kind.
+                    let event_filter = Self::resolve_event_filter(
+                        &func.name,
+                        &func.trigger,
+                        operation.as_deref(),
+                    )?;
                     // #597: validate each `when` predicate against the trigger's
                     // operation at load — `changed_to` is UPDATE-only, exactly one
                     // operator per predicate, unknown keys already rejected by
-                    // `deny_unknown_fields` on `TriggerPredicate`.
+                    // `deny_unknown_fields` on `TriggerPredicate`. The `*`
+                    // wildcard means "all kinds", like the token-less form.
+                    let canonical_op = operation.as_deref().filter(|&op| op != "*");
                     for predicate in &func.when {
-                        predicate.validate(operation.as_deref()).map_err(|message| {
-                            RegistryError {
-                                message: format!(
-                                    "function `{}` trigger `{}`: {message}",
-                                    func.name, func.trigger
-                                ),
-                            }
+                        predicate.validate(canonical_op).map_err(|message| RegistryError {
+                            message: format!(
+                                "function `{}` trigger `{}`: {message}",
+                                func.name, func.trigger
+                            ),
                         })?;
                     }
                     let trigger = AfterMutationTrigger {
                         function_name: func.name.clone(),
                         entity_type,
-                        event_filter: operation.as_ref().and_then(|op| match op.as_str() {
-                            "insert" => Some(crate::EventKind::Insert),
-                            "update" => Some(crate::EventKind::Update),
-                            "delete" => Some(crate::EventKind::Delete),
-                            _ => None,
-                        }),
+                        event_filter,
                         predicates: func.when.clone(),
                     };
                     registry.after_mutation_triggers.add(trigger);
@@ -280,26 +306,26 @@ impl TriggerRegistry {
                     entity_type,
                     operation,
                 } => {
+                    // #842: same loud rejection as after:mutation.
+                    let event_filter = Self::resolve_event_filter(
+                        &func.name,
+                        &func.trigger,
+                        operation.as_deref(),
+                    )?;
                     // #366: same `when` validation as after:mutation.
+                    let canonical_op = operation.as_deref().filter(|&op| op != "*");
                     for predicate in &func.when {
-                        predicate.validate(operation.as_deref()).map_err(|message| {
-                            RegistryError {
-                                message: format!(
-                                    "function `{}` trigger `{}`: {message}",
-                                    func.name, func.trigger
-                                ),
-                            }
+                        predicate.validate(canonical_op).map_err(|message| RegistryError {
+                            message: format!(
+                                "function `{}` trigger `{}`: {message}",
+                                func.name, func.trigger
+                            ),
                         })?;
                     }
                     let trigger = AfterMutationTrigger {
                         function_name: func.name.clone(),
                         entity_type,
-                        event_filter: operation.as_ref().and_then(|op| match op.as_str() {
-                            "insert" => Some(crate::EventKind::Insert),
-                            "update" => Some(crate::EventKind::Update),
-                            "delete" => Some(crate::EventKind::Delete),
-                            _ => None,
-                        }),
+                        event_filter,
                         predicates: func.when.clone(),
                     };
                     registry.after_capture_triggers.add(trigger);
@@ -311,14 +337,21 @@ impl TriggerRegistry {
                     };
                     registry.before_mutation_triggers.push(trigger);
                 },
-                ParsedTrigger::Http { method, path } => {
-                    let route = HttpTriggerRoute {
-                        function_name: func.name.clone(),
-                        method,
-                        path,
-                        requires_auth: false,
-                    };
-                    registry.http_routes.add(route);
+                ParsedTrigger::Http { .. } => {
+                    // #871 item 2: `http_routes` has no consumer — no server
+                    // code mounts the matcher, and `POST /functions/v1/{name}`
+                    // dispatches by function name, ignoring the trigger. A
+                    // declared function that can never serve is a
+                    // misconfiguration; fail loud like `after:storage` until
+                    // routes are actually mounted.
+                    return Err(RegistryError {
+                        message: format!(
+                            "function `{}` trigger `{}`: http triggers are not mounted by the \
+                             server (the declared route would never serve); invoke the function \
+                             via POST /functions/v1/{} instead",
+                            func.name, func.trigger, func.name
+                        ),
+                    });
                 },
                 ParsedTrigger::AfterStorage {
                     bucket: _,
@@ -413,24 +446,6 @@ impl TriggerRegistry {
         } else {
             Some(crate::triggers::cron::CronScheduler::new(self.cron_triggers.clone()))
         }
-    }
-
-    /// Get the number of HTTP routes.
-    #[must_use]
-    pub fn http_route_count(&self) -> usize {
-        self.http_routes.routes().len()
-    }
-
-    /// Get all HTTP routes.
-    #[must_use]
-    pub fn http_routes(&self) -> &[HttpTriggerRoute] {
-        self.http_routes.routes()
-    }
-
-    /// Find an HTTP route by method and path.
-    #[must_use]
-    pub fn find_http_route(&self, method: &str, path: &str) -> Option<HttpTriggerRoute> {
-        self.http_routes.find(method, path)
     }
 
     /// Get all before:mutation triggers for a specific mutation.

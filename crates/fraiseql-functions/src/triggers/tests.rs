@@ -875,12 +875,21 @@ fn test_cron_trigger_should_execute_first_time() {
 }
 
 /// Test: cron trigger prevents duplicate execution in same window
+///
+/// Rewritten for #796: the original asserted at 02:05, which `"0 2 * * *"`
+/// does not even match — the test returned early at the schedule check and
+/// never exercised the window guard it was named after. The window of a
+/// one-minute-resolution schedule is its matching minute, so the duplicate
+/// probe must land in that same minute — and the reason must be the guard
+/// ([`CronDecision::AlreadyFired`]), not `NotDue`.
 #[test]
 fn test_cron_trigger_prevents_duplicate_in_window() {
+    use crate::triggers::cron::CronDecision;
+
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:03+00:00")
         .expect("parse")
         .with_timezone(&chrono::Utc);
 
@@ -888,12 +897,29 @@ fn test_cron_trigger_prevents_duplicate_in_window() {
     assert!(state.should_execute(&schedule, &exec_time));
     state.record_execution(exec_time);
 
-    // Same window (2:05 is still in the 2 AM hour) should NOT execute again
-    let within_window = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:05:00+00:00")
+    // A second tick inside the same 02:00 window must be suppressed BY THE
+    // WINDOW GUARD (not by the schedule simply not matching).
+    let within_window = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:52+00:00")
         .expect("parse")
         .with_timezone(&chrono::Utc);
 
-    assert!(!state.should_execute(&schedule, &within_window));
+    match state.decide(&schedule, &within_window) {
+        CronDecision::AlreadyFired {
+            window_start,
+            last_executed,
+        } => {
+            assert_eq!(window_start.to_rfc3339(), "2024-03-15T02:00:00+00:00");
+            assert_eq!(last_executed, exec_time);
+        },
+        other => panic!("expected AlreadyFired, got {other:?}"),
+    }
+
+    // 02:05 is NOT a duplicate-in-window case: the schedule does not match it
+    // at all (this is the early return the pre-fix test mistook for the guard).
+    let not_due = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:05:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert_eq!(state.decide(&schedule, &not_due), CronDecision::NotDue);
 }
 
 /// Test: cron trigger allows execution in next window
@@ -914,6 +940,243 @@ fn test_cron_trigger_allows_next_window() {
         .expect("parse")
         .with_timezone(&chrono::Utc);
     assert!(state.should_execute(&schedule, &time_300));
+}
+
+// ── #796: the fire-window guard under wall-clock-shaped timestamps ────────────
+//
+// The pre-fix tests all used timestamps with zero seconds, where
+// `window_start == last_exec` exactly — the one shape the inverted guard
+// happened to answer correctly. Everything below drives `should_execute`
+// through the exact `run_forever` tick shape: one tick per minute, each with
+// non-zero sub-second jitter.
+
+/// Deterministic xorshift jitter so the simulation is reproducible per seed.
+fn next_jitter_micros(rng: &mut u64) -> i64 {
+    *rng ^= *rng << 13;
+    *rng ^= *rng >> 7;
+    *rng ^= *rng << 17;
+    i64::try_from(*rng % 1_000_000).expect("micros < 1e6 fits i64")
+}
+
+/// Replay `CronPoller::run_forever`'s tick loop: one tick per simulated minute
+/// with sub-second jitter, `record_execution` only when `should_execute` says
+/// fire. Returns `(fires, expected)` where `expected` is the number of
+/// tick-minutes the schedule matches (computed from `CronSchedule::matches` on
+/// the jitter-free minute, so this measures ONLY the window logic).
+fn simulate_cron_fires(
+    expr: &str,
+    start: chrono::DateTime<chrono::Utc>,
+    ticks: usize,
+    seed: u64,
+) -> (usize, usize) {
+    let schedule = CronSchedule::parse(expr).expect("parse cron");
+    let mut state = CronExecutionState::new();
+    let mut rng = seed.max(1);
+    let mut fires = 0;
+    let mut expected = 0;
+    for n in 0..ticks {
+        let minute = start + chrono::Duration::minutes(i64::try_from(n).expect("tick fits i64"));
+        if schedule.matches(&minute) {
+            expected += 1;
+        }
+        let now = minute + chrono::Duration::microseconds(next_jitter_micros(&mut rng));
+        if state.should_execute(&schedule, &now) {
+            state.record_execution(now);
+            fires += 1;
+        }
+    }
+    (fires, expected)
+}
+
+/// Test: #796 — every schedule shape fires exactly once per matching window
+/// across thousands of jittered ticks (the issue's simulator, ported).
+#[test]
+fn test_cron_fires_exactly_once_per_window_under_wall_clock_jitter() {
+    let start = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    // 20 000 minutes ≈ 13.9 days: enough for 14 daily windows and 2 weekly ones.
+    for expr in [
+        "* * * * *",
+        "*/5 * * * *",
+        "0 * * * *",
+        "0 2 * * *",
+        "0 3 * * 1",
+    ] {
+        for seed in [1_u64, 42, 20_260_101] {
+            let (fires, expected) = simulate_cron_fires(expr, start, 20_000, seed);
+            assert_eq!(
+                fires, expected,
+                "`{expr}` (seed {seed}): fired {fires} times across 20000 jittered ticks, \
+                 expected exactly one fire per matching window = {expected}"
+            );
+        }
+    }
+}
+
+/// Test: #796 — a daily schedule fires again the next day even though the
+/// tick timestamps carry differing sub-second jitter (the deterministic,
+/// jitter-independent failure: `find_schedule_window` finds no match in the
+/// preceding 60 minutes and falls back to `exec_time` itself).
+#[test]
+fn test_cron_daily_schedule_fires_on_consecutive_days_with_jitter() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    let day1 = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.312+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &day1), "first firing");
+    state.record_execution(day1);
+
+    let day2 = chrono::DateTime::parse_from_rfc3339("2026-03-02T02:00:07.905+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        state.should_execute(&schedule, &day2),
+        "a new day is a new window: yesterday's firing must not suppress today's"
+    );
+}
+
+/// Test: #796 — a minutely schedule fires on the next minute even when the
+/// current tick's jitter exceeds the previous tick's (the inverted guard
+/// fired iff `ε_prev >= ε_now`, so increasing jitter wedged the schedule).
+#[test]
+fn test_cron_minutely_schedule_fires_next_minute_when_jitter_increases() {
+    let schedule = CronSchedule::parse("* * * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    let tick1 = chrono::DateTime::parse_from_rfc3339("2026-03-01T12:00:00.100+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &tick1));
+    state.record_execution(tick1);
+
+    let tick2 = chrono::DateTime::parse_from_rfc3339("2026-03-01T12:01:00.900+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        state.should_execute(&schedule, &tick2),
+        "12:01 is a new window regardless of sub-second jitter ordering"
+    );
+}
+
+/// Test: a second tick landing inside the SAME window (same matching minute,
+/// non-zero seconds on both) must not fire twice.
+///
+/// Green at RED, justified: the pre-fix code also answered "skip" here (via
+/// the 60-minute-scan fallback, for the wrong reason). This test guards the
+/// FIX against over-firing — with `last_exec < window_start` the second tick
+/// compares 02:00:41 against the 02:00:00 window start and stays suppressed.
+#[test]
+fn test_cron_does_not_double_fire_within_one_window_with_nonzero_seconds() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    let first = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.300+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &first));
+    state.record_execution(first);
+
+    let again = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:41.900+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        !state.should_execute(&schedule, &again),
+        "02:00:41 is the same 02:00 window — already fired"
+    );
+}
+
+/// Test: #796 — a window opening more than 60 minutes after the last firing
+/// still fires (the pre-fix backward scan gave up after 60 minutes and fell
+/// back to `exec_time`, wedging every schedule sparser than hourly).
+#[test]
+fn test_cron_fires_after_gap_longer_than_an_hour() {
+    let schedule = CronSchedule::parse("0 */3 * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    let first = chrono::DateTime::parse_from_rfc3339("2026-03-01T03:00:30.500+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &first));
+    state.record_execution(first);
+
+    let three_hours_later = chrono::DateTime::parse_from_rfc3339("2026-03-01T06:00:10.200+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        state.should_execute(&schedule, &three_hours_later),
+        "06:00 is a new window three hours after the 03:00 firing"
+    );
+}
+
+// ── #841: day-of-week matching against a known calendar week ─────────────────
+//
+// 2026-08-02 is a Sunday; 2026-08-03..08 are Monday..Saturday. POSIX cron
+// encodes Sunday as 0 (7 also accepted); the pre-fix code compared against
+// `number_from_sunday()` (Sun=1..Sat=7), shifting every weekday schedule one
+// day early and making `0` unmatchable.
+
+/// 09:00 UTC on 2026-08-`day` (2..=8 spans Sunday..Saturday).
+fn august_2026_at_nine(day: u32) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::parse_from_rfc3339(&format!("2026-08-{day:02}T09:00:00+00:00"))
+        .expect("parse")
+        .with_timezone(&chrono::Utc)
+}
+
+/// Test: #841 — each weekday token 0..=6 matches exactly its own POSIX day.
+#[test]
+fn test_cron_weekday_tokens_match_posix_days() {
+    // (token, matching calendar day in 2026-08): 0=Sun(2nd) .. 6=Sat(8th).
+    for (token, matching_day) in [(0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (5, 7), (6, 8)] {
+        let schedule =
+            CronSchedule::parse(&format!("0 9 * * {token}")).expect("parse weekday cron");
+        for day in 2..=8_u32 {
+            let time = august_2026_at_nine(day);
+            assert_eq!(
+                schedule.matches(&time),
+                day == matching_day,
+                "`0 9 * * {token}` on 2026-08-{day:02} ({})",
+                time.format("%A")
+            );
+        }
+    }
+}
+
+/// Test: #841 — `7` is the POSIX alternate Sunday encoding.
+#[test]
+fn test_cron_weekday_seven_is_sunday() {
+    let schedule = CronSchedule::parse("0 9 * * 7").expect("parse weekday cron");
+    assert!(schedule.matches(&august_2026_at_nine(2)), "7 must match Sunday");
+    for day in 3..=8_u32 {
+        assert!(!schedule.matches(&august_2026_at_nine(day)), "7 must match only Sunday");
+    }
+}
+
+/// Test: #841 — `1-5` (the Mon–Fri idiom) fires Monday through Friday, not
+/// Sunday through Thursday.
+#[test]
+fn test_cron_weekday_range_mon_to_fri() {
+    let schedule = CronSchedule::parse("0 9 * * 1-5").expect("parse weekday cron");
+    let expectations = [
+        (2_u32, false), // Sunday
+        (3, true),      // Monday
+        (4, true),      // Tuesday
+        (5, true),      // Wednesday
+        (6, true),      // Thursday
+        (7, true),      // Friday
+        (8, false),     // Saturday
+    ];
+    for (day, expected) in expectations {
+        let time = august_2026_at_nine(day);
+        assert_eq!(
+            schedule.matches(&time),
+            expected,
+            "`0 9 * * 1-5` on 2026-08-{day:02} ({})",
+            time.format("%A")
+        );
+    }
 }
 
 /// Test: cron trigger catches up on missed executions
