@@ -439,6 +439,144 @@ export default async (event) => {
     // When fully implemented, should be Timeout error
 }
 
+/// #804: a host whose `http_request` is genuinely pending (awaits a timer), so
+/// the guest's continuation after `await` provably resumes inside
+/// `run_event_loop`, not during `execute_script`'s microtask drain.
+#[allow(dead_code)] // Reason: constructed only by the #[tokio::test] harness build
+struct PendingOpHost {
+    event: EventPayload,
+}
+
+impl crate::host::dyn_context::DynHostContext for PendingOpHost {
+    fn query(
+        &self,
+        _graphql: &str,
+        _variables: serde_json::Value,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<serde_json::Value>> {
+        Box::pin(async { Ok(serde_json::Value::Null) })
+    }
+
+    fn sql_query(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<Vec<serde_json::Value>>>
+    {
+        Box::pin(async { Ok(vec![]) })
+    }
+
+    fn http_request(
+        &self,
+        _method: &str,
+        _url: &str,
+        _headers: &[(String, String)],
+        _body: Option<&[u8]>,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<crate::host::HttpResponse>>
+    {
+        Box::pin(async {
+            // Genuinely pending: the promise resolves via the event loop.
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            Ok(crate::host::HttpResponse {
+                status:  200,
+                headers: vec![],
+                body:    b"{}".to_vec(),
+            })
+        })
+    }
+
+    fn storage_get(
+        &self,
+        _bucket: &str,
+        _key: &str,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<Vec<u8>>> {
+        Box::pin(async { Ok(vec![]) })
+    }
+
+    fn storage_put(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _body: &[u8],
+        _content_type: &str,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn send_email<'a>(
+        &'a self,
+        _request: &'a crate::outbound::SendEmailRequest,
+    ) -> crate::host::dyn_context::BoxFuture<
+        'a,
+        fraiseql_error::Result<crate::outbound::SendEmailResponse>,
+    > {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "not configured".to_string(),
+            })
+        })
+    }
+
+    fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
+        Ok(serde_json::json!({}))
+    }
+
+    fn env_var(&self, _name: &str) -> fraiseql_error::Result<Option<String>> {
+        Ok(None)
+    }
+
+    fn event_payload(&self) -> &EventPayload {
+        &self.event
+    }
+
+    fn log(&self, _level: crate::types::LogLevel, _message: &str) {}
+}
+
+/// #804: a guest that spins *after* awaiting a real async host op must still be
+/// terminated at `max_duration`. Pre-fix, `watchdog_done` was stored `true`
+/// immediately after `execute_script` returned — before `run_event_loop` ran —
+/// so the continuation's `while (true) {}` had no armed watchdog, the
+/// event-loop `tokio::time::timeout` future was never polled again, and the
+/// executor thread + isolate wedged at 100% CPU forever.
+#[tokio::test]
+async fn test_deno_sync_spin_after_await_times_out() {
+    let source = r#"
+export default async (event) => {
+    try { await Deno.core.ops.fraiseql_http_request("GET", "http://pending.test/", [], null); } catch (e) {}
+    while (true) {}
+};
+"#
+    .to_string();
+
+    let module =
+        FunctionModule::from_source("spin_after_await".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 128 * 1024 * 1024,
+        max_duration:     std::time::Duration::from_millis(200),
+        max_log_entries:  10_000,
+    };
+
+    let host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext> =
+        std::sync::Arc::new(PendingOpHost {
+            event: event.clone(),
+        });
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        runtime.invoke_with_context(&module, event, host, limits),
+    )
+    .await;
+
+    let inner = result.expect("executor hung past 25x max_duration — the watchdog is disarmed");
+    let error = inner.expect_err("a spinning guest must be a timeout error, not a result");
+    assert!(
+        error.to_string().to_lowercase().contains("timeout"),
+        "expected a timeout classification, got: {error}"
+    );
+}
+
 // Cycle 3: Deno Host Ops (Structured Logging)
 
 #[tokio::test]

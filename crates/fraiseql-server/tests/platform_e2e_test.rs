@@ -181,15 +181,13 @@ fn test_platform_e2e_all_trigger_types_coexist() {
         FunctionDefinition::new("onUserCreated", "after:mutation:User:insert", RuntimeType::Deno),
         FunctionDefinition::new("validateUser", "before:mutation:createUser", RuntimeType::Deno),
         FunctionDefinition::new("dailyReport", "cron:0 2 * * *", RuntimeType::Deno),
-        FunctionDefinition::new("getMetrics", "http:GET:/functions/v1/metrics", RuntimeType::Deno),
     ];
 
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
 
-    assert_eq!(registry.function_count, 4);
+    assert_eq!(registry.function_count, 3);
     assert_eq!(registry.before_mutation_count(), 1);
     assert_eq!(registry.cron_trigger_count(), 1);
-    assert_eq!(registry.http_route_count(), 1);
 
     // Cron scheduler builds from cron triggers only
     let scheduler = registry.cron_scheduler().unwrap();

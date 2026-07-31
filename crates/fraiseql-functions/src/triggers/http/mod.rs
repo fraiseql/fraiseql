@@ -1,11 +1,15 @@
 //! HTTP triggers: Custom HTTP endpoints backed by functions.
 //!
-//! HTTP triggers mount custom endpoints on the FraiseQL server that invoke
-//! functions to handle requests and generate responses.
+//! **NOT MOUNTED (#871):** no server code consumes this matcher today, so a
+//! declared `http:` trigger is **rejected at registry load** (a declared route
+//! that would silently never serve is a misconfiguration). Functions remain
+//! invocable by name via `POST /functions/v1/{name}`. The types below are the
+//! building blocks for a future mounted surface (which will also need an
+//! auth story per ADR-0018 and ambiguous-route rejection).
 //!
-//! ## Routing
+//! ## Routing (design, not yet served)
 //!
-//! Routes are mounted under `/functions/v1/` prefix:
+//! Routes would mount under the `/functions/v1/` prefix:
 //! - `GET /functions/v1/users/:id` → `http:GET:/users/:id`
 //! - `POST /functions/v1/process` → `http:POST:/process`
 //!

@@ -39,9 +39,11 @@ fn sources_enabled_from(config: &SourcesConfig, get: impl Fn(&str) -> Option<Str
     }
 }
 
-/// The host config for source connectors: the SSRF allowlist from
-/// `FRAISEQL_SOURCES_ALLOWED_DOMAINS` (comma-separated) overriding `[sources]
-/// allowed_domains`, deny-by-default.
+/// The host config for source connectors, deny-by-default.
+///
+/// The SSRF allowlist comes from `FRAISEQL_SOURCES_ALLOWED_DOMAINS` and the
+/// env-var allowlist from `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (both
+/// comma-separated), each overriding its `[sources]` config key.
 #[must_use]
 pub fn source_host_config(config: &SourcesConfig) -> HostContextConfig {
     source_host_config_from(config, |key| std::env::var(key).ok())
@@ -60,8 +62,21 @@ fn source_host_config_from(
             .collect(),
         None => config.allowed_domains.clone(),
     };
+    // #840: the env-var allowlist producer — without one, `allowed_env_vars`
+    // was empty in every shipped process and the documented `fraiseql_env_var`
+    // capability could never return a value.
+    let allowed_env_vars = match get("FRAISEQL_SOURCES_ALLOWED_ENV_VARS") {
+        Some(value) => value
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(String::from)
+            .collect(),
+        None => config.allowed_env_vars.iter().cloned().collect(),
+    };
     HostContextConfig {
         allowed_domains,
+        allowed_env_vars,
         ..HostContextConfig::default()
     }
 }
@@ -134,7 +149,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
             // request-id correlates the source in the audit envelope.
             let identity = source.identity(source.name.as_str());
             let query_executor: Arc<dyn QueryExecutor> =
-                Arc::new(SourceQueryExecutor::new(Arc::clone(executor), identity));
+                Arc::new(SourceQueryExecutor::new(Arc::clone(executor), identity.clone()));
             SourcePoller::new(
                 source.name.clone(),
                 // The declared `cursor` override, falling back to the source name. Keeps the
@@ -146,6 +161,7 @@ pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
                 Arc::clone(&hooks.observer),
                 PostgresSourceCursorStore::new(db_pool.clone()),
                 query_executor,
+                identity,
                 LeaseGuardedRunner::postgres(db_pool.clone(), source.name.clone()),
                 host_config.clone(),
                 limits.clone(),

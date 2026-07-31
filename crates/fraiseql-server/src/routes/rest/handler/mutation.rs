@@ -45,7 +45,12 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
     /// spawned tasks and never affect the response. This is a no-op in a build
     /// without `functions-runtime`.
     #[cfg(feature = "functions-runtime")]
-    fn dispatch_after_mutation(&self, mutation_name: &str, result: &serde_json::Value) {
+    fn dispatch_after_mutation(
+        &self,
+        mutation_name: &str,
+        result: &serde_json::Value,
+        caller: Option<&SecurityContext>,
+    ) {
         if let Some(hooks) = self.function_hooks {
             let plans = crate::routes::after_mutation::plan_after_mutation_dispatch(
                 hooks,
@@ -68,6 +73,9 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
                     hooks,
                     plans,
                     Some(query_executor_factory),
+                    // #803: the dispatched host reflects the caller whose
+                    // request triggered the mutation.
+                    caller.cloned(),
                 );
             }
         }
@@ -76,7 +84,13 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
     /// No-op after:mutation dispatch when the function runtime is not compiled in.
     #[cfg(not(feature = "functions-runtime"))]
     #[allow(clippy::unused_self)] // Reason: mirrors the gated signature
-    const fn dispatch_after_mutation(&self, _mutation_name: &str, _result: &serde_json::Value) {}
+    const fn dispatch_after_mutation(
+        &self,
+        _mutation_name: &str,
+        _result: &serde_json::Value,
+        _caller: Option<&SecurityContext>,
+    ) {
+    }
 
     /// Handle a POST request (create mutation, bulk insert, or custom action).
     ///
@@ -198,7 +212,7 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
 
         // After-mutation triggers (#460): dispatch on the declared mutation name
         // (not the upsert override) so the entity type and DML verb resolve.
-        self.dispatch_after_mutation(mutation_name, &result);
+        self.dispatch_after_mutation(mutation_name, &result, security_context);
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
@@ -321,7 +335,7 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
             execute_mutation(self.executor, mutation_name, vars_ref, security_context).await?;
 
         // After-mutation triggers (#460): fire-and-forget once the update commits.
-        self.dispatch_after_mutation(mutation_name, &result);
+        self.dispatch_after_mutation(mutation_name, &result, security_context);
 
         let mut response_headers = HeaderMap::new();
         set_request_id(headers, &mut response_headers);
@@ -400,7 +414,7 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
                         .await?;
 
                 // After-mutation triggers (#460): fire-and-forget once the patch commits.
-                self.dispatch_after_mutation(mutation_name, &result);
+                self.dispatch_after_mutation(mutation_name, &result, security_context);
 
                 let mut response_headers = HeaderMap::new();
                 set_request_id(headers, &mut response_headers);
@@ -486,7 +500,7 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
                         .await?;
 
                 // After-mutation triggers (#460): fire-and-forget once the delete commits.
-                self.dispatch_after_mutation(mutation_name, &result);
+                self.dispatch_after_mutation(mutation_name, &result, security_context);
 
                 let prefer = PreferHeader::from_headers(headers);
                 let mut response_headers = HeaderMap::new();

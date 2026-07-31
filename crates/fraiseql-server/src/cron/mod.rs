@@ -29,7 +29,7 @@ use fraiseql_functions::{
         dyn_context::DynHostContext,
         live::{HostContextConfig, LiveHostContext, QueryExecutor},
     },
-    triggers::{CronExecutionState, CronSchedule, CronTrigger},
+    triggers::{CronDecision, CronExecutionState, CronSchedule, CronTrigger},
 };
 use fraiseql_observers::{
     DispatchSource, LeaseGuardedRunner, RunOutcome, derive_idempotency_token,
@@ -62,6 +62,49 @@ impl PgCronState {
             .execute(&self.pool)
             .await
             .map(|_| ())
+    }
+
+    /// Read back the last recorded firing for one `(function, expression)` pair.
+    ///
+    /// `None` when the function has never fired (or its expression changed —
+    /// stale state for a different schedule must not suppress the new one).
+    ///
+    /// # Errors
+    ///
+    /// Returns the sqlx error if the read fails.
+    pub async fn load_last_fired(
+        &self,
+        function_name: &str,
+        cron_expr: &str,
+    ) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT last_fired_at FROM _fraiseql_cron_state \
+             WHERE function_name = $1 AND cron_expr = $2",
+        )
+        .bind(function_name)
+        .bind(cron_expr)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Rebuild the in-memory fire-window state from the durable record — the
+    /// documented cross-restart "already fired this window" guard (#796: the
+    /// table was written on every firing and never read back, so a restart
+    /// inside a fired window re-fired it).
+    ///
+    /// # Errors
+    ///
+    /// Returns the sqlx error if the read fails. Callers must treat that as
+    /// fatal at boot: a guard that cannot load its state is not a guard.
+    pub async fn resume_state(
+        &self,
+        function_name: &str,
+        cron_expr: &str,
+    ) -> Result<CronExecutionState, sqlx::Error> {
+        Ok(self
+            .load_last_fired(function_name, cron_expr)
+            .await?
+            .map_or_else(CronExecutionState::new, CronExecutionState::resuming_from))
     }
 
     /// Record one firing: upsert `last_fired_at` and bump `fire_count`.
@@ -108,6 +151,10 @@ pub struct CronPoller {
     observer:        Arc<FunctionObserver>,
     /// The `fraiseql_query` bridge under the function's `run_as` identity (#594).
     executor:        Arc<dyn QueryExecutor>,
+    /// The function's `run_as` identity (#803): a cron firing has no request
+    /// caller, so the host's `auth_context` reflects the function's own
+    /// granted authority — never an anonymous placeholder.
+    identity:        fraiseql_core::security::SecurityContext,
     /// The single-firing runner (advisory lease keyed on `cron:<function>`).
     runner:          LeaseGuardedRunner,
     /// Durable fire record.
@@ -136,11 +183,13 @@ impl CronPoller {
         module: FunctionModule,
         observer: Arc<FunctionObserver>,
         executor: Arc<dyn QueryExecutor>,
+        identity: fraiseql_core::security::SecurityContext,
         runner: LeaseGuardedRunner,
         cron_state: PgCronState,
         host_config: HostContextConfig,
         limits: ResourceLimits,
         idempotency_key: Option<Arc<[u8]>>,
+        initial_state: CronExecutionState,
     ) -> Self {
         Self {
             function_name: trigger.function_name.clone(),
@@ -149,12 +198,13 @@ impl CronPoller {
             module,
             observer,
             executor,
+            identity,
             runner,
             cron_state,
             host_config,
             limits,
             idempotency_key,
-            state: CronExecutionState::new(),
+            state: initial_state,
         }
     }
 
@@ -182,7 +232,10 @@ impl CronPoller {
         Arc::new(
             LiveHostContext::new(payload, self.host_config.clone())
                 .with_executor(Arc::clone(&self.executor))
-                .with_idempotency_token(idempotency_token.to_string()),
+                .with_idempotency_token(idempotency_token.to_string())
+                // #803: the host's auth_context reflects the function's own
+                // run_as identity (a cron firing has no request caller).
+                .with_security_context(self.identity.clone()),
         )
     }
 
@@ -289,8 +342,25 @@ impl CronPoller {
         loop {
             ticker.tick().await;
             let now = Utc::now();
-            if !self.state.should_execute(&self.schedule, &now) {
-                continue;
+            match self.state.decide(&self.schedule, &now) {
+                CronDecision::Fire => {},
+                // The normal idle tick — the schedule is simply not due.
+                CronDecision::NotDue => continue,
+                // Never silent (#796): the window guard suppressing a matching
+                // tick is expected at most once per window (restart mid-window).
+                CronDecision::AlreadyFired {
+                    window_start,
+                    last_executed,
+                } => {
+                    warn!(
+                        function = %self.function_name,
+                        schedule = %self.cron_expr,
+                        %window_start,
+                        %last_executed,
+                        "cron tick skipped — this window already fired"
+                    );
+                    continue;
+                },
             }
             self.state.record_execution(now);
             let _ = self.fire_once(now).await;
@@ -305,62 +375,75 @@ impl CronPoller {
 /// replicas on a PostgreSQL advisory lease keyed on the function name. A cron trigger
 /// whose module never loaded, or whose expression does not parse, is skipped with a
 /// warning. The `_fraiseql_cron_state` table must already be initialized
-/// ([`PgCronState::init`]).
-pub fn build_cron_pollers<A>(
+/// ([`PgCronState::init`]); each poller's fire-window state is **read back** from it
+/// ([`PgCronState::resume_state`]) so a restart inside an already-fired window does
+/// not re-fire it (#796).
+///
+/// # Errors
+///
+/// Returns the sqlx error if reading `_fraiseql_cron_state` fails — fatal at boot: a
+/// cross-restart guard that cannot load its state is not a guard.
+pub async fn build_cron_pollers<A>(
     db_pool: &sqlx::PgPool,
     executor: &Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor<A>>>,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,
-) -> Vec<CronPoller>
+) -> Result<Vec<CronPoller>, sqlx::Error>
 where
     A: fraiseql_core::db::traits::DatabaseAdapter + Send + Sync + 'static,
 {
     let cron_state = PgCronState::new(db_pool.clone());
-    hooks
-        .trigger_registry
-        .cron_triggers
-        .iter()
-        .filter_map(|trigger| {
-            let schedule = match CronSchedule::parse(&trigger.schedule) {
-                Ok(schedule) => schedule,
-                Err(error) => {
-                    warn!(
-                        function = %trigger.function_name,
-                        expression = %trigger.schedule,
-                        %error,
-                        "invalid cron schedule — skipping function"
-                    );
-                    return None;
-                },
-            };
-            let module = hooks.module_registry.get(&trigger.function_name)?.clone();
+    let mut pollers = Vec::new();
+    for trigger in &hooks.trigger_registry.cron_triggers {
+        let schedule = match CronSchedule::parse(&trigger.schedule) {
+            Ok(schedule) => schedule,
+            Err(error) => {
+                warn!(
+                    function = %trigger.function_name,
+                    expression = %trigger.schedule,
+                    %error,
+                    "invalid cron schedule — skipping function"
+                );
+                continue;
+            },
+        };
+        let Some(module) = hooks.module_registry.get(&trigger.function_name).cloned() else {
+            continue;
+        };
 
-            // The function's mutations run under its `run_as` ceiling (fail-closed
-            // when absent); the request-id correlates the function in the audit
-            // envelope, matching the sources pattern.
-            let run_as = hooks.run_as.get(&trigger.function_name).cloned().unwrap_or_default();
-            let identity = run_as.identity(&trigger.function_name, &trigger.function_name);
-            let query_executor: Arc<dyn QueryExecutor> =
-                Arc::new(RunAsQueryExecutor::new(Arc::clone(executor), identity));
+        // The function's mutations run under its `run_as` ceiling (fail-closed
+        // when absent); the request-id correlates the function in the audit
+        // envelope, matching the sources pattern.
+        let run_as = hooks.run_as.get(&trigger.function_name).cloned().unwrap_or_default();
+        let identity = run_as.identity(&trigger.function_name, &trigger.function_name);
+        let query_executor: Arc<dyn QueryExecutor> =
+            Arc::new(RunAsQueryExecutor::new(Arc::clone(executor), identity.clone()));
 
-            Some(CronPoller::new(
-                trigger,
-                schedule,
-                module,
-                Arc::clone(&hooks.observer),
-                query_executor,
-                LeaseGuardedRunner::postgres(
-                    db_pool.clone(),
-                    format!("cron:{}", trigger.function_name),
-                ),
-                cron_state.clone(),
-                host_config.clone(),
-                limits.clone(),
-                hooks.idempotency_key.clone(),
-            ))
-        })
-        .collect()
+        // The cross-restart guard: resume this function's window state from the
+        // durable record before the first tick.
+        let initial_state =
+            cron_state.resume_state(&trigger.function_name, &trigger.schedule).await?;
+
+        pollers.push(CronPoller::new(
+            trigger,
+            schedule,
+            module,
+            Arc::clone(&hooks.observer),
+            query_executor,
+            identity,
+            LeaseGuardedRunner::postgres(
+                db_pool.clone(),
+                format!("cron:{}", trigger.function_name),
+            ),
+            cron_state.clone(),
+            host_config.clone(),
+            limits.clone(),
+            hooks.idempotency_key.clone(),
+            initial_state,
+        ));
+    }
+    Ok(pollers)
 }
 
 #[cfg(test)]

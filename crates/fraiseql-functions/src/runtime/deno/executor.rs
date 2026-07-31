@@ -232,16 +232,23 @@ pub fn run_in_dedicated_thread(
         // *synchronous* loops (`while (true) {}`) that never yield to the async
         // event loop, so the `tokio::time::timeout` below cannot fire. The handle
         // is thread-safe (Send + Sync) and may be invoked from any thread.
+        //
+        // ONE deadline covers the whole invocation — script evaluation AND the
+        // event loop. The watchdog must stay armed across `run_event_loop`
+        // (#804): a guest that `await`s a real host op resumes *inside* the
+        // event loop, and a synchronous spin there never yields to tokio, so
+        // the `tokio::time::timeout` future is never polled and only this
+        // thread can terminate the isolate.
+        let invocation_deadline = std::time::Instant::now() + max_duration;
         let isolate_handle = js_runtime.v8_isolate().thread_safe_handle();
         let watchdog_done = Arc::new(AtomicBool::new(false));
         let watchdog_done_thread = Arc::clone(&watchdog_done);
         let timed_out_watchdog = Arc::clone(&timed_out_run);
         let watchdog = std::thread::spawn(move || {
-            // Poll so we can exit promptly once the script finishes, without
+            // Poll so we can exit promptly once the invocation finishes, without
             // waiting out the full deadline.
-            let deadline = std::time::Instant::now() + max_duration;
             let poll = std::time::Duration::from_millis(10);
-            while std::time::Instant::now() < deadline {
+            while std::time::Instant::now() < invocation_deadline {
                 if watchdog_done_thread.load(Ordering::Acquire) {
                     return;
                 }
@@ -281,23 +288,33 @@ pub fn run_in_dedicated_thread(
             }
         };
 
-        // Execute the wrapped script
+        // Execute the wrapped script. The watchdog stays ARMED past this point
+        // (#804): the guest's continuations after `await` run inside
+        // `run_event_loop` below, and a synchronous spin there is only
+        // stoppable by the watchdog's `terminate_execution`.
         let exec_outcome = js_runtime.execute_script("<fraiseql-function>", wrapped);
 
-        // Stop the watchdog as soon as the (possibly terminating) script returns.
-        watchdog_done.store(true, Ordering::Release);
-
         if let Err(e) = exec_outcome {
+            // Stop and reap the watchdog before returning.
+            watchdog_done.store(true, Ordering::Release);
+            let _ = watchdog.join();
             return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
         }
 
-        // Drive the event loop to resolve Promises from async functions.
-        // Enforce the max_duration timeout to prevent infinite hangs.
+        // Drive the event loop to resolve Promises from async functions. The
+        // tokio timeout covers *async idle* hangs (a pending promise that never
+        // resolves — no JS running, so `terminate_execution` has nothing to
+        // terminate); the still-armed watchdog covers *synchronous* spins that
+        // never yield back to tokio. Both share the single invocation budget.
         let loop_outcome = tokio::time::timeout(
-            max_duration,
+            invocation_deadline.saturating_duration_since(std::time::Instant::now()),
             js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()),
         )
         .await;
+
+        // The event loop is done (or timed out): stop and reap the watchdog.
+        watchdog_done.store(true, Ordering::Release);
+        let _ = watchdog.join();
 
         match loop_outcome {
             Err(_) => {
@@ -308,10 +325,6 @@ pub fn run_in_dedicated_thread(
             },
             Ok(Ok(())) => {},
         }
-
-        // Script and event loop finished cleanly: stop and reap the watchdog.
-        watchdog_done.store(true, Ordering::Release);
-        let _ = watchdog.join();
 
         // Retrieve the result stored in globalThis.__fraiseql_result
         let result_global = js_runtime

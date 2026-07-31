@@ -48,14 +48,12 @@ fn schedulable_is_empty_when_nothing_qualifies() {
 #[test]
 fn enabled_resolves_env_over_config() {
     let on = SourcesConfig {
-        enabled:         true,
-        allowed_domains: vec![],
-        log_payloads:    false,
+        enabled: true,
+        ..SourcesConfig::default()
     };
     let off = SourcesConfig {
-        enabled:         false,
-        allowed_domains: vec![],
-        log_payloads:    false,
+        enabled: false,
+        ..SourcesConfig::default()
     };
 
     // No env → the config value.
@@ -72,22 +70,57 @@ fn enabled_resolves_env_over_config() {
 #[test]
 fn host_config_allowlist_resolves_env_over_config() {
     let config = SourcesConfig {
-        enabled:         true,
+        enabled: true,
         allowed_domains: vec!["from-toml.example".to_string()],
-        log_payloads:    false,
+        ..SourcesConfig::default()
     };
 
     // No env → the config allowlist.
     let host = source_host_config_from(&config, |_| None);
     assert_eq!(host.allowed_domains, vec!["from-toml.example".to_string()]);
 
-    // Env overrides, comma-split and trimmed.
-    let host = source_host_config_from(&config, |_| Some(" a.example, b.example ".to_string()));
+    // Env overrides, comma-split and trimmed (key-aware: only the domains key).
+    let host = source_host_config_from(&config, |key| {
+        (key == "FRAISEQL_SOURCES_ALLOWED_DOMAINS").then(|| " a.example, b.example ".to_string())
+    });
     assert_eq!(host.allowed_domains, vec!["a.example".to_string(), "b.example".to_string()]);
 
     // Deny-by-default when neither is set.
     let empty = SourcesConfig::default();
     assert!(source_host_config_from(&empty, |_| None).allowed_domains.is_empty());
+}
+
+/// #840: the env-var allowlist has a producer — `[sources] allowed_env_vars`
+/// with a `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` override — where before nothing
+/// in any shipped code path populated it (deny-by-default degenerated to
+/// deny-always while the docs advertised granting secrets).
+#[test]
+fn host_config_env_var_allowlist_resolves_env_over_config() {
+    let config = SourcesConfig {
+        enabled: true,
+        allowed_env_vars: vec!["QONTO_API_KEY".to_string()],
+        ..SourcesConfig::default()
+    };
+
+    // No env → the config allowlist.
+    let host = source_host_config_from(&config, |_| None);
+    assert!(host.allowed_env_vars.contains("QONTO_API_KEY"));
+
+    // Env overrides, comma-split and trimmed.
+    let host = source_host_config_from(&config, |key| {
+        (key == "FRAISEQL_SOURCES_ALLOWED_ENV_VARS")
+            .then(|| " LLM_API_KEY, MAIL_API_KEY ".to_string())
+    });
+    assert!(host.allowed_env_vars.contains("LLM_API_KEY"));
+    assert!(host.allowed_env_vars.contains("MAIL_API_KEY"));
+    assert!(!host.allowed_env_vars.contains("QONTO_API_KEY"), "env replaces, not merges");
+
+    // Deny-by-default when neither is set.
+    assert!(
+        source_host_config_from(&SourcesConfig::default(), |_| None)
+            .allowed_env_vars
+            .is_empty()
+    );
 }
 
 // ===========================================================================

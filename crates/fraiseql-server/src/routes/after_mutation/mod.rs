@@ -513,6 +513,12 @@ struct DurableDispatcher {
     /// under an anonymous `system_job` identity and RLS/field-authz deny writes.
     /// Resolved per-plan from the function definition at spawn time.
     run_as:                 Option<fraiseql_functions::RunAs>,
+    /// The authenticated caller whose request triggered this dispatch (#803).
+    /// `Some` on the request-driven after:mutation path; `None` on background
+    /// paths (after:ingest, after:capture). The dispatched host's
+    /// `auth_context` reflects this caller where present, else the function's
+    /// `run_as` identity — never a fabricated anonymous placeholder.
+    caller:                 Option<fraiseql_core::security::SecurityContext>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -558,9 +564,22 @@ impl DurableDispatcher {
         payload: EventPayload,
         idempotency_token: &str,
     ) -> fraiseql_functions::host::live::LiveHostContext {
+        // The function's own background identity: its `run_as` ceiling, minted
+        // as `system_job:<function>` (fail-closed when no ceiling is declared).
+        let run_as_identity = self
+            .run_as
+            .clone()
+            .unwrap_or_default()
+            .identity(function_name, idempotency_token);
+        // The host identity (#803): the triggering caller where one exists —
+        // `auth_context()` is documented as "the caller's authenticated
+        // context", and the per-user send policy binds `from` to it — else the
+        // function's run_as identity. Never an anonymous placeholder.
+        let host_identity = self.caller.clone().unwrap_or_else(|| run_as_identity.clone());
         let mut live =
             fraiseql_functions::host::live::LiveHostContext::new(payload, self.host_config.clone())
-                .with_idempotency_token(idempotency_token);
+                .with_idempotency_token(idempotency_token)
+                .with_security_context(host_identity);
         // Enable `send_email` (host-owned `from` + transport) when both are wired.
         if let (Some(resolver), Some(transport)) =
             (self.sender_resolver.as_ref(), self.email_transport.as_ref())
@@ -569,15 +588,10 @@ impl DurableDispatcher {
                 live.with_email(std::sync::Arc::clone(resolver), std::sync::Arc::clone(transport));
         }
         // #594: wire the `fraiseql_query` bridge under this function's `run_as`
-        // ceiling. The request-path `run_as` executor is the same seam scheduled
-        // sources use; an absent ceiling is fail-closed (anonymous system_job).
+        // ceiling — NOT the caller. Function writes stay audited as
+        // `system_job:<function>` and can never exceed the declared ceiling.
         if let Some(factory) = self.query_executor_factory.as_ref() {
-            let identity = self
-                .run_as
-                .clone()
-                .unwrap_or_default()
-                .identity(function_name, idempotency_token);
-            live = live.with_executor(factory(identity));
+            live = live.with_executor(factory(run_as_identity));
         }
         live
     }
@@ -740,12 +754,14 @@ pub fn spawn_after_mutation(
     hooks: &BeforeMutationHooks,
     plans: Vec<AfterMutationDispatch>,
     query_executor_factory: Option<QueryExecutorFactory>,
+    caller: Option<fraiseql_core::security::SecurityContext>,
 ) {
     spawn_dispatch(
         hooks,
         plans,
         fraiseql_observers::DispatchSource::AfterMutation,
         query_executor_factory,
+        caller,
     );
 }
 
@@ -769,11 +785,14 @@ pub fn spawn_after_ingest(
     plans: Vec<AfterMutationDispatch>,
     query_executor_factory: Option<QueryExecutorFactory>,
 ) {
+    // Background path — no triggering caller; the host runs as the function's
+    // `run_as` identity (#803).
     spawn_dispatch(
         hooks,
         plans,
         fraiseql_observers::DispatchSource::AfterIngest,
         query_executor_factory,
+        None,
     );
 }
 
@@ -791,11 +810,14 @@ pub fn spawn_after_capture(
     plans: Vec<AfterMutationDispatch>,
     query_executor_factory: Option<QueryExecutorFactory>,
 ) {
+    // Background path — an externally-captured write has no request caller; the
+    // host runs as the function's `run_as` identity (#803).
     spawn_dispatch(
         hooks,
         plans,
         fraiseql_observers::DispatchSource::AfterCapture,
         query_executor_factory,
+        None,
     );
 }
 
@@ -811,6 +833,7 @@ fn spawn_dispatch(
     plans: Vec<AfterMutationDispatch>,
     source: fraiseql_observers::DispatchSource,
     query_executor_factory: Option<QueryExecutorFactory>,
+    caller: Option<fraiseql_core::security::SecurityContext>,
 ) {
     let dispatcher = DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
@@ -824,6 +847,7 @@ fn spawn_dispatch(
         query_executor_factory,
         // Set per-plan below from the function's definition.
         run_as: None,
+        caller,
     };
 
     for plan in plans {
@@ -840,15 +864,35 @@ fn spawn_dispatch(
 ///
 /// Outbound HTTP is deny-by-default; the SSRF allowlist is sourced from the
 /// comma-separated `FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS` environment variable so
-/// production can grant outbound access without recompiling the schema.
+/// production can grant outbound access without recompiling the schema. The
+/// env-var allowlist (#840) comes from `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`
+/// the same way — without a producer, `fraiseql_env_var` could never return a
+/// value on any deployment.
 #[cfg(feature = "functions-runtime")]
 pub fn host_context_config() -> fraiseql_functions::host::live::HostContextConfig {
+    host_context_config_from(|key| std::env::var(key).ok())
+}
+
+/// [`host_context_config`] with an injected env getter (testable without
+/// touching process-global environment state).
+#[cfg(feature = "functions-runtime")]
+fn host_context_config_from(
+    get: impl Fn(&str) -> Option<String>,
+) -> fraiseql_functions::host::live::HostContextConfig {
     let mut config = fraiseql_functions::host::live::HostContextConfig::default();
-    if let Ok(domains) = std::env::var("FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS") {
+    if let Some(domains) = get("FRAISEQL_FUNCTIONS_ALLOWED_DOMAINS") {
         config.allowed_domains = domains
             .split(',')
             .map(str::trim)
             .filter(|domain| !domain.is_empty())
+            .map(String::from)
+            .collect();
+    }
+    if let Some(names) = get("FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS") {
+        config.allowed_env_vars = names
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
             .map(String::from)
             .collect();
     }

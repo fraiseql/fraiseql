@@ -678,6 +678,15 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// is local-only, excluded here by name (embedded V8 SIGSEGVs in the exec
 		// sandbox), like the functions runtime-deno tests.
 		"cargo test -p fraiseql-server --features sources --lib sources:: -- --skip fires_a_model_b_connector_end_to_end --test-threads=1",
+		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
+		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
+		// back `_fraiseql_cron_state`), and the dispatched host's identity /
+		// send_email / env-allowlist wiring (`routes::after_mutation::tests`).
+		// These are feature-gated on functions-runtime, which serverTestFeatures
+		// deliberately omits — so before this line NO leg executed them.
+		// (The #804 watchdog test is runtime-deno and stays local-only:
+		// embedded V8 SIGSEGVs in the exec sandbox, see parity-notes.md.)
+		"cargo test -p fraiseql-server --features functions-runtime --lib -- cron:: routes::after_mutation:: --test-threads=1",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the

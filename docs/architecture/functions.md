@@ -116,7 +116,12 @@ The host surface (`HostContext`) exposes:
   A function with no `run_as` can *read* only what an anonymous principal can and
   can *write* nothing (fail-closed).
 - `storage_get` / `storage_put` — object storage.
-- `env_var` — read allowlisted secrets/config.
+- `env_var` — read allowlisted secrets/config (granted via
+  `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`, or `[sources] allowed_env_vars` /
+  `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` for sources). A non-allowlisted name is a
+  loud authorization error, never a silent `null`.
+- `sql_query` — **not implemented**: statements are classified but never
+  executed; every call fails loud. Use `query` instead.
 - `auth_context` — the caller's authenticated context (RLS-aware execution).
 - `log` — structured logging captured into the function result.
 
@@ -203,9 +208,10 @@ the structured logs. Emitted per background dispatch:
 
 **Trigger kinds not metered here.** `before:mutation` runs synchronously in the
 request (its outcome is the mutation's own success/failure, already on the GraphQL/HTTP
-metrics); `http` edge functions return to their caller and are metered by the HTTP
-layer; `after:storage` has no runtime dispatch path yet. None is a background dispatch,
-so none is a `fraiseql_function_dispatches_total` row.
+metrics); `http` triggers are **rejected at load** (no route mounting exists yet, so a
+declared `http:` function would silently never serve — #871); `after:storage` has no
+runtime dispatch path yet and is likewise rejected at load. None is a background
+dispatch, so none is a `fraiseql_function_dispatches_total` row.
 
 **Structured logs** — a dead-letter logs at `error` with the `function`, `attempts`,
 and the per-dispatch `idempotency_token`, so an alert traces to the exact dispatch

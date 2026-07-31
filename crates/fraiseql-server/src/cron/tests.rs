@@ -49,6 +49,66 @@ async fn pg_cron_state_records_and_increments_fire_count() {
 }
 
 #[tokio::test]
+async fn cron_state_read_back_after_restart_suppresses_refire_in_same_window() {
+    use fraiseql_functions::triggers::{CronDecision, CronSchedule};
+
+    let Some(pool) = pool().await else {
+        eprintln!("skipping #796 cron-state loader test: no DATABASE_URL");
+        return;
+    };
+    let state = PgCronState::new(pool.clone());
+    state.init().await.expect("cron state DDL");
+
+    let function = format!("resume_test_{}", std::process::id());
+    let expr = "0 2 * * *";
+    let schedule = CronSchedule::parse(expr).expect("parse cron");
+
+    // The process fired at 02:00:07.312 and recorded it durably.
+    let fired_at = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.312+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    state.record_fire(&function, expr, fired_at).await.expect("record fire");
+
+    // A restart rebuilds its in-memory window state from `_fraiseql_cron_state`
+    // (pre-fix: `PgCronState` had `record_fire` and no loader, so the documented
+    // cross-restart guard read nothing back).
+    let resumed = state.resume_state(&function, expr).await.expect("resume state");
+
+    // A tick later in the SAME window must be suppressed by the window guard…
+    let same_window = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:41.900+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        matches!(resumed.decide(&schedule, &same_window), CronDecision::AlreadyFired { .. }),
+        "restart inside an already-fired window must not re-fire it"
+    );
+
+    // …and the NEXT window must fire.
+    let next_window = chrono::DateTime::parse_from_rfc3339("2026-03-02T02:00:11.500+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(
+        matches!(resumed.decide(&schedule, &next_window), CronDecision::Fire),
+        "the next day's window fires normally after a restart"
+    );
+
+    // A function with no persisted row resumes with a clean state.
+    let fresh = state
+        .resume_state(&format!("{function}_never_fired"), expr)
+        .await
+        .expect("resume state for unfired function");
+    assert!(
+        matches!(fresh.decide(&schedule, &next_window), CronDecision::Fire),
+        "no persisted firing ⇒ the first matching window fires"
+    );
+
+    let _ = sqlx::query("DELETE FROM _fraiseql_cron_state WHERE function_name = $1")
+        .bind(&function)
+        .execute(&pool)
+        .await;
+}
+
+#[tokio::test]
 async fn two_replicas_single_fire_under_the_advisory_lease() {
     let Some(pool) = pool().await else {
         eprintln!("skipping #595 cron-lease test: no DATABASE_URL");

@@ -32,10 +32,12 @@ impl Guest for GuestFullBridge {
         };
         results.push(auth_result);
 
-        // 4. Read an env var
+        // 4. Read an env var — a blocked name is an error (#840), distinct
+        // from an allowlisted-but-unset one (ok(none)).
         let env_result = match context::get_env_var("FRAISEQL_TEST_VAR") {
-            Some(val) => format!(r#""env_var":{{"found":true,"value":"{}"}}"#, val),
-            None => r#""env_var":{"found":false}"#.to_string(),
+            Ok(Some(val)) => format!(r#""env_var":{{"found":true,"value":"{}"}}"#, val),
+            Ok(None) => r#""env_var":{"found":false}"#.to_string(),
+            Err(e) => format!(r#""env_var":{{"blocked":true,"error":"{}"}}"#, e),
         };
         results.push(env_result);
 
